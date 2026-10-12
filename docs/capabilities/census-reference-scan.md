@@ -41,8 +41,9 @@ dependency and report first-party code that copies it.
 - A reference copy is a `COPY` for a job homed in that reference package, and an
   unclassified finding otherwise.
 
-The census runs `cargo metadata` as a subprocess with `--locked` semantics: it does
-not update `Cargo.lock` and does not fetch a package that is not already resolved.
+The census runs `cargo metadata` as a subprocess with `--frozen`: it does not
+update `Cargo.lock`, and it makes no network access, so it cannot fetch a package
+that is not already downloaded.
 
 ## Usage
 
@@ -84,7 +85,8 @@ REFERENCE-COPY  src/iri.rs:12  demo::iri::parse_iri  matches acme_core::iri::par
   clone repositories or download archives.
 - Only Rust source is compared.
 - A reference package whose source is not available locally, such as a registry
-  package that was not downloaded, makes the scan fail with the package name.
+  package that was not downloaded, makes the scan fail with the package name, with
+  no network access.
 - Reference packages are not subject to `min_tokens` overrides of their own.
 
 ## Explanation
@@ -104,3 +106,5 @@ stale.
 - A fixture naming a package outside the dependency graph fails with that name.
 - A fixture shows reference code produces no groups among first-party code.
 - A fixture shows the scan does not modify `Cargo.lock`.
+- A fixture with a registry reference package that is not downloaded shows the scan
+  fails naming the package, with no network access.

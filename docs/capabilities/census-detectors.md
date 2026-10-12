@@ -29,27 +29,33 @@ The census ships 14 built-in detectors. Each reports hits as `rule:<id>`, where
 `<id>` is the detector id, and a ledger job names the hit in
 `forbidden.fingerprints`.
 
-| Id | Meaning |
-| --- | --- |
-| `std-default-hasher` | A std `HashMap` or `HashSet` left on its random default hasher. |
-| `hex-format-loop` | A `{:02x}` or `{:02X}` format inside a loop or closure. |
-| `hex-pair-radix` | `u8::from_str_radix(_, 16)` used to decode a hex pair. |
-| `hex-table` | A hex-digit table written by hand, outside the job's home package. |
-| `hex-digit-radix` | A single hex digit decoded through a radix conversion. |
-| `home-literal` | A string literal equal to one the home item's own bodies spell, outside the home item. |
-| `sole-name` | A function inside the home crate that a `names` pattern matches, other than the home or an entry point. |
-| `vocabulary-literal` | A string literal equal to or starting with a namespace constant declared under the job's home and entry-point modules, outside those modules. |
-| `json-pointer-escape` | Hand-written escaping of `~` and `/` for a JSON Pointer. |
-| `length-prefix-frame` | A hand-written length-prefixed frame read or write. |
-| `le-slice-int` | An integer assembled from a little-endian byte slice by hand. |
-| `align-up-mask` | Alignment rounding written as an add-and-mask. |
-| `div-ceil-by-hand` | Ceiling division written as an add-and-divide instead of `div_ceil`. |
-| `xor-first-mismatch` | A first-mismatch search written as an XOR and a bit scan. |
+| Id | Reads | Meaning |
+| --- | --- | --- |
+| `std-default-hasher` | all | A std `HashMap` or `HashSet` left on its random default hasher. |
+| `hex-format-loop` | all | A `{:02x}` or `{:02X}` format inside a loop or closure. |
+| `hex-pair-radix` | all | `u8::from_str_radix(_, 16)` used to decode a hex pair. |
+| `hex-table` | all | A hex-digit table written by hand, outside the job's home package. |
+| `hex-digit-radix` | shipping | A single hex digit decoded through a radix conversion. |
+| `home-literal` | shipping | A string literal equal to one the home item's own bodies spell, outside the home item. |
+| `sole-name` | all | A function inside the home crate that a `names` pattern matches, other than the home or an entry point. |
+| `vocabulary-literal` | shipping | A string literal equal to or starting with a namespace constant declared under the job's home and entry-point modules, outside those modules. |
+| `json-pointer-escape` | shipping | Hand-written escaping of `~` and `/` for a JSON Pointer. |
+| `length-prefix-frame` | shipping | A hand-written length-prefixed frame read or write. |
+| `le-slice-int` | shipping | An integer assembled from a little-endian byte slice by hand. |
+| `align-up-mask` | shipping | Alignment rounding written as an add-and-mask. |
+| `div-ceil-by-hand` | shipping | Ceiling division written as an add-and-divide instead of `div_ceil`. |
+| `xor-first-mismatch` | shipping | A first-mismatch search written as an XOR and a bit scan. |
 
 The detectors that read a job's home (`home-literal`, `sole-name`,
 `vocabulary-literal`) apply only to jobs that name them in `forbidden`. The census
-walks shipping code and every test, bench and example target. Detectors that read
-shipping code only are marked so in their report. A detector never reports a hit
+walks shipping code and every test, bench and example target. The `Reads` column of the table
+names what each detector reads: `shipping` for shipping code only, and `all` for
+shipping code and every test, bench and example target. The nine `shipping`
+detectors are `hex-digit-radix`, `json-pointer-escape`, `length-prefix-frame`,
+`le-slice-int`, `align-up-mask`, `div-ceil-by-hand`, `xor-first-mismatch`,
+`home-literal` and `vocabulary-literal`; each marks itself so in its report. The five
+`all` detectors are `std-default-hasher`, `hex-format-loop`, `hex-pair-radix`,
+`hex-table` and `sole-name`. A detector never reports a hit
 inside the home package of the job that forbids it.
 
 Every detector ships two fixtures: a positive fixture it flags, and a negative
@@ -130,5 +136,8 @@ add exemptions.
 - A test fails for any registered detector that lacks either fixture.
 - A fixture shows a detector hit is not reported inside the home package of the job
   that forbids it.
+- A fixture per `shipping` detector shows it flags a positive source in shipping
+  code and is silent on the same source in a test target, and a fixture per `all`
+  detector shows it flags a positive source in both.
 - A fixture shows `home-literal`, `sole-name` and `vocabulary-literal` are silent
   for a job that does not name them.

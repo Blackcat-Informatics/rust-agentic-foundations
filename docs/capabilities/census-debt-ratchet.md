@@ -49,9 +49,13 @@ Growth always fails:
 - a current group's member set is a superset of a recorded group's set;
 - a job's copy count rises above its recorded count.
 
-`debt --write` refuses to record growth. The way out is to remove the duplication,
-or to sanction it with an exact-set `[[distinct]]` entry (see
-[census-ledger](./census-ledger.md)).
+Writing the record has two entry points with one behaviour.
+`cargo census debt --write` writes it for a ledger that needs no registered code.
+`Gate::write_debt` writes it for every ledger, including one that needs registered
+rules or extensions (see [census-rule-api](./census-rule-api.md)); it is the only
+write path for those, and the CLI exits 2 naming it. The write refuses to record growth. The way out is to
+remove the duplication, or to sanction it with an exact-set `[[distinct]]` entry
+(see [census-ledger](./census-ledger.md)).
 
 Shrinkage fails until it is re-recorded:
 
@@ -59,22 +63,37 @@ Shrinkage fails until it is re-recorded:
 - a recorded group's member set has shrunk to a strict subset;
 - a job's copy count falls below its recorded count.
 
-The message names `cargo census debt --write` as the way to lower the record. The
-command rewrites `census-debt.json` to exactly the debt the workspace carries now.
-Recorded debt never carries slack: the record always equals the present debt. The
-one case where `debt --write` records a debt that has no earlier record is a
-workspace with no `census-debt.json`, where the command creates the file from the
-present debt, which is how a repository adopts the ratchet.
+The message names `cargo census debt --write` and `Gate::write_debt` as the ways to
+lower the record. The write rewrites `census-debt.json` to exactly the debt the
+workspace carries now. Recorded debt never carries slack: the record always equals
+the present debt. The one case where `debt --write` records a debt that has no
+earlier record is a workspace with no `census-debt.json`, where the write creates
+the file from the present debt, which is how a repository adopts the ratchet.
 
 A missing `census-debt.json` records no debt, so every existing group is growth
 until the file is created. A file whose `normal_form` differs from the implemented
-version fails hard.
+version fails hard. The bump path: after a `normal_form` bump, `cargo census
+migrate` rebuilds the ledger (see [census-migration](./census-migration.md)), and the
+write, which refuses while any non-debt finding exists, replaces the record whose
+`normal_form` differs with the present debt. The check itself keeps failing hard until that write has run.
+
+The write computes the record from the present workspace, so deleting
+`census-debt.json` and writing again records any growth. The control is review: every
+creation of `census-debt.json`, and every change of its `normal_form`, is read in
+the diff as a statement that the listed duplication is accepted.
 
 ## Usage
 
-`cargo census check` reads `census-debt.json` as part of every run. The command
-`cargo census debt --write` updates it (see [census-cli](./census-cli.md)). The
-file is committed, so a reduction of debt appears in review as a smaller diff.
+`cargo census check` and `Gate::assert_clean` read `census-debt.json` as part of
+every run. For a ledger that needs no registered code, `cargo census debt --write`
+updates it (see [census-cli](./census-cli.md)). For a ledger that needs registered
+code, the repository calls `Gate::write_debt` from its own xtask, which it runs as:
+
+```text
+cargo xtask census-debt
+```
+
+The file is committed, so a reduction of debt appears in review as a smaller diff.
 
 ## Examples
 
@@ -97,8 +116,10 @@ The developer removes the clone or adds a `[[distinct]]` entry for the exact set
 
 - The ratchet covers census groups and per-job copy counts. It does not cover
   detector hits that a job forbids; those are findings, not debt.
-- `debt --write` refuses to write while the workspace has a finding that is not debt,
-  such as a stale ledger row.
+- The write refuses while the workspace has a finding that is not debt, such as a
+  stale ledger row, in both entry points.
+- `Gate::write_debt` is called from the repository's own binary or xtask, never from
+  a `#[test]`.
 - The file is JSON with a stable key order and a trailing newline, so equal debt
   gives byte-equal files.
 
@@ -106,9 +127,12 @@ The developer removes the clone or adds a `[[distinct]]` entry for the exact set
 
 A ratchet that only blocks growth leaves slack: the record says three copies, the
 code has one, and two new copies can appear unnoticed. Failing on shrinkage closes
-that gap. Refusing to record growth keeps the write command from becoming a way to
-admit new duplication. Each improvement is recorded the moment it happens, so the record is always
-the exact present debt, and every regression, however small, is a visible failure.
+that gap. Refusing to record growth keeps the write from admitting new duplication
+into an existing record; adopting the ratchet or replacing a record after a version
+bump records the present debt, and review of that creation diff is what stops it
+being a re-baseline of growth. Each improvement is recorded the moment it happens,
+so the record is always the exact present debt, and every regression, however small,
+is a visible failure.
 
 ## Verification
 
@@ -118,9 +142,15 @@ the exact present debt, and every regression, however small, is a visible failur
 - Shrink fixtures: a resolved group, a group shrunk to a strict subset, and a job
   copy count below the record each fail the check with a message that names
   `cargo census debt --write`, and each passes after `debt --write`, with the written
-  file equal to the present debt.
+  file equal to the present debt, through `cargo census debt --write` and through
+  `Gate::write_debt`.
 - A fixture shows a strict-subset group is treated as shrinkage and not as a new
   group.
-- A fixture shows `debt --write` refuses while a stale ledger row exists.
+- A fixture shows `debt --write` and `Gate::write_debt` refuse while a stale ledger
+  row exists, and write nothing.
+- A fixture whose ledger has a registered rule shows `Gate::write_debt` writes the
+  record and `cargo census debt --write` exits 2 naming the Gate path.
+- A fixture shows a record with a different `normal_form` fails the check hard, and
+  is replaced by the write once the ledger is at the implemented version.
 - A fixture shows `debt --write` creates the file in a workspace that has none.
 - Two runs of `debt --write` produce byte-identical files.

@@ -18,7 +18,9 @@ items:
   - claim: "The subcommands check, baseline, index, job, count, fingerprint, debt --write, migrate and dump-ledger exist."
   - claim: "Exit code 0 means clean, 1 means findings, and 2 means a usage error."
   - claim: "The command is built with clap derive and holds no logic beyond calling raf-census."
-  - claim: "check reports the same findings as Gate::assert_clean."
+  - claim: "For a ledger that needs no registered code, check reports the same findings as Gate::assert_clean."
+  - claim: "check and debt --write exit 2, naming the Gate path, for a non-empty job.ext or an unregistered rule id."
+  - claim: "Gate::write_debt is the only write path for a ledger that needs registered code."
 ---
 
 ## Summary

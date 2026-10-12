@@ -52,8 +52,23 @@ schema to the path given by `--out`, which is required; omitting it is a usage e
 cargo census migrate --old-baseline clone-baseline.json --ledger old.toml --out helpers-ledger.toml
 ```
 
-After migration the user runs `cargo census check`, which validates the new ledger,
-and `cargo census debt --write` to record the debt that remains (see
+After migration, a ledger with no `[job.ext]` content and no repository rule runs
+`cargo census check`, which validates the new ledger, and
+`cargo census debt --write` to record the debt that remains (see
+[census-debt-ratchet](./census-debt-ratchet.md)).
+
+A dialect ledger, which carries `[job.ext]` content, needs its registered extension,
+so `cargo census` exits 2 on it. The repository runs its census test, which builds
+the `Gate` with its extensions and rules, and records the remaining debt with its
+xtask:
+
+```text
+cargo test --test census
+cargo xtask census-debt
+```
+
+At a `normal_form` bump, run `cargo census migrate` on the ledger, then the census
+xtask write (`cargo xtask census-debt`), which replaces the old debt record (see
 [census-debt-ratchet](./census-debt-ratchet.md)).
 
 ## Examples
@@ -125,4 +140,7 @@ silently disappears is a rule that silently stops running.
   the exit code is 1.
 - Dialect fields land in `[job.ext]`, and a registered extension accepts them.
 - The old ledger and baseline are unchanged after the run.
-- The migrated ledger passes the ledger parse with `deny_unknown_fields`.
+- The migrated ledger passes the ledger parse with `deny_unknown_fields`, with a
+  registered extension for any `[job.ext]` content.
+- A fixture shows `cargo census check` exits 2 on a migrated dialect ledger and names
+  the Gate path, and that the `Gate` with the registered extension accepts it.

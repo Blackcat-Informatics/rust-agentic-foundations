@@ -20,6 +20,8 @@ items:
   - claim: "The check fails on a disappearing or shrinking group and on a falling copy count until debt --write re-records it."
   - claim: "A current group whose member set is a strict subset of a recorded group is shrinkage, not a new group."
   - claim: "A missing record means no recorded debt, and debt --write creates it."
+  - claim: "Gate::write_debt writes the same record for ledgers that need registered code, and refuses while a non-debt finding exists."
+  - claim: "After a normal_form bump the write replaces the old record, and review of creation diffs is the control against re-baselining."
 ---
 
 ## Summary

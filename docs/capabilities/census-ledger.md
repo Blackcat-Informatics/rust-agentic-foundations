@@ -10,7 +10,7 @@ bindings:
   code: []
   tests: []
   examples: []
-depends: [cap:census-normal-form]
+depends: [cap:census-normal-form, cap:source-index]
 ---
 
 # Census ledger
@@ -41,8 +41,8 @@ key at any level is an error that names the key and its table.
 - `reference`: the packages scanned as reference code (see
   [census-reference-scan](./census-reference-scan.md)). It defaults to none.
 
-Each `[[job]]` is one piece of functionality. Every key is required, and an empty
-array states "none":
+Each `[[job]]` is one piece of functionality. Every key except `[job.ext]` is
+required, and an empty array states "none":
 
 - `id`: the job identifier, unique in the ledger.
 - `summary`: required and non-empty; what the job is, in one line. A job with an
@@ -72,7 +72,14 @@ is reported.
 A `LedgerExtension` validates `[job.ext]`. The census core accepts any `[job.ext]`
 table only when an extension registered on the gate claims it, and the extension
 returns an error for a table it rejects. With no extension registered, a non-empty
-`[job.ext]` is an unknown-key error.
+`[job.ext]` is an unknown-key error. `cargo census` registers no extension, so it
+exits 2 on a non-empty `[job.ext]` and names the Gate path (see
+[census-cli](./census-cli.md)).
+
+The ledger is invalid, in the Gate and in `cargo census` alike, when a job forbids a
+`rule:<id>` that is not the id of a built-in detector, of a `[[pattern]]` or of a
+`Rule` registered on the gate. An unknown `rule:` id is a hard error that names the id
+and the job, not a rule that silently does not run.
 
 For each job the census classifies every matching item as one of three roles:
 
@@ -88,11 +95,14 @@ The census fails with a staleness finding when:
 - a `body` or `shim` fingerprint matches no unit;
 - a job with `enforced = false` has zero copies, because it must become enforced;
 - a `[[job.variant]]` symbol is gone, or its detector no longer matches anything;
-- a `[[distinct]]` row equals no current group.
+- a `[[distinct]]` row equals no current group;
+- a `[[pattern]]` is listed in no job's `forbidden.patterns` (see
+  [census-patterns](./census-patterns.md)).
 
 ## Usage
 
-The ledger is edited by hand and read by `raf_census::Gate` and `cargo census`.
+The ledger is edited by hand and read by `raf_census::Gate` and `cargo census`. A
+ledger that needs registered code is run through the `Gate` only.
 `cargo census job <ID>` prints one job's roles, `cargo census count <ID>` prints its
 copy count, and `cargo census dump-ledger` prints the parsed ledger (see
 [census-cli](./census-cli.md)).
@@ -177,3 +187,10 @@ reviewer saw, and nothing that was copied from it afterwards.
 - An extension fixture shows `[job.ext]` accepted by a registered `LedgerExtension`,
   rejected by it with its message, and rejected as unknown when none is registered.
 - A ledger with a mismatched `normal_form` fails before any job is read.
+- A fixture whose job forbids `rule:nope`, which is not a built-in detector, a
+  pattern or a registered rule, fails ledger validation in the Gate and in
+  `cargo census`, naming the id and the job; the same ledger passes once a `Rule`
+  with that id is registered on the gate.
+- A staleness fixture shows a `[[pattern]]` that no job references fails the check.
+- A fixture with a `[job.ext]` table and no `[job.ext]` on another job shows the
+  other job's keys are still all required.

@@ -132,6 +132,6 @@ extension point for anything that needs structure.
   a run of two tokens.
 - A pattern with zero matchers and a pattern with two matchers each fail ledger
   parsing.
-- A job that lists an unknown pattern id fails, and an unreferenced pattern is
-  reported.
+- A job that lists an unknown pattern id fails, and an unreferenced pattern fails
+  the staleness check.
 - A pattern with the same id as a built-in detector fails ledger parsing.

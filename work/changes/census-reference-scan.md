@@ -19,6 +19,7 @@ items:
   - claim: "A job home may be a symbol in a reference package."
   - claim: "A first-party body equal to a reference body is reported as a reference copy."
   - claim: "The scan never updates Cargo.lock and fails on a package outside the dependency graph."
+  - claim: "cargo metadata runs with --frozen, so an undownloaded registry reference package fails the scan with no network access."
 ---
 
 ## Summary
