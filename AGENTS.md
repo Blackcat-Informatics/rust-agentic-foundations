@@ -167,7 +167,10 @@ RAF plans its own work in the workplan format. This section describes the design
   (`considered`, `designed`, `implementing`, `delivered`), `bindings` and `depends`.
   The body has fixed sections: Purpose, Contract, Usage, Examples, Constraints,
   Explanation, Verification. Outside a proposal, the text states the current
-  contract only.
+  contract only. The document-contract test pins the set of capabilities in one
+  inventory table (`INVENTORY` in `tests/docs_contract.rs`): changing a state or
+  adding a capability edits that table in the same commit, until
+  `raf_workplan::Gate` replaces it.
 - **Change records** live in `work/changes/<slug>.md`. Each names the capabilities it
   changes, the sections it affects, and its items. Every item ends with an outcome:
   `implemented`, `dropped`, or `moved` to another tracked change.

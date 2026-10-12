@@ -22,6 +22,7 @@
 use std::borrow::Cow;
 use std::env;
 use std::fs;
+use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -256,15 +257,77 @@ pub(crate) fn tracked_paths() -> Vec<PathBuf> {
     paths
 }
 
+/// Compare what `symlink_metadata` saw before `open` with the opened handle.
+///
+/// The handle must be a regular file and, on Unix, the same device and inode,
+/// so a file swapped in between the two steps is refused rather than read.
+///
+/// # Errors
+///
+/// Returns a description when the handle is not the file that was inspected.
+pub(crate) fn check_handle(
+    shown: &str,
+    before: &fs::Metadata,
+    on_handle: &fs::Metadata,
+) -> Result<(), String> {
+    if !on_handle.file_type().is_file() {
+        return Err(format!("{shown} is not a regular file"));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt as _;
+        if before.dev() != on_handle.dev() || before.ino() != on_handle.ino() {
+            return Err(format!("{shown} changed while it was being opened"));
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = before;
+    Ok(())
+}
+
+/// The bytes of a regular file, read under the gate root.
+///
+/// The path is first inspected without following links, so a FIFO or a
+/// device named like a document is refused before `open` can block on it, and
+/// a symlink is refused rather than followed out of the root. The opened
+/// handle is then checked against that inspection by [`check_handle`].
+///
+/// # Errors
+///
+/// Returns a description when the path is missing, is a symlink, is not a
+/// regular file, changed while it was opened, or cannot be read.
+pub(crate) fn read_regular(root: &Path, path: &Path) -> Result<Vec<u8>, String> {
+    let full = root.join(path);
+    let shown = full.display().to_string();
+    let before = fs::symlink_metadata(&full).map_err(|e| format!("cannot stat {shown}: {e}"))?;
+    if before.file_type().is_symlink() {
+        return Err(format!(
+            "{shown} is a symlink; symlinks are not allowed in the tree"
+        ));
+    }
+    if !before.file_type().is_file() {
+        return Err(format!("{shown} is not a regular file"));
+    }
+    let mut file = fs::File::open(&full).map_err(|e| format!("cannot open {shown}: {e}"))?;
+    let on_handle = file
+        .metadata()
+        .map_err(|e| format!("cannot stat the open handle of {shown}: {e}"))?;
+    check_handle(&shown, &before, &on_handle)?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes)
+        .map_err(|e| format!("cannot read {shown}: {e}"))?;
+    Ok(bytes)
+}
+
 /// The bytes of a tracked path, read under the gate root.
 ///
 /// # Panics
 ///
-/// Panics when the file is missing or unreadable: a path the index records
-/// but the gate root lacks is a failure, never a skip.
+/// Panics when the file is missing, is not a regular file, or is unreadable:
+/// a path the index records but the gate root cannot supply is a failure,
+/// never a skip.
 pub(crate) fn read_tracked(root: &Path, path: &Path) -> Vec<u8> {
-    let full = root.join(path);
-    fs::read(&full).unwrap_or_else(|e| {
+    read_regular(root, path).unwrap_or_else(|e| {
         panic!(
             "cannot read tracked file {} under {}: {e}",
             path.display(),

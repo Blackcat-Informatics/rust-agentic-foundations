@@ -28,10 +28,12 @@ OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key
   Any other value is an error.
 
 This repository enforces the profile today with the document-contract test of the
-root package, which checks keys, values, sections, markers and links. It checks
-the shape of `bindings`, not whether a bound symbol exists: resolving a binding
-waits for the source index. The `raf-okf` and `raf-workplan` crates will enforce
-the whole profile once they are implemented.
+root package. It checks keys, values, sections, markers and links, the exact
+capability inventory, and the binding lists by state: `designed` and `considered`
+capabilities bind nothing, and a `delivered` capability binds at least one code
+path and one test. It does not check that a bound symbol exists: resolving a
+binding waits for the source index. The `raf-okf` and `raf-workplan` crates will
+enforce the whole profile once they are implemented.
 
 ## Document types and keys
 
@@ -43,8 +45,11 @@ the whole profile once they are implemented.
 
 `docs/capabilities` holds only Capability documents, with one exception: the
 generated catalogue `docs/capabilities/index.md`. It has no frontmatter and carries
-only generated blocks written by `docs sync`. A hand-written index is not allowed.
-Every document sits directly in its directory.
+only generated blocks written by `docs sync`. A hand-written index is not allowed:
+apart from its SPDX comment, every non-blank line lies inside a generated block,
+and each block marker starts its own line.
+Every document sits directly in its directory, and a document of a type lives only
+in that type's directory. Each of these directories holds Markdown files only.
 
 ## Value rules
 
@@ -54,7 +59,8 @@ Every document sits directly in its directory.
 - **`state`** is one of `considered`, `designed`, `implementing`, `delivered`.
 - **`bindings`** is a map with exactly the keys `code`, `tests` and `examples`,
   each a list. A list never names a symbol that does not exist, so a capability
-  that has nothing built binds nothing.
+  that has nothing built binds nothing: the lists of a `designed` or `considered`
+  capability are empty.
 - **`depends`** is a list of capability ids. `depends` lists the capabilities whose
   contract this one relies on. Each id names an existing capability, and the graph
   they form is acyclic.
@@ -65,13 +71,20 @@ Every document sits directly in its directory.
 - **`contract_effect`** is `none` or `changes`.
 - **`items`** is a list of maps with a non-empty `claim` and an optional
   `outcome`. The outcome is `implemented`, `dropped` or `moved:change:<slug>`.
-  It is optional until the change is completed, and every item has one then.
+  It is optional until the change is completed, and every item has one then. A
+  `moved:change:<slug>` outcome names a change record that exists.
+- **Scalars** are quoted or plain. A quoted value closes its quote. A plain value
+  contains no `: `, does not start with one of `>`, `|`, `&`, `*`, `!`, `%`, `@` or
+  a backtick, and is not a block scalar header. A trailing ` # comment` after a
+  value is dropped.
 
 ## Body rules
 
 A Capability body holds exactly seven second-level sections, in this order, none
 empty: Purpose, Contract, Usage, Examples, Constraints, Explanation,
-Verification. Each section holds one kind of statement:
+Verification. A section is empty when nothing is left after its HTML comments are
+removed. No prose carries a placeholder token, that is, a marker for unfinished
+text. Each section holds one kind of statement:
 
 | Section | Holds |
 | --- | --- |
@@ -93,7 +106,7 @@ The state of a capability decides what its document and the change records say.
 | State | Contract in the document | Change record |
 | --- | --- | --- |
 | `considered` | Purpose and open questions in plain text; the candidate contract inside PROPOSED blocks | An open record lists the capability |
-| `designed` | The designed contract, stated plainly | An open record lists the capability |
+| `designed` | The designed contract, stated plainly, with no PROPOSED blocks | An open record lists the capability |
 | `implementing` | The designed contract, stated plainly | An open record lists the capability |
 | `delivered` | The delivered contract, with no PROPOSED blocks; the capability binds at least one code path and one test | No open record lists the capability |
 
@@ -102,7 +115,10 @@ Outside PROPOSED blocks a document states the current contract only.
 ### PROPOSED blocks
 
 A PROPOSED block is a block quote whose first line names the change that
-proposes it. It continues while the lines keep the quote marker.
+proposes it. It continues while the lines keep the quote marker. The marker is
+written exactly as shown below. A line that reads as a marker in any other
+spelling, such as other letter case, no space after `>`, extra spacing or a nested
+quote, is malformed.
 
 ```markdown
 > [!PROPOSED change:example-slug]
@@ -110,8 +126,9 @@ proposes it. It continues while the lines keep the quote marker.
 ```
 
 The named change must exist as `work/changes/<slug>.md`, and that record must
-list the capability that holds the block. A PROPOSED block appears only in a
-Capability document.
+list the capability that holds the block, and the block sits inside one of the
+seven sections, which appears as `cap:<slug>#<section>` in the `affects` of that
+record. A PROPOSED block appears only in a Capability document.
 
 ### Generated blocks
 
@@ -131,8 +148,12 @@ Each block is opened once, closed once and never nested.
 - SPDX lines in an OKF document are YAML comments inside the frontmatter. In all
   other Markdown they are HTML comments.
 - Every relative link resolves to an existing file, and a link anchor resolves
-  to a heading in the target. Anchors follow the GitHub rule: lowercase, spaces
-  become hyphens, other punctuation is dropped.
+  to a heading in the target. The rule covers inline links and images, reference
+  definitions (`[label]: target`) and the `href` and `src` attributes of inline
+  HTML, in every tracked Markdown file. Links are single-line: the text and the
+  target of a link sit on one line, and a link split across lines is not read.
+  Anchors follow the GitHub rule: lowercase, spaces become hyphens, other
+  punctuation is dropped.
 - A relative link resolves inside the repository root. The checker joins the link to
   the linking file's directory and normalises it against the canonical repository
   root. A target that leaves the root, by `..` segments or an absolute path, is a

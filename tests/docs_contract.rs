@@ -15,7 +15,7 @@ use std::path::{Component, Path, PathBuf};
 
 mod support;
 
-use support::{banned_in_line, decode_text, gate_root, read_tracked, tracked_paths};
+use support::{banned_in_line, decode_text, gate_root, read_regular, read_tracked, tracked_paths};
 
 /// A repository held in memory: relative path to file contents.
 type Repo = BTreeMap<PathBuf, String>;
@@ -56,6 +56,60 @@ const PROPOSED_OPEN: &str = "> [!PROPOSED change:";
 const GENERATED_OPEN: &str = "<!-- raf:generated:";
 const GENERATED_END: &str = "end";
 
+/// Unfinished-work tokens that may not appear outside code, lowercase and
+/// matched without regard to case, spacing or dots between letters. The text
+/// is assembled with `concat!` so this list never contains a token as one
+/// literal.
+const PLACEHOLDER_TOKENS: [&str; 5] = [
+    concat!("t", "bd"),
+    concat!("to", "do"),
+    concat!("fix", "me"),
+    concat!("x", "xx"),
+    concat!("to be ", "written"),
+];
+
+/// The capability inventory.
+///
+/// This table is the capability inventory: the real tree must hold exactly
+/// these capability documents, each with the stated `state`, exactly these
+/// architecture documents, and an open change record named after every
+/// capability whose state is not `delivered`. Changing a state or adding a
+/// capability edits this table in the same commit. `raf_workplan::Gate`
+/// replaces it.
+struct Inventory {
+    /// Capability slug and the state its document declares.
+    capabilities: &'static [(&'static str, &'static str)],
+    /// Architecture slugs.
+    architecture: &'static [&'static str],
+}
+
+const INVENTORY: Inventory = Inventory {
+    capabilities: &[
+        ("census-cli", "designed"),
+        ("census-debt-ratchet", "designed"),
+        ("census-detectors", "designed"),
+        ("census-ledger", "designed"),
+        ("census-migration", "designed"),
+        ("census-normal-form", "designed"),
+        ("census-patterns", "designed"),
+        ("census-reference-scan", "designed"),
+        ("census-rule-api", "designed"),
+        ("okf-profile", "designed"),
+        ("source-index", "designed"),
+        ("workplan-cli", "designed"),
+        ("workplan-complete-gate", "designed"),
+        ("workplan-current-rationale", "considered"),
+        ("workplan-document-model", "designed"),
+        ("workplan-entity-history", "considered"),
+        ("workplan-evidence-claims", "considered"),
+        ("workplan-generated-docs", "designed"),
+        ("workplan-prose-assessment", "considered"),
+        ("workplan-reconcile", "designed"),
+        ("workplan-two-way-coverage", "considered"),
+    ],
+    architecture: &["normal-form", "okf-profile"],
+};
+
 // ---------------------------------------------------------------------------
 // Frontmatter model and parser
 // ---------------------------------------------------------------------------
@@ -81,17 +135,99 @@ fn split_key(line: &str) -> Option<(&str, &str)> {
     (valid && (rest.is_empty() || rest.starts_with(' '))).then_some((key, rest))
 }
 
-fn unquote(raw: &str) -> String {
+/// Cut a trailing ` # comment` from a value, leaving quoted text intact.
+fn strip_comment(raw: &str) -> &str {
     let raw = raw.trim();
-    if raw.len() >= 2 && raw.starts_with('"') && raw.ends_with('"') {
-        return raw[1..raw.len() - 1]
-            .replace("\\\"", "\"")
-            .replace("\\\\", "\\");
+    let in_list = raw.starts_with('[');
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+    let mut just_closed_single = false;
+    let mut prev = ' ';
+    for (index, c) in raw.char_indices() {
+        let reopened = just_closed_single && c == '\'';
+        just_closed_single = false;
+        if let Some(q) = quote {
+            if q == '"' && c == '\\' && !escaped {
+                escaped = true;
+                prev = c;
+                continue;
+            }
+            if c == q && !escaped {
+                quote = None;
+                just_closed_single = q == '\'';
+            }
+            escaped = false;
+        } else if (c == '"' || c == '\'')
+            && (index == 0 || reopened || (in_list && matches!(prev, '[' | ',' | ' ')))
+        {
+            quote = Some(c);
+        } else if c == '#' && (index == 0 || prev.is_whitespace()) {
+            return raw.get(..index).unwrap_or_default().trim_end();
+        }
+        prev = c;
     }
-    if raw.len() >= 2 && raw.starts_with('\'') && raw.ends_with('\'') {
-        return raw[1..raw.len() - 1].replace("''", "'");
+    raw
+}
+
+/// The text of a quoted scalar; the closing quote must end the value.
+fn quoted_scalar(raw: &str, quote: char) -> Result<String, String> {
+    let mut out = String::new();
+    let mut chars = raw.char_indices().skip(1).peekable();
+    while let Some((index, c)) = chars.next() {
+        if quote == '"' && c == '\\' {
+            match chars.next() {
+                Some((_, escaped @ ('"' | '\\'))) => out.push(escaped),
+                Some((_, other)) => {
+                    out.push('\\');
+                    out.push(other);
+                }
+                None => break,
+            }
+        } else if c == quote {
+            if quote == '\'' && chars.next_if(|(_, next)| *next == '\'').is_some() {
+                out.push('\'');
+                continue;
+            }
+            return if raw.get(index + 1..).unwrap_or_default().trim().is_empty() {
+                Ok(out)
+            } else {
+                Err(format!("text after the closing quote in `{raw}`"))
+            };
+        } else {
+            out.push(c);
+        }
     }
-    raw.to_string()
+    Err(format!("unterminated quoted value `{raw}`"))
+}
+
+/// True for a YAML block scalar header such as `>`, `|`, `>-` or `|2`.
+fn is_block_indicator(raw: &str) -> bool {
+    raw.strip_prefix(['>', '|'])
+        .is_some_and(|rest| rest.chars().all(|c| matches!(c, '+' | '-' | '0'..='9')))
+}
+
+/// An unquoted scalar: no block indicator, no leading indicator character and
+/// no `: ` that real YAML would read as a nested mapping.
+fn plain_scalar(raw: &str) -> Result<String, String> {
+    if is_block_indicator(raw) {
+        return Err(format!("block scalar indicator `{raw}` used as a value"));
+    }
+    if raw.starts_with(['>', '|', '&', '*', '!', '%', '@', '`']) {
+        return Err(format!("`{raw}` starts with a YAML indicator character"));
+    }
+    if raw.contains(": ") || raw.ends_with(':') {
+        return Err(format!("unquoted value `{raw}` contains `: `; quote it"));
+    }
+    Ok(raw.to_string())
+}
+
+/// Parse one scalar value: quoted or plain, with a trailing comment removed.
+fn scalar(raw: &str) -> Result<String, String> {
+    let raw = strip_comment(raw);
+    match raw.chars().next() {
+        Some(quote @ ('"' | '\'')) => quoted_scalar(raw, quote),
+        _ => plain_scalar(raw),
+    }
 }
 
 fn parse_inline_list(raw: &str) -> Result<Vec<String>, String> {
@@ -128,7 +264,7 @@ fn parse_inline_list(raw: &str) -> Result<Vec<String>, String> {
             if part.is_empty() {
                 Err(format!("empty entry in inline list `{raw}`"))
             } else {
-                Ok(unquote(part))
+                scalar(part)
             }
         })
         .collect()
@@ -142,10 +278,10 @@ fn parse_sequence(block: &[&str]) -> Result<Value, String> {
         if let Some(item) = line.strip_prefix("  - ") {
             let item = item.trim();
             if let Some((key, rest)) = split_key(item) {
-                maps.push(BTreeMap::from([(key.to_string(), unquote(rest))]));
+                maps.push(BTreeMap::from([(key.to_string(), scalar(rest)?)]));
                 in_map = true;
             } else {
-                scalars.push(unquote(item));
+                scalars.push(scalar(item)?);
                 in_map = false;
             }
         } else if let Some(continuation) = line.strip_prefix("    ") {
@@ -155,7 +291,7 @@ fn parse_sequence(block: &[&str]) -> Result<Value, String> {
                 .last_mut()
                 .filter(|_| in_map)
                 .ok_or_else(|| format!("continuation without a map entry `{line}`"))?;
-            if entry.insert(key.to_string(), unquote(rest)).is_some() {
+            if entry.insert(key.to_string(), scalar(rest)?).is_some() {
                 return Err(format!("duplicate entry key `{key}`"));
             }
         } else {
@@ -177,14 +313,14 @@ fn parse_map(block: &[&str]) -> Result<Value, String> {
             let key = current
                 .as_ref()
                 .ok_or_else(|| format!("list item without a key `{line}`"))?;
-            map.entry(key.clone()).or_default().push(unquote(item));
+            map.entry(key.clone()).or_default().push(scalar(item)?);
         } else if let Some(entry) = line.strip_prefix("  ").filter(|e| !e.starts_with(' ')) {
             let (key, rest) =
                 split_key(entry).ok_or_else(|| format!("cannot parse map line `{line}`"))?;
             if map.contains_key(key) {
                 return Err(format!("duplicate map key `{key}`"));
             }
-            let rest = rest.trim();
+            let rest = strip_comment(rest);
             if rest.is_empty() {
                 map.insert(key.to_string(), Vec::new());
                 current = Some(key.to_string());
@@ -215,7 +351,7 @@ fn parse_fields(front: &[&str]) -> Result<BTreeMap<String, Value>, String> {
         if fields.contains_key(key) {
             return Err(format!("duplicate key `{key}`"));
         }
-        let rest = rest.trim();
+        let rest = strip_comment(rest);
         let value = if rest.is_empty() {
             let mut block = Vec::new();
             while let Some(next) = front.get(index) {
@@ -237,7 +373,7 @@ fn parse_fields(front: &[&str]) -> Result<BTreeMap<String, Value>, String> {
         } else if rest.starts_with('[') {
             Value::List(parse_inline_list(rest)?)
         } else {
-            Value::Scalar(unquote(rest))
+            Value::Scalar(scalar(rest)?)
         };
         fields.insert(key.to_string(), value);
     }
@@ -343,6 +479,52 @@ fn sections(body: &str) -> Vec<(String, String)> {
     out
 }
 
+/// Remove HTML comments, including multi-line ones, from Markdown text.
+fn strip_html_comments(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(start) = rest.find("<!--") {
+        out.push_str(rest.get(..start).unwrap_or_default());
+        let after = rest.get(start + 4..).unwrap_or_default();
+        match after.find("-->") {
+            Some(end) => rest = after.get(end + 3..).unwrap_or_default(),
+            None => return out,
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// True when the text has no visible content once comments are removed.
+fn is_blank(text: &str) -> bool {
+    strip_html_comments(text).trim().is_empty()
+}
+
+/// The line with inline code spans removed.
+fn outside_code(line: &str) -> String {
+    line.split('`')
+        .enumerate()
+        .filter(|(index, _)| index % 2 == 0)
+        .map(|(_, part)| part)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn is_word_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+/// True when `token` occurs in `line` as a whole word.
+fn has_word(line: &str, token: &str) -> bool {
+    line.match_indices(token).any(|(index, _)| {
+        let before = line.get(..index).and_then(|s| s.chars().next_back());
+        let after = line
+            .get(index + token.len()..)
+            .and_then(|s| s.chars().next());
+        !before.is_some_and(is_word_char) && !after.is_some_and(is_word_char)
+    })
+}
+
 fn is_kebab(slug: &str) -> bool {
     !slug.is_empty()
         && slug.split('-').all(|part| {
@@ -362,7 +544,7 @@ fn violation(path: &Path, message: impl std::fmt::Display) -> String {
 }
 
 fn is_scanned(path: &Path) -> bool {
-    let markdown = path.extension().is_some_and(|e| e == "md");
+    let markdown = is_markdown(path);
     let mut components = path.components();
     let first = components.next();
     let top_level = components.next().is_none();
@@ -379,6 +561,21 @@ fn expected_type(path: &Path) -> Option<&'static str> {
         ["work", "changes", _] => Some("Change"),
         _ => None,
     }
+}
+
+/// The directory that holds documents of a RAF type.
+fn type_directory(declared: &str) -> Option<&'static str> {
+    match declared {
+        "Capability" => Some("docs/capabilities"),
+        "Change" => Some("work/changes"),
+        "Architecture" => Some("docs/architecture"),
+        _ => None,
+    }
+}
+
+/// The generated catalogue, which has no frontmatter.
+fn is_capability_index(path: &Path) -> bool {
+    path == Path::new("docs/capabilities/index.md")
 }
 
 fn file_stem(path: &Path) -> String {
@@ -413,6 +610,8 @@ struct Change {
     path: PathBuf,
     slug: String,
     changes: Vec<String>,
+    affects: Vec<String>,
+    moved: Vec<String>,
 }
 
 #[derive(Default)]
@@ -500,9 +699,47 @@ fn check_section_layout(path: &Path, doc: &Document, out: &mut Vec<String>) {
         ));
     }
     for (name, content) in &found {
-        if SECTIONS.contains(&name.as_str()) && content.trim().is_empty() {
+        if SECTIONS.contains(&name.as_str()) && is_blank(content) {
             out.push(violation(path, format!("section `{name}` is empty")));
         }
+    }
+}
+
+/// Binding lists by state: nothing is bound before delivery, and a delivered
+/// capability binds at least one code path and one test.
+fn check_binding_contents(
+    path: &Path,
+    state: Option<&str>,
+    map: &BTreeMap<String, Vec<String>>,
+    out: &mut Vec<String>,
+) {
+    let bound = |key: &str| map.get(key).map_or(0, Vec::len);
+    match state {
+        Some(state @ ("designed" | "considered")) => {
+            for key in BINDING_KEYS {
+                if bound(key) > 0 {
+                    out.push(violation(
+                        path,
+                        format!("state {state} must have empty bindings, but `{key}` is not empty"),
+                    ));
+                }
+            }
+        }
+        Some("delivered") => {
+            if bound("code") == 0 {
+                out.push(violation(
+                    path,
+                    "state delivered must bind at least one code path",
+                ));
+            }
+            if bound("tests") == 0 {
+                out.push(violation(
+                    path,
+                    "state delivered must bind at least one test",
+                ));
+            }
+        }
+        _ => {}
     }
 }
 
@@ -528,6 +765,7 @@ fn check_capability(path: &Path, doc: &Document, found: &mut Found, out: &mut Ve
                         "bindings must have exactly the keys code, tests and examples",
                     ));
                 }
+                check_binding_contents(path, state, map, out);
             }
             _ => out.push(violation(
                 path,
@@ -588,9 +826,11 @@ fn check_change(path: &Path, doc: &Document, found: &mut Found, out: &mut Vec<St
             )),
         }
     }
+    let mut affects = Vec::new();
     if doc.fields.contains_key("affects") {
         match list_field(doc, "affects") {
             Some(list) => {
+                affects = list.to_vec();
                 for entry in list {
                     check_affects(path, entry, &changes, out);
                 }
@@ -610,12 +850,12 @@ fn check_change(path: &Path, doc: &Document, found: &mut Found, out: &mut Vec<St
             )),
         }
     }
-    check_items(path, doc, out);
+    let moved = check_items(path, doc, out);
     let summary = sections(&doc.body)
         .into_iter()
         .find(|(name, _)| name == "Summary");
     match summary {
-        Some((_, content)) if !content.trim().is_empty() => {}
+        Some((_, content)) if !is_blank(&content) => {}
         Some(_) => out.push(violation(path, "section `Summary` is empty")),
         None => out.push(violation(path, "missing section `Summary`")),
     }
@@ -624,6 +864,8 @@ fn check_change(path: &Path, doc: &Document, found: &mut Found, out: &mut Vec<St
             path: path.to_path_buf(),
             slug,
             changes,
+            affects,
+            moved,
         });
     }
 }
@@ -653,7 +895,9 @@ fn check_affects(path: &Path, entry: &str, changes: &[String], out: &mut Vec<Str
     }
 }
 
-fn check_items(path: &Path, doc: &Document, out: &mut Vec<String>) {
+/// Validate `items`, returning the slugs that `moved:change:<slug>` outcomes name.
+fn check_items(path: &Path, doc: &Document, out: &mut Vec<String>) -> Vec<String> {
+    let mut moved_to = Vec::new();
     match doc.fields.get("items") {
         None => {}
         Some(Value::List(list)) if list.is_empty() => {}
@@ -668,8 +912,12 @@ fn check_items(path: &Path, doc: &Document, out: &mut Vec<String>) {
                     out.push(violation(path, "every item needs a non-empty `claim`"));
                 }
                 if let Some(outcome) = item.get("outcome") {
-                    let moved = outcome.strip_prefix("moved:change:").is_some_and(is_kebab);
-                    if !OUTCOMES.contains(&outcome.as_str()) && !moved {
+                    let moved = outcome
+                        .strip_prefix("moved:change:")
+                        .filter(|s| is_kebab(s));
+                    if let Some(slug) = moved {
+                        moved_to.push(slug.to_string());
+                    } else if !OUTCOMES.contains(&outcome.as_str()) {
                         out.push(violation(path, format!("bad outcome `{outcome}`")));
                     }
                 }
@@ -680,13 +928,14 @@ fn check_items(path: &Path, doc: &Document, out: &mut Vec<String>) {
             "`items` must be a list of maps with `claim` and optional `outcome`",
         )),
     }
+    moved_to
 }
 
 fn check_architecture(path: &Path, doc: &Document, out: &mut Vec<String>) {
     check_keys(path, doc, &ARCHITECTURE_KEYS, out);
     check_scalars(path, doc, &ARCHITECTURE_KEYS, out);
     check_id(path, doc, "arch:", out);
-    if doc.body.trim().is_empty() {
+    if is_blank(&doc.body) {
         out.push(violation(path, "architecture body is empty"));
     }
 }
@@ -695,7 +944,7 @@ fn check_document(path: &Path, text: &str, found: &mut Found, out: &mut Vec<Stri
     let expected = expected_type(path);
     let doc = match parse_document(text) {
         None => {
-            if let Some(expected) = expected {
+            if let Some(expected) = expected.filter(|_| !is_capability_index(path)) {
                 out.push(violation(
                     path,
                     format!("missing frontmatter; expected a {expected} document"),
@@ -719,6 +968,14 @@ fn check_document(path: &Path, text: &str, found: &mut Found, out: &mut Vec<Stri
             format!("type `{declared}` is not allowed here; expected `{expected}`"),
         ));
     }
+    if expected.is_none()
+        && let Some(home) = type_directory(declared)
+    {
+        out.push(violation(
+            path,
+            format!("a {declared} document belongs directly in {home}"),
+        ));
+    }
     match declared {
         "Capability" => check_capability(path, &doc, found, out),
         "Change" => check_change(path, &doc, found, out),
@@ -727,20 +984,36 @@ fn check_document(path: &Path, text: &str, found: &mut Found, out: &mut Vec<Stri
     }
 }
 
-/// A well-formed or malformed PROPOSED marker found outside code fences.
+/// A well-formed PROPOSED marker found outside code fences.
 struct Marker {
     path: PathBuf,
     slug: String,
+    /// The lowercase name of the second-level section that holds the marker.
+    section: Option<String>,
+}
+
+/// True when the line reads as a PROPOSED marker, however it is spelled: the
+/// quote marks, list bullets and spaces before `[!` are skipped and the word
+/// is compared without regard to case.
+fn looks_like_proposed(trimmed: &str) -> bool {
+    trimmed
+        .trim_start_matches(['>', ' ', '\t', '-', '*'])
+        .to_ascii_lowercase()
+        .starts_with("[!proposed")
 }
 
 fn scan_markers(path: &Path, text: &str, markers: &mut Vec<Marker>, out: &mut Vec<String>) {
     let mut open_generated: Option<usize> = None;
+    let mut section: Option<String> = None;
     for (number, line, fenced) in fenced_lines(text) {
         if fenced {
             continue;
         }
+        if let Some((2, name)) = heading_text(line) {
+            section = Some(name.to_lowercase());
+        }
         let trimmed = line.trim();
-        if trimmed.starts_with("> [!PROPOSED") {
+        if looks_like_proposed(trimmed) {
             let slug = trimmed
                 .strip_prefix(PROPOSED_OPEN)
                 .and_then(|rest| rest.strip_suffix(']'))
@@ -749,6 +1022,7 @@ fn scan_markers(path: &Path, text: &str, markers: &mut Vec<Marker>, out: &mut Ve
                 Some(slug) => markers.push(Marker {
                     path: path.to_path_buf(),
                     slug: slug.to_string(),
+                    section: section.clone(),
                 }),
                 None => out.push(violation(
                     path,
@@ -786,6 +1060,49 @@ fn scan_markers(path: &Path, text: &str, markers: &mut Vec<Marker>, out: &mut Ve
     }
 }
 
+/// Lowercase text with whitespace runs collapsed to one space and the dots
+/// between letters removed, so `T.B.D.` and `to  be\twritten` normalise to the
+/// plain token.
+fn normalise_prose(line: &str) -> String {
+    let collapsed = line
+        .to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let chars: Vec<char> = collapsed.chars().collect();
+    chars
+        .iter()
+        .enumerate()
+        .filter(|(index, c)| {
+            let letter_before = index
+                .checked_sub(1)
+                .and_then(|i| chars.get(i))
+                .is_some_and(|p| p.is_alphabetic());
+            let letter_after = chars.get(index + 1).is_some_and(|n| n.is_alphabetic());
+            !(**c == '.' && letter_before && letter_after)
+        })
+        .map(|(_, c)| *c)
+        .collect()
+}
+
+/// Reject unfinished-work tokens in prose, outside code fences and code spans.
+fn scan_placeholders(path: &Path, text: &str, out: &mut Vec<String>) {
+    for (number, line, fenced) in fenced_lines(text) {
+        if fenced {
+            continue;
+        }
+        let prose = normalise_prose(&outside_code(line));
+        for token in PLACEHOLDER_TOKENS {
+            if has_word(&prose, token) {
+                out.push(violation(
+                    path,
+                    format!("line {number}: placeholder `{token}` is not resolved text"),
+                ));
+            }
+        }
+    }
+}
+
 fn scan_banned(path: &Path, text: &str, out: &mut Vec<String>) {
     for (index, line) in text.lines().enumerate() {
         if let Some(kind) = banned_in_line(line) {
@@ -797,14 +1114,177 @@ fn scan_banned(path: &Path, text: &str, out: &mut Vec<String>) {
     }
 }
 
+/// The target of a reference definition such as `[label]: target "title"`.
+fn definition_target(line: &str) -> Option<String> {
+    let rest = line.trim_start().strip_prefix('[')?;
+    let (label, after) = rest.split_once("]:")?;
+    if label.trim().is_empty() || label.starts_with('^') {
+        return None;
+    }
+    let after = after.trim_start();
+    let target = match after.strip_prefix('<') {
+        Some(inner) => inner.split('>').next().unwrap_or_default(),
+        None => after.split_whitespace().next().unwrap_or_default(),
+    };
+    (!target.is_empty()).then(|| target.to_string())
+}
+
+/// The values of `href="..."` and `src="..."` attributes in inline HTML.
+/// True for a character that can belong to an HTML attribute name.
+fn is_attribute_name_char(c: char) -> bool {
+    is_word_char(c) || matches!(c, '-' | ':' | '.')
+}
+
+/// Where the HTML scan stands between lines: inside a tag, and inside a
+/// quoted attribute value.
+#[derive(Default)]
+struct TagState {
+    in_tag: bool,
+    quote: Option<char>,
+    /// An `href=` or `src=` ended the previous line, so its value is next.
+    awaiting_value: bool,
+}
+
+/// Index just past the run of characters from `start` that satisfy `keep`.
+fn skip_while(chars: &[char], start: usize, keep: impl Fn(char) -> bool) -> usize {
+    let mut index = start;
+    while chars.get(index).is_some_and(|c| keep(*c)) {
+        index += 1;
+    }
+    index
+}
+
+/// Read one attribute at `start` (the first character of its name) and return
+/// the index after it, pushing the value of an `href` or `src` attribute.
+fn read_attribute(
+    chars: &[char],
+    start: usize,
+    state: &mut TagState,
+    targets: &mut Vec<String>,
+) -> usize {
+    let name_end = skip_while(chars, start, is_attribute_name_char);
+    let name: String = chars
+        .get(start..name_end)
+        .unwrap_or_default()
+        .iter()
+        .collect::<String>()
+        .to_ascii_lowercase();
+    let after_name = skip_while(chars, name_end, char::is_whitespace);
+    if chars.get(after_name) != Some(&'=') {
+        return name_end;
+    }
+    let value_start = skip_while(chars, after_name + 1, char::is_whitespace);
+    read_value(
+        chars,
+        value_start,
+        name == "href" || name == "src",
+        state,
+        targets,
+    )
+}
+
+/// Read the attribute value that starts at `start`, returning the index after
+/// it. A value that is not on this line is read from the next one when the
+/// attribute is `href` or `src`.
+fn read_value(
+    chars: &[char],
+    start: usize,
+    wanted: bool,
+    state: &mut TagState,
+    targets: &mut Vec<String>,
+) -> usize {
+    match chars.get(start) {
+        Some(&quote @ ('"' | '\'')) => {
+            let inner = start + 1;
+            let close = chars
+                .get(inner..)
+                .and_then(|rest| rest.iter().position(|c| *c == quote));
+            if let Some(offset) = close {
+                if wanted {
+                    let value = chars.get(inner..inner + offset).unwrap_or_default();
+                    targets.push(value.iter().collect());
+                }
+                inner + offset + 1
+            } else {
+                state.quote = Some(quote);
+                chars.len()
+            }
+        }
+        Some(_) => {
+            let end = skip_while(chars, start, |c| !c.is_whitespace() && c != '>');
+            if wanted {
+                let value: String = chars.get(start..end).unwrap_or_default().iter().collect();
+                targets.push(value.trim_end_matches('/').to_string());
+            }
+            end
+        }
+        None => {
+            state.awaiting_value = wanted;
+            chars.len()
+        }
+    }
+}
+
+/// The `href` and `src` values found on one line, tracking tag state across
+/// lines. A tag opens at `<` before a letter or `/` and runs to the next `>`
+/// that is not inside quotes. Autolinks such as `<https://x>` are not tags.
+fn html_attribute_targets(line: &str, state: &mut TagState) -> Vec<String> {
+    let chars: Vec<char> = line.chars().collect();
+    let mut targets = Vec::new();
+    let mut index = 0;
+    if state.awaiting_value && state.in_tag {
+        state.awaiting_value = false;
+        let start = skip_while(&chars, 0, char::is_whitespace);
+        index = read_value(&chars, start, true, state, &mut targets);
+    }
+    state.awaiting_value = false;
+    while let Some(&c) = chars.get(index) {
+        if let Some(quote) = state.quote {
+            match chars
+                .get(index..)
+                .and_then(|r| r.iter().position(|x| *x == quote))
+            {
+                Some(offset) => {
+                    state.quote = None;
+                    index += offset + 1;
+                }
+                None => break,
+            }
+        } else if !state.in_tag {
+            let opens = c == '<'
+                && chars
+                    .get(index + 1)
+                    .is_some_and(|n| n.is_alphabetic() || *n == '/');
+            index += 1;
+            if opens {
+                let name_end = skip_while(&chars, index, |x| is_attribute_name_char(x) || x == '/');
+                let autolink = chars
+                    .get(index..name_end)
+                    .unwrap_or_default()
+                    .contains(&':');
+                state.in_tag = !autolink;
+                index = name_end;
+            }
+        } else if c == '>' {
+            state.in_tag = false;
+            index += 1;
+        } else if is_attribute_name_char(c) {
+            index = read_attribute(&chars, index, state, &mut targets);
+        } else if matches!(c, '"' | '\'') {
+            state.quote = Some(c);
+            index += 1;
+        } else {
+            index += 1;
+        }
+    }
+    targets
+}
+
+/// Every link target on one line: inline links and images, reference
+/// definitions. Links are single-line. HTML attributes are read separately,
+/// because a tag may span lines.
 fn link_targets(line: &str) -> Vec<String> {
-    let outside: String = line
-        .split('`')
-        .enumerate()
-        .filter(|(index, _)| index % 2 == 0)
-        .map(|(_, part)| part)
-        .collect::<Vec<_>>()
-        .join(" ");
+    let outside = outside_code(line);
     let mut targets = Vec::new();
     let mut rest = outside.as_str();
     while let Some(start) = rest.find("](") {
@@ -815,6 +1295,7 @@ fn link_targets(line: &str) -> Vec<String> {
         targets.push(target.trim_matches(['<', '>']).to_string());
         rest = after.get(end..).unwrap_or_default();
     }
+    targets.extend(definition_target(&outside));
     targets
 }
 
@@ -837,11 +1318,15 @@ fn normalize(base: &Path, target: &str) -> Option<PathBuf> {
 }
 
 fn check_links(repo: &Repo, path: &Path, text: &str, out: &mut Vec<String>) {
+    let mut tags = TagState::default();
     for (number, line, fenced) in fenced_lines(text) {
-        if fenced {
+        if fenced || line.trim().is_empty() {
+            // Inline HTML cannot span a blank line or a fence.
+            tags = TagState::default();
             continue;
         }
-        for target in link_targets(line) {
+        let attributes = html_attribute_targets(&outside_code(line), &mut tags);
+        for target in link_targets(line).into_iter().chain(attributes) {
             if target.is_empty()
                 || target.contains("://")
                 || target.starts_with("mailto:")
@@ -936,6 +1421,87 @@ fn find_cycles(capabilities: &[Capability], out: &mut Vec<String>) {
     }
 }
 
+/// State rules for one capability: PROPOSED blocks, their `affects` entries
+/// and the open change record.
+fn check_capability_state(
+    cap: &Capability,
+    found: &Found,
+    markers: &[Marker],
+    out: &mut Vec<String>,
+) {
+    let proposed: Vec<&Marker> = markers.iter().filter(|m| m.path == cap.path).collect();
+    let listing: Vec<&Change> = found
+        .changes
+        .iter()
+        .filter(|c| c.changes.contains(&cap.id))
+        .collect();
+    for marker in &proposed {
+        let Some(change) = listing.iter().find(|c| c.slug == marker.slug) else {
+            out.push(violation(
+                &cap.path,
+                format!("PROPOSED change `{}` does not list {}", marker.slug, cap.id),
+            ));
+            continue;
+        };
+        match &marker.section {
+            Some(section) => {
+                let entry = format!("{}#{section}", cap.id);
+                if !change.affects.contains(&entry) {
+                    out.push(violation(
+                        &cap.path,
+                        format!(
+                            "PROPOSED block in section `{section}` needs `{entry}` in the \
+                             affects of change `{}`",
+                            change.slug
+                        ),
+                    ));
+                }
+            }
+            None => out.push(violation(
+                &cap.path,
+                "a PROPOSED block must sit inside one of the seven sections",
+            )),
+        }
+    }
+    match cap.state.as_str() {
+        "considered" if proposed.is_empty() => out.push(violation(
+            &cap.path,
+            "state considered requires its candidate contract in PROPOSED blocks",
+        )),
+        "designed" if !proposed.is_empty() => out.push(violation(
+            &cap.path,
+            "state designed must have no PROPOSED blocks",
+        )),
+        "delivered" => {
+            if !proposed.is_empty() {
+                out.push(violation(
+                    &cap.path,
+                    "state delivered must have no PROPOSED blocks",
+                ));
+            }
+            for change in &listing {
+                out.push(violation(
+                    &cap.path,
+                    format!(
+                        "state delivered must not be listed by open change record {}",
+                        change.path.display()
+                    ),
+                ));
+            }
+        }
+        _ => {}
+    }
+    if cap.state != "delivered" && listing.is_empty() {
+        out.push(violation(
+            &cap.path,
+            format!(
+                "state {} requires an open change record listing {}",
+                cap.state, cap.id
+            ),
+        ));
+    }
+}
+
 fn check_cross_references(repo: &Repo, found: &Found, markers: &[Marker], out: &mut Vec<String>) {
     let ids: BTreeSet<&str> = found.capabilities.iter().map(|c| c.id.as_str()).collect();
     for cap in &found.capabilities {
@@ -975,74 +1541,119 @@ fn check_cross_references(repo: &Repo, found: &Found, markers: &[Marker], out: &
         }
     }
     for cap in &found.capabilities {
-        let proposed: Vec<&Marker> = markers.iter().filter(|m| m.path == cap.path).collect();
-        let listing: Vec<&Change> = found
-            .changes
-            .iter()
-            .filter(|c| c.changes.contains(&cap.id))
-            .collect();
-        for marker in &proposed {
-            if !listing.iter().any(|c| c.slug == marker.slug) {
+        check_capability_state(cap, found, markers, out);
+    }
+    let change_slugs: BTreeSet<&str> = found.changes.iter().map(|c| c.slug.as_str()).collect();
+    for change in &found.changes {
+        for target in &change.moved {
+            if !change_slugs.contains(target.as_str()) {
                 out.push(violation(
-                    &cap.path,
-                    format!("PROPOSED change `{}` does not list {}", marker.slug, cap.id),
+                    &change.path,
+                    format!("item moved to change `{target}`, but work/changes/{target}.md does not exist"),
                 ));
             }
-        }
-        match cap.state.as_str() {
-            "considered" if proposed.is_empty() => out.push(violation(
-                &cap.path,
-                "state considered requires its candidate contract in PROPOSED blocks",
-            )),
-            "delivered" => {
-                if !proposed.is_empty() {
-                    out.push(violation(
-                        &cap.path,
-                        "state delivered must have no PROPOSED blocks",
-                    ));
-                }
-                for change in &listing {
-                    out.push(violation(
-                        &cap.path,
-                        format!(
-                            "state delivered must not be listed by open change record {}",
-                            change.path.display()
-                        ),
-                    ));
-                }
-            }
-            _ if listing.is_empty() => out.push(violation(
-                &cap.path,
-                format!(
-                    "state {} requires an open change record listing {}",
-                    cap.state, cap.id
-                ),
-            )),
-            _ => {}
         }
     }
 }
 
+/// True for a line that opens with a real SPDX tag.
+fn is_spdx_tag(text: &str) -> bool {
+    ["SPDX-FileCopyrightText:", "SPDX-License-Identifier:"]
+        .iter()
+        .any(|tag| text.strip_prefix(tag).is_some_and(|v| !v.trim().is_empty()))
+}
+
+/// Why the text is not a generated capability index, or `None` when it is.
+///
+/// Apart from a leading HTML comment of SPDX lines, every non-blank line lies
+/// inside a generated block, and each block marker starts its own line.
+fn index_problem(text: &str) -> Option<String> {
+    let mut in_header = false;
+    let mut header_done = false;
+    let mut open = false;
+    let mut blocks = 0_usize;
+    for (index, line) in text.lines().enumerate() {
+        let number = index + 1;
+        let trimmed = line.trim();
+        if in_header {
+            if trimmed == "-->" {
+                in_header = false;
+            } else if !is_spdx_tag(trimmed) {
+                return Some(format!(
+                    "line {number}: the header comment holds more than SPDX tags"
+                ));
+            }
+            continue;
+        }
+        let spdx_line = trimmed
+            .strip_prefix("<!--")
+            .and_then(|rest| rest.strip_suffix("-->"))
+            .is_some_and(|inner| is_spdx_tag(inner.trim()));
+        if trimmed.is_empty() || (!open && blocks == 0 && spdx_line) {
+            continue;
+        }
+        if !open && blocks == 0 && !header_done && line == "<!--" {
+            in_header = true;
+            header_done = true;
+            continue;
+        }
+        if line.starts_with(GENERATED_OPEN) {
+            let kind = line
+                .strip_prefix(GENERATED_OPEN)
+                .and_then(|rest| rest.strip_suffix(" -->"));
+            match kind {
+                Some(GENERATED_END) if open => open = false,
+                Some(kind) if kind != GENERATED_END && is_kebab(kind) && !open => {
+                    open = true;
+                    blocks += 1;
+                }
+                _ => return Some(format!("line {number}: malformed or misplaced marker")),
+            }
+        } else if !open {
+            return Some(format!("line {number}: text outside a generated block"));
+        }
+    }
+    if open {
+        Some("a generated block is never closed".to_string())
+    } else if blocks == 0 {
+        Some("it holds no generated block".to_string())
+    } else {
+        None
+    }
+}
+
+fn is_markdown(path: &Path) -> bool {
+    path.extension().is_some_and(|e| e == "md")
+}
+
 fn check_directories(repo: &Repo, out: &mut Vec<String>) {
-    for path in repo.keys().filter(|p| is_scanned(p)) {
+    for path in repo.keys() {
         let parts: Vec<&str> = path.iter().filter_map(|p| p.to_str()).collect();
-        let nested = matches!(
+        let typed_directory = matches!(
             parts.as_slice(),
-            ["docs", "capabilities" | "architecture", _, ..]
-        ) && parts.len() > 3
-            || matches!(parts.as_slice(), ["work", "changes", _, ..]) && parts.len() > 3;
-        if nested {
+            ["docs", "capabilities" | "architecture", _, ..] | ["work", "changes", _, ..]
+        );
+        if typed_directory && !is_markdown(path) {
+            out.push(violation(
+                path,
+                "only Markdown documents belong in a document directory",
+            ));
+        }
+        if !is_scanned(path) {
+            continue;
+        }
+        if typed_directory && parts.len() > 3 {
             out.push(violation(
                 path,
                 "documents must sit directly in their directory",
             ));
         }
-        let hand_index = parts.as_slice() == ["docs", "capabilities", "index.md"]
-            && !repo.get(path).is_some_and(|t| t.contains(GENERATED_OPEN));
-        if hand_index {
+        if is_capability_index(path)
+            && let Some(problem) = repo.get(path).and_then(|t| index_problem(t))
+        {
             out.push(violation(
                 path,
-                "a hand-written capability index is not allowed",
+                format!("a hand-written capability index is not allowed: {problem}"),
             ));
         }
     }
@@ -1054,15 +1665,92 @@ fn check(repo: &Repo) -> Vec<String> {
     let mut found = Found::default();
     let mut markers = Vec::new();
     check_directories(repo, &mut out);
+    for (path, text) in repo.iter().filter(|(p, _)| is_markdown(p)) {
+        check_links(repo, path, text, &mut out);
+    }
     for (path, text) in repo.iter().filter(|(p, _)| is_scanned(p)) {
         scan_banned(path, text, &mut out);
+        scan_placeholders(path, text, &mut out);
         scan_markers(path, text, &mut markers, &mut out);
-        check_links(repo, path, text, &mut out);
         check_document(path, text, &mut found, &mut out);
     }
     check_cross_references(repo, &found, &markers, &mut out);
     out.sort();
     out.dedup();
+    out
+}
+
+/// The `id` and `state` of the document at `path`, or why it cannot be read.
+fn identity(repo: &Repo, path: &str) -> Result<(String, Option<String>), String> {
+    let text = repo.get(Path::new(path)).ok_or("the document is missing")?;
+    let doc = parse_document(text)
+        .ok_or("the document has no frontmatter")?
+        .map_err(|e| format!("unparseable frontmatter: {e}"))?;
+    let id = scalar_field(&doc, "id").unwrap_or_default().to_string();
+    Ok((id, scalar_field(&doc, "state").map(str::to_string)))
+}
+
+/// Compare the tree with the inventory: every listed document exists with the
+/// stated `id` and `state`, every open capability has its change record, and
+/// no document exists that the inventory does not list.
+fn check_inventory(repo: &Repo, inventory: &Inventory) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut listed: BTreeSet<String> = BTreeSet::new();
+    let mut expect = |path: String, id: String, state: Option<&str>| {
+        match identity(repo, &path) {
+            Err(reason) => out.push(violation(Path::new(&path), reason)),
+            Ok((found_id, found_state)) => {
+                if found_id != id {
+                    out.push(violation(
+                        Path::new(&path),
+                        format!("inventory expects id `{id}`, found `{found_id}`"),
+                    ));
+                }
+                if let Some(state) = state
+                    && found_state.as_deref() != Some(state)
+                {
+                    out.push(violation(
+                        Path::new(&path),
+                        format!(
+                            "inventory expects state `{state}`, found `{}`",
+                            found_state.unwrap_or_default()
+                        ),
+                    ));
+                }
+            }
+        }
+        listed.insert(path);
+    };
+    for (slug, state) in inventory.capabilities {
+        expect(
+            format!("docs/capabilities/{slug}.md"),
+            format!("cap:{slug}"),
+            Some(state),
+        );
+        if *state != "delivered" {
+            expect(
+                format!("work/changes/{slug}.md"),
+                format!("change:{slug}"),
+                None,
+            );
+        }
+    }
+    for slug in inventory.architecture {
+        expect(
+            format!("docs/architecture/{slug}.md"),
+            format!("arch:{slug}"),
+            None,
+        );
+    }
+    for path in repo.keys().filter(|p| is_markdown(p)) {
+        let known = path.to_str().is_some_and(|p| listed.contains(p));
+        if expected_type(path).is_some() && !known && !is_capability_index(path) {
+            out.push(violation(
+                path,
+                "the document is not in the inventory table",
+            ));
+        }
+    }
     out
 }
 
@@ -1110,7 +1798,8 @@ fn load_repo(root: &Path) -> Repo {
 #[test]
 fn repository_documents_satisfy_the_profile() {
     let repo = load_repo(&gate_root());
-    let violations = check(&repo);
+    let mut violations = check(&repo);
+    violations.extend(check_inventory(&repo, &INVENTORY));
     let mut report = String::new();
     for v in &violations {
         let _ = writeln!(report, "  {v}");
@@ -1121,14 +1810,10 @@ fn repository_documents_satisfy_the_profile() {
         violations.len()
     );
     let types = document_types(&repo);
-    assert!(
-        types.get("Architecture").copied().unwrap_or(0) >= 1,
-        "no Architecture document found; found types: {types:?}"
-    );
-    if repo.keys().any(|p| p.starts_with("docs/capabilities")) {
+    for kind in ["Architecture", "Capability", "Change"] {
         assert!(
-            types.get("Capability").copied().unwrap_or(0) >= 1,
-            "docs/capabilities exists but holds no Capability document; found types: {types:?}"
+            types.get(kind).copied().unwrap_or(0) >= 1,
+            "no {kind} document found; found types: {types:?}"
         );
     }
 }
@@ -1147,15 +1832,23 @@ mod fixtures {
             "Verification",
         ]
         .iter()
-        .map(|name| format!("## {name}\n\nText for {name}.\n"))
+        .map(|name| {
+            let extra = if *name == "Purpose" { body } else { "" };
+            format!("## {name}\n\n{extra}Text for {name}.\n")
+        })
         .collect::<Vec<_>>()
         .join("\n");
+        let (code, tests) = if state == "delivered" {
+            ("[src/lib.rs]", "[tests/it.rs]")
+        } else {
+            ("[]", "[]")
+        };
         format!(
             "---\n# SPDX-FileCopyrightText: 2026 Example\n# SPDX-License-Identifier: CC-BY-4.0\n\
              type: Capability\nid: cap:{slug}\ntitle: \"Title of {slug}\"\n\
              description: A description of {slug}.\nstate: {state}\n\
-             bindings:\n  code: []\n  tests: []\n  examples: []\n\
-             depends: {depends}\n---\n\n# {slug}\n\n{body}{sections}"
+             bindings:\n  code: {code}\n  tests: {tests}\n  examples: []\n\
+             depends: {depends}\n---\n\n# {slug}\n\n{sections}"
         )
     }
 
@@ -1199,6 +1892,21 @@ mod fixtures {
                 .to_string(),
         );
         repo
+    }
+
+    /// A change record with the given `changes` list, `affects` lines and
+    /// `items` block (the text after `items:`).
+    pub(super) fn change_record(slug: &str, changes: &str, affects: &str, items: &str) -> String {
+        let items = if items.is_empty() {
+            "items: []\n".to_string()
+        } else {
+            format!("items:\n{items}")
+        };
+        format!(
+            "---\ntype: Change\nid: change:{slug}\ntitle: Change {slug}\n\
+             description: Changes {slug}.\nchanges: {changes}\naffects:\n{affects}\
+             contract_effect: changes\n{items}---\n\n## Summary\n\nChanges it.\n"
+        )
     }
 
     pub(super) fn mutated(path: &str, from: &str, to: &str) -> Vec<String> {
@@ -1521,11 +2229,20 @@ fn rejects_bad_outcome() {
 
 #[test]
 fn accepts_moved_outcome() {
-    let violations = mutated(
-        "work/changes/add-alpha.md",
+    let mut repo = valid();
+    repo.insert(
+        PathBuf::from("work/changes/other-work.md"),
+        fixtures::change_record("other-work", "[cap:alpha]", "  - cap:alpha#usage\n", ""),
+    );
+    let record = repo
+        .get_mut(Path::new("work/changes/add-alpha.md"))
+        .expect("fixture change");
+    *record = record.replacen(
         "outcome: implemented",
         "outcome: moved:change:other-work",
+        1,
     );
+    let violations = check(&repo);
     assert!(violations.is_empty(), "{violations:#?}");
 }
 
@@ -1685,4 +2402,1372 @@ fn rejects_resource_key() {
         "state: designed\nresource: https://example.invalid/alpha",
     );
     assert_hit(&violations, "unknown key `resource`");
+}
+
+// ---------------------------------------------------------------------------
+// Fixtures for the hardened rules
+// ---------------------------------------------------------------------------
+
+/// Apply each `(from, to, needle)` mutation to `path` and require the needle.
+fn assert_cases(path: &str, cases: &[(&str, &str, &str)]) {
+    for (from, to, needle) in cases {
+        let violations = mutated(path, from, to);
+        assert!(
+            violations.iter().any(|v| v.contains(needle)),
+            "replacing `{from}` with `{to}` should report `{needle}`, got: {violations:#?}"
+        );
+    }
+}
+
+fn assert_clean(violations: &[String]) {
+    assert!(violations.is_empty(), "{violations:#?}");
+}
+
+const OVERVIEW: &str = "docs/architecture/overview.md";
+const ALPHA: &str = "docs/capabilities/alpha.md";
+const BETA: &str = "docs/capabilities/beta.md";
+const GAMMA: &str = "docs/capabilities/gamma.md";
+const CHANGE: &str = "work/changes/add-alpha.md";
+
+// --- capability inventory ---------------------------------------------------
+
+const FIXTURE_INVENTORY: Inventory = Inventory {
+    capabilities: &[
+        ("alpha", "designed"),
+        ("beta", "considered"),
+        ("gamma", "delivered"),
+    ],
+    architecture: &["overview"],
+};
+
+/// A valid tree whose documents are exactly `FIXTURE_INVENTORY`.
+fn inventory_repo() -> Repo {
+    let mut repo = valid();
+    repo.remove(Path::new(CHANGE));
+    let beta = repo.get_mut(Path::new(BETA)).expect("fixture beta");
+    *beta = beta.replace("change:add-alpha", "change:beta");
+    for (slug, section) in [("alpha", "contract"), ("beta", "purpose")] {
+        repo.insert(
+            PathBuf::from(format!("work/changes/{slug}.md")),
+            fixtures::change_record(
+                slug,
+                &format!("[cap:{slug}]"),
+                &format!("  - cap:{slug}#{section}\n"),
+                "",
+            ),
+        );
+    }
+    repo
+}
+
+#[test]
+fn inventory_accepts_a_matching_tree() {
+    let repo = inventory_repo();
+    assert_clean(&check(&repo));
+    assert_clean(&check_inventory(&repo, &FIXTURE_INVENTORY));
+}
+
+#[test]
+fn inventory_table_has_the_documented_shape() {
+    let slugs: BTreeSet<&str> = INVENTORY.capabilities.iter().map(|(s, _)| *s).collect();
+    assert_eq!(slugs.len(), 21, "21 capability slugs, each listed once");
+    assert!(slugs.iter().all(|s| is_kebab(s)));
+    let count = |wanted: &str| {
+        INVENTORY
+            .capabilities
+            .iter()
+            .filter(|(_, state)| *state == wanted)
+            .count()
+    };
+    assert_eq!(count("designed"), 16);
+    assert_eq!(count("considered"), 5);
+    assert_eq!(INVENTORY.architecture.len(), 2);
+}
+
+#[test]
+fn inventory_rejects_a_missing_capability() {
+    let mut repo = inventory_repo();
+    repo.remove(Path::new(BETA));
+    let found = check_inventory(&repo, &FIXTURE_INVENTORY);
+    assert_hit(&found, "docs/capabilities/beta.md: the document is missing");
+}
+
+#[test]
+fn inventory_rejects_a_missing_change_record() {
+    let mut repo = inventory_repo();
+    repo.remove(Path::new("work/changes/alpha.md"));
+    let found = check_inventory(&repo, &FIXTURE_INVENTORY);
+    assert_hit(&found, "work/changes/alpha.md: the document is missing");
+}
+
+#[test]
+fn inventory_rejects_a_missing_architecture_document() {
+    let mut repo = inventory_repo();
+    repo.remove(Path::new(OVERVIEW));
+    let found = check_inventory(&repo, &FIXTURE_INVENTORY);
+    assert_hit(
+        &found,
+        "docs/architecture/overview.md: the document is missing",
+    );
+}
+
+#[test]
+fn inventory_rejects_a_state_change() {
+    let mut repo = inventory_repo();
+    let alpha = repo.get_mut(Path::new(ALPHA)).expect("fixture alpha");
+    *alpha = alpha.replace("state: designed", "state: implementing");
+    let found = check_inventory(&repo, &FIXTURE_INVENTORY);
+    assert_hit(
+        &found,
+        "inventory expects state `designed`, found `implementing`",
+    );
+}
+
+#[test]
+fn inventory_rejects_an_id_change() {
+    let mut repo = inventory_repo();
+    let overview = repo.get_mut(Path::new(OVERVIEW)).expect("fixture overview");
+    *overview = overview.replace("arch:overview", "arch:other");
+    let found = check_inventory(&repo, &FIXTURE_INVENTORY);
+    assert_hit(
+        &found,
+        "inventory expects id `arch:overview`, found `arch:other`",
+    );
+}
+
+#[test]
+fn inventory_rejects_a_document_the_table_does_not_list() {
+    let mut repo = inventory_repo();
+    repo.insert(
+        PathBuf::from("docs/capabilities/extra.md"),
+        capability("extra", "designed", "[]", ""),
+    );
+    let found = check_inventory(&repo, &FIXTURE_INVENTORY);
+    assert_hit(
+        &found,
+        "docs/capabilities/extra.md: the document is not in the inventory table",
+    );
+}
+
+// --- placeholders and empty sections ----------------------------------------
+
+#[test]
+fn rejects_placeholder_tokens() {
+    for token in PLACEHOLDER_TOKENS {
+        let violations = mutated(
+            OVERVIEW,
+            "Body text.",
+            &format!("Body text. Still {token} here."),
+        );
+        assert_hit(&violations, "is not resolved text");
+    }
+    let shouted = concat!("Left TO", "DO: finish");
+    let violations = mutated(ALPHA, "Text for Usage.", shouted);
+    assert_hit(&violations, "is not resolved text");
+    let mixed_case = concat!("It is To Be ", "Written.");
+    let violations = mutated(ALPHA, "Text for Usage.", mixed_case);
+    assert_hit(&violations, "is not resolved text");
+}
+
+#[test]
+fn placeholder_scan_spares_code_and_longer_words() {
+    let token = concat!("T", "BD");
+    let fenced = format!("Body text.\n\n```text\n{token}\n```\n\nUse `{token}` and {token}x.\n");
+    assert_clean(&mutated(OVERVIEW, "Body text.\n", &fenced));
+}
+
+#[test]
+fn rejects_sections_left_empty_by_comments() {
+    for comment in [
+        "<!-- later -->\n",
+        "<!--\nlater\n-->\n",
+        "<!-- a --> <!-- b -->\n",
+    ] {
+        let violations = mutated(ALPHA, "Text for Examples.\n", comment);
+        assert_hit(&violations, "section `Examples` is empty");
+    }
+    let violations = mutated(CHANGE, "Adds both.\n", "<!-- soon -->\n");
+    assert_hit(&violations, "section `Summary` is empty");
+    let violations = mutated(
+        OVERVIEW,
+        "# Overview\n\nBody text.\n",
+        "<!-- nothing yet -->\n",
+    );
+    assert_hit(&violations, "architecture body is empty");
+}
+
+#[test]
+fn comment_stripping_keeps_visible_text() {
+    assert_eq!(strip_html_comments("a <!-- x --> b"), "a  b");
+    assert_eq!(strip_html_comments("a <!-- never closed"), "a ");
+    assert!(!is_blank("<!-- x -->\ntext"));
+    assert!(is_blank("  <!-- x -->\n  "));
+}
+
+// --- frontmatter scalars ----------------------------------------------------
+
+#[test]
+fn rejects_unterminated_quote() {
+    assert_cases(
+        OVERVIEW,
+        &[
+            (
+                "title: Overview",
+                "title: \"Overview",
+                "unterminated quoted value",
+            ),
+            (
+                "title: Overview",
+                "title: 'Overview",
+                "unterminated quoted value",
+            ),
+            (
+                "title: Overview",
+                "title: \"Over\" view",
+                "text after the closing quote",
+            ),
+        ],
+    );
+}
+
+#[test]
+fn rejects_unquoted_colon_space() {
+    assert_cases(
+        OVERVIEW,
+        &[
+            (
+                "title: Overview",
+                "title: Built-in: census",
+                "contains `: `",
+            ),
+            ("title: Overview", "title: Overview:", "contains `: `"),
+        ],
+    );
+}
+
+#[test]
+fn rejects_leading_indicator_character() {
+    for indicator in ['>', '|', '&', '*', '!', '%', '@', '`'] {
+        let violations = mutated(
+            OVERVIEW,
+            "title: Overview",
+            &format!("title: {indicator}Overview"),
+        );
+        assert_hit(&violations, "starts with a YAML indicator character");
+    }
+}
+
+#[test]
+fn rejects_block_scalar_indicator_value() {
+    for indicator in [">", "|", ">-", "|+", ">2", "|-"] {
+        let violations = mutated(
+            OVERVIEW,
+            "description: How it fits.",
+            &format!("description: {indicator}"),
+        );
+        assert_hit(&violations, "block scalar indicator");
+    }
+}
+
+#[test]
+fn accepts_comments_after_scalars() {
+    let doc = parse_document(
+        "---\ntitle: Overview # a note\nquoted: \"a # b\" # c\nsingle: 'It''s # x'  # c\n\
+         hash: a#b\nlist: [one, \"two # 2\"] # c\nempty: # nothing\nitems:\n  - claim: x # c\n---\n",
+    )
+    .expect("has frontmatter")
+    .expect("parses");
+    let scalar_of = |key: &str| scalar_field(&doc, key).map(str::to_string);
+    assert_eq!(scalar_of("title").as_deref(), Some("Overview"));
+    assert_eq!(scalar_of("quoted").as_deref(), Some("a # b"));
+    assert_eq!(scalar_of("single").as_deref(), Some("It's # x"));
+    assert_eq!(scalar_of("hash").as_deref(), Some("a#b"));
+    assert_eq!(scalar_of("empty").as_deref(), Some(""));
+    assert_eq!(
+        list_field(&doc, "list"),
+        Some(&["one".to_string(), "two # 2".to_string()][..])
+    );
+    let violations = mutated(ALPHA, "state: designed", "state: designed # still planned");
+    assert_clean(&violations);
+    let violations = mutated(
+        ALPHA,
+        "depends: [cap:beta]",
+        "depends: [cap:beta] # one edge",
+    );
+    assert_clean(&violations);
+}
+
+#[test]
+fn rejects_bad_scalars_in_every_value_position() {
+    assert_cases(
+        ALPHA,
+        &[
+            (
+                "depends: [cap:beta]",
+                "depends: [cap:beta, \"x]",
+                "unterminated quoted value",
+            ),
+            (
+                "depends: [cap:beta]",
+                "depends: [cap:beta, a: b]",
+                "contains `: `",
+            ),
+            (
+                "depends: [cap:beta]",
+                "depends:\n  - \"cap:beta",
+                "unterminated quoted value",
+            ),
+            (
+                "depends: [cap:beta]",
+                "depends:\n  - >",
+                "block scalar indicator",
+            ),
+            (
+                "  code: []\n",
+                "  code:\n    - 'src/lib.rs\n",
+                "unterminated quoted value",
+            ),
+            (
+                "  code: []\n",
+                "  code: [*anchor]",
+                "starts with a YAML indicator",
+            ),
+        ],
+    );
+    let items = "  - claim: \"unterminated\n";
+    let mut repo = valid();
+    repo.insert(
+        PathBuf::from(CHANGE),
+        fixtures::change_record(
+            "add-alpha",
+            "[cap:alpha, cap:beta]",
+            "  - cap:alpha#contract\n  - cap:beta#purpose\n",
+            items,
+        ),
+    );
+    assert_hit(&check(&repo), "unterminated quoted value");
+    let items = "  - claim: fine\n    outcome: > folded\n";
+    repo.insert(
+        PathBuf::from(CHANGE),
+        fixtures::change_record(
+            "add-alpha",
+            "[cap:alpha, cap:beta]",
+            "  - cap:alpha#contract\n  - cap:beta#purpose\n",
+            items,
+        ),
+    );
+    assert_hit(&check(&repo), "starts with a YAML indicator");
+}
+
+// --- PROPOSED markers -------------------------------------------------------
+
+#[test]
+fn rejects_lowercase_proposed_marker() {
+    assert_cases(
+        BETA,
+        &[(
+            "> [!PROPOSED change:add-alpha]",
+            "> [!proposed change:add-alpha]",
+            "malformed PROPOSED marker",
+        )],
+    );
+    let violations = mutated(
+        GAMMA,
+        "# gamma\n",
+        "# gamma\n\n> [!Proposed change:add-alpha]\n> Left over.\n",
+    );
+    assert_hit(&violations, "malformed PROPOSED marker");
+}
+
+#[test]
+fn rejects_proposed_marker_without_space() {
+    assert_cases(
+        BETA,
+        &[(
+            "> [!PROPOSED change:add-alpha]",
+            ">[!PROPOSED change:add-alpha]",
+            "malformed PROPOSED marker",
+        )],
+    );
+}
+
+#[test]
+fn rejects_proposed_marker_with_extra_spacing_or_nesting() {
+    for marker in [
+        ">  [!PROPOSED change:add-alpha]",
+        "> > [!PROPOSED change:add-alpha]",
+        "- > [!PROPOSED change:add-alpha]",
+        "[!PROPOSED change:add-alpha]",
+    ] {
+        let violations = mutated(BETA, "> [!PROPOSED change:add-alpha]", marker);
+        assert_hit(&violations, "malformed PROPOSED marker");
+    }
+}
+
+#[test]
+fn rejects_designed_with_proposed_block() {
+    let violations = mutated(
+        ALPHA,
+        "Text for Contract.\n",
+        "> [!PROPOSED change:add-alpha]\n> Not yet.\n\nText for Contract.\n",
+    );
+    assert_hit(&violations, "state designed must have no PROPOSED blocks");
+}
+
+#[test]
+fn rejects_proposed_section_missing_from_affects() {
+    let violations = mutated(CHANGE, "  - cap:beta#purpose\n", "  - cap:beta#usage\n");
+    assert_hit(
+        &violations,
+        "PROPOSED block in section `purpose` needs `cap:beta#purpose` in the affects of change `add-alpha`",
+    );
+}
+
+#[test]
+fn rejects_proposed_block_outside_a_section() {
+    let violations = mutated(
+        BETA,
+        "# beta\n",
+        "# beta\n\n> [!PROPOSED change:add-alpha]\n> Early.\n",
+    );
+    assert_hit(
+        &violations,
+        "a PROPOSED block must sit inside one of the seven sections",
+    );
+}
+
+// --- bindings by state ------------------------------------------------------
+
+#[test]
+fn rejects_bindings_before_delivery() {
+    for (path, state) in [(ALPHA, "designed"), (BETA, "considered")] {
+        for key in BINDING_KEYS {
+            let violations = mutated(
+                path,
+                &format!("  {key}: []"),
+                &format!("  {key}: [src/lib.rs]"),
+            );
+            assert_hit(
+                &violations,
+                &format!("state {state} must have empty bindings, but `{key}` is not empty"),
+            );
+        }
+    }
+}
+
+#[test]
+fn rejects_delivered_without_code_or_test_binding() {
+    let violations = mutated(GAMMA, "  code: [src/lib.rs]", "  code: []");
+    assert_hit(
+        &violations,
+        "state delivered must bind at least one code path",
+    );
+    let violations = mutated(GAMMA, "  tests: [tests/it.rs]", "  tests: []");
+    assert_hit(&violations, "state delivered must bind at least one test");
+}
+
+// --- links ------------------------------------------------------------------
+
+#[test]
+fn rejects_broken_reference_definition() {
+    assert_cases(
+        "README.md",
+        &[
+            (
+                "# Readme",
+                "# Readme\n\n[ref]: ./missing.md",
+                "broken link `./missing.md`",
+            ),
+            (
+                "# Readme",
+                "# Readme\n\n  [ref]: <./missing.md> \"Title\"",
+                "broken link `./missing.md`",
+            ),
+            (
+                "# Readme",
+                "# Readme\n\n[ref]: docs/capabilities/alpha.md#no-such",
+                "broken anchor",
+            ),
+        ],
+    );
+}
+
+#[test]
+fn rejects_broken_href_and_src_attributes() {
+    assert_cases(
+        "README.md",
+        &[
+            (
+                "# Readme",
+                "# Readme\n\n<a href=\"docs/missing.md\">gone</a>",
+                "broken link `docs/missing.md`",
+            ),
+            (
+                "# Readme",
+                "# Readme\n\n<img src='docs/missing.svg' width=\"2\">",
+                "broken link `docs/missing.svg`",
+            ),
+            (
+                "# Readme",
+                "# Readme\n\n<a HREF=\"../../outside.md\">out</a>",
+                "leaves the repository",
+            ),
+        ],
+    );
+}
+
+#[test]
+fn rejects_broken_link_outside_the_document_directories() {
+    for path in [
+        ".github/PULL_REQUEST_TEMPLATE.md",
+        ".github/ISSUE_TEMPLATE/bug.md",
+        "crates/tool/README.md",
+    ] {
+        let mut repo = valid();
+        repo.insert(
+            PathBuf::from(path),
+            "See [gone](docs/missing.md).\n".to_string(),
+        );
+        assert_hit(&check(&repo), &format!("{path}: line 1: broken link"));
+    }
+}
+
+#[test]
+fn accepts_resolving_reference_and_attribute_links() {
+    let mut repo = valid();
+    repo.insert(
+        PathBuf::from(".github/PULL_REQUEST_TEMPLATE.md"),
+        "# Template\n\n[docs]: ../docs/architecture/overview.md\n\
+         <img src=\"../docs/architecture/overview.md\" alt=\"x\">\n\
+         <a href=\"https://example.invalid/a\">site</a> <a href=\"#template\">top</a>\n\
+         A footnote[^1] and `[code]: ./missing.md` stay quiet.\n\n[^1]: A note.\n"
+            .to_string(),
+    );
+    assert_clean(&check(&repo));
+}
+
+// --- moved outcomes, typed documents, directories ---------------------------
+
+#[test]
+fn rejects_moved_outcome_naming_a_missing_change() {
+    let violations = mutated(
+        CHANGE,
+        "outcome: implemented",
+        "outcome: moved:change:ghost",
+    );
+    assert_hit(
+        &violations,
+        "item moved to change `ghost`, but work/changes/ghost.md does not exist",
+    );
+}
+
+#[test]
+fn rejects_typed_document_outside_its_directory() {
+    let capability_text = capability("stray", "designed", "[]", "");
+    let architecture_text = valid()
+        .remove(Path::new(OVERVIEW))
+        .expect("fixture overview")
+        .replace("overview", "stray");
+    let change_text = fixtures::change_record("stray", "[cap:alpha]", "  - cap:alpha#usage\n", "");
+    for (path, text, kind, home) in [
+        (
+            "docs/other/stray.md",
+            &capability_text,
+            "Capability",
+            "docs/capabilities",
+        ),
+        ("docs/stray.md", &change_text, "Change", "work/changes"),
+        (
+            "work/stray.md",
+            &architecture_text,
+            "Architecture",
+            "docs/architecture",
+        ),
+        (
+            "stray.md",
+            &capability_text,
+            "Capability",
+            "docs/capabilities",
+        ),
+    ] {
+        let mut repo = valid();
+        repo.insert(PathBuf::from(path), text.clone());
+        assert_hit(
+            &check(&repo),
+            &format!("{path}: a {kind} document belongs directly in {home}"),
+        );
+    }
+}
+
+#[test]
+fn rejects_non_markdown_file_in_a_document_directory() {
+    for path in [
+        "docs/capabilities/notes.txt",
+        "docs/capabilities/ALPHA.MD",
+        "docs/architecture/diagram.svg",
+        "work/changes/draft.yaml",
+        "docs/capabilities/sub/data.json",
+    ] {
+        let mut repo = valid();
+        repo.insert(PathBuf::from(path), String::new());
+        assert_hit(
+            &check(&repo),
+            &format!("{path}: only Markdown documents belong in a document directory"),
+        );
+    }
+}
+
+#[test]
+fn accepts_a_generated_capability_index() {
+    let mut repo = valid();
+    repo.insert(
+        PathBuf::from("docs/capabilities/index.md"),
+        "<!-- raf:generated:catalogue -->\n| alpha |\n<!-- raf:generated:end -->\n".to_string(),
+    );
+    assert_clean(&check(&repo));
+}
+
+// --- audit: one fixture for every other implemented rule --------------------
+
+#[test]
+fn rejects_empty_or_non_scalar_title() {
+    assert_cases(
+        ALPHA,
+        &[
+            (
+                "title: \"Title of alpha\"",
+                "title: \"\"",
+                "`title` must be a non-empty string",
+            ),
+            (
+                "title: \"Title of alpha\"",
+                "title: [a, b]",
+                "`title` must be a non-empty string",
+            ),
+            (
+                "description: A description of alpha.",
+                "description:",
+                "`description` must be a non-empty string",
+            ),
+        ],
+    );
+}
+
+#[test]
+fn rejects_bad_id_prefix_or_slug() {
+    assert_cases(
+        ALPHA,
+        &[
+            ("id: cap:alpha", "id: change:alpha", "must be `cap:<slug>`"),
+            ("id: cap:alpha", "id: cap:Alpha", "must be `cap:<slug>`"),
+            ("id: cap:alpha", "id: cap:a--b", "must be `cap:<slug>`"),
+            ("id: cap:alpha", "id: cap:al_pha", "must be `cap:<slug>`"),
+        ],
+    );
+    assert_cases(
+        CHANGE,
+        &[(
+            "id: change:add-alpha",
+            "id: cap:add-alpha",
+            "must be `change:<slug>`",
+        )],
+    );
+    assert_cases(
+        OVERVIEW,
+        &[("id: arch:overview", "id: overview", "must be `arch:<slug>`")],
+    );
+}
+
+#[test]
+fn rejects_non_scalar_state_and_scalar_bindings() {
+    assert_cases(
+        ALPHA,
+        &[
+            (
+                "state: designed",
+                "state: [designed]",
+                "`state` must be a scalar",
+            ),
+            (
+                "bindings:\n  code: []\n  tests: []\n  examples: []\n",
+                "bindings: none\n",
+                "bindings must be a map",
+            ),
+        ],
+    );
+}
+
+#[test]
+fn rejects_bad_depends_shapes() {
+    assert_cases(
+        ALPHA,
+        &[
+            (
+                "depends: [cap:beta]",
+                "depends: [beta]",
+                "depends entry `beta` is not a cap id",
+            ),
+            (
+                "depends: [cap:beta]",
+                "depends: cap:beta",
+                "`depends` must be a list",
+            ),
+            (
+                "depends: [cap:beta]",
+                "depends: [cap:Beta]",
+                "is not a cap id",
+            ),
+        ],
+    );
+}
+
+#[test]
+fn rejects_self_and_three_node_dependency_cycles() {
+    assert_cases(
+        ALPHA,
+        &[(
+            "depends: [cap:beta]",
+            "depends: [cap:alpha]",
+            "depends cycle: cap:alpha -> cap:alpha",
+        )],
+    );
+    assert_cases(
+        BETA,
+        &[(
+            "depends: []",
+            "depends: [cap:gamma]",
+            "depends cycle: cap:alpha -> cap:beta -> cap:gamma -> cap:alpha",
+        )],
+    );
+}
+
+#[test]
+fn rejects_proposed_change_that_does_not_list_the_capability() {
+    let violations = mutated(
+        CHANGE,
+        "changes: [cap:alpha, cap:beta]",
+        "changes: [cap:alpha]",
+    );
+    assert_hit(
+        &violations,
+        "PROPOSED change `add-alpha` does not list cap:beta",
+    );
+}
+
+#[test]
+fn rejects_bad_changes_list() {
+    assert_cases(
+        CHANGE,
+        &[
+            (
+                "changes: [cap:alpha, cap:beta]",
+                "changes: []",
+                "`changes` must be a non-empty list",
+            ),
+            (
+                "changes: [cap:alpha, cap:beta]",
+                "changes: cap:alpha",
+                "`changes` must be a non-empty list",
+            ),
+            (
+                "changes: [cap:alpha, cap:beta]",
+                "changes: [cap:alpha, beta]",
+                "changes entry `beta` is not a cap id",
+            ),
+        ],
+    );
+}
+
+#[test]
+fn rejects_bad_affects_shapes() {
+    assert_cases(
+        CHANGE,
+        &[
+            (
+                "affects:\n  - cap:alpha#contract\n  - cap:beta#purpose\n",
+                "affects: cap:alpha#contract\n",
+                "`affects` must be a list",
+            ),
+            (
+                "cap:alpha#contract",
+                "alpha-contract",
+                "must be `cap:<slug>#<section>`",
+            ),
+            (
+                "cap:alpha#contract",
+                "cap:alpha",
+                "must be `cap:<slug>#<section>`",
+            ),
+        ],
+    );
+}
+
+#[test]
+fn rejects_non_scalar_contract_effect() {
+    assert_cases(
+        CHANGE,
+        &[(
+            "contract_effect: changes",
+            "contract_effect: [none]",
+            "bad contract_effect `<not a scalar>`",
+        )],
+    );
+}
+
+/// Replace the `add-alpha` change record with one whose `items` block is given.
+fn with_items(items: &str) -> Vec<String> {
+    let mut repo = valid();
+    repo.insert(
+        PathBuf::from(CHANGE),
+        fixtures::change_record(
+            "add-alpha",
+            "[cap:alpha, cap:beta]",
+            "  - cap:alpha#contract\n  - cap:beta#purpose\n",
+            items,
+        ),
+    );
+    check(&repo)
+}
+
+#[test]
+fn rejects_item_shape_errors() {
+    for (items, needle) in [
+        (
+            "  - claim: \"x\"\n    owner: me\n",
+            "unknown item key `owner`",
+        ),
+        (
+            "  - outcome: dropped\n",
+            "every item needs a non-empty `claim`",
+        ),
+        ("  - claim: \"\"\n", "every item needs a non-empty `claim`"),
+        (
+            "  - claim: \"x\"\n    claim: \"y\"\n",
+            "duplicate entry key `claim`",
+        ),
+        (
+            "  - claim: \"x\"\n  - plain\n",
+            "list mixes scalar and map entries",
+        ),
+        (
+            "  - plain\n    outcome: dropped\n",
+            "continuation without a map entry",
+        ),
+        (
+            "  - claim: \"x\"\n    !!!\n",
+            "cannot parse list entry line",
+        ),
+        ("  - claim: \"x\"\n  junk\n", "cannot parse list line"),
+        ("  - one\n  - two\n", "`items` must be a list of maps"),
+    ] {
+        let violations = with_items(items);
+        assert!(
+            violations.iter().any(|v| v.contains(needle)),
+            "items {items:?} should report `{needle}`, got: {violations:#?}"
+        );
+    }
+    assert_hit(
+        &mutated(CHANGE, "items:\n", "items: nothing\nignored_by_test:\n"),
+        "`items` must be a list of maps",
+    );
+}
+
+#[test]
+fn rejects_frontmatter_shape_errors() {
+    assert_cases(
+        OVERVIEW,
+        &[
+            (
+                "title: Overview",
+                "title: Overview\ntitle: Again",
+                "duplicate key `title`",
+            ),
+            (
+                "title: Overview",
+                "title: Overview\nBad Key: 1",
+                "cannot parse frontmatter line",
+            ),
+        ],
+    );
+    assert_cases(
+        ALPHA,
+        &[
+            (
+                "  code: []\n",
+                "  code: []\n  code: []\n",
+                "duplicate map key `code`",
+            ),
+            (
+                "  code: []\n",
+                "  code: foo\n",
+                "map value of `code` must be a list",
+            ),
+            ("  code: []\n", "  code: [a\n", "unterminated inline list"),
+            (
+                "  code: []\n",
+                "  code: [a,,b]\n",
+                "empty entry in inline list",
+            ),
+            (
+                "  code: []\n",
+                "  code: []\n    - stray\n",
+                "list item without a key",
+            ),
+            (
+                "  code: []\n",
+                "  code: []\n      deep\n",
+                "cannot parse map line",
+            ),
+        ],
+    );
+    assert_cases(
+        ALPHA,
+        &[(
+            "type: Capability",
+            "title: again\ntype: Capability",
+            "duplicate key",
+        )],
+    );
+}
+
+#[test]
+fn rejects_missing_type_key() {
+    assert_cases(
+        OVERVIEW,
+        &[("type: Architecture\n", "", "missing required key `type`")],
+    );
+}
+
+#[test]
+fn rejects_duplicate_section() {
+    assert_cases(
+        ALPHA,
+        &[(
+            "## Usage\n\nText for Usage.\n",
+            "## Usage\n\nText for Usage.\n\n## Usage\n\nAgain.\n",
+            "a section appears more than once",
+        )],
+    );
+}
+
+#[test]
+fn rejects_generated_marker_errors() {
+    assert_cases(
+        OVERVIEW,
+        &[
+            (
+                "Body text.",
+                "Body text.\n\n<!-- raf:generated:end -->\n",
+                "generated end marker without a start",
+            ),
+            (
+                "Body text.",
+                "Body text.\n\n<!-- raf:generated:a -->\n<!-- raf:generated:b -->\n<!-- raf:generated:end -->\n",
+                "generated block inside another generated block",
+            ),
+            (
+                "Body text.",
+                "Body text.\n\n<!-- raf:generated: -->\n",
+                "malformed generated marker",
+            ),
+            (
+                "Body text.",
+                "Body text.\n\n<!-- raf:generated:Bad Kind -->\n",
+                "malformed generated marker",
+            ),
+            (
+                "Body text.",
+                "Body text.\n\n<!-- raf:generated:matrix\n",
+                "malformed generated marker",
+            ),
+        ],
+    );
+}
+
+// --- reading files ----------------------------------------------------------
+
+/// A scratch directory removed when dropped, named by process id, a
+/// nanosecond timestamp and a counter so no two runs share a path.
+#[cfg(unix)]
+struct Scratch(PathBuf);
+
+#[cfg(unix)]
+impl Scratch {
+    fn new() -> Self {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::time::{SystemTime, UNIX_EPOCH};
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        let dir = std::env::temp_dir().join(format!(
+            "raf-docs-contract-{}-{nanos}-{}",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&dir).expect("scratch directory");
+        Self(dir)
+    }
+}
+
+#[cfg(unix)]
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn refuses_non_regular_files_instead_of_blocking() {
+    use std::process::Command;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let scratch = Scratch::new();
+    let dir = scratch.0.clone();
+    let made = Command::new("mkfifo")
+        .arg(dir.join("trap.md"))
+        .status()
+        .expect("mkfifo runs");
+    assert!(made.success(), "mkfifo failed");
+    std::fs::write(dir.join("plain.md"), "text").expect("plain file");
+    std::os::unix::fs::symlink(dir.join("plain.md"), dir.join("link.md")).expect("symlink");
+
+    let (sender, receiver) = mpsc::channel();
+    let root = dir.clone();
+    std::thread::spawn(move || {
+        let _ = sender.send(read_regular(&root, Path::new("trap.md")));
+    });
+    let outcome = receiver
+        .recv_timeout(Duration::from_secs(10))
+        .expect("reading a FIFO must not block");
+    assert!(
+        outcome
+            .as_ref()
+            .is_err_and(|e| e.contains("not a regular file")),
+        "{outcome:?}"
+    );
+    let link = read_regular(&dir, Path::new("link.md"));
+    assert!(
+        link.as_ref().is_err_and(
+            |e| e.contains("link.md") && e.contains("symlinks are not allowed in the tree")
+        ),
+        "{link:?}"
+    );
+    assert_eq!(
+        read_regular(&dir, Path::new("plain.md")),
+        Ok(b"text".to_vec())
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn refuses_a_file_swapped_in_after_inspection() {
+    let scratch = Scratch::new();
+    let dir = &scratch.0;
+    std::fs::write(dir.join("first.md"), "one").expect("first file");
+    std::fs::write(dir.join("second.md"), "two").expect("second file");
+    let inspected = std::fs::symlink_metadata(dir.join("first.md")).expect("stat first");
+    let opened = std::fs::File::open(dir.join("second.md"))
+        .and_then(|f| f.metadata())
+        .expect("stat second");
+    let verdict = support::check_handle("first.md", &inspected, &opened);
+    assert!(
+        verdict.is_err_and(|e| e.contains("changed while it was being opened")),
+        "a different inode must be refused"
+    );
+    let same = std::fs::File::open(dir.join("first.md"))
+        .and_then(|f| f.metadata())
+        .expect("stat first handle");
+    assert_eq!(support::check_handle("first.md", &inspected, &same), Ok(()));
+}
+
+// --- generated index, placeholder spellings, unquoted attributes ------------
+
+/// Assembled in pieces so that this file carries no SPDX tag of its own here.
+const SPDX_ID: &str = concat!("SPDX-License-", "Identifier: CC-BY-4.0");
+
+fn index_repo(text: &str) -> Vec<String> {
+    let mut repo = valid();
+    repo.insert(
+        PathBuf::from("docs/capabilities/index.md"),
+        text.to_string(),
+    );
+    check(&repo)
+}
+
+#[test]
+fn accepts_a_generated_index_with_an_spdx_header() {
+    let header = format!("<!--\nSPDX-FileCopyrightText: 2026 Example\n{SPDX_ID}\n-->\n\n");
+    let body = "<!-- raf:generated:catalogue -->\n| alpha |\n\n<!-- raf:generated:end -->\n";
+    assert_clean(&index_repo(&format!("{header}{body}")));
+    assert_clean(&index_repo(&format!("<!-- {SPDX_ID} -->\n{body}")));
+}
+
+#[test]
+fn rejects_an_index_with_prose_outside_the_blocks() {
+    let block = "<!-- raf:generated:catalogue -->\n| alpha |\n<!-- raf:generated:end -->\n";
+    for text in [
+        format!("# Index\n\n{block}"),
+        format!("{block}\nHand-written note.\n"),
+        format!("<!--\n{SPDX_ID}\nprose\n-->\n{block}"),
+    ] {
+        assert_hit(
+            &index_repo(&text),
+            "hand-written capability index is not allowed",
+        );
+    }
+}
+
+#[test]
+fn rejects_an_index_whose_marker_is_only_in_a_code_span() {
+    let text = "Generated by `<!-- raf:generated:catalogue -->` honestly.\n";
+    assert_hit(&index_repo(text), "text outside a generated block");
+    let fenced_in_span =
+        "`<!-- raf:generated:catalogue -->`\n| alpha |\n`<!-- raf:generated:end -->`\n";
+    assert_hit(
+        &index_repo(fenced_in_span),
+        "hand-written capability index is not allowed",
+    );
+}
+
+#[test]
+fn rejects_an_index_with_a_mid_line_marker() {
+    for text in [
+        "prose <!-- raf:generated:catalogue --> | alpha |\n<!-- raf:generated:end -->\n",
+        "<!-- raf:generated:catalogue -->\n| alpha |\ntrailing <!-- raf:generated:end -->\n x\n",
+        "  <!-- raf:generated:catalogue -->\n| alpha |\n<!-- raf:generated:end -->\n",
+        "<!-- raf:generated:catalogue -->\n",
+        "\n",
+    ] {
+        assert_hit(
+            &index_repo(text),
+            "hand-written capability index is not allowed",
+        );
+    }
+}
+
+#[test]
+fn rejects_placeholder_spellings() {
+    for spelling in [
+        concat!("t", "bd"),
+        concat!("T.B", ".D."),
+        concat!("t.b", ".d"),
+        concat!("To", "Do"),
+        concat!("fix", "Me"),
+        concat!("Fix", "ME:"),
+        concat!("x", "xX"),
+        concat!("to  be", "\twritten"),
+        concat!("TO BE ", "WRITTEN"),
+    ] {
+        let violations = mutated(
+            OVERVIEW,
+            "Body text.",
+            &format!("Body text. Still {spelling} soon."),
+        );
+        assert_hit(&violations, "is not resolved text");
+    }
+}
+
+#[test]
+fn placeholder_scan_spares_longer_words_and_dotted_prose() {
+    let text = format!(
+        "Body text. {} and {} and e.g. a.b.c, {}s.\n",
+        concat!("t", "bdx"),
+        concat!("to", "dos"),
+        concat!("x", "xxx"),
+    );
+    assert_clean(&mutated(OVERVIEW, "Body text.\n", &text));
+}
+
+#[test]
+fn rejects_broken_unquoted_attribute_values() {
+    assert_cases(
+        "README.md",
+        &[
+            (
+                "# Readme",
+                "# Readme\n\n<a href=docs/missing.md>x</a>",
+                "broken link `docs/missing.md`",
+            ),
+            (
+                "# Readme",
+                "# Readme\n\n<img src=docs/missing.svg />",
+                "broken link `docs/missing.svg`",
+            ),
+            (
+                "# Readme",
+                "# Readme\n\n<a href=../../outside.md>x</a>",
+                "leaves the repository",
+            ),
+        ],
+    );
+    let mut repo = valid();
+    repo.insert(
+        PathBuf::from(".github/note.md"),
+        "# Note\n\n<a href=../docs/architecture/overview.md>ok</a>\n".to_string(),
+    );
+    assert_clean(&check(&repo));
+}
+
+#[test]
+fn rejects_an_index_header_with_unknown_tags_or_in_the_wrong_place() {
+    let block = "<!-- raf:generated:catalogue -->\n| alpha |\n<!-- raf:generated:end -->\n";
+    for text in [
+        format!("<!-- SPDX-Anything: x -->\n{block}"),
+        format!("<!--\nSPDX-Anything: x\n-->\n{block}"),
+        format!("{block}<!-- {SPDX_ID} -->\n"),
+        format!("{block}\n<!--\n{SPDX_ID}\n-->\n{block}"),
+    ] {
+        assert_hit(
+            &index_repo(&text),
+            "hand-written capability index is not allowed",
+        );
+    }
+}
+
+#[test]
+fn rejects_an_index_with_an_indented_marker() {
+    for indent in [" ", "    ", "\t"] {
+        let text = format!(
+            "{indent}<!-- raf:generated:catalogue -->\n| alpha |\n<!-- raf:generated:end -->\n"
+        );
+        assert_hit(&index_repo(&text), "text outside a generated block");
+        let text = format!(
+            "<!-- raf:generated:catalogue -->\n| alpha |\n{indent}<!-- raf:generated:end -->\n"
+        );
+        assert_hit(
+            &index_repo(&text),
+            "hand-written capability index is not allowed",
+        );
+    }
+}
+
+#[test]
+fn reads_attributes_with_spaces_around_the_equals_sign() {
+    assert_cases(
+        "README.md",
+        &[
+            (
+                "# Readme",
+                "# Readme\n\n<a href = \"docs/missing.md\">x</a>",
+                "broken link `docs/missing.md`",
+            ),
+            (
+                "# Readme",
+                "# Readme\n\n<img src\t=  docs/missing.svg>",
+                "broken link `docs/missing.svg`",
+            ),
+        ],
+    );
+}
+
+#[test]
+fn does_not_read_attributes_that_only_end_in_href_or_src() {
+    let text = "# Readme\n\n<a data-href=\"docs/missing.md\" x-src='docs/none.svg' data_src=docs/n.svg>x</a>\n\
+                Use the href attribute and src = nothing here.\n";
+    assert_clean(&mutated("README.md", "# Readme\n", text));
+}
+
+#[test]
+fn rejects_broken_attributes_in_tags_split_across_lines() {
+    for (text, needle) in [
+        (
+            "<img\n  src=\"docs/missing.svg\"\n  alt=\"x\">\n",
+            "README.md: line 4: broken link `docs/missing.svg`",
+        ),
+        (
+            "<img\n  alt=\"x\"\n  src=docs/missing.svg />\n",
+            "README.md: line 5: broken link `docs/missing.svg`",
+        ),
+        (
+            "<img\nalt=\"x\"\nsrc = 'docs/missing.svg'\nwidth=\"2\">\n",
+            "README.md: line 5: broken link `docs/missing.svg`",
+        ),
+        (
+            "<a\n  href=\"docs/missing.md\">gone</a>\n",
+            "README.md: line 4: broken link `docs/missing.md`",
+        ),
+        (
+            "<a title=\"x>y\" href=\"./nope.md\">gone</a>\n",
+            "README.md: line 3: broken link `./nope.md`",
+        ),
+        (
+            "<a title=\"two\nlines>\" href=\"./nope.md\">gone</a>\n",
+            "README.md: line 4: broken link `./nope.md`",
+        ),
+    ] {
+        let violations = mutated("README.md", "# Readme\n", &format!("# Readme\n\n{text}"));
+        assert_hit(&violations, needle);
+    }
+}
+
+#[test]
+fn tag_scan_spares_prose_autolinks_and_closed_tags() {
+    let text = "# Readme\n\nWrite src = nothing or href = nothing; if a < b then x > y.\n\
+                <https://example.invalid/?src=a&href=b>\n\
+                <p align=\"center\">\n  <img src=\"docs/architecture/overview.md\" alt=\"ok\">\n</p>\n\
+                After the tag, src = nothing is prose again.\n";
+    assert_clean(&mutated("README.md", "# Readme\n", text));
+}
+
+#[test]
+fn rejects_an_index_header_tag_without_a_value() {
+    let block = "<!-- raf:generated:catalogue -->\n| alpha |\n<!-- raf:generated:end -->\n";
+    for header in [
+        "<!-- SPDX-FileCopyrightText: -->\n".to_string(),
+        "<!--\nSPDX-FileCopyrightText:   \n-->\n".to_string(),
+        format!("<!--\n{SPDX_ID}\nSPDX-FileCopyrightText:\n-->\n"),
+    ] {
+        assert_hit(
+            &index_repo(&format!("{header}{block}")),
+            "hand-written capability index is not allowed",
+        );
+    }
+}
+
+#[test]
+fn tag_state_does_not_survive_a_blank_line_or_a_fence() {
+    let broken = "<img src=\"./nope.png\">\n";
+    for prose in [
+        "a<b it's fine\n\n",
+        "a<b \"quoted\n\n",
+        "a<b it's fine\n\n```text\ncode\n```\n",
+    ] {
+        let violations = mutated(
+            "README.md",
+            "# Readme\n",
+            &format!("# Readme\n\n{prose}{broken}"),
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("broken link `./nope.png`")),
+            "{prose:?}: {violations:#?}"
+        );
+    }
+}
+
+#[test]
+fn reads_an_attribute_value_that_starts_on_the_next_line() {
+    for (text, needle) in [
+        (
+            "<img src=\n  \"docs/missing.svg\" alt=\"x\">\n",
+            "README.md: line 4: broken link `docs/missing.svg`",
+        ),
+        (
+            "<a href =\n  docs/missing.md>gone</a>\n",
+            "README.md: line 4: broken link `docs/missing.md`",
+        ),
+    ] {
+        let violations = mutated("README.md", "# Readme\n", &format!("# Readme\n\n{text}"));
+        assert_hit(&violations, needle);
+    }
+    let fine = "<img src=\n  \"docs/architecture/overview.md\">\n";
+    assert_clean(&mutated(
+        "README.md",
+        "# Readme\n",
+        &format!("# Readme\n\n{fine}"),
+    ));
 }
