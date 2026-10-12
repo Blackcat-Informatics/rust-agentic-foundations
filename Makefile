@@ -31,7 +31,8 @@ test: ## Run the workspace tests.
 doc: ## Build the docs, warnings denied.
 	RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked
 
-# CI runs the fetching variant (`cargo deny --locked check`). The local machine
+# CI installs cargo-deny 0.20.2 and runs the fetching variant
+# (`cargo deny --locked check`); keep local and CI versions in step. The local machine
 # hook blocks fetching the advisory database, so this runs offline. Never bypass.
 deny: ## Supply-chain and licence check (offline).
 	cargo deny --offline check
