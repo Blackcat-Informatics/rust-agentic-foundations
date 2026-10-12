@@ -55,6 +55,8 @@ const CHANGE_KEYS: [&str; 8] = [
     "items",
 ];
 const ARCHITECTURE_KEYS: [&str; 4] = ["type", "id", "title", "description"];
+/// Optional keys every document type may carry.
+const OPTIONAL_KEYS: [&str; 2] = ["tags", "timestamp"];
 const BINDING_KEYS: [&str; 3] = ["code", "tests", "examples"];
 const OUTCOMES: [&str; 2] = ["implemented", "dropped"];
 const PROPOSED_OPEN: &str = "> [!PROPOSED change:";
@@ -641,9 +643,29 @@ fn check_scalars(path: &Path, doc: &Document, keys: &[&str], out: &mut Vec<Strin
 
 fn check_keys(path: &Path, doc: &Document, keys: &[&str], out: &mut Vec<String>) {
     for key in doc.fields.keys() {
-        if !keys.contains(&key.as_str()) {
+        if !keys.contains(&key.as_str()) && !OPTIONAL_KEYS.contains(&key.as_str()) {
             out.push(violation(path, format!("unknown key `{key}`")));
         }
+    }
+    if doc.fields.contains_key("tags") {
+        match list_field(doc, "tags") {
+            Some(tags) => {
+                let mut seen = BTreeSet::new();
+                for tag in tags {
+                    if tag.trim().is_empty() {
+                        out.push(violation(path, "`tags` entries must be non-empty strings"));
+                    } else if !seen.insert(tag.as_str()) {
+                        out.push(violation(path, format!("duplicate tag `{tag}`")));
+                    }
+                }
+            }
+            None => out.push(violation(path, "`tags` must be a list")),
+        }
+    }
+    if doc.fields.contains_key("timestamp")
+        && scalar_field(doc, "timestamp").is_none_or(|t| t.trim().is_empty())
+    {
+        out.push(violation(path, "`timestamp` must be a non-empty string"));
     }
     for key in keys {
         if !doc.fields.contains_key(*key) {
@@ -2027,6 +2049,36 @@ fn rejects_unknown_key() {
         "title: Overview\nextra: 1",
     );
     assert_hit(&violations, "unknown key `extra`");
+}
+
+#[test]
+fn accepts_optional_tags_and_timestamp() {
+    let violations = mutated(
+        "docs/architecture/overview.md",
+        "title: Overview",
+        "title: Overview\ntags: [a, b]\ntimestamp: 2026-01-01T00:00:00Z",
+    );
+    assert!(violations.is_empty(), "{violations:#?}");
+}
+
+#[test]
+fn rejects_duplicate_tag() {
+    let violations = mutated(
+        "docs/architecture/overview.md",
+        "title: Overview",
+        "title: Overview\ntags: [a, a]",
+    );
+    assert_hit(&violations, "duplicate tag `a`");
+}
+
+#[test]
+fn rejects_scalar_tags() {
+    let violations = mutated(
+        "docs/architecture/overview.md",
+        "title: Overview",
+        "title: Overview\ntags: a",
+    );
+    assert_hit(&violations, "`tags` must be a list");
 }
 
 #[test]

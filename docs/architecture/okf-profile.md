@@ -19,8 +19,9 @@ It is itself an OKF document of type `Architecture`.
 OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key,
 `type`, and leaves every other key open. RAF narrows that base into a profile:
 
-- The RAF types are closed sets. A document carries exactly the keys listed for
-  its type, no more and no fewer.
+- The RAF types are closed sets. A document carries every required key listed for
+  its type and no key outside the list. The optional keys `tags` and `timestamp`
+  may be present on any type.
 - `id` is RAF's identity key. The closed key sets do not include the OKF base key
   `resource`, so a document that carries it is rejected. This profile does not use
   an IRI identity.
@@ -37,11 +38,14 @@ enforce the whole profile once they are implemented.
 
 ## Document types and keys
 
-| Type | Directory | Keys, all required |
+| Type | Directory | Keys, in writing order |
 | --- | --- | --- |
-| Capability | `docs/capabilities` | `type`, `id`, `title`, `description`, `state`, `bindings`, `depends` |
-| Change | `work/changes` | `type`, `id`, `title`, `description`, `changes`, `affects`, `contract_effect`, `items` |
-| Architecture | `docs/architecture` | `type`, `id`, `title`, `description` |
+| Capability | `docs/capabilities` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `state`, `bindings`, `depends` |
+| Change | `work/changes` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `changes`, `affects`, `contract_effect`, `items` |
+| Architecture | `docs/architecture` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp` |
+
+Every key is required except `tags` and `timestamp`. The writer emits the keys of a
+type in the order of this table.
 
 `docs/capabilities` holds only Capability documents, with one exception: the
 generated catalogue `docs/capabilities/index.md`. It has no frontmatter and carries
@@ -56,6 +60,10 @@ in that type's directory. Each of these directories holds Markdown files only.
 - **`id`** is `cap:<slug>`, `change:<slug>` or `arch:<slug>` for the matching
   type. The slug is lowercase kebab case and equals the file name without `.md`.
 - **`title`** and **`description`** are non-empty strings.
+- **`tags`** (optional) is a list of non-empty strings with no duplicate. The
+  writer emits it sorted.
+- **`timestamp`** (optional) is an RFC 3339 date and time with a capital `T`, a
+  `Z` or numeric offset, and seconds from 00 to 59, such as `2026-01-01T00:00:00Z`.
 - **`state`** is one of `considered`, `designed`, `implementing`, `delivered`.
 - **`bindings`** is a map with exactly the keys `code`, `tests` and `examples`,
   each a list. A list never names a symbol that does not exist, so a capability
@@ -76,7 +84,33 @@ in that type's directory. Each of these directories holds Markdown files only.
 - **Scalars** are quoted or plain. A quoted value closes its quote. A plain value
   contains no `: `, does not start with one of `>`, `|`, `&`, `*`, `!`, `%`, `@` or
   a backtick, and is not a block scalar header. A trailing ` # comment` after a
-  value is dropped.
+  value is not part of the value. Numbers, booleans and null are read as the
+  strings that were written, never converted. A double-quoted scalar has exactly
+  these escapes: `\\`, `\"`, `\n`, `\r`, `\t` and `\0`. Any other escape, such as
+  `\q` or `\x41`, is an error.
+
+### Frontmatter subset
+
+The frontmatter is a block mapping in the following subset of YAML. `raf-okf`
+accepts exactly this and refuses everything else with an error that gives the
+line and column and names the key or token:
+
+- **Accepted.** Block mappings nested by two spaces, with keys of letters, digits,
+  `_` and `-`. Block sequences (`- value`) and flow sequences (`[a, b]`) of
+  scalars. Block sequences of block mappings (`- key: value`, with the other keys
+  of the item indented under the first). Plain, single-quoted and double-quoted
+  scalars. Full-line comments, blank lines, and a trailing ` # comment`.
+- **Refused.** Flow mappings (`{code: []}`), a flow sequence inside a flow
+  sequence or an item, anchors (`&x`), aliases (`*x`), tags (`!x`), merge keys
+  (`<<`), and block scalars (`|`, `>`). A duplicate key at any level: at the top
+  level, inside `bindings`, and inside an entry of `items`. A frontmatter that is
+  not a block mapping, a document with no `---` fence on line 1, and a frontmatter
+  that no `---` line closes.
+- **Bounds.** The text is at most 1 MiB, and nesting is at most 32 levels, checked
+  before the reader descends. The top-level mapping is level 1 and each mapping or
+  list inside it adds one.
+- **Line endings.** The frontmatter uses the line ending of the opening fence, `LF`
+  or `CRLF`, throughout. The body is kept byte for byte.
 
 ## Body rules
 

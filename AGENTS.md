@@ -46,13 +46,14 @@ crates are implemented.
 
 ### Crates
 
-Every crate below is **designed, not yet implemented**. The workspace members list
-is empty until each crate lands; its capability documents in `docs/capabilities/`
-are the specification.
+`raf-okf` is a workspace member and is **implementing**: the frontmatter reader and
+the deterministic writer are built. Every other crate below is **designed, not yet
+implemented**, and joins the workspace members list when it is built. The capability
+documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
 |---|---|---|
-| `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | designed |
+| `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | implementing |
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | designed |
 | `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | designed |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
@@ -67,7 +68,7 @@ bindings.
 
 | Path | Contents |
 |---|---|
-| `crates/` | The workspace member crates (none exist yet; `members` is empty) |
+| `crates/` | The workspace member crates (`raf-okf` today; each other crate joins `members` when it is built) |
 | `docs/capabilities/` | One permanent capability document per capability |
 | `docs/architecture/` | Shared current decisions (normal form, OKF profile) |
 | `work/changes/` | In-flight change records |

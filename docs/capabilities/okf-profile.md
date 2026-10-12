@@ -33,7 +33,12 @@ crate does with it.
 **Parse.** `Document::parse` takes the text of one file and returns the frontmatter
 and a body model. It fails with a positioned error when the file has no frontmatter
 fence on line 1, when the YAML does not parse, or when the YAML is not a mapping.
-SPDX lines are YAML comments inside the frontmatter and are preserved.
+SPDX lines are YAML comments inside the frontmatter and are preserved. Comments are
+kept with the key they belong to: a full-line comment or blank line attaches to the
+key that follows it, a trailing ` # comment` stays on its line, and comments after
+the last key stay last. The frontmatter accepts the subset of YAML stated in
+[the RAF profile of OKF](../architecture/okf-profile.md#frontmatter-subset) and
+refuses the rest. Numbers are read as strings.
 
 **Resource bounds.** Documents are read from sources the reader may not control, so
 `Document::parse` bounds its input and fails with a positioned error and never a
@@ -74,9 +79,14 @@ and an end marker without a start are parse errors with line numbers.
 **Write.** `Document::render` writes a document back. The writer is deterministic
 and round-trips: parsing the output yields an equal document, and rendering a
 document that was produced by `render` returns identical bytes. Key order follows
-the order of the profile table, comments are kept, and the body is written
+the order of the profile table: the keys of the document's type come first in table
+order, then any other keys in input order, and a document of an unknown type keeps
+input order. The top-level `tags` list is put in sorted order when a document is
+parsed or built, so it is written sorted and a document equals the reading of its own
+rendering; every other list keeps author order. Comments travel with the key they are attached to, and the body is written
 unchanged apart from the replaced spans that a caller supplies, such as a generated
-block.
+block. Two documents are equal when their keys, compared as a map, have equal values
+and equal attached comments, and their bodies hold the same bytes.
 
 **Index handling.** `docs/capabilities/index.md` is the one navigation file in the
 capability directory. It is accepted only when it holds a generated block, and it is
