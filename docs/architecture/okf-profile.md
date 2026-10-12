@@ -28,8 +28,10 @@ OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key
   Any other value is an error.
 
 This repository enforces the profile today with the document-contract test of the
-root package. The `raf-okf` and `raf-workplan` crates will enforce it once they
-are implemented.
+root package, which checks keys, values, sections, markers and links. It checks
+the shape of `bindings`, not whether a bound symbol exists: resolving a binding
+waits for the source index. The `raf-okf` and `raf-workplan` crates will enforce
+the whole profile once they are implemented.
 
 ## Document types and keys
 
@@ -53,8 +55,9 @@ Every document sits directly in its directory.
 - **`bindings`** is a map with exactly the keys `code`, `tests` and `examples`,
   each a list. A list never names a symbol that does not exist, so a capability
   that has nothing built binds nothing.
-- **`depends`** is a list of capability ids. Each id names an existing
-  capability, and the graph they form is acyclic.
+- **`depends`** is a list of capability ids. `depends` lists the capabilities whose
+  contract this one relies on. Each id names an existing capability, and the graph
+  they form is acyclic.
 - **`changes`** is a non-empty list of capability ids that exist.
 - **`affects`** is a list of `cap:<slug>#<section>` entries. The section is one
   of `purpose`, `contract`, `usage`, `examples`, `constraints`, `explanation`,
@@ -68,7 +71,17 @@ Every document sits directly in its directory.
 
 A Capability body holds exactly seven second-level sections, in this order, none
 empty: Purpose, Contract, Usage, Examples, Constraints, Explanation,
-Verification.
+Verification. Each section holds one kind of statement:
+
+| Section | Holds |
+| --- | --- |
+| Purpose | What problem the capability solves and where it fits |
+| Contract | What behaviour callers can rely on |
+| Usage | How to use it |
+| Examples | Representative inputs, outputs and workflows |
+| Constraints | Limits, prerequisites and unsupported cases |
+| Explanation | Why it works this way and which tradeoffs matter |
+| Verification | Which checks substantiate which claims |
 
 A Change body holds a non-empty `## Summary` section. An Architecture body is
 free-form and non-empty.
@@ -82,7 +95,7 @@ The state of a capability decides what its document and the change records say.
 | `considered` | Purpose and open questions in plain text; the candidate contract inside PROPOSED blocks | An open record lists the capability |
 | `designed` | The designed contract, stated plainly | An open record lists the capability |
 | `implementing` | The designed contract, stated plainly | An open record lists the capability |
-| `delivered` | The delivered contract, with no PROPOSED blocks | No open record lists the capability |
+| `delivered` | The delivered contract, with no PROPOSED blocks; the capability binds at least one code path and one test | No open record lists the capability |
 
 Outside PROPOSED blocks a document states the current contract only.
 

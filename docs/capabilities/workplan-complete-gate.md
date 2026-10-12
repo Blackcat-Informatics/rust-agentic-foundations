@@ -32,8 +32,13 @@ checkbox that says "update docs".
    `moved:change:<slug>`, and a `moved` outcome names a change that exists.
 3. No PROPOSED block for the change remains in any capability document.
 4. `docs sync` would rewrite nothing, so every generated block is current.
-5. The bound tests pass: `cargo test` filtered to the tests in `bindings.tests` of
-   each listed capability.
+5. The bound tests and examples pass: `cargo test` filtered to the tests in
+   `bindings.tests` of each listed capability, and the targets and documentation
+   tests in `bindings.examples` built and run.
+
+A failing bound example also stands as an `example-failing` obligation, so conditions
+1 and 5 both report it. Condition 5 is the execution and condition 1 the record of it;
+the refusal lists the fault under each.
 
 When any condition fails, the command prints the failures, changes nothing and exits
 with 1. When all hold, it deletes `work/changes/<slug>.md` and exits with 0. The
@@ -50,9 +55,10 @@ tutorial.
 
 **State.** Promotion to a stronger state requires reconciliation, not just a status
 change. The gate refuses a listed capability whose `state` the content does not
-support: a `delivered` capability needs resolved text, resolving bindings, a test and
-no PROPOSED block. A capability in `implementing` may have missing bindings, and
-`status`, the catalogue and the reconcile obligations report them as gaps.
+support: a `delivered` capability needs resolved text, no PROPOSED block, and
+bindings that resolve; it binds at least one code path and one test. A capability
+in `implementing` may have missing bindings, and `status`, the catalogue and the
+reconcile obligations report them as gaps.
 
 **`verify [<slug>]`** runs the bound tests and the bound examples of the named change's
 capabilities, or of every capability when no slug is given, and prints pass or fail for
@@ -82,12 +88,20 @@ $ cargo workplan docs sync && cargo workplan change complete incremental-parsing
 completed: removed work/changes/incremental-parsing.md
 ```
 
+A refusal on the fifth condition, where a bound example no longer builds:
+
+```text
+$ cargo workplan change complete incremental-parsing
+refused: 1 obligation, 1 bound example failing
+cap:streaming-parser  examples  example-failing  examples/chunked.rs does not build
+```
+
 ## Constraints
 
-- `complete` runs the bound tests with `cargo`, so a repository whose tests cannot
-  compile cannot complete a change.
-- A capability with an empty `bindings.tests` list satisfies the fifth condition only
-  while it is `designed` or `considered`.
+- `complete` runs the bound tests and examples with `cargo`, so a repository whose
+  tests or examples cannot compile cannot complete a change.
+- A capability with empty `bindings.tests` and `bindings.examples` lists satisfies
+  the fifth condition only while it is `designed` or `considered`.
 - The record is deleted and not archived. Recovering it is a Git operation.
 - `complete` never edits a capability document; the prose is written by a person or
   an agent before the command runs.
@@ -125,16 +139,18 @@ to reconstruct the changes to understand what applies now.
 capability in `considered` with open questions. The implementation renames an API and
 drops one guarantee. `change complete` must refuse until Usage, Examples and the
 bindings match the new API and the dropped claim has the outcome `dropped`. It then
-succeeds and leaves the capability `delivered` with a real usage example, current API
-references, explicit limitations and a test traceability table, and no proposal text
-presented as established behaviour. A document that merely exists does not satisfy
+succeeds and leaves the capability `delivered` with an accurate capability
+explanation, a real usage example, current API references, explicit limitations and
+a test traceability table, and no proposal text presented as established
+behaviour. A document that merely exists does not satisfy
 the scenario.
 
 Further checks:
 
 - A refusal fixture per condition: a remaining obligation, an item without outcome, a
-  leftover PROPOSED block, a stale generated block and a failing bound test each
-  produce exit 1 and leave the record in place.
+  leftover PROPOSED block, a stale generated block, a failing bound test and a bound
+  example that fails to build each produce exit 1 and leave the record in place.
+  The example refusal prints an `example-failing` obligation for the capability.
 - A `contract_effect: none` fixture that completes without usage or example edits and
   still refuses when any other obligation remains.
 - A fixture asserting the record is gone after success and the working tree has no

@@ -10,6 +10,7 @@ affects:
   - cap:workplan-evidence-claims#contract
   - cap:workplan-evidence-claims#usage
   - cap:workplan-evidence-claims#examples
+  - cap:workplan-evidence-claims#constraints
   - cap:workplan-evidence-claims#verification
 contract_effect: changes
 items:

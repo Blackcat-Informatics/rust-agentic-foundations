@@ -13,7 +13,7 @@ affects:
   - cap:workplan-complete-gate#verification
 contract_effect: changes
 items:
-  - claim: "change complete requires zero obligations, an outcome on every item, no PROPOSED blocks, a clean docs sync and passing bound tests."
+  - claim: "change complete requires zero obligations, an outcome on every item, no PROPOSED blocks, a clean docs sync and passing bound tests and examples."
   - claim: "change complete deletes the change record as its last step."
   - claim: "A change with contract_effect none completes without usage or example edits."
   - claim: "verify runs bound tests and examples and persists no evidence."

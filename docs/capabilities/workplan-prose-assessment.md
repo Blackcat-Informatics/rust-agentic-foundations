@@ -10,7 +10,7 @@ bindings:
   code: []
   tests: []
   examples: []
-depends: [cap:workplan-document-model, cap:workplan-generated-docs, cap:workplan-complete-gate]
+depends: [cap:workplan-document-model, cap:workplan-generated-docs, cap:workplan-complete-gate, cap:workplan-evidence-claims]
 ---
 
 # Prose assessment

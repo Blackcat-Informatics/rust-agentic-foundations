@@ -91,18 +91,18 @@ Open questions:
 
 A design promise needs an accounted-for realisation, and functionality that has been
 built needs documentation that follows it. This is the two-way duty of the GMEOW
-Grounding Contract. Checking only from documentation to code catches promises that were
+[Grounding Contract](https://github.com/Blackcat-Informatics/gmeow-ontology/blob/a631f73e6e39b4493d295bcd83b4deec80637f54/docs/GROUNDING.md). Checking only from documentation to code catches promises that were
 not kept and misses behaviour nobody wrote down. Checking from code to documentation
 and from tests to claims closes the other half.
 
 The direction table also separates facts that become true at different times: a design
-is accepted, code exists, tests address criteria, executions provide evidence, and the
+is accepted, code exists, tests address claims, executions provide evidence, and the
 documentation describes the supported result. A planned feature stays visibly planned
 until its implementation and documentation justify a stronger description. The
 coverage reports keep the unfinished part visible, and they turn documentation
-maintenance into work the system can identify: when a referenced API disappears, an
-example stops compiling or a criterion changes, the affected section receives an
-explicit obligation.
+maintenance into work the system can identify: when a referenced API disappears,
+the affected section receives a `binding-missing` obligation, and when a bound example
+stops compiling or running it receives an `example-failing` obligation.
 
 ## Verification
 

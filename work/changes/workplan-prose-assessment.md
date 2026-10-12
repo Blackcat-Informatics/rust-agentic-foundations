@@ -10,6 +10,7 @@ affects:
   - cap:workplan-prose-assessment#contract
   - cap:workplan-prose-assessment#usage
   - cap:workplan-prose-assessment#examples
+  - cap:workplan-prose-assessment#constraints
   - cap:workplan-prose-assessment#verification
 contract_effect: changes
 items:

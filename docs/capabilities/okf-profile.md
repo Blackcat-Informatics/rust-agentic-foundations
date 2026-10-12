@@ -106,7 +106,7 @@ message that names the `resource` key and the closed key set of `Capability`.
 ## Constraints
 
 - The crate reads and writes text only. It touches no file and runs no process, so
-  a caller supplies a `raf_source::Tree` or plain strings.
+  a caller supplies the document text as strings.
 - Keys are exactly those of the profile. There is no pass-through for extra keys.
 - A document is valid or invalid. There is no warning level.
 - The writer preserves comments in the frontmatter but does not reflow the body.

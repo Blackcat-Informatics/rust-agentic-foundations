@@ -27,7 +27,8 @@ move. A reader never has to reconstruct chronology to learn what applies now.
 
 **Capability documents.** A capability lives at `docs/capabilities/<slug>.md`, with
 the identity `cap:<slug>`, the keys and the seven sections defined in
-[the RAF profile of OKF](../architecture/okf-profile.md) and read by
+[the RAF profile of OKF](../architecture/okf-profile.md) (its
+[section table](../architecture/okf-profile.md#body-rules) says what each section holds) and read by
 [the OKF reader](./okf-profile.md). The document is permanent: it keeps its identity
 and its path from the first time the capability is considered until the capability is
 removed.
@@ -166,7 +167,8 @@ items:
 ## Constraints
 
 - Types, keys and values are exactly those of the profile page; this model adds
-  rules between documents and none inside one.
+  rules between documents and the source, and restates the profile's single-document
+  binding minimum for `delivered`.
 - A change names at least one capability, and every `affects` slug is in `changes`.
 - Outside PROPOSED blocks, text states the current contract. A statement about
   behaviour that is not built belongs in a `designed` or `considered` capability or
@@ -208,11 +210,13 @@ remain useful: the reader follows the structure of the system and not its
 chronology.
 
 The graph keeps intention, implementation and documentation aligned in both
-directions. It follows the discipline of the GMEOW Grounding Contract: a design
-promise needs an accounted-for realisation, and built functionality needs
+directions. It follows the discipline of the GMEOW
+[Grounding Contract](https://github.com/Blackcat-Informatics/gmeow-ontology/blob/a631f73e6e39b4493d295bcd83b4deec80637f54/docs/GROUNDING.md):
+a design promise needs an accounted-for realisation, and built functionality needs
 documentation that follows it. Documentation maintenance becomes work the system can
-identify. If a referenced API disappears, an example stops compiling or a criterion
-changes, the affected section receives an explicit obligation
+identify. If a referenced API disappears, the affected section receives a
+`binding-missing` obligation, and if a bound example or doctest stops compiling or
+running, it receives an `example-failing` obligation
 ([reconcile](./workplan-reconcile.md)).
 
 ## Verification

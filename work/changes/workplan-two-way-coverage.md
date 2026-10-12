@@ -10,6 +10,7 @@ affects:
   - cap:workplan-two-way-coverage#contract
   - cap:workplan-two-way-coverage#usage
   - cap:workplan-two-way-coverage#examples
+  - cap:workplan-two-way-coverage#constraints
   - cap:workplan-two-way-coverage#verification
 contract_effect: changes
 items:

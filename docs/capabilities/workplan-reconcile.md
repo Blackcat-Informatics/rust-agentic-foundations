@@ -45,6 +45,7 @@ needed. The kinds are:
 | `item-without-outcome` | An item has no `outcome` | An outcome of `implemented`, `dropped` or `moved:change:<slug>` |
 | `binding-missing` | A capability the change lists binds nothing where it should, or a binding does not resolve | A binding that resolves through the source index |
 | `section-untouched` | A section in `affects` has the same text as at the merge base | A diff of that section against the merge base, or an edit that records why none is needed |
+| `example-failing` | A bound example target or documentation test of a capability the change lists fails to build or run | A passing `verify` run for the change, or a binding edit that removes the broken example |
 | `generated-stale` | A generated block differs from what `docs sync` writes | A `docs sync` run |
 | `tense-mismatch` | Delivered or implementing contract text uses proposal or forward-looking wording, or a delivered capability has a PROPOSED block | Text rewritten as the supported behaviour |
 
@@ -86,8 +87,9 @@ cap:streaming-parser  verification  binding-missing      raf_parser::Parser::pus
 change:incremental-parsing  item 2  item-without-outcome  record implemented, dropped or moved:change:<slug>
 ```
 
-The memory bound in the Contract is still unsupported by evidence, so the Verification
-section also owes a bound test that checks it.
+The `binding-missing` line shows the shape of every obligation: the capability, the
+section and the evidence that settles it. A bound example that stops compiling would
+add a line of kind `example-failing` for the capability in the same form.
 
 ## Constraints
 
@@ -97,6 +99,9 @@ section also owes a bound test that checks it.
 - Tense findings come from a fixed list of phrases (for example "will", "is planned",
   "proposed") and are reported as findings, not as proof. The list is defined in the
   tool and applies outside code fences and PROPOSED blocks.
+- `example-failing` builds and runs bound examples with `cargo`, which is the one
+  process `reconcile` starts besides `git`; it still writes no file in the
+  repository.
 - An obligation never says "update the docs". It names the section and the evidence.
 
 ## Explanation
@@ -126,6 +131,8 @@ in these two places, so update the usage example and the lifecycle explanation".
   dependants, and that no file changed.
 - One `reconcile` fixture per obligation kind in a temporary Git repository, each
   asserting the kind, location and evidence text, and that fixing it removes the line.
+  The `example-failing` fixture binds an example that does not compile, asserts the
+  line, and asserts that the line is gone once the example builds and runs.
 - A merge-base fixture where an affected section is edited on a branch and is not
   reported, and one where it is unchanged and is reported.
 - A `contract_effect: none` fixture asserting the lighter list.

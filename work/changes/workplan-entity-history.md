@@ -10,6 +10,7 @@ affects:
   - cap:workplan-entity-history#contract
   - cap:workplan-entity-history#usage
   - cap:workplan-entity-history#examples
+  - cap:workplan-entity-history#constraints
   - cap:workplan-entity-history#verification
 contract_effect: changes
 items:

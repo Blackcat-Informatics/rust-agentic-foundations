@@ -89,7 +89,7 @@ Open questions:
 ## Explanation
 
 The documented state of a system and the supported state differ by the evidence. A
-design is accepted, code exists, tests address the criteria, and executions provide
+design is accepted, code exists, tests address the claims, and executions provide
 evidence, and each of these becomes true at a different time. A statement about a
 bound, a latency or a limit moves from planned to supported only when an execution
 shows it, and moves back when the execution stops showing it.

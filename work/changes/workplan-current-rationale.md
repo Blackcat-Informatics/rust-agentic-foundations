@@ -10,6 +10,7 @@ affects:
   - cap:workplan-current-rationale#contract
   - cap:workplan-current-rationale#usage
   - cap:workplan-current-rationale#examples
+  - cap:workplan-current-rationale#constraints
   - cap:workplan-current-rationale#verification
 contract_effect: changes
 items:

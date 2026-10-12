@@ -169,8 +169,8 @@ RAF plans its own work in the workplan format. This section describes the design
   will produce side by side.
 - **Completion** is a gate. A change is complete only when no obligation remains,
   every item has an outcome, no proposed block is left, generated sections are in
-  sync, and the bound tests pass. The change record is then **deleted**; Git keeps
-  the history.
+  sync, and the bound tests and examples pass. The change record is then
+  **deleted**; Git keeps the history.
 - **Identifiers are slugs**, never numbers. Documents never refer to a tracker.
 
 ---
