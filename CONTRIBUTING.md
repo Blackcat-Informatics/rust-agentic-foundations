@@ -72,9 +72,9 @@ make help    # list every target
   cargo-fuzz@0.13.2`); a missing tool is a failure. `make msrv` and `make fmt` cover
   the fuzz manifest too.
 - **Release tests and cross-check.** `make test-release` runs the `raf-source` tests
-  in release mode. `make cross-check` runs `cargo check -p raf-source` for
-  `x86_64-apple-darwin` and `x86_64-pc-windows-gnu`; install them with `rustup
-  target add`, because a missing target is a failure.
+  and the `raf-okf` validation cost probe in release mode. `make cross-check` runs
+  `cargo check -p raf-source` for `x86_64-apple-darwin` and `x86_64-pc-windows-gnu`;
+  install them with `rustup target add`, because a missing target is a failure.
 - **REUSE.** `make reuse` runs `uvx reuse@6.2.0 lint`, so it needs `uv` (or set
   `REUSE=reuse` with `reuse` installed). A missing tool is a failure, not a skip.
 - **Supply chain.** `make deny` runs `cargo deny` offline on your machine; CI runs

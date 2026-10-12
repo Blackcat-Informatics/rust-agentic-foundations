@@ -526,6 +526,7 @@ fn check_capability_ids(
 }
 
 fn check_affects(check: &mut Check<'_>, entry: &Entry, changes: &[String]) -> Option<Vec<Affects>> {
+    let listed: HashSet<&str> = changes.iter().map(String::as_str).collect();
     let Some(texts) = strings(entry.value()) else {
         check.key(
             "affects",
@@ -562,7 +563,7 @@ fn check_affects(check: &mut Check<'_>, entry: &Entry, changes: &[String]) -> Op
             );
             valid = false;
         }
-        if !changes.iter().any(|known| known == capability) {
+        if !listed.contains(capability) {
             check.key(
                 "affects",
                 Rule::AffectsNotInChanges {

@@ -44,9 +44,16 @@ fn visible_content(body: &Body, section: &Section) -> String {
     let text = body.text();
     let mut kept = String::new();
     let mut position = content.start;
-    for block in body.generated_blocks() {
+    // The blocks are in order and do not overlap, so those inside the section
+    // are a run found by binary search rather than by a scan of every block.
+    let blocks = body.generated_blocks();
+    let first = blocks.partition_point(|block| block.outer().bytes.start < content.start);
+    for block in &blocks[first..] {
         let outer = &block.outer().bytes;
-        if outer.start >= content.start && outer.end <= content.end {
+        if outer.start >= content.end {
+            break;
+        }
+        if outer.end <= content.end {
             kept.push_str(&text[position - base..outer.start - base]);
             position = outer.end;
         }
