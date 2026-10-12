@@ -15,13 +15,21 @@ affects:
 contract_effect: changes
 items:
   - claim: "The Tree trait has a disk and a memory implementation."
+    outcome: implemented
   - claim: "Package discovery finds library, binary, test, bench and example targets and marks the non-shipping ones."
+    outcome: implemented
   - claim: "Module following honours the path attribute and rejects targets outside the workspace root."
+    outcome: implemented
   - claim: "Items under cfg(test) are tagged as test code."
+    outcome: implemented
   - claim: "The symbol index and use-alias table resolve paths through re-exports with typed failures."
+    outcome: implemented
   - claim: "Every path the crate opens is canonicalised and must lie inside the canonical workspace root; non-regular files, symlinks leaving the root and directory-symlink loops are refused."
+    outcome: implemented
   - claim: "Files are size-capped by a configurable limit, a token pre-scan bounds delimiter, generic, prefix-operator, closure and else-if recursion, parsing runs on a dedicated stack and a committed fuzz target covers the parser, so a hostile file yields a typed error or, on a residual stack overflow, a failed run and never a pass."
+    outcome: implemented
   - claim: "The file type is checked on the opened handle, and a FIFO or other non-regular file is refused."
+    outcome: implemented
 ---
 
 ## Summary

@@ -16,11 +16,17 @@ affects:
 contract_effect: changes
 items:
   - claim: "Documents parse into frontmatter and a body model with positioned errors."
+    outcome: implemented
   - claim: "Profile validation enforces the closed key sets and typed values and reports every violation."
+    outcome: implemented
   - claim: "The body model exposes sections, links, fenced code, generated blocks and PROPOSED blocks."
+    outcome: implemented
   - claim: "The writer is deterministic and round-trips documents."
+    outcome: implemented
   - claim: "The capability index is accepted only when it holds a generated block."
+    outcome: implemented
   - claim: "Parsing is bounded in text size and nesting depth, and YAML anchors and aliases are refused."
+    outcome: implemented
 ---
 
 ## Summary
