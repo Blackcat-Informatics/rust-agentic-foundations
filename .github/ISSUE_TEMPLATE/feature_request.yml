@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+name: Feature request
+description: Propose new functionality for RAF.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two constraints to know up front: RAF fails hard (strict closed-key
+        schemas, no silent fallbacks), and any change to a census fingerprint
+        needs a `normal_form` version bump. Proposals that weaken either are
+        reshaped to fit, not rejected, but expect the reshaping.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that RAF makes hard or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How you would like it to work — API or command sketch, document format, or prior art in other tools all help.
+    validations:
+      required: true
+  - type: checkboxes
+    id: components
+    attributes:
+      label: Component(s)
+      description: Where does this belong?
+      options:
+        - label: raf-okf
+        - label: raf-source
+        - label: raf-census
+        - label: cargo-census
+        - label: raf-workplan
+        - label: cargo-workplan
+        - label: docs/workspace

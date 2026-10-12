@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+# Supply-chain and licence gate. Crates.io is the only permitted source.
+
+[graph]
+all-features = true
+
+[licenses]
+# The list is deliberately short: an addition should require someone to look at
+# the new crate and decide, rather than pass silently.
+allow = ["MIT", "Apache-2.0", "MulanPSL-2.0"]
+confidence-threshold = 0.93
+
+# A disjunct that never gets selected is not a problem: an `A OR B` dependency
+# matches whichever entry comes first, and MulanPSL-2.0 is offered by this
+# repository rather than required of anything in the graph.
+unused-allowed-license = "allow"
+
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+
+[advisories]
+yanked = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
