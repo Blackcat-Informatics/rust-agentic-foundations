@@ -42,6 +42,8 @@ pub(crate) struct FenceBlock {
     /// Index of the closing fence line, or of the last line when the block is
     /// never closed.
     pub(crate) last: usize,
+    /// Whether a closing fence line ends the block.
+    pub(crate) closed: bool,
     /// The info string after the opening fence.
     pub(crate) info: String,
 }
@@ -87,6 +89,7 @@ pub(crate) fn scan(body: &str, origin: Origin) -> Result<Scan, ParseError> {
             if closes_fence(text, fence, base_indent(&stack)) {
                 if let Some(block) = fences.last_mut() {
                     block_close(block, index);
+                    block.closed = true;
                 }
                 open = None;
             } else if let Some(block) = fences.last_mut() {
@@ -117,6 +120,7 @@ pub(crate) fn scan(body: &str, origin: Origin) -> Result<Scan, ParseError> {
             fences.push(FenceBlock {
                 first: index,
                 last: index,
+                closed: false,
                 info: opened.info.clone(),
             });
             open = Some(opened);

@@ -3101,19 +3101,15 @@ struct RustBlock {
     code: String,
 }
 
-/// The lines between the fence lines of a block of `text`.
-fn fenced_code(text: &str, block: &FencedBlock) -> Result<String, String> {
-    let lines: Vec<&str> = text[block.span().bytes.clone()].lines().collect();
-    match lines.as_slice() {
-        [_, inner @ .., last] if last.trim_start().starts_with("```") => {
-            let mut code = inner.join("\n");
-            code.push('\n');
-            Ok(code)
-        }
-        _ => Err(format!(
+/// The lines between the fence lines of a block, when a closing fence ends it.
+fn fenced_code(block: &FencedBlock) -> Result<String, String> {
+    if block.is_closed() {
+        Ok(block.content().to_string())
+    } else {
+        Err(format!(
             "the block at line {} is never closed",
             block.span().lines.start
-        )),
+        ))
     }
 }
 
@@ -3135,7 +3131,7 @@ fn rust_blocks(text: &str, within: Option<&[&str]>) -> Result<Vec<RustBlock>, St
         if wanted && (info == "rust" || info.starts_with("rust,")) {
             blocks.push(RustBlock {
                 info: info.to_string(),
-                code: fenced_code(text, fenced)?,
+                code: fenced_code(fenced)?,
             });
         }
     }
@@ -3293,6 +3289,29 @@ fn doctest_comparison_fixtures() -> Result<(), String> {
     assert_eq!(
         doctest_problems(&explained, &unexplained_library)?,
         Vec::<String>::new()
+    );
+    Ok(())
+}
+
+#[test]
+fn a_tilde_fenced_usage_block_is_accepted_and_an_unclosed_block_is_refused() -> Result<(), String> {
+    let library = "//! Words.\n//!\n//! ```rust\n//! let a = 1;\n//! let b = 2;\n//! ```\n";
+    let tilde = "## Usage\n\n~~~rust\nlet a = 1;\nlet b = 2;\n~~~\n";
+    assert_eq!(doctest_problems(tilde, library)?, Vec::<String>::new());
+    // A longer closing fence and trailing spaces still close the block.
+    let longer = "## Usage\n\n~~~rust\nlet a = 1;\nlet b = 2;\n~~~~~ \n";
+    assert_eq!(doctest_problems(longer, library)?, Vec::<String>::new());
+    // A fence of the other character does not close it: the block is open to
+    // the end of the text, which is refused rather than read as complete.
+    let mixed = "## Usage\n\n~~~rust\nlet a = 1;\nlet b = 2;\n```\n";
+    assert_eq!(
+        doctest_problems(mixed, library),
+        Err("the block at line 3 is never closed".to_string())
+    );
+    let open = "## Usage\n\n```rust\nlet a = 1;\nlet b = 2;\n";
+    assert_eq!(
+        doctest_problems(open, library),
+        Err("the block at line 3 is never closed".to_string())
     );
     Ok(())
 }

@@ -183,6 +183,88 @@ fn fences_are_recognised_indented_up_to_three_spaces_and_inside_quotes_and_lists
 }
 
 #[test]
+fn a_fenced_block_exposes_its_content_and_whether_it_is_closed() {
+    // Backtick and tilde fences, an info string, and a longer closing fence.
+    let text = "```rust\nlet a = 1;\n\nlet b = 2;\n```\n\n~~~text\nplain\n~~~~\n";
+    let parsed = body(text);
+    let blocks = parsed.fenced_blocks();
+    assert_eq!(blocks.len(), 2);
+    assert_eq!(blocks[0].info(), "rust");
+    assert_eq!(blocks[0].content(), "let a = 1;\n\nlet b = 2;\n");
+    assert!(blocks[0].is_closed());
+    assert_eq!(blocks[1].info(), "text");
+    assert_eq!(blocks[1].content(), "plain\n");
+    assert!(blocks[1].is_closed());
+
+    // A closing fence line may carry trailing spaces; a shorter or different
+    // fence does not close.
+    let spaced = body("```\nx\n``` \n");
+    assert!(spaced.fenced_blocks()[0].is_closed());
+    assert_eq!(spaced.fenced_blocks()[0].content(), "x\n");
+    let wrong = body("~~~\nx\n```\n~~\n");
+    assert!(!wrong.fenced_blocks()[0].is_closed());
+    assert_eq!(wrong.fenced_blocks()[0].content(), "x\n```\n~~\n");
+
+    // Nothing between the fences, and a block that is never closed.
+    let empty = body("```\n```\n");
+    assert_eq!(empty.fenced_blocks()[0].content(), "");
+    assert!(empty.fenced_blocks()[0].is_closed());
+    let open = body("```\nlast\nline");
+    assert!(!open.fenced_blocks()[0].is_closed());
+    assert_eq!(open.fenced_blocks()[0].content(), "last\nline");
+    let alone = body("text\n```");
+    assert!(!alone.fenced_blocks()[0].is_closed());
+    assert_eq!(alone.fenced_blocks()[0].content(), "");
+
+    // Line endings are kept, and the content lies inside the span.
+    let crlf = body("~~~\r\na\r\n~~~\r\n");
+    assert_eq!(crlf.fenced_blocks()[0].content(), "a\r\n");
+    for block in blocks {
+        let inside = &text[block.span().bytes.clone()];
+        assert!(inside.contains(block.content()));
+    }
+
+    // Inside a quote the prefix of each line is part of the content.
+    let quoted = body("> ```\n> code\n> ```\n");
+    assert_eq!(quoted.fenced_blocks()[0].content(), "> code\n");
+    assert!(quoted.fenced_blocks()[0].is_closed());
+}
+
+#[test]
+fn a_fenced_block_prints_and_compares_without_the_body_around_it() {
+    let filler = "filler line of the body\n".repeat(2000);
+    let fence = "```rust\nlet x = 1;\n```\n";
+    let big = body(&format!("{fence}{filler}"));
+    let many = body(&format!("{}{filler}", fence.repeat(50)));
+    let printed = format!("{:?}", big.fenced_blocks()[0]);
+    assert!(printed.contains("let x = 1;"), "{printed}");
+    assert!(printed.len() < 300, "{} bytes: {printed}", printed.len());
+    let all = format!("{:?}", many.fenced_blocks());
+    assert!(all.len() < 50 * 300, "{} bytes", all.len());
+
+    // The same block in bodies that differ elsewhere is the same block.
+    let short = body(fence);
+    let other = body(&format!("{fence}different text after the fences\n"));
+    assert_eq!(big.fenced_blocks()[0], short.fenced_blocks()[0]);
+    assert_eq!(big.fenced_blocks()[0], other.fenced_blocks()[0]);
+    // A different content, info or closing state is a different block.
+    for different in [
+        "```rust\nlet x = 2;\n```\n",
+        "```text\nlet x = 1;\n```\n",
+        "```rust\nlet x = 1;\n",
+    ] {
+        assert_ne!(
+            big.fenced_blocks()[0],
+            body(different).fenced_blocks()[0],
+            "{different:?}"
+        );
+    }
+    // The same fences at another position are another block.
+    let moved = body(&format!("text\n{fence}"));
+    assert_ne!(big.fenced_blocks()[0], moved.fenced_blocks()[0]);
+}
+
+#[test]
 fn block_nesting_of_sixty_four_levels_parses_and_sixty_five_is_refused() {
     let quotes = |n: usize| format!("{}text\n", "> ".repeat(n));
     body(&quotes(MAX_BLOCK_NESTING));

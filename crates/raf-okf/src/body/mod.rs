@@ -27,11 +27,42 @@ pub use marker::{GeneratedBlock, ProposedBlock};
 pub use prose::ProseLine;
 
 /// A fenced code block.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct FencedBlock {
     span: Span,
     info: String,
+    /// The text of the whole body, shared with the [`Body`] and every other block.
+    text: Arc<str>,
+    /// The byte range of the content in `text`.
+    content: std::ops::Range<usize>,
+    closed: bool,
 }
+
+// The shared body text is left out of `Debug` and equality: it is the same
+// text for every block of a body, so printing or comparing it per block would
+// cost the size of the body each time, and two blocks with the same fences,
+// content and position are the same block whatever text surrounds them.
+impl std::fmt::Debug for FencedBlock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FencedBlock")
+            .field("span", &self.span)
+            .field("info", &self.info)
+            .field("content", &self.content())
+            .field("closed", &self.closed)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for FencedBlock {
+    fn eq(&self, other: &Self) -> bool {
+        self.span == other.span
+            && self.info == other.info
+            && self.closed == other.closed
+            && self.content() == other.content()
+    }
+}
+
+impl Eq for FencedBlock {}
 
 impl FencedBlock {
     /// The fence lines and everything between them, in whole-text
@@ -45,6 +76,44 @@ impl FencedBlock {
     #[must_use]
     pub fn info(&self) -> &str {
         &self.info
+    }
+
+    /// The text between the fence lines, exactly as written: every line
+    /// between them with its line ending, and nothing of the fence lines. A
+    /// block with nothing between its fences has empty content, and a block
+    /// that is never closed runs to the end of the body. Inside a block quote
+    /// or a list item the quote and list prefixes of the lines are part of
+    /// the content. The result borrows from the body text the block shares
+    /// with its [`Body`], so reading it allocates nothing.
+    ///
+    /// ```rust
+    /// use raf_okf::Body;
+    ///
+    /// let body = Body::parse("~~~rust\nlet x = 1;\n~~~\n").expect("a body");
+    /// let block = &body.fenced_blocks()[0];
+    /// assert_eq!(block.info(), "rust");
+    /// assert_eq!(block.content(), "let x = 1;\n");
+    /// ```
+    #[must_use]
+    pub fn content(&self) -> &str {
+        &self.text[self.content.clone()]
+    }
+
+    /// Whether a closing fence line ends the block. A block that runs to the
+    /// end of the body without one is not closed.
+    ///
+    /// ```rust
+    /// use raf_okf::Body;
+    ///
+    /// let closed = Body::parse("```\ncode\n```\n").expect("a body");
+    /// assert!(closed.fenced_blocks()[0].is_closed());
+    /// let open = Body::parse("```\ncode\n").expect("a body");
+    /// assert!(!open.fenced_blocks()[0].is_closed());
+    /// assert_eq!(open.fenced_blocks()[0].content(), "code\n");
+    /// ```
+    #[must_use]
+    pub fn is_closed(&self) -> bool {
+        self.closed
     }
 }
 
@@ -68,7 +137,7 @@ struct Model {
 /// from parts, the text [`crate::Document::render`] returns.
 #[derive(Debug, Clone)]
 pub struct Body {
-    text: String,
+    text: Arc<str>,
     span: Span,
     origin: Origin,
     model: Model,
@@ -179,16 +248,14 @@ impl Body {
                 in_generated: markers.in_generated[index],
             });
         }
+        let text: Arc<str> = Arc::from(body);
         let fences = scan
             .fences
             .iter()
-            .map(|block| FencedBlock {
-                span: heading::span_of(lines, body.len(), block.first, block.last + 1, origin),
-                info: block.info.clone(),
-            })
+            .map(|block| fenced_block(&text, lines, block, origin))
             .collect();
         Ok(Self {
-            text: body.to_string(),
+            text,
             span: Span {
                 lines: origin.line..origin.line + lines.len(),
                 bytes: origin.byte..origin.byte + body.len(),
@@ -355,6 +422,29 @@ impl Body {
     /// This body read again as if it started at `origin`.
     pub(crate) fn placed(&self, origin: Origin) -> Result<Self, ParseError> {
         Self::parse_at(&self.text, origin)
+    }
+}
+
+/// The model of one fenced code block of `body`.
+fn fenced_block(
+    text: &Arc<str>,
+    lines: &[blocks::Line],
+    block: &blocks::FenceBlock,
+    origin: Origin,
+) -> FencedBlock {
+    let body_len = text.len();
+    let from = lines.get(block.first + 1).map_or(body_len, |l| l.start);
+    let to = if block.closed {
+        lines[block.last].start
+    } else {
+        body_len
+    };
+    FencedBlock {
+        span: heading::span_of(lines, body_len, block.first, block.last + 1, origin),
+        info: block.info.clone(),
+        text: Arc::clone(text),
+        content: from..to,
+        closed: block.closed,
     }
 }
 
