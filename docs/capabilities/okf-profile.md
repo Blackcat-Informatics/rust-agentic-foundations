@@ -55,17 +55,43 @@ panic, abort or unbounded allocation:
   would otherwise rescan a long paragraph for every `](`. A longer part is a
   positioned error, never a link that is silently not read.
 
-**Validate.** `Profile::validate` checks a parsed document against the closed key
-set of its `type`. It reports every violation, not only the first, and each names
-the file, the key and the rule. Values are typed: `state` is an enumeration,
-`bindings` is a map with exactly `code`, `tests` and `examples`, `affects` entries
-are parsed into a capability id and a section, and `items` entries into a claim and
-an optional outcome. A document with a key outside its set, with a key missing, or
-with the base key `resource` is rejected. A `type` other than `Capability`,
-`Change` or `Architecture` is an error. Checks that need other documents, such as
-whether an id exists or whether a graph is acyclic, belong to
-[the document model](./workplan-document-model.md); `raf-okf` validates one document
-at a time.
+**Validate.** `Profile::validate` checks a parsed document and its path against the
+closed key set of its `type` and returns a typed result: the typed document
+(`RafDocument`, with `State`, `Bindings`, `Affects` entries, `ChangeItem` entries and
+their `Outcome`), or the list of every violation, not only the first. Each violation
+names the file, the rule and, for a frontmatter rule, the key; a body rule names the
+section or the line instead. The rules are:
+
+- the key set comes from one table per type, in the order of the architecture page. A
+  key outside the table, a missing required key, and the base key `resource` (a rule of
+  its own, which names the key set of the type) are violations. The optional keys
+  `tags` and `timestamp` may be absent;
+- a missing `type`, or one other than `Capability`, `Change` or `Architecture`, is the
+  only violation reported for that document, because no key set applies. A document otherwise sits directly in the directory
+  of its type;
+- the `id` carries the prefix of its type and a kebab-case slug equal to the file name
+  without `.md`; `title` and `description` are non-empty strings;
+- `state` is an enumeration, and `bindings` is a map with exactly `code`, `tests` and
+  `examples`, each a list. A `designed` or `considered` capability binds nothing, and a
+  `delivered` one binds at least one `code` and one `tests` entry;
+- `depends` and `changes` hold capability ids (`changes` at least one), `affects`
+  entries are parsed into a capability id and one of the seven sections, and name a
+  capability listed in `changes`; `contract_effect` is `none` or `changes`; `items`
+  entries are parsed into a non-empty claim and an optional outcome
+  (`implemented`, `dropped` or `moved:change:<slug>`);
+- `tags` is a list of non-empty strings with no duplicate, and `timestamp` is an RFC
+  3339 date and time;
+- a Capability body holds the seven sections in order, none empty; a Change body holds
+  a non-empty `Summary`; an Architecture body is not empty. A section is empty when
+  nothing is left after its HTML comments and generated blocks are removed;
+- a PROPOSED block appears only in a Capability and only inside a section;
+- no prose line, title, description or item claim holds a placeholder token, and
+  no link is split across lines.
+
+Checks that need other documents, such as whether an id exists or whether a graph is
+acyclic, belong to [the document model](./workplan-document-model.md); `raf-okf`
+validates one document at a time. Prose that talks about future work is not a
+violation: the crate takes no position on tense.
 
 **Body model.** The body is parsed into a structure that tools query instead of
 re-scanning text. `Document::parse` builds the body of a document through
@@ -131,17 +157,34 @@ replaces a block and refuses an edit that leaves anything but an index.
 ## Usage
 
 ```rust
-use raf_okf::{Document, Profile};
+use raf_okf::{Document, Profile, RafDocument};
 
-let text = std::fs::read_to_string("docs/capabilities/example.md")?;
-let doc = Document::parse(&text)?;
-let violations = Profile::default().validate(&doc, "docs/capabilities/example.md");
-assert!(violations.is_empty());
-let sections = doc.sections();
+const TEXT: &str = "\
+---
+type: Architecture
+id: arch:example
+title: \"Example\"
+description: \"One line.\"
+---
+
+# Example
+
+What this page says.
+";
+
+let document = Document::parse(TEXT).expect("the text is a document");
+assert_eq!(document.render(), TEXT);
+match Profile.validate(&document, "docs/architecture/example.md") {
+    Ok(RafDocument::Architecture(page)) => assert_eq!(page.header.title, "Example"),
+    Ok(other) => panic!("not an architecture page: {other:?}"),
+    Err(violations) => panic!("{violations:?}"),
+}
 ```
 
-Callers that rewrite a span use `doc.replace_span(span, new_text)` and then
-`doc.render()`.
+The text comes from the caller, so the block needs no file access. A caller that rewrites
+a span of the body reads the span from the body model, for example
+`document.body().generated_blocks()[0].content()`, then calls
+`document.replace_spans(&[(span.clone(), new_text)])` and `document.render()`.
 
 ## Examples
 
@@ -153,12 +196,18 @@ id: cap:example
 title: "Example"
 description: "One line."
 state: designed
-bindings: {code: [], tests: [], examples: []}
+bindings:
+  code: []
+  tests: []
+  examples: []
 depends: []
 ```
 
-The same block with `resource: https://example.org/x` added is rejected with a
-message that names the `resource` key and the closed key set of `Capability`.
+Between `---` fences, with the seven sections as its body, at the path
+`docs/capabilities/example.md`, the block validates. The same block with
+`resource: https://example.org/x` added is rejected with a violation at the key
+`resource`, whose message names the `resource` key and the closed key set of
+`Capability`.
 
 ## Constraints
 
@@ -181,8 +230,10 @@ message that names the `resource` key and the closed key set of `Capability`.
 The profile is deliberately narrower than its parent format. A base that requires one
 key and leaves the rest open suits a wide ecosystem; a toolchain that must answer
 "is this document complete" needs the opposite, so the key sets are closed and every
-key is required. A missing key then means a missing fact rather than an optional
-one, and a misspelled key is an error rather than a silent no-op.
+key is required, except the two base keys `tags` and `timestamp`, which carry no
+fact the toolchain depends on and are optional. A missing required key then means a
+missing fact rather than an optional one, and a misspelled key is an error rather
+than a silent no-op.
 
 The body model exists so that no other crate scans Markdown. A line that begins with
 the PROPOSED marker inside a code fence is documentation of the syntax, not a

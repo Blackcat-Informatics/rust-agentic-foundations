@@ -116,9 +116,10 @@ line and column and names the key or token:
 
 A Capability body holds exactly seven second-level sections, in this order, none
 empty: Purpose, Contract, Usage, Examples, Constraints, Explanation,
-Verification. A section is empty when nothing is left after its HTML comments are
-removed. No prose carries a placeholder token, that is, a marker for unfinished
-text. Each section holds one kind of statement:
+Verification. A section is empty when nothing is left after its HTML comments and
+generated blocks are removed. No prose carries a placeholder token, that is, a marker
+for unfinished text. The rule also covers the frontmatter values `title`,
+`description` and item claims; code spans are exempt in both. Each section holds one kind of statement:
 
 | Section | Holds |
 | --- | --- |

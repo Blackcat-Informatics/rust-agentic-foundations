@@ -16,7 +16,8 @@ use crate::limits::MAX_TEXT_BYTES;
 use crate::span::Span;
 
 pub(crate) use blocks::Origin;
-use blocks::{is_blank, remove_code_spans, remove_comments};
+pub(crate) use blocks::remove_code_spans;
+use blocks::{is_blank, remove_comments};
 pub use heading::{Heading, Section};
 pub use link::{Link, LinkError, LinkForm, LinkTarget, SplitLink};
 pub(crate) use marker::{GENERATED_END, GENERATED_OPEN, is_kebab};

@@ -12,6 +12,7 @@ affects:
   - cap:okf-profile#examples
   - cap:okf-profile#verification
   - cap:okf-profile#constraints
+  - cap:okf-profile#explanation
 contract_effect: changes
 items:
   - claim: "Documents parse into frontmatter and a body model with positioned errors."

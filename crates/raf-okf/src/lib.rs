@@ -25,13 +25,32 @@
 //! keys and block scalars are refused, as are texts over [`MAX_TEXT_BYTES`]
 //! and nesting over [`MAX_YAML_DEPTH`].
 //!
-//! ```
-//! use raf_okf::Document;
+//! [`Profile::validate`] checks a document against the RAF profile and returns
+//! its typed form or every violation:
 //!
-//! let text = "---\n# header\ntype: Architecture\nid: arch:example\ntitle: \"Example\"\ndescription: \"One line.\"\n---\n\n# Example\n";
-//! let document = Document::parse(text)?;
-//! assert_eq!(document.render(), text);
-//! # Ok::<(), raf_okf::ParseError>(())
+//! ```rust
+//! use raf_okf::{Document, Profile, RafDocument};
+//!
+//! const TEXT: &str = "\
+//! ---
+//! type: Architecture
+//! id: arch:example
+//! title: \"Example\"
+//! description: \"One line.\"
+//! ---
+//!
+//! # Example
+//!
+//! What this page says.
+//! ";
+//!
+//! let document = Document::parse(TEXT).expect("the text is a document");
+//! assert_eq!(document.render(), TEXT);
+//! match Profile.validate(&document, "docs/architecture/example.md") {
+//!     Ok(RafDocument::Architecture(page)) => assert_eq!(page.header.title, "Example"),
+//!     Ok(other) => panic!("not an architecture page: {other:?}"),
+//!     Err(violations) => panic!("{violations:?}"),
+//! }
 //! ```
 
 mod body;
@@ -56,5 +75,9 @@ pub use frontmatter::value::{
 };
 pub use index::{Index, is_capability_index};
 pub use limits::{MAX_BLOCK_NESTING, MAX_TEXT_BYTES, MAX_YAML_DEPTH};
-pub use profile::{DocType, KeySpec, TimestampError, ValueKind, validate_timestamp};
+pub use profile::{
+    Affects, Architecture, Bindings, Capability, CapabilitySection, Change, ChangeItem,
+    ContractEffect, DocType, Header, KeySpec, Location, Outcome, Profile, RafDocument, Rule, State,
+    TimestampError, ValueKind, Violation, validate_timestamp,
+};
 pub use span::Span;
