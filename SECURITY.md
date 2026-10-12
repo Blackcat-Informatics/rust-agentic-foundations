@@ -74,8 +74,8 @@ guarantees are these, and no wider:
   processes, in debug and in release. These make memory exhaustion and stack overflow
   unlikely and do not
   prove that an overflow cannot happen. A residual stack overflow aborts the run, so
-  the gate fails and never passes (today the committed composite shapes and most of
-  the shapes that no budget counts end in such an abort), and a file ends in a typed error, a correct and
+  the gate fails and never passes (no budget counts the committed composite shapes or
+  most of the uncounted shapes, so a file of one of them can end in such an abort), and a file ends in a typed error, a correct and
   complete index, or an abort, never in success with a wrong or partial index. Report
   an overflow as a robustness bug: under the trust model above its impact is a failed
   run and not a breach. The parsers set no time bound.
@@ -92,7 +92,8 @@ Each spec states its own bounds and exact invocations.
 ## Security surface
 
 The most relevant security surface for this project is **reading untrusted
-files**. Once implemented, the following surfaces apply:
+files**. The following surfaces apply; `raf-okf` and `raf-source` implement the
+parsing and path-traversal surfaces, and the rest apply as the other crates are built:
 
 - **Rust source parsing** — `syn` parsing of untrusted `.rs` files; resource
   exhaustion from pathological nesting, very large files, or deeply recursive

@@ -5,10 +5,74 @@ type: Capability
 id: cap:source-index
 title: "Source index"
 description: "The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #[path], and a symbol and use-alias index."
-state: designed
+state: delivered
 bindings:
-  code: []
-  tests: []
+  code:
+    - raf_source::Tree
+    - raf_source::DiskTree
+    - raf_source::MemoryTree
+    - raf_source::RelPath
+    - raf_source::Workspace
+    - raf_source::parse_source
+    - raf_source::Resolution
+    - raf_source::LoadOptions
+    - raf_source::Item
+    - raf_source::Target
+  tests:
+    - raf_source::test_crate::relpath::a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside
+    - raf_source::test_crate::relpath::an_absolute_input_is_refused_beside_its_relative_form
+    - raf_source::test_crate::memory_tree::duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_keys
+    - raf_source::test_crate::memory_tree::keys_that_leave_the_root_are_refused_with_outside_root_beside_a_valid_key
+    - raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted
+    - raf_source::test_crate::disk_tree_containment::a_parent_segment_after_an_outside_directory_symlink_is_resolved_on_disk_and_refused
+    - raf_source::test_crate::disk_tree_containment::a_directory_symlink_loop_ends_with_an_error_and_is_listed_but_never_entered
+    - raf_source::test_crate::disk_tree_containment::a_fifo_named_as_a_file_is_refused_without_blocking_beside_a_regular_file
+    - raf_source::test_crate::workspace_containment::a_symlinked_module_file_to_outside_is_refused_naming_the_module_beside_an_in_root_link
+    - raf_source::test_crate::workspace_containment::a_manifest_target_path_that_leaves_the_root_is_refused_naming_the_key
+    - raf_source::test_crate::workspace_containment::discovery_classifies_a_symlink_by_what_it_resolves_to
+    - raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag
+    - raf_source::test_crate::discovery_targets::two_packages_with_one_name_are_an_error_naming_both_manifests
+    - raf_source::test_crate::discovery_targets::a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads
+    - raf_source::test_crate::module_tree::a_path_attribute_in_a_mod_rs_file_is_relative_to_that_files_directory
+    - raf_source::test_crate::module_tree::every_cfg_attr_path_alternative_is_followed_carrying_its_predicate
+    - raf_source::test_crate::module_tree::a_module_cycle_is_an_error_naming_both_files
+    - raf_source::test_crate::module_tree::a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_reading_it
+    - raf_source::test_crate::module_tree::the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone
+    - raf_source::test_crate::module_tree::a_chain_of_files_that_each_declare_the_next_twice_is_refused_quickly_beside_a_small_diamond
+    - raf_source::test_crate::symbol_index::every_kind_is_indexed_with_its_kind_line_file_and_visibility
+    - raf_source::test_crate::symbol_index::cfg_twins_are_one_symbol_with_two_sorted_sites
+    - raf_source::test_crate::symbol_index::test_functions_carry_the_package_target_and_crate_relative_name
+    - raf_source::test_crate::symbol_index::two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order
+    - raf_source::test_crate::use_resolution::a_three_hop_chain_resolves_and_lists_each_hop
+    - raf_source::test_crate::use_resolution::a_cycle_of_imports_is_cyclic_beside_a_chain_that_ends
+    - raf_source::test_crate::use_resolution::missing_names_dependency_items_and_macro_generated_items_are_not_found
+    - raf_source::test_crate::use_resolution::resolution_does_not_depend_on_the_order_of_the_declarations
+    - raf_source::test_crate::use_resolution::a_long_chain_of_re_exports_resolves_in_either_order_without_a_cap
+    - raf_source::test_crate::trait_keys::each_prelude_trait_loads_in_the_edition_that_has_it_and_is_refused_in_the_one_before
+    - raf_source::test_crate::trait_keys::inheriting_requires_membership_by_the_members_and_exclude_lists
+    - raf_source::test_crate::target_roots::every_target_kind_resolves_at_its_crate_path_as_a_module_item_of_its_root_file
+    - raf_source::test_crate::target_roots::a_first_party_module_at_a_binary_crate_path_is_ambiguous_beside_a_binary_that_is_not
+    - raf_source::test_crate::prescan_budgets::delimiter_nesting_is_refused_at_one_hundred_twenty_nine_beside_one_hundred_twenty_eight
+    - raf_source::test_crate::prescan_budgets::five_hundred_nested_generics_are_refused_beside_sixty_four
+    - raf_source::test_crate::prescan_budgets::twenty_thousand_else_if_links_are_refused_beside_two_hundred_fifty_six
+    - raf_source::test_crate::prescan_budgets::a_syntax_error_reports_its_own_line_and_column_beside_a_parsing_neighbour
+    - raf_source::test_crate::overflow_harness::composites_and_uncounted_shapes_end_in_exactly_one_allowed_outcome
+    - raf_source::test_crate::overflow_harness::the_parse_thread_is_named_after_the_file_and_has_the_stated_stack
+    - raf_source::test_crate::overflow_harness::the_classifier_accepts_only_a_signal_a_stack_overflow_status_or_the_runtime_message_as_an_abort
+    - raf_source::test_crate::corpus_replay::every_corpus_file_ends_in_exactly_one_allowed_outcome_with_its_recorded_symbols
+    - raf_source::test_crate::read_cap::disk_tree_enforces_the_cap_at_eight_mib
+    - raf_source::test_crate::read_cap::the_default_cap_is_eight_mib
+    - raf_source::test_crate::index_disk::disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions
+    - raf_source::test_crate::tree_error::every_variant_names_its_path_in_display_and_in_path
+    - raf_source::test_crate::fs_confinement::only_the_disk_backend_names_the_file_system_module
+    - raf_source::test_crate::this_repository::this_repository_loads_from_its_root_with_the_crates_directory_as_the_root
+    - raf_source::tree::disk::tests::linux_verifier_refuses_a_handle_link_that_leads_outside_and_accepts_one_inside
+    - raf_source::tree::disk::tests::unix_verifier_refuses_differing_identities_and_accepts_equal_ones
+    - raf_source::tree::disk::tests::portable_verifier_refuses_a_non_regular_handle_and_an_outside_path_beside_an_accepted_one
+    - raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_after_the_check_is_refused
+    - raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_before_a_listing_is_refused
+    - raf_source::tree::disk::tests::a_missing_descriptor_link_is_an_io_failure_and_never_absence
+    - raf_source::error::tests::a_spawn_error_displays_the_file_and_carries_its_cause
   examples: []
 depends: []
 ---
@@ -127,7 +191,7 @@ for one load: every arrival of the walk at a file, over all targets, and every w
 an inline module body (the default one and one per `cfg_attr` path alternative) is one
 module path, and a file reached again is parsed once but walked again, so a chain of files
 that each declare the next twice would otherwise record 2^n paths from a few kilobytes
-of input. The limit is 2^18: this repository records a few hundred, a workspace of ten
+of input. The limit is 2^18: a workspace of ten
 thousand files reached by five targets each records fifty thousand, and a shared
 test-support diamond records one path per target and module that reaches it, so the
 limit admits every realistic tree, while the cost it allows (a quarter of a million
@@ -149,9 +213,9 @@ level), some recursive shapes are counted by no budget, and a level of a nested
 `return return ...` chain costs about 8.8 KiB of stack in a debug build and about
 3.7 KiB in a release build, measured. The crate does not claim that an admitted file cannot
 overflow. A residual overflow aborts the process, so the run fails and is never
-reported as a pass, and today the committed composite shapes and the uncounted shapes
-that repeat `return `, `&mut `, `*const `, `fn() -> ` or `a = ` 20000 times end in that
-abort. Shapes that try to slip past a counter (a block as the condition of each
+reported as a pass. No budget counts the committed composite shapes or the uncounted
+shapes that repeat `return `, `&mut `, `*const `, `fn() -> ` or `a = ` 20000 times, so a
+file of one of them can end in that abort. Shapes that try to slip past a counter (a block as the condition of each
 `else if`, a lifetime between reference marks) are counted by the definitions above
 and refused. A parser overflow is a robustness bug, and an input that causes
 one is added to the fuzz corpus and to the budgets. `Cargo.toml` is read with the same
@@ -192,7 +256,8 @@ default location for its name. The crate path is the crate name for the library
 (`[lib] name`, or the package name, with `-` as `_`), `<pkg>::bin_crate::<bin>` for a
 binary, `<pkg>::test_crate::<target>`, `<pkg>::bench_crate::<target>` and
 `<pkg>::example_crate::<target>` for the others, and `<pkg>::build_script` for the
-build script. Library, binary and build-script targets are shipping, so the census sees
+build script. Each crate path resolves to the target's root as a module item. Library,
+binary and build-script targets are shipping, so the census sees
 `build.rs`; tests, benches and examples are not. These are typed errors that name the manifest key: an explicit
 target file that does not exist (checked with `entry`), a table without a `name`, two
 targets with one root file, two targets (in one package or two) with one crate path,
@@ -263,6 +328,18 @@ true for a non-blank `#[doc]` or `///` text and for `#[doc = include_str!(..)]`,
 `doc(hidden)` alone does not count; a module that has its own file is documented by the
 file's inner `//!` text as well. The `test` role is `CfgTest` also for an item in a file
 that is reached only through test code.
+
+Every target's crate root is also an item of the module kind, at the target's crate
+path in the type name space: its file is the target's root file, its line is 1, its
+span is the whole file, it is documented when the file starts with `//!` text, and it
+is test code for a test or bench target. `resolve` finds it by the crate path (`demo`,
+`demo::test_crate::it`, `demo::example_crate::e`, `demo::bin_crate::x`,
+`demo::build_script`). The segments `test_crate`, `bench_crate`, `example_crate` and
+`bin_crate` are not items: `demo::test_crate` alone names nothing unless a first-party
+module has that name. A root item spans the whole file, so its source key is not
+unique: it can equal the key of an item that starts at byte 0. Root items are left out
+of `items_by_source`, and `items()` and `items_in(file)` include them. If a crate path
+is also the path of a first-party item, `resolve` returns `Ambiguous` naming both.
 
 A method is recorded under the path of its impl type: an inherent impl must name, after
 resolving type aliases, a struct, enum or union of the workspace, or loading fails with
@@ -439,8 +516,8 @@ assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
   operators, 128 closure bars, 256 `else if` links), or a module walk that passes 128
   nested modules or 262144 module walks in one load, is refused with a typed error.
   Parsing runs on a dedicated 64 MiB stack. A residual overflow aborts the run and
-  fails the gate; it is never a pass, and today the composite shapes and most of the
-  uncounted shapes of Verification end in such an abort.
+  fails the gate; it is never a pass. No budget counts the composite shapes or most of
+  the uncounted shapes of Verification, so a file of one of them can end in such an abort.
 - Resolution covers items the source defines. Items from dependencies are outside the
   index and resolve to a not-found failure.
 - The index is built once per `Workspace::load`; callers reload to see changed files.

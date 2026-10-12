@@ -8,6 +8,21 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
+- **`raf-okf`:** reads and writes the RAF profile of OKF documents. It parses
+  Markdown with YAML frontmatter in a closed subset, validates the closed key sets
+  and typed values of capability, change and architecture documents and reports
+  every violation with its file, rule and position, models the body (sections,
+  links, fenced code, generated and PROPOSED blocks) and rewrites spans in it, and
+  writes documents back deterministically so a parsed document renders to its own
+  bytes. Input is bounded in size and nesting, anchors and aliases are refused, and
+  the crate reads no file.
+- **`raf-source`:** indexes Rust source for other tools. A `Tree` trait with disk
+  and memory backends gives every path confinement to the workspace root; package
+  and target discovery finds library, binary, test, bench, example and build
+  targets; the module tree follows `mod`, `#[path]` and `cfg_attr` paths; and the
+  symbol and use-alias index resolves a path through renames, globs and re-exports
+  with typed failures. Files are size-capped, a token pre-scan bounds recursion,
+  parsing runs on a dedicated stack, and a committed fuzz target covers the parser.
 - **Workspace scaffold:** a Cargo workspace on edition 2024 with a floating
   nightly development toolchain and a minimum supported Rust version of 1.98.1,
   shared workspace lints (missing documentation, unreachable `pub` and unsafe

@@ -46,18 +46,18 @@ crates are implemented.
 
 ### Crates
 
-`raf-okf` and `raf-source` are workspace members and are **implementing**: the
-frontmatter reader, the deterministic writer and the profile validation of `raf-okf`
-are built, and so are the `Tree` trait of `raf-source` with its disk and memory
-backends and path containment, its bounded parse, package and target discovery, and
-its module tree. Every other crate below is **designed, not yet
-implemented**, and joins the workspace members list when it is built. The capability
-documents in `docs/capabilities/` are the specification.
+`raf-okf` and `raf-source` are workspace members and are **delivered**: the
+frontmatter reader, the deterministic writer, the body model and the profile
+validation of `raf-okf`, and the `Tree` trait of `raf-source` with its disk and
+memory backends and path containment, its bounded parse, package and target
+discovery, its module tree and its symbol and use-alias index. Every other crate
+below is **designed, not yet implemented**, and joins the workspace members list when
+it is built. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
 |---|---|---|
-| `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | implementing |
-| `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | implementing |
+| `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | delivered |
+| `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | delivered |
 | `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | designed |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
 | `raf-workplan` | Capability and change model, graph, obligations, bindings, generated sections, completion gate | designed |
@@ -71,7 +71,7 @@ bindings.
 
 | Path | Contents |
 |---|---|
-| `crates/` | The workspace member crates (`raf-okf` and `raf-source` today; each other crate joins `members` when it is built) |
+| `crates/` | The workspace member crates (`raf-okf` and `raf-source`; each other crate joins `members` when it is built) |
 | `docs/capabilities/` | One permanent capability document per capability |
 | `docs/architecture/` | Shared current decisions (normal form, OKF profile) |
 | `work/changes/` | In-flight change records |
@@ -93,6 +93,14 @@ bindings.
 - The source uses **no unstable features**. A `#![feature(...)]` attribute is
   rejected; the MSRV build proves it on every change.
 - Raising the MSRV is a changelog-recorded change that rides a minor bump.
+- **Path containment is per platform.** `raf-source` verifies every opened handle
+  against the workspace root. On Linux the kernel's path for the handle (`/proc`)
+  is read, so no check is separated from the open it guards and the containment
+  race is closed. On other Unix systems the path is canonicalised again and the
+  device and inode of the handle must match, and elsewhere the handle must be a
+  regular file and the path canonicalised again must lie under the root; on both a
+  rename that wins the race against the second canonicalisation is a residual
+  window. `make cross-check` compiles every platform's verifier.
 
 ---
 

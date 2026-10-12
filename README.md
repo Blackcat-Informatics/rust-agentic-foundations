@@ -18,13 +18,14 @@ to fix the problem.
 
 ## Crates
 
-Every crate is **designed — not yet published**. The linked capability documents
-are the specification the crates are built against.
+`raf-okf` and `raf-source` are **delivered**. The other crates are **designed —
+not yet published**. The linked capability documents are the specification the
+crates are built against.
 
 | Crate | Kind | Purpose | Status | Specification |
 |---|---|---|---|---|
-| `raf-okf` | library | Reads and writes the RAF profile of OKF documents. | **designed — not yet published** | [okf-profile](docs/capabilities/okf-profile.md) |
-| `raf-source` | library | Indexes Rust source so tools can bind documents to code. | **designed — not yet published** | [source-index](docs/capabilities/source-index.md) |
+| `raf-okf` | library | Reads and writes the RAF profile of OKF documents. | **delivered** | [okf-profile](docs/capabilities/okf-profile.md) |
+| `raf-source` | library | Indexes Rust source so tools can bind documents to code. | **delivered** | [source-index](docs/capabilities/source-index.md) |
 | `raf-census` | library | The duplicate-helper census, ledger and debt ratchet, with a test gate. | **designed — not yet published** | [census-normal-form](docs/capabilities/census-normal-form.md) |
 | `cargo-census` | cargo subcommand | Runs the census from the command line. | **designed — not yet published** | [census-cli](docs/capabilities/census-cli.md) |
 | `raf-workplan` | library | The workplan document model, reconcile step and completion gate. | **designed — not yet published** | [workplan-document-model](docs/capabilities/workplan-document-model.md) |

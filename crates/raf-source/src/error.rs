@@ -493,3 +493,28 @@ impl Error for LoadError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::error::Error;
+    use std::io;
+
+    use super::{LoadError, LoadErrorKind};
+    use crate::RelPath;
+
+    #[test]
+    fn a_spawn_error_displays_the_file_and_carries_its_cause() {
+        let file = RelPath::new("src/lib.rs").expect("a plain path");
+        let error = LoadError::new(
+            &file,
+            None,
+            LoadErrorKind::Spawn(io::Error::other("no threads left")),
+        );
+        assert!(matches!(error.kind, LoadErrorKind::Spawn(_)));
+        let text = error.to_string();
+        assert!(text.starts_with("src/lib.rs: "), "{text}");
+        assert!(text.contains("cannot start the parse thread"), "{text}");
+        let source = error.source().expect("a spawn error has a cause");
+        assert_eq!(source.to_string(), "no threads left");
+    }
+}

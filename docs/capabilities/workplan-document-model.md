@@ -99,7 +99,8 @@ tests address this guarantee, and which sections this change must update.
 `bindings.tests` a test function path, and each entry in `bindings.examples` an
 example target or a documentation test item. All resolve through the
 [source index](./source-index.md), including re-exports. A binding that does not
-resolve is an error. A capability with nothing built binds nothing, so `designed`
+resolve is an error. A symbol that a macro generates is not in the index, so it cannot be
+bound. A capability with nothing built binds nothing, so `designed`
 capabilities carry empty lists. An `implementing` capability may have empty or
 missing bindings; `status`, the catalogue and the reconcile obligations report each
 one as a gap. A `delivered` capability binds at least one code path and one test.

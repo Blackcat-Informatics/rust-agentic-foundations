@@ -5,10 +5,63 @@ type: Capability
 id: cap:okf-profile
 title: "OKF profile reader and writer"
 description: "The raf-okf crate: parse OKF Markdown, validate the RAF profile with closed key sets, and write documents back deterministically."
-state: designed
+state: delivered
 bindings:
-  code: []
-  tests: []
+  code:
+    - raf_okf::Document
+    - raf_okf::Body
+    - raf_okf::Profile
+    - raf_okf::Index
+    - raf_okf::is_capability_index
+    - raf_okf::Span
+    - raf_okf::RafDocument
+  tests:
+    - raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests
+    - raf_okf::test_crate::refusals::a_document_without_a_fence_on_line_one_is_refused
+    - raf_okf::test_crate::refusals::a_frontmatter_that_is_not_a_block_mapping_is_refused
+    - raf_okf::test_crate::refusals::a_billion_laughs_document_is_refused_at_the_first_anchor
+    - raf_okf::test_crate::refusals::nesting_over_thirty_two_levels_is_refused_before_descent
+    - raf_okf::test_crate::refusals::a_text_of_exactly_one_mebibyte_parses_and_one_more_byte_is_refused
+    - raf_okf::test_crate::profile::every_required_key_of_every_type_is_reported_when_missing
+    - raf_okf::test_crate::profile::an_unknown_key_is_reported_at_that_key
+    - raf_okf::test_crate::profile::the_key_resource_has_its_own_rule_on_every_type
+    - raf_okf::test_crate::profile::an_unknown_type_is_one_violation_at_the_type_key
+    - raf_okf::test_crate::profile::a_state_is_one_of_the_four
+    - raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list
+    - raf_okf::test_crate::profile::affects_entries_have_the_form_a_section_of_the_seven_and_a_capability_in_changes
+    - raf_okf::test_crate::profile::items_need_a_claim_known_keys_and_a_known_outcome
+    - raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations
+    - raf_okf::test_crate::profile::a_split_link_is_reported_at_its_line_and_a_one_line_link_is_not
+    - raf_okf::test_crate::profile::a_proposed_block_is_valid_only_inside_a_section_of_a_capability
+    - raf_okf::test_crate::schema::each_type_lists_its_keys_in_the_order_of_the_architecture_page
+    - raf_okf::test_crate::render::every_tracked_document_renders_to_its_own_bytes
+    - raf_okf::test_crate::render::a_parsed_document_equals_its_rendering_read_back
+    - raf_okf::test_crate::render::keys_out_of_order_render_in_table_order_and_then_stay_put
+    - raf_okf::test_crate::render::comments_attach_to_the_next_key_and_trailing_comments_stay_on_their_line
+    - raf_okf::test_crate::render::tags_render_sorted_and_stay_sorted
+    - raf_okf::test_crate::splice::two_generated_blocks_change_only_their_byte_ranges
+    - raf_okf::test_crate::splice::overlapping_spans_are_refused_and_the_body_is_unchanged
+    - raf_okf::test_crate::splice::a_malformed_result_is_refused_and_the_body_is_unchanged
+    - raf_okf::test_crate::index::a_generated_only_index_is_accepted_with_either_header_form
+    - raf_okf::test_crate::index::prose_outside_the_blocks_is_refused_with_its_line
+    - raf_okf::test_crate::index::document_parse_of_index_text_fails_at_line_one
+    - raf_okf::test_crate::index::only_the_capability_index_path_is_the_index
+    - raf_okf::test_crate::markers::markers_inside_a_fence_produce_no_blocks
+    - raf_okf::test_crate::markers::every_misspelling_of_the_proposed_marker_is_refused_with_its_line
+    - raf_okf::test_crate::markers::each_generated_marker_error_names_its_line
+    - raf_okf::test_crate::links::every_link_form_is_read_with_its_target_anchor_and_line
+    - raf_okf::test_crate::links::a_link_split_across_lines_is_recorded_and_not_read
+    - raf_okf::test_crate::links::a_destination_or_title_of_exactly_4096_bytes_is_read_and_one_more_is_refused
+    - raf_okf::test_crate::links::targets_that_leave_the_root_or_are_empty_or_absolute_are_refused
+    - raf_okf::test_crate::body_structure::block_nesting_of_sixty_four_levels_parses_and_sixty_five_is_refused
+    - raf_okf::test_crate::body_structure::indented_code_is_ordinary_text_so_links_and_markers_in_it_count
+    - raf_okf::test_crate::body_structure::only_atx_headings_are_headings_and_setext_headings_are_not
+    - raf_okf::test_crate::body_structure::headings_of_every_level_carry_github_anchors_with_repeats_numbered
+    - raf_okf::test_crate::alloc_bound::refused_documents_stay_within_eight_times_their_size
+    - raf_okf::test_crate::placeholder_lines::reports_each_token_in_prose_with_its_line
+    - raf_okf::test_crate::no_io_in_source::the_crate_sources_name_neither_the_file_system_nor_the_process_module
+    - raf_okf::test_crate::usage_docs::the_examples_block_validates_between_fences_and_resource_is_rejected
+    - raf_okf::test_crate::repo_markdown::no_tracked_markdown_file_holds_a_split_link_or_a_malformed_block
   examples: []
 depends: []
 ---
@@ -67,8 +120,8 @@ section or the line instead. The rules are:
   its own, which names the key set of the type) are violations. The optional keys
   `tags` and `timestamp` may be absent;
 - a missing `type`, or one other than `Capability`, `Change` or `Architecture`, is the
-  only violation reported for that document, because no key set applies. A document otherwise sits directly in the directory
-  of its type;
+  only violation reported for that document, because no key set applies;
+- a document of a known type sits directly in the directory of its type;
 - the `id` carries the prefix of its type and a kebab-case slug equal to the file name
   without `.md`; `title` and `description` are non-empty strings;
 - `state` is an enumeration, and `bindings` is a map with exactly `code`, `tests` and
