@@ -38,9 +38,11 @@ carry the weight:
   documents state the delivered contract.
 
 The repository dogfoods both. Its own design is written in the workplan format,
-and the root package's test suite carries its gates. Today that is the
-document-contract test; the census and workplan gates join it once those crates
-are implemented.
+and the root package's test suite carries its gates. Today those are the
+document-contract test (`tests/docs_contract.rs`) and the repository gates
+(`tests/repo_gates.rs`: licence digests, issue-reference and process-wording
+scan, version agreement); the census and workplan gates join them once those
+crates are implemented.
 
 ### Crates
 
@@ -97,8 +99,13 @@ make hooks   # point core.hooksPath at .githooks for this clone
 ```
 
 - **Run `make check` before claiming work is done.** It stops at the first failure.
-- **Install the hooks with `make hooks`.** The pre-commit hook runs the fast gates
-  (fmt, reuse, licenses, issue-refs) against the staged index.
+- **Install the hooks with `make hooks`.** The pre-commit hook runs fmt and reuse
+  on a checkout of the staged index, and the `repo_gates` and `docs_contract`
+  test binaries over that checkout. The binaries are compiled from the working
+  tree, not the index; only the files they judge come from the index.
+- **`make licenses` and `make issue-refs` run the Rust gates** in
+  `tests/repo_gates.rs`, so they are a subset of `make test`. Both gate test
+  files share one pattern set and one file list in `tests/support/mod.rs`.
 - **Never bypass a hook or a gate.** Do not pass `--no-verify`, do not edit a hook
   to pass, and do not weaken a gate or a lint to get green. Fix the cause.
 - A missing tool is a hard failure, not a skip. `make reuse` needs `uvx` or
@@ -181,8 +188,8 @@ RAF plans its own work in the workplan format. This section describes the design
   issue or pull request numbers, tracker links, or wording that refers to the
   development process that produced a file (plans, tasks, acceptance criteria,
   branches). Documents describe the system, not its history. `make issue-refs`
-  scans every tracked file and fails on a hit; the pre-commit hook runs it on the
-  staged index.
+  scans every tracked text file and fails on a hit; the pre-commit hook runs it
+  on the staged index.
 - **No deferrals.** Work is done now. Scope that leaves a change is moved to another
   tracked change, with its own record, before the first one completes. Do not write
   "later", "follow-up" or "out of scope for now" as a substitute for either.
@@ -200,4 +207,5 @@ RAF plans its own work in the workplan format. This section describes the design
 
 One workspace version covers every crate. Tags are `v<semver>` and match the
 `tag_pattern` in `cliff.toml`. `CITATION.cff` and `[workspace.package]` carry the
-same version. See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the policy.
+same version, which `tests/repo_gates.rs` checks. See
+[`CONTRIBUTING.md`](./CONTRIBUTING.md) for the policy.

@@ -31,9 +31,11 @@ and pull requests are welcome.
   best-effort parsing or skip-on-missing-tool behavior.
 - **Dogfood gates.** RAF is the first user of its own tools. The root package's
   test suite carries the repository's own gates: today a document-contract test
-  for the capability documents. Once `raf-census` and `raf-workplan` exist, their
-  census and workplan gates join it. A change that makes a gate fail on RAF itself
-  does not merge, and gates are never relaxed to get a change through.
+  for the capability documents and the repository gates (licence digests,
+  issue-reference scan, version agreement), all in Rust. Once `raf-census` and
+  `raf-workplan` exist, their census and workplan gates join it. A change that
+  makes a gate fail on RAF itself does not merge, and gates are never relaxed to
+  get a change through.
 - **The workplan completion gate.** A change is complete only when the capability
   documents state the delivered contract: no proposed block remains, every item has
   an outcome (`implemented`, `dropped`, or `moved` to another tracked change), the
@@ -41,7 +43,8 @@ and pull requests are welcome.
   then deleted; Git keeps the history.
 - **Every rule has a negative fixture.** A detector, schema rule or check without an
   input that makes it fail is not enforced.
-- **Rust first.** Checks, generators and tests are written in Rust.
+- **Rust first.** Checks, generators, gates and tests are written in Rust. The
+  Makefile and hooks are thin glue over them.
 
 ## Development
 
@@ -52,8 +55,13 @@ make help    # list every target
 ```
 
 - **`make check` is the gate.** It stops at the first failure and CI runs the same
-  gates. The pre-commit hook runs the fast subset (fmt, reuse, licenses,
-  issue-refs) against the staged index. Never bypass a hook.
+  gates. The pre-commit hook runs fmt and reuse on a checkout of the staged
+  index, plus the `repo_gates` and `docs_contract` test binaries over that
+  checkout. The binaries are compiled from the working tree, not the index.
+  Never bypass a hook.
+- **Hooks follow the checkout.** With `core.hooksPath` set to `.githooks`,
+  committing on a checked-out branch runs that branch's copy of the hook, so a
+  hook change takes effect on the branch that carries it.
 - **MSRV.** `make msrv` runs `cargo check --workspace --all-targets --locked` on
   Rust 1.98.1 through `rust-validate`. Install `rust-validate`, or point `MSRV_RUN`
   at a command that runs the 1.98.1 toolchain.
@@ -62,8 +70,9 @@ make help    # list every target
 - **Supply chain.** `make deny` runs `cargo deny` offline on your machine; CI runs
   the fetching variant against the live advisory database.
 - **Issue references.** `make issue-refs` fails on issue or pull request numbers and
-  development-process wording in any tracked file. Documents describe the system,
-  not the history that produced it.
+  development-process wording in any tracked text file. Documents describe the
+  system, not the history that produced it. It and `make licenses` run the Rust
+  gates in `tests/repo_gates.rs`, so they are a subset of `make test`.
 
 ## Versioning & releases
 

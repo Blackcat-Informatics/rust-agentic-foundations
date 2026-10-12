@@ -11,8 +11,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
-use std::fs;
 use std::path::{Component, Path, PathBuf};
+
+mod support;
+
+use support::{banned_in_line, decode_text, gate_root, read_tracked, tracked_paths};
 
 /// A repository held in memory: relative path to file contents.
 type Repo = BTreeMap<PathBuf, String>;
@@ -52,15 +55,6 @@ const OUTCOMES: [&str; 2] = ["implemented", "dropped"];
 const PROPOSED_OPEN: &str = "> [!PROPOSED change:";
 const GENERATED_OPEN: &str = "<!-- raf:generated:";
 const GENERATED_END: &str = "end";
-
-/// Phrases that mark development-process wording. They are assembled from
-/// pieces so this file does not trip the repository's own `issue-refs` gate.
-const PROCESS_PHRASES: [&str; 4] = [
-    concat!("this", " issue"),
-    concat!("the plan", "'s"),
-    concat!("per the", " plan"),
-    concat!("this", " branch"),
-];
 
 // ---------------------------------------------------------------------------
 // Frontmatter model and parser
@@ -357,86 +351,6 @@ fn is_kebab(slug: &str) -> bool {
                     .chars()
                     .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
         })
-}
-
-fn is_word(c: char) -> bool {
-    c.is_alphanumeric() || c == '_'
-}
-
-// ---------------------------------------------------------------------------
-// Banned tokens and wording
-// ---------------------------------------------------------------------------
-
-fn digit_follows(line: &str, needle: &str) -> bool {
-    line.match_indices(needle).any(|(index, _)| {
-        line.get(index + needle.len()..)
-            .and_then(|rest| rest.chars().next())
-            .is_some_and(|c| c.is_ascii_digit())
-    })
-}
-
-fn hash_number(line: &str) -> bool {
-    let chars: Vec<char> = line.chars().collect();
-    chars.iter().enumerate().any(|(index, c)| {
-        if *c != '#' {
-            return false;
-        }
-        let digits = chars
-            .iter()
-            .skip(index + 1)
-            .take_while(|d| d.is_ascii_digit())
-            .count();
-        (1..=5).contains(&digits) && chars.get(index + 1 + digits).is_none_or(|n| !is_word(*n))
-    })
-}
-
-fn pull_request_number(line: &str) -> bool {
-    line.match_indices("PR").any(|(index, _)| {
-        let before = line.get(..index).and_then(|s| s.chars().next_back());
-        if before.is_some_and(is_word) {
-            return false;
-        }
-        let rest = line.get(index + 2..).unwrap_or_default();
-        let rest = rest.strip_prefix(' ').unwrap_or(rest);
-        let rest = rest.strip_prefix('#').unwrap_or(rest);
-        rest.chars().next().is_some_and(|c| c.is_ascii_digit())
-    })
-}
-
-fn acceptance_label(lower: &str) -> bool {
-    lower.match_indices("ac").any(|(index, _)| {
-        let before = lower.get(..index).and_then(|s| s.chars().next_back());
-        let rest = lower.get(index + 2..).unwrap_or_default();
-        let digits = rest.chars().take_while(char::is_ascii_digit).count();
-        digits > 0 && !before.is_some_and(is_word) && !rest.chars().nth(digits).is_some_and(is_word)
-    })
-}
-
-fn plan_possessive(lower: &str) -> bool {
-    lower.match_indices("the plan").any(|(index, needle)| {
-        let mut rest = lower
-            .get(index + needle.len()..)
-            .unwrap_or_default()
-            .chars();
-        rest.next().is_some() && rest.next() == Some('s')
-    })
-}
-
-fn banned_in_line(line: &str) -> Option<&'static str> {
-    let lower = line.to_lowercase();
-    if hash_number(line)
-        || digit_follows(line, "/issues/")
-        || digit_follows(line, "/pull/")
-        || digit_follows(line, "CHANGE-")
-        || pull_request_number(line)
-    {
-        return Some("issue or pull request number");
-    }
-    let process = PROCESS_PHRASES.iter().any(|p| lower.contains(p))
-        || plan_possessive(&lower)
-        || digit_follows(&lower, "task ")
-        || acceptance_label(&lower);
-    process.then_some("development-process wording")
 }
 
 // ---------------------------------------------------------------------------
@@ -1170,48 +1084,23 @@ fn document_types(repo: &Repo) -> BTreeMap<String, usize> {
 // Loader
 // ---------------------------------------------------------------------------
 
-fn walk(root: &Path, dir: &Path, repo: &mut Repo) {
-    let entries = fs::read_dir(dir)
-        .unwrap_or_else(|e| panic!("cannot read directory {}: {e}", dir.display()));
-    for entry in entries {
-        let entry = entry.unwrap_or_else(|e| panic!("cannot read entry in {}: {e}", dir.display()));
-        let name = entry.file_name();
-        if [".git", "target", ".stage", ".worktrees"]
-            .iter()
-            .any(|skip| name == *skip)
-        {
-            continue;
-        }
-        let file_type = entry
-            .file_type()
-            .unwrap_or_else(|e| panic!("cannot stat {}: {e}", entry.path().display()));
-        if file_type.is_symlink() {
-            continue;
-        }
-        let path = entry.path();
-        if file_type.is_dir() {
-            walk(root, &path, repo);
-        } else {
-            let relative = path
-                .strip_prefix(root)
-                .expect("walked path lies under the root")
-                .to_path_buf();
-            let text = if relative.extension().is_some_and(|e| e == "md") {
-                fs::read_to_string(&path)
-                    .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()))
+/// Load the real tree from the git index, read under the gate root: every
+/// tracked path (for link targets) and the text of every Markdown file.
+fn load_repo(root: &Path) -> Repo {
+    tracked_paths()
+        .into_iter()
+        .map(|path| {
+            let text = if path.extension().is_some_and(|e| e == "md") {
+                let bytes = read_tracked(root, &path);
+                decode_text(&bytes)
+                    .unwrap_or_else(|| panic!("{} is not UTF-8 text", path.display()))
+                    .to_string()
             } else {
                 String::new()
             };
-            repo.insert(relative, text);
-        }
-    }
-}
-
-/// Load the real tree: every path (for link targets) and every Markdown text.
-fn load_repo(root: &Path) -> Repo {
-    let mut repo = Repo::new();
-    walk(root, root, &mut repo);
-    repo
+            (path, text)
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -1220,7 +1109,7 @@ fn load_repo(root: &Path) -> Repo {
 
 #[test]
 fn repository_documents_satisfy_the_profile() {
-    let repo = load_repo(Path::new(env!("CARGO_MANIFEST_DIR")));
+    let repo = load_repo(&gate_root());
     let violations = check(&repo);
     let mut report = String::new();
     for v in &violations {
