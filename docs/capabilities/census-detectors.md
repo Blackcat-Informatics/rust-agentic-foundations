@@ -1,0 +1,134 @@
+---
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: CC-BY-4.0
+type: Capability
+id: cap:census-detectors
+title: "Built-in census detectors"
+description: "The fourteen generic detectors the RAF census ships, each with a positive and a negative fixture."
+state: designed
+bindings:
+  code: []
+  tests: []
+  examples: []
+depends: [cap:census-normal-form]
+---
+
+# Built-in census detectors
+
+## Purpose
+
+Fingerprints find copies of a body that already exists elsewhere. Some duplicated
+helpers are better recognised by what they do: a hex-digit table, a hand-rolled
+ceiling division, a default-hasher map. Detectors are generic checks for these
+recurring hand-written helpers, and they report as `rule` fingerprints that a
+ledger job can forbid.
+
+## Contract
+
+The census ships 14 built-in detectors. Each reports hits as `rule:<id>`, where
+`<id>` is the detector id, and a ledger job names the hit in
+`forbidden.fingerprints`.
+
+| Id | Meaning |
+| --- | --- |
+| `std-default-hasher` | A std `HashMap` or `HashSet` left on its random default hasher. |
+| `hex-format-loop` | A `{:02x}` or `{:02X}` format inside a loop or closure. |
+| `hex-pair-radix` | `u8::from_str_radix(_, 16)` used to decode a hex pair. |
+| `hex-table` | A hex-digit table written by hand, outside the job's home package. |
+| `hex-digit-radix` | A single hex digit decoded through a radix conversion. |
+| `home-literal` | A string literal equal to one the home item's own bodies spell, outside the home item. |
+| `sole-name` | A function inside the home crate that a `names` pattern matches, other than the home or an entry point. |
+| `vocabulary-literal` | A string literal equal to or starting with a namespace constant declared under the job's home and entry-point modules, outside those modules. |
+| `json-pointer-escape` | Hand-written escaping of `~` and `/` for a JSON Pointer. |
+| `length-prefix-frame` | A hand-written length-prefixed frame read or write. |
+| `le-slice-int` | An integer assembled from a little-endian byte slice by hand. |
+| `align-up-mask` | Alignment rounding written as an add-and-mask. |
+| `div-ceil-by-hand` | Ceiling division written as an add-and-divide instead of `div_ceil`. |
+| `xor-first-mismatch` | A first-mismatch search written as an XOR and a bit scan. |
+
+The detectors that read a job's home (`home-literal`, `sole-name`,
+`vocabulary-literal`) apply only to jobs that name them in `forbidden`. The census
+walks shipping code and every test, bench and example target. Detectors that read
+shipping code only are marked so in their report. A detector never reports a hit
+inside the home package of the job that forbids it.
+
+Every detector ships two fixtures: a positive fixture it flags, and a negative
+fixture that looks similar and that it leaves alone.
+
+Detectors that concern one repository's domain are not built in. Such a detector is
+written as a `Rule` in the repository that needs it (see
+[census-rule-api](./census-rule-api.md)). An RDF structure rule belongs to an RDF
+workspace, for example.
+
+## Usage
+
+A job forbids a detector by listing its fingerprint:
+
+```toml
+[[job]]
+id = "ceil-div"
+summary = "Ceiling division."
+home = "demo_util::math::ceil_div"
+entry_points = []
+enforced = true
+
+[job.forbidden]
+names = []
+constants = []
+fingerprints = ["rule:div-ceil-by-hand"]
+patterns = []
+```
+
+`cargo census check` reports each hit with its file, line and `rule:<id>`.
+
+## Examples
+
+A positive fixture for `div-ceil-by-hand`, which the detector flags:
+
+```rust
+fn pages(bytes: usize, page: usize) -> usize {
+    (bytes + page - 1) / page
+}
+```
+
+Its negative fixture, which the detector leaves alone because it already uses the
+standard method:
+
+```rust
+fn pages(bytes: usize, page: usize) -> usize {
+    bytes.div_ceil(page)
+}
+```
+
+## Constraints
+
+- The detector set is closed; there is no configuration that adds a built-in id.
+  New generic detectors arrive with a new release of the crate.
+- Detectors work on syntax. They do not resolve types, so `std-default-hasher`
+  recognises the std paths and aliases it can see in the file.
+- A detector reports hits; whether a hit is a finding is decided by the ledger job
+  that forbids it.
+
+## Explanation
+
+These fourteen detectors are the recurring hand-written helpers that the diverged
+census copies each grew separately: byte-level encodings, bit tricks, and
+hash-collection defaults. They are generic, so they live in the shared crate.
+Detectors that name one project's types would drag that project into every
+consumer, so those stay in the consuming repository as `Rule` implementations.
+
+Pairing every detector with a negative fixture is deliberate. A detector that
+matches too much is worse than none, because its false positives teach people to
+add exemptions.
+
+## Verification
+
+- A test lists the 14 ids and fails if the set of registered built-in ids differs
+  from this table.
+- Each detector has a positive fixture that yields exactly one hit with the right
+  `rule:<id>`, and a negative fixture that yields none.
+- A test fails for any registered detector that lacks either fixture.
+- A fixture shows a detector hit is not reported inside the home package of the job
+  that forbids it.
+- A fixture shows `home-literal`, `sole-name` and `vocabulary-literal` are silent
+  for a job that does not name them.

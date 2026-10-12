@@ -1,0 +1,26 @@
+---
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: CC-BY-4.0
+type: Change
+id: change:census-migration
+title: "Implement census migration"
+description: "Delivers cargo census migrate from legacy baselines and ledgers."
+changes: [cap:census-migration]
+affects:
+  - cap:census-migration#purpose
+  - cap:census-migration#contract
+  - cap:census-migration#usage
+  - cap:census-migration#examples
+  - cap:census-migration#constraints
+  - cap:census-migration#verification
+contract_effect: changes
+items:
+  - claim: "migrate maps each old fingerprint to its member symbols and then to the normal form 1 fingerprint."
+  - claim: "The output is a ledger in the unified schema with dialect fields in job.ext."
+  - claim: "Rows that cannot be mapped are listed and kept as comments in the output."
+  - claim: "The old ledger and baseline are never modified."
+---
+
+## Summary
+
+This change delivers the migration command that moves legacy census ledgers to normal form 1 and the unified schema.
