@@ -245,30 +245,142 @@ way of reaching it, so every item in the file is test code when all its ways in 
 tests. Test items stay in the index with that tag so that a caller decides whether they
 count.
 
-**Symbol index.** Every named item, which is a function, struct, enum, union, trait,
-type alias, constant, static, module and macro definition, is recorded with its full
-crate path, its kind, its file, its line, its visibility and its test tag. Methods
-are recorded under their impl type path.
+**Symbol index.** Every named item of every module tree is an `Item`: a function,
+struct, enum, union, trait, type alias, constant, static, module, `macro_rules!`
+macro, `extern crate` item, item of an `extern` block, method of an inherent or trait
+`impl` block, default and required method of a trait, and associated constant or type.
+An item has an `id`, its full `path`, its `kind`, its `namespace`, its `file`, the line
+of its name, its `span` and `body` in lines and bytes, its `visibility`, `documented`,
+`doc_hidden`, `test` role, `target` and, for an impl member, the written `self_type`
+and `trait_path`. The name spaces are type, value and macro. A function, constant or
+static is a value; a module, trait, enum, union, alias and `extern crate` item is a
+type; a unit or tuple struct is a type and also a value, through its field shape; a
+`macro_rules!` macro is a macro, and a `#[macro_export]` macro is indexed at the crate
+root wherever it is written. A name can be in all three at once. `const _` defines no
+name and is not indexed; it stays in the facts of its file. A macro invocation that
+defines items is not expanded, so what it generates is not indexed. `documented` is
+true for a non-blank `#[doc]` or `///` text and for `#[doc = include_str!(..)]`, and
+`doc(hidden)` alone does not count; a module that has its own file is documented by the
+file's inner `//!` text as well. The `test` role is `CfgTest` also for an item in a file
+that is reached only through test code.
 
-**Use-alias index.** Every `use` declaration, including renames, nested groups and
-globs, contributes entries to an alias table. `resolve(path)` follows the table
-through re-exports, with a cycle guard, until it reaches a defined item, and returns
-that item or a typed failure: not found, ambiguous, or cyclic. A path that resolves
-through a glob is reported as such. A symbol that a macro generates is not indexed,
-and the documentation of the capabilities that rely on the index says so.
+A method is recorded under the path of its impl type: an inherent impl must name, after
+resolving type aliases, a struct, enum or union of the workspace, or loading fails with
+a typed error that names the file and line; an impl of a trait on such a type records its
+members under that type, as trait impl methods; an impl of a trait on any other self
+type (a path the workspace does not define, a reference, a slice, a tuple, a generic
+parameter) records its members under the key of the trait followed by the method, with the
+written self type and the written trait path kept on the item, and the key itself
+(`TraitKey`) on the item as well. The key of a local trait is the path it is defined at.
+The key of a dependency trait is its absolute path, found by following the written path
+through the module's own `use` declarations and `extern crate` items, through the `use`
+declarations of a local module that the path passes through (`pub mod traits { pub use
+serde::Serialize; }` and a direct `serde::Serialize` are one key), and through the globs
+of local modules (`use super::*` reaches what the parent imported). The head of the
+resulting path must be a crate the package can name: the sysroot crates `std`, `core`,
+`alloc`, `proc_macro` and `test`, or a crate declared in `[dependencies]` (for a library
+or binary), in `[dependencies]` and `[dev-dependencies]` (for a test, bench or example
+target, and for test code of a library or binary) or in `[build-dependencies]` (for the
+build script), under the name it has in code (a renamed dependency, `package = ".."`, keys under the new
+name, not the name of the package it renames) and with `-` as `_`. A path whose head is none of these is a typed
+`UnresolvedTrait` error that names the file and line. `core` and `alloc` are written as
+`std`, which re-exports their traits at the same paths, so the three spellings of one
+trait are one key. A single-segment name that nothing in the module binds is looked up
+in the prelude of the package's edition, taken from its manifest (or from
+`[workspace.package]` when it inherits one; an inherited edition with no
+`[workspace.package] edition` at or above the package is a manifest error that names
+`package.edition`, as it is for cargo, and a package with no `edition` key is 2015): the traits of the first prelude, plus `FromIterator`,
+`TryFrom` and `TryInto` from 2021, plus `Future` and `IntoFuture` from 2024. A glob of a
+dependency (`use std::fmt::*;`) cannot be looked into. If exactly one such glob in scope
+could provide the name, the trait is keyed under that glob's path followed by the name, so
+`use serde::*` and `use serde::ser::Serialize` can give two keys for one trait: the glob
+cannot be looked into, and its path is all the key has. A glob whose first segment is
+neither a local module nor a crate the package can name is a typed `UnresolvedTrait`
+error that names the glob's file and line when a trait key consults it. If
+several could, or the name is also in the prelude, the key is `TraitKey::Unresolved`: it
+holds the written path and every absolute path the trait could have, the members are
+recorded under the written path, and `resolve` finds them by that text. Members of
+different impls that share a key are one symbol with several sites, and where a local
+trait declares the method the path resolves to the declaration. A trait's methods are recorded
+under the trait.
+
+The identity of an item is its file and the byte offset where its span starts. A file
+that several module paths reach is indexed once for each path, so the same source item
+can appear as several `Item` values that share a file and offset and differ in `path`
+and `target`. `items` yields every item sorted by path, then name space, file and
+position, strictly increasing, so the items under a path prefix are a contiguous run
+(`items_under`); `items_by_source()` and `same_source(&item)` group the items that share
+one identity, so a census can count a source item once however many paths reach it;
+`item(id)` is a lookup; `items_in(file)` yields a file's items in order
+of position; `item_at(file, offset)` yields the innermost items that hold the offset;
+`is_shipping(&item)` is true for an item of a shipping target that is not test code;
+`files()` yields each source file once, with its package, the targets and module paths
+that reach it, and whether it ships; `source(file)` is the exact text that was indexed;
+and `test_fns()` returns, for each `#[test]` function (or a typed error if one's path does not start with its target's crate path), the package, the kind and Cargo
+name of its target (`--lib`, `--bin <name>` or `--test <name>`) and its path inside the
+crate, which is what `cargo test -p <package> --test <target> <name>` needs. The index
+has no order that depends on the tree implementation: two loads of one tree are equal,
+and the same regular files on disk and in memory give equal indexes.
+
+**Use-alias index.** Every `use` declaration contributes to a table of the names of its
+module: renames, nested groups, `self` in a group, globs, a leading `::` (a library
+crate by name), `extern crate x as y`, and the keywords `crate`, `self` and `super`; a
+`super` above the crate root is an error that names the file and line. A name that a
+module defines or imports explicitly shadows a name that one of its globs brings in, as
+in rustc. A lookup answers from the globs of a module only when every explicit import of
+that module that could bind the same name is settled, resolved or definitively failed;
+until then the answer is indeterminate and the asker waits, so the result does not depend
+on the order of the declarations. A glob brings in only the names the importing module
+can name: `pub` items, `pub(crate)`, `pub(super)` and `pub(in path)` items when the
+importer is inside the restriction, and private items only when the importer is the
+defining module or lies inside it; a path walk does not check visibility otherwise. The
+tables are settled to a fixed point, so a chain of re-exports of any length resolves and
+nothing caps the search, and a cycle of globs adds nothing. Of two routes to one item the
+one that uses no glob decides `via_glob`.
+
+`resolve(path)` takes a canonical path such as `demo::inner::go` (a segment may be
+written as a raw identifier: `r#match` and `match` are the same name) and tries the type,
+value and macro name spaces in that order; `resolve_in(path, namespace)` takes one. A
+path may end at a method: `demo::Thing::new`. The result is a `Resolution`: the
+canonical `path` of the definition, the `namespace`, the `sites` (non-empty, sorted by
+path, file and position), `via_glob` (true when a glob import carried the path to the
+symbol), and the `chain` of locations the lookup passed through from the requested path to the
+definition. The same path, name space and kind defined more than once is one symbol with
+several sites, as `#[cfg(unix)] fn a()` beside `#[cfg(windows)] fn a()`. The failures are
+typed: `NotFound` when the workspace defines nothing at the path (an item of a
+dependency, an item that a macro generates, and a misspelling all end here),
+`Ambiguous(ids)` only for a real conflict, which is two globs that bring in different
+items, two imports of one name that reach different items, or two canonical targets,
+`Cyclic` when the imports on the way depend on each other, and `Invalid` when the text
+is not a path. The crate path of a test, bench, example or binary target begins with the
+package name and a name such as `test_crate`, so a first-party module with that name
+(`mod test_crate;` in the library) and a test target share a prefix: a path through
+that name is `Ambiguous`, naming the module and the test target's item. A symbol that a
+macro generates is not indexed, and the documentation of the capabilities that rely on
+the index says so.
 
 ## Usage
 
-```rust
+Load a workspace from a real directory and ask where a path is defined. The block
+needs a real tree, so it is compiled and not run:
+
+```rust,no_run
 use raf_source::{DiskTree, Workspace};
 
 let ws = Workspace::load(&DiskTree::new(".")?, &["crates"])?;
-let item = ws.resolve("raf_okf::Document")?;
-println!("{} at {}:{}", item.path, item.file.display(), item.line);
-for t in ws.targets().filter(|t| !t.shipping) {
-    println!("{} is a non-shipping target", t.name);
+let resolution = ws.resolve("raf_okf::Document")?;
+for site in &resolution.sites {
+    let item = ws.item(*site).expect("a site is an item of this workspace");
+    println!("{} at {}:{}", item.path, item.file, item.name_line);
 }
+for target in ws.targets().filter(|t| !t.shipping) {
+    println!("{} is a non-shipping target", target.name);
+}
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
+
+A line that starts with `# ` is hidden by rustdoc and is there so that the block
+compiles.
 
 ## Examples
 
@@ -284,6 +396,7 @@ let tree = MemoryTree::from([
 ]);
 let ws = Workspace::load(&tree, &["."])?;
 assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 ## Constraints
@@ -402,9 +515,37 @@ duplicates.
   in child processes.
 - A `cfg(test)` fixture asserting the tag on an item and on a module reached only
   through it.
-- Alias fixtures: a rename, a nested group, a glob, a re-export chain of three
-  hops, and a cycle that yields the cyclic failure.
-- A determinism check: two loads over the same tree give equal indexes.
+- Symbol fixtures: one item of every kind, asserting kind, file, line and visibility
+  (`pub`, `pub(crate)` and private); the impl shapes (inherent on a local type, inherent
+  through an alias, inherent on a type that does not resolve, which is an error, trait
+  impls on a local type, `String`, a blanket `T`, `&Foo`, `[u8]` and a tuple); a module,
+  a function and a macro of one name selected by name space, and unit and tuple structs
+  in the value name space; `#[cfg(unix)] fn a()` beside `#[cfg(windows)] fn a()` as one
+  symbol with two sorted sites; items that share a source item grouped through a shared
+  `tests/common/mod.rs`; documentation (text, hidden alone, a blank `///`,
+  `include_str!`, a module's inner docs); `files()`, `items_in()`, `item_at()` and
+  `is_shipping()`; the `test_fns()` data for a library, a binary and a test target; a
+  first-party `mod test_crate;` beside a test target, which makes the shared path
+  ambiguous beside the same layout without it, which resolves.
+- Alias fixtures: a rename, a nested group, `self` in a group, a glob with `via_glob`
+  beside the direct path without it, a chain of three hops with its `chain`, a cycle
+  that yields `Cyclic` beside a chain that ends, definitions and explicit imports
+  shadowing globs (also for the modules that glob the importer), two globs with
+  different items that are `Ambiguous` beside two that reach one, a mutual `super::*`,
+  `crate`, `self` and `super` paths, `super` above the root, `extern crate demo as d`
+  and `use ::demo::..`, raw identifiers in both spellings, a chain of 5000 re-exports
+  declared in either order, `demo::nope`, `pub use serde::Serialize` and a function that
+  a macro generates, each `NotFound` beside a positive resolution.
+- Order fixtures: an explicit import that must shadow a glob for a reader declared before
+  it, and the same modules declared in every order of 1440, giving one answer for each
+  path, with glob against glob staying ambiguous; glob visibility (private beside public,
+  a private item into a descendant, `pub(crate)`, `pub(super)`, `pub(in path)`); the
+  canonical keys of trait impls in each spelling and the error for a trait path that
+  cannot be made absolute; the prelude per edition, an inherited edition, one and several
+  dependency globs, a head that is no known crate, dependency tables by target kind with
+  renames, and a path through a local re-export of a dependency.
+- A determinism check: two loads over the same tree give equal indexes, and `items()`
+  and `targets()` come in strictly increasing order.
 - A `DiskTree` run over a temporary directory gives the same index as the
   equivalent `MemoryTree` for trees of regular files. `MemoryTree` has no symlinks or
   special files, so this equivalence does not cover the containment cases, which have

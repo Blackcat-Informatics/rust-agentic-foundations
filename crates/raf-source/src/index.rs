@@ -1,0 +1,629 @@
+// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+//! The symbol index: every named item of every module tree, the module graph
+//! it lives in, and the scope tables the resolver reads.
+//!
+//! Building runs in four steps. The emit step turns the facts of each file,
+//! once per module path the file is reached under, into items, module
+//! contents, `use` declarations and impl blocks. The scope step builds the
+//! name tables of every module and settles them to a fixed point (see
+//! [`crate::resolve`]). The impl step attaches the members of impl blocks to
+//! the types they resolve to. The order step sorts the items.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use crate::error::{LoadError, LoadErrorKind};
+use crate::facts::{ImplFact, ItemFact, ItemKind, ModBody, PathFact, TestRole, UseTree, Vis};
+use crate::item::{Item, ItemId, Namespace, SymbolKind, TraitKey};
+use crate::manifest::Dependencies;
+use crate::modtree::TargetId;
+use crate::path::RelPath;
+use crate::settle::Scope;
+use crate::target::{Target, TargetKind};
+use crate::workspace::SourceFile;
+
+/// A `use` declaration after its tree is flattened.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum UseKind {
+    /// `use path as name` (or `use path`, which binds the last segment).
+    Named { name: String, segs: Vec<String> },
+    /// `use path::*`.
+    Glob { segs: Vec<String> },
+}
+
+/// One flattened `use` entry and where it was written.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct UseDecl {
+    pub(crate) module: usize,
+    pub(crate) file: RelPath,
+    pub(crate) line: usize,
+    pub(crate) leading_colon: bool,
+    pub(crate) vis: Vis,
+    pub(crate) kind: UseKind,
+}
+
+/// What the index knows of a package's manifest.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PackageInfo {
+    /// The edition year.
+    pub(crate) edition: u16,
+    pub(crate) dependencies: Dependencies,
+}
+
+/// An impl block waiting for its self type to resolve.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ImplDecl {
+    pub(crate) module: usize,
+    pub(crate) file: RelPath,
+    pub(crate) target: TargetId,
+    pub(crate) reach_test: bool,
+    pub(crate) fact: ImplFact,
+}
+
+/// A module: all the declarations that define the module at one path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Module {
+    pub(crate) path: String,
+    pub(crate) parent: Option<usize>,
+    pub(crate) root: usize,
+    pub(crate) defs: Vec<ItemId>,
+}
+
+/// The index of a workspace.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Index {
+    pub(crate) items: Vec<Item>,
+    /// The items in the order of [`crate::Workspace::items`].
+    pub(crate) order: Vec<ItemId>,
+    pub(crate) modules: Vec<Module>,
+    pub(crate) module_by_path: BTreeMap<String, usize>,
+    /// The module that a `mod` or `extern crate` item stands for.
+    pub(crate) module_of: BTreeMap<ItemId, usize>,
+    /// Names of the library crates, for paths that start with a crate name.
+    pub(crate) libs: BTreeMap<String, usize>,
+    /// The root module of each target crate path.
+    pub(crate) crate_roots: BTreeMap<String, usize>,
+    pub(crate) targets: Vec<Target>,
+    pub(crate) packages: BTreeMap<String, PackageInfo>,
+    pub(crate) scopes: Vec<Scope>,
+    pub(crate) uses: Vec<UseDecl>,
+    pub(crate) use_resolved: Vec<bool>,
+    /// True once an import is resolved or has definitively failed.
+    pub(crate) use_settled: Vec<bool>,
+    /// Named imports not yet settled, by module and bound name.
+    pub(crate) unsettled: BTreeMap<usize, BTreeMap<String, usize>>,
+    /// The crate an `extern crate` item names, by item.
+    pub(crate) extern_names: BTreeMap<ItemId, String>,
+    /// Items grouped by file and the byte offset where their span starts.
+    pub(crate) by_source: BTreeMap<(RelPath, usize), Vec<ItemId>>,
+    /// Members of a type or trait, by name.
+    pub(crate) assoc: BTreeMap<ItemId, BTreeMap<String, Vec<ItemId>>>,
+    /// Members of trait impls on types that are not local, by written path.
+    pub(crate) foreign: BTreeMap<String, Vec<ItemId>>,
+    pub(crate) by_file: BTreeMap<RelPath, Vec<ItemId>>,
+    /// The aliased path of each type alias, with the module it is written in.
+    pub(crate) aliases: BTreeMap<ItemId, (usize, PathFact)>,
+    impls: Vec<ImplDecl>,
+}
+
+fn symbol_kind(kind: ItemKind) -> SymbolKind {
+    match kind {
+        ItemKind::Fn => SymbolKind::Fn,
+        ItemKind::Struct => SymbolKind::Struct,
+        ItemKind::Enum => SymbolKind::Enum,
+        ItemKind::Union => SymbolKind::Union,
+        ItemKind::Trait => SymbolKind::Trait,
+        ItemKind::TypeAlias => SymbolKind::TypeAlias,
+        ItemKind::Const | ItemKind::UnnamedConst => SymbolKind::Const,
+        ItemKind::Static => SymbolKind::Static,
+        ItemKind::MacroRules => SymbolKind::MacroRules,
+        ItemKind::ExternCrate => SymbolKind::ExternCrate,
+        ItemKind::ForeignFn => SymbolKind::ForeignFn,
+        ItemKind::ForeignStatic => SymbolKind::ForeignStatic,
+        ItemKind::ForeignType => SymbolKind::ForeignType,
+    }
+}
+
+fn main_namespace(kind: SymbolKind) -> Namespace {
+    match kind {
+        SymbolKind::Fn
+        | SymbolKind::Const
+        | SymbolKind::Static
+        | SymbolKind::ForeignFn
+        | SymbolKind::ForeignStatic
+        | SymbolKind::InherentMethod
+        | SymbolKind::TraitImplMethod
+        | SymbolKind::TraitDefaultMethod
+        | SymbolKind::TraitRequiredMethod
+        | SymbolKind::AssocConst => Namespace::Value,
+        SymbolKind::MacroRules => Namespace::Macro,
+        SymbolKind::Struct
+        | SymbolKind::Enum
+        | SymbolKind::Union
+        | SymbolKind::Trait
+        | SymbolKind::TypeAlias
+        | SymbolKind::Mod
+        | SymbolKind::ExternCrate
+        | SymbolKind::ForeignType
+        | SymbolKind::AssocType => Namespace::Type,
+    }
+}
+
+/// The role an item has once its module tree's test flag is counted in.
+fn combine(own: TestRole, reached_in_tests: bool) -> TestRole {
+    if own == TestRole::None && reached_in_tests {
+        TestRole::CfgTest
+    } else {
+        own
+    }
+}
+
+/// Flatten a `use` tree into entries. A `self` that has no path before it
+/// (`use {self};`) names nothing and is an error, as it is in rustc.
+fn flatten(tree: &UseTree, prefix: &mut Vec<String>, out: &mut Vec<UseKind>) -> Result<(), String> {
+    match tree {
+        UseTree::Path { name, rest } => {
+            prefix.push(name.clone());
+            let result = flatten(rest, prefix, out);
+            prefix.pop();
+            result
+        }
+        UseTree::Name(name) if name == "self" => {
+            // `use path::{self}` imports the module `path` itself.
+            let last = prefix
+                .last()
+                .ok_or_else(|| "`use {self}` has no path before `self`".to_owned())?;
+            out.push(UseKind::Named {
+                name: last.clone(),
+                segs: prefix.clone(),
+            });
+            Ok(())
+        }
+        UseTree::Name(name) => {
+            let mut segs = prefix.clone();
+            segs.push(name.clone());
+            out.push(UseKind::Named {
+                name: name.clone(),
+                segs,
+            });
+            Ok(())
+        }
+        UseTree::Rename { name, alias } if name == "self" => {
+            if prefix.is_empty() {
+                return Err("`use {self as name}` has no path before `self`".to_owned());
+            }
+            // `use path as _` brings a trait into scope and binds no name.
+            if alias != "_" {
+                out.push(UseKind::Named {
+                    name: alias.clone(),
+                    segs: prefix.clone(),
+                });
+            }
+            Ok(())
+        }
+        UseTree::Rename { name, alias } => {
+            let mut segs = prefix.clone();
+            segs.push(name.clone());
+            if alias != "_" {
+                out.push(UseKind::Named {
+                    name: alias.clone(),
+                    segs,
+                });
+            }
+            Ok(())
+        }
+        UseTree::Glob => {
+            out.push(UseKind::Glob {
+                segs: prefix.clone(),
+            });
+            Ok(())
+        }
+        UseTree::Group(items) => {
+            for item in items {
+                flatten(item, prefix, out)?;
+            }
+            Ok(())
+        }
+    }
+}
+
+/// Everything the emit step needs to know about the file it is reading.
+struct Cx<'a> {
+    file: &'a RelPath,
+    target: TargetId,
+    reach_test: bool,
+}
+
+struct Builder<'a> {
+    targets: &'a [Target],
+    files_at: BTreeMap<String, Vec<&'a SourceFile>>,
+    index: Index,
+}
+
+impl Builder<'_> {
+    fn ensure(&mut self, path: &str, parent: Option<usize>) -> usize {
+        if let Some(&known) = self.index.module_by_path.get(path) {
+            return known;
+        }
+        let idx = self.index.modules.len();
+        // A crate root is created first, so a path that gets here is a module
+        // of some crate and has a parent.
+        let parent = if parent.is_some() {
+            parent
+        } else {
+            path.rsplit_once("::")
+                .map(|(prefix, _)| self.ensure(prefix, None))
+        };
+        let root = parent.map_or(idx, |p| self.index.modules[p].root);
+        self.index.modules.push(Module {
+            path: path.to_owned(),
+            parent,
+            root,
+            defs: Vec::new(),
+        });
+        self.index.module_by_path.insert(path.to_owned(), idx);
+        idx
+    }
+
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "an item is built from the fact, its place and the file context"
+    )]
+    fn push(
+        &mut self,
+        fact: &ItemFact,
+        kind: SymbolKind,
+        path: String,
+        module: usize,
+        cx: &Cx<'_>,
+        documented: bool,
+    ) -> ItemId {
+        let id = ItemId(self.index.items.len());
+        self.index.items.push(Item {
+            id,
+            path,
+            name: fact.name.clone(),
+            kind,
+            namespace: main_namespace(kind),
+            file: cx.file.clone(),
+            name_line: fact.name_line,
+            span: fact.span,
+            body: fact.body,
+            visibility: fact.vis.clone(),
+            documented,
+            doc_hidden: fact.doc_hidden,
+            test: combine(fact.test, cx.reach_test),
+            target: cx.target,
+            self_type: None,
+            trait_key: None,
+            trait_path: None,
+            shape: fact.shape,
+        });
+        self.index.modules[module].defs.push(id);
+        id
+    }
+
+    fn item(&mut self, fact: &ItemFact, module: usize, cx: &Cx<'_>) {
+        if fact.kind == ItemKind::UnnamedConst {
+            // `const _` defines no name: it is in the facts and not in a path.
+            return;
+        }
+        let kind = symbol_kind(fact.kind);
+        let (home, base) = if fact.macro_export {
+            let root = self.index.modules[module].root;
+            (root, self.index.modules[root].path.clone())
+        } else {
+            (module, self.index.modules[module].path.clone())
+        };
+        let path = format!("{base}::{}", fact.name);
+        let id = self.push(fact, kind, path.clone(), home, cx, fact.documented);
+        if let Some(alias) = &fact.alias {
+            self.index.aliases.insert(id, (home, alias.clone()));
+        }
+        if fact.kind == ItemKind::ExternCrate {
+            let crate_name = fact.renamed_from.as_deref().unwrap_or(&fact.name);
+            self.index.extern_names.insert(id, crate_name.to_owned());
+            if let Some(&root) = self.index.libs.get(crate_name) {
+                self.index.module_of.insert(id, root);
+            }
+        }
+        for member in &fact.members {
+            let member_kind = match (member.kind, member.body.is_some()) {
+                (ItemKind::Fn, true) => SymbolKind::TraitDefaultMethod,
+                (ItemKind::Fn, false) => SymbolKind::TraitRequiredMethod,
+                (ItemKind::TypeAlias, _) => SymbolKind::AssocType,
+                _ => SymbolKind::AssocConst,
+            };
+            let member_path = format!("{path}::{}", member.name);
+            let member_id = self.member(member, member_kind, member_path, module, cx);
+            self.index
+                .assoc
+                .entry(id)
+                .or_default()
+                .entry(member.name.clone())
+                .or_default()
+                .push(member_id);
+        }
+    }
+
+    /// A member of a type or trait: an item that no module scope names.
+    fn member(
+        &mut self,
+        fact: &ItemFact,
+        kind: SymbolKind,
+        path: String,
+        module: usize,
+        cx: &Cx<'_>,
+    ) -> ItemId {
+        let id = self.push(fact, kind, path, module, cx, fact.documented);
+        self.index.modules[module].defs.pop();
+        id
+    }
+
+    fn body(&mut self, body: &ModBody, module: usize, cx: &Cx<'_>) -> Result<(), LoadError> {
+        for fact in &body.items {
+            self.item(fact, module, cx);
+        }
+        for decl in &body.mods {
+            let path = format!("{}::{}", self.index.modules[module].path, decl.name);
+            let child = self.ensure(&path, Some(module));
+            let file_docs = self
+                .files_at
+                .get(&path)
+                .is_some_and(|files| files.iter().any(|file| file.facts.documented));
+            let fact = ItemFact {
+                name: decl.name.clone(),
+                renamed_from: None,
+                kind: ItemKind::Fn,
+                name_line: decl.name_line,
+                span: decl.span,
+                body: decl.body_span,
+                vis: decl.vis.clone(),
+                attrs: Vec::new(),
+                documented: decl.documented,
+                doc_hidden: decl.doc_hidden,
+                test: decl.test,
+                macro_export: false,
+                members: Vec::new(),
+                shape: None,
+                alias: None,
+            };
+            let id = self.push(
+                &fact,
+                SymbolKind::Mod,
+                path,
+                module,
+                cx,
+                decl.documented || file_docs,
+            );
+            self.index.module_of.insert(id, child);
+            if let Some(inline) = &decl.inline {
+                self.body(inline, child, cx)?;
+            }
+        }
+        for decl in &body.uses {
+            let mut kinds = Vec::new();
+            flatten(&decl.tree, &mut Vec::new(), &mut kinds).map_err(|what| {
+                LoadError::new(
+                    cx.file,
+                    Some(decl.line),
+                    LoadErrorKind::UnsupportedItem { what },
+                )
+            })?;
+            for kind in kinds {
+                self.index.uses.push(UseDecl {
+                    module,
+                    file: cx.file.clone(),
+                    line: decl.line,
+                    leading_colon: decl.leading_colon,
+                    vis: decl.vis.clone(),
+                    kind,
+                });
+            }
+        }
+        for fact in &body.impls {
+            self.index.impls.push(ImplDecl {
+                module,
+                file: cx.file.clone(),
+                target: cx.target,
+                reach_test: cx.reach_test,
+                fact: fact.clone(),
+            });
+        }
+        Ok(())
+    }
+}
+
+impl Index {
+    /// Build the index of the module trees held by `files`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`LoadError`] for a `super` path that climbs above the crate
+    /// root and for an inherent impl whose self type is not a local type.
+    pub(crate) fn build(
+        targets: &[Target],
+        files: &BTreeMap<RelPath, SourceFile>,
+        infos: &BTreeMap<String, PackageInfo>,
+    ) -> Result<Self, LoadError> {
+        let mut files_at: BTreeMap<String, Vec<&SourceFile>> = BTreeMap::new();
+        for file in files.values() {
+            for reach in &file.reached {
+                files_at
+                    .entry(reach.module_path.clone())
+                    .or_default()
+                    .push(file);
+            }
+        }
+        let mut builder = Builder {
+            targets,
+            files_at,
+            index: Index {
+                items: Vec::new(),
+                order: Vec::new(),
+                modules: Vec::new(),
+                module_by_path: BTreeMap::new(),
+                module_of: BTreeMap::new(),
+                libs: BTreeMap::new(),
+                crate_roots: BTreeMap::new(),
+                targets: targets.to_vec(),
+                packages: infos.clone(),
+                scopes: Vec::new(),
+                uses: Vec::new(),
+                use_resolved: Vec::new(),
+                use_settled: Vec::new(),
+                unsettled: BTreeMap::new(),
+                extern_names: BTreeMap::new(),
+                by_source: BTreeMap::new(),
+                assoc: BTreeMap::new(),
+                foreign: BTreeMap::new(),
+                by_file: BTreeMap::new(),
+                aliases: BTreeMap::new(),
+                impls: Vec::new(),
+            },
+        };
+        for target in builder.targets {
+            let root = builder.ensure_root(&target.crate_path);
+            if target.kind == TargetKind::Lib {
+                builder.index.libs.insert(target.crate_path.clone(), root);
+            }
+        }
+        let mut seen: BTreeSet<(RelPath, TargetId, String)> = BTreeSet::new();
+        for file in files.values() {
+            for reach in &file.reached {
+                let key = (file.path.clone(), reach.target, reach.module_path.clone());
+                // The same file, target and module path can be reached more than
+                // once (a `cfg_attr` path alternative walks an inline body again);
+                // the facts are the same, so they are indexed once.
+                if !seen.insert(key) {
+                    continue;
+                }
+                let module = builder.ensure(&reach.module_path, None);
+                let cx = Cx {
+                    file: &file.path,
+                    target: reach.target,
+                    reach_test: reach.test,
+                };
+                builder.body(&file.facts.body, module, &cx)?;
+            }
+        }
+        let mut index = builder.index;
+        index.build_scopes();
+        index.settle()?;
+        index.attach_impls()?;
+        index.finish();
+        Ok(index)
+    }
+
+    /// Sort the items and file them.
+    fn finish(&mut self) {
+        let mut order: Vec<ItemId> = self.items.iter().map(|item| item.id).collect();
+        order.sort_by(|a, b| self.sort_key(*a).cmp(&self.sort_key(*b)));
+        self.order = order;
+        for item in &self.items {
+            self.by_file
+                .entry(item.file.clone())
+                .or_default()
+                .push(item.id);
+        }
+        let items = &self.items;
+        for id in &self.order {
+            let item = &items[id.0];
+            self.by_source
+                .entry((item.file.clone(), item.span.start_byte))
+                .or_default()
+                .push(*id);
+        }
+        for ids in self.by_file.values_mut() {
+            ids.sort_by_key(|id| (items[id.0].span.start_byte, items[id.0].path.clone(), id.0));
+        }
+    }
+
+    pub(crate) fn sort_key(&self, id: ItemId) -> (&str, Namespace, &RelPath, usize, usize) {
+        let item = &self.items[id.0];
+        (
+            item.path.as_str(),
+            item.namespace,
+            &item.file,
+            item.span.start_byte,
+            item.target.index(),
+        )
+    }
+
+    /// The items of `ids`, sorted and without repeats.
+    pub(crate) fn sorted(&self, ids: impl IntoIterator<Item = ItemId>) -> Vec<ItemId> {
+        let mut ids: Vec<ItemId> = ids.into_iter().collect();
+        ids.sort_by(|a, b| self.sort_key(*a).cmp(&self.sort_key(*b)));
+        ids.dedup();
+        ids
+    }
+
+    pub(crate) fn push_member(
+        &mut self,
+        decl: &ImplDecl,
+        member: &ItemFact,
+        kind: SymbolKind,
+        path: String,
+        self_type: &str,
+        trait_key: Option<TraitKey>,
+    ) -> ItemId {
+        let id = ItemId(self.items.len());
+        self.items.push(Item {
+            id,
+            path,
+            name: member.name.clone(),
+            kind,
+            namespace: main_namespace(kind),
+            file: decl.file.clone(),
+            name_line: member.name_line,
+            span: member.span,
+            body: member.body,
+            visibility: member.vis.clone(),
+            documented: member.documented,
+            doc_hidden: member.doc_hidden,
+            test: combine(member.test, decl.reach_test),
+            target: decl.target,
+            self_type: Some(self_type.to_owned()),
+            trait_key,
+            trait_path: decl
+                .fact
+                .trait_path
+                .as_ref()
+                .map(|text| text.split_whitespace().collect()),
+            shape: None,
+        });
+        id
+    }
+
+    pub(crate) fn take_impls(&mut self) -> Vec<ImplDecl> {
+        std::mem::take(&mut self.impls)
+    }
+
+    pub(crate) fn error(decl: &ImplDecl, kind: LoadErrorKind) -> LoadError {
+        LoadError::new(&decl.file, Some(decl.fact.line), kind)
+    }
+
+    pub(crate) fn path_fact(fact: &ImplFact) -> Option<PathFact> {
+        fact.self_path.as_ref().map(|segments| PathFact {
+            segments: segments.clone(),
+            leading_colon: fact.self_leading_colon,
+        })
+    }
+}
+
+impl Builder<'_> {
+    /// Create the module that is the root of a crate.
+    fn ensure_root(&mut self, path: &str) -> usize {
+        let idx = self.index.modules.len();
+        self.index.modules.push(Module {
+            path: path.to_owned(),
+            parent: None,
+            root: idx,
+            defs: Vec::new(),
+        });
+        self.index.module_by_path.insert(path.to_owned(), idx);
+        self.index.crate_roots.insert(path.to_owned(), idx);
+        idx
+    }
+}

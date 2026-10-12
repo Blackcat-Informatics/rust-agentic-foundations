@@ -679,7 +679,7 @@ fn facts_carry_names_lines_documentation_visibility_and_macro_export() {
 fn use_trees_and_impl_headers_are_recorded_as_written() {
     let ws = ok(&[(
         "src/lib.rs",
-        "use ::std::{fmt, io::{self, Read as R}};\nuse crate::a::*;\nimpl<T> Holder<T> { fn get(&self) {} }\nimpl Trait for a::b::Thing { fn run(&self) {} }\n",
+        "use ::std::{fmt, io::{self, Read as R}};\nuse crate::a::*;\nstruct Holder<T>(T);\nimpl<T> Holder<T> { fn get(&self) {} }\nimpl Trait for a::b::Thing { fn run(&self) {} }\ntrait Trait {}\n",
     )]);
     let file = ws
         .file(&RelPath::new("src/lib.rs").expect("path"))
@@ -895,6 +895,7 @@ pub fn guide() {}
              impl Foo for ::other::Thing {}
 impl Foo for local::Thing {}
              mod documented;
+trait Foo {}
 ",
         ),
         (

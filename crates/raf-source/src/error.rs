@@ -285,6 +285,28 @@ pub enum LoadErrorKind {
         /// A description of the item.
         what: String,
     },
+    /// An inherent `impl` block whose self type does not resolve, through
+    /// type aliases, to a struct, enum or union of the workspace.
+    InherentImplSelf {
+        /// The self type as written.
+        self_type: String,
+    },
+    /// The trait of an `impl` block cannot be named by an absolute path.
+    UnresolvedTrait {
+        /// The trait path as written.
+        path: String,
+    },
+    /// An invariant of the index does not hold. This is a bug in the crate,
+    /// reported and not guessed around.
+    Internal {
+        /// What did not hold.
+        what: String,
+    },
+    /// A path climbs above the crate root with `super`.
+    SuperAboveRoot {
+        /// The path as written.
+        path: String,
+    },
 }
 
 /// What is wrong with a package target.
@@ -387,6 +409,20 @@ impl fmt::Display for LoadErrorKind {
             ),
             Self::CfgParse { message } => write!(f, "cannot read a cfg predicate: {message}"),
             Self::UnsupportedItem { what } => write!(f, "unsupported item: {what}"),
+            Self::InherentImplSelf { self_type } => write!(
+                f,
+                "the self type `{self_type}` of an inherent impl is not a local struct, enum or union"
+            ),
+            Self::UnresolvedTrait { path } => {
+                write!(
+                    f,
+                    "the trait `{path}` of an impl cannot be named by an absolute path"
+                )
+            }
+            Self::Internal { what } => write!(f, "internal error: {what}"),
+            Self::SuperAboveRoot { path } => {
+                write!(f, "`{path}` climbs above the crate root with `super`")
+            }
         }
     }
 }

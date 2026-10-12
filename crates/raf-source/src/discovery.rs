@@ -26,6 +26,14 @@ struct Walk<'a> {
     tree: &'a dyn Tree,
     max_file_bytes: u64,
     found: BTreeMap<RelPath, Found>,
+    /// `[workspace.package] edition` by the directory of the manifest.
+    editions: BTreeMap<RelPath, u16>,
+}
+
+/// What discovery found.
+pub(crate) struct Discovered {
+    pub(crate) packages: Vec<Found>,
+    pub(crate) editions: BTreeMap<RelPath, u16>,
 }
 
 fn skipped(name: &str) -> bool {
@@ -95,6 +103,9 @@ impl Walk<'_> {
             .reached_by(&origin)
         })?;
         let descend = parsed.package.is_none() || parsed.has_workspace;
+        if let Some(edition) = &parsed.workspace_edition {
+            self.editions.insert(dir.clone(), *edition);
+        }
         if let Some(package) = &parsed.package {
             for other in self.found.values() {
                 if other.package.name == package.name && other.package.manifest != path {
@@ -189,14 +200,18 @@ pub(crate) fn discover(
     tree: &dyn Tree,
     roots: &[RelPath],
     max_file_bytes: u64,
-) -> Result<Vec<Found>, LoadError> {
+) -> Result<Discovered, LoadError> {
     let mut walk = Walk {
         tree,
         max_file_bytes,
         found: BTreeMap::new(),
+        editions: BTreeMap::new(),
     };
     for root in roots {
         walk.root(root)?;
     }
-    Ok(walk.found.into_values().collect())
+    Ok(Discovered {
+        packages: walk.found.into_values().collect(),
+        editions: walk.editions,
+    })
 }

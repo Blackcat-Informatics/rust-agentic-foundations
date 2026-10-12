@@ -89,6 +89,16 @@ pub enum ItemKind {
     ForeignType,
 }
 
+/// A plain path as written: its segments without raw-identifier prefixes and
+/// whether it starts with `::`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PathFact {
+    /// The segments, generic arguments left out.
+    pub segments: Vec<String>,
+    /// True when the path starts with `::`.
+    pub leading_colon: bool,
+}
+
 /// How a struct declares its fields. A unit or tuple struct also defines a
 /// name in the value namespace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -146,6 +156,9 @@ pub struct ItemFact {
     pub members: Vec<ItemFact>,
     /// The field shape of a struct; `None` for every other kind.
     pub shape: Option<FieldShape>,
+    /// The aliased path of `type A = path::B;` when the right side is a plain
+    /// path; `None` for every other item.
+    pub alias: Option<PathFact>,
 }
 
 /// The `path` attributes of a module declaration.
@@ -248,6 +261,8 @@ pub struct ImplFact {
     pub body: SpanFact,
     /// The trait path as written, for a trait impl.
     pub trait_path: Option<String>,
+    /// The segments of the trait path, for a trait impl.
+    pub trait_segments: Option<PathFact>,
     /// The self type as written.
     pub self_type: String,
     /// The segments of the self type when it is a plain path.
@@ -255,6 +270,8 @@ pub struct ImplFact {
     /// True when the self type path starts with `::`, so it names an external
     /// crate and not a local item.
     pub self_leading_colon: bool,
+    /// The names of the generic type and const parameters of the block.
+    pub generics: Vec<String>,
     /// The associated items.
     pub items: Vec<ItemFact>,
     /// The test role.
@@ -581,6 +598,7 @@ impl Extractor<'_> {
             macro_export: summary.macro_export,
             members,
             shape: None,
+            alias: None,
         })
     }
 
@@ -689,16 +707,26 @@ impl Extractor<'_> {
             )?,
             Item::Union(u) => self.union_fact(u, whole, inherited)?,
             Item::Trait(t) => self.trait_fact(t, whole, inherited)?,
-            Item::Type(t) => self.item(
-                &t.ident,
-                ItemKind::TypeAlias,
-                &t.vis,
-                &t.attrs,
-                whole,
-                None,
-                inherited,
-                Vec::new(),
-            )?,
+            Item::Type(t) => {
+                let mut fact = self.item(
+                    &t.ident,
+                    ItemKind::TypeAlias,
+                    &t.vis,
+                    &t.attrs,
+                    whole,
+                    None,
+                    inherited,
+                    Vec::new(),
+                )?;
+                fact.alias = match &*t.ty {
+                    syn::Type::Path(path) if path.qself.is_none() => Some(PathFact {
+                        segments: path.path.segments.iter().map(|s| unraw(&s.ident)).collect(),
+                        leading_colon: path.path.leading_colon.is_some(),
+                    }),
+                    _ => None,
+                };
+                fact
+            }
             Item::Const(c) => self.item(
                 &c.ident,
                 if c.ident == "_" {
@@ -975,6 +1003,16 @@ impl Extractor<'_> {
             &*block.self_ty,
             syn::Type::Path(path) if path.qself.is_none() && path.path.leading_colon.is_some()
         );
+        let generics = block
+            .generics
+            .params
+            .iter()
+            .filter_map(|param| match param {
+                syn::GenericParam::Type(param) => Some(unraw(&param.ident)),
+                syn::GenericParam::Const(param) => Some(unraw(&param.ident)),
+                syn::GenericParam::Lifetime(_) => None,
+            })
+            .collect();
         Ok(ImplFact {
             line,
             span: self.positions.span(whole)?,
@@ -983,9 +1021,14 @@ impl Extractor<'_> {
                 .trait_
                 .as_ref()
                 .map(|(path, _)| path.to_token_stream().to_string()),
+            trait_segments: block.trait_.as_ref().map(|(path, _)| PathFact {
+                segments: path.segments.iter().map(|s| unraw(&s.ident)).collect(),
+                leading_colon: path.leading_colon.is_some(),
+            }),
             self_type: block.self_ty.to_token_stream().to_string(),
             self_path,
             self_leading_colon,
+            generics,
             items,
             test,
         })

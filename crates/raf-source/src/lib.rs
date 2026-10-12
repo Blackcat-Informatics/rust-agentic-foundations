@@ -1,8 +1,42 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The workspace source index: a [`Tree`] seam with a disk and a memory
-//! backend, under canonical path containment.
+//! The workspace source index: packages and targets, the module tree of each
+//! target, a symbol index and a `use`-alias resolver, over a [`Tree`] seam with
+//! a disk and a memory backend and under canonical path containment.
+//!
+//! Load a workspace from a real directory and ask where a path is defined. The
+//! block needs a real tree, so it is compiled and not run:
+//!
+//! ```rust,no_run
+//! use raf_source::{DiskTree, Workspace};
+//!
+//! let ws = Workspace::load(&DiskTree::new(".")?, &["crates"])?;
+//! let resolution = ws.resolve("raf_okf::Document")?;
+//! for site in &resolution.sites {
+//!     let item = ws.item(*site).expect("a site is an item of this workspace");
+//!     println!("{} at {}:{}", item.path, item.file, item.name_line);
+//! }
+//! for target in ws.targets().filter(|t| !t.shipping) {
+//!     println!("{} is a non-shipping target", target.name);
+//! }
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
+//! With [`MemoryTree`] a fixture needs no disk:
+//!
+//! ```rust
+//! use raf_source::{MemoryTree, Workspace};
+//!
+//! let tree = MemoryTree::from([
+//!     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+//!     ("src/lib.rs", "mod inner;\npub use inner::go as run;\n"),
+//!     ("src/inner.rs", "pub fn go() {}\n"),
+//! ]);
+//! let ws = Workspace::load(&tree, &["."])?;
+//! assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
 //!
 //! Every file the crate looks at goes through [`Tree`]. [`DiskTree`] reads a
 //! directory on disk and refuses anything that leads out of its root, or is
@@ -74,12 +108,17 @@ mod cfg;
 mod discovery;
 mod error;
 mod facts;
+mod impls;
+mod index;
+mod item;
 mod manifest;
 mod modtree;
 mod options;
 mod parse;
 mod path;
 mod prescan;
+mod resolve;
+mod settle;
 mod target;
 mod tree;
 mod workspace;
@@ -90,11 +129,13 @@ pub use facts::{
     AttrFact, ConditionalPath, FieldShape, FileFacts, ImplFact, ItemFact, ItemKind, ModBody,
     ModFact, PathAttrs, SpanFact, TestRole, UseFact, UseTree, Vis,
 };
+pub use item::{Item, ItemId, Namespace, SymbolKind, TraitKey};
 pub use modtree::{Reach, TargetId};
 pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};
 pub use parse::{PARSE_STACK_BYTES, parse_source};
 pub use path::{PathError, RelPath};
+pub use resolve::{Resolution, ResolveError};
 pub use syn;
 pub use target::{Package, Target, TargetKind};
 pub use tree::{DiskTree, Entry, EntryKind, MemoryTree, Tree};
-pub use workspace::{SourceFile, Workspace};
+pub use workspace::{SourceFile, TestFn, Workspace};

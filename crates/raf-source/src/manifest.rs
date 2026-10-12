@@ -8,6 +8,8 @@
 //! limit turns deep nesting into an error and not a crash. Every wrong value
 //! is an error that names its key.
 
+use std::collections::BTreeSet;
+
 use toml::{Table, Value};
 
 /// A manifest problem: what is wrong, and the key when one is at fault.
@@ -35,6 +37,25 @@ pub(crate) enum Build {
     Path(String),
 }
 
+/// Where a package gets its edition.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum EditionDecl {
+    /// `edition = "2021"`.
+    Explicit(u16),
+    /// `edition.workspace = true`.
+    Inherited,
+    /// No `edition` key, which cargo reads as 2015.
+    Unset,
+}
+
+/// The names of the crates a package declares, as they are written in code.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub(crate) struct Dependencies {
+    pub(crate) normal: BTreeSet<String>,
+    pub(crate) dev: BTreeSet<String>,
+    pub(crate) build: BTreeSet<String>,
+}
+
 /// A `[lib]` table.
 #[derive(Debug, Default)]
 pub(crate) struct LibDecl {
@@ -57,6 +78,7 @@ pub(crate) struct PackageDecl {
     /// discovery `autobins = false` and its siblings turned off.
     pub(crate) auto_off: Vec<&'static str>,
     pub(crate) build: Build,
+    pub(crate) edition: EditionDecl,
 }
 
 impl PackageDecl {
@@ -71,11 +93,20 @@ impl PackageDecl {
 pub(crate) struct Manifest {
     pub(crate) package: Option<PackageDecl>,
     pub(crate) has_workspace: bool,
+    /// `[workspace.package] edition`, for the packages that inherit it.
+    pub(crate) workspace_edition: Option<u16>,
+    pub(crate) dependencies: Dependencies,
     pub(crate) lib: Option<LibDecl>,
     pub(crate) bins: Vec<TargetDecl>,
     pub(crate) tests: Vec<TargetDecl>,
     pub(crate) benches: Vec<TargetDecl>,
     pub(crate) examples: Vec<TargetDecl>,
+}
+
+/// An edition such as `2021` as its year.
+fn year(text: &str, key: &str) -> Result<u16, ManifestError> {
+    text.parse()
+        .map_err(|_| at_key(key, "must be a year such as \"2021\""))
 }
 
 fn string(table: &Table, section: &str, key: &str) -> Result<Option<String>, ManifestError> {
@@ -98,6 +129,40 @@ fn table_of<'a>(value: &'a Value, key: &str) -> Result<&'a Table, ManifestError>
     value
         .as_table()
         .ok_or_else(|| at_key(key, "must be a table"))
+}
+
+/// The keys of one dependency table, as crate names in code.
+fn dependency_keys(root: &Table, key: &str) -> Result<BTreeSet<String>, ManifestError> {
+    match root.get(key) {
+        None => Ok(BTreeSet::new()),
+        Some(value) => Ok(table_of(value, key)?
+            .keys()
+            .map(|name| name.replace('-', "_"))
+            .collect()),
+    }
+}
+
+/// The dependencies of a manifest: the three tables at the top and the same
+/// three under each `[target.<platform>]`.
+fn dependencies(root: &Table) -> Result<Dependencies, ManifestError> {
+    let mut found = Dependencies {
+        normal: dependency_keys(root, "dependencies")?,
+        dev: dependency_keys(root, "dev-dependencies")?,
+        build: dependency_keys(root, "build-dependencies")?,
+    };
+    if let Some(targets) = root.get("target") {
+        for (platform, value) in table_of(targets, "target")? {
+            let table = table_of(value, &format!("target.{platform}"))?;
+            found.normal.extend(dependency_keys(table, "dependencies")?);
+            found
+                .dev
+                .extend(dependency_keys(table, "dev-dependencies")?);
+            found
+                .build
+                .extend(dependency_keys(table, "build-dependencies")?);
+        }
+    }
+    Ok(found)
 }
 
 fn declarations(root: &Table, section: &str) -> Result<Vec<TargetDecl>, ManifestError> {
@@ -144,10 +209,24 @@ fn package(root: &Table) -> Result<Option<PackageDecl>, ManifestError> {
             auto_off.push(group);
         }
     }
+    let edition = match table.get("edition") {
+        None => EditionDecl::Unset,
+        Some(Value::String(edition)) => EditionDecl::Explicit(year(edition, "package.edition")?),
+        Some(Value::Table(inherit)) if inherit.get("workspace") == Some(&Value::Boolean(true)) => {
+            EditionDecl::Inherited
+        }
+        Some(_) => {
+            return Err(at_key(
+                "package.edition",
+                "must be a string or `workspace = true`",
+            ));
+        }
+    };
     Ok(Some(PackageDecl {
         name,
         auto_off,
         build,
+        edition,
     }))
 }
 
@@ -167,6 +246,17 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
         })?;
     let package = package(&root)?;
     let has_workspace = root.contains_key("workspace");
+    let workspace_edition = match root
+        .get("workspace")
+        .and_then(Value::as_table)
+        .and_then(|workspace| workspace.get("package"))
+        .and_then(Value::as_table)
+        .and_then(|package| package.get("edition"))
+    {
+        None => None,
+        Some(Value::String(edition)) => Some(year(edition, "workspace.package.edition")?),
+        Some(_) => return Err(at_key("workspace.package.edition", "must be a string")),
+    };
     if package.is_none() && !has_workspace {
         return Err(ManifestError {
             message: "has neither a [package] nor a [workspace] table".to_owned(),
@@ -186,6 +276,8 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
     Ok(Manifest {
         package,
         has_workspace,
+        workspace_edition,
+        dependencies: dependencies(&root)?,
         lib,
         bins: declarations(&root, "bin")?,
         tests: declarations(&root, "test")?,
