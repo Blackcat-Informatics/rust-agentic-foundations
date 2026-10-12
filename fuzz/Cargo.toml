@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+# The fuzz harness is its own cargo-fuzz workspace, excluded from the root
+# workspace, so the sanitizer build and `libfuzzer-sys` stay out of every other
+# gate. Its lint table must equal the root table; `tests/repo_gates.rs` checks
+# that.
+
+[package]
+name = "raf-source-fuzz"
+description = "Fuzz harness for the bounded parse of raf-source."
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.98.1"
+authors = ["Blackcat Informatics Inc."]
+license = "MIT OR Apache-2.0 OR MulanPSL-2.0"
+repository = "https://github.com/Blackcat-Informatics/rust-agentic-foundations"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+raf-source = { path = "../crates/raf-source", version = "0.1.0" }
+
+[[bin]]
+name = "parse_source"
+path = "fuzz_targets/parse_source.rs"
+test = false
+doc = false
+bench = false
+
+[lints]
+workspace = true
+
+[workspace]
+
+[workspace.lints.rust]
+# In a library crate every `pub` item is a dead_code lint root, so `pub`
+# silently disables dead-code detection. Declared as workspace lints rather
+# than compiler flags, which would also reach path dependencies we do not own;
+# workspace lints apply to workspace members only.
+unreachable_pub = "deny"
+missing_docs = "deny"
+unsafe_code = "deny"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Cargo has no reason key for lint levels, so each exemption carries its reason
+# in the comment line directly above it.
+# Re-exporting through modules makes names like `foo::FooError` idiomatic.
+module_name_repetitions = "allow"
+# Marking every pure getter `#[must_use]` adds noise without catching real bugs.
+must_use_candidate = "allow"
+# Every `#[allow]` in code must say why, so exemptions stay auditable.
+allow_attributes_without_reason = "deny"

@@ -23,15 +23,42 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
+//! [`parse_source`] parses Rust text under bounds. A token pre-scan refuses a file
+//! that passes a recursion [`Budget`] before `syn` sees it, and the parse and a
+//! caller's visitor then run on a thread named after the file, with a stack of
+//! [`PARSE_STACK_BYTES`]:
+//!
+//! ```rust
+//! use raf_source::{Budget, LoadErrorKind, RelPath, parse_source};
+//!
+//! let file = RelPath::new("src/lib.rs")?;
+//! let items = parse_source(&file, "pub fn go() {}\n", |tree| tree.items.len())?;
+//! assert_eq!(items, 1);
+//!
+//! let deep = format!("type T = {}u8{};", "A<".repeat(65), ">".repeat(65));
+//! let refused = parse_source(&file, &deep, |_| ()).unwrap_err();
+//! assert!(matches!(
+//!     refused.kind,
+//!     LoadErrorKind::Budget { budget: Budget::Angles, limit: 64 }
+//! ));
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
 //! Only [`TreeError::NotFound`] means that nothing is there. Every other
 //! error is a refusal or a failure and is never read as absence.
 
+mod budget;
 mod error;
 mod options;
+mod parse;
 mod path;
+mod prescan;
 mod tree;
 
-pub use error::TreeError;
+pub use budget::Budget;
+pub use error::{LoadError, LoadErrorKind, Origin, TreeError};
 pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};
+pub use parse::{PARSE_STACK_BYTES, parse_source};
 pub use path::{PathError, RelPath};
+pub use syn;
 pub use tree::{DiskTree, Entry, EntryKind, MemoryTree, Tree};

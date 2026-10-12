@@ -8,6 +8,9 @@
     reason = "each test binary uses a different subset of the helpers"
 )]
 
+pub(crate) mod child;
+pub(crate) mod shapes;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};

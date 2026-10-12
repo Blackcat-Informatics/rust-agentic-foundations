@@ -7,7 +7,8 @@ use std::error::Error;
 use std::fmt;
 use std::io;
 
-use crate::path::PathError;
+use crate::budget::Budget;
+use crate::path::{PathError, RelPath};
 
 /// Why a [`Tree`](crate::Tree) call failed.
 ///
@@ -161,6 +162,145 @@ impl Error for TreeError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Io { source, .. } => Some(source),
+            _ => None,
+        }
+    }
+}
+
+/// Where a failing file was reached from.
+///
+/// A caller that parses a file directly has no origin. A walker that follows
+/// `mod` declarations, `#[path]` attributes and manifests sets one so that the
+/// message names the module, attribute or key that led to the file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Origin {
+    /// A `mod name;` declaration.
+    ModDecl {
+        /// The module name as written.
+        module: String,
+    },
+    /// A `#[path = "..."]` attribute on a module.
+    PathAttr {
+        /// The module name as written.
+        module: String,
+        /// The `cfg_attr` predicate that guards the attribute, if any.
+        predicate: Option<String>,
+    },
+    /// A key of a `Cargo.toml`.
+    ManifestKey {
+        /// The key, such as `lib.path`.
+        key: String,
+    },
+    /// Discovery of the packages themselves.
+    Discovery,
+}
+
+impl fmt::Display for Origin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ModDecl { module } => write!(f, "`mod {module};`"),
+            Self::PathAttr {
+                module,
+                predicate: None,
+            } => write!(f, "the `path` attribute of module `{module}`"),
+            Self::PathAttr {
+                module,
+                predicate: Some(predicate),
+            } => write!(
+                f,
+                "the `path` attribute of module `{module}` under `{predicate}`"
+            ),
+            Self::ManifestKey { key } => write!(f, "manifest key `{key}`"),
+            Self::Discovery => f.write_str("package discovery"),
+        }
+    }
+}
+
+/// What went wrong while loading a file.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum LoadErrorKind {
+    /// The tree refused or failed the file.
+    Tree(Box<TreeError>),
+    /// The file exceeds a recursion budget of the pre-scan.
+    Budget {
+        /// The budget that was exceeded.
+        budget: Budget,
+        /// The most the budget allows.
+        limit: usize,
+    },
+    /// `syn` could not parse the file.
+    Syntax {
+        /// The parser's message.
+        message: String,
+        /// The 1-based column of the error on its line.
+        column: usize,
+    },
+    /// The thread that parses could not be started (the operating system
+    /// refused the stack or the thread).
+    Spawn(io::Error),
+}
+
+impl fmt::Display for LoadErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Tree(error) => write!(f, "{error}"),
+            Self::Budget { budget, limit } => {
+                write!(f, "exceeds the budget for {budget} ({limit})")
+            }
+            Self::Syntax { message, column } => {
+                write!(f, "syntax error at column {column}: {message}")
+            }
+            Self::Spawn(error) => write!(f, "cannot start the parse thread: {error}"),
+        }
+    }
+}
+
+/// A failure to load one file, naming the file.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct LoadError {
+    /// The file, relative to the tree root.
+    pub file: RelPath,
+    /// The 1-based line of the failure, when it has one.
+    pub line: Option<usize>,
+    /// What led to the file, when a walker reached it.
+    pub origin: Option<Box<Origin>>,
+    /// What went wrong.
+    pub kind: LoadErrorKind,
+}
+
+impl LoadError {
+    pub(crate) fn new(file: &RelPath, line: Option<usize>, kind: LoadErrorKind) -> Self {
+        Self {
+            file: file.clone(),
+            line,
+            origin: None,
+            kind,
+        }
+    }
+}
+
+impl fmt::Display for LoadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.file)?;
+        if let Some(line) = self.line {
+            write!(f, ":{line}")?;
+        }
+        write!(f, ": {}", self.kind)?;
+        if let Some(origin) = &self.origin {
+            write!(f, " (reached by {origin})")?;
+        }
+        Ok(())
+    }
+}
+
+impl Error for LoadError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match &self.kind {
+            LoadErrorKind::Tree(error) => Some(error),
+            LoadErrorKind::Spawn(error) => Some(error),
             _ => None,
         }
     }

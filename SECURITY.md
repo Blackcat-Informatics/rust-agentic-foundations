@@ -63,13 +63,16 @@ guarantees are these, and no wider:
   handle must be a regular file and the path canonicalised again after the open must
   still lie under the root; a rename racing that second canonicalisation is a
   residual window.
-- **Bounds.** Input size and nesting depth are bounded. The design of the source
-  index adds, for Rust source, a recursion pre-scan, a dedicated 64 MiB parse stack
-  and a fuzz target (`parse_source`) with a corpus that `cargo test` replays. These
-  are specified in the source index and are not built yet, because RAF is
-  pre-release. They make memory exhaustion and stack overflow unlikely and do not
+- **Bounds.** Input size and nesting depth are bounded. For Rust source the source
+  index reads each file under a byte cap, runs a recursion pre-scan that refuses a
+  file over a budget with a typed error naming the file and the budget, parses on a
+  dedicated 64 MiB stack on a thread named after the file, and is fuzzed through a
+  target (`parse_source`) whose committed corpus `cargo test` replays in child
+  processes, in debug and in release. These make memory exhaustion and stack overflow
+  unlikely and do not
   prove that an overflow cannot happen. A residual stack overflow aborts the run, so
-  the gate fails and never passes, and a file ends in a typed error, a correct and
+  the gate fails and never passes (today the committed composite shapes and most of
+  the shapes that no budget counts end in such an abort), and a file ends in a typed error, a correct and
   complete index, or an abort, never in success with a wrong or partial index. Report
   an overflow as a robustness bug: under the trust model above its impact is a failed
   run and not a breach. The parsers set no time bound.

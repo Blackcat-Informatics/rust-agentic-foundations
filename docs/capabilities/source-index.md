@@ -90,22 +90,55 @@ guarantee depends on the platform:
 or, for the census, by `max_file_bytes` in `[census]` (see
 [census-ledger](./census-ledger.md)). A larger file is an error that names it. `syn`
 recurses on more than delimiters, so before any file is parsed the crate runs a token
-pre-scan that skips strings and comments and refuses, with an error that names the
-file, any file that exceeds one of these budgets: delimiter nesting of 128 levels;
-nested `<` of 64 levels; a run of prefix operators (`!`, `-`, `*`, `&` and `&&`) of
-256 tokens; a chain of closure bars (`||` or `|…|` with no body between) of 128; an
-`else if` chain of 256. Parsing then runs on a dedicated thread with a stack of 64
-MiB, which is a stated constant and not the stack of the caller. A committed fuzz
+pre-scan, one lexer pass feeding independent counters. The lexer skips comments
+(block comments nest) and every string, raw string (with any number of `#`), byte
+string, C string and character literal, and tells a lifetime from a character
+literal, so tokens inside them count for nothing. A file that exceeds a budget is
+refused with a `LoadError` of kind `Budget`, which names the file, the budget, its
+limit and the line where the count went over. A file that `syn` rejects is a `Syntax`
+error with the line and column of the parser's error, read on the parse thread, and a
+thread that cannot start is a `Spawn` error. The budgets are one table in the source
+(`Budget::limit`), and the counters are defined as follows:
+
+- Delimiters: the number of `(`, `[` and `{` open at once; the limit is 128, so 128
+  levels parse and 129 are refused.
+- Nested `<`: each delimiter level has its own count; `<` adds one unless it is part
+  of `<=`, and `>` subtracts one down to zero (`->` and `=>` are single tokens and
+  subtract nothing). The count of a level returns to zero at `;`, `&&` and `||`, and
+  the count of the enclosing level returns to zero when a `{ ... }` block closes, so
+  comparisons in separate statements do not add up. The limit is 64.
+- Prefix operators: the length of a run of consecutive tokens that are `!`, `-`, `*`,
+  `&` or `&&` (a `&&` is one token), with only whitespace and comments between
+  them. A lifetime between two operators neither ends the run nor adds to it. `!=`,
+  `-=`, `*=`, `&=` and `->` are not prefix operators. The limit is 256.
+- Closure bars: a closure head is `||`, or `|` up to the next `|` at the same
+  delimiter level. The count is the length of a chain of heads in which each head
+  follows the previous one directly, or with `move` between them. The limit is 128.
+- `else if`: within one delimiter level, the number of links, where a link is an
+  `else` directly after a `}` and followed by `if`. The count returns to zero at `;`,
+  at an `else` that is not followed by `if`, and at an identifier other than `else`
+  directly after a `}`. A block used as the condition of a link (`else if {x} {}`)
+  does not end the chain. The limit is 256.
+
+Parsing then runs on a dedicated thread, named after the file, with a stack of 64
+MiB (`PARSE_STACK_BYTES`), which is a stated constant and not the stack of the
+caller. `parse_source` runs a visitor on the syntax tree on that thread and
+returns what the visitor returns. A committed fuzz
 target, `parse_source` in `fuzz/fuzz_targets/parse_source.rs`, feeds arbitrary bytes
 through the pre-scan and the parse. Its corpus, `fuzz/corpus/parse_source/`, is
 committed and holds the composite and single-shape fixtures of Verification below,
 files at and just over each budget, and every input that ever aborted a run. These
 measures make a stack overflow unlikely. They do not prove its absence: the budgets
 multiply across nesting (a run of prefix operators is legal inside every delimiter
-level), some recursive shapes are counted by no budget, and a debug build costs about
-16 KiB of stack per level. The crate does not claim that an admitted file cannot
+level), some recursive shapes are counted by no budget, and a level of a nested
+`return return ...` chain costs about 8.8 KiB of stack in a debug build and about
+3.7 KiB in a release build, measured. The crate does not claim that an admitted file cannot
 overflow. A residual overflow aborts the process, so the run fails and is never
-reported as a pass. A parser overflow is a robustness bug, and an input that causes
+reported as a pass, and today the committed composite shapes and the uncounted shapes
+that repeat `return `, `&mut `, `*const `, `fn() -> ` or `a = ` 20000 times end in that
+abort. Shapes that try to slip past a counter (a block as the condition of each
+`else if`, a lifetime between reference marks) are counted by the definitions above
+and refused. A parser overflow is a robustness bug, and an input that causes
 one is added to the fuzz corpus and to the budgets. `Cargo.toml` is read with the same
 size cap, and the `toml` parser's own recursion limit turns deep nesting into an error
 and not a crash. Every refusal the pre-scan makes is a typed error and not a panic.
@@ -181,7 +214,8 @@ assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
   recursion budget of the pre-scan (128 delimiter levels, 64 nested `<`, 256 prefix
   operators, 128 closure bars, 256 `else if` links), is refused with a typed error.
   Parsing runs on a dedicated 64 MiB stack. A residual overflow aborts the run and
-  fails the gate; it is never a pass.
+  fails the gate; it is never a pass, and today the composite shapes and most of the
+  uncounted shapes of Verification end in such an abort.
 - Resolution covers items the source defines. Items from dependencies are outside the
   index and resolve to a not-found failure.
 - The index is built once per `Workspace::load`; callers reload to see changed files.
@@ -239,6 +273,17 @@ duplicates.
   correct, complete index (the symbols of the fixture, compared with the expected
   list); or the process aborts with a non-zero status. Exit 0 with a wrong or partial
   index, or with an index produced after an abort, fails the fixture.
+- Evasion fixtures: an `if` followed by 20000 `else if {true} {}` links, and
+  `type T<'a> = &'a &'a ... u8;` with 20000 reference marks, each fail with the typed
+  budget error that names the file, in process and in the child-process harness; the
+  same shapes at 256 links and 256 marks parse.
+- A syntax error carries the line and column of the parser's error: a fixture with the
+  error on line 3 and another on line 5 assert the exact position, beside a file that
+  parses.
+- The harness judges strictly: a child that panics, one given an unknown selector, and
+  one that exits 3 without a result line each fail the fixture. An abort is accepted
+  only as death by a signal, the Windows stack-overflow status, or the runtime's own
+  stack-overflow message.
 - The parse thread is named after the file it parses, so a stack-overflow message
   from the runtime names the culprit. A fixture asserts the thread name for a file
   and that the abort message of the overflow fixtures contains that name.
@@ -246,7 +291,9 @@ duplicates.
   `fuzz/corpus/parse_source/` in a child process and asserts that each ends in one of
   the three outcomes above, so a regression is caught without running the fuzzer.
 - The fuzz target `parse_source` builds and runs for a bounded number of iterations
-  over its corpus without a crash.
+  over its corpus without a crash. That run cuts inputs to 4096 bytes, because an
+  abort would end the fuzzer; the larger corpus files are judged by the replay test
+  in child processes.
 - A `cfg(test)` fixture asserting the tag on an item and on a module reached only
   through it.
 - Alias fixtures: a rename, a nested group, a glob, a re-export chain of three

@@ -12,6 +12,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+syn = { version = "3", default-features = false, features = ["full", "parsing", "visit"] }
+proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
 
 # Only the open-flag constants are taken from libc; no foreign function is called.
 [target.'cfg(unix)'.dependencies]
