@@ -87,7 +87,8 @@ bindings.
   into invisible debt.
 - The **minimum supported Rust version is 1.98.1** (`rust-version` in the root
   `Cargo.toml`), enforced on the stable channel. `make msrv` runs
-  `cargo check --workspace --all-targets --locked` through `rust-validate 1.98.1`.
+  `cargo check --workspace --all-targets --locked` through `rust-validate 1.98.1`,
+  and the same check on the fuzz harness manifest.
 - The source uses **no unstable features**. A `#![feature(...)]` attribute is
   rejected; the MSRV build proves it on every change.
 - Raising the MSRV is a changelog-recorded change that rides a minor bump.
@@ -97,7 +98,7 @@ bindings.
 ## 3. Gates
 
 ```bash
-make check   # fmt, clippy, test, doc, deny, reuse, msrv, licenses, issue-refs
+make check   # fmt, clippy, test, test-release, doc, deny, reuse, msrv, fuzz, cross-check, licenses, issue-refs
 make hooks   # point core.hooksPath at .githooks for this clone
 ```
 
@@ -113,7 +114,16 @@ make hooks   # point core.hooksPath at .githooks for this clone
 - **Never bypass a hook or a gate.** Do not pass `--no-verify`, do not edit a hook
   to pass, and do not weaken a gate or a lint to get green. Fix the cause.
 - A missing tool is a hard failure, not a skip. `make reuse` needs `uvx` or
-  `reuse`; `make msrv` needs `rust-validate`.
+  `reuse`; `make msrv` needs `rust-validate`; `make fuzz` needs `cargo-fuzz`
+  (`cargo install --locked cargo-fuzz@0.13.2`); `make cross-check` needs the
+  `x86_64-apple-darwin` and `x86_64-pc-windows-gnu` targets
+  (`rustup target add x86_64-apple-darwin x86_64-pc-windows-gnu`).
+- `make test-release` runs the `raf-source` tests in release mode, because the stack
+  a nesting level costs the parser differs between profiles. `make fuzz` checks the
+  fuzz harness in `fuzz/` (its own workspace) with fmt, clippy and deny, then runs
+  its target over the committed corpus. `make cross-check` runs `cargo check` of
+  `raf-source` for the two targets above. `make msrv` and `make fmt` also cover the
+  fuzz harness manifest.
 - `make deny` runs offline locally; CI fetches the advisory database.
 
 ### Workspace lints
@@ -123,6 +133,10 @@ with `[lints] workspace = true`:
 
 - `unreachable_pub`, `missing_docs` and `unsafe_code` are denied. Use `pub(crate)`
   for items that are not API.
+- The fuzz harness in `fuzz/` is its own workspace and mirrors the same
+  `[workspace.lints]` tables; `tests/repo_gates.rs` fails when they differ, and
+  likewise when `fuzz/deny.toml` differs from `deny.toml` by more than its one
+  crate-scoped exception.
 - Clippy `all` and `pedantic` warn, and CI denies warnings.
 - `allow_attributes_without_reason` is denied: every `#[allow]` states why, scoped
   as tightly as possible. Prefer fixing the code.

@@ -17,10 +17,12 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   MulanPSL-2.0` and every Markdown document under CC-BY-4.0, with the licence
   texts, a Chinese-language rendering of the licensing terms, and REUSE
   metadata checked by `reuse lint`.
-- **Gates:** `make check` runs formatting, clippy, tests, documentation,
-  `cargo deny`, REUSE, the minimum-version build, the licence digests and the
-  issue-reference gate. A pre-commit hook runs the fast subset on a checkout of
-  the staged index, and a CI workflow runs the same gates.
+- **Gates:** `make check` runs formatting, clippy, tests, release-mode tests of
+  `raf-source`, documentation, `cargo deny`, REUSE, the minimum-version build, the
+  fuzz harness checks and a bounded fuzz run, a `cargo check` for the Apple and
+  Windows targets, the licence digests and the issue-reference gate. A pre-commit
+  hook runs the fast subset on a checkout of the staged index, and a CI workflow
+  runs the same gates.
 - **Repository gates:** `tests/repo_gates.rs` checks the Mulan licence digests
   and the Chinese-rendering fingerprint, scans every tracked file for issue and
   pull request references and process wording, and requires `CITATION.cff` and
