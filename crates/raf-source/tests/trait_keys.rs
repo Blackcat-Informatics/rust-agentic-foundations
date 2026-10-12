@@ -312,3 +312,533 @@ fn the_same_trait_through_a_glob_and_through_a_named_import_can_have_two_keys() 
         TraitKey::Canonical("serde::ser::Serialize".to_owned())
     );
 }
+
+/// A tree with a workspace manifest at the root and one member under `crates/`.
+fn inherited(root: &str, extra: &[(&str, &str)]) -> MemoryTree {
+    let member = "[package]\nname = \"member\"\nedition.workspace = true\n";
+    let text = "pub struct L;\nimpl TryFrom<L> for u8 { fn m(&self) {} }\n";
+    let mut files = vec![
+        ("Cargo.toml", root),
+        ("crates/member/Cargo.toml", member),
+        ("crates/member/src/lib.rs", text),
+    ];
+    files.extend_from_slice(extra);
+    files.into_iter().collect()
+}
+
+const WORKSPACE_2021: &str = "[workspace]\nmembers = [\"crates/*\"]\nresolver = \"3\"\n\n[workspace.package]\nedition = \"2021\"\n";
+
+#[test]
+fn the_workspace_manifest_is_found_above_the_roots_and_adds_no_package() {
+    let ws = Workspace::load(&inherited(WORKSPACE_2021, &[]), &["crates"])
+        .expect("the edition is inherited");
+    let names: Vec<_> = ws.packages().iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(names, ["member"]);
+    // The inherited edition decides the prelude: 2021 has `TryFrom`, not `Future`.
+    let with_future = "pub struct L;\nimpl TryFrom<L> for u8 { fn m(&self) {} }\nimpl Future for u8 { fn n(&self) {} }\n";
+    let tree: MemoryTree = [
+        ("Cargo.toml", WORKSPACE_2021),
+        (
+            "crates/member/Cargo.toml",
+            "[package]\nname = \"member\"\nedition.workspace = true\n",
+        ),
+        ("crates/member/src/lib.rs", with_future),
+    ]
+    .into_iter()
+    .collect();
+    let error = Workspace::load(&tree, &["crates"]).expect_err("Future is 2024");
+    assert!(
+        matches!(error.kind, LoadErrorKind::UnresolvedTrait { .. }),
+        "{error}"
+    );
+}
+
+#[test]
+fn without_a_workspace_above_or_an_edition_in_it_the_inheritance_is_a_manifest_error() {
+    for (label, root) in [
+        (
+            "no workspace table",
+            "[package]\nname = \"top\"\nedition = \"2021\"\n",
+        ),
+        ("no edition", "[workspace]\nmembers = [\"crates/*\"]\n"),
+    ] {
+        let extra = [("src/lib.rs", "")];
+        let error = Workspace::load(&inherited(root, &extra), &["crates"]).expect_err(label);
+        assert!(
+            matches!(error.kind, LoadErrorKind::Manifest { .. }),
+            "{label}: {error}"
+        );
+        assert_eq!(error.file.as_str(), "crates/member/Cargo.toml", "{label}");
+        assert!(
+            matches!(error.origin.as_deref(), Some(raf_source::Origin::ManifestKey { key }) if key == "package.edition"),
+            "{label}: {error}"
+        );
+    }
+    // Nothing above the member at all.
+    let tree: MemoryTree = [
+        (
+            "crates/member/Cargo.toml",
+            "[package]\nname = \"member\"\nedition.workspace = true\n",
+        ),
+        ("crates/member/src/lib.rs", ""),
+    ]
+    .into_iter()
+    .collect();
+    assert!(Workspace::load(&tree, &["crates"]).is_err());
+}
+
+#[test]
+fn the_nearest_ancestor_with_a_workspace_table_decides_and_others_are_skipped() {
+    // A package manifest between the member and the workspace is skipped.
+    let skipped = [(
+        "crates/Cargo.toml",
+        "[package]\nname = \"mid\"\nedition = \"2018\"\n",
+    )];
+    assert!(Workspace::load(&inherited(WORKSPACE_2021, &skipped), &["crates/member"]).is_ok());
+    // A nearer workspace without an edition does not defer to a farther one.
+    let nearer = [("crates/Cargo.toml", "[workspace]\nmembers = [\"member\"]\n")];
+    let error = Workspace::load(&inherited(WORKSPACE_2021, &nearer), &["crates/member"])
+        .expect_err("the nearest workspace has none");
+    assert!(
+        matches!(error.kind, LoadErrorKind::Manifest { .. }),
+        "{error}"
+    );
+    // A nearer workspace with one wins: 2015 has no `TryFrom` in its prelude.
+    let nearer = [(
+        "crates/Cargo.toml",
+        "[workspace]\nmembers = [\"member\"]\n\n[workspace.package]\nedition = \"2015\"\n",
+    )];
+    let error = Workspace::load(&inherited(WORKSPACE_2021, &nearer), &["crates/member"])
+        .expect_err("the nearer 2015 edition applies");
+    assert!(
+        matches!(error.kind, LoadErrorKind::UnresolvedTrait { .. }),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_malformed_ancestor_manifest_is_an_error_and_a_missing_one_is_not() {
+    let error =
+        Workspace::load(&inherited("[workspace\n", &[]), &["crates"]).expect_err("malformed");
+    assert!(
+        matches!(error.kind, LoadErrorKind::Manifest { .. }),
+        "{error}"
+    );
+    assert_eq!(error.file.as_str(), "Cargo.toml");
+    // No manifest between `crates` and the root is fine.
+    assert!(Workspace::load(&inherited(WORKSPACE_2021, &[]), &["crates/member"]).is_ok());
+}
+
+#[test]
+fn an_ancestor_manifest_over_the_size_cap_is_a_typed_error() {
+    let padded = format!("{WORKSPACE_2021}# {}\n", "x".repeat(300));
+    let tree = inherited(&padded, &[]);
+    let mut options = raf_source::LoadOptions::default();
+    options.max_file_bytes = 250;
+    let error = Workspace::load_with(&tree, &["crates"], &options).expect_err("over the cap");
+    assert!(
+        matches!(&error.kind, LoadErrorKind::Tree(e) if matches!(**e, raf_source::TreeError::TooLarge { .. })),
+        "{error}"
+    );
+    assert_eq!(error.file.as_str(), "Cargo.toml");
+    // Under the cap the same tree loads.
+    options.max_file_bytes = 1000;
+    assert!(Workspace::load_with(&tree, &["crates"], &options).is_ok());
+}
+
+fn not_a_member(root: &str) -> LoadError {
+    Workspace::load(&inherited(root, &[]), &["crates"]).expect_err("not a member")
+}
+
+#[test]
+fn inheriting_requires_membership_by_the_members_and_exclude_lists() {
+    // Listed by a glob, by name, and by a character class.
+    for members in [
+        "crates/*",
+        "crates/member",
+        "crates/mem?er",
+        "crates/[a-z]*",
+        "crates/[!x]ember",
+    ] {
+        let root = format!(
+            "[workspace]\nmembers = [\"{members}\"]\n\n[workspace.package]\nedition = \"2021\"\n"
+        );
+        assert!(
+            Workspace::load(&inherited(&root, &[]), &["crates"]).is_ok(),
+            "{members}"
+        );
+    }
+    // Excluded, by name and below an excluded directory.
+    for exclude in ["crates/member", "crates"] {
+        let root = format!(
+            "[workspace]\nmembers = [\"crates/*\"]\nexclude = [\"{exclude}\"]\n\n[workspace.package]\nedition = \"2021\"\n"
+        );
+        let error = not_a_member(&root);
+        assert!(
+            matches!(error.kind, LoadErrorKind::Manifest { .. }),
+            "{exclude}: {error}"
+        );
+        assert!(error.to_string().contains("not a member"), "{error}");
+    }
+    // Not listed.
+    for members in ["other/*", "crates/memberx*", "crates/[!m]ember"] {
+        let root = format!(
+            "[workspace]\nmembers = [\"{members}\"]\n\n[workspace.package]\nedition = \"2021\"\n"
+        );
+        let error = not_a_member(&root);
+        assert_eq!(error.file.as_str(), "crates/member/Cargo.toml", "{members}");
+        assert!(error.to_string().contains("Cargo.toml"), "{error}");
+        assert!(
+            matches!(error.origin.as_deref(), Some(raf_source::Origin::ManifestKey { key }) if key == "package.edition"),
+            "{members}: {error}"
+        );
+    }
+}
+
+#[test]
+fn the_workspace_root_package_inherits_without_being_listed() {
+    let root = "[package]\nname = \"top\"\nedition.workspace = true\n\n[workspace]\nmembers = []\n\n[workspace.package]\nedition = \"2021\"\n";
+    let tree: MemoryTree = [
+        ("Cargo.toml", root),
+        (
+            "src/lib.rs",
+            "pub struct L;\nimpl TryFrom<L> for u8 { fn m(&self) {} }\n",
+        ),
+    ]
+    .into_iter()
+    .collect();
+    assert!(Workspace::load(&tree, &["."]).is_ok());
+}
+
+#[test]
+fn a_pattern_outside_the_supported_syntax_is_a_manifest_error_naming_the_list() {
+    for (list, pattern) in [
+        ("members", "crates/**"),
+        ("members", "crates/[a"),
+        ("members", "crates\\\\x"),
+        ("exclude", "crates/**"),
+    ] {
+        let (members, exclude) = if list == "members" {
+            (format!("\"{pattern}\""), String::new())
+        } else {
+            ("\"crates/*\"".to_owned(), format!("\"{pattern}\""))
+        };
+        let root = format!(
+            "[workspace]\nmembers = [{members}]\nexclude = [{exclude}]\n\n[workspace.package]\nedition = \"2021\"\n"
+        );
+        let error = Workspace::load(&inherited(&root, &[]), &["crates"]).expect_err(pattern);
+        assert!(
+            matches!(error.kind, LoadErrorKind::Manifest { .. }),
+            "{pattern}: {error}"
+        );
+        assert_eq!(error.file.as_str(), "Cargo.toml", "{pattern}");
+        assert!(
+            matches!(error.origin.as_deref(), Some(raf_source::Origin::ManifestKey { key }) if *key == format!("workspace.{list}")),
+            "{pattern}: {error}"
+        );
+    }
+}
+
+const HELPER: &str = "[package]\nname = \"helper\"\nedition.workspace = true\n";
+
+/// A workspace whose root package depends on `crates/helper` by path and lists no members.
+fn implied(root_extra: &str, helper: &str, files: &[(&str, &str)]) -> MemoryTree {
+    let root = format!(
+        "[package]\nname = \"top\"\nedition = \"2021\"\n\n[dependencies]\nhelper = {{ path = \"crates/helper\" }}\n{root_extra}\n\
+         [workspace]\nmembers = []\n\n[workspace.package]\nedition = \"2021\"\n"
+    );
+    let mut all: Vec<(String, String)> = vec![
+        ("Cargo.toml".to_owned(), root),
+        ("src/lib.rs".to_owned(), String::new()),
+        ("crates/helper/Cargo.toml".to_owned(), helper.to_owned()),
+        ("crates/helper/src/lib.rs".to_owned(), String::new()),
+    ];
+    all.extend(
+        files
+            .iter()
+            .map(|(a, b)| ((*a).to_owned(), (*b).to_owned())),
+    );
+    all.into_iter().collect()
+}
+
+#[test]
+fn a_package_that_is_only_a_path_dependency_of_the_root_package_is_a_member() {
+    let ws = Workspace::load(&implied("", HELPER, &[]), &["crates"])
+        .expect("an implied member inherits");
+    assert_eq!(ws.packages().len(), 1);
+    // Through `[workspace.dependencies]`, the form `helper.workspace = true`.
+    let root = "[package]\nname = \"top\"\nedition = \"2021\"\n\n[dependencies]\nhelper = { workspace = true }\n\n\
+                [workspace]\nmembers = []\n\n[workspace.package]\nedition = \"2021\"\n\n\
+                [workspace.dependencies]\nhelper = { path = \"crates/helper\" }\n";
+    let tree: MemoryTree = [
+        ("Cargo.toml", root),
+        ("src/lib.rs", ""),
+        ("crates/helper/Cargo.toml", HELPER),
+        ("crates/helper/src/lib.rs", ""),
+    ]
+    .into_iter()
+    .collect();
+    assert!(Workspace::load(&tree, &["crates"]).is_ok());
+    // Without the dependency the same package is not a member.
+    let alone = root.replace("helper = { workspace = true }\n", "");
+    let tree: MemoryTree = [
+        ("Cargo.toml", alone.as_str()),
+        ("src/lib.rs", ""),
+        ("crates/helper/Cargo.toml", HELPER),
+        ("crates/helper/src/lib.rs", ""),
+    ]
+    .into_iter()
+    .collect();
+    let error = Workspace::load(&tree, &["crates"]).expect_err("not implied");
+    assert!(error.to_string().contains("not a member"), "{error}");
+}
+
+#[test]
+fn path_dependencies_of_members_are_members_transitively_in_every_dependency_table() {
+    for table in [
+        "dependencies",
+        "dev-dependencies",
+        "build-dependencies",
+        "target.'cfg(unix)'.dependencies",
+    ] {
+        let helper = format!("{HELPER}\n[{table}]\ndeep = {{ path = \"../deep\" }}\n");
+        let tree = implied(
+            "",
+            helper.as_str(),
+            &[
+                (
+                    "crates/deep/Cargo.toml",
+                    "[package]\nname = \"deep\"\nedition.workspace = true\n",
+                ),
+                ("crates/deep/src/lib.rs", ""),
+            ],
+        );
+        let ws = Workspace::load(&tree, &["crates"]).unwrap_or_else(|e| panic!("{table}: {e}"));
+        assert_eq!(ws.packages().len(), 2, "{table}");
+    }
+}
+
+#[test]
+fn a_path_dependency_outside_the_workspace_directory_or_excluded_is_not_a_member() {
+    // Outside: the package below another workspace is not a member of that one.
+    let outer = "[workspace]\nmembers = []\n\n[workspace.package]\nedition = \"2021\"\n";
+    let inner = "[workspace]\nmembers = [\"m\"]\n\n[workspace.package]\nedition = \"2021\"\n";
+    let m = "[package]\nname = \"m\"\nedition.workspace = true\n\n[dependencies]\ndep = { path = \"../../elsewhere/dep\" }\n";
+    let dep = "[package]\nname = \"dep\"\nedition.workspace = true\n";
+    let tree: MemoryTree = [
+        ("Cargo.toml", outer),
+        ("ws/Cargo.toml", inner),
+        ("ws/m/Cargo.toml", m),
+        ("ws/m/src/lib.rs", ""),
+        ("elsewhere/dep/Cargo.toml", dep),
+        ("elsewhere/dep/src/lib.rs", ""),
+    ]
+    .into_iter()
+    .collect();
+    assert!(Workspace::load(&tree, &["ws/m"]).is_ok());
+    let error =
+        Workspace::load(&tree, &["elsewhere"]).expect_err("not a member of the outer workspace");
+    assert!(error.to_string().contains("not a member"), "{error}");
+    // Excluded.
+    let root = "[package]\nname = \"top\"\nedition = \"2021\"\n\n[dependencies]\nhelper = { path = \"crates/helper\" }\n\n\
+                [workspace]\nmembers = []\nexclude = [\"crates/helper\"]\n\n[workspace.package]\nedition = \"2021\"\n";
+    let tree: MemoryTree = [
+        ("Cargo.toml", root),
+        ("src/lib.rs", ""),
+        ("crates/helper/Cargo.toml", HELPER),
+        ("crates/helper/src/lib.rs", ""),
+    ]
+    .into_iter()
+    .collect();
+    let error = Workspace::load(&tree, &["crates"]).expect_err("excluded");
+    assert!(error.to_string().contains("not a member"), "{error}");
+}
+
+#[test]
+fn a_path_dependency_inside_the_workspace_with_no_manifest_is_an_error_naming_the_key() {
+    let tree = implied("gone = { path = \"crates/gone\" }\n", HELPER, &[]);
+    let error = Workspace::load(&tree, &["crates"]).expect_err("no manifest");
+    assert!(
+        matches!(error.kind, LoadErrorKind::Manifest { .. }),
+        "{error}"
+    );
+    assert!(
+        matches!(error.origin.as_deref(), Some(raf_source::Origin::ManifestKey { key }) if key == "dependencies.gone"),
+        "{error}"
+    );
+    let broken = implied(
+        "gone = { path = \"crates/gone\" }\n",
+        HELPER,
+        &[("crates/gone/Cargo.toml", "[package\n")],
+    );
+    let error = Workspace::load(&broken, &["crates/helper"]).expect_err("malformed");
+    assert!(
+        matches!(error.origin.as_deref(), Some(raf_source::Origin::ManifestKey { key }) if key == "dependencies.gone"),
+        "{error}"
+    );
+}
+
+/// A workspace with members listed by `members`, plus the extra files.
+fn listed(members: &str, files: &[(&str, &str)]) -> MemoryTree {
+    let root =
+        format!("[workspace]\nmembers = [{members}]\n\n[workspace.package]\nedition = \"2021\"\n");
+    let mut all: Vec<(String, String)> = vec![
+        ("Cargo.toml".to_owned(), root),
+        (
+            "crates/member/Cargo.toml".to_owned(),
+            "[package]\nname = \"member\"\nedition.workspace = true\n".to_owned(),
+        ),
+        ("crates/member/src/lib.rs".to_owned(), String::new()),
+    ];
+    all.extend(
+        files
+            .iter()
+            .map(|(a, b)| ((*a).to_owned(), (*b).to_owned())),
+    );
+    all.into_iter().collect()
+}
+
+#[test]
+fn matching_a_pattern_takes_time_in_proportion_to_pattern_and_name() {
+    let pattern = format!("crates/{}b", "*a".repeat(24));
+    let name = "a".repeat(40);
+    let manifest = format!("crates/{name}/readme.txt");
+    let tree = listed(
+        &format!("\"crates/member\", \"{pattern}\""),
+        &[(manifest.as_str(), "no manifest here")],
+    );
+    let started = std::time::Instant::now();
+    let ws = Workspace::load(&tree, &["crates/member"]).expect("loads");
+    assert_eq!(ws.packages().len(), 1);
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(1),
+        "{:?}",
+        started.elapsed()
+    );
+}
+
+#[test]
+fn a_path_dependency_with_an_unusable_path_is_an_error_beside_one_that_is_outside_the_tree() {
+    for bad in ["crates\\\\x", "C:x"] {
+        let extra = format!("gone = {{ path = \"{bad}\" }}\n");
+        let error = Workspace::load(&implied(&extra, HELPER, &[]), &["crates"]).expect_err(bad);
+        assert!(
+            matches!(error.kind, LoadErrorKind::Manifest { .. }),
+            "{bad}: {error}"
+        );
+        assert!(
+            matches!(error.origin.as_deref(), Some(raf_source::Origin::ManifestKey { key }) if key == "dependencies.gone"),
+            "{bad}: {error}"
+        );
+    }
+    // Above the root or absolute: simply not a member.
+    for outside in ["../../up", "/absolute/elsewhere"] {
+        let extra = format!("far = {{ path = \"{outside}\" }}\n");
+        assert!(
+            Workspace::load(&implied(&extra, HELPER, &[]), &["crates"]).is_ok(),
+            "{outside}"
+        );
+    }
+}
+
+#[test]
+fn a_literal_member_without_a_manifest_is_an_error_and_a_glob_skips_such_a_directory() {
+    let docs = [("crates/docs/readme.txt", "text")];
+    for literal in ["crates/nope", "crates/docs"] {
+        let tree = listed(&format!("\"crates/member\", \"{literal}\""), &docs);
+        let error = Workspace::load(&tree, &["crates/member"]).expect_err(literal);
+        assert!(
+            matches!(error.kind, LoadErrorKind::Manifest { .. }),
+            "{literal}: {error}"
+        );
+        assert!(
+            matches!(error.origin.as_deref(), Some(raf_source::Origin::ManifestKey { key }) if key == "workspace.members"),
+            "{literal}: {error}"
+        );
+    }
+    let tree = listed("\"crates/*\"", &docs);
+    assert!(Workspace::load(&tree, &["crates/member"]).is_ok());
+}
+
+#[test]
+fn a_workspace_dependency_whose_path_is_not_a_string_is_an_error_naming_the_key() {
+    let root = |path: &str| {
+        format!(
+            "[workspace]\nmembers = [\"crates/member\"]\n\n[workspace.package]\nedition = \"2021\"\n\n[workspace.dependencies]\nhelper = {{ path = {path} }}\n"
+        )
+    };
+    let files = |root: &str| -> MemoryTree {
+        [
+            ("Cargo.toml", root),
+            (
+                "crates/member/Cargo.toml",
+                "[package]\nname = \"member\"\nedition.workspace = true\n",
+            ),
+            ("crates/member/src/lib.rs", ""),
+        ]
+        .into_iter()
+        .collect()
+    };
+    let bad = root("3");
+    let error = Workspace::load(&files(&bad), &["crates"]).expect_err("not a string");
+    assert!(
+        matches!(error.origin.as_deref(), Some(raf_source::Origin::ManifestKey { key }) if key == "workspace.dependencies.helper"),
+        "{error}"
+    );
+    let good = root("\"crates/other\"");
+    assert!(Workspace::load(&files(&good), &["crates"]).is_ok());
+}
+
+#[test]
+fn an_empty_pattern_segment_is_a_pattern_error_beside_a_plain_pattern() {
+    for pattern in ["crates//member", "crates/member//", "//", "/crates/member"] {
+        let tree = listed(&format!("\"{pattern}\""), &[]);
+        let error = Workspace::load(&tree, &["crates"]).expect_err(pattern);
+        assert!(
+            matches!(error.kind, LoadErrorKind::Manifest { .. }),
+            "{pattern}: {error}"
+        );
+        assert!(
+            matches!(error.origin.as_deref(), Some(raf_source::Origin::ManifestKey { key }) if key == "workspace.members"),
+            "{pattern}: {error}"
+        );
+    }
+    assert!(Workspace::load(&listed("\"./crates/member\"", &[]), &["crates"]).is_ok());
+    // Exactly one trailing `/` is the same pattern.
+    for accepted in ["crates/member/", "crates/*/", "./crates/m*/"] {
+        assert!(
+            Workspace::load(&listed(&format!("\"{accepted}\""), &[]), &["crates"]).is_ok(),
+            "{accepted}"
+        );
+    }
+}
+
+#[test]
+fn an_excluded_literal_member_is_ignored_and_not_required_to_exist() {
+    let root = |exclude: &str| {
+        format!(
+            "[workspace]\nmembers = [\"crates/member\", \"crates/gone\"]\nexclude = [{exclude}]\n\n[workspace.package]\nedition = \"2021\"\n"
+        )
+    };
+    let files = |root: &str| -> MemoryTree {
+        [
+            ("Cargo.toml", root),
+            (
+                "crates/member/Cargo.toml",
+                "[package]\nname = \"member\"\nedition.workspace = true\n",
+            ),
+            ("crates/member/src/lib.rs", ""),
+        ]
+        .into_iter()
+        .collect()
+    };
+    let excluded = root("\"crates/gone\"");
+    assert!(Workspace::load(&files(&excluded), &["crates/member"]).is_ok());
+    // Not excluded, the same missing member is an error.
+    let kept = root("");
+    let error = Workspace::load(&files(&kept), &["crates/member"]).expect_err("missing member");
+    assert!(
+        matches!(error.origin.as_deref(), Some(raf_source::Origin::ManifestKey { key }) if key == "workspace.members"),
+        "{error}"
+    );
+}

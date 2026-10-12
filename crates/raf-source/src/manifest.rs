@@ -8,7 +8,7 @@
 //! limit turns deep nesting into an error and not a crash. Every wrong value
 //! is an error that names its key.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use toml::{Table, Value};
 
@@ -56,6 +56,24 @@ pub(crate) struct Dependencies {
     pub(crate) build: BTreeSet<String>,
 }
 
+/// A dependency that names a directory, and where its path comes from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PathDependency {
+    /// The table and name, such as `dependencies.helper`, for messages.
+    pub(crate) key: String,
+    pub(crate) path: PathSource,
+}
+
+/// Where a path dependency gets its directory.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum PathSource {
+    /// `path = ".."`, relative to the manifest's directory.
+    Own(String),
+    /// `workspace = true`: the dependency of that name in
+    /// `[workspace.dependencies]`, relative to the workspace manifest.
+    Workspace(String),
+}
+
 /// A `[lib]` table.
 #[derive(Debug, Default)]
 pub(crate) struct LibDecl {
@@ -95,6 +113,14 @@ pub(crate) struct Manifest {
     pub(crate) has_workspace: bool,
     /// `[workspace.package] edition`, for the packages that inherit it.
     pub(crate) workspace_edition: Option<u16>,
+    /// `workspace.members`, when the manifest has a `[workspace]` table.
+    pub(crate) members: Vec<String>,
+    /// The path dependencies of the package, in all dependency tables.
+    pub(crate) path_dependencies: Vec<PathDependency>,
+    /// `[workspace.dependencies]` entries that have a `path`, by name.
+    pub(crate) workspace_paths: BTreeMap<String, String>,
+    /// `workspace.exclude`.
+    pub(crate) exclude: Vec<String>,
     pub(crate) dependencies: Dependencies,
     pub(crate) lib: Option<LibDecl>,
     pub(crate) bins: Vec<TargetDecl>,
@@ -160,6 +186,50 @@ fn dependencies(root: &Table) -> Result<Dependencies, ManifestError> {
             found
                 .build
                 .extend(dependency_keys(table, "build-dependencies")?);
+        }
+    }
+    Ok(found)
+}
+
+/// The dependencies of `table` that name a directory.
+fn path_entries(
+    table: &Table,
+    prefix: &str,
+    out: &mut Vec<PathDependency>,
+) -> Result<(), ManifestError> {
+    for section in ["dependencies", "dev-dependencies", "build-dependencies"] {
+        let Some(value) = table.get(section) else {
+            continue;
+        };
+        for (name, entry) in table_of(value, &format!("{prefix}{section}"))? {
+            let Value::Table(details) = entry else {
+                continue;
+            };
+            let key = format!("{prefix}{section}.{name}");
+            match (details.get("path"), details.get("workspace")) {
+                (Some(Value::String(path)), _) => out.push(PathDependency {
+                    key,
+                    path: PathSource::Own(path.clone()),
+                }),
+                (Some(_), _) => return Err(at_key(&key, "`path` must be a string")),
+                (None, Some(Value::Boolean(true))) => out.push(PathDependency {
+                    key,
+                    path: PathSource::Workspace(name.clone()),
+                }),
+                (None, _) => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+fn path_dependencies(root: &Table) -> Result<Vec<PathDependency>, ManifestError> {
+    let mut found = Vec::new();
+    path_entries(root, "", &mut found)?;
+    if let Some(targets) = root.get("target") {
+        for (platform, value) in table_of(targets, "target")? {
+            let table = table_of(value, &format!("target.{platform}"))?;
+            path_entries(table, &format!("target.{platform}."), &mut found)?;
         }
     }
     Ok(found)
@@ -246,6 +316,46 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
         })?;
     let package = package(&root)?;
     let has_workspace = root.contains_key("workspace");
+    let workspace = root.get("workspace").and_then(Value::as_table);
+    let strings = |key: &str| -> Result<Vec<String>, ManifestError> {
+        let Some(value) = workspace.and_then(|table| table.get(key)) else {
+            return Ok(Vec::new());
+        };
+        let full = format!("workspace.{key}");
+        value
+            .as_array()
+            .ok_or_else(|| at_key(&full, "must be an array of strings"))?
+            .iter()
+            .map(|entry| {
+                entry
+                    .as_str()
+                    .map(str::to_owned)
+                    .ok_or_else(|| at_key(&full, "must be an array of strings"))
+            })
+            .collect()
+    };
+    let mut workspace_paths = BTreeMap::new();
+    if let Some(value) = workspace.and_then(|table| table.get("dependencies")) {
+        for (name, entry) in table_of(value, "workspace.dependencies")? {
+            let Value::Table(details) = entry else {
+                continue;
+            };
+            match details.get("path") {
+                None => {}
+                Some(Value::String(path)) => {
+                    workspace_paths.insert(name.clone(), path.clone());
+                }
+                Some(_) => {
+                    return Err(at_key(
+                        &format!("workspace.dependencies.{name}"),
+                        "`path` must be a string",
+                    ));
+                }
+            }
+        }
+    }
+    let members = strings("members")?;
+    let exclude = strings("exclude")?;
     let workspace_edition = match root
         .get("workspace")
         .and_then(Value::as_table)
@@ -277,6 +387,10 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
         package,
         has_workspace,
         workspace_edition,
+        members,
+        exclude,
+        path_dependencies: path_dependencies(&root)?,
+        workspace_paths,
         dependencies: dependencies(&root)?,
         lib,
         bins: declarations(&root, "bin")?,

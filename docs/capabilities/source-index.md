@@ -287,9 +287,38 @@ name, not the name of the package it renames) and with `-` as `_`. A path whose 
 `std`, which re-exports their traits at the same paths, so the three spellings of one
 trait are one key. A single-segment name that nothing in the module binds is looked up
 in the prelude of the package's edition, taken from its manifest (or from
-`[workspace.package]` when it inherits one; an inherited edition with no
-`[workspace.package] edition` at or above the package is a manifest error that names
-`package.edition`, as it is for cargo, and a package with no `edition` key is 2015): the traits of the first prelude, plus `FromIterator`,
+`[workspace.package]` when it inherits one). The workspace manifest is found the way
+cargo finds it, by walking up from the package directory through its ancestors within
+the tree: each ancestor `Cargo.toml` is read through `Tree` under `max_file_bytes` (an
+ancestor without one is skipped, an unreadable or malformed one is an error), the
+nearest one with a `[workspace]` table decides, as long as the package is a member of it,
+as cargo requires. The members are the root package of the workspace manifest, if it has
+one; the directories that match an entry of `workspace.members` and no entry of
+`workspace.exclude` (an exclude entry also covers what is below it); and, transitively,
+the `path` dependencies of the members, in `[dependencies]`, `[dev-dependencies]`,
+`[build-dependencies]` and the `[target.*]` tables, renamed ones and `workspace = true`
+ones that `[workspace.dependencies]` gives a path included, that lie inside the
+workspace directory and are not excluded. A pattern may use `*`, `?` and `[...]` (with
+ranges and a leading `!` or `^`) in each path segment, and is matched in time
+proportional to the pattern times the name; `**`, a backslash, an unclosed bracket and an
+empty segment (`a//b`, `a//`) are a typed manifest error, never ignored; one trailing `/` is
+allowed (`crates/*/` is `crates/*`). An entry
+of `workspace.members` that has no wildcard names one directory, which must exist and have
+a `Cargo.toml`, or it is a manifest error naming `workspace.members`, unless it is
+excluded, in which case it is ignored and need not exist; a glob entry skips
+what it matches that is not a directory or has no `Cargo.toml`. The member manifests are read through
+`Tree` under the size cap, once for each workspace manifest, and the walk is bounded by
+the module-path budget; a path dependency inside the workspace whose manifest is missing
+or malformed, or whose `path` cannot be a path here (a backslash, a drive letter), is a
+manifest error that names the dependency key; a path that leaves the tree or is absolute is
+not a member. A `[workspace.dependencies]` entry whose `path` is not a string is a manifest
+error naming it. A package that inherits
+from a workspace it is not a member of is a manifest error that names `package.edition`
+and the workspace manifest. Reading the workspace manifest
+adds no package to what discovery found, because the roots alone decide that. An inherited edition that the
+nearest workspace manifest does not set, or with no workspace manifest above the
+package, is a manifest error that names `package.edition`, as it is for cargo, and a
+package with no `edition` key is 2015: the traits of the first prelude, plus `FromIterator`,
 `TryFrom` and `TryInto` from 2021, plus `Future` and `IntoFuture` from 2024. A glob of a
 dependency (`use std::fmt::*;`) cannot be looked into. If exactly one such glob in scope
 could provide the name, the trait is keyed under that glob's path followed by the name, so

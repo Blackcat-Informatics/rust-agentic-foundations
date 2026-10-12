@@ -3,7 +3,7 @@
 
 //! The loaded workspace: packages, targets and the files of every module tree.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use crate::discovery::discover;
@@ -12,7 +12,8 @@ use crate::facts::{FileFacts, TestRole};
 use crate::index::Index;
 use crate::index::PackageInfo;
 use crate::item::{Item, ItemId, Namespace};
-use crate::manifest::{EditionDecl, Manifest, PackageDecl};
+use crate::manifest::{self, EditionDecl, Manifest, PackageDecl};
+use crate::members::members;
 use crate::modtree::{Reach, TargetId, Visited, Walker};
 use crate::options::LoadOptions;
 use crate::path::RelPath;
@@ -107,6 +108,7 @@ impl Workspace {
         let discovered = discover(tree, &root_paths, options.max_file_bytes)?;
         let found = &discovered.packages;
         let mut infos: BTreeMap<String, PackageInfo> = BTreeMap::new();
+        let mut workspace_editions = Caches::default();
         let mut packages = Vec::new();
         let mut derived = Vec::new();
         for entry in found {
@@ -126,10 +128,12 @@ impl Workspace {
             infos.insert(
                 entry.package.name.clone(),
                 package_info(
+                    tree,
+                    options.max_file_bytes,
                     &entry.package,
                     declared,
                     &entry.manifest,
-                    &discovered.editions,
+                    &mut workspace_editions,
                 )?,
             );
             packages.push(entry.package.clone());
@@ -321,46 +325,137 @@ impl Workspace {
     }
 }
 
+/// What is computed once per workspace manifest during a load.
+#[derive(Default)]
+struct Caches {
+    editions: BTreeMap<RelPath, WorkspaceEdition>,
+    members: BTreeMap<RelPath, BTreeSet<RelPath>>,
+}
+
+/// What the nearest workspace manifest says about the edition of a package.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum WorkspaceEdition {
+    /// The workspace sets it.
+    Set(u16),
+    /// The workspace has no `[workspace.package] edition`, or there is no
+    /// workspace manifest above the package.
+    Unset,
+    /// The nearest workspace manifest does not have the package as a member.
+    NotMember(RelPath),
+}
+
+fn manifest_error(path: &RelPath, key: &str, message: String) -> LoadError {
+    LoadError::new(path, None, LoadErrorKind::Manifest { message }).reached_by(
+        &Origin::ManifestKey {
+            key: key.to_owned(),
+        },
+    )
+}
+
+/// The `[workspace.package] edition` that applies to a package directory:
+/// the nearest manifest at or above it that has a `[workspace]` table, found
+/// the way cargo finds it, by walking up through the ancestors within the tree.
+/// A missing ancestor manifest is skipped; one that cannot be read or parsed is
+/// an error. The manifest is not added to the packages that discovery found.
+fn workspace_edition(
+    tree: &dyn Tree,
+    dir: &RelPath,
+    max_file_bytes: u64,
+    caches: &mut Caches,
+) -> Result<WorkspaceEdition, LoadError> {
+    let cache = &mut caches.editions;
+    if let Some(known) = cache.get(dir) {
+        return Ok(known.clone());
+    }
+    let origin = Origin::Discovery;
+    let mut at = Some(dir.clone());
+    let mut found = WorkspaceEdition::Unset;
+    while let Some(current) = at {
+        let path = current
+            .join("Cargo.toml")
+            .map_err(|error| LoadError::tree(&current, None, &origin, error.into()))?;
+        let present = tree
+            .entry(&path)
+            .map_err(|error| LoadError::tree(&path, None, &origin, error))?;
+        if present.is_some() {
+            let text = tree
+                .read(&path, max_file_bytes)
+                .map_err(|error| LoadError::tree(&path, None, &origin, error))?;
+            let parsed = manifest::parse(&text).map_err(|problem| {
+                let origin = problem
+                    .key
+                    .map_or(Origin::Discovery, |key| Origin::ManifestKey { key });
+                LoadError::new(
+                    &path,
+                    None,
+                    LoadErrorKind::Manifest {
+                        message: problem.message,
+                    },
+                )
+                .reached_by(&origin)
+            })?;
+            if parsed.has_workspace {
+                let set = match caches.members.entry(current.clone()) {
+                    std::collections::btree_map::Entry::Occupied(known) => known.into_mut(),
+                    std::collections::btree_map::Entry::Vacant(slot) => {
+                        slot.insert(members(tree, max_file_bytes, &current, &path, &parsed)?)
+                    }
+                };
+                found = if !set.contains(dir) {
+                    WorkspaceEdition::NotMember(path)
+                } else if let Some(edition) = parsed.workspace_edition {
+                    WorkspaceEdition::Set(edition)
+                } else {
+                    WorkspaceEdition::Unset
+                };
+                break;
+            }
+        }
+        at = current.parent();
+    }
+    caches.editions.insert(dir.clone(), found.clone());
+    Ok(found)
+}
+
 /// What the index needs to know about a package's manifest.
 ///
 /// # Errors
 ///
 /// Returns a manifest error naming `package.edition` when the package inherits
-/// its edition and no `[workspace.package] edition` is found at or above it,
-/// which cargo rejects as well.
+/// its edition and the nearest workspace manifest above it does not have the
+/// package as a member or does not set an edition, which cargo rejects as well.
 fn package_info(
+    tree: &dyn Tree,
+    max_file_bytes: u64,
     package: &Package,
     declared: &PackageDecl,
     manifest: &Manifest,
-    workspaces: &BTreeMap<RelPath, u16>,
+    caches: &mut Caches,
 ) -> Result<PackageInfo, LoadError> {
     let edition = match &declared.edition {
         EditionDecl::Explicit(edition) => *edition,
         EditionDecl::Unset => 2015,
         EditionDecl::Inherited => {
-            // The nearest manifest at or above the package that sets one.
-            let mut at = Some(package.dir.clone());
-            let mut found = None;
-            while let Some(dir) = at {
-                if let Some(edition) = workspaces.get(&dir) {
-                    found = Some(*edition);
-                    break;
-                }
-                at = dir.parent();
-            }
-            found.ok_or_else(|| {
-                LoadError::new(
-                    &package.manifest,
-                    None,
-                    LoadErrorKind::Manifest {
-                        message: "`edition.workspace = true` but no `[workspace.package] edition` is set at or above the package"
+            match workspace_edition(tree, &package.dir, max_file_bytes, caches)? {
+                WorkspaceEdition::Set(edition) => edition,
+                WorkspaceEdition::Unset => {
+                    return Err(manifest_error(
+                        &package.manifest,
+                        "package.edition",
+                        "`edition.workspace = true` but no `[workspace.package] edition` is set by the nearest workspace manifest above the package"
                             .to_owned(),
-                    },
-                )
-                .reached_by(&Origin::ManifestKey {
-                    key: "package.edition".to_owned(),
-                })
-            })?
+                    ));
+                }
+                WorkspaceEdition::NotMember(workspace) => {
+                    return Err(manifest_error(
+                        &package.manifest,
+                        "package.edition",
+                        format!(
+                            "`edition.workspace = true` but the package is not a member of the workspace {workspace} (it is not listed in `workspace.members`, or is excluded)"
+                        ),
+                    ));
+                }
+            }
         }
     };
     Ok(PackageInfo {
