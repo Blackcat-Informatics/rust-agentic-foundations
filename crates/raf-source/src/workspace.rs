@@ -147,12 +147,13 @@ impl Workspace {
         for (index, (target, origin)) in targets.iter().zip(&origins).enumerate() {
             walker.root(TargetId(index), &target.root, &target.crate_path, origin)?;
         }
+        let (visited, visits) = walker.finish();
         let mut files: BTreeMap<RelPath, SourceFile> = BTreeMap::new();
-        for (path, visited) in walker.finish() {
+        for (path, visited) in visited {
             let file = source_file(&path, visited, &targets)?;
             files.insert(path, file);
         }
-        let index = Index::build(&targets, &files, &infos)?;
+        let index = Index::build(&targets, &files, &visits, &infos)?;
         Ok(Self {
             packages,
             targets,

@@ -39,6 +39,8 @@ bindings:
     - raf_source::test_crate::module_tree::a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_reading_it
     - raf_source::test_crate::module_tree::the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone
     - raf_source::test_crate::module_tree::a_chain_of_files_that_each_declare_the_next_twice_is_refused_quickly_beside_a_small_diamond
+    - raf_source::test_crate::module_tree::a_child_file_that_sorts_before_its_mod_rs_parent_is_placed_under_its_own_path
+    - raf_source::test_crate::module_tree::an_item_is_found_only_under_its_own_module_path
     - raf_source::test_crate::symbol_index::every_kind_is_indexed_with_its_kind_line_file_and_visibility
     - raf_source::test_crate::symbol_index::cfg_twins_are_one_symbol_with_two_sorted_sites
     - raf_source::test_crate::symbol_index::test_functions_carry_the_package_target_and_crate_relative_name
@@ -66,6 +68,7 @@ bindings:
     - raf_source::test_crate::tree_error::every_variant_names_its_path_in_display_and_in_path
     - raf_source::test_crate::fs_confinement::only_the_disk_backend_names_the_file_system_module
     - raf_source::test_crate::this_repository::this_repository_loads_from_its_root_with_the_crates_directory_as_the_root
+    - raf_source::test_crate::this_repository::an_item_of_a_module_file_that_sorts_before_its_mod_rs_is_found_under_its_own_module
     - raf_source::tree::disk::tests::linux_verifier_refuses_a_handle_link_that_leads_outside_and_accepts_one_inside
     - raf_source::tree::disk::tests::unix_verifier_refuses_differing_identities_and_accepts_equal_ones
     - raf_source::tree::disk::tests::portable_verifier_refuses_a_non_regular_handle_and_an_outside_path_beside_an_accepted_one
@@ -317,11 +320,13 @@ macro, `extern crate` item, item of an `extern` block, method of an inherent or 
 An item has an `id`, its full `path`, its `kind`, its `namespace`, its `file`, the line
 of its name, its `span` and `body` in lines and bytes, its `visibility`, `documented`,
 `doc_hidden`, `test` role, `target` and, for an impl member, the written `self_type`
-and `trait_path`. The name spaces are type, value and macro. A function, constant or
-static is a value; a module, trait, enum, union, alias and `extern crate` item is a
-type; a unit or tuple struct is a type and also a value, through its field shape; a
-`macro_rules!` macro is a macro, and a `#[macro_export]` macro is indexed at the crate
-root wherever it is written. A name can be in all three at once. `const _` defines no
+and `trait_path`. The module path in an item's `path` is the chain of `mod`
+declarations that reached its file, whatever the order of the file names. The name
+spaces are type, value and macro. A function, constant or static is a value; a
+module, trait, enum, union, alias and `extern crate` item is a type; a unit or tuple
+struct is a type and also a value, through its field shape; a `macro_rules!` macro is
+a macro, and a `#[macro_export]` macro is indexed at the crate root wherever it is
+written. A name can be in all three at once. `const _` defines no
 name and is not indexed; it stays in the facts of its file. A macro invocation that
 defines items is not expanded, so what it generates is not indexed. `documented` is
 true for a non-blank `#[doc]` or `///` text and for `#[doc = include_str!(..)]`, and
@@ -566,6 +571,15 @@ duplicates.
   the file and line, the module-depth budget at 128 and 129, a chain of files that each
   declare the next twice refused quickly beside a small diamond, and a first-party
   `mod test_crate;` beside a test target.
+- Placement fixtures, each asserting every item path: a child file that sorts before
+  the file that declares it (`a/mod.rs` with `a/b.rs`, and `a.rs` with `a/b.rs` below a
+  directory module that sorts before the crate root); the children `a`, `ga` and `z` of
+  a `#[path = "gen/generated.rs"]` file; and `tests/common/mod.rs` with
+  `tests/common/a.rs` reached from `tests/zz.rs`. `super::super` from such a child
+  reaches the crate root, and `demo::a::in_b` and `demo::a::b::in_a` are `NotFound`
+  beside `demo::a::b::in_b`. In this repository `raf_okf::body::blocks::FenceBlock`
+  resolves and `raf_okf::body::FenceBlock` is `NotFound`, and the document-contract
+  test rejects a binding to the same misplaced shape.
 - `#[path]` fixtures: a redirect inside the root resolves; `..` out of the root and
   an absolute path outside it both fail naming the module and the attribute, and a
   recording tree shows that the outside path is never read.

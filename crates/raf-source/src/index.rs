@@ -6,7 +6,10 @@
 //!
 //! Building runs in four steps. The emit step turns the facts of each file,
 //! once per module path the file is reached under, into items, module
-//! contents, `use` declarations and impl blocks. The scope step builds the
+//! contents, `use` declarations and impl blocks. It reads the files in the
+//! order the module-tree walk reached them, so every module is created by the
+//! `mod` declaration that names it, under its parent, before its own file is
+//! read; the order of the file names plays no part. The scope step builds the
 //! name tables of every module and settles them to a fixed point (see
 //! [`crate::resolve`]). The impl step attaches the members of impl blocks to
 //! the types they resolve to. The order step sorts the items.
@@ -19,7 +22,7 @@ use crate::facts::{
 };
 use crate::item::{Item, ItemId, Namespace, SymbolKind, TraitKey};
 use crate::manifest::Dependencies;
-use crate::modtree::TargetId;
+use crate::modtree::{TargetId, Visit};
 use crate::path::RelPath;
 use crate::settle::Scope;
 use crate::target::{Target, TargetKind};
@@ -246,24 +249,17 @@ struct Builder<'a> {
 }
 
 impl Builder<'_> {
-    fn ensure(&mut self, path: &str, parent: Option<usize>) -> usize {
+    /// The module at `path`, which a `mod` declaration in `parent` names. A
+    /// module declared more than once (under exclusive `cfg`s) is one module.
+    fn declare(&mut self, path: &str, parent: usize) -> usize {
         if let Some(&known) = self.index.module_by_path.get(path) {
             return known;
         }
         let idx = self.index.modules.len();
-        // A crate root is created first, so a path that gets here is a module
-        // of some crate and has a parent.
-        let parent = if parent.is_some() {
-            parent
-        } else {
-            path.rsplit_once("::")
-                .map(|(prefix, _)| self.ensure(prefix, None))
-        };
-        let root = parent.map_or(idx, |p| self.index.modules[p].root);
         self.index.modules.push(Module {
             path: path.to_owned(),
-            parent,
-            root,
+            parent: Some(parent),
+            root: self.index.modules[parent].root,
             defs: Vec::new(),
         });
         self.index.module_by_path.insert(path.to_owned(), idx);
@@ -371,7 +367,7 @@ impl Builder<'_> {
         }
         for decl in &body.mods {
             let path = format!("{}::{}", self.index.modules[module].path, decl.name);
-            let child = self.ensure(&path, Some(module));
+            let child = self.declare(&path, module);
             let file_docs = self
                 .files_at
                 .get(&path)
@@ -440,15 +436,20 @@ impl Builder<'_> {
 }
 
 impl Index {
-    /// Build the index of the module trees held by `files`.
+    /// Build the index of the module trees held by `files`, reading the files
+    /// in the order of `visits`, the arrivals of the module-tree walk.
     ///
     /// # Errors
     ///
     /// Returns a [`LoadError`] for a `super` path that climbs above the crate
-    /// root and for an inherent impl whose self type is not a local type.
+    /// root and for an inherent impl whose self type is not a local type, and
+    /// an `Internal` one for a visit that names no loaded file or reach, or
+    /// that reaches a module before the declaration that names it, which the
+    /// walk rules out.
     pub(crate) fn build(
         targets: &[Target],
         files: &BTreeMap<RelPath, SourceFile>,
+        visits: &[Visit],
         infos: &BTreeMap<String, PackageInfo>,
     ) -> Result<Self, LoadError> {
         let mut files_at: BTreeMap<String, Vec<&SourceFile>> = BTreeMap::new();
@@ -495,23 +496,41 @@ impl Index {
             }
         }
         let mut seen: BTreeSet<(RelPath, TargetId, String)> = BTreeSet::new();
-        for file in files.values() {
-            for reach in &file.reached {
-                let key = (file.path.clone(), reach.target, reach.module_path.clone());
-                // The same file, target and module path can be reached more than
-                // once (a `cfg_attr` path alternative walks an inline body again);
-                // the facts are the same, so they are indexed once.
-                if !seen.insert(key) {
-                    continue;
-                }
-                let module = builder.ensure(&reach.module_path, None);
-                let cx = Cx {
-                    file: &file.path,
-                    target: reach.target,
-                    reach_test: reach.test,
-                };
-                builder.body(&file.facts.body, module, &cx)?;
+        for visit in visits {
+            let internal =
+                |what: String| LoadError::new(&visit.file, None, LoadErrorKind::Internal { what });
+            let file = files
+                .get(&visit.file)
+                .ok_or_else(|| internal("a visited file was not loaded".to_owned()))?;
+            let reach = file
+                .reached
+                .get(visit.reach)
+                .ok_or_else(|| internal(format!("the file has no module path {}", visit.reach)))?;
+            let key = (file.path.clone(), reach.target, reach.module_path.clone());
+            // The same file, target and module path can be reached more than
+            // once (a `cfg_attr` path alternative walks an inline body again);
+            // the facts are the same, so they are indexed once.
+            if !seen.insert(key) {
+                continue;
             }
+            // A crate root is created above, and every other module by the
+            // declaration that names it, which the walk reached first.
+            let module = *builder
+                .index
+                .module_by_path
+                .get(&reach.module_path)
+                .ok_or_else(|| {
+                    internal(format!(
+                        "the module `{}` was reached before the declaration that names it",
+                        reach.module_path
+                    ))
+                })?;
+            let cx = Cx {
+                file: &file.path,
+                target: reach.target,
+                reach_test: reach.test,
+            };
+            builder.body(&file.facts.body, module, &cx)?;
         }
         let mut index = builder.index;
         index.add_roots(files)?;
@@ -709,13 +728,8 @@ mod tests {
     use crate::tree::MemoryTree;
     use crate::workspace::Workspace;
 
-    #[test]
-    fn a_target_whose_root_file_is_missing_is_a_typed_internal_error() {
-        let tree = MemoryTree::from([
-            ("Cargo.toml", "[package]\nname = \"demo\"\n"),
-            ("src/lib.rs", ""),
-        ]);
-        let ws = Workspace::load(&tree, &["."]).expect("loads");
+    /// The targets and files of a loaded workspace, as the index takes them.
+    fn parts(ws: &Workspace) -> (Vec<Target>, BTreeMap<RelPath, SourceFile>) {
         let targets: Vec<Target> = ws.targets().cloned().collect();
         let files: BTreeMap<RelPath, SourceFile> = ws
             .files()
@@ -734,13 +748,76 @@ mod tests {
                 )
             })
             .collect();
+        (targets, files)
+    }
+
+    fn visit(file: &str) -> Visit {
+        Visit {
+            file: RelPath::new(file).expect("path"),
+            reach: 0,
+        }
+    }
+
+    #[test]
+    fn a_target_whose_root_file_is_missing_is_a_typed_internal_error() {
+        let tree = MemoryTree::from([
+            ("Cargo.toml", "[package]\nname = \"demo\"\n"),
+            ("src/lib.rs", ""),
+        ]);
+        let ws = Workspace::load(&tree, &["."]).expect("loads");
+        let (targets, files) = parts(&ws);
         let infos = BTreeMap::new();
-        assert!(Index::build(&targets, &files, &infos).is_ok());
-        let error = Index::build(&targets, &BTreeMap::new(), &infos).expect_err("no root file");
+        assert!(Index::build(&targets, &files, &[visit("src/lib.rs")], &infos).is_ok());
+        let error =
+            Index::build(&targets, &BTreeMap::new(), &[], &infos).expect_err("no root file");
         assert!(
             matches!(error.kind, LoadErrorKind::Internal { .. }),
             "{error}"
         );
         assert_eq!(error.file.as_str(), "src/lib.rs");
+    }
+
+    #[test]
+    fn a_module_file_visited_before_the_declaration_that_names_it_is_an_internal_error() {
+        let tree = MemoryTree::from([
+            ("Cargo.toml", "[package]\nname = \"demo\"\n"),
+            ("src/lib.rs", "pub mod a;\n"),
+            ("src/a/mod.rs", "pub mod b;\n"),
+            ("src/a/b.rs", "pub fn in_b() {}\n"),
+        ]);
+        let ws = Workspace::load(&tree, &["."]).expect("loads");
+        let (targets, files) = parts(&ws);
+        let infos = BTreeMap::new();
+        // The order of the walk builds the index.
+        let walked = [
+            visit("src/lib.rs"),
+            visit("src/a/mod.rs"),
+            visit("src/a/b.rs"),
+        ];
+        let index = Index::build(&targets, &files, &walked, &infos).expect("walk order");
+        let paths: Vec<&str> = index.items.iter().map(|item| item.path.as_str()).collect();
+        assert!(paths.contains(&"demo::a::b::in_b"), "{paths:?}");
+        // The order of the file names reaches `b` before `a` declares it.
+        let sorted: Vec<Visit> = files.keys().map(|path| visit(path.as_str())).collect();
+        let error = Index::build(&targets, &files, &sorted, &infos).expect_err("name order");
+        assert!(
+            matches!(&error.kind, LoadErrorKind::Internal { what } if what.contains("`demo::a::b`")),
+            "{error}"
+        );
+        assert_eq!(error.file.as_str(), "src/a/b.rs");
+        // A visit must name a loaded file and one of its reaches.
+        for stray in [
+            visit("src/missing.rs"),
+            Visit {
+                file: RelPath::new("src/lib.rs").expect("path"),
+                reach: 1,
+            },
+        ] {
+            let error = Index::build(&targets, &files, &[stray], &infos).expect_err("stray visit");
+            assert!(
+                matches!(error.kind, LoadErrorKind::Internal { .. }),
+                "{error}"
+            );
+        }
     }
 }

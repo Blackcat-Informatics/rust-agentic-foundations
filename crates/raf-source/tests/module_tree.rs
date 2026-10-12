@@ -7,8 +7,8 @@ use std::cell::RefCell;
 use std::fmt::Write as _;
 
 use raf_source::{
-    Entry, EntryKind, LoadError, LoadErrorKind, MemoryTree, Origin, RelPath, TestRole, Tree,
-    TreeError, Workspace,
+    Entry, EntryKind, LoadError, LoadErrorKind, MemoryTree, Origin, RelPath, ResolveError,
+    TestRole, Tree, TreeError, Workspace,
 };
 
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
@@ -973,4 +973,196 @@ fn inline_modules_with_path_alternatives_are_bounded_by_the_module_path_budget()
     );
     // A shallow case walks each body three times and loads.
     assert!(load(&[("src/lib.rs", &alternatives(5))]).is_ok());
+}
+
+// --- a module file that sorts before the file that declares it ---------------
+
+/// Every loaded file with the paths of the items it defines.
+fn item_paths(ws: &Workspace) -> Vec<(String, Vec<String>)> {
+    ws.files()
+        .map(|f| {
+            let mut paths: Vec<String> = ws.items_in(&f.path).map(|i| i.path.clone()).collect();
+            paths.sort();
+            (f.path.to_string(), paths)
+        })
+        .collect()
+}
+
+/// `src/a/mod.rs` and its child `src/a/b.rs`, which sorts before it.
+const MOD_RS_CHILD: [(&str, &str); 3] = [
+    ("src/lib.rs", "pub mod a;\npub fn top() {}\n"),
+    ("src/a/mod.rs", "pub mod b;\npub fn in_a() {}\n"),
+    ("src/a/b.rs", "pub fn in_b() {}\n"),
+];
+
+#[test]
+fn a_child_file_that_sorts_before_its_mod_rs_parent_is_placed_under_its_own_path() {
+    let ws = ok(&MOD_RS_CHILD);
+    assert_eq!(
+        item_paths(&ws),
+        files(&[
+            ("src/a/b.rs", &["demo::a::b::in_b"]),
+            ("src/a/mod.rs", &["demo::a::b", "demo::a::in_a"]),
+            ("src/lib.rs", &["demo", "demo::a", "demo::top"]),
+        ])
+    );
+}
+
+#[test]
+fn a_flat_module_file_and_its_child_below_a_parent_that_sorts_first_keep_their_own_paths() {
+    // `src/d/a.rs` and `src/d/a/b.rs` both sort before `src/d/mod.rs`, which
+    // declares `a`, and before `src/lib.rs`, which declares `d`.
+    let ws = ok(&[
+        ("src/lib.rs", "pub mod d;\n"),
+        ("src/d/mod.rs", "pub mod a;\npub fn in_d() {}\n"),
+        ("src/d/a.rs", "pub mod b;\npub fn in_a() {}\n"),
+        ("src/d/a/b.rs", "pub fn in_b() {}\n"),
+    ]);
+    assert_eq!(
+        item_paths(&ws),
+        files(&[
+            ("src/d/a.rs", &["demo::d::a::b", "demo::d::a::in_a"]),
+            ("src/d/a/b.rs", &["demo::d::a::b::in_b"]),
+            ("src/d/mod.rs", &["demo::d::a", "demo::d::in_d"]),
+            ("src/lib.rs", &["demo", "demo::d"]),
+        ])
+    );
+}
+
+#[test]
+fn a_file_module_declared_inside_an_inline_module_is_placed_under_the_inline_module() {
+    // `src/a/b.rs` sorts before `src/lib.rs`, whose inline `a` declares `b`.
+    let ws = ok(&[
+        ("src/lib.rs", "pub mod a {\n    pub mod b;\n}\n"),
+        ("src/a/b.rs", "pub fn in_b() {}\n"),
+    ]);
+    assert_eq!(
+        item_paths(&ws),
+        files(&[
+            ("src/a/b.rs", &["demo::a::b::in_b"]),
+            ("src/lib.rs", &["demo", "demo::a", "demo::a::b"]),
+        ])
+    );
+}
+
+#[test]
+fn the_children_of_a_path_attribute_file_are_placed_under_its_module_whatever_their_names() {
+    // `a` and `ga` sort before `generated.rs` and `z` after it.
+    let children = ["a", "ga", "z"];
+    let mut placed = Vec::new();
+    let mut expected = Vec::new();
+    for child in children {
+        let child_file = format!("src/gen/{child}.rs");
+        let parent = format!("pub mod {child};\npub fn in_generated() {{}}\n");
+        let ws = ok(&[
+            ("src/lib.rs", "#[path = \"gen/generated.rs\"]\npub mod g;\n"),
+            ("src/gen/generated.rs", &parent),
+            (&child_file, "pub struct Thing;\n"),
+        ]);
+        let file = ws
+            .file(&RelPath::new(&child_file).expect("path"))
+            .expect("loaded");
+        let modules: Vec<String> = file.reached.iter().map(|r| r.module_path.clone()).collect();
+        let thing = format!("demo::g::{child}::Thing");
+        placed.push((
+            child,
+            item_paths(&ws),
+            modules,
+            ws.resolve(&thing).map(|r| r.path),
+        ));
+        let mut in_generated = vec![
+            format!("demo::g::{child}"),
+            "demo::g::in_generated".to_owned(),
+        ];
+        in_generated.sort();
+        let mut files = vec![
+            (child_file.clone(), vec![thing.clone()]),
+            ("src/gen/generated.rs".to_owned(), in_generated),
+            (
+                "src/lib.rs".to_owned(),
+                vec!["demo".to_owned(), "demo::g".to_owned()],
+            ),
+        ];
+        files.sort();
+        expected.push((child, files, vec![format!("demo::g::{child}")], Ok(thing)));
+    }
+    assert_eq!(placed, expected);
+}
+
+#[test]
+fn a_shared_test_module_reached_from_a_target_that_sorts_after_it_keeps_its_own_paths() {
+    let ws = ok(&[
+        ("src/lib.rs", ""),
+        (
+            "tests/zz.rs",
+            "mod common;\n#[test]\nfn case() {\n    common::helper();\n    common::a::in_common_a();\n}\n",
+        ),
+        ("tests/common/mod.rs", "pub mod a;\npub fn helper() {}\n"),
+        ("tests/common/a.rs", "pub fn in_common_a() {}\n"),
+    ]);
+    assert_eq!(
+        item_paths(&ws),
+        files(&[
+            ("src/lib.rs", &["demo"]),
+            (
+                "tests/common/a.rs",
+                &["demo::test_crate::zz::common::a::in_common_a"]
+            ),
+            (
+                "tests/common/mod.rs",
+                &[
+                    "demo::test_crate::zz::common::a",
+                    "demo::test_crate::zz::common::helper",
+                ]
+            ),
+            (
+                "tests/zz.rs",
+                &[
+                    "demo::test_crate::zz",
+                    "demo::test_crate::zz::case",
+                    "demo::test_crate::zz::common",
+                ]
+            ),
+        ])
+    );
+    assert!(matches!(
+        ws.resolve("demo::test_crate::zz::common::in_common_a"),
+        Err(ResolveError::NotFound(_))
+    ));
+}
+
+#[test]
+fn super_super_from_a_child_that_sorts_before_its_parent_climbs_to_the_crate_root() {
+    let ws = ok(&[
+        ("src/lib.rs", "pub mod a;\npub fn top() {}\n"),
+        ("src/a/mod.rs", "pub mod b;\npub fn in_a() {}\n"),
+        (
+            "src/a/b.rs",
+            "pub use super::super::top as again;\npub use super::in_a as sibling;\npub fn in_b() {\n    super::super::top();\n}\n",
+        ),
+    ]);
+    assert_eq!(
+        ws.resolve("demo::a::b::again").map(|r| r.path),
+        Ok("demo::top".to_owned())
+    );
+    assert_eq!(
+        ws.resolve("demo::a::b::sibling").map(|r| r.path),
+        Ok("demo::a::in_a".to_owned())
+    );
+}
+
+#[test]
+fn an_item_is_found_only_under_its_own_module_path() {
+    let ws = ok(&MOD_RS_CHILD);
+    assert_eq!(
+        ws.resolve("demo::a::b::in_b").map(|r| r.path),
+        Ok("demo::a::b::in_b".to_owned())
+    );
+    for missing in ["demo::a::in_b", "demo::a::b::in_a"] {
+        assert_eq!(
+            ws.resolve(missing).map(|r| r.path),
+            Err(ResolveError::NotFound(missing.to_owned())),
+            "{missing}"
+        );
+    }
 }

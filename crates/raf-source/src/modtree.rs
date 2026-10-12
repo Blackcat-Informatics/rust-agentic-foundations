@@ -126,10 +126,24 @@ pub(crate) struct Visited {
     pub(crate) reached: Vec<Reach>,
 }
 
+/// One arrival of the walk at a file: the file and the position of the
+/// [`Reach`] it recorded in the file's list.
+///
+/// The walk records a file's arrival before it follows the file's own module
+/// declarations, so in the order of arrivals the file that declares a module
+/// always comes before the module's own file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Visit {
+    pub(crate) file: RelPath,
+    pub(crate) reach: usize,
+}
+
 pub(crate) struct Walker<'a> {
     tree: &'a dyn Tree,
     options: &'a LoadOptions,
     files: BTreeMap<RelPath, Visited>,
+    /// Every arrival, in the order of the walk.
+    visits: Vec<Visit>,
     active: Vec<RelPath>,
     /// Module paths recorded so far, over all targets.
     arrivals: usize,
@@ -141,14 +155,16 @@ impl<'a> Walker<'a> {
             tree,
             options,
             files: BTreeMap::new(),
+            visits: Vec::new(),
             active: Vec::new(),
             arrivals: 0,
         }
     }
 
-    /// The parsed files and how each was reached.
-    pub(crate) fn finish(self) -> BTreeMap<RelPath, Visited> {
-        self.files
+    /// The parsed files and how each was reached, and every arrival in the
+    /// order of the walk.
+    pub(crate) fn finish(self) -> (BTreeMap<RelPath, Visited>, Vec<Visit>) {
+        (self.files, self.visits)
     }
 
     /// Follow a target from its root file.
@@ -182,6 +198,10 @@ impl<'a> Walker<'a> {
     ) -> Result<Rc<Parsed>, LoadError> {
         match self.files.entry(path.clone()) {
             Entry::Occupied(mut known) => {
+                self.visits.push(Visit {
+                    file: path.clone(),
+                    reach: known.get().reached.len(),
+                });
                 known.get_mut().reached.push(reach);
                 Ok(Rc::clone(&known.get().parsed))
             }
@@ -200,6 +220,10 @@ impl<'a> Walker<'a> {
                     .map_err(|error| error.reached_by(origin))?
                     .map_err(|problem| extract_error(path, origin, problem))?;
                 let parsed = Rc::new(Parsed { text, facts });
+                self.visits.push(Visit {
+                    file: path.clone(),
+                    reach: 0,
+                });
                 slot.insert(Visited {
                     parsed: Rc::clone(&parsed),
                     reached: vec![reach],

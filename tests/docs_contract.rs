@@ -2992,7 +2992,7 @@ fn reads_an_attribute_value_that_starts_on_the_next_line() {
 
 // --- bindings ---------------------------------------------------------------
 
-const DEMO_LIB: &str = "macro_rules! make {\n    ($name:ident) => {\n        pub fn $name() {}\n    };\n}\nmake!(generated);\npub fn real() {}\n";
+const DEMO_LIB: &str = "macro_rules! make {\n    ($name:ident) => {\n        pub fn $name() {}\n    };\n}\nmake!(generated);\npub fn real() {}\nmod body;\n";
 
 fn demo_workspace() -> Workspace {
     let tree = MemoryTree::from([
@@ -3001,6 +3001,9 @@ fn demo_workspace() -> Workspace {
             "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
         ),
         ("src/lib.rs", DEMO_LIB),
+        // `blocks.rs` sorts before `mod.rs`, which declares it, as in raf-okf.
+        ("src/body/mod.rs", "mod blocks;\npub fn in_body() {}\n"),
+        ("src/body/blocks.rs", "pub(crate) struct FenceBlock;\n"),
         ("tests/it.rs", "fn case() {}\n"),
     ]);
     Workspace::load(&tree, &["."]).expect("the demo workspace loads")
@@ -3050,6 +3053,25 @@ fn a_binding_to_a_macro_generated_function_is_not_found() {
         &violations,
         "cap:gamma code binding `demo::generated` does not resolve: `demo::generated` names nothing in the workspace",
     );
+}
+
+#[test]
+fn a_binding_to_an_item_under_the_module_that_declares_its_file_is_not_found() {
+    let violations = binding_violations(
+        "[demo::body::FenceBlock]",
+        "[demo::test_crate::it::case]",
+        "[]",
+    );
+    assert_eq!(violations.len(), 1, "{violations:#?}");
+    assert_hit(
+        &violations,
+        "cap:gamma code binding `demo::body::FenceBlock` does not resolve: `demo::body::FenceBlock` names nothing in the workspace",
+    );
+    assert_clean(&binding_violations(
+        "[demo::body::blocks::FenceBlock, demo::body::in_body]",
+        "[demo::test_crate::it::case]",
+        "[]",
+    ));
 }
 
 #[test]
