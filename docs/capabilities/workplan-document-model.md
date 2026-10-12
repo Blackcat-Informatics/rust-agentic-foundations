@@ -43,9 +43,10 @@ document and the change records may say.
 | `implementing` | The same contract with real code and test bindings and the remaining gaps | An open record lists it |
 | `delivered` | The supported contract, usage, examples, limitations, current rationale and verification links | No open record lists it |
 
-A change to a delivered capability puts the capability back under an open record: the
-current account stays as written, and the proposed text sits beside it in PROPOSED
-blocks. Everything that moves a capability between states is a change.
+A change to a delivered capability puts the capability back under an open record,
+which moves it to `implementing`: the current account stays as written, and the
+proposed text sits beside it in PROPOSED blocks. Everything that moves a capability
+between states is a change.
 
 **PROPOSED blocks.** Text that a change proposes is written into the capability
 document, marked as a block quote whose first line names the change:
@@ -135,8 +136,9 @@ lifecycle ([command line](./workplan-cli.md)).
 
 ## Examples
 
-A change to a delivered capability, shown as the capability document reads while the
-change is open. The note before the quote is plain text; the quote is the proposal.
+A change to a delivered capability, shown as the capability document, in state
+`implementing`, reads while the change is open. The note before the quote is plain
+text; the quote is the proposal.
 
 ```markdown
 ## Contract

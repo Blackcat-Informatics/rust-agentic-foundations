@@ -16,6 +16,7 @@ affects:
 contract_effect: changes
 items:
   - claim: "migrate maps each old fingerprint to its member symbols and then to the normal form 1 fingerprint."
+  - claim: "migrate also reads a current-format ledger at an older normal_form, with the baseline report that version wrote, and rewrites it at the implemented normal_form."
   - claim: "The output is a ledger in the unified schema with dialect fields in job.ext."
   - claim: "Rows that cannot be mapped are listed and kept as comments in the output."
   - claim: "The old ledger and baseline are never modified."

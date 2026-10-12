@@ -39,12 +39,12 @@ its own: each subcommand calls `raf-census`. The command registers no `Rule` and
 | `count <ID>` | Prints the copy count of one job as a single integer. |
 | `fingerprint <SYM>` | Prints the fingerprints of one function symbol: its `body` and its `shim`. |
 | `debt --write` | Rewrites `census-debt.json` to the present debt, for a ledger that needs no registered code (see [census-debt-ratchet](./census-debt-ratchet.md)). |
-| `migrate --old-baseline <FILE> --ledger <FILE> --out <FILE>` | Migrates a legacy baseline and ledger to a new ledger at `--out`, which is required (see [census-migration](./census-migration.md)). |
+| `migrate --old-baseline <FILE> --ledger <FILE> --out <FILE>` | Migrates a legacy baseline and ledger, or a ledger at an older `normal_form`, to a new ledger at `--out`, which is required (see [census-migration](./census-migration.md)). |
 | `dump-ledger` | Prints the parsed ledger. |
 
 Common options are `--root DIR` (default: the current workspace) and `--ledger FILE`
 (default: `helpers-ledger.toml` under the root). The `--ledger` default does not apply
-to `migrate`, whose `--ledger` names the legacy ledger to read and has no default.
+to `migrate`, whose `--ledger` names the ledger to migrate and has no default.
 
 `check` and `debt --write` run only ledgers that need no registered code. The CLI
 exits 2, with a message that names `Gate::write_debt` and `Gate::assert_clean`, when:
@@ -140,7 +140,7 @@ errors lets a script tell "the repository is dirty" from "the invocation is wron
 - A test shows `check` and `debt --write` exit 2, with a message that names the Gate
   path, on a ledger with a non-empty `[job.ext]` and on a ledger that forbids an
   unregistered `rule:` id, and that `debt --write` writes nothing in either case.
-- A test shows `migrate` reads the legacy ledger from its `--ledger` argument and
+- A test shows `migrate` reads the ledger to migrate from its `--ledger` argument and
   that the common `--ledger` default is not applied to it.
 - A test shows `baseline --json PATH` writes a file equal to the baseline report of
   [census-normal-form](./census-normal-form.md).

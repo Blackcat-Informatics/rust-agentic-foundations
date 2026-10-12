@@ -157,10 +157,10 @@ Each block is opened once, closed once and never nested.
 - A relative link resolves inside the repository root. The checker joins the link to
   the linking file's directory and normalises it against the canonical repository
   root. A target that leaves the root, by `..` segments or an absolute path, is a
-  violation, and the target is neither opened nor stat'ed, so a link cannot probe
-  or read a file outside the repository. A target inside the root is looked up in
-  the set of repository file paths that the walk collected, and the walk skips
-  symlinks and non-regular files, so a symlink cannot lead a link outside the root.
+  violation, and the target is neither opened nor stat'ed, so a link cannot probe or
+  read a file outside the repository. A target inside the root is looked up in the
+  list of tracked paths (the Git index), and a link whose target is a tracked symlink
+  is a violation, so a symlink cannot lead a link outside the root.
 - A committed file holds no issue or pull request number and no wording that
   refers to how the work was planned or organised. The account describes the
   system as it is.

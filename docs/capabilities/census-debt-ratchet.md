@@ -65,17 +65,19 @@ Shrinkage fails until it is re-recorded:
 
 The message names `cargo census debt --write` and `Gate::write_debt` as the ways to
 lower the record. The write rewrites `census-debt.json` to exactly the debt the
-workspace carries now. Recorded debt never carries slack: the record always equals
-the present debt. The one case where `debt --write` records a debt that has no
-earlier record is a workspace with no `census-debt.json`, where the write creates
-the file from the present debt, which is how a repository adopts the ratchet.
+workspace carries now. Recorded debt never carries slack: the record always equals the
+present debt. Two cases let `debt --write` record a debt that has no earlier record. A
+workspace with no `census-debt.json` has the file created from the present debt, which
+is how a repository adopts the ratchet. A file whose `normal_form` differs from the
+implemented version is replaced by the present debt, as the bump path below states.
 
-A missing `census-debt.json` records no debt, so every existing group is growth
-until the file is created. A file whose `normal_form` differs from the implemented
-version fails hard. The bump path: after a `normal_form` bump, `cargo census
-migrate` rebuilds the ledger (see [census-migration](./census-migration.md)), and the
-write, which refuses while any non-debt finding exists, replaces the record whose
-`normal_form` differs with the present debt. The check itself keeps failing hard until that write has run.
+A missing `census-debt.json` records no debt, so every existing group is growth until
+the file is created. A file whose `normal_form` differs from the implemented version
+fails hard. The bump path: after a `normal_form` bump, `cargo census migrate`, given
+the baseline report written before the upgrade, rebuilds the ledger (see
+[census-migration](./census-migration.md)), and the write, which refuses while any
+non-debt finding exists, replaces the record whose `normal_form` differs with the
+present debt. The check itself keeps failing hard until that write has run.
 
 The write computes the record from the present workspace, so deleting
 `census-debt.json` and writing again records any growth. The control is review: every

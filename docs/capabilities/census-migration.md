@@ -4,7 +4,7 @@
 type: Capability
 id: cap:census-migration
 title: "Census migration"
-description: "Move a legacy census baseline and ledger to normal form 1 and the unified ledger schema."
+description: "Move a legacy census baseline and ledger, or a ledger at an older normal form, to the implemented normal form and the unified ledger schema."
 state: designed
 bindings:
   code: []
@@ -17,24 +17,30 @@ depends: [cap:census-normal-form, cap:census-ledger]
 
 ## Purpose
 
-Repositories that ran an earlier census hold ledgers whose fingerprints are
-meaningless under normal form 1. Migration rebuilds those ledgers: it carries every
-row to the new fingerprints and the unified schema, and it states what it could not
-carry. A repository adopts the shared census without re-deriving its ledger by hand.
+Repositories that ran an earlier census, or an earlier normal form, hold ledgers whose
+fingerprints are meaningless under the implemented normal form. Migration rebuilds
+those ledgers: it carries every row to the new fingerprints and the unified schema,
+and it states what it could not carry. A repository adopts the shared census without
+re-deriving its ledger by hand.
 
 ## Contract
 
 `cargo census migrate --old-baseline <clone-baseline.json> --ledger <old.toml> --out <new.toml>`
-reads a legacy baseline and a legacy ledger and writes a ledger in the unified
-schema to the path given by `--out`, which is required; omitting it is a usage error (see [census-ledger](./census-ledger.md)).
+reads a baseline and a ledger and writes a ledger in the unified schema, at the
+implemented `normal_form`, to the path given by `--out`, which is required; omitting
+it is a usage error (see [census-ledger](./census-ledger.md)). The ledger is one of
+two kinds: a legacy ledger of an earlier census copy, or a ledger in the current
+format whose `normal_form` is older than the implemented version. The baseline is
+the one that matches the ledger: the legacy baseline, or the report that
+`cargo census baseline --json` wrote under the older `normal_form`.
 
 - The old baseline maps each old fingerprint to the member symbols of its group.
 - For each old fingerprint named in the old ledger, the command finds the member
-  symbols in the current source, computes their normal form 1 fingerprint, and
-  writes that fingerprint in place of the old one. When the members disagree on the
-  new fingerprint, it writes one fingerprint per distinct value.
-- The output sets `normal_form = 1`, keeps `min_tokens`, `roots` and the job and
-  variant rows, and writes the unified key names.
+  symbols in the current source, computes their fingerprint at the implemented
+  `normal_form`, and writes that fingerprint in place of the old one. When the members
+  disagree on the new fingerprint, it writes one fingerprint per distinct value.
+- The output sets `normal_form` to the implemented version, keeps `min_tokens`,
+  `roots` and the job and variant rows, and writes the unified key names.
 - Fields that belong to a dialect, such as specifications, vectors, benchmarks,
   owners and dispositions, are written into `[job.ext]`.
 - The command lists every row it could not map, with the reason: the baseline has no
@@ -52,6 +58,13 @@ schema to the path given by `--out`, which is required; omitting it is a usage e
 cargo census migrate --old-baseline clone-baseline.json --ledger old.toml --out helpers-ledger.toml
 ```
 
+A current-format ledger at an older `normal_form` is migrated the same way, with the
+baseline report written before the upgrade:
+
+```text
+cargo census migrate --old-baseline baseline-before-upgrade.json --ledger census.toml --out census-new.toml
+```
+
 After migration, a ledger with no `[job.ext]` content and no repository rule runs
 `cargo census check`, which validates the new ledger, and
 `cargo census debt --write` to record the debt that remains (see
@@ -67,8 +80,9 @@ cargo test --test census
 cargo xtask census-debt
 ```
 
-At a `normal_form` bump, run `cargo census migrate` on the ledger, then the census
-xtask write (`cargo xtask census-debt`), which replaces the old debt record (see
+At a `normal_form` bump, run `cargo census migrate` on the ledger with the baseline
+report written before the upgrade, then the census xtask write
+(`cargo xtask census-debt`), which replaces the old debt record (see
 [census-debt-ratchet](./census-debt-ratchet.md)).
 
 ## Examples
@@ -111,18 +125,23 @@ unmapped: job iri-parse fingerprint body:aa11bb22cc33dd44: no member symbol reso
 
 ## Constraints
 
-- Migration needs the legacy baseline that lists each fingerprint's members. A
-  ledger fingerprint absent from the baseline cannot be mapped.
+- Migration needs the baseline that lists each fingerprint's members: the legacy
+  baseline, or the report the older version wrote. A ledger fingerprint absent from
+  the baseline cannot be mapped.
 - Migration reads the current source, so a row whose members were renamed or removed
   since the baseline is reported as unmapped.
 - The output requires a person to write the `summary` of any row the old ledger did
   not state; the command writes an empty string and the ledger check does not accept
   an empty summary until it is filled in.
-- The legacy ledger and baseline are read with the bounds of
+- The input ledger and baseline are read with the bounds of
   [census-ledger](./census-ledger.md): at most 1 MiB each and 32 levels of nesting,
   with a larger or deeper input refused as a typed error that names the file.
-- The command knows the legacy ledger layouts of the earlier census copies and
-  rejects any other layout with a usage error.
+- The command knows the legacy ledger layouts of the earlier census copies and the
+  current layout at an older `normal_form`, and rejects any other layout with a usage
+  error. A current-layout ledger already at the implemented `normal_form` is rejected
+  as a usage error: there is nothing to migrate.
+- A current-format ledger at an older `normal_form` needs the baseline report that the
+  older version wrote; without it, no fingerprint can be mapped.
 
 ## Explanation
 
@@ -136,6 +155,10 @@ silently disappears is a rule that silently stops running.
 
 - A fixture legacy baseline and ledger migrate to an expected unified ledger, byte
   for byte.
+- A fixture current-format ledger at an older `normal_form`, with the baseline report
+  that version wrote, migrates to an expected ledger at the implemented `normal_form`,
+  byte for byte, and a current-format ledger already at the implemented `normal_form`
+  exits 2.
 - The mapped fingerprints equal the fingerprints that `cargo census fingerprint`
   reports for the member symbols.
 - A row whose fingerprint is absent from the baseline, and a row whose members no

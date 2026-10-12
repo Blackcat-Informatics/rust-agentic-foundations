@@ -37,10 +37,10 @@ and pull requests are welcome.
   makes a gate fail on RAF itself does not merge, and gates are never relaxed to
   get a change through.
 - **The workplan completion gate.** A change is complete only when the capability
-  documents state the delivered contract: no proposed block remains, every item has
-  an outcome (`implemented`, `dropped`, or `moved` to another tracked change), the
-  generated sections are in sync, and the bound tests pass. The change record is
-  then deleted; Git keeps the history.
+  documents state the delivered contract: no proposed block remains, every item has an
+  outcome (`implemented`, `dropped`, or `moved` to another tracked change), the
+  generated sections are in sync, and the bound tests and examples pass. The change
+  record is then deleted; Git keeps the history.
 - **Every rule has a negative fixture.** A detector, schema rule or check without an
   input that makes it fail is not enforced.
 - **Rust first.** Checks, generators, gates and tests are written in Rust. The

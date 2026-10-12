@@ -89,7 +89,7 @@ reported as an unresolved binding and is not passed to `cargo`:
 - `<item-path>`: the `<name>` pattern, widened so that an impl item written by rustdoc as `Wrapper<T>::get` can be bound. Each `::`-separated segment is `[A-Za-z_][A-Za-z0-9_]*` followed by an optional generic argument list matching `<[A-Za-z0-9_,':&]*>`, with no whitespace, and the filter never begins with `-`;
 - the names in the list output, which the gate parses and never places on a command line, have the form `<relative-source-path> - <item-path> (line <n>)`, where `<relative-source-path>` matches `[A-Za-z0-9_][A-Za-z0-9_./-]*`.
 
-**Proof that the test ran.** Exit status 0 from `cargo test` is not proof, because
+**Proof that the test ran (test bindings).** Exit status 0 from `cargo test` is not proof, because
 libtest reports success when a filter matches nothing. A test binding counts as passed
 only when the list pass shows exactly one `<name>: test` entry (an `#[ignore]`d test
 is listed as a test, so the run pass must also report it ran) and the run pass reports
@@ -159,9 +159,11 @@ cap:streaming-parser  examples  example-failing  examples/chunked.rs does not bu
 ## Constraints
 
 - `complete` runs only bindings that resolve in the source index and match their
-  patterns, and counts a binding as passed only when it proved that exactly one test
-  ran; it never passes document text to `cargo` as a shell string or as an
-  option.
+  patterns, and counts a binding as passed only by the proof its kind requires: for a
+  test binding, that exactly one test ran; for a doc-test binding, that every doc test
+  the list pass selected reported `... ok`; for an example binding, that the example
+  exited with status 0 within the timeout. It never passes document text to `cargo` as
+  a shell string or as an option.
 - `complete` runs the bound tests and examples with `cargo`, so a repository whose
   tests or examples cannot compile cannot complete a change.
 - A capability with empty `bindings.tests` and `bindings.examples` lists satisfies

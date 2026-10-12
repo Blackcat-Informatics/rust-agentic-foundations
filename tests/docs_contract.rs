@@ -20,6 +20,11 @@ use support::{banned_in_line, decode_text, gate_root, read_regular, read_tracked
 /// A repository held in memory: relative path to file contents.
 type Repo = BTreeMap<PathBuf, String>;
 
+/// The text recorded for a tracked symlink. A NUL byte cannot occur in decoded
+/// text, so it never collides with a real file; a link whose target holds it is
+/// refused.
+const SYMLINK_TEXT: &str = "\0symlink";
+
 const SECTIONS: [&str; 7] = [
     "Purpose",
     "Contract",
@@ -1361,6 +1366,13 @@ fn check_links(repo: &Repo, path: &Path, text: &str, out: &mut Vec<String>) {
                 ));
                 continue;
             }
+            if repo.get(&resolved).is_some_and(|text| text == SYMLINK_TEXT) {
+                out.push(violation(
+                    path,
+                    format!("line {number}: link `{target}` targets a tracked symlink"),
+                ));
+                continue;
+            }
             let is_markdown = resolved.extension().is_some_and(|e| e == "md");
             if let (Some(anchor), Some(content), true) = (
                 anchor.filter(|a| !a.is_empty()),
@@ -1772,13 +1784,48 @@ fn document_types(repo: &Repo) -> BTreeMap<String, usize> {
 // Loader
 // ---------------------------------------------------------------------------
 
+/// Every tracked path whose git mode is a symlink (`120000`), relative and sorted.
+///
+/// # Panics
+///
+/// Panics when `git` cannot run or exits unsuccessfully.
+fn tracked_symlinks() -> Vec<PathBuf> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(env!("CARGO_MANIFEST_DIR"))
+        .args(["ls-files", "-s", "-z"])
+        .output()
+        .unwrap_or_else(|e| panic!("cannot run `git ls-files -s -z`: {e}"));
+    assert!(
+        output.status.success(),
+        "`git ls-files -s -z` failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let mut paths: Vec<PathBuf> = output
+        .stdout
+        .split(|b| *b == 0)
+        .filter_map(|entry| {
+            // Each entry is `<mode> <object> <stage>\t<path>`.
+            let text = std::str::from_utf8(entry).ok()?;
+            let (meta, path) = text.split_once('\t')?;
+            meta.starts_with("120000 ").then(|| PathBuf::from(path))
+        })
+        .collect();
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
 /// Load the real tree from the git index, read under the gate root: every
 /// tracked path (for link targets) and the text of every Markdown file.
 fn load_repo(root: &Path) -> Repo {
+    let symlinks = tracked_symlinks();
     tracked_paths()
         .into_iter()
         .map(|path| {
-            let text = if path.extension().is_some_and(|e| e == "md") {
+            let text = if symlinks.contains(&path) {
+                SYMLINK_TEXT.to_string()
+            } else if path.extension().is_some_and(|e| e == "md") {
                 let bytes = read_tracked(root, &path);
                 decode_text(&bytes)
                     .unwrap_or_else(|| panic!("{} is not UTF-8 text", path.display()))
@@ -2099,6 +2146,23 @@ fn rejects_broken_relative_link() {
 fn rejects_broken_anchor() {
     let violations = mutated("README.md", "alpha.md#purpose", "alpha.md#no-such-heading");
     assert_hit(&violations, "broken anchor");
+}
+
+#[test]
+fn rejects_link_to_a_tracked_symlink() {
+    let mut repo = valid();
+    repo.insert(
+        PathBuf::from("docs/outside-link.svg"),
+        SYMLINK_TEXT.to_string(),
+    );
+    repo.insert(
+        PathBuf::from(".github/PULL_REQUEST_TEMPLATE.md"),
+        "# Template\n\n![x](../docs/outside-link.svg)\n".to_string(),
+    );
+    assert_hit(
+        &check(&repo),
+        "link `../docs/outside-link.svg` targets a tracked symlink",
+    );
 }
 
 #[test]

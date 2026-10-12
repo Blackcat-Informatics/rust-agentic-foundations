@@ -48,15 +48,16 @@ The census ships 14 built-in detectors. Each reports hits as `rule:<id>`, where
 
 The detectors that read a job's home (`home-literal`, `sole-name`,
 `vocabulary-literal`) apply only to jobs that name them in `forbidden`. The census
-walks shipping code and every test, bench and example target. The `Reads` column of the table
-names what each detector reads: `shipping` for shipping code only, and `all` for
-shipping code and every test, bench and example target. The nine `shipping`
+walks shipping code and every test, bench and example target. The `Reads` column of
+the table names what each detector reads: `shipping` for shipping code only, and `all`
+for shipping code and every test, bench and example target. The nine `shipping`
 detectors are `hex-digit-radix`, `json-pointer-escape`, `length-prefix-frame`,
 `le-slice-int`, `align-up-mask`, `div-ceil-by-hand`, `xor-first-mismatch`,
 `home-literal` and `vocabulary-literal`; each marks itself so in its report. The five
 `all` detectors are `std-default-hasher`, `hex-format-loop`, `hex-pair-radix`,
-`hex-table` and `sole-name`. A detector never reports a hit
-inside the home package of the job that forbids it.
+`hex-table` and `sole-name`. Apart from `sole-name`, which exists to report a function
+inside the home crate, a detector never reports a hit inside the home package of the
+job that forbids it.
 
 Every detector ships two fixtures: a positive fixture it flags, and a negative
 fixture that looks similar and that it leaves alone.
@@ -134,8 +135,10 @@ add exemptions.
 - Each detector has a positive fixture that yields exactly one hit with the right
   `rule:<id>`, and a negative fixture that yields none.
 - A test fails for any registered detector that lacks either fixture.
-- A fixture shows a detector hit is not reported inside the home package of the job
-  that forbids it.
+- A fixture shows that a detector other than `sole-name` reports no hit inside the
+  home package of the job that forbids it.
+- A fixture shows `sole-name` reports a matching function inside the home crate that
+  is neither the home item nor an entry point, and reports neither of those two.
 - A fixture per `shipping` detector shows it flags a positive source in shipping
   code and is silent on the same source in a test target, and a fixture per `all`
   detector shows it flags a positive source in both.

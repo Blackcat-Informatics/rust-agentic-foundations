@@ -134,9 +134,10 @@ value, literal tier, shim, and macro arguments.
 
 ## Compatibility
 
-A ledger names the version it was written for with `normal_form`. If the value
-differs from the version the census implements, the census fails hard before
-reading any job. The message states the ledger's version and the census's version
-and tells the user to run `cargo census migrate`, which maps the old fingerprints to
-the new ones. The census never reads a ledger under a different version, and never
-guesses at a mapping.
+A ledger names the version it was written for with `normal_form`. If the value differs
+from the version the census implements, the census fails hard before reading any job.
+The message states the ledger's version and the census's version and tells the user to
+run `cargo census migrate`, which maps the old fingerprints to the new ones. The
+census never reads a ledger under a different version, and never guesses at a mapping;
+`migrate` is the one reader of an older-version ledger, and it rewrites the ledger at
+the implemented version.
