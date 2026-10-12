@@ -39,8 +39,10 @@ are implemented.
 | Change | `work/changes` | `type`, `id`, `title`, `description`, `changes`, `affects`, `contract_effect`, `items` |
 | Architecture | `docs/architecture` | `type`, `id`, `title`, `description` |
 
-`docs/capabilities` holds only Capability documents and has no hand-written
-index. Every document sits directly in its directory.
+`docs/capabilities` holds only Capability documents, with one exception: the
+generated catalogue `docs/capabilities/index.md`. It has no frontmatter and carries
+only generated blocks written by `docs sync`. A hand-written index is not allowed.
+Every document sits directly in its directory.
 
 ## Value rules
 
