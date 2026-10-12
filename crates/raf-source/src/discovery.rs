@@ -3,15 +3,19 @@
 
 //! Package discovery under explicit roots.
 //!
-//! The walk recurses through directories that are not packages. It stops at a
-//! `[package]` manifest that has no `[workspace]` table, so a fixture package
-//! nested below another is not found. It skips directories named `target` and
-//! dot-directories, and a symlinked directory is an error.
+//! The walk descends through directories that are not packages, with an
+//! explicit stack and at most [`Budget::DirectoryDepth`] levels below a root.
+//! It stops at a `[package]` manifest that has no `[workspace]` table, so a
+//! fixture package nested below another is not found. It skips directories
+//! named `target` and dot-directories, and a symlinked directory is an error.
 
 use std::collections::BTreeMap;
 
+#[cfg(doc)]
+use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
 use crate::manifest::{self, Manifest};
+use crate::meter::Meter;
 use crate::path::RelPath;
 use crate::target::Package;
 use crate::tree::{EntryKind, Tree};
@@ -24,8 +28,17 @@ pub(crate) struct Found {
 
 struct Walk<'a> {
     tree: &'a dyn Tree,
-    max_file_bytes: u64,
+    meter: &'a Meter,
     found: BTreeMap<RelPath, Found>,
+    /// The manifest of each package name found so far.
+    names: BTreeMap<String, RelPath>,
+}
+
+/// A step of the walk: a directory and its depth below the root, or a
+/// symlink to classify.
+enum Step {
+    Dir(RelPath, usize),
+    Link(RelPath),
 }
 
 /// What discovery found.
@@ -84,8 +97,11 @@ impl Walk<'_> {
         }
         let text = self
             .tree
-            .read(&path, self.max_file_bytes)
+            .read(&path, self.meter.options().max_file_bytes)
             .map_err(|error| LoadError::tree(&path, None, &origin, error))?;
+        self.meter
+            .read(&path, &text)
+            .map_err(|error| error.reached_by(&origin))?;
         let parsed = manifest::parse(&text).map_err(|problem| {
             let origin = problem
                 .key
@@ -101,19 +117,23 @@ impl Walk<'_> {
         })?;
         let descend = parsed.package.is_none() || parsed.has_workspace;
         if let Some(package) = &parsed.package {
-            for other in self.found.values() {
-                if other.package.name == package.name && other.package.manifest != path {
+            match self.names.get(&package.name) {
+                Some(other) if *other != path => {
                     return Err(LoadError::new(
                         &path,
                         None,
                         LoadErrorKind::Target(Box::new(TargetProblem::DuplicatePackage {
                             name: package.name.clone(),
-                            with: other.package.manifest.clone(),
+                            with: other.clone(),
                         })),
                     )
                     .reached_by(&Origin::ManifestKey {
                         key: "package.name".to_owned(),
                     }));
+                }
+                Some(_) => {}
+                None => {
+                    self.names.insert(package.name.clone(), path.clone());
                 }
             }
             let entry = Found {
@@ -130,27 +150,43 @@ impl Walk<'_> {
         Ok(descend)
     }
 
-    fn visit(&mut self, dir: &RelPath) -> Result<(), LoadError> {
+    /// Walk the directories below `root`, depth first and in name order, on
+    /// an explicit stack.
+    fn visit(&mut self, root: &RelPath) -> Result<(), LoadError> {
         let origin = Origin::Discovery;
-        if !self.manifest(dir)? {
-            return Ok(());
-        }
-        let entries = self
-            .tree
-            .list(dir)
-            .map_err(|error| LoadError::tree(dir, None, &origin, error))?;
-        for entry in entries {
-            if skipped(&entry.name) {
+        let mut stack = vec![Step::Dir(root.clone(), 0)];
+        while let Some(step) = stack.pop() {
+            let (dir, depth) = match step {
+                Step::Dir(dir, depth) => (dir, depth),
+                Step::Link(path) => {
+                    self.symlink(&path)?;
+                    continue;
+                }
+            };
+            self.meter.directory(depth, &dir)?;
+            if !self.manifest(&dir)? {
                 continue;
             }
-            let child = dir
-                .join(&entry.name)
-                .map_err(|error| LoadError::tree(dir, None, &origin, error.into()))?;
-            match entry.kind {
-                EntryKind::Dir => self.visit(&child)?,
-                EntryKind::Symlink => self.symlink(&child)?,
-                EntryKind::File | EntryKind::Other => {}
+            let entries = self
+                .tree
+                .list(&dir)
+                .map_err(|error| LoadError::tree(&dir, None, &origin, error))?;
+            let mut steps = Vec::new();
+            for entry in entries {
+                if skipped(&entry.name) {
+                    continue;
+                }
+                let child = dir
+                    .join(&entry.name)
+                    .map_err(|error| LoadError::tree(&dir, None, &origin, error.into()))?;
+                match entry.kind {
+                    EntryKind::Dir => steps.push(Step::Dir(child, depth + 1)),
+                    EntryKind::Symlink => steps.push(Step::Link(child)),
+                    EntryKind::File | EntryKind::Other => {}
+                }
             }
+            // Reversed, so the first entry in name order comes first.
+            stack.extend(steps.into_iter().rev());
         }
         Ok(())
     }
@@ -189,16 +225,19 @@ impl Walk<'_> {
 /// # Errors
 ///
 /// Returns the first [`LoadError`]: a missing or symlinked root, an unreadable
-/// or invalid manifest, a symlinked directory, or two packages with one name.
+/// or invalid manifest, a symlinked directory, two packages with one name, a
+/// directory more than [`Budget::DirectoryDepth`] levels below its root, or a
+/// load that passes [`Budget::TotalBytes`].
 pub(crate) fn discover(
     tree: &dyn Tree,
     roots: &[RelPath],
-    max_file_bytes: u64,
+    meter: &Meter,
 ) -> Result<Discovered, LoadError> {
     let mut walk = Walk {
         tree,
-        max_file_bytes,
+        meter,
         found: BTreeMap::new(),
+        names: BTreeMap::new(),
     };
     for root in roots {
         walk.root(root)?;

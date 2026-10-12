@@ -18,6 +18,11 @@ bindings:
     - raf_source::LoadOptions
     - raf_source::Item
     - raf_source::Target
+    - raf_source::FileId
+    - raf_source::Usage
+    - raf_source::Budget
+    - raf_source::Opened
+    - raf_source::PARSE_BYTES_PER_TOKEN
   tests:
     - raf_source::test_crate::relpath::a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside
     - raf_source::test_crate::relpath::an_absolute_input_is_refused_beside_its_relative_form
@@ -76,6 +81,41 @@ bindings:
     - raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_before_a_listing_is_refused
     - raf_source::tree::disk::tests::a_missing_descriptor_link_is_an_io_failure_and_never_absence
     - raf_source::error::tests::a_spawn_error_displays_the_file_and_carries_its_cause
+    - raf_source::item::tests::an_item_record_is_at_most_two_hundred_fifty_six_bytes
+    - raf_source::facts::tests::a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines
+    - raf_source::settle::tests::a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room
+    - raf_source::test_crate::load_budgets::a_file_at_the_token_limit_parses_and_one_more_token_is_refused_naming_its_line
+    - raf_source::test_crate::load_budgets::each_costly_shape_at_the_token_limit_loads_and_one_more_token_is_refused
+    - raf_source::test_crate::load_budgets::a_doc_comment_counts_as_the_tokens_of_its_attribute_and_other_comments_count_nothing
+    - raf_source::test_crate::load_budgets::each_large_fact_payload_is_charged_and_refused_at_its_line_once_over_the_fact_budget
+    - raf_source::test_crate::load_budgets::the_fact_budget_counts_over_every_file_of_the_load
+    - raf_source::test_crate::load_budgets::index_records_at_the_item_budget_load_and_one_byte_less_is_refused
+    - raf_source::test_crate::load_budgets::a_long_module_name_is_charged_in_every_item_path_and_refused_over_the_item_budget
+    - raf_source::test_crate::load_budgets::a_file_reached_by_many_module_paths_is_charged_once_per_path_and_refused_over_the_item_budget
+    - raf_source::test_crate::load_budgets::the_bytes_read_at_the_total_budget_load_and_one_byte_less_is_refused_naming_the_file
+    - raf_source::test_crate::load_budgets::the_default_budgets_are_the_stated_limits
+    - raf_source::test_crate::load_budgets::usage_reports_what_a_load_spent
+    - raf_source::test_crate::load_budgets::a_long_alias_path_in_a_file_reached_many_times_is_held_and_charged_once
+    - raf_source::test_crate::load_budgets::a_long_extern_crate_name_in_a_file_reached_many_times_is_held_and_charged_once
+    - raf_source::test_crate::load_budgets::a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps
+    - raf_source::test_crate::load_budgets::nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep
+    - raf_source::cost::tests::a_map_of_one_entry_is_covered_by_what_a_map_costs_once
+    - raf_source::cost::tests::a_list_is_charged_at_least_its_room
+    - raf_source::cost::tests::a_hash_table_is_charged_at_least_its_buckets
+    - raf_source::test_crate::memory_tree::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen
+    - raf_source::test_crate::disk_tree_containment::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen
+    - raf_source::test_crate::walk_stack::a_memory_chain_of_twenty_thousand_directories_is_refused_typed_on_a_two_mib_thread
+    - raf_source::test_crate::walk_stack::a_directory_at_the_depth_limit_is_walked_and_one_below_it_is_refused
+    - raf_source::test_crate::walk_stack::a_member_pattern_at_the_depth_limit_expands_and_one_deeper_is_refused_typed
+    - raf_source::test_crate::walk_stack::one_hundred_twenty_eight_nested_modules_load_on_a_five_hundred_twelve_kib_thread
+    - raf_source::test_crate::walk_stack::a_disk_chain_of_directories_is_refused_typed_on_a_two_mib_thread
+    - raf_source::test_crate::workspace_containment::symlink_aliases_of_one_directory_parse_it_once
+    - raf_source::test_crate::workspace_containment::a_file_reached_through_a_directory_symlink_is_one_file_under_the_spelling_that_sorts_first
+    - raf_source::test_crate::workspace_containment::a_module_that_reaches_its_own_file_through_a_directory_symlink_is_a_cycle
+    - raf_source::test_crate::module_tree::a_file_reached_under_two_spellings_is_read_once_and_keeps_the_spelling_that_sorts_first
+    - raf_source::test_crate::memory_tree::the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses
+    - raf_source::test_crate::disk_tree_containment::the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle
+    - raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets_in_linear_time
   examples: []
 depends: []
 ---
@@ -91,30 +131,41 @@ both and cannot disagree.
 
 ## Contract
 
-**Tree.** All file access goes through the `Tree` trait, which takes `RelPath`
-values: validated root-relative `/`-separated UTF-8 paths. `RelPath::join` drops `.`
-segments and refuses an absolute input, a backslash, a NUL, a drive-letter segment
-and a `..` that climbs above the root with a typed `PathError`. A `..` below the
-root is kept, because on a disk it means the parent of the directory the earlier
-segments really reach. The trait has three calls, each returning a `Result`:
-`read(path, max_bytes)` returns the text of a file, `list(path)` returns the
-entries of a directory sorted by name, each with a kind of file, directory, symlink
-or other, and `entry(path)` returns the kind of one path or `None` when nothing is
-there. The trait is object-safe and has no `Send` or `Sync` bound. A failure is a
-`TreeError` that names the path: `NotFound`, `OutsideRoot`, `NotRegular`,
-`SymlinkLoop`, `TooLarge`, `NotUtf8`, `NonUtf8Name`, `DuplicatePath` or `Io`. Only `NotFound` means
-that nothing is there; an entry whose name is not UTF-8 fails the listing and is
-never dropped from it. `DiskTree::new(root)` returns a `Result`: it canonicalises
-the root once, a missing root is `NotFound`, and a symlinked root is followed to its
-target. `MemoryTree` holds a map of path to text, infers directories from the keys,
-and exists so that fixtures build repositories without touching the disk. It
-enforces `max_bytes` like the disk backend and refuses a key such as `../a` or `/a`
-with `OutsideRoot`, and a key that names a path another key already holds, whether
-literally or after normalisation, with `DuplicatePath`; a tree built by the infallible
-conversions from such keys returns the same error from every call. A missing `/proc`
-on Linux is an `Io` failure and never `NotFound`. `entry` returns `OutsideRoot` when
-the directory that holds the path leads outside the root. Nothing else in the crate
-opens a file.
+**Tree.** All file access goes through the `Tree` trait, which takes `RelPath` values:
+validated root-relative `/`-separated UTF-8 paths. `RelPath::join` drops `.` segments
+and refuses an absolute input, a backslash, a NUL, a drive-letter segment and a `..`
+that climbs above the root with a typed `PathError`. A `..` below the root is kept,
+because on a disk it means the parent of the directory the earlier segments really
+reach. The trait has four calls, each returning a `Result`: `read(path, max_bytes)`
+returns the text of a file; `read_unseen(path, max_bytes, seen)` opens a file once,
+takes its `FileId` from that open and reads its text from the same open unless `seen`
+accepts the identity (`identity(path)` is the same call with every identity seen);
+`list(path)` returns the entries of a directory sorted by name, each with a kind of
+file, directory, symlink or other; and `entry(path)` returns the kind of one path or
+`None` when nothing is there. Two paths have equal identities when they name one file:
+`DiskTree` takes the identity from the handle it opened and verified, its device and
+inode numbers on Unix and its canonical path below the root elsewhere, and
+`MemoryTree` uses the normalised key. A device and inode pair names one file where the
+file system keeps inode numbers unique and stable while the tree is read, as local
+file systems do; a network or user-space mount that reuses or invents them can make
+two files look like one. Because the identity and the text come from one open, no
+change to the tree can pair one file's identity with another file's text.
+`read_unseen` refuses what `read` refuses, and a file it does not read is not refused
+for its size or encoding. The trait is object-safe and has no `Send` or `Sync` bound.
+A failure is a `TreeError` that names the path: `NotFound`, `OutsideRoot`,
+`NotRegular`, `SymlinkLoop`, `TooLarge`, `NotUtf8`, `NonUtf8Name`, `DuplicatePath` or
+`Io`. Only `NotFound` means that nothing is there; an entry whose name is not UTF-8
+fails the listing and is never dropped from it. `DiskTree::new(root)` returns a
+`Result`: it canonicalises the root once, a missing root is `NotFound`, and a
+symlinked root is followed to its target. `MemoryTree` holds a map of path to text,
+infers directories from the keys, and exists so that fixtures build repositories
+without touching the disk. It enforces `max_bytes` like the disk backend and refuses a
+key such as `../a` or `/a` with `OutsideRoot`, and a key that names a path another key
+already holds, whether literally or after normalisation, with `DuplicatePath`; a tree
+built by the infallible conversions from such keys returns the same error from every
+call. A missing `/proc` on Linux is an `Io` failure and never `NotFound`. `entry`
+returns `OutsideRoot` when the directory that holds the path leads outside the root.
+Nothing else in the crate opens a file.
 
 **Path containment.** Every path the crate opens is checked against the workspace
 root, so a hostile tree cannot make the index read a file outside it. This covers
@@ -186,21 +237,121 @@ thread that cannot start is a `Spawn` error. The budgets are one table in the so
   at an `else` that is not followed by `if`, and at an identifier other than `else`
   directly after a `}`. A block used as the condition of a link (`else if {x} {}`)
   does not end the chain. The limit is 256.
+- Tokens: the number of tokens of the file as the parser's lexer reads them. An
+  identifier, a keyword or a literal is one, a lifetime two (the quote and the
+  name), each delimiter one and each character of punctuation one (`::` and `->`
+  are two). A doc comment counts as the attribute it stands for: six tokens for
+  `///` and `/**`, seven for `//!` and `/*!`; other comments count for nothing. The
+  count feeds no other counter. The limit is `LoadOptions::max_file_tokens`, by
+  default 2000000 (`Budget::FileTokens`), and `parse_source` applies the default.
+  It bounds the memory that parsing one file takes at its peak at
+  `PARSE_BYTES_PER_TOKEN`, 1664 bytes, per token. The costliest shape the other
+  budgets admit is one function body of 2^k + 1 empty statements, whose list of
+  statements doubles its storage for the last one: it holds 1602 bytes per token at
+  its peak at every k from 14 to 20, counting a grown block as held beside the
+  block it replaces until that is freed, and the constant adds about 4%. The same
+  measurement gives about 430 bytes per token for `a<b; ` repeated, 290 for
+  statements that name a type nested 64 generic arguments deep and 230 for a run of
+  attributes. The default admits the largest generated files of real crates: over
+  the registry scan below the most tokens of one file was 1505567 (a time-zone
+  table).
 
 Two more budgets are counted by the module walk and not by the pre-scan. Module
-nesting is bounded at 128 levels along one path, files and inline modules together,
-because the walk recurses on the caller's stack. Module walks are bounded at 262144
-for one load: every arrival of the walk at a file, over all targets, and every walk of
-an inline module body (the default one and one per `cfg_attr` path alternative) is one
-module path, and a file reached again is parsed once but walked again, so a chain of files
-that each declare the next twice would otherwise record 2^n paths from a few kilobytes
-of input. The limit is 2^18: a workspace of ten
-thousand files reached by five targets each records fifty thousand, and a shared
-test-support diamond records one path per target and module that reaches it, so the
-limit admits every realistic tree, while the cost it allows (a quarter of a million
-records, a fraction of a second and a few tens of megabytes) cannot exhaust a machine.
-A load that passes the limit is a `Budget` error that names the file and the line of
-the declaration.
+nesting is bounded at 128 levels along one path, files and inline modules together.
+The walk, and the index that reads its result, keep a stack of their own, so their
+depth costs the caller's stack nothing: 128 nested modules load on a thread of 512 KiB
+in a debug build. Module walks are bounded at 262144 for one load: every arrival of
+the walk at a file, over all targets, and every walk of an inline module body (the
+default one and one per `cfg_attr` path alternative) is one module path, and a file
+reached again is parsed once but walked again, so a chain of files that each declare
+the next twice would otherwise record 2^n paths from a few kilobytes of input. The
+limit is 2^18: a workspace of ten thousand files reached by five targets each records
+fifty thousand, and a shared test-support diamond records one path per target and
+module that reaches it, so the limit admits every realistic tree. What the walks
+record is charged to the item-bytes budget below, which bounds what the limit costs: a
+chain of seventeen files that each declare the next twice (2^18 - 1 walks from 1 KiB
+of source) is refused by the item-bytes budget after 1.0 s at a peak of 214 MiB
+resident, measured in a release build. A load that passes the limit is a `Budget`
+error that names the file and the line of the declaration.
+
+**Work and memory bounds.** Discovery and the expansion of `workspace.members`
+patterns enter at most 128 directories below their root (`DirectoryDepth`), on a stack
+of their own; a deeper directory is a `Budget` error that names it, which a chain of
+20000 directories in memory meets on a thread of 2 MiB in a debug build, in under a
+millisecond in a release build, and a chain of 2100 on disk in 22 ms with 4 MiB
+resident. Three byte budgets bound one load. Each is a default that `LoadOptions` can
+change:
+
+- `max_total_bytes` (`TotalBytes`) bounds the bytes the load reads, source files
+  and manifests together. Its default is min(1 GiB, max(256 MiB, 4 × the largest
+  crate)) over the newest version of each of 1177 crates of a local registry, whose
+  largest load read 16.9 MB (`linux-raw-sys`), so it is 256 MiB.
+- `max_item_bytes` (`ItemBytes`, 512 MiB) bounds what the index and the module walk
+  allocate. Every charge is an upper bound of the allocations it covers, derived from
+  the layout of the containers that hold them and not measured on typical input: a
+  list is charged twice its elements and its first room of four, a `BTreeMap` a fifth
+  of a leaf and an eighth of an internal node for each entry and one leaf for the
+  map, a hash table three buckets for each entry and eight for the table, and a
+  shared string its text and two counters. An item charges its record, its places in
+  the order, in its file's list and in its source group, each string it holds the
+  first time the load stores it (paths, names, module paths and written self types
+  are stored once and shared), and its scope entry (the name as key, a boxed entry
+  and a binding in each name space) or its place among the members of its type. A
+  module charges its record, its entry among the module paths, its scope table and
+  the first room of its definitions; an arrival of the module walk its reach, its
+  places in the orders of arrivals and its entries in the tables that mark it
+  indexed; a file read its entries among the files and identities; a spelling its
+  entry and text; a flattened import its entry, its strings and its place among the
+  unsettled imports, and each binding it makes its scope entry and route; each impl
+  block once per module path, each trait key and each type's table of members their
+  allocations; and the aliased path of a type alias and the crate an `extern crate`
+  item names are stored once for the file and charged once, however many module paths
+  reach it. Measured with a counting allocator, no shape keeps more than it is
+  charged: a chain of files that each declare the next twice keeps 1624 bytes of index
+  for each arrival and is charged 3614, nested inline modules whose scopes hold one
+  name keep 1474 bytes for each module and are charged 2375. An item record is at most
+  256 bytes.
+- `max_fact_bytes` (`FactBytes`, 256 MiB) bounds the facts of the files. Each fact
+  charges its size and the room of every string and list it owns (each is trimmed
+  to its length as it is built), on the parse thread, so an oversized file is
+  refused at the line of the fact that passes the budget.
+
+A load over a budget is a `Budget` error that names the budget, the limit that
+applied and the file, with the line where there is one. `Workspace::usage` reports
+what a load spent against each. Two figures follow, measured in a release build:
+
+1. Retained memory, apart from the scope tables of imports. What a load keeps of
+   its index, its source text and its facts is bounded by the item bytes (512 MiB),
+   the source text (`max_total_bytes`, 256 MiB by default, which a caller may raise)
+   and the fact bytes (256 MiB): 1 GiB at the defaults. 300000 unit structs of their
+   own names in three files load in 0.70 s at a peak of 380 MiB on the heap, and
+   400000 are refused by the item-bytes budget in 1.1 s; thirty files of 4 MiB of doc
+   comments made of quotes, which double when escaped, hold 253 MB of facts and load
+   in 1.8 s at a peak of 382 MiB, and forty are refused by the fact-bytes budget in
+   1.8 s; 31 files of 8 MiB load in 0.30 s, and 33 are refused by the total-bytes
+   budget in 0.30 s. A load near all three limits at once (2000 copies of a chain of
+   100 nested inline modules, 20 files of 8.3 MB doc comments and 7 files of 8 MB of
+   comments; 214, 459 and 217 MiB charged) keeps 716 MiB and peaks at 721 MiB, in
+   11.4 s.
+2. One-file parse peak. What parsing one file holds at its peak is at most
+   `max_file_tokens` × `PARSE_BYTES_PER_TOKEN` (1664 bytes): about 3.1 GiB at the
+   default of 2000000 tokens. The costliest arrangement of statement lists at
+   exactly 2000000 tokens loads in 0.80 s with 2623 MiB allocated at the peak, 1188
+   MiB of it resident; an 8 MiB file of `a<b; ` repeated (6.7 million tokens) is
+   refused by the pre-scan in 40 ms with no more allocated than its text. A caller
+   on a host with less memory lowers the limit to its memory over 1664 bytes:
+   `max_file_tokens = 320000` keeps the peak below 512 MiB (the costliest
+   arrangement at exactly that limit loads in 0.17 s with 462 MiB allocated, 190 MiB
+   resident), and refuses files above it with the same typed error.
+
+Apart from the scope tables of imports, a load holds at most figure (1) and one
+file's figure (2) at once: about 4.1 GiB at the defaults, each term a limit of
+`LoadOptions` that a caller sets to fit its host. The scope tables that `use`
+declarations and globs build are bounded by no budget: their size grows with the
+modules that glob a module times the names it holds, so a glob-heavy input can
+exhaust a machine whatever the limits. One module of 3000 functions that 3000 other
+modules glob, 166 KB of source and 66005 tokens, loads in 21 s at a peak of 7.3 GiB
+on the heap and 9.2 GiB resident, while every budget stays below 14 MiB.
 
 Parsing then runs on a dedicated thread, named after the file, with a stack of 64
 MiB (`PARSE_STACK_BYTES`), which is a stated constant and not the stack of the
@@ -229,7 +380,8 @@ The crate sets no time bound.
 **Package discovery.** `Workspace::load(tree, roots)` takes explicit roots; the
 crate has no default roots, and each caller names its own (`"."` is the tree root).
 Discovery reads each root as a directory. A directory with a `Cargo.toml` that has a
-`[package]` table is a package. The walk recurses through every directory that is not
+`[package]` table is a package. The walk descends, on a stack of its own and at most
+128 directories below the root, through every directory that is not
 a package, and through a package that also has a `[workspace]` table, so a root `.`
 package with a `[workspace]` table and `crates/a` below it are both found. It does not
 descend below a `[package]` manifest that lacks `[workspace]`, so a fixture package
@@ -284,13 +436,18 @@ every alternative names a file. No `cfg` is evaluated and no item is dropped. A 
 identifier module `r#match` reads `match.rs`. A path that leaves the workspace root,
 whether by `..` segments, an absolute path or a symlink, is an error that names the
 module and the attribute and does not read the file. An unresolved `mod` is an error
-that names the declaring file and its line. The walk detects a cycle on the stack of
-files being followed, never with a visited set, and a cycle is an error that names the
-file that would be entered twice. Module nesting along one path is bounded at 128
-levels, files and inline modules together. A file reached by several module paths, or
-by two targets such as a shared `tests/common/mod.rs`, is parsed once, listed once and
-recorded under every path it was reached by; a `dir/..` pair is collapsed only when
-`dir` is a real directory, so one file has one spelling. The walk stops at the first
+that names the declaring file and its line. Files are told apart by their identity
+in the tree (`Tree::identity`), not by their spelling. The walk detects a cycle on the
+stack of files being followed, compared by identity, never with a visited set, and a
+cycle is an error that names the file that would be entered twice, also when it is
+reached again under another spelling (`l/x.rs` from `x.rs` where `l` links to `.`).
+Module nesting along one path is bounded at 128 levels, files and inline modules
+together. A file reached by several module paths, by two targets such as a shared
+`tests/common/mod.rs`, or under several spellings (`src/b.rs` and `src/z/b.rs` where
+`z` links to `src`), is read and parsed once, listed once under the spelling that
+sorts first, and recorded under every path it was reached by; a `dir/..` pair is
+collapsed only when `dir` is a real directory, so a spelling is one the disk can
+follow, and one file has one spelling in the index. The walk stops at the first
 error. `Workspace::targets` yields the targets, and `Workspace::files` yields each
 source file once with its text, its facts and the module paths it was reached by. The
 facts of a file are read on the parse thread and owned: items with their name line,
@@ -429,7 +586,10 @@ of position; `item_at(file, offset)` yields the innermost items that hold the of
 that reach it, and whether it ships; `source(file)` is the exact text that was indexed;
 and `test_fns()` returns, for each `#[test]` function (or a typed error if one's path does not start with its target's crate path), the package, the kind and Cargo
 name of its target (`--lib`, `--bin <name>` or `--test <name>`) and its path inside the
-crate, which is what `cargo test -p <package> --test <target> <name>` needs. The index
+crate, which is what `cargo test -p <package> --test <target> <name>` needs;
+`usage()` gives what the load spent against its budgets: the bytes read, charged to
+the index and to the facts, the most tokens of one file and the deepest directory
+entered. The index
 has no order that depends on the tree implementation: two loads of one tree are equal,
 and the same regular files on disk and in memory give equal indexes.
 
@@ -517,12 +677,18 @@ assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
 - Every opened path must be, after canonicalisation, inside the canonical workspace
   root and a regular file; the same rule bounds explicit `Cargo.toml` target paths.
 - A file larger than `max_file_bytes` (default 8 MiB), or one that exceeds a
-  recursion budget of the pre-scan (128 delimiter levels, 64 nested `<`, 256 prefix
-  operators, 128 closure bars, 256 `else if` links), or a module walk that passes 128
-  nested modules or 262144 module walks in one load, is refused with a typed error.
+  budget of the pre-scan (128 delimiter levels, 64 nested `<`, 256 prefix
+  operators, 128 closure bars, 256 `else if` links, 2000000 tokens by default), or a
+  module walk that passes 128 nested modules or 262144 module walks in one load, or a
+  directory
+  more than 128 levels below its root, or a load that passes its total, item or fact
+  bytes (256 MiB, 512 MiB and 256 MiB by default), is refused with a typed error.
   Parsing runs on a dedicated 64 MiB stack. A residual overflow aborts the run and
   fails the gate; it is never a pass. No budget counts the composite shapes or most of
   the uncounted shapes of Verification, so a file of one of them can end in such an abort.
+- The scope tables that `use` declarations and globs build are bounded by no
+  budget, so a glob-heavy input can take more memory than the figures of the
+  Contract state.
 - Resolution covers items the source defines. Items from dependencies are outside the
   index and resolve to a not-found failure.
 - The index is built once per `Workspace::load`; callers reload to see changed files.
@@ -601,6 +767,48 @@ duplicates.
 
   A file at each budget (64 nested `<`, 256 `!`, 128 closure bars, 256 `else if`
   links) parses on the same stack.
+- Token fixtures, at a limit lowered to 100000 for speed: a file of exactly the
+  limit loads and one more token is refused naming its line; `a<b; ` repeated,
+  statements naming a type nested 64 generic arguments deep, a run of attributes and
+  the costliest shape, one body of a power of two and one more empty statements,
+  each load at the limit and are refused one token over; a doc comment counts as six
+  or seven tokens and other comments as none. The default limit is 2000000,
+  `parse_source` refuses one token more than it before parsing, and 320000 tokens
+  at 1664 bytes each stay below 512 MiB.
+- Work and memory fixtures, each at the limit, where the load succeeds, and one byte
+  over, where it is a `Budget` error that names the budget and the file: the bytes
+  read (a manifest counts), the index records (a long module name charged in every
+  item path, a file reached by a hundred module paths charged once per path, and a
+  long aliased path and a long `extern crate` name in a file reached by 256 module
+  paths, each charged once and not once per path, and a chain of files that each
+  declare the next twice and nested inline modules each charged at least the bytes of
+  index they keep), and
+  the facts, over several files and for each large payload: a 1 MiB doc comment, a 1
+  MiB written self type and a `use` group of long names, each refused at its own line
+  below its size. `usage()` reports the spent bytes, the most tokens and the deepest
+  directory, and an item record is at most 256 bytes.
+- Unit fixtures of the structures the bounds rely on: a column of a short line, a
+  long line and a long line of two-byte characters, before, on and after an index
+  mark, turns into its byte offset, and a column or line past the text is refused;
+  the bindings of one name stay sorted, keep the better route of a repeated item and
+  take only the room the first binding needs.
+- Stack fixtures, each on a small thread in debug and in release: a `MemoryTree` chain
+  of 20000 directories and a `DiskTree` chain of 2100, on 2 MiB, are refused with the
+  directory-depth budget naming the first directory past it, beside chains at the limit
+  that load; a `workspace.members` pattern at 128 levels expands and one at 129 is
+  refused; 128 nested modules, inline and in files, load on 512 KiB, and 129 are
+  refused typed.
+- Identity fixtures: `identity` gives one value for a file, a symlink to it, a hard
+  link and a path through a directory symlink, and refuses what `read` refuses;
+  `read_unseen` gives the identity and the text of one open, leaves a seen file
+  unread and unrefused for its size, and refuses an unseen one over the cap; a file
+  reached as `z/../b.rs` and as `b.rs` is read once and listed as `src/b.rs`; on disk,
+  a file reached through a directory symlink is one file under the spelling that
+  sorts first, a module that reaches its own file through such a link is a cycle, and
+  a tree of two links back to `src` and eighteen levels of files, which spells its
+  last file 2^17 ways, reads every file once and is refused by the item-bytes budget.
+- Positions: twenty thousand items on one line of two-byte characters get exact byte
+  offsets within the time a linear walk takes.
 - Composite and uncounted-shape fixtures: `!` repeated 256 times before `(` repeated
   across 127 levels; `&` repeated 256 times before `(` across 127 levels, in a type;
   `&&` repeated 256 times before `(` across 127 levels; `A<` followed by 256 `&`,

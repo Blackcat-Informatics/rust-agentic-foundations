@@ -7,8 +7,8 @@ use std::cell::RefCell;
 use std::fmt::Write as _;
 
 use raf_source::{
-    Entry, EntryKind, LoadError, LoadErrorKind, MemoryTree, Origin, RelPath, ResolveError,
-    TestRole, Tree, TreeError, Workspace,
+    Entry, EntryKind, FileId, LoadError, LoadErrorKind, MemoryTree, Opened, Origin, RelPath,
+    ResolveError, TestRole, Tree, TreeError, Workspace,
 };
 
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
@@ -28,7 +28,11 @@ fn ok(files: &[(&str, &str)]) -> Workspace {
 fn reached(ws: &Workspace) -> Vec<(String, Vec<String>)> {
     ws.files()
         .map(|f| {
-            let mut paths: Vec<String> = f.reached.iter().map(|r| r.module_path.clone()).collect();
+            let mut paths: Vec<String> = f
+                .reached
+                .iter()
+                .map(|r| r.module_path.to_string())
+                .collect();
             paths.sort();
             (f.path.to_string(), paths)
         })
@@ -503,6 +507,18 @@ impl Tree for Recording {
     }
     fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
         self.inner.entry(path)
+    }
+    fn read_unseen(
+        &self,
+        path: &RelPath,
+        max_bytes: u64,
+        seen: &dyn Fn(&FileId) -> bool,
+    ) -> Result<Opened, TreeError> {
+        let opened = self.inner.read_unseen(path, max_bytes, seen)?;
+        if matches!(opened, Opened::Read { .. }) {
+            self.reads.borrow_mut().push(path.to_string());
+        }
+        Ok(opened)
     }
 }
 
@@ -981,7 +997,7 @@ fn inline_modules_with_path_alternatives_are_bounded_by_the_module_path_budget()
 fn item_paths(ws: &Workspace) -> Vec<(String, Vec<String>)> {
     ws.files()
         .map(|f| {
-            let mut paths: Vec<String> = ws.items_in(&f.path).map(|i| i.path.clone()).collect();
+            let mut paths: Vec<String> = ws.items_in(&f.path).map(|i| i.path.to_string()).collect();
             paths.sort();
             (f.path.to_string(), paths)
         })
@@ -1062,7 +1078,11 @@ fn the_children_of_a_path_attribute_file_are_placed_under_its_module_whatever_th
         let file = ws
             .file(&RelPath::new(&child_file).expect("path"))
             .expect("loaded");
-        let modules: Vec<String> = file.reached.iter().map(|r| r.module_path.clone()).collect();
+        let modules: Vec<String> = file
+            .reached
+            .iter()
+            .map(|r| r.module_path.to_string())
+            .collect();
         let thing = format!("demo::g::{child}::Thing");
         placed.push((
             child,
@@ -1163,6 +1183,45 @@ fn an_item_is_found_only_under_its_own_module_path() {
             ws.resolve(missing).map(|r| r.path),
             Err(ResolveError::NotFound(missing.to_owned())),
             "{missing}"
+        );
+    }
+}
+
+#[test]
+fn a_file_reached_under_two_spellings_is_read_once_and_keeps_the_spelling_that_sorts_first() {
+    // `src/z` is no directory, so `z/../b.rs` stays as written and names the
+    // same file as `b.rs`; the walk reaches it under that spelling first.
+    let tree = Recording {
+        inner: [
+            ("Cargo.toml", DEMO),
+            (
+                "src/lib.rs",
+                "#[path = \"z/../b.rs\"]\npub mod first;\n#[path = \"b.rs\"]\npub mod second;\n",
+            ),
+            ("src/b.rs", "pub fn f() {}\n"),
+        ]
+        .into_iter()
+        .collect(),
+        reads: RefCell::new(Vec::new()),
+    };
+    let ws = Workspace::load(&tree, &["."]).expect("loads");
+    assert_eq!(
+        reached(&ws),
+        files(&[
+            ("src/b.rs", &["demo::first", "demo::second"]),
+            ("src/lib.rs", &["demo"]),
+        ])
+    );
+    assert_eq!(
+        *tree.reads.borrow(),
+        ["Cargo.toml", "src/lib.rs", "src/z/../b.rs"]
+    );
+    for path in ["demo::first::f", "demo::second::f"] {
+        let site = ws.resolve(path).expect("resolves").sites[0];
+        assert_eq!(
+            ws.item(site).expect("item").file.as_str(),
+            "src/b.rs",
+            "{path}"
         );
     }
 }

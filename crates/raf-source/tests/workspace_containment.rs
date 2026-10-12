@@ -10,7 +10,13 @@
 
 mod support;
 
-use raf_source::{DiskTree, LoadError, LoadErrorKind, Origin, TargetProblem, TreeError, Workspace};
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+
+use raf_source::{
+    Budget, DiskTree, Entry, EntryKind, FileId, LoadError, LoadErrorKind, Opened, Origin, RelPath,
+    TargetProblem, Tree, TreeError, Workspace,
+};
 use support::{Scratch, within_watchdog};
 
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
@@ -336,4 +342,137 @@ fn discovery_classifies_a_symlink_by_what_it_resolves_to() {
         matches!(&error.kind, LoadErrorKind::Tree(e) if matches!(**e, TreeError::NotFound { .. })),
         "{error}"
     );
+}
+
+/// A disk tree that counts the reads of each file, by the file's identity.
+struct CountingReads {
+    inner: DiskTree,
+    reads: RefCell<BTreeMap<FileId, usize>>,
+}
+
+impl CountingReads {
+    fn new(scratch: &Scratch) -> Self {
+        Self {
+            inner: DiskTree::new(scratch.path("root")).expect("tree"),
+            reads: RefCell::new(BTreeMap::new()),
+        }
+    }
+
+    /// How many files were read, after checking that none was read twice.
+    fn files_read_once(&self) -> usize {
+        let reads = self.reads.borrow();
+        assert!(reads.values().all(|count| *count == 1), "{reads:?}");
+        reads.len()
+    }
+}
+
+impl Tree for CountingReads {
+    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
+        let id = self.inner.identity(path)?;
+        *self.reads.borrow_mut().entry(id).or_default() += 1;
+        self.inner.read(path, max_bytes)
+    }
+    fn read_unseen(
+        &self,
+        path: &RelPath,
+        max_bytes: u64,
+        seen: &dyn Fn(&FileId) -> bool,
+    ) -> Result<Opened, TreeError> {
+        let opened = self.inner.read_unseen(path, max_bytes, seen)?;
+        if let Opened::Read { id, .. } = &opened {
+            *self.reads.borrow_mut().entry(id.clone()).or_default() += 1;
+        }
+        Ok(opened)
+    }
+    fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
+        self.inner.list(path)
+    }
+    fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
+        self.inner.entry(path)
+    }
+}
+
+#[test]
+fn symlink_aliases_of_one_directory_parse_it_once() {
+    // `l` and `m` lead back to `src`, so each level doubles the spellings of
+    // the next file: eighteen levels spell the last one 2^17 ways and the walk
+    // arrives 2^18 times in all, the most the module-path budget allows.
+    const LEVELS: usize = 18;
+    let scratch = fixture();
+    scratch.link("root/src/l", ".");
+    scratch.link("root/src/m", ".");
+    scratch.file("root/src/lib.rs", "#[path = \"x0.rs\"]\npub mod a;\n");
+    for level in 0..LEVELS {
+        let text = if level + 1 == LEVELS {
+            "pub fn f() {}\n".to_owned()
+        } else {
+            let next = level + 1;
+            format!(
+                "#[path = \"l/x{next}.rs\"]\npub mod a;\n#[path = \"m/x{next}.rs\"]\npub mod b;\npub fn f() {{}}\n"
+            )
+        };
+        scratch.file(&format!("root/src/x{level}.rs"), &text);
+    }
+    let tree = CountingReads::new(&scratch);
+    let result = Workspace::load(&tree, &["."]);
+    // The manifest, the root file and each level's file, each read once.
+    assert_eq!(tree.files_read_once(), 2 + LEVELS);
+    // Every arrival records items, so the index passes its byte budget before
+    // it holds a record for each of the 2^18 module paths.
+    let error = result.expect_err("over the item budget");
+    assert!(
+        matches!(
+            error.kind,
+            LoadErrorKind::Budget {
+                budget: Budget::ItemBytes,
+                ..
+            }
+        ),
+        "{error}"
+    );
+    assert!(error.file.as_str().starts_with("src/"), "{error}");
+}
+
+#[test]
+fn a_file_reached_through_a_directory_symlink_is_one_file_under_the_spelling_that_sorts_first() {
+    let scratch = fixture();
+    scratch.link("root/src/z", ".");
+    scratch.file(
+        "root/src/lib.rs",
+        "#[path = \"z/b.rs\"]\npub mod first;\n#[path = \"b.rs\"]\npub mod second;\n",
+    );
+    scratch.file("root/src/b.rs", "pub fn f() {}\n");
+    let tree = CountingReads::new(&scratch);
+    let ws = Workspace::load(&tree, &["."]).expect("loads");
+    assert_eq!(tree.files_read_once(), 3);
+    let paths: Vec<&str> = ws.files().map(|file| file.path.as_str()).collect();
+    assert_eq!(paths, ["src/b.rs", "src/lib.rs"]);
+    let modules: Vec<String> = ws
+        .files()
+        .next()
+        .expect("b.rs")
+        .reached
+        .iter()
+        .map(|reach| reach.module_path.to_string())
+        .collect();
+    assert_eq!(modules, ["demo::first", "demo::second"]);
+}
+
+#[test]
+fn a_module_that_reaches_its_own_file_through_a_directory_symlink_is_a_cycle() {
+    let scratch = fixture();
+    scratch.link("root/src/l", ".");
+    scratch.file("root/src/lib.rs", "mod x;\n");
+    scratch.file("root/src/x.rs", "#[path = \"l/x.rs\"]\nmod again;\n");
+    let error = load(&scratch).expect_err("a cycle");
+    assert!(
+        matches!(
+            &error.kind,
+            LoadErrorKind::ModuleCycle { module, again }
+                if module == "again" && again.as_str() == "src/l/x.rs"
+        ),
+        "{error}"
+    );
+    assert_eq!(error.file.as_str(), "src/x.rs");
+    assert_eq!(error.line, Some(2));
 }

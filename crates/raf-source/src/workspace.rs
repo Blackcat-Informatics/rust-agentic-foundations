@@ -9,11 +9,12 @@ use std::rc::Rc;
 use crate::discovery::discover;
 use crate::error::{LoadError, LoadErrorKind, Origin};
 use crate::facts::{FileFacts, TestRole};
-use crate::index::Index;
 use crate::index::PackageInfo;
+use crate::index::{Index, LOAD_BASE_BYTES};
 use crate::item::{Item, ItemId, Namespace};
 use crate::manifest::{self, EditionDecl, Manifest, PackageDecl};
 use crate::members::members;
+use crate::meter::{Meter, Usage};
 use crate::modtree::{Reach, TargetId, Visited, Walker};
 use crate::options::LoadOptions;
 use crate::path::RelPath;
@@ -53,13 +54,29 @@ impl SourceFile {
 }
 
 /// The packages, targets and source files found under a set of roots.
-#[derive(Debug, PartialEq, Eq)]
+///
+/// Two workspaces are equal when their packages, targets, files and index are;
+/// what the loads spent ([`Workspace::usage`]) can differ between backends
+/// that hold the same files, as a disk identity holds no text.
+#[derive(Debug)]
 pub struct Workspace {
     packages: Vec<Package>,
     targets: Vec<Target>,
     files: BTreeMap<RelPath, SourceFile>,
     index: Index,
+    usage: Usage,
 }
+
+impl PartialEq for Workspace {
+    fn eq(&self, other: &Self) -> bool {
+        self.packages == other.packages
+            && self.targets == other.targets
+            && self.files == other.files
+            && self.index == other.index
+    }
+}
+
+impl Eq for Workspace {}
 
 impl Workspace {
     /// Load the packages under `roots` with the default [`LoadOptions`].
@@ -87,7 +104,8 @@ impl Workspace {
     /// Returns a [`LoadError`] for a root that is missing or not a directory, a
     /// manifest that cannot be read, a target problem, an unresolved or
     /// ambiguous `mod`, a path that leaves the tree, a module cycle, a file
-    /// over `max_file_bytes` or a budget, or a syntax error.
+    /// over `max_file_bytes`, a load over a [`Budget`](crate::Budget) (the
+    /// byte budgets as `options` sets them), or a syntax error.
     pub fn load_with(
         tree: &dyn Tree,
         roots: &[&str],
@@ -105,7 +123,9 @@ impl Workspace {
             })?;
             root_paths.push(path);
         }
-        let discovered = discover(tree, &root_paths, options.max_file_bytes)?;
+        let meter = Meter::new(options);
+        meter.items(LOAD_BASE_BYTES, &RelPath::root(), None)?;
+        let discovered = discover(tree, &root_paths, &meter)?;
         let found = &discovered.packages;
         let mut infos: BTreeMap<String, PackageInfo> = BTreeMap::new();
         let mut workspace_editions = Caches::default();
@@ -129,7 +149,7 @@ impl Workspace {
                 entry.package.name.clone(),
                 package_info(
                     tree,
-                    options.max_file_bytes,
+                    &meter,
                     &entry.package,
                     declared,
                     &entry.manifest,
@@ -143,23 +163,39 @@ impl Workspace {
             .into_iter()
             .map(|(_, item)| (item.target, item.origin))
             .unzip();
-        let mut walker = Walker::new(tree, options);
+        let mut walker = Walker::new(tree, &meter);
         for (index, (target, origin)) in targets.iter().zip(&origins).enumerate() {
             walker.root(TargetId(index), &target.root, &target.crate_path, origin)?;
         }
-        let (visited, visits) = walker.finish();
+        let found_files = walker.finish()?;
         let mut files: BTreeMap<RelPath, SourceFile> = BTreeMap::new();
-        for (path, visited) in visited {
+        for (path, visited) in found_files.files {
             let file = source_file(&path, visited, &targets)?;
             files.insert(path, file);
         }
-        let index = Index::build(&targets, &files, &visits, &infos)?;
+        let index = Index::build(
+            &targets,
+            &files,
+            &found_files.visits,
+            &infos,
+            found_files.paths,
+            &meter,
+        )?;
         Ok(Self {
             packages,
             targets,
             files,
             index,
+            usage: meter.usage(),
         })
+    }
+
+    /// What the load spent against its budgets: the bytes it read, kept in the
+    /// index and in the facts of its files, the most tokens of one file and
+    /// the deepest directory it entered.
+    #[must_use]
+    pub fn usage(&self) -> Usage {
+        self.usage
     }
 
     /// The packages, sorted by manifest path.
@@ -361,7 +397,7 @@ fn manifest_error(path: &RelPath, key: &str, message: String) -> LoadError {
 fn workspace_edition(
     tree: &dyn Tree,
     dir: &RelPath,
-    max_file_bytes: u64,
+    meter: &Meter,
     caches: &mut Caches,
 ) -> Result<WorkspaceEdition, LoadError> {
     let cache = &mut caches.editions;
@@ -380,8 +416,11 @@ fn workspace_edition(
             .map_err(|error| LoadError::tree(&path, None, &origin, error))?;
         if present.is_some() {
             let text = tree
-                .read(&path, max_file_bytes)
+                .read(&path, meter.options().max_file_bytes)
                 .map_err(|error| LoadError::tree(&path, None, &origin, error))?;
+            meter
+                .read(&path, &text)
+                .map_err(|error| error.reached_by(&origin))?;
             let parsed = manifest::parse(&text).map_err(|problem| {
                 let origin = problem
                     .key
@@ -399,7 +438,7 @@ fn workspace_edition(
                 let set = match caches.members.entry(current.clone()) {
                     std::collections::btree_map::Entry::Occupied(known) => known.into_mut(),
                     std::collections::btree_map::Entry::Vacant(slot) => {
-                        slot.insert(members(tree, max_file_bytes, &current, &path, &parsed)?)
+                        slot.insert(members(tree, meter, &current, &path, &parsed)?)
                     }
                 };
                 found = if !set.contains(dir) {
@@ -427,7 +466,7 @@ fn workspace_edition(
 /// package as a member or does not set an edition, which cargo rejects as well.
 fn package_info(
     tree: &dyn Tree,
-    max_file_bytes: u64,
+    meter: &Meter,
     package: &Package,
     declared: &PackageDecl,
     manifest: &Manifest,
@@ -436,28 +475,26 @@ fn package_info(
     let edition = match &declared.edition {
         EditionDecl::Explicit(edition) => *edition,
         EditionDecl::Unset => 2015,
-        EditionDecl::Inherited => {
-            match workspace_edition(tree, &package.dir, max_file_bytes, caches)? {
-                WorkspaceEdition::Set(edition) => edition,
-                WorkspaceEdition::Unset => {
-                    return Err(manifest_error(
+        EditionDecl::Inherited => match workspace_edition(tree, &package.dir, meter, caches)? {
+            WorkspaceEdition::Set(edition) => edition,
+            WorkspaceEdition::Unset => {
+                return Err(manifest_error(
                         &package.manifest,
                         "package.edition",
                         "`edition.workspace = true` but no `[workspace.package] edition` is set by the nearest workspace manifest above the package"
                             .to_owned(),
                     ));
-                }
-                WorkspaceEdition::NotMember(workspace) => {
-                    return Err(manifest_error(
-                        &package.manifest,
-                        "package.edition",
-                        format!(
-                            "`edition.workspace = true` but the package is not a member of the workspace {workspace} (it is not listed in `workspace.members`, or is excluded)"
-                        ),
-                    ));
-                }
             }
-        }
+            WorkspaceEdition::NotMember(workspace) => {
+                return Err(manifest_error(
+                    &package.manifest,
+                    "package.edition",
+                    format!(
+                        "`edition.workspace = true` but the package is not a member of the workspace {workspace} (it is not listed in `workspace.members`, or is excluded)"
+                    ),
+                ));
+            }
+        },
     };
     Ok(PackageInfo {
         edition,
@@ -585,14 +622,14 @@ mod tests {
         assert_eq!(fns.len(), 1);
         let mut item = ws.item(fns[0].id).expect("item").clone();
         assert!(test_fn_of(&item, &ws.targets).is_ok());
-        item.path = "other::case".to_owned();
+        item.path = "other::case".into();
         let error = test_fn_of(&item, &ws.targets).expect_err("the path leaves the crate");
         assert!(
             matches!(error.kind, LoadErrorKind::Internal { .. }),
             "{error}"
         );
         assert_eq!(error.line, Some(2));
-        item.path = "demo::case".to_owned();
+        item.path = "demo::case".into();
         item.target = TargetId(9);
         assert!(test_fn_of(&item, &ws.targets).is_err());
     }

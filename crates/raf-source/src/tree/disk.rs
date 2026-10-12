@@ -26,7 +26,7 @@ use std::fs::{self, File, Metadata, OpenOptions};
 use std::io::{self, Read as _};
 use std::path::{Path, PathBuf};
 
-use super::{Entry, EntryKind, Tree};
+use super::{Entry, EntryKind, FileId, Opened, Tree};
 use crate::error::{TreeError, is_symlink_loop};
 use crate::path::RelPath;
 
@@ -105,17 +105,49 @@ impl DiskTree {
     }
 }
 
-impl Tree for DiskTree {
-    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
-        let shown = path.to_string();
-        let canonical = self.contain(&self.candidate(path), &shown)?;
+impl DiskTree {
+    /// Open the regular file at `path` and verify the handle against the
+    /// root. Returns the handle, its metadata and the canonical path.
+    fn open_verified(
+        &self,
+        path: &RelPath,
+        shown: &str,
+    ) -> Result<(File, Metadata, PathBuf), TreeError> {
+        let canonical = self.contain(&self.candidate(path), shown)?;
         #[cfg(test)]
         if let Some(hook) = &self.before_open {
             hook(&canonical);
         }
-        let file = open_handle(&canonical).map_err(|e| open_error(&shown, e))?;
-        verify_open_handle(&file, &canonical, &self.root, &shown)?;
+        let file = open_handle(&canonical).map_err(|e| open_error(shown, e))?;
+        let metadata = verify_open_handle(&file, &canonical, &self.root, shown)?;
+        Ok((file, metadata, canonical))
+    }
+}
+
+impl Tree for DiskTree {
+    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
+        let shown = path.to_string();
+        let (file, _, _) = self.open_verified(path, &shown)?;
         read_capped(file, max_bytes, &shown)
+    }
+
+    /// The identity is, on Unix, the device and inode of the verified handle,
+    /// and elsewhere the canonical path below the root; the text, when it is
+    /// read, comes from the same handle.
+    fn read_unseen(
+        &self,
+        path: &RelPath,
+        max_bytes: u64,
+        seen: &dyn Fn(&FileId) -> bool,
+    ) -> Result<Opened, TreeError> {
+        let shown = path.to_string();
+        let (file, metadata, canonical) = self.open_verified(path, &shown)?;
+        let id = handle_identity(&metadata, &canonical, &self.root, &shown)?;
+        if seen(&id) {
+            return Ok(Opened::Seen(id));
+        }
+        let text = read_capped(file, max_bytes, &shown)?;
+        Ok(Opened::Read { id, text })
     }
 
     fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
@@ -309,7 +341,7 @@ fn read_capped(file: File, max_bytes: u64, shown: &str) -> Result<String, TreeEr
 
 /// A file's identity on disk: its device and inode numbers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct FileId {
+struct DevIno {
     dev: u64,
     ino: u64,
 }
@@ -322,16 +354,16 @@ struct FileId {
         reason = "the signature is shared with the platforms where the call can fail"
     )
 )]
-fn file_id(metadata: &Metadata, _shown: &str) -> Result<FileId, TreeError> {
+fn file_id(metadata: &Metadata, _shown: &str) -> Result<DevIno, TreeError> {
     use std::os::unix::fs::MetadataExt as _;
-    Ok(FileId {
+    Ok(DevIno {
         dev: metadata.dev(),
         ino: metadata.ino(),
     })
 }
 
 #[cfg(not(unix))]
-fn file_id(_metadata: &Metadata, shown: &str) -> Result<FileId, TreeError> {
+fn file_id(_metadata: &Metadata, shown: &str) -> Result<DevIno, TreeError> {
     Err(unsupported(shown, "file identity"))
 }
 
@@ -419,8 +451,8 @@ fn verify_linux_link(root: &Path, handle_link: &Path, shown: &str) -> Result<(),
 fn verify_same_file(
     root: &Path,
     canonical_after: &Path,
-    on_disk: FileId,
-    on_handle: FileId,
+    on_disk: DevIno,
+    on_handle: DevIno,
     shown: &str,
 ) -> Result<(), TreeError> {
     if canonical_after.starts_with(root) && on_disk == on_handle {
@@ -472,17 +504,18 @@ fn verify_portable(
 /// * Elsewhere: [`verify_portable`]. A rename racing the second
 ///   canonicalisation is a residual window.
 ///
-/// Every branch compiles on every platform; the platform selects one.
+/// Every branch compiles on every platform; the platform selects one. Returns
+/// the metadata of the handle.
 fn verify_open_handle(
     file: &File,
     canonical: &Path,
     root: &Path,
     shown: &str,
-) -> Result<(), TreeError> {
+) -> Result<Metadata, TreeError> {
     let on_handle = file.metadata().map_err(|e| TreeError::from_io(shown, e))?;
     if cfg!(target_os = "linux") {
         verify_linux_link(root, &descriptor_link(file, shown)?, shown)?;
-        ensure_regular(&on_handle, shown)
+        ensure_regular(&on_handle, shown)?;
     } else if cfg!(unix) {
         let after = fs::canonicalize(canonical).map_err(|e| TreeError::from_io(shown, e))?;
         let on_disk = fs::metadata(&after).map_err(|e| TreeError::from_io(shown, e))?;
@@ -493,9 +526,42 @@ fn verify_open_handle(
             file_id(&on_handle, shown)?,
             shown,
         )?;
-        ensure_regular(&on_handle, shown)
+        ensure_regular(&on_handle, shown)?;
     } else {
         let after = fs::canonicalize(canonical).map_err(|e| TreeError::from_io(shown, e))?;
-        verify_portable(root, &on_handle, &after, shown)
+        verify_portable(root, &on_handle, &after, shown)?;
     }
+    Ok(on_handle)
+}
+
+/// Unix: the device and inode numbers of the verified handle.
+#[cfg(unix)]
+#[cfg_attr(
+    unix,
+    allow(
+        clippy::unnecessary_wraps,
+        reason = "the signature is shared with the platforms where the call can fail"
+    )
+)]
+fn handle_identity(
+    on_handle: &Metadata,
+    _canonical: &Path,
+    _root: &Path,
+    shown: &str,
+) -> Result<FileId, TreeError> {
+    let id = file_id(on_handle, shown)?;
+    Ok(FileId::from_device(id.dev, id.ino))
+}
+
+/// Without Unix: the canonical path below the root, which [`DiskTree::contain`]
+/// computed for the open.
+#[cfg(not(unix))]
+fn handle_identity(
+    _on_handle: &Metadata,
+    canonical: &Path,
+    root: &Path,
+    shown: &str,
+) -> Result<FileId, TreeError> {
+    let below = canonical.strip_prefix(root).map_err(|_| outside(shown))?;
+    Ok(FileId::from_native(below.as_os_str().to_owned()))
 }

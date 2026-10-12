@@ -5,10 +5,13 @@
 //! for, or under the canonical path of its trait when the type is not local.
 
 use std::collections::BTreeSet;
+use std::mem::size_of;
+use std::sync::Arc;
 
+use crate::cost::shared_text;
 use crate::error::{LoadError, LoadErrorKind};
 use crate::facts::{ItemKind, PathFact, TestRole};
-use crate::index::{ImplDecl, Index, UseDecl, UseKind};
+use crate::index::{ImplDecl, Index, MEMBERS_BYTES, Store, UseDecl, UseKind, member_bytes};
 use crate::item::{ItemId, Namespace, SymbolKind, TraitKey};
 use crate::resolve::Fail;
 use crate::target::TargetKind;
@@ -117,7 +120,7 @@ impl Index {
     }
 
     /// True when `name` is a crate the impl's package can name.
-    fn crate_known(&self, decl: &ImplDecl, name: &str) -> bool {
+    fn crate_known(&self, decl: &ImplDecl<'_>, name: &str) -> bool {
         if SYSROOT.contains(&name) {
             return true;
         }
@@ -140,7 +143,7 @@ impl Index {
 
     /// The path of the standard prelude trait `name` for the edition of the
     /// impl's package; `None` if the name is not in that edition's prelude.
-    fn prelude_trait(&self, decl: &ImplDecl, name: &str) -> Option<&'static str> {
+    fn prelude_trait(&self, decl: &ImplDecl<'_>, name: &str) -> Option<&'static str> {
         let target = &self.targets[decl.target.index()];
         let edition = self.packages.get(&target.package).map(|info| info.edition);
         PRELUDE_TRAITS
@@ -158,7 +161,7 @@ impl Index {
     /// confirmed.
     fn external_prefixes(
         &self,
-        decl: &ImplDecl,
+        decl: &ImplDecl<'_>,
         module: usize,
         name: &str,
         prelude: bool,
@@ -189,7 +192,7 @@ impl Index {
         });
         if let Some(real) = extern_crate.and_then(|id| self.extern_names.get(id)) {
             return if self.crate_known(decl, real) {
-                Ok(vec![vec![real.clone()]])
+                Ok(vec![vec![real.to_string()]])
             } else {
                 Err(None)
             };
@@ -250,7 +253,7 @@ impl Index {
     /// none is an error.
     fn absolute(
         &self,
-        decl: &ImplDecl,
+        decl: &ImplDecl<'_>,
         module: usize,
         segs: &[String],
         leading_colon: bool,
@@ -290,7 +293,7 @@ impl Index {
                     if !self.crate_known(decl, real) {
                         return Err(None);
                     }
-                    let mut path = vec![real.clone()];
+                    let mut path = vec![real.to_string()];
                     path.extend(segs.iter().skip(at + 1).cloned());
                     return Ok(vec![path]);
                 }
@@ -326,7 +329,7 @@ impl Index {
     /// The key of the trait of an impl that is not on a local type: a local
     /// trait at its definition, a dependency trait at its absolute path, or an
     /// explicit unresolved key when globs of dependencies leave the path open.
-    fn trait_key(&self, decl: &ImplDecl, tr: &PathFact) -> Result<TraitKey, LoadError> {
+    fn trait_key(&self, decl: &ImplDecl<'_>, tr: &PathFact) -> Result<TraitKey, LoadError> {
         let unresolved = || {
             Index::error(
                 decl,
@@ -343,7 +346,7 @@ impl Index {
             true,
         ) && let Some(first) = self.sorted(walked.items.keys().copied()).first()
         {
-            return Ok(TraitKey::Canonical(self.items[first.0].path.clone()));
+            return Ok(TraitKey::Canonical(self.items[first.0].path.to_string()));
         }
         let paths = self
             .absolute(decl, decl.module, &tr.segments, tr.leading_colon, 0)
@@ -389,7 +392,7 @@ impl Index {
         }
     }
 
-    fn super_check_impl(&self, decl: &ImplDecl, path: &PathFact) -> Result<(), LoadError> {
+    fn super_check_impl(&self, decl: &ImplDecl<'_>, path: &PathFact) -> Result<(), LoadError> {
         let skip = usize::from(path.segments.first().is_some_and(|s| s == "self"));
         let supers = path
             .segments
@@ -408,11 +411,16 @@ impl Index {
         Ok(())
     }
 
-    /// Attach the members of every impl block.
-    pub(crate) fn attach_impls(&mut self) -> Result<(), LoadError> {
-        for decl in self.take_impls() {
-            let fact = decl.fact.clone();
-            let own = Index::path_fact(&fact);
+    /// Attach the members of every impl block, charging each member to the
+    /// item-bytes budget.
+    pub(crate) fn attach_impls(
+        &mut self,
+        impls: Vec<ImplDecl<'_>>,
+        store: &mut Store<'_>,
+    ) -> Result<(), LoadError> {
+        for decl in impls {
+            let fact = decl.fact;
+            let own = Index::path_fact(fact);
             let local = match &own {
                 Some(path)
                     if !(path.segments.len() == 1 && fact.generics.contains(&path.segments[0])) =>
@@ -424,7 +432,7 @@ impl Index {
             };
             let self_type: String = fact.self_type.split_whitespace().collect();
             let trait_key = match (&fact.trait_segments, local.is_empty()) {
-                (Some(tr), true) => Some(self.trait_key(&decl, tr)?),
+                (Some(tr), true) => Some(Arc::new(self.trait_key(&decl, tr)?)),
                 _ => None,
             };
             if fact.trait_segments.is_none() && local.is_empty() {
@@ -435,6 +443,25 @@ impl Index {
                     },
                 ));
             }
+            if let Some(key) = &trait_key {
+                // One key for the members of the block, charged once.
+                let bytes = match &**key {
+                    TraitKey::Canonical(path) => path.capacity(),
+                    TraitKey::Unresolved {
+                        written,
+                        candidates,
+                    } => {
+                        written.capacity()
+                            + candidates.capacity() * size_of::<String>()
+                            + candidates.iter().map(String::capacity).sum::<usize>()
+                    }
+                };
+                store.charge(
+                    shared_text(size_of::<TraitKey>()) + bytes,
+                    &decl.file,
+                    Some(fact.line),
+                )?;
+            }
             let anchor = local.first().map(|id| self.items[id.0].path.clone());
             for member in &fact.items {
                 let kind = match (member.kind, fact.trait_segments.is_some()) {
@@ -443,7 +470,7 @@ impl Index {
                     (ItemKind::TypeAlias, _) => SymbolKind::AssocType,
                     _ => SymbolKind::AssocConst,
                 };
-                let path = match (&anchor, &trait_key) {
+                let path = match (&anchor, trait_key.as_deref()) {
                     (Some(base), _) => format!("{base}::{}", member.name),
                     (None, Some(TraitKey::Canonical(key))) => format!("{key}::{}", member.name),
                     (None, Some(TraitKey::Unresolved { written, .. })) => {
@@ -456,14 +483,26 @@ impl Index {
                     &decl,
                     member,
                     kind,
-                    path.clone(),
+                    &path,
                     &self_type,
                     trait_key.clone(),
-                );
+                    store,
+                )?;
                 if local.is_empty() {
+                    store.charge(member_bytes(&path), &decl.file, Some(member.name_line))?;
                     self.foreign.entry(path).or_default().push(id);
                 } else {
                     for ty in &local {
+                        let table = if self.assoc.contains_key(ty) {
+                            0
+                        } else {
+                            MEMBERS_BYTES
+                        };
+                        store.charge(
+                            member_bytes(&member.name) + table,
+                            &decl.file,
+                            Some(member.name_line),
+                        )?;
                         self.assoc
                             .entry(*ty)
                             .or_default()

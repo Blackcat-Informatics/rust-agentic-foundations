@@ -9,11 +9,16 @@
 //! what the symbol index needs (items, `use` trees and impl headers with
 //! their positions, attributes, documentation and test role).
 
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
+use std::mem::size_of;
+
 use quote::ToTokens as _;
 use syn::spanned::Spanned as _;
 use syn::{Attribute, Expr, ExprLit, Item, Lit, Meta, Visibility};
 
 use crate::cfg::{CfgExpr, parse_list};
+use crate::meter::FactAllowance;
 
 /// A region of the file in lines and bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -314,33 +319,93 @@ pub(crate) enum ExtractError {
     Unsupported { line: usize, what: String },
     /// A position outside the text.
     Position { line: usize },
+    /// The facts passed the fact-bytes budget of the load.
+    Budget { line: usize, limit: usize },
 }
 
 type Found<T> = Result<T, ExtractError>;
 
+/// Characters between two marks of a long line's index.
+const MARK_EVERY: usize = 64;
+
+/// How a long line turns a column into a byte offset.
+enum LineIndex {
+    /// Every character is one byte.
+    Ascii,
+    /// The byte offset, from the line start, of every [`MARK_EVERY`]th
+    /// character.
+    Marks(Vec<usize>),
+}
+
 /// Line starts of the text, for turning positions into byte offsets.
+///
+/// A column counts characters, so a line with a character of more than one
+/// byte is walked. A long line is indexed once, the first time it is asked
+/// about, so the cost of a position does not grow with the length of its line.
 struct Positions<'t> {
     text: &'t str,
     starts: Vec<usize>,
+    long: RefCell<HashMap<usize, LineIndex>>,
 }
 
 impl<'t> Positions<'t> {
     fn new(text: &'t str) -> Self {
         let mut starts = vec![0];
         starts.extend(text.match_indices('\n').map(|(at, _)| at + 1));
-        Self { text, starts }
+        Self {
+            text,
+            starts,
+            long: RefCell::new(HashMap::new()),
+        }
     }
 
     fn byte(&self, line: usize, column: usize) -> Found<usize> {
         let outside = || ExtractError::Position { line };
-        let start = *line
-            .checked_sub(1)
-            .and_then(|index| self.starts.get(index))
-            .ok_or_else(outside)?;
-        let rest = self.text.get(start..).ok_or_else(outside)?;
-        match rest.char_indices().nth(column) {
-            Some((offset, _)) => Ok(start + offset),
-            None if rest.chars().count() == column => Ok(self.text.len()),
+        let index = line.checked_sub(1).ok_or_else(outside)?;
+        let start = *self.starts.get(index).ok_or_else(outside)?;
+        let end = self
+            .starts
+            .get(index + 1)
+            .copied()
+            .unwrap_or(self.text.len());
+        let own = self.text.get(start..end).ok_or_else(outside)?;
+        let (base, rest, skip) = if own.len() <= MARK_EVERY {
+            (0, own, column)
+        } else {
+            let mut long = self.long.borrow_mut();
+            let entry = long.entry(index).or_insert_with(|| {
+                if own.is_ascii() {
+                    LineIndex::Ascii
+                } else {
+                    LineIndex::Marks(
+                        own.char_indices()
+                            .step_by(MARK_EVERY)
+                            .map(|(at, _)| at)
+                            .collect(),
+                    )
+                }
+            });
+            match entry {
+                LineIndex::Ascii => {
+                    return if column <= own.len() {
+                        Ok(start + column)
+                    } else {
+                        Err(outside())
+                    };
+                }
+                LineIndex::Marks(marks) => {
+                    let mark = (column / MARK_EVERY).min(marks.len().saturating_sub(1));
+                    let base = marks.get(mark).copied().unwrap_or(0);
+                    let rest = own.get(base..).ok_or_else(outside)?;
+                    (base, rest, column - mark * MARK_EVERY)
+                }
+            }
+        };
+        let mut chars = rest.char_indices();
+        match chars.nth(skip) {
+            Some((offset, _)) => Ok(start + base + offset),
+            // Just past the last character of the line.
+            None if rest.chars().count() == skip => Ok(start + base + rest.len()),
             None => Err(outside()),
         }
     }
@@ -356,12 +421,77 @@ impl<'t> Positions<'t> {
     }
 }
 
+/// The fact bytes a file takes, charged on its parse thread as each fact is
+/// built: its fixed size and the length of every string and list it owns.
+struct FactMeter {
+    allowance: FactAllowance,
+    spent: Cell<usize>,
+}
+
+impl FactMeter {
+    /// A meter for attributes that are read for their meaning and not kept,
+    /// whose facts are dropped at once.
+    fn scratch() -> Self {
+        Self {
+            allowance: FactAllowance {
+                spent: 0,
+                limit: usize::MAX,
+            },
+            spent: Cell::new(0),
+        }
+    }
+
+    /// Charge `bytes` for a fact built at `line`.
+    fn charge(&self, bytes: usize, line: usize) -> Found<()> {
+        let spent = self.spent.get().saturating_add(bytes);
+        self.spent.set(spent);
+        if self.allowance.spent.saturating_add(spent) > self.allowance.limit {
+            Err(ExtractError::Budget {
+                line,
+                limit: self.allowance.limit,
+            })
+        } else {
+            Ok(())
+        }
+    }
+}
+
+/// The bytes a list of strings owns beyond its own header.
+fn strings_bytes(strings: &[String]) -> usize {
+    strings
+        .iter()
+        .map(|text| size_of::<String>() + text.capacity())
+        .sum()
+}
+
+/// The bytes a visibility owns beyond its own size.
+fn vis_bytes(vis: &Vis) -> usize {
+    match vis {
+        Vis::Restricted(text) => text.capacity(),
+        Vis::Inherited | Vis::Public => 0,
+    }
+}
+
+/// A string that holds no room beyond its text, so what it is charged is
+/// what it holds.
+fn fit(mut text: String) -> String {
+    text.shrink_to_fit();
+    text
+}
+
+/// Trim a list to its length and give the bytes of room it still holds beyond
+/// the elements, which are charged one by one.
+fn slack<T>(list: &mut Vec<T>) -> usize {
+    list.shrink_to_fit();
+    (list.capacity() - list.len()) * size_of::<T>()
+}
+
 fn unraw(ident: &syn::Ident) -> String {
     let text = ident.to_string();
-    match text.strip_prefix("r#") {
+    fit(match text.strip_prefix("r#") {
         Some(plain) => plain.to_owned(),
         None => text,
-    }
+    })
 }
 
 fn vis(visibility: &Visibility) -> Vis {
@@ -369,11 +499,11 @@ fn vis(visibility: &Visibility) -> Vis {
         Visibility::Public(_) => Vis::Public,
         Visibility::Restricted(restricted) => {
             let path = restricted.path.to_token_stream().to_string();
-            Vis::Restricted(if restricted.in_token.is_some() {
+            Vis::Restricted(fit(if restricted.in_token.is_some() {
                 format!("in {path}")
             } else {
                 path
-            })
+            }))
         }
         Visibility::Inherited => Vis::Inherited,
     }
@@ -430,6 +560,7 @@ fn apply_cfg_attr(
     outer: Option<&CfgExpr>,
     summary: &mut AttrSummary,
     line: usize,
+    meter: &FactMeter,
 ) -> Found<()> {
     let metas = parse_list(tokens).map_err(|message| cfg_error(line, message))?;
     let Some((first, applied)) = metas.split_first() else {
@@ -443,14 +574,21 @@ fn apply_cfg_attr(
     for meta in applied {
         match meta {
             Meta::NameValue(pair) if pair.path.is_ident("path") => {
-                summary.paths.conditional.push(ConditionalPath {
-                    predicate: combined.to_string(),
+                let conditional = ConditionalPath {
+                    predicate: fit(combined.to_string()),
                     implies_test: combined.implies_test(),
-                    path: path_value(&pair.value, line)?,
-                });
+                    path: fit(path_value(&pair.value, line)?),
+                };
+                meter.charge(
+                    size_of::<ConditionalPath>()
+                        + conditional.predicate.capacity()
+                        + conditional.path.capacity(),
+                    line,
+                )?;
+                summary.paths.conditional.push(conditional);
             }
             Meta::List(list) if list.path.is_ident("cfg_attr") => {
-                apply_cfg_attr(&list.tokens, Some(&combined), summary, line)?;
+                apply_cfg_attr(&list.tokens, Some(&combined), summary, line, meter)?;
             }
             Meta::List(list) if list.path.is_ident("cfg") => {
                 let inner = cfg_predicate(&list.tokens, line)?;
@@ -474,8 +612,8 @@ fn is_include_str(expr: &Expr) -> bool {
     matches!(expr, Expr::Macro(call) if call.mac.path.segments.last().is_some_and(|s| s.ident == "include_str"))
 }
 
-/// Read the attributes of an item.
-fn summarize(attrs: &[Attribute]) -> Found<AttrSummary> {
+/// Read the attributes of an item, charging each fact to `meter`.
+fn summarize(attrs: &[Attribute], meter: &FactMeter) -> Found<AttrSummary> {
     let mut summary = AttrSummary {
         facts: Vec::new(),
         documented: false,
@@ -486,12 +624,16 @@ fn summarize(attrs: &[Attribute]) -> Found<AttrSummary> {
     };
     for attr in attrs {
         let line = attr.span().start().line;
-        let path = path_text(attr.path());
-        let args = match &attr.meta {
+        let path = fit(path_text(attr.path()));
+        let args = fit(match &attr.meta {
             Meta::Path(_) => String::new(),
             Meta::List(list) => format!("({})", list.tokens),
             Meta::NameValue(pair) => format!("= {}", pair.value.to_token_stream()),
-        };
+        });
+        meter.charge(
+            size_of::<AttrFact>() + path.capacity() + args.capacity(),
+            line,
+        )?;
         summary.facts.push(AttrFact {
             path: path.clone(),
             args,
@@ -516,10 +658,9 @@ fn summarize(attrs: &[Attribute]) -> Found<AttrSummary> {
                 return Err(cfg_error(line, "`test` takes no arguments".to_owned()));
             }
             ("path", Meta::NameValue(pair)) => {
-                summary
-                    .paths
-                    .unconditional
-                    .push(path_value(&pair.value, line)?);
+                let value = fit(path_value(&pair.value, line)?);
+                meter.charge(size_of::<String>() + value.capacity(), line)?;
+                summary.paths.unconditional.push(value);
             }
             ("path", _) => {
                 return Err(cfg_error(line, "`path` must be `path = \"..\"`".to_owned()));
@@ -534,7 +675,7 @@ fn summarize(attrs: &[Attribute]) -> Found<AttrSummary> {
                 return Err(cfg_error(line, "`cfg` must be `cfg(predicate)`".to_owned()));
             }
             ("cfg_attr", Meta::List(list)) => {
-                apply_cfg_attr(&list.tokens, None, &mut summary, line)?;
+                apply_cfg_attr(&list.tokens, None, &mut summary, line, meter)?;
             }
             ("cfg_attr", _) => {
                 return Err(cfg_error(
@@ -547,6 +688,11 @@ fn summarize(attrs: &[Attribute]) -> Found<AttrSummary> {
             _ => {}
         }
     }
+    let line = attrs.last().map_or(1, |attr| attr.span().start().line);
+    let room = slack(&mut summary.facts)
+        + slack(&mut summary.paths.unconditional)
+        + slack(&mut summary.paths.conditional);
+    meter.charge(room, line)?;
     Ok(summary)
 }
 
@@ -563,6 +709,7 @@ fn role(own: TestRole, inherited: TestRole) -> TestRole {
 
 struct Extractor<'t> {
     positions: Positions<'t>,
+    meter: FactMeter,
 }
 
 impl Extractor<'_> {
@@ -582,15 +729,21 @@ impl Extractor<'_> {
         members: Vec<ItemFact>,
     ) -> Found<ItemFact> {
         let name_line = name.span().start().line;
-        let summary = summarize(attrs)?;
+        let summary = summarize(attrs, &self.meter)?;
+        let name = unraw(name);
+        let vis = vis(vis_of);
+        self.meter.charge(
+            size_of::<ItemFact>() + name.capacity() + vis_bytes(&vis),
+            name_line,
+        )?;
         Ok(ItemFact {
-            name: unraw(name),
+            name,
             renamed_from: None,
             kind,
             name_line,
             span: self.positions.span(whole)?,
             body: body.map(|span| self.positions.span(span)).transpose()?,
-            vis: vis(vis_of),
+            vis,
             attrs: summary.facts,
             documented: summary.documented,
             doc_hidden: summary.doc_hidden,
@@ -602,11 +755,16 @@ impl Extractor<'_> {
         })
     }
 
-    fn module(&self, items: &[Item], inherited: TestRole) -> Found<ModBody> {
+    fn module(&self, items: &[Item], inherited: TestRole, line: usize) -> Found<ModBody> {
         let mut body = ModBody::default();
         for item in items {
             self.one(item, inherited, &mut body)?;
         }
+        let room = slack(&mut body.items)
+            + slack(&mut body.mods)
+            + slack(&mut body.uses)
+            + slack(&mut body.impls);
+        self.meter.charge(room, line)?;
         Ok(body)
     }
 
@@ -661,13 +819,15 @@ impl Extractor<'_> {
         whole: proc_macro2::Span,
         inherited: TestRole,
     ) -> Found<ItemFact> {
-        let own = summarize(&t.attrs)?;
+        let own = summarize(&t.attrs, &FactMeter::scratch())?;
         let inside = role(own.own_test, inherited);
-        let members = t
+        let mut members = t
             .items
             .iter()
             .map(|member| self.trait_member(member, inside))
             .collect::<Found<Vec<_>>>()?;
+        self.meter
+            .charge(slack(&mut members), t.ident.span().start().line)?;
         self.item(
             &t.ident,
             ItemKind::Trait,
@@ -725,6 +885,10 @@ impl Extractor<'_> {
                     }),
                     _ => None,
                 };
+                if let Some(alias) = &fact.alias {
+                    self.meter
+                        .charge(strings_bytes(&alias.segments), fact.name_line)?;
+                }
                 fact
             }
             Item::Const(c) => self.item(
@@ -793,12 +957,14 @@ impl Extractor<'_> {
                     Vec::new(),
                 )?;
                 if e.rename.is_some() {
-                    fact.renamed_from = Some(unraw(&e.ident));
+                    let original = unraw(&e.ident);
+                    self.meter.charge(original.capacity(), fact.name_line)?;
+                    fact.renamed_from = Some(original);
                 }
                 body.items.push(fact);
             }
             Item::ForeignMod(block) => {
-                let own = summarize(&block.attrs)?;
+                let own = summarize(&block.attrs, &FactMeter::scratch())?;
                 let inside = role(own.own_test, inherited);
                 for foreign in &block.items {
                     self.foreign(foreign, inside, body)?;
@@ -808,13 +974,16 @@ impl Extractor<'_> {
             Item::Impl(i) => body.impls.push(self.impl_fact(i, inherited)?),
             Item::Use(u) => {
                 let line = whole.start().line;
-                let summary = summarize(&u.attrs)?;
+                let summary = summarize(&u.attrs, &FactMeter::scratch())?;
+                let vis = vis(&u.vis);
+                self.meter
+                    .charge(size_of::<UseFact>() + vis_bytes(&vis), line)?;
                 body.uses.push(UseFact {
                     line,
                     span: self.positions.span(whole)?,
-                    vis: vis(&u.vis),
+                    vis,
                     leading_colon: u.leading_colon.is_some(),
-                    tree: use_tree(&u.tree),
+                    tree: self.use_tree(&u.tree, line)?,
                     test: role(summary.own_test, inherited),
                 });
             }
@@ -981,7 +1150,7 @@ impl Extractor<'_> {
     fn impl_fact(&self, block: &syn::ItemImpl, inherited: TestRole) -> Found<ImplFact> {
         let whole = block.span();
         let line = block.impl_token.span.start().line;
-        let summary = summarize(&block.attrs)?;
+        let summary = summarize(&block.attrs, &FactMeter::scratch())?;
         let test = role(summary.own_test, inherited);
         let mut items = Vec::new();
         for member in &block.items {
@@ -989,7 +1158,7 @@ impl Extractor<'_> {
                 items.push(fact);
             }
         }
-        let self_path = match &*block.self_ty {
+        let self_path: Option<Vec<String>> = match &*block.self_ty {
             syn::Type::Path(path) if path.qself.is_none() => Some(
                 path.path
                     .segments
@@ -1003,7 +1172,7 @@ impl Extractor<'_> {
             &*block.self_ty,
             syn::Type::Path(path) if path.qself.is_none() && path.path.leading_colon.is_some()
         );
-        let generics = block
+        let mut generics = block
             .generics
             .params
             .iter()
@@ -1012,20 +1181,36 @@ impl Extractor<'_> {
                 syn::GenericParam::Const(param) => Some(unraw(&param.ident)),
                 syn::GenericParam::Lifetime(_) => None,
             })
-            .collect();
+            .collect::<Vec<_>>();
+        let trait_path = block
+            .trait_
+            .as_ref()
+            .map(|(path, _)| fit(path.to_token_stream().to_string()));
+        let trait_segments = block.trait_.as_ref().map(|(path, _)| PathFact {
+            segments: path.segments.iter().map(|s| unraw(&s.ident)).collect(),
+            leading_colon: path.leading_colon.is_some(),
+        });
+        let self_type = fit(block.self_ty.to_token_stream().to_string());
+        self.meter.charge(
+            size_of::<ImplFact>()
+                + trait_path.as_ref().map_or(0, String::capacity)
+                + trait_segments
+                    .as_ref()
+                    .map_or(0, |path| strings_bytes(&path.segments))
+                + self_type.capacity()
+                + self_path.as_deref().map_or(0, strings_bytes)
+                + strings_bytes(&generics)
+                + slack(&mut generics)
+                + slack(&mut items),
+            line,
+        )?;
         Ok(ImplFact {
             line,
             span: self.positions.span(whole)?,
             body: self.positions.span(block.brace_token.span.join())?,
-            trait_path: block
-                .trait_
-                .as_ref()
-                .map(|(path, _)| path.to_token_stream().to_string()),
-            trait_segments: block.trait_.as_ref().map(|(path, _)| PathFact {
-                segments: path.segments.iter().map(|s| unraw(&s.ident)).collect(),
-                leading_colon: path.leading_colon.is_some(),
-            }),
-            self_type: block.self_ty.to_token_stream().to_string(),
+            trait_path,
+            trait_segments,
+            self_type,
             self_path,
             self_leading_colon,
             generics,
@@ -1036,21 +1221,27 @@ impl Extractor<'_> {
 
     fn module_fact(&self, module: &syn::ItemMod, inherited: TestRole) -> Found<ModFact> {
         let name_line = module.ident.span().start().line;
-        let summary = summarize(&module.attrs)?;
+        let summary = summarize(&module.attrs, &self.meter)?;
         let test = role(summary.own_test, inherited);
         let (body_span, inline) = match &module.content {
             Some((brace, items)) => (
                 Some(self.positions.span(brace.span.join())?),
-                Some(self.module(items, test)?),
+                Some(self.module(items, test, name_line)?),
             ),
             None => (None, None),
         };
+        let name = unraw(&module.ident);
+        let vis = vis(&module.vis);
+        self.meter.charge(
+            size_of::<ModFact>() + name.capacity() + vis_bytes(&vis),
+            name_line,
+        )?;
         Ok(ModFact {
-            name: unraw(&module.ident),
+            name,
             name_line,
             span: self.positions.span(module.span())?,
             body_span,
-            vis: vis(&module.vis),
+            vis,
             attrs: summary.facts,
             documented: summary.documented,
             doc_hidden: summary.doc_hidden,
@@ -1061,42 +1252,124 @@ impl Extractor<'_> {
     }
 }
 
-fn use_tree(tree: &syn::UseTree) -> UseTree {
-    match tree {
-        syn::UseTree::Path(path) => UseTree::Path {
-            name: unraw(&path.ident),
-            rest: Box::new(use_tree(&path.tree)),
-        },
-        syn::UseTree::Name(name) => UseTree::Name(unraw(&name.ident)),
-        syn::UseTree::Rename(rename) => UseTree::Rename {
-            name: unraw(&rename.ident),
-            alias: unraw(&rename.rename),
-        },
-        syn::UseTree::Glob(_) => UseTree::Glob,
-        syn::UseTree::Group(group) => UseTree::Group(group.items.iter().map(use_tree).collect()),
+impl Extractor<'_> {
+    /// The owned form of a `use` tree, each node charged as it is built: its
+    /// size and the names it holds.
+    fn use_tree(&self, tree: &syn::UseTree, line: usize) -> Found<UseTree> {
+        let node = match tree {
+            syn::UseTree::Path(path) => {
+                let name = unraw(&path.ident);
+                self.meter.charge(name.capacity(), line)?;
+                UseTree::Path {
+                    name,
+                    rest: Box::new(self.use_tree(&path.tree, line)?),
+                }
+            }
+            syn::UseTree::Name(name) => {
+                let name = unraw(&name.ident);
+                self.meter.charge(name.capacity(), line)?;
+                UseTree::Name(name)
+            }
+            syn::UseTree::Rename(rename) => {
+                let (name, alias) = (unraw(&rename.ident), unraw(&rename.rename));
+                self.meter
+                    .charge(name.capacity() + alias.capacity(), line)?;
+                UseTree::Rename { name, alias }
+            }
+            syn::UseTree::Glob(_) => UseTree::Glob,
+            syn::UseTree::Group(group) => {
+                let mut items = group
+                    .items
+                    .iter()
+                    .map(|item| self.use_tree(item, line))
+                    .collect::<Found<Vec<_>>>()?;
+                self.meter.charge(slack(&mut items), line)?;
+                UseTree::Group(items)
+            }
+        };
+        self.meter.charge(size_of::<UseTree>(), line)?;
+        Ok(node)
     }
 }
 
 /// Read the facts of a parsed file. Runs on the parse thread.
 ///
+/// Every fact is charged as it is built, against what `allowance` leaves of
+/// the fact-bytes budget of the load. Returns the facts and the bytes they
+/// were charged.
+///
 /// # Errors
 ///
-/// Returns an [`ExtractError`] for a `cfg` predicate that cannot be read or an
-/// item the index does not model.
-pub(crate) fn extract(tree: &syn::File, text: &str) -> Result<FileFacts, ExtractError> {
+/// Returns an [`ExtractError`] for a `cfg` predicate that cannot be read, an
+/// item the index does not model, and facts that pass the budget, naming the
+/// line of the fact that passed it.
+pub(crate) fn extract(
+    tree: &syn::File,
+    text: &str,
+    allowance: FactAllowance,
+) -> Result<(FileFacts, usize), ExtractError> {
     let extractor = Extractor {
         positions: Positions::new(text),
+        meter: FactMeter {
+            allowance,
+            spent: Cell::new(0),
+        },
     };
-    let own = summarize(&tree.attrs)?;
+    extractor.meter.charge(size_of::<FileFacts>(), 1)?;
+    let own = summarize(&tree.attrs, &extractor.meter)?;
     let inherited = if own.own_test == TestRole::CfgTest {
         TestRole::CfgTest
     } else {
         TestRole::None
     };
-    Ok(FileFacts {
-        body: extractor.module(&tree.items, inherited)?,
+    let facts = FileFacts {
+        body: extractor.module(&tree.items, inherited, 1)?,
         documented: own.documented,
         doc_hidden: own.doc_hidden,
         attrs: own.facts,
-    })
+    };
+    Ok((facts, extractor.meter.spent.get()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines() {
+        let wide: String = "é".repeat(200);
+        let long = "x".repeat(300);
+        let text = format!("ab\n{long}\n{wide}\ntail");
+        let positions = Positions::new(&text);
+        // A short line, its end and its newline.
+        assert_eq!(positions.byte(1, 1).ok(), Some(1));
+        assert_eq!(positions.byte(1, 2).ok(), Some(2));
+        // A long line of one-byte characters.
+        assert_eq!(positions.byte(2, 0).ok(), Some(3));
+        assert_eq!(positions.byte(2, 299).ok(), Some(3 + 299));
+        // A long line of two-byte characters, before, on and after a mark.
+        let start = 3 + 301;
+        for column in [0, 1, 63, 64, 65, 130, 199, 200] {
+            assert_eq!(
+                positions.byte(3, column).ok(),
+                Some(start + 2 * column),
+                "column {column}"
+            );
+        }
+        // The last line ends at the end of the text.
+        assert_eq!(positions.byte(4, 4).ok(), Some(text.len()));
+        // A column past its line and a line past the text are refused.
+        assert!(matches!(
+            positions.byte(3, 202),
+            Err(ExtractError::Position { line: 3 })
+        ));
+        assert!(matches!(
+            positions.byte(2, 302),
+            Err(ExtractError::Position { line: 2 })
+        ));
+        assert!(matches!(
+            positions.byte(9, 0),
+            Err(ExtractError::Position { line: 9 })
+        ));
+    }
 }

@@ -65,7 +65,7 @@ fn is_outside(result: &Result<(), TreeError>) -> bool {
 }
 
 #[cfg(unix)]
-fn id_of(path: &Path) -> FileId {
+fn id_of(path: &Path) -> DevIno {
     file_id(&fs::metadata(path).expect("metadata"), "x").expect("file id")
 }
 

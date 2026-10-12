@@ -335,9 +335,7 @@ impl Index {
     fn origin_of(&self, source: &Source, id: ItemId) -> Option<&crate::settle::Origin> {
         let entry = self.scopes[source.module].get(&source.name)?;
         let ns = slot(source.ns);
-        entry.defs[ns]
-            .get(&id)
-            .or_else(|| entry.globbed[ns].get(&id))
+        entry.defs[ns].get(id).or_else(|| entry.globbed[ns].get(id))
     }
 
     fn chain_for(&self, requested: &str, hit: &Hit, id: ItemId) -> Vec<String> {
@@ -436,7 +434,7 @@ impl Index {
         for id in found.keys() {
             let item = &self.items[id.0];
             groups
-                .entry((item.path.clone(), item.kind))
+                .entry((item.path.to_string(), item.kind))
                 .or_default()
                 .push(*id);
         }
@@ -452,7 +450,7 @@ impl Index {
         let first = sites[0];
         let hit = &found[&first];
         Ok(Resolution {
-            path: self.items[first.0].path.clone(),
+            path: self.items[first.0].path.to_string(),
             namespace: ns,
             via_glob: hit.via_glob,
             chain: self.chain_for(text, hit, first),

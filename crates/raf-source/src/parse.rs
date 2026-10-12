@@ -6,6 +6,7 @@
 use std::panic;
 use std::thread;
 
+use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind};
 use crate::path::RelPath;
 use crate::prescan::prescan;
@@ -18,7 +19,9 @@ pub const PARSE_STACK_BYTES: usize = 64 * 1024 * 1024;
 
 /// Parse `text` as a Rust file and run `visit` on the syntax tree.
 ///
-/// The recursion budgets are checked on the caller's thread first. The parse
+/// The recursion budgets and the token budget, at its default limit
+/// ([`Budget::FileTokens`](crate::Budget::FileTokens)), are checked on the
+/// caller's thread first. The parse
 /// and `visit` then run on a scoped thread named after `file`, with a stack of
 /// [`PARSE_STACK_BYTES`]; a stack overflow in the runtime names that thread.
 /// A panic in `visit` or in the parser is raised again on the caller's thread.
@@ -40,7 +43,18 @@ pub fn parse_source<R: Send>(
     text: &str,
     visit: impl FnOnce(&syn::File) -> R + Send,
 ) -> Result<R, LoadError> {
-    prescan(file, text)?;
+    parse_counted(file, text, Budget::FileTokens.limit(), visit).map(|(result, _)| result)
+}
+
+/// [`parse_source`] with a token limit of `max_tokens`, also returning the
+/// number of tokens the pre-scan counted.
+pub(crate) fn parse_counted<R: Send>(
+    file: &RelPath,
+    text: &str,
+    max_tokens: usize,
+    visit: impl FnOnce(&syn::File) -> R + Send,
+) -> Result<(R, usize), LoadError> {
+    let tokens = prescan(file, text, max_tokens)?;
     thread::scope(|scope| {
         let worker = thread::Builder::new()
             .name(file.to_string())
@@ -61,7 +75,7 @@ pub fn parse_source<R: Send>(
             })
             .map_err(|source| LoadError::new(file, None, LoadErrorKind::Spawn(source)))?;
         match worker.join() {
-            Ok(Ok(result)) => Ok(result),
+            Ok(Ok(result)) => Ok((result, tokens)),
             Ok(Err(failure)) => Err(LoadError::new(
                 file,
                 Some(failure.line),

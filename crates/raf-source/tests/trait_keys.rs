@@ -27,7 +27,8 @@ fn key_of(ws: &Workspace, path: &str) -> TraitKey {
     ws.item(resolution.sites[0])
         .expect("item")
         .trait_key
-        .clone()
+        .as_deref()
+        .cloned()
         .expect("a trait impl on a foreign type has a key")
 }
 

@@ -11,13 +11,13 @@
 //! answer is indeterminate and the asker waits, which is rustc's rule and
 //! makes the result independent of the order of the declarations.
 
-use std::collections::btree_map::Entry as MapEntry;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use crate::error::{LoadError, LoadErrorKind};
 use crate::facts::Vis;
-use crate::index::{Index, UseDecl, UseKind};
+use crate::index::{Index, UseDecl, UseKind, binding_bytes};
 use crate::item::{ItemId, Namespace};
+use crate::meter::Meter;
 use crate::resolve::Fail;
 
 /// How a name came to be bound in a module.
@@ -54,7 +54,93 @@ impl Origin {
     }
 }
 
-pub(crate) type Bound = BTreeMap<ItemId, Origin>;
+/// The items one name is bound to in one name space, each with the best
+/// route found to it, sorted by item.
+///
+/// Most names are bound to one item, so the bindings are a sorted list that
+/// holds exactly what it binds, not a tree whose nodes hold room for many.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct Bound {
+    sorted: Vec<(ItemId, Origin)>,
+}
+
+impl Bound {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.sorted.is_empty()
+    }
+
+    pub(crate) fn get(&self, id: ItemId) -> Option<&Origin> {
+        self.sorted
+            .binary_search_by_key(&id, |(known, _)| *known)
+            .ok()
+            .map(|at| &self.sorted[at].1)
+    }
+
+    pub(crate) fn keys(&self) -> impl Iterator<Item = &ItemId> {
+        self.sorted.iter().map(|(id, _)| id)
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&ItemId, &Origin)> {
+        self.sorted.iter().map(|(id, origin)| (id, origin))
+    }
+
+    /// Bind `id` by `origin`. Returns true when `id` was not bound before; a
+    /// second route to a bound item replaces the first only when it ranks
+    /// lower.
+    pub(crate) fn offer(&mut self, id: ItemId, origin: Origin) -> bool {
+        match self.sorted.binary_search_by_key(&id, |(known, _)| *known) {
+            Ok(at) => {
+                if origin.rank() < self.sorted[at].1.rank() {
+                    self.sorted[at].1 = origin;
+                }
+                false
+            }
+            Err(at) => {
+                if self.sorted.is_empty() {
+                    // The first binding takes exactly its own room.
+                    self.sorted.reserve_exact(1);
+                }
+                self.sorted.insert(at, (id, origin));
+                true
+            }
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a Bound {
+    type Item = (&'a ItemId, &'a Origin);
+    type IntoIter = std::iter::Map<
+        std::slice::Iter<'a, (ItemId, Origin)>,
+        fn(&'a (ItemId, Origin)) -> (&'a ItemId, &'a Origin),
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.sorted.iter().map(|(id, origin)| (id, origin))
+    }
+}
+
+impl IntoIterator for Bound {
+    type Item = (ItemId, Origin);
+    type IntoIter = std::vec::IntoIter<(ItemId, Origin)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.sorted.into_iter()
+    }
+}
+
+impl FromIterator<(ItemId, Origin)> for Bound {
+    fn from_iter<I: IntoIterator<Item = (ItemId, Origin)>>(pairs: I) -> Self {
+        let mut bound = Self::new();
+        for (id, origin) in pairs {
+            bound.offer(id, origin);
+        }
+        bound
+    }
+}
 
 /// The bindings of one name in the three name spaces.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -63,8 +149,9 @@ pub(crate) struct Entry {
     pub(crate) globbed: [Bound; 3],
 }
 
-/// The names of one module.
-pub(crate) type Scope = BTreeMap<String, Entry>;
+/// The names of one module. Each entry is boxed, so a node of the table holds
+/// eleven names and pointers and not eleven entries of six lists each.
+pub(crate) type Scope = BTreeMap<String, Box<Entry>>;
 
 pub(crate) fn slot(ns: Namespace) -> usize {
     match ns {
@@ -183,18 +270,7 @@ impl Index {
         origin: Origin,
     ) -> bool {
         let entry = self.scopes[module].entry(name.to_owned()).or_default();
-        match entry.defs[slot(ns)].entry(id) {
-            MapEntry::Vacant(vacant) => {
-                vacant.insert(origin);
-                true
-            }
-            MapEntry::Occupied(mut occupied) => {
-                if origin.rank() < occupied.get().rank() {
-                    occupied.insert(origin);
-                }
-                false
-            }
-        }
+        entry.defs[slot(ns)].offer(id, origin)
     }
 
     /// Bind `id` under `name` among the glob bindings of `module`; see
@@ -208,18 +284,7 @@ impl Index {
         origin: Origin,
     ) -> bool {
         let entry = self.scopes[module].entry(name.to_owned()).or_default();
-        match entry.globbed[ns].entry(id) {
-            MapEntry::Vacant(vacant) => {
-                vacant.insert(origin);
-                true
-            }
-            MapEntry::Occupied(mut occupied) => {
-                if origin.rank() < occupied.get().rank() {
-                    occupied.insert(origin);
-                }
-                false
-            }
-        }
+        entry.globbed[ns].offer(id, origin)
     }
 
     /// The names of each module: its definitions.
@@ -382,18 +447,8 @@ impl Index {
                 for (name, ns, bound) in self.visible(target, decl.module) {
                     for id in bound.keys() {
                         let origin = Self::glob_origin(decl, target, ns, &name);
-                        let slot =
-                            &mut fresh[decl.module].entry(name.clone()).or_default().globbed[ns];
-                        match slot.entry(*id) {
-                            MapEntry::Vacant(vacant) => {
-                                vacant.insert(origin);
-                            }
-                            MapEntry::Occupied(mut occupied) => {
-                                if origin.rank() < occupied.get().rank() {
-                                    occupied.insert(origin);
-                                }
-                            }
-                        }
+                        fresh[decl.module].entry(name.clone()).or_default().globbed[ns]
+                            .offer(*id, origin);
                     }
                 }
             }
@@ -432,8 +487,8 @@ impl Index {
     /// that wait on nothing that can still change are settled as failed, one
     /// round at a time, and the queue runs again. The globs are then rebuilt
     /// against the settled definitions.
-    pub(crate) fn settle(&mut self) -> Result<(), LoadError> {
-        for decl in &self.uses.clone() {
+    pub(crate) fn settle(&mut self, meter: &Meter) -> Result<(), LoadError> {
+        for decl in &self.uses {
             match &decl.kind {
                 UseKind::Named { segs, .. } | UseKind::Glob { segs } => {
                     self.super_check(decl, segs)?;
@@ -455,7 +510,7 @@ impl Index {
             pending.push(position);
         }
         loop {
-            self.drain(&mut pending)?;
+            self.drain(&mut pending, meter)?;
             let stuck: Vec<usize> = (0..self.uses.len())
                 .filter(|p| {
                     matches!(self.uses[*p].kind, UseKind::Named { .. }) && !self.use_settled[*p]
@@ -484,13 +539,13 @@ impl Index {
     }
 
     /// Run the queue until it is empty.
-    fn drain(&mut self, pending: &mut Pending) -> Result<(), LoadError> {
+    fn drain(&mut self, pending: &mut Pending, meter: &Meter) -> Result<(), LoadError> {
         while let Some(position) = pending.queue.pop_front() {
             pending.queued.remove(&position);
             let decl = self.uses[position].clone();
             let bound = match &decl.kind {
                 UseKind::Named { name, segs } => {
-                    let bound = self.settle_named(position, &decl, name, segs, pending)?;
+                    let bound = self.settle_named(position, &decl, name, segs, pending, meter)?;
                     if self.use_resolved[position] {
                         self.settle_use(position, pending);
                     }
@@ -540,6 +595,7 @@ impl Index {
         name: &str,
         segs: &[String],
         pending: &mut Pending,
+        meter: &Meter,
     ) -> Result<Vec<(usize, String)>, LoadError> {
         let mut bound = Vec::new();
         for ns in Namespace::ALL {
@@ -547,6 +603,12 @@ impl Index {
                 Ok(walked) => {
                     for (id, hit) in walked.items {
                         self.use_resolved[position] = true;
+                        let source = hit.last.as_ref().map_or(0, |last| last.name.capacity());
+                        meter.items(
+                            binding_bytes(name, &decl.vis, source),
+                            &decl.file,
+                            Some(decl.line),
+                        )?;
                         let origin = Origin {
                             via_glob: hit.via_glob,
                             vis: decl.vis.clone(),
@@ -606,5 +668,56 @@ impl Index {
             Err(Fail::SuperAboveRoot) => {}
         }
         bound
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn origin(via_glob: bool) -> Origin {
+        Origin {
+            via_glob,
+            vis: Vis::Public,
+            link: None,
+        }
+    }
+
+    #[test]
+    fn a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room() {
+        let mut bound = Bound::new();
+        assert!(bound.is_empty());
+        assert!(bound.offer(ItemId(7), origin(true)));
+        // The first binding takes exactly its own room.
+        assert_eq!(bound.sorted.capacity(), 1);
+        assert!(bound.offer(ItemId(2), origin(true)));
+        assert!(bound.offer(ItemId(5), origin(false)));
+        let ids: Vec<usize> = bound.keys().map(|id| id.0).collect();
+        assert_eq!(ids, [2, 5, 7]);
+        // A second route to a bound item is not a new binding; one without a
+        // glob replaces one through a glob, and not the other way round.
+        assert!(!bound.offer(ItemId(7), origin(false)));
+        assert_eq!(bound.get(ItemId(7)), Some(&origin(false)));
+        assert!(!bound.offer(ItemId(5), origin(true)));
+        assert_eq!(bound.get(ItemId(5)), Some(&origin(false)));
+        assert_eq!(bound.get(ItemId(3)), None);
+        let pairs: Vec<(usize, bool)> = (&bound)
+            .into_iter()
+            .map(|(id, origin)| (id.0, origin.via_glob))
+            .collect();
+        assert_eq!(pairs, [(2, true), (5, false), (7, false)]);
+        // Collecting keeps the better route of a repeated item, in any order.
+        let collected: Bound = [
+            (ItemId(4), origin(true)),
+            (ItemId(1), origin(true)),
+            (ItemId(4), origin(false)),
+        ]
+        .into_iter()
+        .collect();
+        let pairs: Vec<(usize, bool)> = collected
+            .into_iter()
+            .map(|(id, origin)| (id.0, origin.via_glob))
+            .collect();
+        assert_eq!(pairs, [(1, true), (4, false)]);
     }
 }

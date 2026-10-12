@@ -26,6 +26,77 @@ pub enum EntryKind {
     Other,
 }
 
+/// The identity of a file: two paths whose identities are equal name one file.
+///
+/// [`DiskTree`] takes it from the verified handle: on Unix the device and
+/// inode numbers, elsewhere the canonical path below the root. [`MemoryTree`]
+/// uses the normalised key. Another backend builds one with
+/// [`FileId::from_device`] or [`FileId::from_key`].
+///
+/// A device and inode pair names one file only where the file system keeps
+/// inode numbers unique and stable while the tree is read, as local file
+/// systems do; a file system that reuses or invents them (some network and
+/// user-space mounts) can make two files look like one.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct FileId(Identity);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+enum Identity {
+    /// A device and an inode number.
+    Device { dev: u64, ino: u64 },
+    /// A key that names the file in its backend.
+    Key(Box<str>),
+    /// A canonical path below the root, in the platform's own encoding.
+    #[cfg(not(unix))]
+    Native(std::ffi::OsString),
+}
+
+impl FileId {
+    /// The identity of a file given by its device and inode numbers.
+    #[must_use]
+    pub fn from_device(dev: u64, ino: u64) -> Self {
+        Self(Identity::Device { dev, ino })
+    }
+
+    /// The identity of a file given by a key that names exactly one file of
+    /// the backend, such as its normalised path.
+    #[must_use]
+    pub fn from_key(key: &str) -> Self {
+        Self(Identity::Key(key.into()))
+    }
+
+    /// The bytes the identity holds on the heap beyond its own size.
+    pub(crate) fn heap_bytes(&self) -> usize {
+        match &self.0 {
+            Identity::Device { .. } => 0,
+            Identity::Key(key) => key.len(),
+            #[cfg(not(unix))]
+            Identity::Native(path) => path.capacity(),
+        }
+    }
+
+    /// The identity of a file given by its canonical path below the root.
+    #[cfg(not(unix))]
+    pub(crate) fn from_native(path: std::ffi::OsString) -> Self {
+        Self(Identity::Native(path))
+    }
+}
+
+/// What [`Tree::read_unseen`] found at a path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Opened {
+    /// A file whose identity the caller already holds; it was not read.
+    Seen(FileId),
+    /// A file read in full, with its identity from the same open.
+    Read {
+        /// The identity of the file.
+        id: FileId,
+        /// Its text.
+        text: String,
+    },
+}
+
 /// One entry of a directory listing.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Entry {
@@ -53,6 +124,40 @@ pub trait Tree {
     /// [`TreeError::SymlinkLoop`] or [`TreeError::Io`] when the operating
     /// system fails.
     fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError>;
+
+    /// Open the file at `path` once, take its identity from that open, and
+    /// read its text from the same open unless `seen` says the identity is
+    /// one the caller already holds.
+    ///
+    /// Two paths that name one file, such as a path and the same path through
+    /// a symlink to a directory, have equal identities, and two different
+    /// files never do. Because the identity and the text come from one open,
+    /// no change to the tree between two calls can pair one file's identity
+    /// with another file's text.
+    ///
+    /// # Errors
+    ///
+    /// As [`Tree::read`]; a file that `seen` accepts is not read, so it is
+    /// never [`TreeError::TooLarge`] or [`TreeError::NotUtf8`].
+    fn read_unseen(
+        &self,
+        path: &RelPath,
+        max_bytes: u64,
+        seen: &dyn Fn(&FileId) -> bool,
+    ) -> Result<Opened, TreeError>;
+
+    /// The identity of the file at `path`, without reading it: the identity
+    /// [`Tree::read_unseen`] gives when every identity counts as seen.
+    ///
+    /// # Errors
+    ///
+    /// As [`Tree::read`], without [`TreeError::TooLarge`] and
+    /// [`TreeError::NotUtf8`].
+    fn identity(&self, path: &RelPath) -> Result<FileId, TreeError> {
+        match self.read_unseen(path, 0, &|_| true)? {
+            Opened::Seen(id) | Opened::Read { id, .. } => Ok(id),
+        }
+    }
 
     /// The entries of the directory at `path`, sorted by name.
     ///

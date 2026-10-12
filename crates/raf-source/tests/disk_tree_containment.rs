@@ -10,7 +10,7 @@
 
 mod support;
 
-use raf_source::{DiskTree, EntryKind, RelPath, Tree, TreeError};
+use raf_source::{DiskTree, EntryKind, Opened, RelPath, Tree, TreeError};
 use support::{Scratch, within_watchdog};
 
 const CAP: u64 = 1024;
@@ -307,4 +307,66 @@ fn listings_are_sorted_by_name() {
     sorted.sort();
     assert_eq!(names, sorted);
     assert_eq!(names, ["B.rs", "a.rs", "m.rs", "real.rs", "z.rs"]);
+}
+
+#[test]
+fn the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle() {
+    let (scratch, tree) = fixture();
+    scratch.link("root/alias.rs", scratch.path("root/real.rs"));
+    std::fs::hard_link(scratch.path("root/real.rs"), scratch.path("root/hard.rs"))
+        .expect("hard link");
+    scratch.dir("root/sub");
+    scratch.link("root/through", scratch.path("root/sub"));
+    scratch.file("root/sub/other.rs", "other");
+    let real = tree.identity(&path("real.rs")).expect("a file");
+    // A symlink, a hard link and a path through a directory symlink name the
+    // file they lead to; a different file differs.
+    assert_eq!(tree.identity(&path("alias.rs")).expect("alias"), real);
+    assert_eq!(tree.identity(&path("hard.rs")).expect("hard link"), real);
+    assert_eq!(
+        tree.identity(&path("sub/../real.rs")).expect("parent"),
+        real
+    );
+    let other = tree.identity(&path("sub/other.rs")).expect("other");
+    assert_ne!(other, real);
+    assert_eq!(
+        tree.identity(&path("through/other.rs")).expect("through"),
+        other
+    );
+    // What `read` refuses, `identity` refuses, without reading.
+    assert!(matches!(
+        tree.identity(&path("sub")),
+        Err(TreeError::NotRegular { .. })
+    ));
+    assert!(matches!(
+        tree.identity(&path("missing.rs")),
+        Err(TreeError::NotFound { .. })
+    ));
+    scratch.link("root/out.rs", scratch.path("outside/sentinel.rs"));
+    let outside = within_watchdog(move || tree.identity(&path("out.rs")));
+    assert!(
+        matches!(outside, Err(TreeError::OutsideRoot { .. })),
+        "{outside:?}"
+    );
+}
+
+#[test]
+fn one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen() {
+    let (scratch, tree) = fixture();
+    scratch.link("root/alias.rs", scratch.path("root/real.rs"));
+    let real = tree.identity(&path("real.rs")).expect("a file");
+    match tree.read_unseen(&path("alias.rs"), CAP, &|_| false) {
+        Ok(Opened::Read { id, text }) => assert_eq!((id, text.as_str()), (real.clone(), "real")),
+        other => panic!("{other:?}"),
+    }
+    let seen = real.clone();
+    assert_eq!(
+        tree.read_unseen(&path("alias.rs"), 0, &move |id| *id == seen)
+            .expect("seen"),
+        Opened::Seen(real)
+    );
+    assert!(matches!(
+        tree.read_unseen(&path("real.rs"), 1, &|_| false),
+        Err(TreeError::TooLarge { .. })
+    ));
 }

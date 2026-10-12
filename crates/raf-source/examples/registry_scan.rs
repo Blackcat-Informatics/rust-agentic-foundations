@@ -7,33 +7,47 @@
 //!
 //! ```text
 //! cargo run --release -p raf-source --example registry_scan -- \
-//!     ~/.cargo/registry/src/<index> [--jobs N] [--timeout SECONDS]
+//!     ~/.cargo/registry/src/<index> [--jobs N] [--timeout SECONDS] [--max-memory BYTES]
 //! ```
 //!
 //! Each crate directory holds one package, named `<name>-<version>`. Of each
 //! name only the highest version is loaded, with [`DiskTree`] rooted at the
 //! crate directory and `"."` as the one root. Each load runs in a child
 //! process, this example started again with `--one <dir>`, so a crate that
-//! aborts or runs past the timeout ends its own line and not the scan.
+//! aborts or runs past the timeout ends its own line and not the scan. The
+//! child is started through `sh -c 'ulimit -v <KiB>; exec "$0" "$@"'`, which
+//! limits its address space to `--max-memory` (8 GiB unless given; a number
+//! of bytes, or with a `K`, `M` or `G` suffix for binary multiples). The limit
+//! is per child, so the scan as a whole may take `--jobs` × `--max-memory`:
+//! the scan reads the memory available on the machine (`MemAvailable` in
+//! `/proc/meminfo`), runs as many children as fit in it (and no more than the
+//! processors) unless `--jobs` says, and refuses a `--jobs` whose product with
+//! `--max-memory` passes it, and a `--max-memory` that one child cannot fit.
 //!
 //! One line is printed per crate, sorted by name:
 //!
 //! ```text
-//! name@version | OK items=N files=N misplaced=N [first misplaced item]
+//! name@version | OK items=N files=N misplaced=N total=N item=N fact=N tokens=N depth=N [first misplaced item]
 //! name@version | ERR <kind> :: <message>
 //! ```
 //!
+//! `total`, `item`, `fact`, `tokens` and `depth` are the load's
+//! [`Usage`](raf_source::Usage): the bytes read, charged to the index and to
+//! the facts, the most tokens of one file and the deepest directory entered.
 //! The kind is the [`LoadErrorKind`](raf_source::LoadErrorKind) variant, or
-//! `abort` for a child that ended without a result and `timeout` for one that
-//! was stopped. A closing `#` block counts the outcomes.
+//! `memory` for a child that ran out of its address space, `abort` for a
+//! child that ended without a result otherwise and `timeout` for one that was
+//! stopped. A closing `#` block counts the outcomes and gives the largest
+//! value of each usage figure, with the crate that reached it.
 //!
 //! An item is misplaced when the module part of its path is not a module path
 //! of its file: one of the module paths the file was reached by in the item's
 //! target, or the path of an inline module the file defines. The module part
 //! is the path without its last segment, and without its last two for a
-//! member of a trait. A `macro_rules!` macro may also sit at its crate root,
-//! where `#[macro_export]` puts it. Members of impl blocks are recorded under
-//! their self type wherever it is defined, so they are not judged.
+//! member of a trait. A `macro_rules!` macro marked `#[macro_export]` may also
+//! sit at its crate root, where the attribute puts it; no other item may.
+//! Members of impl blocks are recorded under their self type wherever it is
+//! defined, so they are not judged.
 //!
 //! The scan needs a local registry, so it is not part of the gates.
 
@@ -47,7 +61,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use raf_source::{DiskTree, Item, SymbolKind, Workspace};
+use raf_source::{DiskTree, Item, ModBody, SymbolKind, Workspace};
 
 /// The prefix of the one line a child prints.
 const RESULT: &str = "result: ";
@@ -57,6 +71,15 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_mins(15);
 
 /// How often a running child is polled.
 const POLL: Duration = Duration::from_millis(20);
+
+/// The address space of one child, unless `--max-memory` says: 8 GiB.
+const DEFAULT_MAX_MEMORY: u64 = 8 << 30;
+
+/// What the runtime prints when an allocation fails.
+const ALLOCATION_FAILED: &str = "memory allocation of";
+
+/// The usage figures of an `OK` line, in the order they are printed.
+const USAGE: [&str; 5] = ["total", "item", "fact", "tokens", "depth"];
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -81,24 +104,44 @@ struct Options {
     registry: PathBuf,
     jobs: usize,
     timeout: Duration,
+    max_memory: u64,
+}
+
+/// A number of bytes, with an optional `K`, `M` or `G` suffix.
+fn parse_bytes(text: &str) -> Result<u64, String> {
+    let (digits, shift) = match text.as_bytes().last() {
+        Some(b'K' | b'k') => (&text[..text.len() - 1], 10),
+        Some(b'M' | b'm') => (&text[..text.len() - 1], 20),
+        Some(b'G' | b'g') => (&text[..text.len() - 1], 30),
+        _ => (text, 0),
+    };
+    let value: u64 = digits
+        .parse()
+        .map_err(|e| format!("--max-memory `{text}`: {e}"))?;
+    value
+        .checked_mul(1 << shift)
+        .filter(|bytes| *bytes >= 1 << 20)
+        .ok_or_else(|| format!("--max-memory `{text}` must be at least 1M and fit in 64 bits"))
 }
 
 fn parse_args(args: &[String]) -> Result<Options, Box<dyn Error>> {
-    let usage = "usage: registry_scan <registry-src-dir> [--jobs N] [--timeout SECONDS]";
+    let usage = "usage: registry_scan <registry-src-dir> [--jobs N] [--timeout SECONDS] [--max-memory BYTES]";
     let mut registry = None;
-    let mut jobs = thread::available_parallelism().map_or(1, usize::from);
+    let mut jobs = None;
     let mut timeout = DEFAULT_TIMEOUT;
+    let mut max_memory = DEFAULT_MAX_MEMORY;
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
         match arg.as_str() {
             "--jobs" => {
                 let value = rest.next().ok_or(usage)?;
-                jobs = value
+                let count: usize = value
                     .parse()
                     .map_err(|e| format!("--jobs `{value}`: {e}"))?;
-                if jobs == 0 {
+                if count == 0 {
                     return Err("--jobs must be at least 1".into());
                 }
+                jobs = Some(count);
             }
             "--timeout" => {
                 let value = rest.next().ok_or(usage)?;
@@ -107,6 +150,10 @@ fn parse_args(args: &[String]) -> Result<Options, Box<dyn Error>> {
                     .map_err(|e| format!("--timeout `{value}`: {e}"))?;
                 timeout = Duration::from_secs(seconds);
             }
+            "--max-memory" => {
+                let value = rest.next().ok_or(usage)?;
+                max_memory = parse_bytes(value)?;
+            }
             flag if flag.starts_with("--") => {
                 return Err(format!("{usage}\nunknown `{flag}`").into());
             }
@@ -114,11 +161,47 @@ fn parse_args(args: &[String]) -> Result<Options, Box<dyn Error>> {
             extra => return Err(format!("{usage}\nunexpected `{extra}`").into()),
         }
     }
+    let available = machine_memory()?;
+    let fit = usize::try_from(available / max_memory).unwrap_or(usize::MAX);
+    if fit == 0 {
+        return Err(format!(
+            "--max-memory {max_memory} bytes passes the {available} bytes available on the machine"
+        )
+        .into());
+    }
+    let jobs = match jobs {
+        Some(count) if count > fit => {
+            return Err(format!(
+                "--jobs {count} × --max-memory {max_memory} bytes passes the {available} bytes available on the machine, which fit {fit}"
+            )
+            .into());
+        }
+        Some(count) => count,
+        None => {
+            let processors = thread::available_parallelism().map_or(1, usize::from);
+            processors.min(fit)
+        }
+    };
     Ok(Options {
         registry: registry.ok_or(usage)?,
         jobs,
         timeout,
+        max_memory,
     })
+}
+
+/// The memory available on the machine in bytes, from `MemAvailable` in
+/// `/proc/meminfo`, so other work on a shared host is left its share.
+fn machine_memory() -> Result<u64, Box<dyn Error>> {
+    let info = std::fs::read_to_string("/proc/meminfo")
+        .map_err(|e| format!("cannot read /proc/meminfo for the memory of the machine: {e}"))?;
+    let kib: u64 = info
+        .lines()
+        .find_map(|line| line.strip_prefix("MemAvailable:"))
+        .and_then(|rest| rest.split_whitespace().next())
+        .and_then(|value| value.parse().ok())
+        .ok_or("/proc/meminfo has no readable MemAvailable line")?;
+    Ok(kib * 1024)
 }
 
 // --- choosing the crates ------------------------------------------------------
@@ -258,11 +341,17 @@ fn load_one(dir: &Path) -> String {
     match Workspace::load(&tree, &["."]) {
         Ok(ws) => {
             let misplaced = misplaced(&ws);
+            let usage = ws.usage();
             let mut line = format!(
-                "OK items={} files={} misplaced={}",
+                "OK items={} files={} misplaced={} total={} item={} fact={} tokens={} depth={}",
                 ws.items().count(),
                 ws.files().count(),
-                misplaced.len()
+                misplaced.len(),
+                usage.total_bytes,
+                usage.item_bytes,
+                usage.fact_bytes,
+                usage.max_file_tokens,
+                usage.max_directory_depth,
             );
             if let Some(first) = misplaced.first() {
                 let _ = write!(line, " {first}");
@@ -320,7 +409,7 @@ fn module_paths(ws: &Workspace) -> BTreeSet<(String, usize, String)> {
             paths.insert((
                 file.path.to_string(),
                 reach.target.index(),
-                reach.module_path.clone(),
+                reach.module_path.to_string(),
             ));
         }
     }
@@ -329,11 +418,31 @@ fn module_paths(ws: &Workspace) -> BTreeSet<(String, usize, String)> {
             paths.insert((
                 item.file.to_string(),
                 item.target.index(),
-                item.path.clone(),
+                item.path.to_string(),
             ));
         }
     }
     paths
+}
+
+/// True when the `macro_rules!` macro `item` is marked `#[macro_export]`:
+/// its fact, in its file at the offset where its span starts, says so.
+fn is_exported_macro(ws: &Workspace, item: &Item) -> bool {
+    let Some(file) = ws.file(&item.file) else {
+        return false;
+    };
+    let mut bodies: Vec<&ModBody> = vec![&file.facts.body];
+    while let Some(body) = bodies.pop() {
+        if let Some(fact) = body
+            .items
+            .iter()
+            .find(|fact| fact.span.start_byte == item.span.start_byte)
+        {
+            return fact.macro_export;
+        }
+        bodies.extend(body.mods.iter().filter_map(|module| module.inline.as_ref()));
+    }
+    false
 }
 
 /// The misplaced items of a loaded crate, as `path in file`, sorted.
@@ -357,7 +466,9 @@ fn misplaced(ws: &Workspace) -> Vec<String> {
         let drop = if is_member(item.kind) { 2 } else { 1 };
         let placed = module_part(&item.path, drop).is_some_and(|module| {
             is_module(item, module)
-                || (item.kind == SymbolKind::MacroRules && crate_path == Some(module))
+                || (item.kind == SymbolKind::MacroRules
+                    && crate_path == Some(module)
+                    && is_exported_macro(ws, item))
         });
         if !placed {
             out.push(format!("{} in {}", item.path, item.file));
@@ -369,9 +480,16 @@ fn misplaced(ws: &Workspace) -> Vec<String> {
 
 // --- the scan, in the parent --------------------------------------------------
 
-/// Run one crate in a child process and give its line.
-fn run_child(exe: &Path, krate: &Crate, timeout: Duration) -> String {
-    let spawned = Command::new(exe)
+/// Run one crate in a child process, under an address-space limit of
+/// `max_memory` bytes, and give its line.
+fn run_child(exe: &Path, krate: &Crate, timeout: Duration, max_memory: u64) -> String {
+    let spawned = Command::new("sh")
+        .arg("-c")
+        .arg(format!(
+            "ulimit -v {}; exec \"$0\" \"$@\"",
+            max_memory / 1024
+        ))
+        .arg(exe)
         .arg("--one")
         .arg(&krate.dir)
         .stdin(Stdio::null())
@@ -401,7 +519,12 @@ fn run_child(exe: &Path, krate: &Crate, timeout: Duration) -> String {
                 .rev()
                 .find(|line| !line.trim().is_empty())
                 .unwrap_or("no output");
-            format!("ERR abort :: {status}: {}", one_line(last))
+            let kind = if stderr.contains(ALLOCATION_FAILED) {
+                "memory"
+            } else {
+                "abort"
+            };
+            format!("ERR {kind} :: {status}: {}", one_line(last))
         }
     }
 }
@@ -444,12 +567,27 @@ struct Tally {
     with_misplaced: usize,
     misplaced_items: usize,
     errors: BTreeMap<String, usize>,
+    /// The largest value of each usage figure and the crate that reached it.
+    largest: BTreeMap<&'static str, (u64, String)>,
 }
 
 impl Tally {
-    fn count(&mut self, line: &str) {
+    fn count(&mut self, label: &str, line: &str) {
         if let Some(rest) = line.strip_prefix("OK ") {
             self.ok += 1;
+            for field in rest.split_whitespace() {
+                let Some((key, value)) = field.split_once('=') else {
+                    continue;
+                };
+                let (Some(key), Ok(value)) = (USAGE.iter().find(|k| **k == key), value.parse())
+                else {
+                    continue;
+                };
+                let best = self.largest.entry(key).or_insert((0, String::new()));
+                if value > best.0 {
+                    *best = (value, label.to_owned());
+                }
+            }
             let misplaced = rest
                 .split_whitespace()
                 .find_map(|field| field.strip_prefix("misplaced="))
@@ -483,7 +621,7 @@ fn scan(options: &Options) -> Result<(), Box<dyn Error>> {
                 loop {
                     let at = next.fetch_add(1, Ordering::Relaxed);
                     let Some(krate) = crates.get(at) else { break };
-                    let line = run_child(exe, krate, options.timeout);
+                    let line = run_child(exe, krate, options.timeout, options.max_memory);
                     if send.send((at, line)).is_err() {
                         break;
                     }
@@ -498,7 +636,7 @@ fn scan(options: &Options) -> Result<(), Box<dyn Error>> {
             done.insert(at, line);
             while let Some(line) = done.remove(&printed) {
                 println!("{} | {line}", crates[printed].label);
-                tally.count(&line);
+                tally.count(&crates[printed].label, &line);
                 printed += 1;
             }
         }
@@ -509,6 +647,12 @@ fn scan(options: &Options) -> Result<(), Box<dyn Error>> {
     println!("# misplaced-items={}", tally.misplaced_items);
     for (kind, count) in &tally.errors {
         println!("# err {kind}={count}");
+    }
+    for key in USAGE {
+        match tally.largest.get(key) {
+            Some((value, label)) if *value > 0 => println!("# largest {key}={value} ({label})"),
+            _ => println!("# largest {key}=0"),
+        }
     }
     Ok(())
 }

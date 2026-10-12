@@ -3,7 +3,7 @@
 
 //! The in-memory backend.
 
-use raf_source::{Entry, EntryKind, MemoryTree, RelPath, Tree, TreeError};
+use raf_source::{Entry, EntryKind, FileId, MemoryTree, Opened, RelPath, Tree, TreeError};
 
 fn path(text: &str) -> RelPath {
     RelPath::new(text).expect("valid path")
@@ -186,4 +186,49 @@ fn duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_
     }
     let tree = MemoryTree::try_from_iter([("a.rs", "1"), ("b.rs", "2")]).expect("distinct");
     assert_eq!(tree.read(&path("b.rs"), 1024).expect("read"), "2");
+}
+
+#[test]
+fn the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses() {
+    let tree = sample();
+    let lib = tree.identity(&path("src/lib.rs")).expect("a file");
+    assert_eq!(
+        tree.identity(&path("src/a/../lib.rs")).expect("same file"),
+        lib
+    );
+    assert_eq!(lib, FileId::from_key("src/lib.rs"));
+    let other = tree.identity(&path("src/z.rs")).expect("another file");
+    assert_ne!(other, lib);
+    assert!(matches!(
+        tree.identity(&path("src")),
+        Err(TreeError::NotRegular { .. })
+    ));
+    assert!(matches!(
+        tree.identity(&path("src/none.rs")),
+        Err(TreeError::NotFound { .. })
+    ));
+}
+
+#[test]
+fn one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen() {
+    let tree = sample();
+    let lib = FileId::from_key("src/lib.rs");
+    assert_eq!(
+        tree.read_unseen(&path("src/a/../lib.rs"), 1024, &|_| false)
+            .expect("read"),
+        Opened::Read {
+            id: lib.clone(),
+            text: "mod a;\n".to_owned()
+        }
+    );
+    // A seen file is not read, so even a cap it passes is no refusal.
+    assert_eq!(
+        tree.read_unseen(&path("src/lib.rs"), 0, &|id| *id == lib)
+            .expect("seen"),
+        Opened::Seen(lib)
+    );
+    assert!(matches!(
+        tree.read_unseen(&path("src/lib.rs"), 0, &|_| false),
+        Err(TreeError::TooLarge { .. })
+    ));
 }

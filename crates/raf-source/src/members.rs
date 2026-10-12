@@ -15,6 +15,7 @@ use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind, Origin};
 use crate::glob::Pattern;
 use crate::manifest::{self, Manifest, PathSource};
+use crate::meter::Meter;
 use crate::modtree::tidy;
 use crate::path::{PathError, RelPath};
 use crate::tree::{EntryKind, Tree};
@@ -29,12 +30,12 @@ fn manifest_error(path: &RelPath, key: &str, message: String) -> LoadError {
 
 /// What a walk of the workspace directory may cost: the module-path budget
 /// bounds the directories listed and the manifests read.
-struct Meter {
+struct WalkMeter {
     left: usize,
     file: RelPath,
 }
 
-impl Meter {
+impl WalkMeter {
     fn spend(&mut self) -> Result<(), LoadError> {
         if self.left == 0 {
             return Err(LoadError::new(
@@ -54,9 +55,9 @@ impl Meter {
 struct Context<'a> {
     manifest_path: &'a RelPath,
     tree: &'a dyn Tree,
-    max_file_bytes: u64,
+    load: &'a Meter,
     workspace_dir: &'a RelPath,
-    meter: Meter,
+    meter: WalkMeter,
 }
 
 impl Context<'_> {
@@ -78,65 +79,70 @@ impl Context<'_> {
             .is_some())
     }
 
-    /// The directories under `base` that match the pattern from segment
-    /// `index` on.
+    /// The directories under `base` that match the pattern, walked on an
+    /// explicit stack, depth first in name order. A directory more than
+    /// [`Budget::DirectoryDepth`] levels below the workspace directory is
+    /// refused.
     fn expand(
         &mut self,
         pattern: &Pattern,
         base: &RelPath,
-        index: usize,
         out: &mut BTreeSet<RelPath>,
     ) -> Result<(), LoadError> {
         // A pattern with no wildcard names one directory, which must be a
         // package; a glob skips what it matches that is not.
         let strict = pattern.is_literal();
-        let missing = |what: &str| {
-            manifest_error(
-                self.manifest_path,
-                "workspace.members",
-                format!("the member {base} {what}"),
-            )
-        };
-        if index == pattern.len() {
-            if self.has_manifest(base)? {
-                out.insert(base.clone());
-            } else if strict {
-                return Err(missing("has no Cargo.toml"));
+        let mut stack = vec![(base.clone(), 0_usize)];
+        while let Some((base, index)) = stack.pop() {
+            self.load.directory(index, &base)?;
+            if index == pattern.len() {
+                if self.has_manifest(&base)? {
+                    out.insert(base);
+                } else if strict {
+                    return Err(manifest_error(
+                        self.manifest_path,
+                        "workspace.members",
+                        format!("the member {base} has no Cargo.toml"),
+                    ));
+                }
+                continue;
             }
-            return Ok(());
-        }
-        if let Some(name) = pattern.literal(index) {
-            let next = base
-                .join(&name)
-                .map_err(|error| LoadError::tree(base, None, &Origin::Discovery, error.into()))?;
-            self.meter.spend()?;
-            let kind = self
-                .tree
-                .entry(&next)
-                .map_err(|error| LoadError::tree(&next, None, &Origin::Discovery, error))?;
-            if kind == Some(EntryKind::Dir) {
-                self.expand(pattern, &next, index + 1, out)?;
-            } else if strict {
-                return Err(manifest_error(
-                    self.manifest_path,
-                    "workspace.members",
-                    format!("the member {next} is not a directory"),
-                ));
-            }
-            return Ok(());
-        }
-        self.meter.spend()?;
-        let entries = self
-            .tree
-            .list(base)
-            .map_err(|error| LoadError::tree(base, None, &Origin::Discovery, error))?;
-        for entry in entries {
-            if entry.kind == EntryKind::Dir && pattern.segment_matches(index, &entry.name) {
-                let next = base.join(&entry.name).map_err(|error| {
-                    LoadError::tree(base, None, &Origin::Discovery, error.into())
+            if let Some(name) = pattern.literal(index) {
+                let next = base.join(&name).map_err(|error| {
+                    LoadError::tree(&base, None, &Origin::Discovery, error.into())
                 })?;
-                self.expand(pattern, &next, index + 1, out)?;
+                self.meter.spend()?;
+                let kind = self
+                    .tree
+                    .entry(&next)
+                    .map_err(|error| LoadError::tree(&next, None, &Origin::Discovery, error))?;
+                if kind == Some(EntryKind::Dir) {
+                    stack.push((next, index + 1));
+                } else if strict {
+                    return Err(manifest_error(
+                        self.manifest_path,
+                        "workspace.members",
+                        format!("the member {next} is not a directory"),
+                    ));
+                }
+                continue;
             }
+            self.meter.spend()?;
+            let entries = self
+                .tree
+                .list(&base)
+                .map_err(|error| LoadError::tree(&base, None, &Origin::Discovery, error))?;
+            let mut matched = Vec::new();
+            for entry in entries {
+                if entry.kind == EntryKind::Dir && pattern.segment_matches(index, &entry.name) {
+                    let next = base.join(&entry.name).map_err(|error| {
+                        LoadError::tree(&base, None, &Origin::Discovery, error.into())
+                    })?;
+                    matched.push((next, index + 1));
+                }
+            }
+            // Reversed, so the first match in name order is walked first.
+            stack.extend(matched.into_iter().rev());
         }
         Ok(())
     }
@@ -163,8 +169,9 @@ impl Context<'_> {
         }
         let text = self
             .tree
-            .read(&path, self.max_file_bytes)
+            .read(&path, self.load.options().max_file_bytes)
             .map_err(|error| LoadError::tree(&path, None, &Origin::Discovery, error))?;
+        self.load.read(&path, &text)?;
         manifest::parse(&text).map_err(|problem| fail(format!("{path}: {}", problem.message)))
     }
 }
@@ -195,11 +202,12 @@ fn patterns(
 ///
 /// Returns a [`LoadError`] for a pattern outside the supported syntax, an
 /// unreadable manifest, a path dependency inside the workspace whose manifest
-/// is missing or malformed (naming the dependency key), and a walk that passes
-/// the budget.
+/// is missing or malformed (naming the dependency key), a walk that passes
+/// the module-path budget, a member pattern deeper than
+/// [`Budget::DirectoryDepth`], and a read that passes [`Budget::TotalBytes`].
 pub(crate) fn members(
     tree: &dyn Tree,
-    max_file_bytes: u64,
+    load: &Meter,
     workspace_dir: &RelPath,
     manifest_path: &RelPath,
     parsed: &Manifest,
@@ -209,9 +217,9 @@ pub(crate) fn members(
     let mut cx = Context {
         manifest_path,
         tree,
-        max_file_bytes,
+        load,
         workspace_dir,
-        meter: Meter {
+        meter: WalkMeter {
             left: Budget::ModulePaths.limit(),
             file: manifest_path.clone(),
         },
@@ -241,7 +249,7 @@ pub(crate) fn members(
             }
         }
         let mut matched = BTreeSet::new();
-        cx.expand(pattern, workspace_dir, 0, &mut matched)?;
+        cx.expand(pattern, workspace_dir, &mut matched)?;
         found.extend(matched.into_iter().filter(|dir| !is_excluded(&cx, dir)));
     }
     // The path dependencies of every member, transitively.

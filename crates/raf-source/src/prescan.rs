@@ -30,6 +30,13 @@
 //!   `else` directly after a `}`. A block in a condition (`else if {x} {}`)
 //!   does not end the chain.
 //!
+//! * **Tokens.** Every token of the file counts, as the parser's lexer sees
+//!   it: an identifier, a keyword, a literal, a lifetime (two: the quote and
+//!   the name), each delimiter, and each character of punctuation (`::` and
+//!   `->` are two). A doc comment counts as the attribute it stands for: six
+//!   tokens for `///` and `/**`, seven for `//!` and `/*!`. Other comments
+//!   count for nothing. The count feeds no other counter.
+//!
 //! The scan does not parse. An unbalanced closer is ignored here and left to
 //! the parser to refuse.
 
@@ -295,6 +302,18 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    /// The tokens the comment at the cursor stands for: a doc comment is an
+    /// attribute, `#[doc = ".."]` (six tokens) or `#![doc = ".."]` (seven).
+    fn doc_comment_tokens(&self) -> usize {
+        match (self.peek(1), self.peek(2), self.peek(3)) {
+            // `///` but not `////`; `/**` but not `/***` or `/**/`.
+            (Some(b'/'), Some(b'/'), next) if next != Some(b'/') => 6,
+            (Some(b'*'), Some(b'*'), next) if next != Some(b'*') && next != Some(b'/') => 6,
+            (Some(b'/' | b'*'), Some(b'!'), _) => 7,
+            _ => 0,
+        }
+    }
+
     fn skip_line_comment(&mut self) {
         while self.peek(0).is_some_and(|byte| byte != b'\n') {
             self.bump();
@@ -396,17 +415,31 @@ impl<'a> Cursor<'a> {
     }
 }
 
-/// Scan `text` and refuse it when a counter passes its budget.
+/// Scan `text` and refuse it when a counter passes its budget or it holds more
+/// than `max_tokens` tokens. Returns the number of tokens.
 ///
 /// # Errors
 ///
 /// Returns a [`LoadError`] with [`LoadErrorKind::Budget`] naming `file`, the
 /// budget and the line where the count went over.
-pub(crate) fn prescan(file: &RelPath, text: &str) -> Result<(), LoadError> {
+pub(crate) fn prescan(file: &RelPath, text: &str, max_tokens: usize) -> Result<usize, LoadError> {
     let mut cursor = Cursor::new(text);
     let mut counters = Counters::new();
+    let mut tokens = 0_usize;
+    let over = |budget: Budget, limit: usize, line: usize| {
+        LoadError::new(file, Some(line), LoadErrorKind::Budget { budget, limit })
+    };
+    let mut count = |added: usize, line: usize| {
+        tokens += added;
+        if tokens > max_tokens {
+            Err(over(Budget::FileTokens, max_tokens, line))
+        } else {
+            Ok(())
+        }
+    };
     while let Some(byte) = cursor.peek(0) {
         let line = cursor.line;
+        let start = cursor.at;
         let token = match byte {
             b if b.is_ascii_whitespace() => {
                 cursor.bump();
@@ -414,10 +447,12 @@ pub(crate) fn prescan(file: &RelPath, text: &str) -> Result<(), LoadError> {
             }
             b'/' => match cursor.peek(1) {
                 Some(b'/') => {
+                    count(cursor.doc_comment_tokens(), line)?;
                     cursor.skip_line_comment();
                     continue;
                 }
                 Some(b'*') => {
+                    count(cursor.doc_comment_tokens(), line)?;
                     cursor.skip_block_comment();
                     continue;
                 }
@@ -457,18 +492,38 @@ pub(crate) fn prescan(file: &RelPath, text: &str) -> Result<(), LoadError> {
             }
             _ => punctuation(&mut cursor, byte),
         };
-        counters.feed(token, line).map_err(|over| {
-            LoadError::new(
-                file,
-                Some(over.line),
-                LoadErrorKind::Budget {
-                    budget: over.budget,
-                    limit: over.budget.limit(),
-                },
-            )
-        })?;
+        let added = lexed_tokens(token, &text.as_bytes()[start..cursor.at]);
+        count(added, line)?;
+        counters
+            .feed(token, line)
+            .map_err(|exceeded| over(exceeded.budget, exceeded.budget.limit(), exceeded.line))?;
     }
-    Ok(())
+    Ok(tokens)
+}
+
+/// The tokens the parser's lexer reads for `token`, whose text is `lexed`:
+/// two for a lifetime (a quote and a name), one per character of
+/// punctuation, and one for anything else, a literal of any length included.
+fn lexed_tokens(token: Token<'_>, lexed: &[u8]) -> usize {
+    match token {
+        Token::Lifetime => 2,
+        Token::Bang
+        | Token::Minus
+        | Token::Star
+        | Token::Amp
+        | Token::AmpAmp
+        | Token::Pipe
+        | Token::PipePipe
+        | Token::Lt
+        | Token::Gt
+        | Token::Semi => lexed.len(),
+        Token::Other => match lexed.first() {
+            Some(b'"' | b'\'' | b'0'..=b'9') => 1,
+            Some(first) if first.is_ascii_alphanumeric() || *first >= 0x80 || *first == b'_' => 1,
+            _ => lexed.len(),
+        },
+        Token::Open | Token::CloseBrace | Token::CloseOther | Token::Ident(_) => 1,
+    }
 }
 
 /// Lex one punctuation token; the cursor is on `byte`.

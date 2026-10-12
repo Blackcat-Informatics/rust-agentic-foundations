@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use super::{Entry, EntryKind, Tree};
+use super::{Entry, EntryKind, FileId, Opened, Tree};
 use crate::error::TreeError;
 use crate::path::RelPath;
 
@@ -173,6 +173,34 @@ impl Tree for MemoryTree {
             None => Err(TreeError::NotFound {
                 path: path.to_string(),
             }),
+        }
+    }
+
+    fn read_unseen(
+        &self,
+        path: &RelPath,
+        max_bytes: u64,
+        seen: &dyn Fn(&FileId) -> bool,
+    ) -> Result<Opened, TreeError> {
+        self.check()?;
+        let key = collapse(path);
+        if self.files.contains_key(&key) {
+            let id = FileId::from_key(&key);
+            if seen(&id) {
+                return Ok(Opened::Seen(id));
+            }
+            Ok(Opened::Read {
+                id,
+                text: self.read(path, max_bytes)?,
+            })
+        } else if self.is_directory(&key) {
+            Err(TreeError::NotRegular {
+                path: path.to_string(),
+            })
+        } else {
+            Err(TreeError::NotFound {
+                path: path.to_string(),
+            })
         }
     }
 

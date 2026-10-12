@@ -21,8 +21,12 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   and target discovery finds library, binary, test, bench, example and build
   targets; the module tree follows `mod`, `#[path]` and `cfg_attr` paths; and the
   symbol and use-alias index resolves a path through renames, globs and re-exports
-  with typed failures. Files are size-capped, a token pre-scan bounds recursion,
-  parsing runs on a dedicated stack, and a committed fuzz target covers the parser.
+  with typed failures. Files are size-capped and told apart by identity, so a file
+  is read and parsed once whatever spellings reach it. A token pre-scan bounds
+  recursion; the tokens of each file and the bytes a load reads, keeps in its index
+  and keeps as facts are budgeted, with limits a caller can set; the walks keep
+  stacks of their own; parsing runs on a dedicated stack; and a committed fuzz
+  target covers the parser.
 - **Workspace scaffold:** a Cargo workspace on edition 2024 with a floating
   nightly development toolchain and a minimum supported Rust version of 1.98.1,
   shared workspace lints (missing documentation, unreachable `pub` and unsafe

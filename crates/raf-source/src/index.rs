@@ -14,19 +14,125 @@
 //! [`crate::resolve`]). The impl step attaches the members of impl blocks to
 //! the types they resolve to. The order step sorts the items.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::mem::size_of;
+use std::sync::Arc;
 
+use crate::cost::{btree_entry, btree_map, hash_entry, hash_map, shared_text, vec_first, vec_slot};
 use crate::error::{LoadError, LoadErrorKind};
 use crate::facts::{
-    ImplFact, ItemFact, ItemKind, ModBody, PathFact, SpanFact, TestRole, UseTree, Vis,
+    FieldShape, ImplFact, ItemFact, ItemKind, ModBody, ModFact, PathFact, SpanFact, TestRole,
+    UseTree, Vis,
 };
-use crate::item::{Item, ItemId, Namespace, SymbolKind, TraitKey};
+use crate::intern::Interner;
+use crate::item::{Item, ItemId, Namespace, SharedStr, SymbolKind, TraitKey};
 use crate::manifest::Dependencies;
+use crate::meter::Meter;
 use crate::modtree::{TargetId, Visit};
 use crate::path::RelPath;
-use crate::settle::Scope;
+use crate::settle::{Entry, Origin, Scope};
 use crate::target::{Target, TargetKind};
 use crate::workspace::SourceFile;
+
+/// What an item allocates at most in the index beyond its strings: its record
+/// in the list of items, its place in the order and among the items of its
+/// file, and its source group (the group's entry and first room).
+const ITEM_BYTES: usize = vec_slot::<Item>()
+    + 2 * vec_slot::<ItemId>()
+    + btree_entry::<(RelPath, usize), Vec<ItemId>>()
+    + vec_first::<ItemId>()
+    + vec_slot::<ItemId>();
+
+/// What a module allocates at most beyond its path: its record, its entry in
+/// the table of module paths, its scope table and its slot among the scopes,
+/// the first room of its definitions and of the copy the scopes are built from.
+pub(crate) const MODULE_BYTES: usize = vec_slot::<Module>()
+    + btree_entry::<SharedStr, usize>()
+    + vec_slot::<Scope>()
+    + btree_map::<String, Box<Entry>>()
+    + 2 * vec_first::<ItemId>()
+    + vec_slot::<(usize, Vec<ItemId>)>();
+
+/// What a type's table of members allocates at most, once for the type.
+pub(crate) const MEMBERS_BYTES: usize =
+    btree_entry::<ItemId, BTreeMap<String, Vec<ItemId>>>() + btree_map::<String, Vec<ItemId>>();
+
+/// What a module's table of unsettled imports allocates at most, once for the
+/// module.
+const UNSETTLED_BYTES: usize =
+    btree_entry::<usize, BTreeMap<String, usize>>() + btree_map::<String, usize>();
+
+/// What the tables and lists of one load allocate before their first entries:
+/// every load-wide table and list at its first room.
+pub(crate) const LOAD_BASE_BYTES: usize = 2 * btree_map::<String, usize>()
+    + btree_map::<SharedStr, usize>()
+    + btree_map::<ItemId, usize>()
+    + btree_map::<usize, BTreeMap<String, usize>>()
+    + btree_map::<ItemId, SharedStr>()
+    + btree_map::<usize, ItemId>()
+    + btree_map::<(RelPath, usize), Vec<ItemId>>()
+    + btree_map::<ItemId, BTreeMap<String, Vec<ItemId>>>()
+    + btree_map::<String, Vec<ItemId>>()
+    + btree_map::<RelPath, Vec<ItemId>>()
+    + btree_map::<ItemId, (usize, Arc<PathFact>)>()
+    + btree_map::<RelPath, SourceFile>()
+    + btree_map::<(RelPath, TargetId, SharedStr), ()>()
+    + btree_map::<&str, Vec<&SourceFile>>()
+    + hash_map::<(crate::tree::FileId, usize)>()
+    + hash_map::<(RelPath, crate::tree::FileId)>()
+    + 2 * hash_map::<SharedStr>()
+    + hash_map::<(*const PathFact, Arc<PathFact>)>()
+    + vec_first::<Item>()
+    + 3 * vec_first::<ItemId>()
+    + vec_first::<Module>()
+    + vec_first::<Scope>()
+    + vec_first::<UseDecl>()
+    + 2 * vec_first::<bool>()
+    + vec_first::<(usize, usize)>()
+    + vec_first::<Visit>()
+    + vec_first::<ImplDecl<'static>>();
+
+/// What a definition allocates at most in the scope tables: its place among its
+/// module's definitions and in the copy the scopes are built from, the entry of
+/// its name in its module's scope table (the name copied as the key), and in
+/// each name space it is bound in, a binding and the visibility it copies.
+fn scope_bytes(name: &str, vis: &Vis, namespaces: usize) -> usize {
+    2 * vec_slot::<ItemId>()
+        + (btree_entry::<String, Box<Entry>>() + size_of::<Entry>())
+        + name.len()
+        + namespaces * (vec_slot::<(ItemId, Origin)>() + vis_capacity(vis))
+}
+
+/// What an import that binds `name` allocates at most for one binding: the
+/// scope entry of the name (copied as the key), the binding, the visibility it
+/// copies and the route it records (the name and the name it came through).
+pub(crate) fn binding_bytes(name: &str, vis: &Vis, source: usize) -> usize {
+    (btree_entry::<String, Box<Entry>>() + size_of::<Entry>())
+        + 2 * name.len()
+        + vec_slot::<(ItemId, Origin)>()
+        + vis_capacity(vis)
+        + source
+}
+
+/// What a member allocates at most among the members of a type or under the
+/// key of a trait: the entry of its name or key (copied) and its slot in the
+/// entry's first room.
+pub(crate) fn member_bytes(key: &str) -> usize {
+    btree_entry::<String, Vec<ItemId>>() + key.len() + vec_first::<ItemId>() + vec_slot::<ItemId>()
+}
+
+/// The bytes a visibility holds beyond its size.
+fn vis_capacity(vis: &Vis) -> usize {
+    match vis {
+        Vis::Restricted(text) => text.capacity(),
+        Vis::Inherited | Vis::Public => 0,
+    }
+}
+
+/// The bytes a list of strings owns.
+fn strings_bytes(strings: &[String]) -> usize {
+    size_of_val(strings) + strings.iter().map(String::capacity).sum::<usize>()
+}
 
 /// A `use` declaration after its tree is flattened.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,20 +162,37 @@ pub(crate) struct PackageInfo {
     pub(crate) dependencies: Dependencies,
 }
 
-/// An impl block waiting for its self type to resolve.
+impl UseDecl {
+    /// What the entry allocates at most: its slot in the list of imports, its
+    /// flags, the strings it owns and, for a named import, its entry among the
+    /// unsettled imports of its module (the name copied as the key). What a
+    /// named import binds is charged when it binds it.
+    fn bytes(&self) -> usize {
+        let owned = match &self.kind {
+            UseKind::Named { name, segs } => {
+                name.capacity() + strings_bytes(segs) + btree_entry::<String, usize>() + name.len()
+            }
+            UseKind::Glob { segs } => strings_bytes(segs),
+        };
+        vec_slot::<Self>() + 2 * vec_slot::<bool>() + owned + vis_capacity(&self.vis)
+    }
+}
+
+/// An impl block waiting for its self type to resolve, once for each module
+/// path its file is reached under. The fact is the file's own.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ImplDecl {
+pub(crate) struct ImplDecl<'f> {
     pub(crate) module: usize,
     pub(crate) file: RelPath,
     pub(crate) target: TargetId,
     pub(crate) reach_test: bool,
-    pub(crate) fact: ImplFact,
+    pub(crate) fact: &'f ImplFact,
 }
 
 /// A module: all the declarations that define the module at one path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Module {
-    pub(crate) path: String,
+    pub(crate) path: SharedStr,
     pub(crate) parent: Option<usize>,
     pub(crate) root: usize,
     pub(crate) defs: Vec<ItemId>,
@@ -82,7 +205,7 @@ pub(crate) struct Index {
     /// The items in the order of [`crate::Workspace::items`].
     pub(crate) order: Vec<ItemId>,
     pub(crate) modules: Vec<Module>,
-    pub(crate) module_by_path: BTreeMap<String, usize>,
+    pub(crate) module_by_path: BTreeMap<SharedStr, usize>,
     /// The module that a `mod` or `extern crate` item stands for.
     pub(crate) module_of: BTreeMap<ItemId, usize>,
     /// Names of the library crates, for paths that start with a crate name.
@@ -99,7 +222,7 @@ pub(crate) struct Index {
     /// Named imports not yet settled, by module and bound name.
     pub(crate) unsettled: BTreeMap<usize, BTreeMap<String, usize>>,
     /// The crate an `extern crate` item names, by item.
-    pub(crate) extern_names: BTreeMap<ItemId, String>,
+    pub(crate) extern_names: BTreeMap<ItemId, SharedStr>,
     /// Items grouped by file and the byte offset where their span starts.
     /// The item of each target's crate root, by the root module.
     pub(crate) root_items: BTreeMap<usize, ItemId>,
@@ -110,8 +233,33 @@ pub(crate) struct Index {
     pub(crate) foreign: BTreeMap<String, Vec<ItemId>>,
     pub(crate) by_file: BTreeMap<RelPath, Vec<ItemId>>,
     /// The aliased path of each type alias, with the module it is written in.
-    pub(crate) aliases: BTreeMap<ItemId, (usize, PathFact)>,
-    impls: Vec<ImplDecl>,
+    /// The path of a file's alias is shared by every module path that reaches
+    /// the file.
+    pub(crate) aliases: BTreeMap<ItemId, (usize, Arc<PathFact>)>,
+}
+
+/// Where the index puts its strings while it is built, and what it charges.
+pub(crate) struct Store<'m> {
+    /// One copy of each path, name and written type the items hold.
+    strings: Interner,
+    meter: &'m Meter,
+}
+
+impl Store<'_> {
+    /// The shared copy of `text` and what it costs the first time.
+    pub(crate) fn intern(&mut self, text: &str) -> (SharedStr, usize) {
+        self.strings.intern(text)
+    }
+
+    /// Charge `bytes` of records built for `file` at `line`.
+    pub(crate) fn charge(
+        &self,
+        bytes: usize,
+        file: &RelPath,
+        line: Option<usize>,
+    ) -> Result<(), LoadError> {
+        self.meter.items(bytes, file, line)
+    }
 }
 
 fn symbol_kind(kind: ItemKind) -> SymbolKind {
@@ -244,26 +392,42 @@ struct Cx<'a> {
 
 struct Builder<'a> {
     targets: &'a [Target],
-    files_at: BTreeMap<String, Vec<&'a SourceFile>>,
+    files_at: BTreeMap<&'a str, Vec<&'a SourceFile>>,
+    store: Store<'a>,
+    impls: Vec<ImplDecl<'a>>,
+    /// The shared aliased path of each alias fact, by the fact's address in
+    /// its file's facts, which outlive the build.
+    aliases: HashMap<*const PathFact, Arc<PathFact>>,
+    /// The modules whose table of unsettled imports is already charged.
+    unsettled_modules: HashSet<usize>,
     index: Index,
 }
 
-impl Builder<'_> {
-    /// The module at `path`, which a `mod` declaration in `parent` names. A
-    /// module declared more than once (under exclusive `cfg`s) is one module.
-    fn declare(&mut self, path: &str, parent: usize) -> usize {
+impl<'a> Builder<'a> {
+    /// The module at `path`, which a `mod` declaration in `parent` names, at
+    /// `line` of `file`. A module declared more than once (under exclusive
+    /// `cfg`s) is one module.
+    fn declare(
+        &mut self,
+        path: &str,
+        parent: usize,
+        file: &RelPath,
+        line: usize,
+    ) -> Result<usize, LoadError> {
         if let Some(&known) = self.index.module_by_path.get(path) {
-            return known;
+            return Ok(known);
         }
+        let (path, cost) = self.store.intern(path);
+        self.store.charge(cost + MODULE_BYTES, file, Some(line))?;
         let idx = self.index.modules.len();
         self.index.modules.push(Module {
-            path: path.to_owned(),
+            path: path.clone(),
             parent: Some(parent),
             root: self.index.modules[parent].root,
             defs: Vec::new(),
         });
-        self.index.module_by_path.insert(path.to_owned(), idx);
-        idx
+        self.index.module_by_path.insert(path, idx);
+        Ok(idx)
     }
 
     #[allow(
@@ -274,16 +438,51 @@ impl Builder<'_> {
         &mut self,
         fact: &ItemFact,
         kind: SymbolKind,
-        path: String,
+        path: &str,
         module: usize,
         cx: &Cx<'_>,
         documented: bool,
-    ) -> ItemId {
+    ) -> Result<ItemId, LoadError> {
+        self.record(fact, kind, path, cx, documented, true)
+            .inspect(|id| self.index.modules[module].defs.push(*id))
+    }
+
+    /// Record an item, charging it and, when `in_scope`, its definition in
+    /// its module's scope table, or else its place among the members of its
+    /// type.
+    fn record(
+        &mut self,
+        fact: &ItemFact,
+        kind: SymbolKind,
+        path: &str,
+        cx: &Cx<'_>,
+        documented: bool,
+        in_scope: bool,
+    ) -> Result<ItemId, LoadError> {
+        let (path, path_cost) = self.store.intern(path);
+        let (name, name_cost) = self.store.intern(&fact.name);
+        let namespaces = if kind == SymbolKind::Struct
+            && matches!(fact.shape, Some(FieldShape::Unit | FieldShape::Tuple))
+        {
+            2
+        } else {
+            1
+        };
+        let place = if in_scope {
+            scope_bytes(&fact.name, &fact.vis, namespaces)
+        } else {
+            member_bytes(&fact.name)
+        };
+        self.store.charge(
+            ITEM_BYTES + path_cost + name_cost + vis_capacity(&fact.vis) + place,
+            cx.file,
+            Some(fact.name_line),
+        )?;
         let id = ItemId(self.index.items.len());
         self.index.items.push(Item {
             id,
             path,
-            name: fact.name.clone(),
+            name,
             kind,
             namespace: main_namespace(kind),
             file: cx.file.clone(),
@@ -300,14 +499,38 @@ impl Builder<'_> {
             trait_path: None,
             shape: fact.shape,
         });
-        self.index.modules[module].defs.push(id);
-        id
+        Ok(id)
     }
 
-    fn item(&mut self, fact: &ItemFact, module: usize, cx: &Cx<'_>) {
+    /// The shared copy of the aliased path of `alias`, a fact of the file, made
+    /// and charged the first time any module path of the file reaches it.
+    fn shared_alias(
+        &mut self,
+        alias: &PathFact,
+        cx: &Cx<'_>,
+        line: usize,
+    ) -> Result<Arc<PathFact>, LoadError> {
+        if let Some(shared) = self.aliases.get(&std::ptr::from_ref(alias)) {
+            return Ok(Arc::clone(shared));
+        }
+        self.store.charge(
+            shared_text(size_of::<PathFact>())
+                + strings_bytes(&alias.segments)
+                + hash_entry::<(*const PathFact, Arc<PathFact>)>()
+                + btree_entry::<ItemId, (usize, Arc<PathFact>)>(),
+            cx.file,
+            Some(line),
+        )?;
+        let shared = Arc::new(alias.clone());
+        self.aliases
+            .insert(std::ptr::from_ref(alias), Arc::clone(&shared));
+        Ok(shared)
+    }
+
+    fn item(&mut self, fact: &ItemFact, module: usize, cx: &Cx<'_>) -> Result<(), LoadError> {
         if fact.kind == ItemKind::UnnamedConst {
             // `const _` defines no name: it is in the facts and not in a path.
-            return;
+            return Ok(());
         }
         let kind = symbol_kind(fact.kind);
         let (home, base) = if fact.macro_export {
@@ -317,16 +540,32 @@ impl Builder<'_> {
             (module, self.index.modules[module].path.clone())
         };
         let path = format!("{base}::{}", fact.name);
-        let id = self.push(fact, kind, path.clone(), home, cx, fact.documented);
+        let id = self.push(fact, kind, &path, home, cx, fact.documented)?;
         if let Some(alias) = &fact.alias {
-            self.index.aliases.insert(id, (home, alias.clone()));
+            let shared = self.shared_alias(alias, cx, fact.name_line)?;
+            self.store.charge(
+                btree_entry::<ItemId, (usize, Arc<PathFact>)>(),
+                cx.file,
+                Some(fact.name_line),
+            )?;
+            self.index.aliases.insert(id, (home, shared));
         }
         if fact.kind == ItemKind::ExternCrate {
             let crate_name = fact.renamed_from.as_deref().unwrap_or(&fact.name);
-            self.index.extern_names.insert(id, crate_name.to_owned());
+            let (shared, cost) = self.store.intern(crate_name);
+            self.store.charge(
+                cost + btree_entry::<ItemId, SharedStr>() + btree_entry::<ItemId, usize>(),
+                cx.file,
+                Some(fact.name_line),
+            )?;
+            self.index.extern_names.insert(id, shared);
             if let Some(&root) = self.index.libs.get(crate_name) {
                 self.index.module_of.insert(id, root);
             }
+        }
+        if !fact.members.is_empty() {
+            self.store
+                .charge(MEMBERS_BYTES, cx.file, Some(fact.name_line))?;
         }
         for member in &fact.members {
             let member_kind = match (member.kind, member.body.is_some()) {
@@ -336,7 +575,7 @@ impl Builder<'_> {
                 _ => SymbolKind::AssocConst,
             };
             let member_path = format!("{path}::{}", member.name);
-            let member_id = self.member(member, member_kind, member_path, module, cx);
+            let member_id = self.member(member, member_kind, &member_path, cx)?;
             self.index
                 .assoc
                 .entry(id)
@@ -345,6 +584,7 @@ impl Builder<'_> {
                 .or_default()
                 .push(member_id);
         }
+        Ok(())
     }
 
     /// A member of a type or trait: an item that no module scope names.
@@ -352,56 +592,96 @@ impl Builder<'_> {
         &mut self,
         fact: &ItemFact,
         kind: SymbolKind,
-        path: String,
-        module: usize,
+        path: &str,
         cx: &Cx<'_>,
-    ) -> ItemId {
-        let id = self.push(fact, kind, path, module, cx, fact.documented);
-        self.index.modules[module].defs.pop();
-        id
+    ) -> Result<ItemId, LoadError> {
+        self.record(fact, kind, path, cx, fact.documented, false)
     }
 
-    fn body(&mut self, body: &ModBody, module: usize, cx: &Cx<'_>) -> Result<(), LoadError> {
-        for fact in &body.items {
-            self.item(fact, module, cx);
-        }
-        for decl in &body.mods {
-            let path = format!("{}::{}", self.index.modules[module].path, decl.name);
-            let child = self.declare(&path, module);
-            let file_docs = self
-                .files_at
-                .get(&path)
-                .is_some_and(|files| files.iter().any(|file| file.facts.documented));
-            let fact = ItemFact {
-                name: decl.name.clone(),
-                renamed_from: None,
-                kind: ItemKind::Fn,
-                name_line: decl.name_line,
-                span: decl.span,
-                body: decl.body_span,
-                vis: decl.vis.clone(),
-                attrs: Vec::new(),
-                documented: decl.documented,
-                doc_hidden: decl.doc_hidden,
-                test: decl.test,
-                macro_export: false,
-                members: Vec::new(),
-                shape: None,
-                alias: None,
-            };
-            let id = self.push(
-                &fact,
-                SymbolKind::Mod,
-                path,
-                module,
-                cx,
-                decl.documented || file_docs,
-            );
-            self.index.module_of.insert(id, child);
-            if let Some(inline) = &decl.inline {
-                self.body(inline, child, cx)?;
+    /// Emit a module body and the inline modules inside it, depth first, on
+    /// an explicit stack: the items, then each module declaration with the
+    /// body of an inline one, then the `use` declarations and the impls.
+    fn body(&mut self, root: &'a ModBody, module: usize, cx: &Cx<'_>) -> Result<(), LoadError> {
+        let mut stack = vec![Emit::Enter(root, module)];
+        while let Some(step) = stack.pop() {
+            match step {
+                Emit::Enter(body, module) => {
+                    for fact in &body.items {
+                        self.item(fact, module, cx)?;
+                    }
+                    stack.push(Emit::Rest(body, module));
+                    stack.push(Emit::Mods(body, module, 0));
+                }
+                Emit::Mods(body, module, next) => {
+                    let Some(decl) = body.mods.get(next) else {
+                        continue;
+                    };
+                    stack.push(Emit::Mods(body, module, next + 1));
+                    let child = self.module_item(decl, module, cx)?;
+                    if let Some(inline) = &decl.inline {
+                        stack.push(Emit::Enter(inline, child));
+                    }
+                }
+                Emit::Rest(body, module) => self.uses_and_impls(body, module, cx)?,
             }
         }
+        Ok(())
+    }
+
+    /// The module a declaration names, and its item. Returns the module.
+    fn module_item(
+        &mut self,
+        decl: &ModFact,
+        module: usize,
+        cx: &Cx<'_>,
+    ) -> Result<usize, LoadError> {
+        let path = format!("{}::{}", self.index.modules[module].path, decl.name);
+        let child = self.declare(&path, module, cx.file, decl.name_line)?;
+        let file_docs = self
+            .files_at
+            .get(path.as_str())
+            .is_some_and(|files| files.iter().any(|file| file.facts.documented));
+        let fact = ItemFact {
+            name: decl.name.clone(),
+            renamed_from: None,
+            kind: ItemKind::Fn,
+            name_line: decl.name_line,
+            span: decl.span,
+            body: decl.body_span,
+            vis: decl.vis.clone(),
+            attrs: Vec::new(),
+            documented: decl.documented,
+            doc_hidden: decl.doc_hidden,
+            test: decl.test,
+            macro_export: false,
+            members: Vec::new(),
+            shape: None,
+            alias: None,
+        };
+        let id = self.push(
+            &fact,
+            SymbolKind::Mod,
+            &path,
+            module,
+            cx,
+            decl.documented || file_docs,
+        )?;
+        self.store.charge(
+            btree_entry::<ItemId, usize>(),
+            cx.file,
+            Some(decl.name_line),
+        )?;
+        self.index.module_of.insert(id, child);
+        Ok(child)
+    }
+
+    /// The `use` declarations and the impl blocks of one body.
+    fn uses_and_impls(
+        &mut self,
+        body: &'a ModBody,
+        module: usize,
+        cx: &Cx<'_>,
+    ) -> Result<(), LoadError> {
         for decl in &body.uses {
             let mut kinds = Vec::new();
             flatten(&decl.tree, &mut Vec::new(), &mut kinds).map_err(|what| {
@@ -412,27 +692,43 @@ impl Builder<'_> {
                 )
             })?;
             for kind in kinds {
-                self.index.uses.push(UseDecl {
+                let entry = UseDecl {
                     module,
                     file: cx.file.clone(),
                     line: decl.line,
                     leading_colon: decl.leading_colon,
                     vis: decl.vis.clone(),
                     kind,
-                });
+                };
+                let first_named = matches!(entry.kind, UseKind::Named { .. })
+                    && self.unsettled_modules.insert(module);
+                let table = if first_named { UNSETTLED_BYTES } else { 0 };
+                self.store
+                    .charge(entry.bytes() + table, cx.file, Some(decl.line))?;
+                self.index.uses.push(entry);
             }
         }
         for fact in &body.impls {
-            self.index.impls.push(ImplDecl {
+            self.store
+                .charge(vec_slot::<ImplDecl<'_>>(), cx.file, Some(fact.line))?;
+            self.impls.push(ImplDecl {
                 module,
                 file: cx.file.clone(),
                 target: cx.target,
                 reach_test: cx.reach_test,
-                fact: fact.clone(),
+                fact,
             });
         }
         Ok(())
     }
+}
+
+/// A step of emitting a module body: its items and module declarations, a
+/// declaration from position `next` on, or its imports and impls.
+enum Emit<'a> {
+    Enter(&'a ModBody, usize),
+    Mods(&'a ModBody, usize, usize),
+    Rest(&'a ModBody, usize),
 }
 
 impl Index {
@@ -442,21 +738,24 @@ impl Index {
     /// # Errors
     ///
     /// Returns a [`LoadError`] for a `super` path that climbs above the crate
-    /// root and for an inherent impl whose self type is not a local type, and
-    /// an `Internal` one for a visit that names no loaded file or reach, or
-    /// that reaches a module before the declaration that names it, which the
-    /// walk rules out.
+    /// root, for an inherent impl whose self type is not a local type and for
+    /// records that pass the item-bytes budget of `meter`, and an `Internal`
+    /// one for a visit that names no loaded file or reach, or that reaches a
+    /// module before the declaration that names it, which the walk rules out.
+    /// `strings` holds the module paths the walk recorded.
     pub(crate) fn build(
         targets: &[Target],
         files: &BTreeMap<RelPath, SourceFile>,
         visits: &[Visit],
         infos: &BTreeMap<String, PackageInfo>,
+        strings: Interner,
+        meter: &Meter,
     ) -> Result<Self, LoadError> {
-        let mut files_at: BTreeMap<String, Vec<&SourceFile>> = BTreeMap::new();
+        let mut files_at: BTreeMap<&str, Vec<&SourceFile>> = BTreeMap::new();
         for file in files.values() {
             for reach in &file.reached {
                 files_at
-                    .entry(reach.module_path.clone())
+                    .entry(reach.module_path.as_str())
                     .or_default()
                     .push(file);
             }
@@ -464,6 +763,10 @@ impl Index {
         let mut builder = Builder {
             targets,
             files_at,
+            store: Store { strings, meter },
+            impls: Vec::new(),
+            aliases: HashMap::new(),
+            unsettled_modules: HashSet::new(),
             index: Index {
                 items: Vec::new(),
                 order: Vec::new(),
@@ -486,16 +789,15 @@ impl Index {
                 foreign: BTreeMap::new(),
                 by_file: BTreeMap::new(),
                 aliases: BTreeMap::new(),
-                impls: Vec::new(),
             },
         };
         for target in builder.targets {
-            let root = builder.ensure_root(&target.crate_path);
+            let root = builder.ensure_root(&target.crate_path, &target.root)?;
             if target.kind == TargetKind::Lib {
                 builder.index.libs.insert(target.crate_path.clone(), root);
             }
         }
-        let mut seen: BTreeSet<(RelPath, TargetId, String)> = BTreeSet::new();
+        let mut seen: BTreeSet<(RelPath, TargetId, SharedStr)> = BTreeSet::new();
         for visit in visits {
             let internal =
                 |what: String| LoadError::new(&visit.file, None, LoadErrorKind::Internal { what });
@@ -518,7 +820,7 @@ impl Index {
             let module = *builder
                 .index
                 .module_by_path
-                .get(&reach.module_path)
+                .get(reach.module_path.as_str())
                 .ok_or_else(|| {
                     internal(format!(
                         "the module `{}` was reached before the declaration that names it",
@@ -532,11 +834,16 @@ impl Index {
             };
             builder.body(&file.facts.body, module, &cx)?;
         }
-        let mut index = builder.index;
-        index.add_roots(files)?;
+        let Builder {
+            impls,
+            mut index,
+            mut store,
+            ..
+        } = builder;
+        index.add_roots(files, &mut store)?;
         index.build_scopes();
-        index.settle()?;
-        index.attach_impls()?;
+        index.settle(store.meter)?;
+        index.attach_impls(impls, &mut store)?;
         index.finish();
         Ok(index)
     }
@@ -549,7 +856,11 @@ impl Index {
     ///
     /// Returns an `Internal` [`LoadError`] if a target's root file was not
     /// loaded or its crate root has no module, which the walk guarantees.
-    fn add_roots(&mut self, files: &BTreeMap<RelPath, SourceFile>) -> Result<(), LoadError> {
+    fn add_roots(
+        &mut self,
+        files: &BTreeMap<RelPath, SourceFile>,
+        store: &mut Store<'_>,
+    ) -> Result<(), LoadError> {
         for (position, target) in self.targets.clone().iter().enumerate() {
             let internal =
                 |what: String| LoadError::new(&target.root, None, LoadErrorKind::Internal { what });
@@ -568,10 +879,21 @@ impl Index {
                 .crate_path
                 .rsplit("::")
                 .next()
-                .map_or_else(|| target.crate_path.clone(), str::to_owned);
+                .unwrap_or(&target.crate_path);
+            let (path, path_cost) = store.intern(&target.crate_path);
+            let (name, name_cost) = store.intern(name);
+            store.charge(
+                ITEM_BYTES
+                    + path_cost
+                    + name_cost
+                    + btree_entry::<ItemId, usize>()
+                    + btree_entry::<usize, ItemId>(),
+                &target.root,
+                None,
+            )?;
             self.items.push(Item {
                 id,
-                path: target.crate_path.clone(),
+                path,
                 name,
                 kind: SymbolKind::Mod,
                 namespace: Namespace::Type,
@@ -630,7 +952,10 @@ impl Index {
                 .push(*id);
         }
         for ids in self.by_file.values_mut() {
-            ids.sort_by_key(|id| (items[id.0].span.start_byte, items[id.0].path.clone(), id.0));
+            ids.sort_by(|a, b| {
+                let (a, b) = (&items[a.0], &items[b.0]);
+                (a.span.start_byte, &a.path, a.id).cmp(&(b.span.start_byte, &b.path, b.id))
+            });
         }
     }
 
@@ -653,20 +978,51 @@ impl Index {
         ids
     }
 
+    /// Record a member of an impl block.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`LoadError`] naming the member's file and line when the
+    /// record passes the item-bytes budget.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "a member is built from its impl, its fact and what the impl resolved to"
+    )]
     pub(crate) fn push_member(
         &mut self,
-        decl: &ImplDecl,
+        decl: &ImplDecl<'_>,
         member: &ItemFact,
         kind: SymbolKind,
-        path: String,
+        path: &str,
         self_type: &str,
-        trait_key: Option<TraitKey>,
-    ) -> ItemId {
+        trait_key: Option<Arc<TraitKey>>,
+        store: &mut Store<'_>,
+    ) -> Result<ItemId, LoadError> {
+        let (path, path_cost) = store.intern(path);
+        let (name, name_cost) = store.intern(&member.name);
+        let (self_type, self_cost) = store.intern(self_type);
+        let written = decl
+            .fact
+            .trait_path
+            .as_ref()
+            .map(|text| text.split_whitespace().collect::<String>());
+        let (trait_path, trait_cost) = match written {
+            Some(text) => {
+                let (shared, cost) = store.intern(&text);
+                (Some(shared), cost)
+            }
+            None => (None, 0),
+        };
+        store.charge(
+            ITEM_BYTES + path_cost + name_cost + self_cost + trait_cost + vis_capacity(&member.vis),
+            &decl.file,
+            Some(member.name_line),
+        )?;
         let id = ItemId(self.items.len());
         self.items.push(Item {
             id,
             path,
-            name: member.name.clone(),
+            name,
             kind,
             namespace: main_namespace(kind),
             file: decl.file.clone(),
@@ -678,23 +1034,15 @@ impl Index {
             doc_hidden: member.doc_hidden,
             test: combine(member.test, decl.reach_test),
             target: decl.target,
-            self_type: Some(self_type.to_owned()),
+            self_type: Some(self_type),
             trait_key,
-            trait_path: decl
-                .fact
-                .trait_path
-                .as_ref()
-                .map(|text| text.split_whitespace().collect()),
+            trait_path,
             shape: None,
         });
-        id
+        Ok(id)
     }
 
-    pub(crate) fn take_impls(&mut self) -> Vec<ImplDecl> {
-        std::mem::take(&mut self.impls)
-    }
-
-    pub(crate) fn error(decl: &ImplDecl, kind: LoadErrorKind) -> LoadError {
+    pub(crate) fn error(decl: &ImplDecl<'_>, kind: LoadErrorKind) -> LoadError {
         LoadError::new(&decl.file, Some(decl.fact.line), kind)
     }
 
@@ -708,17 +1056,24 @@ impl Index {
 
 impl Builder<'_> {
     /// Create the module that is the root of a crate.
-    fn ensure_root(&mut self, path: &str) -> usize {
+    fn ensure_root(&mut self, path: &str, root: &RelPath) -> Result<usize, LoadError> {
         let idx = self.index.modules.len();
+        let (shared, cost) = self.store.intern(path);
+        // Its module, and its entries among the crate roots and the libraries.
+        self.store.charge(
+            cost + MODULE_BYTES + 2 * (btree_entry::<String, usize>() + path.len()),
+            root,
+            None,
+        )?;
         self.index.modules.push(Module {
-            path: path.to_owned(),
+            path: shared.clone(),
             parent: None,
             root: idx,
             defs: Vec::new(),
         });
-        self.index.module_by_path.insert(path.to_owned(), idx);
+        self.index.module_by_path.insert(shared, idx);
         self.index.crate_roots.insert(path.to_owned(), idx);
-        idx
+        Ok(idx)
     }
 }
 
@@ -751,6 +1106,17 @@ mod tests {
         (targets, files)
     }
 
+    /// Build an index with the default budgets.
+    fn build_index(
+        targets: &[Target],
+        files: &BTreeMap<RelPath, SourceFile>,
+        visits: &[Visit],
+        infos: &BTreeMap<String, PackageInfo>,
+    ) -> Result<Index, LoadError> {
+        let meter = Meter::new(&crate::options::LoadOptions::default());
+        Index::build(targets, files, visits, infos, Interner::default(), &meter)
+    }
+
     fn visit(file: &str) -> Visit {
         Visit {
             file: RelPath::new(file).expect("path"),
@@ -767,9 +1133,8 @@ mod tests {
         let ws = Workspace::load(&tree, &["."]).expect("loads");
         let (targets, files) = parts(&ws);
         let infos = BTreeMap::new();
-        assert!(Index::build(&targets, &files, &[visit("src/lib.rs")], &infos).is_ok());
-        let error =
-            Index::build(&targets, &BTreeMap::new(), &[], &infos).expect_err("no root file");
+        assert!(build_index(&targets, &files, &[visit("src/lib.rs")], &infos).is_ok());
+        let error = build_index(&targets, &BTreeMap::new(), &[], &infos).expect_err("no root file");
         assert!(
             matches!(error.kind, LoadErrorKind::Internal { .. }),
             "{error}"
@@ -794,12 +1159,12 @@ mod tests {
             visit("src/a/mod.rs"),
             visit("src/a/b.rs"),
         ];
-        let index = Index::build(&targets, &files, &walked, &infos).expect("walk order");
+        let index = build_index(&targets, &files, &walked, &infos).expect("walk order");
         let paths: Vec<&str> = index.items.iter().map(|item| item.path.as_str()).collect();
         assert!(paths.contains(&"demo::a::b::in_b"), "{paths:?}");
         // The order of the file names reaches `b` before `a` declares it.
         let sorted: Vec<Visit> = files.keys().map(|path| visit(path.as_str())).collect();
-        let error = Index::build(&targets, &files, &sorted, &infos).expect_err("name order");
+        let error = build_index(&targets, &files, &sorted, &infos).expect_err("name order");
         assert!(
             matches!(&error.kind, LoadErrorKind::Internal { what } if what.contains("`demo::a::b`")),
             "{error}"
@@ -813,7 +1178,7 @@ mod tests {
                 reach: 1,
             },
         ] {
-            let error = Index::build(&targets, &files, &[stray], &infos).expect_err("stray visit");
+            let error = build_index(&targets, &files, &[stray], &infos).expect_err("stray visit");
             assert!(
                 matches!(error.kind, LoadErrorKind::Internal { .. }),
                 "{error}"

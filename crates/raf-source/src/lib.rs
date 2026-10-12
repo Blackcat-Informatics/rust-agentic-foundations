@@ -105,15 +105,18 @@
 
 mod budget;
 mod cfg;
+mod cost;
 mod discovery;
 mod error;
 mod facts;
 mod glob;
 mod impls;
 mod index;
+mod intern;
 mod item;
 mod manifest;
 mod members;
+mod meter;
 mod modtree;
 mod options;
 mod parse;
@@ -125,13 +128,14 @@ mod target;
 mod tree;
 mod workspace;
 
-pub use budget::Budget;
+pub use budget::{Budget, PARSE_BYTES_PER_TOKEN};
 pub use error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
 pub use facts::{
     AttrFact, ConditionalPath, FieldShape, FileFacts, ImplFact, ItemFact, ItemKind, ModBody,
     ModFact, PathAttrs, SpanFact, TestRole, UseFact, UseTree, Vis,
 };
-pub use item::{Item, ItemId, Namespace, SymbolKind, TraitKey};
+pub use item::{Item, ItemId, Namespace, SharedStr, SymbolKind, TraitKey};
+pub use meter::Usage;
 pub use modtree::{Reach, TargetId};
 pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};
 pub use parse::{PARSE_STACK_BYTES, parse_source};
@@ -139,5 +143,5 @@ pub use path::{PathError, RelPath};
 pub use resolve::{Resolution, ResolveError};
 pub use syn;
 pub use target::{Package, Target, TargetKind};
-pub use tree::{DiskTree, Entry, EntryKind, MemoryTree, Tree};
+pub use tree::{DiskTree, Entry, EntryKind, FileId, MemoryTree, Opened, Tree};
 pub use workspace::{SourceFile, TestFn, Workspace};

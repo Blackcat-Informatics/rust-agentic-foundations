@@ -5,6 +5,7 @@
 
 use std::error::Error;
 use std::fmt;
+use std::sync::Arc;
 
 /// A path below a tree root: `/`-separated, UTF-8, never absolute and never
 /// leaving the root.
@@ -14,9 +15,11 @@ use std::fmt;
 /// the directory the earlier segments really reach, which differs from the
 /// lexical parent when one of them is a symlink; it is refused only when the
 /// segments before it do not leave a level to climb out of.
+///
+/// The text is shared, so a clone does not copy it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RelPath {
-    text: String,
+    text: Arc<str>,
     /// Directories below the root once every `..` is applied.
     depth: usize,
 }
@@ -100,7 +103,7 @@ impl RelPath {
     #[must_use]
     pub fn root() -> Self {
         Self {
-            text: String::new(),
+            text: Arc::from(""),
             depth: 0,
         }
     }
@@ -156,7 +159,7 @@ impl RelPath {
             }
         }
         Ok(Self {
-            text: segments.join("/"),
+            text: Arc::from(segments.join("/")),
             depth,
         })
     }
@@ -193,11 +196,7 @@ impl RelPath {
         if self.is_root() {
             return None;
         }
-        let text = self
-            .text
-            .rfind('/')
-            .map_or("", |index| &self.text[..index])
-            .to_owned();
+        let text = self.text.rfind('/').map_or("", |index| &self.text[..index]);
         // Every prefix of a valid path is valid, so the climb never saturates.
         let depth = text.split('/').filter(|segment| !segment.is_empty()).fold(
             0_usize,
@@ -209,7 +208,10 @@ impl RelPath {
                 }
             },
         );
-        Some(Self { text, depth })
+        Some(Self {
+            text: Arc::from(text),
+            depth,
+        })
     }
 }
 

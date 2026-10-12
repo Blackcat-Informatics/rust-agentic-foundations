@@ -64,16 +64,24 @@ guarantees are these, and no wider:
   still lie under the root; a rename racing that second canonicalisation is a
   residual window.
 - **Bounds.** Input size and nesting depth are bounded. For Rust source the source
-  index reads each file under a byte cap, runs a recursion pre-scan that refuses a
-  file over a budget (delimiter nesting, nested `<`, prefix operators, closure bars,
-  `else if` chains) with a typed error naming the file and the budget, bounds the
-  module walk (128 nested modules and 262144 module walks per load, because a
-  file reached by several module paths is walked once per path), parses on a
+  index reads each file under a byte cap, runs a pre-scan that refuses a file over a
+  budget (delimiter nesting, nested `<`, prefix operators, closure bars, `else if`
+  chains, and a token count, 2000000 by default, which bounds the memory of parsing
+  one file at its peak at 1664 bytes per token, about 3.1 GiB, and which a caller on
+  a smaller host lowers) with a typed error naming the file and the budget, bounds
+  the module walk (128 nested modules and 262144 module walks per load, because a
+  file reached by several module paths is walked once per path) and discovery (128
+  directories below a root), keeping a stack of its own for each walk, reads and
+  parses each file once whatever spellings reach it (files are told apart by device
+  and inode, or by canonical path), and bounds what one load reads, keeps in its
+  index and keeps as facts (256 MiB, 512 MiB and 256 MiB by default, 1 GiB in all).
+  The scope tables that `use` declarations and globs build are bounded by no budget:
+  a glob-heavy input can exhaust memory (one module of 3000 functions globbed by 3000
+  others, 166 KB of source, peaks at 7.3 GiB). The source index parses on a
   dedicated 64 MiB stack on a thread named after the file, and is fuzzed through a
   target (`parse_source`) whose committed corpus `cargo test` replays in child
-  processes, in debug and in release. These make memory exhaustion and stack overflow
-  unlikely and do not
-  prove that an overflow cannot happen. A residual stack overflow aborts the run, so
+  processes, in debug and in release. These bound memory outside the scope tables
+  and make stack overflow unlikely, and do not prove that an overflow cannot happen. A residual stack overflow aborts the run, so
   the gate fails and never passes (no budget counts the committed composite shapes or
   most of the uncounted shapes, so a file of one of them can end in such an abort), and a file ends in a typed error, a correct and
   complete index, or an abort, never in success with a wrong or partial index. Report

@@ -3,11 +3,110 @@
 
 //! The items of the symbol index.
 
+use std::borrow::Borrow;
 use std::fmt;
+use std::ops::Deref;
+use std::sync::Arc;
 
 use crate::facts::{FieldShape, SpanFact, TestRole, Vis};
 use crate::modtree::TargetId;
 use crate::path::RelPath;
+
+/// Text that the records of one load share: an item path, a name, a module
+/// path or a written type is stored once and every record that holds it
+/// points at that one copy.
+///
+/// It reads as a `str` and compares with `str` and `String`.
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SharedStr(Arc<str>);
+
+impl SharedStr {
+    /// The text.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Deref for SharedStr {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<str> for SharedStr {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Borrow<str> for SharedStr {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<&str> for SharedStr {
+    fn from(text: &str) -> Self {
+        Self(Arc::from(text))
+    }
+}
+
+impl From<String> for SharedStr {
+    fn from(text: String) -> Self {
+        Self(Arc::from(text))
+    }
+}
+
+impl fmt::Display for SharedStr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl fmt::Debug for SharedStr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&*self.0, f)
+    }
+}
+
+impl PartialEq<str> for SharedStr {
+    fn eq(&self, other: &str) -> bool {
+        *self.0 == *other
+    }
+}
+
+impl PartialEq<&str> for SharedStr {
+    fn eq(&self, other: &&str) -> bool {
+        *self.0 == **other
+    }
+}
+
+impl PartialEq<String> for SharedStr {
+    fn eq(&self, other: &String) -> bool {
+        *self.0 == **other
+    }
+}
+
+impl PartialEq<SharedStr> for str {
+    fn eq(&self, other: &SharedStr) -> bool {
+        *self == *other.0
+    }
+}
+
+impl PartialEq<SharedStr> for &str {
+    fn eq(&self, other: &SharedStr) -> bool {
+        **self == *other.0
+    }
+}
+
+impl PartialEq<SharedStr> for String {
+    fn eq(&self, other: &SharedStr) -> bool {
+        **self == *other.0
+    }
+}
 
 /// A name space: the three in which a Rust path can name something.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -124,6 +223,10 @@ pub enum TraitKey {
 /// A file that several module trees reach has one `Item` for each path it is
 /// reached under; the items share their file and offset and differ in `path`
 /// and `target`.
+///
+/// A record is at most 256 bytes: its text is shared ([`SharedStr`] and
+/// [`RelPath`]), and the trait key of an impl member is shared by the members
+/// of its impl block.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Item {
@@ -132,9 +235,9 @@ pub struct Item {
     /// The full path: the module path and the name, with a method under its
     /// impl type, or `<trait>::<method>` for a trait impl on a type that is not
     /// a local struct, enum or union.
-    pub path: String,
+    pub path: SharedStr,
     /// The name without a raw-identifier prefix.
-    pub name: String,
+    pub name: SharedStr,
     /// What the item is.
     pub kind: SymbolKind,
     /// The main name space of the item. Unit and tuple structs are also in
@@ -162,13 +265,13 @@ pub struct Item {
     /// The target whose module tree holds the item.
     pub target: TargetId,
     /// For a trait impl method, the self type as written.
-    pub self_type: Option<String>,
+    pub self_type: Option<SharedStr>,
     /// For a trait impl method, the trait path as written.
-    pub trait_path: Option<String>,
+    pub trait_path: Option<SharedStr>,
     /// For a trait impl method on a type that is not local, how the trait is
     /// keyed; `None` for the members of impls on local types, which are
     /// recorded under the type.
-    pub trait_key: Option<TraitKey>,
+    pub trait_key: Option<Arc<TraitKey>>,
     /// For a struct or union, how its fields are declared.
     pub shape: Option<FieldShape>,
 }
@@ -188,5 +291,31 @@ impl Item {
     #[must_use]
     pub fn source_key(&self) -> (&RelPath, usize) {
         (&self.file, self.span.start_byte)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_item_record_is_at_most_two_hundred_fifty_six_bytes() {
+        assert!(
+            size_of::<Item>() <= 256,
+            "an item record is {} bytes",
+            size_of::<Item>()
+        );
+    }
+
+    #[test]
+    fn shared_text_reads_and_compares_as_a_str() {
+        let text = SharedStr::from("demo::go");
+        assert_eq!(text, "demo::go");
+        assert_eq!(text, *"demo::go");
+        assert_eq!(text, "demo::go".to_owned());
+        assert_eq!("demo::go", text);
+        assert_eq!(text.as_str(), "demo::go");
+        assert_eq!(format!("{text} {text:?}"), "demo::go \"demo::go\"");
+        assert!(text.starts_with("demo"));
     }
 }
