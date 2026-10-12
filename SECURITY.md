@@ -65,7 +65,10 @@ guarantees are these, and no wider:
   residual window.
 - **Bounds.** Input size and nesting depth are bounded. For Rust source the source
   index reads each file under a byte cap, runs a recursion pre-scan that refuses a
-  file over a budget with a typed error naming the file and the budget, parses on a
+  file over a budget (delimiter nesting, nested `<`, prefix operators, closure bars,
+  `else if` chains) with a typed error naming the file and the budget, bounds the
+  module walk (128 nested modules and 262144 module walks per load, because a
+  file reached by several module paths is walked once per path), parses on a
   dedicated 64 MiB stack on a thread named after the file, and is fuzzed through a
   target (`parse_source`) whose committed corpus `cargo test` replays in child
   processes, in debug and in release. These make memory exhaustion and stack overflow

@@ -22,25 +22,36 @@ pub enum Budget {
     ClosureBars,
     /// Chained `else if` links.
     ElseIf,
+    /// Modules nested along one path from a target root, files and inline
+    /// modules together. Unlike the others it is counted by the module walk
+    /// and not by the pre-scan.
+    ModuleDepth,
+    /// Module paths recorded in one load: every arrival of the module walk at
+    /// a file, counted over all targets. Counted by the module walk.
+    ModulePaths,
 }
 
 /// The limit of each budget, indexed by the budget's position.
-const BUDGETS: [(Budget, usize); 5] = [
+const BUDGETS: [(Budget, usize); 7] = [
     (Budget::Delimiters, 128),
     (Budget::Angles, 64),
     (Budget::PrefixOperators, 256),
     (Budget::ClosureBars, 128),
     (Budget::ElseIf, 256),
+    (Budget::ModuleDepth, 128),
+    (Budget::ModulePaths, 262_144),
 ];
 
 impl Budget {
     /// Every budget, in table order.
-    pub const ALL: [Budget; 5] = [
+    pub const ALL: [Budget; 7] = [
         BUDGETS[0].0,
         BUDGETS[1].0,
         BUDGETS[2].0,
         BUDGETS[3].0,
         BUDGETS[4].0,
+        BUDGETS[5].0,
+        BUDGETS[6].0,
     ];
 
     /// The most the budget allows; one more is refused.
@@ -58,6 +69,8 @@ impl Budget {
             Self::PrefixOperators => "prefix operator run",
             Self::ClosureBars => "closure bar chain",
             Self::ElseIf => "`else if` chain",
+            Self::ModuleDepth => "module nesting",
+            Self::ModulePaths => "module paths",
         }
     }
 }
@@ -83,5 +96,7 @@ mod tests {
         assert_eq!(Budget::PrefixOperators.limit(), 256);
         assert_eq!(Budget::ClosureBars.limit(), 128);
         assert_eq!(Budget::ElseIf.limit(), 256);
+        assert_eq!(Budget::ModuleDepth.limit(), 128);
+        assert_eq!(Budget::ModulePaths.limit(), 262_144);
     }
 }

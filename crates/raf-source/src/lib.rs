@@ -44,21 +44,57 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
+//! [`Workspace::load`] takes explicit roots, finds the packages and targets under
+//! them, and follows every target's `mod` declarations as rustc does:
+//!
+//! ```rust
+//! use raf_source::{MemoryTree, TargetKind, Workspace};
+//!
+//! let tree = MemoryTree::from([
+//!     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+//!     ("src/lib.rs", "mod inner;\n"),
+//!     ("src/inner.rs", "pub fn go() {}\n"),
+//!     ("tests/it.rs", "fn case() {}\n"),
+//! ]);
+//! let ws = Workspace::load(&tree, &["."])?;
+//! let targets: Vec<_> = ws.targets().map(|t| (t.kind, t.crate_path.as_str())).collect();
+//! assert_eq!(
+//!     targets,
+//!     [(TargetKind::Lib, "demo"), (TargetKind::Test, "demo::test_crate::it")]
+//! );
+//! assert_eq!(ws.files().count(), 3);
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
 //! Only [`TreeError::NotFound`] means that nothing is there. Every other
 //! error is a refusal or a failure and is never read as absence.
 
 mod budget;
+mod cfg;
+mod discovery;
 mod error;
+mod facts;
+mod manifest;
+mod modtree;
 mod options;
 mod parse;
 mod path;
 mod prescan;
+mod target;
 mod tree;
+mod workspace;
 
 pub use budget::Budget;
-pub use error::{LoadError, LoadErrorKind, Origin, TreeError};
+pub use error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
+pub use facts::{
+    AttrFact, ConditionalPath, FieldShape, FileFacts, ImplFact, ItemFact, ItemKind, ModBody,
+    ModFact, PathAttrs, SpanFact, TestRole, UseFact, UseTree, Vis,
+};
+pub use modtree::{Reach, TargetId};
 pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};
 pub use parse::{PARSE_STACK_BYTES, parse_source};
 pub use path::{PathError, RelPath};
 pub use syn;
+pub use target::{Package, Target, TargetKind};
 pub use tree::{DiskTree, Entry, EntryKind, MemoryTree, Tree};
+pub use workspace::{SourceFile, Workspace};

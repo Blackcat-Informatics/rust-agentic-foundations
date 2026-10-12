@@ -240,6 +240,120 @@ pub enum LoadErrorKind {
     /// The thread that parses could not be started (the operating system
     /// refused the stack or the thread).
     Spawn(io::Error),
+    /// A `Cargo.toml` could not be read as a manifest.
+    Manifest {
+        /// What is wrong with it.
+        message: String,
+    },
+    /// A target is wrong in a way the manifest keys explain.
+    Target(Box<TargetProblem>),
+    /// A directory entry that discovery would have entered is a symlink.
+    DirSymlink,
+    /// A `mod name;` names no file.
+    UnresolvedMod {
+        /// The module name, without a raw-identifier prefix.
+        module: String,
+    },
+    /// Both `name.rs` and `name/mod.rs` exist for a module.
+    BothModFiles {
+        /// The module name, without a raw-identifier prefix.
+        module: String,
+        /// The `name.rs` file.
+        first: Box<RelPath>,
+        /// The `name/mod.rs` file.
+        second: Box<RelPath>,
+    },
+    /// A module has two `path` attributes that apply unconditionally.
+    DuplicatePathAttr {
+        /// The module name, without a raw-identifier prefix.
+        module: String,
+    },
+    /// A module leads back to a file that is still being followed.
+    ModuleCycle {
+        /// The module name, without a raw-identifier prefix.
+        module: String,
+        /// The file that would be entered a second time.
+        again: Box<RelPath>,
+    },
+    /// A `cfg` or `cfg_attr` predicate could not be read.
+    CfgParse {
+        /// What is wrong with it.
+        message: String,
+    },
+    /// The file holds an item that the index does not model.
+    UnsupportedItem {
+        /// A description of the item.
+        what: String,
+    },
+}
+
+/// What is wrong with a package target.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TargetProblem {
+    /// An explicit target path names no file.
+    MissingFile {
+        /// The path, relative to the tree root.
+        path: RelPath,
+    },
+    /// A target table has no `name`.
+    NoName,
+    /// Two targets of a package have one root file.
+    SharedRoot {
+        /// The shared root file.
+        root: RelPath,
+        /// The Cargo name of the target that holds it first.
+        other: String,
+    },
+    /// A target name could belong to two root files.
+    AmbiguousRoot {
+        /// The first candidate.
+        first: RelPath,
+        /// The second candidate.
+        second: RelPath,
+    },
+    /// Two targets have one crate path, so their items could not be told apart.
+    DuplicateCratePath {
+        /// The crate path.
+        crate_path: String,
+        /// The Cargo name of the target that holds it first.
+        other: String,
+        /// The manifest of that target's package.
+        with: RelPath,
+    },
+    /// Two packages have one name.
+    DuplicatePackage {
+        /// The package name.
+        name: String,
+        /// The manifest of the other package.
+        with: RelPath,
+    },
+}
+
+impl fmt::Display for TargetProblem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingFile { path } => write!(f, "the target file {path} does not exist"),
+            Self::NoName => f.write_str("the target has no name"),
+            Self::SharedRoot { root, other } => {
+                write!(f, "the root {root} already belongs to the target `{other}`")
+            }
+            Self::AmbiguousRoot { first, second } => {
+                write!(f, "both {first} and {second} could be the root")
+            }
+            Self::DuplicateCratePath {
+                crate_path,
+                other,
+                with,
+            } => write!(
+                f,
+                "the crate path `{crate_path}` is already used by the target `{other}` of {with}"
+            ),
+            Self::DuplicatePackage { name, with } => {
+                write!(f, "package `{name}` is also defined by {with}")
+            }
+        }
+    }
 }
 
 impl fmt::Display for LoadErrorKind {
@@ -253,6 +367,26 @@ impl fmt::Display for LoadErrorKind {
                 write!(f, "syntax error at column {column}: {message}")
             }
             Self::Spawn(error) => write!(f, "cannot start the parse thread: {error}"),
+            Self::Manifest { message } => write!(f, "invalid manifest: {message}"),
+            Self::Target(problem) => write!(f, "{problem}"),
+            Self::DirSymlink => f.write_str("a symlinked directory is not followed"),
+            Self::UnresolvedMod { module } => {
+                write!(f, "module `{module}` has no file")
+            }
+            Self::BothModFiles {
+                module,
+                first,
+                second,
+            } => write!(f, "module `{module}` has both {first} and {second}"),
+            Self::DuplicatePathAttr { module } => {
+                write!(f, "module `{module}` has two `path` attributes")
+            }
+            Self::ModuleCycle { module, again } => write!(
+                f,
+                "module `{module}` leads back to {again}, which is still being followed"
+            ),
+            Self::CfgParse { message } => write!(f, "cannot read a cfg predicate: {message}"),
+            Self::UnsupportedItem { what } => write!(f, "unsupported item: {what}"),
         }
     }
 }
@@ -279,6 +413,24 @@ impl LoadError {
             origin: None,
             kind,
         }
+    }
+
+    /// The same error, reached by `origin`.
+    pub(crate) fn reached_by(mut self, origin: &Origin) -> Self {
+        if self.origin.is_none() {
+            self.origin = Some(Box::new(origin.clone()));
+        }
+        self
+    }
+
+    /// A tree failure on `file`, reached by `origin`.
+    pub(crate) fn tree(
+        file: &RelPath,
+        line: Option<usize>,
+        origin: &Origin,
+        error: TreeError,
+    ) -> Self {
+        Self::new(file, line, LoadErrorKind::Tree(Box::new(error))).reached_by(origin)
     }
 }
 

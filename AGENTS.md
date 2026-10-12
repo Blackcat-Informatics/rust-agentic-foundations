@@ -48,8 +48,9 @@ crates are implemented.
 
 `raf-okf` and `raf-source` are workspace members and are **implementing**: the
 frontmatter reader, the deterministic writer and the profile validation of `raf-okf`
-are built, and so are the `Tree` trait with its disk and memory backends and the
-path containment of `raf-source`. Every other crate below is **designed, not yet
+are built, and so are the `Tree` trait of `raf-source` with its disk and memory
+backends and path containment, its bounded parse, package and target discovery, and
+its module tree. Every other crate below is **designed, not yet
 implemented**, and joins the workspace members list when it is built. The capability
 documents in `docs/capabilities/` are the specification.
 

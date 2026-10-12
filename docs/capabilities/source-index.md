@@ -120,6 +120,21 @@ thread that cannot start is a `Spawn` error. The budgets are one table in the so
   directly after a `}`. A block used as the condition of a link (`else if {x} {}`)
   does not end the chain. The limit is 256.
 
+Two more budgets are counted by the module walk and not by the pre-scan. Module
+nesting is bounded at 128 levels along one path, files and inline modules together,
+because the walk recurses on the caller's stack. Module walks are bounded at 262144
+for one load: every arrival of the walk at a file, over all targets, and every walk of
+an inline module body (the default one and one per `cfg_attr` path alternative) is one
+module path, and a file reached again is parsed once but walked again, so a chain of files
+that each declare the next twice would otherwise record 2^n paths from a few kilobytes
+of input. The limit is 2^18: this repository records a few hundred, a workspace of ten
+thousand files reached by five targets each records fifty thousand, and a shared
+test-support diamond records one path per target and module that reaches it, so the
+limit admits every realistic tree, while the cost it allows (a quarter of a million
+records, a fraction of a second and a few tens of megabytes) cannot exhaust a machine.
+A load that passes the limit is a `Budget` error that names the file and the line of
+the declaration.
+
 Parsing then runs on a dedicated thread, named after the file, with a stack of 64
 MiB (`PARSE_STACK_BYTES`), which is a stated constant and not the stack of the
 caller. `parse_source` runs a visitor on the syntax tree on that thread and
@@ -144,24 +159,91 @@ size cap, and the `toml` parser's own recursion limit turns deep nesting into an
 and not a crash. Every refusal the pre-scan makes is a typed error and not a panic.
 The crate sets no time bound.
 
-**Package discovery.** Given a set of roots, the crate finds every package: each
-directory holding a `Cargo.toml` with a `[package]` table. For each package it reads
-the library, binary, test, bench and example targets, honouring explicit target
-paths and the default `src/`, `tests/`, `benches/` and `examples/` layout. Test,
-bench and example targets are marked non-shipping; library and binary targets are
-shipping.
+**Package discovery.** `Workspace::load(tree, roots)` takes explicit roots; the
+crate has no default roots, and each caller names its own (`"."` is the tree root).
+Discovery reads each root as a directory. A directory with a `Cargo.toml` that has a
+`[package]` table is a package. The walk recurses through every directory that is not
+a package, and through a package that also has a `[workspace]` table, so a root `.`
+package with a `[workspace]` table and `crates/a` below it are both found. It does not
+descend below a `[package]` manifest that lacks `[workspace]`, so a fixture package
+under a tests directory is not found. It skips directories named `target` and
+dot-directories. A symlink is classified by what it resolves to: a regular file inside the root
+is left alone, a directory is a `DirSymlink` error, a special file such as a FIFO is
+`NotRegular`, a target outside the root is `OutsideRoot`, a dangling link is
+`NotFound` and a loop is `SymlinkLoop`. None of these reads more than one byte. A manifest that is a
+virtual `[workspace]` contributes nothing but its children. Two packages with one name
+are an error that names both manifests, and one manifest reached from two roots is one
+package. Manifests are read through `Tree` under `max_file_bytes` and parsed with the
+`toml` crate, so comments, single-quoted strings and inline tables are honoured; a
+manifest that is not TOML, is nested deeper than the parser allows, or has a value of
+the wrong type is a `Manifest` error that names the file and, when one is at fault, the
+key. Packages are sorted by manifest path.
 
-**Mod-tree following.** From each target root the crate follows `mod name;`
-declarations to `name.rs` or `name/mod.rs` and parses each file with `syn`. An
-attribute `#[path = "..."]` on a module redirects to the named file, relative to the
-directory the module would otherwise use. A resolved path that leaves the workspace
-root, whether by `..` segments, an absolute path or a symlink, is an error naming the
-module and the attribute; the file is not read. Inline modules are followed in place.
-An unresolved `mod` declaration is an error that names the file and line.
+For each package the crate derives the targets, in this order: the library, the
+binaries, the tests, the benches, the examples and the build script. A target has the
+package name, its Cargo name, its kind, its root file, a shipping flag and a crate
+path. The library is `[lib]` or `src/lib.rs`, named by `[lib] name` or the package
+name. Binaries are the `[[bin]]` tables, `src/main.rs`, `src/bin/*.rs` and
+`src/bin/*/main.rs`; tests, benches and examples are their tables plus `tests/*.rs`,
+`tests/*/main.rs` and the same under `benches/` and `examples/`. `autobins`,
+`autotests`, `autobenches` and `autoexamples` set to false turn the inferred ones off,
+and an explicit table is found either way. An explicit table without `path` takes the
+default location for its name. The crate path is the crate name for the library
+(`[lib] name`, or the package name, with `-` as `_`), `<pkg>::bin_crate::<bin>` for a
+binary, `<pkg>::test_crate::<target>`, `<pkg>::bench_crate::<target>` and
+`<pkg>::example_crate::<target>` for the others, and `<pkg>::build_script` for the
+build script. Library, binary and build-script targets are shipping, so the census sees
+`build.rs`; tests, benches and examples are not. These are typed errors that name the manifest key: an explicit
+target file that does not exist (checked with `entry`), a table without a `name`, two
+targets with one root file, two targets (in one package or two) with one crate path,
+which would merge their items, and a `path` that leaves the tree.
 
-**`cfg(test)` tagging.** Items under `#[cfg(test)]`, and modules reached only through
-such an item, are tagged as test code. They stay in the index with that tag so that
-a caller decides whether they count.
+**Mod-tree following.** From each target root the crate follows module declarations
+and parses each file with `syn`, as rustc resolves them. Without a `path` attribute,
+`mod name;` is `name.rs` or `name/mod.rs` in the module directory; both existing is an
+error that names both files. The module directory of a root file or a `mod.rs` file is
+its own directory, and that of any other file `a.rs` is `a/` beside it. An inline
+module `mod m { .. }` adds `m` to the module directory. `#[path = "p"]` on `mod name;`
+names a file relative to the directory of the file that holds the declaration, or,
+inside an inline module, relative to the module directory including the inline
+components; on an inline module it replaces that module's directory component. A file
+named by a `path` attribute is treated like a `mod.rs` for its own children. Two
+`path` attributes that apply unconditionally are an error. A path in
+`#[cfg_attr(predicate, path = "p")]` is another site that is followed, carrying its
+predicate, and a nested `cfg_attr` is flattened with the combined predicate
+(`all(outer, inner)`); the default file is followed too when it exists, and may be missing when
+every alternative names a file. No `cfg` is evaluated and no item is dropped. A raw
+identifier module `r#match` reads `match.rs`. A path that leaves the workspace root,
+whether by `..` segments, an absolute path or a symlink, is an error that names the
+module and the attribute and does not read the file. An unresolved `mod` is an error
+that names the declaring file and its line. The walk detects a cycle on the stack of
+files being followed, never with a visited set, and a cycle is an error that names the
+file that would be entered twice. Module nesting along one path is bounded at 128
+levels, files and inline modules together. A file reached by several module paths, or
+by two targets such as a shared `tests/common/mod.rs`, is parsed once, listed once and
+recorded under every path it was reached by; a `dir/..` pair is collapsed only when
+`dir` is a real directory, so one file has one spelling. The walk stops at the first
+error. `Workspace::targets` yields the targets, and `Workspace::files` yields each
+source file once with its text, its facts and the module paths it was reached by. The
+facts of a file are read on the parse thread and owned: items with their name line,
+span, body span, attributes, visibility, documentation, test role and, for a struct, its
+field shape; `mod` declarations with their raw `path` and `cfg_attr` attributes; `use`
+trees; impl headers with the written self type and its leading `::`; `macro_export`;
+an unnamed `const _` as an explicit kind; and the file's own inner documentation.
+Documentation counts a non-blank `#[doc]` text or `#[doc = include_str!(..)]`, and
+`#[doc(hidden)]` alone does not count.
+
+**`cfg(test)` tagging.** An item has the test role `None`, `CfgTest` (guarded by a
+`cfg` that implies `test`, directly or through an enclosing module) or `TestFn` (marked
+`#[test]`). A predicate implies `test` by this matrix: `test` does; `all(..)` does when
+any operand does; `any(..)` does when every operand does; `not(..)` and every other
+predicate do not. A `cfg`, `cfg_attr`, `path` or `test` attribute of the wrong shape, and a predicate
+that cannot be read, are a `CfgParse` error that names the file and the attribute's
+line. A module reached through `#[cfg(test)] mod t;`, or
+through a `path` that a `test` predicate sets, is recorded with the test flag on that
+way of reaching it, so every item in the file is test code when all its ways in are
+tests. Test items stay in the index with that tag so that a caller decides whether they
+count.
 
 **Symbol index.** Every named item, which is a function, struct, enum, union, trait,
 type alias, constant, static, module and macro definition, is recorded with its full
@@ -212,7 +294,8 @@ assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
   root and a regular file; the same rule bounds explicit `Cargo.toml` target paths.
 - A file larger than `max_file_bytes` (default 8 MiB), or one that exceeds a
   recursion budget of the pre-scan (128 delimiter levels, 64 nested `<`, 256 prefix
-  operators, 128 closure bars, 256 `else if` links), is refused with a typed error.
+  operators, 128 closure bars, 256 `else if` links), or a module walk that passes 128
+  nested modules or 262144 module walks in one load, is refused with a typed error.
   Parsing runs on a dedicated 64 MiB stack. A residual overflow aborts the run and
   fails the gate; it is never a pass, and today the composite shapes and most of the
   uncounted shapes of Verification end in such an abort.
@@ -240,13 +323,36 @@ duplicates.
 
 ## Verification
 
-- A `MemoryTree` fixture per discovery rule: a library, a binary, and each of the
-  test, bench and example targets with default and explicit paths, asserting the
-  shipping flag.
-- Mod-tree fixtures for `name.rs`, `name/mod.rs`, inline modules, nested modules and
-  an unresolved `mod` error.
+- A `MemoryTree` fixture per target kind (library, binary, test, bench, example and
+  build script) with default and with explicit paths, asserting the kind, the Cargo
+  name, the shipping flag, the crate path and that each target's root module is
+  recorded under its crate path.
+- Discovery fixtures: a virtual manifest contributes nothing; a manifest with a
+  trailing comment and single-quoted values is honoured; no roots find nothing; a
+  package nested below a package without `[workspace]` is not found beside a root
+  package with `[workspace]` and a member below it; `target` and dot-directories are
+  skipped beside a sibling; roots exclude what they do not name; the `auto*` flags and
+  explicit tables; a library and a binary with one name; two packages with one name,
+  two targets with one root and two targets with one crate path, each beside a
+  distinct-name neighbour; a missing target file, a table without a name and a
+  target path that leaves the tree, each naming the manifest key; a manifest of
+  exactly 8 MiB loads and one byte more is refused naming the file; inline tables
+  nested 1000 levels are a typed error on the caller's stack and 8 levels load.
+- Mod-tree fixtures: `name.rs`, `name/mod.rs`, both present (an error naming both),
+  inline and nested modules, `#[path]` in a `mod.rs` file, in a non-`mod.rs` file, inside
+  inline modules in each, on an inline module in each, a `#[path]` file's children,
+  `cfg_attr` alternatives with their predicates (nested ones flattened), two
+  unconditional `path` attributes, raw identifiers, a cycle naming both files, a file
+  reached by several paths and by two targets listed once, an unresolved `mod` naming
+  the file and line, the module-depth budget at 128 and 129, a chain of files that each
+  declare the next twice refused quickly beside a small diamond, and a first-party
+  `mod test_crate;` beside a test target.
 - `#[path]` fixtures: a redirect inside the root resolves; `..` out of the root and
-  an absolute path outside it both fail without reading the file.
+  an absolute path outside it both fail naming the module and the attribute, and a
+  recording tree shows that the outside path is never read.
+- `cfg(test)` fixtures: the predicate matrix, `#[cfg(test)] mod t;` tagging every item
+  reached only through it, `#[test]` functions, a `test` predicate on a `path`, and
+  unreadable or misshapen attributes.
 - Bound fixtures: a file over `max_file_bytes` fails with an error that names the
   file, a lowered `max_file_bytes` is honoured, and a file of 8 MiB parses at the
   default. A file at the delimiter limit (128 levels) parses and one at 129 levels
@@ -325,4 +431,7 @@ duplicates.
     differing device and inode pair is refused beside an equal pair; and a
     non-regular handle and an outside re-canonicalised path are each refused beside
     an accepted case;
-  - a symlink to a file inside the root, and a chain of such symlinks, is accepted.
+  - a symlink to a file inside the root, and a chain of such symlinks, is accepted;
+  - a chain that ends outside the root, a symlinked `Cargo.toml` and a symlinked
+    target file that lead outside, and every discovery classification of a symlink
+    (file, directory, FIFO, outside file, outside directory, dangling, loop).
