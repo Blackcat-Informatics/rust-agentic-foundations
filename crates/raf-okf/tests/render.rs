@@ -8,7 +8,7 @@ use std::process::Command;
 
 use raf_okf::{
     ConstructError, DocType, Document, ESCAPES, Entry, Frontmatter, ItemValue, List, ListForm,
-    ListItem, MAX_TEXT_BYTES, MAX_YAML_DEPTH, Map, Scalar, ScalarStyle, Value,
+    ListItem, MAX_TEXT_BYTES, MAX_YAML_DEPTH, Map, Profile, Scalar, ScalarStyle, Value,
 };
 
 fn parse(text: &str) -> Document {
@@ -72,15 +72,42 @@ fn tracked_documents() -> Vec<String> {
     paths
 }
 
+/// The directories that hold documents, one per type.
+const DOCUMENT_DIRECTORIES: [&str; 3] = ["docs/capabilities", "work/changes", "docs/architecture"];
+
+/// The tracked documents of one directory, counted with a listing of that
+/// directory alone: the Markdown files other than the capability index.
+fn tracked_in_directory(directory: &str) -> usize {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(repository)
+        .args(["ls-files", "-z", "--", directory])
+        .output()
+        .expect("git ls-files must run");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output
+        .stdout
+        .split(|b| *b == 0)
+        .filter(|name| name.ends_with(b".md") && !name.ends_with(b"capabilities/index.md"))
+        .count()
+}
+
 #[test]
 fn every_tracked_document_renders_to_its_own_bytes() {
     let paths = tracked_documents();
-    assert!(
-        paths.len() > 20,
-        "expected the capability, architecture and change documents"
-    );
     let root = gate_root();
+    let mut round_tripped = [0_usize; DOCUMENT_DIRECTORIES.len()];
     for path in &paths {
+        let slot = DOCUMENT_DIRECTORIES
+            .iter()
+            .position(|directory| path.starts_with(&format!("{directory}/")))
+            .unwrap_or_else(|| panic!("{path} is in no document directory"));
+        round_tripped[slot] += 1;
         let text =
             std::fs::read_to_string(root.join(path)).unwrap_or_else(|e| panic!("{path}: {e}"));
         let document = Document::parse(&text).unwrap_or_else(|e| panic!("{path}: {e}"));
@@ -92,6 +119,62 @@ fn every_tracked_document_renders_to_its_own_bytes() {
         let again = Document::parse(&document.render()).expect("rendered text parses");
         assert_eq!(again, document, "{path}");
     }
+    // Each type is round-tripped in full: as many documents as the directory
+    // of the type holds, counted on its own.
+    // Change records are deleted when their change completes, so the tree may
+    // hold none; the other two directories always hold documents.
+    for (directory, done) in DOCUMENT_DIRECTORIES.iter().zip(round_tripped) {
+        let held = tracked_in_directory(directory);
+        if *directory != "work/changes" {
+            assert!(held >= 1, "{directory} holds no tracked document");
+        }
+        assert_eq!(
+            done, held,
+            "{directory}: {done} documents were round-tripped and {held} are tracked"
+        );
+    }
+}
+
+/// The committed fixture documents, one per type, written independently of the
+/// repository's own documents.
+const FIXTURES: [(&str, DocType, &str, &str); 3] = [
+    (
+        "capability.md",
+        DocType::Capability,
+        "docs/capabilities/ledger-sync.md",
+        include_str!("fixtures/capability.md"),
+    ),
+    (
+        "change.md",
+        DocType::Change,
+        "work/changes/ledger-rows.md",
+        include_str!("fixtures/change.md"),
+    ),
+    (
+        "architecture.md",
+        DocType::Architecture,
+        "docs/architecture/row-keys.md",
+        include_str!("fixtures/architecture.md"),
+    ),
+];
+
+#[test]
+fn each_fixture_document_renders_to_its_own_bytes_and_validates() {
+    for (name, doc_type, path, text) in FIXTURES {
+        let document = parse(text);
+        assert_eq!(document.doc_type(), Some(doc_type), "{name}");
+        assert_eq!(
+            document.render(),
+            text,
+            "{name} does not render to its bytes"
+        );
+        assert_eq!(parse(&document.render()), document, "{name}");
+        if let Err(violations) = Profile.validate(&document, path) {
+            panic!("{name} does not validate: {violations:#?}");
+        }
+    }
+    // The architecture fixture has no final newline, and keeps none.
+    assert!(!FIXTURES[2].3.ends_with('\n'));
 }
 
 #[test]

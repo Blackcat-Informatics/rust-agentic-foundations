@@ -272,6 +272,110 @@ fn every_required_key_of_every_type_is_reported_when_missing() {
     }
 }
 
+/// The frontmatter blocks of keys that `doc_type` does not have but another
+/// type does, as `(key, block)`. The keys come from the key tables of the
+/// other types; the blocks are the valid values from `parts`.
+fn foreign_keys(doc_type: DocType) -> Vec<(&'static str, &'static str)> {
+    let mut found: Vec<(&'static str, &'static str)> = Vec::new();
+    for other in DocType::ALL.into_iter().filter(|other| *other != doc_type) {
+        for spec in other.keys() {
+            let own = doc_type.keys().iter().any(|mine| mine.key == spec.key);
+            if own || found.iter().any(|(name, _)| *name == spec.key) {
+                continue;
+            }
+            if let Some(block) = parts(other)
+                .into_iter()
+                .find_map(|(name, block)| (name == spec.key).then_some(block))
+            {
+                found.push((spec.key, block));
+            } else {
+                // Only the optional keys shared by every type have no block.
+                assert!(!spec.required, "{} has no fixture block", spec.key);
+            }
+        }
+    }
+    found
+}
+
+#[test]
+fn an_unknown_or_foreign_key_is_reported_on_every_type() {
+    let unknown = |name: &str| Rule::UnknownKey {
+        key: name.to_string(),
+    };
+    let mut foreign_seen = 0;
+    for doc_type in DocType::ALL {
+        let path = path_of(doc_type);
+        clean(&document_of(doc_type, None, ""), &path);
+
+        let found = violations(
+            &document_of(
+                doc_type,
+                None,
+                "bogus: 1
+",
+            ),
+            &path,
+        );
+        assert_eq!(found.len(), 1, "{}: {found:#?}", doc_type.name());
+        assert_hit(&found, &key("bogus"), &unknown("bogus"));
+
+        // The foreign keys derive from the tables, so they follow the tables;
+        // this list is the architecture page's own assignment, and it is what
+        // fails when a table of this type is widened.
+        let names: Vec<&str> = foreign_keys(doc_type).iter().map(|(n, _)| *n).collect();
+        let expected: &[&str] = match doc_type {
+            DocType::Capability => &["changes", "affects", "contract_effect", "items"],
+            DocType::Change => &["state", "bindings", "depends"],
+            DocType::Architecture => &[
+                "state",
+                "bindings",
+                "depends",
+                "changes",
+                "affects",
+                "contract_effect",
+                "items",
+            ],
+        };
+        assert_eq!(names, expected, "{}", doc_type.name());
+
+        // A key that is valid on another type, with a value valid there.
+        for (name, block) in foreign_keys(doc_type) {
+            foreign_seen += 1;
+            let found = violations(&document_of(doc_type, None, block), &path);
+            assert_eq!(found.len(), 1, "{} {name}: {found:#?}", doc_type.name());
+            assert_hit(&found, &key(name), &unknown(name));
+        }
+    }
+    // Capability lacks the four Change keys, Change lacks the three Capability
+    // keys, and Architecture lacks all seven.
+    assert_eq!(foreign_seen, 4 + 3 + 7);
+}
+
+#[test]
+fn a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item() {
+    let bindings = mutate(
+        &alpha(),
+        "  examples: []\n",
+        "  examples: []\n  extra: []\n",
+    );
+    let found = violations(&bindings, ALPHA_PATH);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_hit(&found, &key("bindings"), &Rule::BindingsKeys);
+    clean(&alpha(), ALPHA_PATH);
+
+    let item = with_items("items:\n  - claim: \"x\"\n    extra: 1\n");
+    let found = violations(&item, CHANGE_PATH);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_hit(
+        &found,
+        &key("items"),
+        &Rule::ItemUnknownKey {
+            key: "extra".into(),
+        },
+    );
+    clean(&with_items("items:\n  - claim: \"x\"\n"), CHANGE_PATH);
+}
+
 #[test]
 fn a_missing_type_key_is_the_only_violation() {
     let text = document_of(DocType::Architecture, Some("type"), "");

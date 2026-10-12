@@ -818,3 +818,44 @@ fn trailing_comments_are_not_part_of_the_value() {
         &ErrorKind::UnterminatedQuote
     );
 }
+
+#[test]
+fn a_leading_byte_order_mark_is_refused_at_line_one_column_one() {
+    let error = refused("\u{feff}---\ntype: Architecture\n---\nbody\n");
+    assert_eq!(error.kind(), &ErrorKind::MissingFence);
+    assert_eq!(
+        (error.line(), error.column(), error.offset()),
+        (1, Some(1), Some(0))
+    );
+    // The same text without the mark is accepted.
+    accepted("---\ntype: Architecture\n---\nbody\n");
+}
+
+#[test]
+fn a_nul_in_the_body_is_kept_and_renders_back() {
+    let text = "---\ntype: Architecture\n---\nbefore\0after\n\0\n";
+    let document = accepted(text);
+    assert_eq!(document.body().text(), "before\0after\n\0\n");
+    assert_eq!(document.render(), text);
+    assert_eq!(accepted(&document.render()), document);
+}
+
+#[test]
+fn a_frontmatter_fence_line_with_a_trailing_space_is_not_a_fence() {
+    // An opening `--- ` is no fence on line 1.
+    let error = refused("--- \ntype: Architecture\n---\nbody\n");
+    assert_eq!(error.kind(), &ErrorKind::MissingFence);
+    assert_eq!(
+        (error.line(), error.column(), error.offset()),
+        (1, Some(1), Some(0))
+    );
+    // A closing `--- ` does not close the frontmatter, so it is never closed.
+    let error = refused("---\ntype: Architecture\n--- \nbody\n");
+    assert_eq!(error.kind(), &ErrorKind::UnclosedFence);
+    assert_eq!(
+        (error.line(), error.column(), error.offset()),
+        (1, Some(1), Some(0))
+    );
+    // The neighbouring text with exact fences is accepted.
+    accepted("---\ntype: Architecture\n---\nbody\n");
+}
