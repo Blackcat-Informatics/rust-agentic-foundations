@@ -168,15 +168,19 @@ fn plan_possessive(lower: &str) -> bool {
 
 /// A `#` followed by one to five decimal digits that reads as a reference.
 ///
-/// The character before `#` must not be `&`, a word character or `#`. The run
-/// of word characters after `#` must be one to five digits, so a letter a-f
-/// (a hex colour such as `#1f2`) or a longer run (`#123456`) is spared. A
-/// three- or four-digit token is also spared when it directly follows `"`,
-/// `'` or `:`, which is how a colour value is written in markup and styles.
+/// The character before `#` must not be `&` or `#`; a word character before
+/// it (a cross-repository reference, or a keyword with no space) does not
+/// spare the token. The run of word characters after `#` must be one to five
+/// digits, so a letter a-f (a hex colour such as `#1f2`) or a longer run
+/// (`#123456`) is spared. A three- or four-digit token is also spared when it
+/// directly follows `"` or `'`, which is how a colour attribute value is
+/// written in markup. After `:` or a space only a token with a hex letter is
+/// spared, so an all-digit token after a keyword and a colon, or an all-digit
+/// CSS colour, fails closed; write such a colour with letters or as `#112233`.
 fn hash_number(line: &str) -> bool {
     line.match_indices('#').any(|(index, _)| {
         let before = char_before(line, index);
-        if before.is_some_and(|c| c == '&' || c == '#' || is_word(c)) {
+        if before.is_some_and(|c| c == '&' || c == '#') {
             return false;
         }
         let run: String = line
@@ -186,7 +190,7 @@ fn hash_number(line: &str) -> bool {
             .take_while(|c| is_word(*c))
             .collect();
         let numeric = (1..=5).contains(&run.len()) && run.chars().all(|c| c.is_ascii_digit());
-        let colour_context = matches!(before, Some('"' | '\'' | ':'));
+        let colour_context = matches!(before, Some('"' | '\''));
         numeric && !((3..=4).contains(&run.len()) && colour_context)
     })
 }

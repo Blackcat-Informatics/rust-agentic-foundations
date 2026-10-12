@@ -15,8 +15,9 @@
 //!
 //! Each gate is a pure function over text or bytes, and each has a named
 //! negative fixture below that breaks exactly one thing. Test names start with
-//! `licenses_`, `issue_refs_` or `citation_` so `make licenses` and
-//! `make issue-refs` can select a gate. Only the standard library is used.
+//! `licenses_`, `issue_refs_` or `citation_`, which names the gate a test
+//! belongs to; `make licenses` and `make issue-refs` run the whole binary. Only
+//! the standard library is used.
 
 mod support;
 
@@ -224,8 +225,9 @@ fn scan_text(path: &Path, text: &str) -> Vec<String> {
 }
 
 /// Scan every tracked text file under `root`. Returns the hits and the number
-/// of text files scanned; binary files (a NUL byte or invalid UTF-8) are
-/// recognised by content and left out of the count.
+/// of text files scanned; binary files (a NUL byte) are recognised by content
+/// and left out of the count. Invalid UTF-8 without a NUL byte is scanned
+/// lossily.
 fn scan_tree(root: &Path, paths: &[PathBuf]) -> (Vec<String>, usize) {
     let mut hits = Vec::new();
     let mut scanned = 0;
@@ -423,6 +425,18 @@ fn issue_refs_rejects_a_hash_number_after_a_space() {
 }
 
 #[test]
+fn issue_refs_rejects_a_hash_number_after_a_word_character() {
+    assert_banned(&hashed("org/repo@12"), NUMBER);
+    assert_banned(&hashed("repo@12"), NUMBER);
+    assert_banned(&hashed("Fixes@12"), NUMBER);
+    assert_banned(&hashed("x@1"), NUMBER);
+    assert_banned(
+        &hashed("see Blackcat-Informatics/rust-agentic-foundations@12 for it"),
+        NUMBER,
+    );
+}
+
+#[test]
 fn issue_refs_rejects_a_parenthesised_hash_number() {
     assert_banned(&hashed("(@1234)"), NUMBER);
     assert_banned(&hashed("fixed in (@12345)."), NUMBER);
@@ -451,10 +465,20 @@ fn issue_refs_spares_a_six_digit_colour() {
 }
 
 #[test]
-fn issue_refs_rejects_a_colon_prefixed_number_over_four_digits() {
-    // Only three and four digits are treated as colours in a colour context.
+fn issue_refs_rejects_a_colon_prefixed_number() {
+    // Only a quoted three- or four-digit token is a colour; after a colon an
+    // all-digit token is a reference.
     assert_banned(&hashed("id:@12"), NUMBER);
     assert_banned(&hashed("id:@12345"), NUMBER);
+    assert_banned(&hashed("Fixes:@123"), NUMBER);
+    assert_banned(&hashed("id:@1234"), NUMBER);
+}
+
+#[test]
+fn issue_refs_rejects_an_all_digit_css_colour() {
+    // An all-digit CSS colour fails closed; write it with letters or as
+    // `@112233`.
+    assert_banned(&hashed("color: @123"), NUMBER);
 }
 
 #[test]
