@@ -74,7 +74,7 @@ implemented version is replaced by the present debt, as the bump path below stat
 A missing `census-debt.json` records no debt, so every existing group is growth until
 the file is created. A file whose `normal_form` differs from the implemented version
 fails hard. The bump path: after a `normal_form` bump, `cargo census migrate`, given
-the baseline report written before the upgrade, rebuilds the ledger (see
+the index report written before the upgrade, rebuilds the ledger (see
 [census-migration](./census-migration.md)), and the write, which refuses while any
 non-debt finding exists, replaces the record whose `normal_form` differs with the
 present debt. The check itself keeps failing hard until that write has run.

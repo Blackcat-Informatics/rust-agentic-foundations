@@ -39,7 +39,7 @@ its own: each subcommand calls `raf-census`. The command registers no `Rule` and
 | `count <ID>` | Prints the copy count of one job as a single integer. |
 | `fingerprint <SYM>` | Prints the fingerprints of one function symbol: its `body` and its `shim`. |
 | `debt --write` | Rewrites `census-debt.json` to the present debt, for a ledger that needs no registered code (see [census-debt-ratchet](./census-debt-ratchet.md)). |
-| `migrate --old-baseline <FILE> --ledger <FILE> --out <FILE>` | Migrates a legacy baseline and ledger, or a ledger at an older `normal_form`, to a new ledger at `--out`, which is required (see [census-migration](./census-migration.md)). |
+| `migrate --old-baseline <FILE> --ledger <FILE> --out <FILE>` | Migrates a legacy baseline and ledger, or a ledger at an older `normal_form` with its index report, to a new ledger at `--out`, which is required (see [census-migration](./census-migration.md)). |
 | `dump-ledger` | Prints the parsed ledger. |
 
 Common options are `--root DIR` (default: the current workspace) and `--ledger FILE`

@@ -1677,10 +1677,17 @@ fn check(repo: &Repo) -> Vec<String> {
     let mut found = Found::default();
     let mut markers = Vec::new();
     check_directories(repo, &mut out);
-    for (path, text) in repo.iter().filter(|(p, _)| is_markdown(p)) {
+    for (path, _) in repo.iter().filter(|(_, text)| *text == SYMLINK_TEXT) {
+        out.push(violation(
+            path,
+            "a tracked symlink is not allowed".to_string(),
+        ));
+    }
+    let files = || repo.iter().filter(|(_, text)| *text != SYMLINK_TEXT);
+    for (path, text) in files().filter(|(p, _)| is_markdown(p)) {
         check_links(repo, path, text, &mut out);
     }
-    for (path, text) in repo.iter().filter(|(p, _)| is_scanned(p)) {
+    for (path, text) in files().filter(|(p, _)| is_scanned(p)) {
         scan_banned(path, text, &mut out);
         scan_placeholders(path, text, &mut out);
         scan_markers(path, text, &mut markers, &mut out);
@@ -2163,6 +2170,13 @@ fn rejects_link_to_a_tracked_symlink() {
         &check(&repo),
         "link `../docs/outside-link.svg` targets a tracked symlink",
     );
+}
+
+#[test]
+fn rejects_a_tracked_symlink_that_nothing_links_to() {
+    let mut repo = valid();
+    repo.insert(PathBuf::from("NOTES.md"), SYMLINK_TEXT.to_string());
+    assert_hit(&check(&repo), "NOTES.md: a tracked symlink is not allowed");
 }
 
 #[test]
