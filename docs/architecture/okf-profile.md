@@ -28,13 +28,16 @@ OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key
 - `type` takes one of three values: `Capability`, `Change` or `Architecture`.
   Any other value is an error.
 
-This repository enforces the profile today with the document-contract test of the
-root package. It checks keys, values, sections, markers and links, the exact
-capability inventory, and the binding lists by state: `designed` and `considered`
-capabilities bind nothing, and a `delivered` capability binds at least one code
-path and one test. It does not check that a bound symbol exists: resolving a
-binding waits for the source index. The `raf-okf` and `raf-workplan` crates will
-enforce the whole profile once they are implemented.
+`raf-okf` enforces the per-document profile: it reads each document and reports
+every violation of the keys, values, sections, markers and links. This repository
+runs it through the document-contract test of the root package, over every tracked
+Markdown file. That test adds the rules that span documents: the dependency graph
+and its cycles, the capabilities and sections that change records name, the
+open change record each undelivered capability needs, the exact capability
+inventory, link targets and anchors against the tracked files, and the directory
+layout. It also resolves every binding of every capability through `raf-source`
+against the source of `crates`, so a bound symbol must exist. The cross-document
+checks are what `raf-workplan` replaces once it is implemented.
 
 ## Document types and keys
 
@@ -178,6 +181,10 @@ crate, which rewrites it deterministically. None exist yet.
 
 Each block is opened once, closed once and never nested.
 
+A document reports its first marker error: reading stops at the first malformed
+PROPOSED marker or malformed, nested, unclosed or orphaned generated marker, so a
+second fault in the same document shows once the first is fixed.
+
 ## Files and repository rules
 
 - SPDX lines in an OKF document are YAML comments inside the frontmatter. In all
@@ -185,11 +192,12 @@ Each block is opened once, closed once and never nested.
 - Every relative link resolves to an existing file, and a link anchor resolves
   to a heading in the target. The rule covers inline links and images, reference
   definitions (`[label]: target`) and the `href` and `src` attributes of inline
-  HTML, in every tracked Markdown file. A link split across lines is a violation.
-  Links inside fenced code, code spans and HTML comments are not links. Block quotes
-  and list items nest at most 64 levels, and a link destination or title is at most
-  4096 bytes. Anchors follow the GitHub rule: lowercase, spaces become hyphens, other
-  punctuation is dropped.
+  HTML, in every tracked Markdown file. A link split across lines is a violation,
+  and so is a link with an empty target. Links inside fenced code, code spans and
+  HTML comments are not links, and placeholder tokens inside HTML comments are not
+  read. Block quotes and list items nest at most 64 levels, and a link destination
+  or title is at most 4096 bytes. Anchors follow the GitHub rule: lowercase, spaces
+  become hyphens, other punctuation is dropped.
 - A relative link resolves inside the repository root. The checker joins the link to
   the linking file's directory and normalises it against the canonical repository
   root. A target that leaves the root, by `..` segments or an absolute path, is a

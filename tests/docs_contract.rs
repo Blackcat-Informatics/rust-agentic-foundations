@@ -4,14 +4,30 @@
 //! Document-contract test for this repository.
 //!
 //! It enforces the RAF profile of OKF documents, stated in
-//! `docs/architecture/okf-profile.md`, over the committed Markdown. The checker
-//! is a pure function over an in-memory repository (relative path to contents)
-//! so every rule has a negative test that breaks exactly one thing in a valid
-//! fixture. Only the standard library is used.
+//! `docs/architecture/okf-profile.md`, over the committed Markdown. The reading
+//! is done by `raf-okf`: every capability, change and architecture document goes
+//! through `Document::parse` and `Profile::validate`, the generated capability
+//! index through `Index::parse`, and every other Markdown file through
+//! `Body::parse`. Bound symbols are resolved by `raf-source` against the crates
+//! of this repository.
+//!
+//! What stays here is what no single document can decide: the cross-document
+//! rules, link resolution against the tracked file list, the refusal of tracked
+//! symlinks, the directory layout, the capability inventory and the
+//! banned-wording scan. The checker is a pure function over an in-memory
+//! repository (relative path to contents), so every rule has a negative test
+//! that breaks exactly one thing in a valid fixture.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::error::Error;
 use std::fmt::Write as _;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
+
+use raf_okf::{
+    Bindings, Body, DocType, Document, ErrorKind, FencedBlock, Index, LinkTarget, Outcome,
+    ParseError, Profile, RafDocument, Rule, State, is_capability_index,
+};
+use raf_source::{DiskTree, MemoryTree, Workspace};
 
 mod support;
 
@@ -25,48 +41,9 @@ type Repo = BTreeMap<PathBuf, String>;
 /// refused.
 const SYMLINK_TEXT: &str = "\0symlink";
 
-const SECTIONS: [&str; 7] = [
-    "Purpose",
-    "Contract",
-    "Usage",
-    "Examples",
-    "Constraints",
-    "Explanation",
-    "Verification",
-];
-const STATES: [&str; 4] = ["considered", "designed", "implementing", "delivered"];
-const CAPABILITY_KEYS: [&str; 7] = [
-    "type",
-    "id",
-    "title",
-    "description",
-    "state",
-    "bindings",
-    "depends",
-];
-const CHANGE_KEYS: [&str; 8] = [
-    "type",
-    "id",
-    "title",
-    "description",
-    "changes",
-    "affects",
-    "contract_effect",
-    "items",
-];
-const ARCHITECTURE_KEYS: [&str; 4] = ["type", "id", "title", "description"];
-/// Optional keys every document type may carry.
-const OPTIONAL_KEYS: [&str; 2] = ["tags", "timestamp"];
-const BINDING_KEYS: [&str; 3] = ["code", "tests", "examples"];
-const OUTCOMES: [&str; 2] = ["implemented", "dropped"];
-const PROPOSED_OPEN: &str = "> [!PROPOSED change:";
-const GENERATED_OPEN: &str = "<!-- raf:generated:";
-const GENERATED_END: &str = "end";
-
-/// Unfinished-work tokens that may not appear outside code, lowercase and
-/// matched without regard to case, spacing or dots between letters. The text
-/// is assembled with `concat!` so this list never contains a token as one
-/// literal.
+/// Unfinished-work tokens, for the fixtures that plant one. The text is
+/// assembled with `concat!` so this list never contains a token as one
+/// literal. `raf-okf` owns the rule that finds them.
 const PLACEHOLDER_TOKENS: [&str; 5] = [
     concat!("t", "bd"),
     concat!("to", "do"),
@@ -118,1016 +95,43 @@ const INVENTORY: Inventory = Inventory {
 };
 
 // ---------------------------------------------------------------------------
-// Frontmatter model and parser
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum Value {
-    Scalar(String),
-    List(Vec<String>),
-    Map(BTreeMap<String, Vec<String>>),
-    Items(Vec<BTreeMap<String, String>>),
-}
-
-#[derive(Debug)]
-struct Document {
-    fields: BTreeMap<String, Value>,
-    body: String,
-}
-
-/// Split `key: rest` where the key is lowercase ASCII with underscores.
-fn split_key(line: &str) -> Option<(&str, &str)> {
-    let (key, rest) = line.split_once(':')?;
-    let valid = !key.is_empty() && key.chars().all(|c| c.is_ascii_lowercase() || c == '_');
-    (valid && (rest.is_empty() || rest.starts_with(' '))).then_some((key, rest))
-}
-
-/// Cut a trailing ` # comment` from a value, leaving quoted text intact.
-fn strip_comment(raw: &str) -> &str {
-    let raw = raw.trim();
-    let in_list = raw.starts_with('[');
-    let mut quote: Option<char> = None;
-    let mut escaped = false;
-    let mut just_closed_single = false;
-    let mut prev = ' ';
-    for (index, c) in raw.char_indices() {
-        let reopened = just_closed_single && c == '\'';
-        just_closed_single = false;
-        if let Some(q) = quote {
-            if q == '"' && c == '\\' && !escaped {
-                escaped = true;
-                prev = c;
-                continue;
-            }
-            if c == q && !escaped {
-                quote = None;
-                just_closed_single = q == '\'';
-            }
-            escaped = false;
-        } else if (c == '"' || c == '\'')
-            && (index == 0 || reopened || (in_list && matches!(prev, '[' | ',' | ' ')))
-        {
-            quote = Some(c);
-        } else if c == '#' && (index == 0 || prev.is_whitespace()) {
-            return raw.get(..index).unwrap_or_default().trim_end();
-        }
-        prev = c;
-    }
-    raw
-}
-
-/// The text of a quoted scalar; the closing quote must end the value.
-fn quoted_scalar(raw: &str, quote: char) -> Result<String, String> {
-    let mut out = String::new();
-    let mut chars = raw.char_indices().skip(1).peekable();
-    while let Some((index, c)) = chars.next() {
-        if quote == '"' && c == '\\' {
-            match chars.next() {
-                Some((_, escaped @ ('"' | '\\'))) => out.push(escaped),
-                Some((_, other)) => {
-                    out.push('\\');
-                    out.push(other);
-                }
-                None => break,
-            }
-        } else if c == quote {
-            if quote == '\'' && chars.next_if(|(_, next)| *next == '\'').is_some() {
-                out.push('\'');
-                continue;
-            }
-            return if raw.get(index + 1..).unwrap_or_default().trim().is_empty() {
-                Ok(out)
-            } else {
-                Err(format!("text after the closing quote in `{raw}`"))
-            };
-        } else {
-            out.push(c);
-        }
-    }
-    Err(format!("unterminated quoted value `{raw}`"))
-}
-
-/// True for a YAML block scalar header such as `>`, `|`, `>-` or `|2`.
-fn is_block_indicator(raw: &str) -> bool {
-    raw.strip_prefix(['>', '|'])
-        .is_some_and(|rest| rest.chars().all(|c| matches!(c, '+' | '-' | '0'..='9')))
-}
-
-/// An unquoted scalar: no block indicator, no leading indicator character and
-/// no `: ` that real YAML would read as a nested mapping.
-fn plain_scalar(raw: &str) -> Result<String, String> {
-    if is_block_indicator(raw) {
-        return Err(format!("block scalar indicator `{raw}` used as a value"));
-    }
-    if raw.starts_with(['>', '|', '&', '*', '!', '%', '@', '`']) {
-        return Err(format!("`{raw}` starts with a YAML indicator character"));
-    }
-    if raw.contains(": ") || raw.ends_with(':') {
-        return Err(format!("unquoted value `{raw}` contains `: `; quote it"));
-    }
-    Ok(raw.to_string())
-}
-
-/// Parse one scalar value: quoted or plain, with a trailing comment removed.
-fn scalar(raw: &str) -> Result<String, String> {
-    let raw = strip_comment(raw);
-    match raw.chars().next() {
-        Some(quote @ ('"' | '\'')) => quoted_scalar(raw, quote),
-        _ => plain_scalar(raw),
-    }
-}
-
-fn parse_inline_list(raw: &str) -> Result<Vec<String>, String> {
-    let inner = raw
-        .trim()
-        .strip_prefix('[')
-        .and_then(|rest| rest.strip_suffix(']'))
-        .ok_or_else(|| format!("unterminated inline list `{raw}`"))?;
-    if inner.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-    let mut parts = Vec::new();
-    let mut current = String::new();
-    let mut quote: Option<char> = None;
-    for c in inner.chars() {
-        match (quote, c) {
-            (Some(q), _) if c == q => {
-                quote = None;
-                current.push(c);
-            }
-            (None, '"' | '\'') => {
-                quote = Some(c);
-                current.push(c);
-            }
-            (None, ',') => parts.push(std::mem::take(&mut current)),
-            _ => current.push(c),
-        }
-    }
-    parts.push(current);
-    parts
-        .into_iter()
-        .map(|part| {
-            let part = part.trim();
-            if part.is_empty() {
-                Err(format!("empty entry in inline list `{raw}`"))
-            } else {
-                scalar(part)
-            }
-        })
-        .collect()
-}
-
-fn parse_sequence(block: &[&str]) -> Result<Value, String> {
-    let mut scalars = Vec::new();
-    let mut maps: Vec<BTreeMap<String, String>> = Vec::new();
-    let mut in_map = false;
-    for line in block {
-        if let Some(item) = line.strip_prefix("  - ") {
-            let item = item.trim();
-            if let Some((key, rest)) = split_key(item) {
-                maps.push(BTreeMap::from([(key.to_string(), scalar(rest)?)]));
-                in_map = true;
-            } else {
-                scalars.push(scalar(item)?);
-                in_map = false;
-            }
-        } else if let Some(continuation) = line.strip_prefix("    ") {
-            let (key, rest) = split_key(continuation.trim())
-                .ok_or_else(|| format!("cannot parse list entry line `{line}`"))?;
-            let entry = maps
-                .last_mut()
-                .filter(|_| in_map)
-                .ok_or_else(|| format!("continuation without a map entry `{line}`"))?;
-            if entry.insert(key.to_string(), scalar(rest)?).is_some() {
-                return Err(format!("duplicate entry key `{key}`"));
-            }
-        } else {
-            return Err(format!("cannot parse list line `{line}`"));
-        }
-    }
-    match (scalars.is_empty(), maps.is_empty()) {
-        (false, false) => Err("list mixes scalar and map entries".to_string()),
-        (_, false) => Ok(Value::Items(maps)),
-        _ => Ok(Value::List(scalars)),
-    }
-}
-
-fn parse_map(block: &[&str]) -> Result<Value, String> {
-    let mut map: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    let mut current: Option<String> = None;
-    for line in block {
-        if let Some(item) = line.strip_prefix("    - ") {
-            let key = current
-                .as_ref()
-                .ok_or_else(|| format!("list item without a key `{line}`"))?;
-            map.entry(key.clone()).or_default().push(scalar(item)?);
-        } else if let Some(entry) = line.strip_prefix("  ").filter(|e| !e.starts_with(' ')) {
-            let (key, rest) =
-                split_key(entry).ok_or_else(|| format!("cannot parse map line `{line}`"))?;
-            if map.contains_key(key) {
-                return Err(format!("duplicate map key `{key}`"));
-            }
-            let rest = strip_comment(rest);
-            if rest.is_empty() {
-                map.insert(key.to_string(), Vec::new());
-                current = Some(key.to_string());
-            } else if rest.starts_with('[') {
-                map.insert(key.to_string(), parse_inline_list(rest)?);
-                current = None;
-            } else {
-                return Err(format!("map value of `{key}` must be a list"));
-            }
-        } else {
-            return Err(format!("cannot parse map line `{line}`"));
-        }
-    }
-    Ok(Value::Map(map))
-}
-
-fn parse_fields(front: &[&str]) -> Result<BTreeMap<String, Value>, String> {
-    let mut fields = BTreeMap::new();
-    let mut index = 0;
-    while let Some(line) = front.get(index) {
-        index += 1;
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-        let (key, rest) =
-            split_key(line).ok_or_else(|| format!("cannot parse frontmatter line `{line}`"))?;
-        if fields.contains_key(key) {
-            return Err(format!("duplicate key `{key}`"));
-        }
-        let rest = strip_comment(rest);
-        let value = if rest.is_empty() {
-            let mut block = Vec::new();
-            while let Some(next) = front.get(index) {
-                let t = next.trim();
-                if t.is_empty() || t.starts_with('#') {
-                    index += 1;
-                } else if next.starts_with(' ') {
-                    block.push(*next);
-                    index += 1;
-                } else {
-                    break;
-                }
-            }
-            match block.first() {
-                None => Value::Scalar(String::new()),
-                Some(first) if first.trim_start().starts_with("- ") => parse_sequence(&block)?,
-                Some(_) => parse_map(&block)?,
-            }
-        } else if rest.starts_with('[') {
-            Value::List(parse_inline_list(rest)?)
-        } else {
-            Value::Scalar(scalar(rest)?)
-        };
-        fields.insert(key.to_string(), value);
-    }
-    Ok(fields)
-}
-
-/// `None` when the text has no frontmatter, otherwise the parsed document.
-fn parse_document(text: &str) -> Option<Result<Document, String>> {
-    let lines: Vec<&str> = text.lines().collect();
-    if lines.first().map(|l| l.trim_end()) != Some("---") {
-        return None;
-    }
-    let Some(close) = lines
-        .iter()
-        .skip(1)
-        .position(|l| l.trim_end() == "---")
-        .map(|p| p + 1)
-    else {
-        return Some(Err("frontmatter is not closed by a `---` line".to_string()));
-    };
-    let body = lines.get(close + 1..).unwrap_or_default().join("\n");
-    let front = lines.get(1..close).unwrap_or_default();
-    Some(parse_fields(front).map(|fields| Document { fields, body }))
-}
-
-// ---------------------------------------------------------------------------
-// Markdown scanning helpers
-// ---------------------------------------------------------------------------
-
-/// Lines with their 1-based number and whether they are fence lines or sit
-/// inside a fenced code block.
-fn fenced_lines(text: &str) -> Vec<(usize, &str, bool)> {
-    let mut in_fence = false;
-    let mut out = Vec::new();
-    for (index, line) in text.lines().enumerate() {
-        let trimmed = line.trim_start();
-        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
-            in_fence = !in_fence;
-            out.push((index + 1, line, true));
-        } else {
-            out.push((index + 1, line, in_fence));
-        }
-    }
-    out
-}
-
-fn heading_text(line: &str) -> Option<(usize, &str)> {
-    let hashes = line.chars().take_while(|c| *c == '#').count();
-    let rest = line.get(hashes..)?;
-    ((1..=6).contains(&hashes) && rest.starts_with(' ')).then(|| (hashes, rest.trim()))
-}
-
-fn github_anchor(heading: &str) -> String {
-    heading
-        .trim_end_matches('#')
-        .trim()
-        .chars()
-        .filter_map(|c| match c {
-            ' ' => Some('-'),
-            '-' | '_' => Some(c),
-            c if c.is_alphanumeric() => Some(c.to_lowercase().next().unwrap_or(c)),
-            _ => None,
-        })
-        .collect()
-}
-
-fn anchors(text: &str) -> BTreeSet<String> {
-    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
-    let mut out = BTreeSet::new();
-    for (_, line, fenced) in fenced_lines(text) {
-        if fenced {
-            continue;
-        }
-        if let Some((_, heading)) = heading_text(line) {
-            let base = github_anchor(heading);
-            let count = seen.entry(base.clone()).or_insert(0);
-            out.insert(if *count == 0 {
-                base
-            } else {
-                format!("{base}-{count}")
-            });
-            *count += 1;
-        }
-    }
-    out
-}
-
-/// H2 sections in order: name and the raw text under each.
-fn sections(body: &str) -> Vec<(String, String)> {
-    let mut out: Vec<(String, String)> = Vec::new();
-    for (_, line, fenced) in fenced_lines(body) {
-        let h2 = (!fenced)
-            .then(|| heading_text(line))
-            .flatten()
-            .filter(|(level, _)| *level == 2);
-        if let Some((_, name)) = h2 {
-            out.push((name.to_string(), String::new()));
-        } else if let Some((_, content)) = out.last_mut() {
-            content.push_str(line);
-            content.push('\n');
-        }
-    }
-    out
-}
-
-/// Remove HTML comments, including multi-line ones, from Markdown text.
-fn strip_html_comments(text: &str) -> String {
-    let mut out = String::new();
-    let mut rest = text;
-    while let Some(start) = rest.find("<!--") {
-        out.push_str(rest.get(..start).unwrap_or_default());
-        let after = rest.get(start + 4..).unwrap_or_default();
-        match after.find("-->") {
-            Some(end) => rest = after.get(end + 3..).unwrap_or_default(),
-            None => return out,
-        }
-    }
-    out.push_str(rest);
-    out
-}
-
-/// True when the text has no visible content once comments are removed.
-fn is_blank(text: &str) -> bool {
-    strip_html_comments(text).trim().is_empty()
-}
-
-/// The line with inline code spans removed.
-fn outside_code(line: &str) -> String {
-    line.split('`')
-        .enumerate()
-        .filter(|(index, _)| index % 2 == 0)
-        .map(|(_, part)| part)
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-fn is_word_char(c: char) -> bool {
-    c.is_alphanumeric() || c == '_'
-}
-
-/// True when `token` occurs in `line` as a whole word.
-fn has_word(line: &str, token: &str) -> bool {
-    line.match_indices(token).any(|(index, _)| {
-        let before = line.get(..index).and_then(|s| s.chars().next_back());
-        let after = line
-            .get(index + token.len()..)
-            .and_then(|s| s.chars().next());
-        !before.is_some_and(is_word_char) && !after.is_some_and(is_word_char)
-    })
-}
-
-fn is_kebab(slug: &str) -> bool {
-    !slug.is_empty()
-        && slug.split('-').all(|part| {
-            !part.is_empty()
-                && part
-                    .chars()
-                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
-        })
-}
-
-// ---------------------------------------------------------------------------
-// Repository checker
+// Paths and placeholders
 // ---------------------------------------------------------------------------
 
 fn violation(path: &Path, message: impl std::fmt::Display) -> String {
     format!("{}: {message}", path.display())
 }
 
+/// The path as the `/`-separated text `raf-okf` takes.
+///
+/// # Panics
+///
+/// Panics when the path is not UTF-8; the index listing already refuses such
+/// a path.
+fn name(path: &Path) -> &str {
+    match path.to_str() {
+        Some(text) => text,
+        None => panic!("path {} is not UTF-8", path.display()),
+    }
+}
+
+fn is_markdown(path: &Path) -> bool {
+    path.extension().is_some_and(|e| e == "md")
+}
+
 fn is_scanned(path: &Path) -> bool {
-    let markdown = is_markdown(path);
     let mut components = path.components();
     let first = components.next();
     let top_level = components.next().is_none();
-    markdown
+    is_markdown(path)
         && (top_level || first.is_some_and(|c| c.as_os_str() == "docs" || c.as_os_str() == "work"))
 }
 
 /// The OKF type a document must declare because of where it lives.
-fn expected_type(path: &Path) -> Option<&'static str> {
-    let parts: Vec<&str> = path.iter().filter_map(|p| p.to_str()).collect();
-    match parts.as_slice() {
-        ["docs", "capabilities", _] => Some("Capability"),
-        ["docs", "architecture", _] => Some("Architecture"),
-        ["work", "changes", _] => Some("Change"),
-        _ => None,
-    }
-}
-
-/// The directory that holds documents of a RAF type.
-fn type_directory(declared: &str) -> Option<&'static str> {
-    match declared {
-        "Capability" => Some("docs/capabilities"),
-        "Change" => Some("work/changes"),
-        "Architecture" => Some("docs/architecture"),
-        _ => None,
-    }
-}
-
-/// The generated catalogue, which has no frontmatter.
-fn is_capability_index(path: &Path) -> bool {
-    path == Path::new("docs/capabilities/index.md")
-}
-
-fn file_stem(path: &Path) -> String {
-    path.file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or_default()
-        .to_string()
-}
-
-fn scalar_field<'a>(doc: &'a Document, key: &str) -> Option<&'a str> {
-    match doc.fields.get(key) {
-        Some(Value::Scalar(s)) => Some(s.as_str()),
-        _ => None,
-    }
-}
-
-fn list_field<'a>(doc: &'a Document, key: &str) -> Option<&'a [String]> {
-    match doc.fields.get(key) {
-        Some(Value::List(l)) => Some(l.as_slice()),
-        _ => None,
-    }
-}
-
-struct Capability {
-    path: PathBuf,
-    id: String,
-    state: String,
-    depends: Vec<String>,
-}
-
-struct Change {
-    path: PathBuf,
-    slug: String,
-    changes: Vec<String>,
-    affects: Vec<String>,
-    moved: Vec<String>,
-}
-
-#[derive(Default)]
-struct Found {
-    capabilities: Vec<Capability>,
-    changes: Vec<Change>,
-}
-
-fn check_scalars(path: &Path, doc: &Document, keys: &[&str], out: &mut Vec<String>) {
-    for key in ["title", "description"] {
-        if keys.contains(&key) && doc.fields.contains_key(key) {
-            match scalar_field(doc, key) {
-                Some(s) if !s.trim().is_empty() => {}
-                _ => out.push(violation(
-                    path,
-                    format!("`{key}` must be a non-empty string"),
-                )),
-            }
-        }
-    }
-}
-
-fn check_keys(path: &Path, doc: &Document, keys: &[&str], out: &mut Vec<String>) {
-    for key in doc.fields.keys() {
-        if !keys.contains(&key.as_str()) && !OPTIONAL_KEYS.contains(&key.as_str()) {
-            out.push(violation(path, format!("unknown key `{key}`")));
-        }
-    }
-    if doc.fields.contains_key("tags") {
-        match list_field(doc, "tags") {
-            Some(tags) => {
-                let mut seen = BTreeSet::new();
-                for tag in tags {
-                    if tag.trim().is_empty() {
-                        out.push(violation(path, "`tags` entries must be non-empty strings"));
-                    } else if !seen.insert(tag.as_str()) {
-                        out.push(violation(path, format!("duplicate tag `{tag}`")));
-                    }
-                }
-            }
-            None => out.push(violation(path, "`tags` must be a list")),
-        }
-    }
-    if doc.fields.contains_key("timestamp")
-        && scalar_field(doc, "timestamp").is_none_or(|t| t.trim().is_empty())
-    {
-        out.push(violation(path, "`timestamp` must be a non-empty string"));
-    }
-    for key in keys {
-        if !doc.fields.contains_key(*key) {
-            out.push(violation(path, format!("missing required key `{key}`")));
-        }
-    }
-}
-
-/// Validate `id`, returning the slug when the id has the right form.
-fn check_id(path: &Path, doc: &Document, prefix: &str, out: &mut Vec<String>) -> Option<String> {
-    let id = scalar_field(doc, "id")?;
-    let Some(slug) = id.strip_prefix(prefix).filter(|s| is_kebab(s)) else {
-        out.push(violation(
-            path,
-            format!("id `{id}` must be `{prefix}<slug>` with a lowercase kebab slug"),
-        ));
-        return None;
-    };
-    if slug != file_stem(path) {
-        out.push(violation(
-            path,
-            format!("id `{id}` does not match the file name"),
-        ));
-    }
-    Some(slug.to_string())
-}
-
-fn check_section_layout(path: &Path, doc: &Document, out: &mut Vec<String>) {
-    let found = sections(&doc.body);
-    let names: Vec<&str> = found.iter().map(|(n, _)| n.as_str()).collect();
-    for expected in SECTIONS {
-        if !names.contains(&expected) {
-            out.push(violation(path, format!("missing section `{expected}`")));
-        }
-    }
-    for name in &names {
-        if !SECTIONS.contains(name) {
-            out.push(violation(path, format!("unexpected section `{name}`")));
-        }
-    }
-    let known: Vec<&str> = names
-        .iter()
-        .copied()
-        .filter(|n| SECTIONS.contains(n))
-        .collect();
-    let ordered: Vec<&str> = SECTIONS
-        .iter()
-        .copied()
-        .filter(|s| known.contains(s))
-        .collect();
-    let duplicated = known.len() != ordered.len();
-    if duplicated {
-        out.push(violation(path, "a section appears more than once"));
-    } else if known != ordered {
-        out.push(violation(
-            path,
-            format!("sections out of order: found {}", known.join(", ")),
-        ));
-    }
-    for (name, content) in &found {
-        if SECTIONS.contains(&name.as_str()) && is_blank(content) {
-            out.push(violation(path, format!("section `{name}` is empty")));
-        }
-    }
-}
-
-/// Binding lists by state: nothing is bound before delivery, and a delivered
-/// capability binds at least one code path and one test.
-fn check_binding_contents(
-    path: &Path,
-    state: Option<&str>,
-    map: &BTreeMap<String, Vec<String>>,
-    out: &mut Vec<String>,
-) {
-    let bound = |key: &str| map.get(key).map_or(0, Vec::len);
-    match state {
-        Some(state @ ("designed" | "considered")) => {
-            for key in BINDING_KEYS {
-                if bound(key) > 0 {
-                    out.push(violation(
-                        path,
-                        format!("state {state} must have empty bindings, but `{key}` is not empty"),
-                    ));
-                }
-            }
-        }
-        Some("delivered") => {
-            if bound("code") == 0 {
-                out.push(violation(
-                    path,
-                    "state delivered must bind at least one code path",
-                ));
-            }
-            if bound("tests") == 0 {
-                out.push(violation(
-                    path,
-                    "state delivered must bind at least one test",
-                ));
-            }
-        }
-        _ => {}
-    }
-}
-
-fn check_capability(path: &Path, doc: &Document, found: &mut Found, out: &mut Vec<String>) {
-    check_keys(path, doc, &CAPABILITY_KEYS, out);
-    check_scalars(path, doc, &CAPABILITY_KEYS, out);
-    let slug = check_id(path, doc, "cap:", out);
-    let state = scalar_field(doc, "state");
-    if let Some(state) = state.filter(|s| !STATES.contains(s)) {
-        out.push(violation(path, format!("bad state `{state}`")));
-    } else if doc.fields.contains_key("state") && state.is_none() {
-        out.push(violation(path, "`state` must be a scalar"));
-    }
-    if let Some(value) = doc.fields.get("bindings") {
-        match value {
-            Value::Map(map) => {
-                let keys: Vec<&str> = map.keys().map(String::as_str).collect();
-                let mut wanted = BINDING_KEYS;
-                wanted.sort_unstable();
-                if keys != wanted {
-                    out.push(violation(
-                        path,
-                        "bindings must have exactly the keys code, tests and examples",
-                    ));
-                }
-                check_binding_contents(path, state, map, out);
-            }
-            _ => out.push(violation(
-                path,
-                "bindings must be a map of code, tests and examples lists",
-            )),
-        }
-    }
-    let mut depends = Vec::new();
-    if doc.fields.contains_key("depends") {
-        if let Some(list) = list_field(doc, "depends") {
-            for id in list {
-                if id.strip_prefix("cap:").is_some_and(is_kebab) {
-                    depends.push(id.clone());
-                } else {
-                    out.push(violation(
-                        path,
-                        format!("depends entry `{id}` is not a cap id"),
-                    ));
-                }
-            }
-        } else {
-            out.push(violation(path, "`depends` must be a list"));
-        }
-    }
-    check_section_layout(path, doc, out);
-    if let (Some(slug), Some(state)) = (slug, state) {
-        found.capabilities.push(Capability {
-            path: path.to_path_buf(),
-            id: format!("cap:{slug}"),
-            state: state.to_string(),
-            depends,
-        });
-    }
-}
-
-fn check_change(path: &Path, doc: &Document, found: &mut Found, out: &mut Vec<String>) {
-    check_keys(path, doc, &CHANGE_KEYS, out);
-    check_scalars(path, doc, &CHANGE_KEYS, out);
-    let slug = check_id(path, doc, "change:", out);
-    let mut changes = Vec::new();
-    if doc.fields.contains_key("changes") {
-        match list_field(doc, "changes") {
-            Some(list) if !list.is_empty() => {
-                for id in list {
-                    if id.strip_prefix("cap:").is_some_and(is_kebab) {
-                        changes.push(id.clone());
-                    } else {
-                        out.push(violation(
-                            path,
-                            format!("changes entry `{id}` is not a cap id"),
-                        ));
-                    }
-                }
-            }
-            _ => out.push(violation(
-                path,
-                "`changes` must be a non-empty list of cap ids",
-            )),
-        }
-    }
-    let mut affects = Vec::new();
-    if doc.fields.contains_key("affects") {
-        match list_field(doc, "affects") {
-            Some(list) => {
-                affects = list.to_vec();
-                for entry in list {
-                    check_affects(path, entry, &changes, out);
-                }
-            }
-            None => out.push(violation(path, "`affects` must be a list")),
-        }
-    }
-    if doc.fields.contains_key("contract_effect") {
-        match scalar_field(doc, "contract_effect") {
-            Some("none" | "changes") => {}
-            other => out.push(violation(
-                path,
-                format!(
-                    "bad contract_effect `{}`",
-                    other.unwrap_or("<not a scalar>")
-                ),
-            )),
-        }
-    }
-    let moved = check_items(path, doc, out);
-    let summary = sections(&doc.body)
+fn expected_type(path: &Path) -> Option<DocType> {
+    DocType::ALL
         .into_iter()
-        .find(|(name, _)| name == "Summary");
-    match summary {
-        Some((_, content)) if !is_blank(&content) => {}
-        Some(_) => out.push(violation(path, "section `Summary` is empty")),
-        None => out.push(violation(path, "missing section `Summary`")),
-    }
-    if let Some(slug) = slug {
-        found.changes.push(Change {
-            path: path.to_path_buf(),
-            slug,
-            changes,
-            affects,
-            moved,
-        });
-    }
-}
-
-fn check_affects(path: &Path, entry: &str, changes: &[String], out: &mut Vec<String>) {
-    let parsed = entry
-        .split_once('#')
-        .filter(|(cap, _)| cap.strip_prefix("cap:").is_some_and(is_kebab));
-    let Some((cap, section)) = parsed else {
-        out.push(violation(
-            path,
-            format!("affects entry `{entry}` must be `cap:<slug>#<section>`"),
-        ));
-        return;
-    };
-    if !SECTIONS.iter().any(|s| s.to_lowercase() == section) {
-        out.push(violation(
-            path,
-            format!("affects entry `{entry}` has a bad section `{section}`"),
-        ));
-    }
-    if !changes.iter().any(|c| c == cap) {
-        out.push(violation(
-            path,
-            format!("affects entry `{entry}` names a capability missing from `changes`"),
-        ));
-    }
-}
-
-/// Validate `items`, returning the slugs that `moved:change:<slug>` outcomes name.
-fn check_items(path: &Path, doc: &Document, out: &mut Vec<String>) -> Vec<String> {
-    let mut moved_to = Vec::new();
-    match doc.fields.get("items") {
-        None => {}
-        Some(Value::List(list)) if list.is_empty() => {}
-        Some(Value::Items(items)) => {
-            for item in items {
-                for key in item.keys() {
-                    if key != "claim" && key != "outcome" {
-                        out.push(violation(path, format!("unknown item key `{key}`")));
-                    }
-                }
-                if item.get("claim").is_none_or(|c| c.trim().is_empty()) {
-                    out.push(violation(path, "every item needs a non-empty `claim`"));
-                }
-                if let Some(outcome) = item.get("outcome") {
-                    let moved = outcome
-                        .strip_prefix("moved:change:")
-                        .filter(|s| is_kebab(s));
-                    if let Some(slug) = moved {
-                        moved_to.push(slug.to_string());
-                    } else if !OUTCOMES.contains(&outcome.as_str()) {
-                        out.push(violation(path, format!("bad outcome `{outcome}`")));
-                    }
-                }
-            }
-        }
-        Some(_) => out.push(violation(
-            path,
-            "`items` must be a list of maps with `claim` and optional `outcome`",
-        )),
-    }
-    moved_to
-}
-
-fn check_architecture(path: &Path, doc: &Document, out: &mut Vec<String>) {
-    check_keys(path, doc, &ARCHITECTURE_KEYS, out);
-    check_scalars(path, doc, &ARCHITECTURE_KEYS, out);
-    check_id(path, doc, "arch:", out);
-    if is_blank(&doc.body) {
-        out.push(violation(path, "architecture body is empty"));
-    }
-}
-
-fn check_document(path: &Path, text: &str, found: &mut Found, out: &mut Vec<String>) {
-    let expected = expected_type(path);
-    let doc = match parse_document(text) {
-        None => {
-            if let Some(expected) = expected.filter(|_| !is_capability_index(path)) {
-                out.push(violation(
-                    path,
-                    format!("missing frontmatter; expected a {expected} document"),
-                ));
-            }
-            return;
-        }
-        Some(Err(error)) => {
-            out.push(violation(path, format!("unparseable frontmatter: {error}")));
-            return;
-        }
-        Some(Ok(doc)) => doc,
-    };
-    let Some(declared) = scalar_field(&doc, "type") else {
-        out.push(violation(path, "missing required key `type`"));
-        return;
-    };
-    if let Some(expected) = expected.filter(|e| *e != declared) {
-        out.push(violation(
-            path,
-            format!("type `{declared}` is not allowed here; expected `{expected}`"),
-        ));
-    }
-    if expected.is_none()
-        && let Some(home) = type_directory(declared)
-    {
-        out.push(violation(
-            path,
-            format!("a {declared} document belongs directly in {home}"),
-        ));
-    }
-    match declared {
-        "Capability" => check_capability(path, &doc, found, out),
-        "Change" => check_change(path, &doc, found, out),
-        "Architecture" => check_architecture(path, &doc, out),
-        other => out.push(violation(path, format!("bad type `{other}`"))),
-    }
-}
-
-/// A well-formed PROPOSED marker found outside code fences.
-struct Marker {
-    path: PathBuf,
-    slug: String,
-    /// The lowercase name of the second-level section that holds the marker.
-    section: Option<String>,
-}
-
-/// True when the line reads as a PROPOSED marker, however it is spelled: the
-/// quote marks, list bullets and spaces before `[!` are skipped and the word
-/// is compared without regard to case.
-fn looks_like_proposed(trimmed: &str) -> bool {
-    trimmed
-        .trim_start_matches(['>', ' ', '\t', '-', '*'])
-        .to_ascii_lowercase()
-        .starts_with("[!proposed")
-}
-
-fn scan_markers(path: &Path, text: &str, markers: &mut Vec<Marker>, out: &mut Vec<String>) {
-    let mut open_generated: Option<usize> = None;
-    let mut section: Option<String> = None;
-    for (number, line, fenced) in fenced_lines(text) {
-        if fenced {
-            continue;
-        }
-        if let Some((2, name)) = heading_text(line) {
-            section = Some(name.to_lowercase());
-        }
-        let trimmed = line.trim();
-        if looks_like_proposed(trimmed) {
-            let slug = trimmed
-                .strip_prefix(PROPOSED_OPEN)
-                .and_then(|rest| rest.strip_suffix(']'))
-                .filter(|s| is_kebab(s));
-            match slug {
-                Some(slug) => markers.push(Marker {
-                    path: path.to_path_buf(),
-                    slug: slug.to_string(),
-                    section: section.clone(),
-                }),
-                None => out.push(violation(
-                    path,
-                    format!("line {number}: malformed PROPOSED marker"),
-                )),
-            }
-        }
-        if trimmed.starts_with(GENERATED_OPEN) {
-            let kind = trimmed
-                .strip_prefix(GENERATED_OPEN)
-                .and_then(|rest| rest.strip_suffix(" -->"));
-            match (kind, open_generated) {
-                (Some(GENERATED_END), Some(_)) => open_generated = None,
-                (Some(GENERATED_END), None) => out.push(violation(
-                    path,
-                    format!("line {number}: generated end marker without a start"),
-                )),
-                (Some(kind), None) if is_kebab(kind) => open_generated = Some(number),
-                (Some(_), Some(_)) => out.push(violation(
-                    path,
-                    format!("line {number}: generated block inside another generated block"),
-                )),
-                _ => out.push(violation(
-                    path,
-                    format!("line {number}: malformed generated marker"),
-                )),
-            }
-        }
-    }
-    if let Some(number) = open_generated {
-        out.push(violation(
-            path,
-            format!("line {number}: generated block is never closed"),
-        ));
-    }
-}
-
-/// Lowercase text with whitespace runs collapsed to one space and the dots
-/// between letters removed, so `T.B.D.` and `to  be\twritten` normalise to the
-/// plain token.
-fn normalise_prose(line: &str) -> String {
-    let collapsed = line
-        .to_lowercase()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
-    let chars: Vec<char> = collapsed.chars().collect();
-    chars
-        .iter()
-        .enumerate()
-        .filter(|(index, c)| {
-            let letter_before = index
-                .checked_sub(1)
-                .and_then(|i| chars.get(i))
-                .is_some_and(|p| p.is_alphabetic());
-            let letter_after = chars.get(index + 1).is_some_and(|n| n.is_alphabetic());
-            !(**c == '.' && letter_before && letter_after)
-        })
-        .map(|(_, c)| *c)
-        .collect()
-}
-
-/// Reject unfinished-work tokens in prose, outside code fences and code spans.
-fn scan_placeholders(path: &Path, text: &str, out: &mut Vec<String>) {
-    for (number, line, fenced) in fenced_lines(text) {
-        if fenced {
-            continue;
-        }
-        let prose = normalise_prose(&outside_code(line));
-        for token in PLACEHOLDER_TOKENS {
-            if has_word(&prose, token) {
-                out.push(violation(
-                    path,
-                    format!("line {number}: placeholder `{token}` is not resolved text"),
-                ));
-            }
-        }
-    }
+        .find(|doc_type| path.parent() == Some(Path::new(doc_type.directory())))
 }
 
 fn scan_banned(path: &Path, text: &str, out: &mut Vec<String>) {
@@ -1141,277 +145,308 @@ fn scan_banned(path: &Path, text: &str, out: &mut Vec<String>) {
     }
 }
 
-/// The target of a reference definition such as `[label]: target "title"`.
-fn definition_target(line: &str) -> Option<String> {
-    let rest = line.trim_start().strip_prefix('[')?;
-    let (label, after) = rest.split_once("]:")?;
-    if label.trim().is_empty() || label.starts_with('^') {
-        return None;
-    }
-    let after = after.trim_start();
-    let target = match after.strip_prefix('<') {
-        Some(inner) => inner.split('>').next().unwrap_or_default(),
-        None => after.split_whitespace().next().unwrap_or_default(),
-    };
-    (!target.is_empty()).then(|| target.to_string())
+// ---------------------------------------------------------------------------
+// What the cross-document checks need from each document
+// ---------------------------------------------------------------------------
+
+struct CapabilityFacts {
+    path: PathBuf,
+    id: String,
+    state: State,
+    depends: Vec<String>,
+    bindings: Bindings,
 }
 
-/// The values of `href="..."` and `src="..."` attributes in inline HTML.
-/// True for a character that can belong to an HTML attribute name.
-fn is_attribute_name_char(c: char) -> bool {
-    is_word_char(c) || matches!(c, '-' | ':' | '.')
+struct ChangeFacts {
+    path: PathBuf,
+    slug: String,
+    changes: Vec<String>,
+    /// The `affects` entries, each as `cap:<slug>#<section>`.
+    affects: Vec<String>,
+    /// The slugs that `moved:change:<slug>` outcomes name.
+    moved: Vec<String>,
 }
 
-/// Where the HTML scan stands between lines: inside a tag, and inside a
-/// quoted attribute value.
+/// A well-formed PROPOSED block.
+struct Marker {
+    path: PathBuf,
+    slug: String,
+    /// The slug of the second-level section that holds the block.
+    section: Option<String>,
+}
+
 #[derive(Default)]
-struct TagState {
-    in_tag: bool,
-    quote: Option<char>,
-    /// An `href=` or `src=` ended the previous line, so its value is next.
-    awaiting_value: bool,
+struct Found {
+    capabilities: Vec<CapabilityFacts>,
+    changes: Vec<ChangeFacts>,
+    markers: Vec<Marker>,
+    architecture: usize,
 }
 
-/// Index just past the run of characters from `start` that satisfy `keep`.
-fn skip_while(chars: &[char], start: usize, keep: impl Fn(char) -> bool) -> usize {
-    let mut index = start;
-    while chars.get(index).is_some_and(|c| keep(*c)) {
-        index += 1;
-    }
-    index
-}
-
-/// Read one attribute at `start` (the first character of its name) and return
-/// the index after it, pushing the value of an `href` or `src` attribute.
-fn read_attribute(
-    chars: &[char],
-    start: usize,
-    state: &mut TagState,
-    targets: &mut Vec<String>,
-) -> usize {
-    let name_end = skip_while(chars, start, is_attribute_name_char);
-    let name: String = chars
-        .get(start..name_end)
-        .unwrap_or_default()
-        .iter()
-        .collect::<String>()
-        .to_ascii_lowercase();
-    let after_name = skip_while(chars, name_end, char::is_whitespace);
-    if chars.get(after_name) != Some(&'=') {
-        return name_end;
-    }
-    let value_start = skip_while(chars, after_name + 1, char::is_whitespace);
-    read_value(
-        chars,
-        value_start,
-        name == "href" || name == "src",
-        state,
-        targets,
-    )
-}
-
-/// Read the attribute value that starts at `start`, returning the index after
-/// it. A value that is not on this line is read from the next one when the
-/// attribute is `href` or `src`.
-fn read_value(
-    chars: &[char],
-    start: usize,
-    wanted: bool,
-    state: &mut TagState,
-    targets: &mut Vec<String>,
-) -> usize {
-    match chars.get(start) {
-        Some(&quote @ ('"' | '\'')) => {
-            let inner = start + 1;
-            let close = chars
-                .get(inner..)
-                .and_then(|rest| rest.iter().position(|c| *c == quote));
-            if let Some(offset) = close {
-                if wanted {
-                    let value = chars.get(inner..inner + offset).unwrap_or_default();
-                    targets.push(value.iter().collect());
+impl Found {
+    /// Record a document that satisfies the profile.
+    fn record(&mut self, path: &Path, typed: RafDocument) {
+        match typed {
+            RafDocument::Capability(capability) => self.capabilities.push(CapabilityFacts {
+                path: path.to_path_buf(),
+                id: capability.header.id,
+                state: capability.state,
+                depends: capability.depends,
+                bindings: capability.bindings,
+            }),
+            RafDocument::Change(change) => {
+                let mut moved = Vec::new();
+                for item in &change.items {
+                    match &item.outcome {
+                        Some(Outcome::Moved(slug)) => moved.push(slug.clone()),
+                        Some(Outcome::Implemented | Outcome::Dropped) | None => {}
+                        Some(other) => panic!("unmodelled outcome {other:?}"),
+                    }
                 }
-                inner + offset + 1
-            } else {
-                state.quote = Some(quote);
-                chars.len()
+                self.changes.push(ChangeFacts {
+                    path: path.to_path_buf(),
+                    slug: change.header.slug,
+                    changes: change.changes,
+                    affects: change
+                        .affects
+                        .iter()
+                        .map(|a| format!("{}#{}", a.capability, a.section.slug()))
+                        .collect(),
+                    moved,
+                });
             }
-        }
-        Some(_) => {
-            let end = skip_while(chars, start, |c| !c.is_whitespace() && c != '>');
-            if wanted {
-                let value: String = chars.get(start..end).unwrap_or_default().iter().collect();
-                targets.push(value.trim_end_matches('/').to_string());
-            }
-            end
-        }
-        None => {
-            state.awaiting_value = wanted;
-            chars.len()
+            RafDocument::Architecture(_) => self.architecture += 1,
         }
     }
 }
 
-/// The `href` and `src` values found on one line, tracking tag state across
-/// lines. A tag opens at `<` before a letter or `/` and runs to the next `>`
-/// that is not inside quotes. Autolinks such as `<https://x>` are not tags.
-fn html_attribute_targets(line: &str, state: &mut TagState) -> Vec<String> {
-    let chars: Vec<char> = line.chars().collect();
-    let mut targets = Vec::new();
-    let mut index = 0;
-    if state.awaiting_value && state.in_tag {
-        state.awaiting_value = false;
-        let start = skip_while(&chars, 0, char::is_whitespace);
-        index = read_value(&chars, start, true, state, &mut targets);
+// ---------------------------------------------------------------------------
+// Reading each Markdown file through raf-okf
+// ---------------------------------------------------------------------------
+
+fn unparseable(path: &Path, error: &ParseError) -> String {
+    violation(path, format!("unparseable document: {error}"))
+}
+
+/// A link split across lines is not a link; every body reports it once.
+fn report_split_links(path: &Path, body: &Body, out: &mut Vec<String>) {
+    for split in body.split_links() {
+        out.push(violation(
+            path,
+            format!(
+                "line {}: a link split across lines ({:?}) is not allowed",
+                split.line(),
+                split.form()
+            ),
+        ));
     }
-    state.awaiting_value = false;
-    while let Some(&c) = chars.get(index) {
-        if let Some(quote) = state.quote {
-            match chars
-                .get(index..)
-                .and_then(|r| r.iter().position(|x| *x == quote))
-            {
-                Some(offset) => {
-                    state.quote = None;
-                    index += offset + 1;
+}
+
+fn record_markers(path: &Path, body: &Body, found: &mut Found) {
+    for block in body.proposed_blocks() {
+        found.markers.push(Marker {
+            path: path.to_path_buf(),
+            slug: block.slug().to_string(),
+            section: block.section().map(str::to_string),
+        });
+    }
+}
+
+/// A document with frontmatter: the profile judges it and the typed form feeds
+/// the cross-document checks.
+fn read_document(path: &Path, document: &Document, found: &mut Found, out: &mut Vec<String>) {
+    record_markers(path, document.body(), found);
+    report_split_links(path, document.body(), out);
+    match Profile.validate(document, name(path)) {
+        Ok(typed) => found.record(path, typed),
+        Err(violations) => out.extend(
+            violations
+                .iter()
+                // Reported once for every body, above.
+                .filter(|v| !matches!(v.rule(), Rule::SplitLink { .. }))
+                .map(ToString::to_string),
+        ),
+    }
+}
+
+/// A scanned Markdown file without frontmatter: the generated capability
+/// index, or prose that must not sit where a typed document belongs.
+fn read_plain(path: &Path, text: &str, found: &mut Found, out: &mut Vec<String>) -> Option<Body> {
+    let parsed = if is_capability_index(name(path)) {
+        Index::parse(text)
+            .map(|index| index.body().clone())
+            .map_err(|error| {
+                violation(
+                    path,
+                    format!("a hand-written capability index is not allowed: {error}"),
+                )
+            })
+    } else {
+        if let Some(expected) = expected_type(path) {
+            out.push(violation(
+                path,
+                format!(
+                    "missing frontmatter; expected a {} document",
+                    expected.name()
+                ),
+            ));
+        }
+        Body::parse(text).map_err(|error| unparseable(path, &error))
+    };
+    let body = match parsed {
+        Ok(body) => body,
+        Err(message) => {
+            out.push(message);
+            return None;
+        }
+    };
+    report_split_links(path, &body, out);
+    for (line, token) in body.placeholder_lines() {
+        out.push(violation(
+            path,
+            format!("line {line}: placeholder `{token}` is not resolved text"),
+        ));
+    }
+    record_markers(path, &body, found);
+    for block in body.proposed_blocks() {
+        out.push(violation(
+            path,
+            format!(
+                "line {}: PROPOSED block `{}` outside a capability",
+                block.marker().lines.start,
+                block.slug()
+            ),
+        ));
+    }
+    Some(body)
+}
+
+/// Read one Markdown file and return its body when it reads.
+fn read_markdown(
+    path: &Path,
+    text: &str,
+    found: &mut Found,
+    out: &mut Vec<String>,
+) -> Option<Body> {
+    if !is_scanned(path) {
+        return match Body::parse(text) {
+            Ok(body) => {
+                report_split_links(path, &body, out);
+                Some(body)
+            }
+            Err(error) => {
+                out.push(unparseable(path, &error));
+                None
+            }
+        };
+    }
+    scan_banned(path, text, out);
+    match Document::parse(text) {
+        Ok(document) => {
+            read_document(path, &document, found, out);
+            Some(document.body().clone())
+        }
+        Err(error) if matches!(error.kind(), ErrorKind::MissingFence) => {
+            read_plain(path, text, found, out)
+        }
+        Err(error) => {
+            out.push(unparseable(path, &error));
+            None
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Links
+// ---------------------------------------------------------------------------
+
+/// Where a link sits, for its messages.
+struct Site<'a> {
+    path: &'a Path,
+    line: usize,
+    target: &'a str,
+}
+
+impl Site<'_> {
+    fn report(&self, message: impl std::fmt::Display) -> String {
+        violation(self.path, format!("line {}: {message}", self.line))
+    }
+}
+
+/// Check a link to a path inside the repository against the tracked paths.
+fn check_relative(
+    repo: &Repo,
+    bodies: &BTreeMap<PathBuf, Body>,
+    site: &Site<'_>,
+    relative: &str,
+    anchor: Option<&str>,
+    out: &mut Vec<String>,
+) {
+    let resolved = PathBuf::from(relative);
+    let is_file = repo.contains_key(&resolved);
+    let exists = is_file
+        || repo
+            .keys()
+            .any(|k| k.starts_with(&resolved) && k != &resolved);
+    if !exists {
+        out.push(site.report(format!("broken link `{}`", site.target)));
+        return;
+    }
+    if repo.get(&resolved).is_some_and(|text| text == SYMLINK_TEXT) {
+        out.push(site.report(format!("link `{}` targets a tracked symlink", site.target)));
+        return;
+    }
+    let Some(anchor) = anchor.filter(|a| !a.is_empty()) else {
+        return;
+    };
+    if !is_file || !is_markdown(&resolved) {
+        return;
+    }
+    match bodies.get(&resolved) {
+        Some(body) if body.has_anchor(anchor) => {}
+        Some(_) => out.push(site.report(format!("broken anchor `{}`", site.target))),
+        None => out.push(site.report(format!(
+            "link `{}` targets `{relative}`, which cannot be read as Markdown",
+            site.target
+        ))),
+    }
+}
+
+fn check_links(
+    repo: &Repo,
+    bodies: &BTreeMap<PathBuf, Body>,
+    path: &Path,
+    body: &Body,
+    out: &mut Vec<String>,
+) {
+    for link in body.links() {
+        let site = Site {
+            path,
+            line: link.line(),
+            target: link.target(),
+        };
+        match link.target_in(name(path)) {
+            Err(error) => out.push(site.report(error)),
+            Ok(LinkTarget::External(_)) => {}
+            Ok(LinkTarget::Fragment(anchor)) => {
+                if !anchor.is_empty() && !body.has_anchor(&anchor) {
+                    out.push(site.report(format!("broken anchor `{}`", site.target)));
                 }
-                None => break,
             }
-        } else if !state.in_tag {
-            let opens = c == '<'
-                && chars
-                    .get(index + 1)
-                    .is_some_and(|n| n.is_alphabetic() || *n == '/');
-            index += 1;
-            if opens {
-                let name_end = skip_while(&chars, index, |x| is_attribute_name_char(x) || x == '/');
-                let autolink = chars
-                    .get(index..name_end)
-                    .unwrap_or_default()
-                    .contains(&':');
-                state.in_tag = !autolink;
-                index = name_end;
-            }
-        } else if c == '>' {
-            state.in_tag = false;
-            index += 1;
-        } else if is_attribute_name_char(c) {
-            index = read_attribute(&chars, index, state, &mut targets);
-        } else if matches!(c, '"' | '\'') {
-            state.quote = Some(c);
-            index += 1;
-        } else {
-            index += 1;
-        }
-    }
-    targets
-}
-
-/// Every link target on one line: inline links and images, reference
-/// definitions. Links are single-line. HTML attributes are read separately,
-/// because a tag may span lines.
-fn link_targets(line: &str) -> Vec<String> {
-    let outside = outside_code(line);
-    let mut targets = Vec::new();
-    let mut rest = outside.as_str();
-    while let Some(start) = rest.find("](") {
-        let after = rest.get(start + 2..).unwrap_or_default();
-        let Some(end) = after.find(')') else { break };
-        let raw = after.get(..end).unwrap_or_default().trim();
-        let target = raw.split_once(' ').map_or(raw, |(t, _)| t);
-        targets.push(target.trim_matches(['<', '>']).to_string());
-        rest = after.get(end..).unwrap_or_default();
-    }
-    targets.extend(definition_target(&outside));
-    targets
-}
-
-fn normalize(base: &Path, target: &str) -> Option<PathBuf> {
-    let mut parts: Vec<std::ffi::OsString> = base
-        .parent()
-        .map(|p| p.iter().map(ToOwned::to_owned).collect())
-        .unwrap_or_default();
-    for component in Path::new(target).components() {
-        match component {
-            Component::Normal(name) => parts.push(name.to_os_string()),
-            Component::ParentDir => {
-                parts.pop()?;
-            }
-            Component::CurDir => {}
-            Component::RootDir | Component::Prefix(_) => return None,
-        }
-    }
-    Some(parts.into_iter().collect())
-}
-
-fn check_links(repo: &Repo, path: &Path, text: &str, out: &mut Vec<String>) {
-    let mut tags = TagState::default();
-    for (number, line, fenced) in fenced_lines(text) {
-        if fenced || line.trim().is_empty() {
-            // Inline HTML cannot span a blank line or a fence.
-            tags = TagState::default();
-            continue;
-        }
-        let attributes = html_attribute_targets(&outside_code(line), &mut tags);
-        for target in link_targets(line).into_iter().chain(attributes) {
-            if target.is_empty()
-                || target.contains("://")
-                || target.starts_with("mailto:")
-                || target.starts_with("tel:")
-            {
-                continue;
-            }
-            let (file_part, anchor) = match target.split_once('#') {
-                Some((f, a)) => (f, Some(a)),
-                None => (target.as_str(), None),
-            };
-            let resolved = if file_part.is_empty() {
-                Some(path.to_path_buf())
-            } else {
-                normalize(path, file_part)
-            };
-            let Some(resolved) = resolved else {
-                out.push(violation(
-                    path,
-                    format!("line {number}: link `{target}` leaves the repository"),
-                ));
-                continue;
-            };
-            let exists = repo.contains_key(&resolved)
-                || repo
-                    .keys()
-                    .any(|k| k.starts_with(&resolved) && k != &resolved);
-            if !exists {
-                out.push(violation(
-                    path,
-                    format!("line {number}: broken link `{target}`"),
-                ));
-                continue;
-            }
-            if repo.get(&resolved).is_some_and(|text| text == SYMLINK_TEXT) {
-                out.push(violation(
-                    path,
-                    format!("line {number}: link `{target}` targets a tracked symlink"),
-                ));
-                continue;
-            }
-            let is_markdown = resolved.extension().is_some_and(|e| e == "md");
-            if let (Some(anchor), Some(content), true) = (
-                anchor.filter(|a| !a.is_empty()),
-                repo.get(&resolved),
-                is_markdown,
-            ) && !anchors(content).contains(anchor)
-            {
-                out.push(violation(
-                    path,
-                    format!("line {number}: broken anchor `{target}`"),
-                ));
-            }
+            Ok(LinkTarget::Relative {
+                path: relative,
+                anchor,
+            }) => check_relative(repo, bodies, &site, &relative, anchor.as_deref(), out),
+            Ok(other) => out.push(site.report(format!("unmodelled link target {other:?}"))),
         }
     }
 }
 
-fn find_cycles(capabilities: &[Capability], out: &mut Vec<String>) {
+// ---------------------------------------------------------------------------
+// Cross-document checks
+// ---------------------------------------------------------------------------
+
+fn find_cycles(capabilities: &[CapabilityFacts], out: &mut Vec<String>) {
     let graph: BTreeMap<&str, (&Path, &[String])> = capabilities
         .iter()
         .map(|c| (c.id.as_str(), (c.path.as_path(), c.depends.as_slice())))
@@ -1457,14 +492,13 @@ fn find_cycles(capabilities: &[Capability], out: &mut Vec<String>) {
 
 /// State rules for one capability: PROPOSED blocks, their `affects` entries
 /// and the open change record.
-fn check_capability_state(
-    cap: &Capability,
-    found: &Found,
-    markers: &[Marker],
-    out: &mut Vec<String>,
-) {
-    let proposed: Vec<&Marker> = markers.iter().filter(|m| m.path == cap.path).collect();
-    let listing: Vec<&Change> = found
+fn check_capability_state(cap: &CapabilityFacts, found: &Found, out: &mut Vec<String>) {
+    let proposed: Vec<&Marker> = found
+        .markers
+        .iter()
+        .filter(|m| m.path == cap.path)
+        .collect();
+    let listing: Vec<&ChangeFacts> = found
         .changes
         .iter()
         .filter(|c| c.changes.contains(&cap.id))
@@ -1491,22 +525,26 @@ fn check_capability_state(
                     ));
                 }
             }
-            None => out.push(violation(
-                &cap.path,
-                "a PROPOSED block must sit inside one of the seven sections",
-            )),
+            // `Profile::validate` reports a block outside a section first and
+            // then returns no typed capability, so a capability that reaches
+            // this check has every block inside a section.
+            None => panic!(
+                "{}: PROPOSED block `{}` outside a section reached a validated capability",
+                cap.path.display(),
+                marker.slug
+            ),
         }
     }
-    match cap.state.as_str() {
-        "considered" if proposed.is_empty() => out.push(violation(
+    match cap.state {
+        State::Considered if proposed.is_empty() => out.push(violation(
             &cap.path,
             "state considered requires its candidate contract in PROPOSED blocks",
         )),
-        "designed" if !proposed.is_empty() => out.push(violation(
+        State::Designed if !proposed.is_empty() => out.push(violation(
             &cap.path,
             "state designed must have no PROPOSED blocks",
         )),
-        "delivered" => {
+        State::Delivered => {
             if !proposed.is_empty() {
                 out.push(violation(
                     &cap.path,
@@ -1523,20 +561,21 @@ fn check_capability_state(
                 ));
             }
         }
-        _ => {}
+        State::Considered | State::Designed | State::Implementing => {}
     }
-    if cap.state != "delivered" && listing.is_empty() {
+    if cap.state != State::Delivered && listing.is_empty() {
         out.push(violation(
             &cap.path,
             format!(
                 "state {} requires an open change record listing {}",
-                cap.state, cap.id
+                cap.state.name(),
+                cap.id
             ),
         ));
     }
 }
 
-fn check_cross_references(repo: &Repo, found: &Found, markers: &[Marker], out: &mut Vec<String>) {
+fn check_cross_references(repo: &Repo, found: &Found, out: &mut Vec<String>) {
     let ids: BTreeSet<&str> = found.capabilities.iter().map(|c| c.id.as_str()).collect();
     for cap in &found.capabilities {
         for dep in &cap.depends {
@@ -1556,7 +595,7 @@ fn check_cross_references(repo: &Repo, found: &Found, markers: &[Marker], out: &
             }
         }
     }
-    for marker in markers {
+    for marker in &found.markers {
         let record = PathBuf::from(format!("work/changes/{}.md", marker.slug));
         if !repo.contains_key(&record) {
             out.push(violation(
@@ -1567,15 +606,9 @@ fn check_cross_references(repo: &Repo, found: &Found, markers: &[Marker], out: &
                 ),
             ));
         }
-        if expected_type(&marker.path) != Some("Capability") {
-            out.push(violation(
-                &marker.path,
-                "PROPOSED marker outside a capability",
-            ));
-        }
     }
     for cap in &found.capabilities {
-        check_capability_state(cap, found, markers, out);
+        check_capability_state(cap, found, out);
     }
     let change_slugs: BTreeSet<&str> = found.changes.iter().map(|c| c.slug.as_str()).collect();
     for change in &found.changes {
@@ -1590,79 +623,9 @@ fn check_cross_references(repo: &Repo, found: &Found, markers: &[Marker], out: &
     }
 }
 
-/// True for a line that opens with a real SPDX tag.
-fn is_spdx_tag(text: &str) -> bool {
-    ["SPDX-FileCopyrightText:", "SPDX-License-Identifier:"]
-        .iter()
-        .any(|tag| text.strip_prefix(tag).is_some_and(|v| !v.trim().is_empty()))
-}
-
-/// Why the text is not a generated capability index, or `None` when it is.
-///
-/// Apart from a leading HTML comment of SPDX lines, every non-blank line lies
-/// inside a generated block, and each block marker starts its own line.
-fn index_problem(text: &str) -> Option<String> {
-    let mut in_header = false;
-    let mut header_done = false;
-    let mut open = false;
-    let mut blocks = 0_usize;
-    for (index, line) in text.lines().enumerate() {
-        let number = index + 1;
-        let trimmed = line.trim();
-        if in_header {
-            if trimmed == "-->" {
-                in_header = false;
-            } else if !is_spdx_tag(trimmed) {
-                return Some(format!(
-                    "line {number}: the header comment holds more than SPDX tags"
-                ));
-            }
-            continue;
-        }
-        let spdx_line = trimmed
-            .strip_prefix("<!--")
-            .and_then(|rest| rest.strip_suffix("-->"))
-            .is_some_and(|inner| is_spdx_tag(inner.trim()));
-        if trimmed.is_empty() || (!open && blocks == 0 && spdx_line) {
-            continue;
-        }
-        if !open && blocks == 0 && !header_done && line == "<!--" {
-            in_header = true;
-            header_done = true;
-            continue;
-        }
-        if line.starts_with(GENERATED_OPEN) {
-            let kind = line
-                .strip_prefix(GENERATED_OPEN)
-                .and_then(|rest| rest.strip_suffix(" -->"));
-            match kind {
-                Some(GENERATED_END) if open => open = false,
-                Some(kind) if kind != GENERATED_END && is_kebab(kind) && !open => {
-                    open = true;
-                    blocks += 1;
-                }
-                _ => return Some(format!("line {number}: malformed or misplaced marker")),
-            }
-        } else if !open {
-            return Some(format!("line {number}: text outside a generated block"));
-        }
-    }
-    if open {
-        Some("a generated block is never closed".to_string())
-    } else if blocks == 0 {
-        Some("it holds no generated block".to_string())
-    } else {
-        None
-    }
-}
-
-fn is_markdown(path: &Path) -> bool {
-    path.extension().is_some_and(|e| e == "md")
-}
-
 fn check_directories(repo: &Repo, out: &mut Vec<String>) {
     for path in repo.keys() {
-        let parts: Vec<&str> = path.iter().filter_map(|p| p.to_str()).collect();
+        let parts: Vec<&str> = name(path).split('/').collect();
         let typed_directory = matches!(
             parts.as_slice(),
             ["docs", "capabilities" | "architecture", _, ..] | ["work", "changes", _, ..]
@@ -1673,62 +636,108 @@ fn check_directories(repo: &Repo, out: &mut Vec<String>) {
                 "only Markdown documents belong in a document directory",
             ));
         }
-        if !is_scanned(path) {
-            continue;
-        }
-        if typed_directory && parts.len() > 3 {
+        if is_scanned(path) && typed_directory && parts.len() > 3 {
             out.push(violation(
                 path,
                 "documents must sit directly in their directory",
             ));
         }
-        if is_capability_index(path)
-            && let Some(problem) = repo.get(path).and_then(|t| index_problem(t))
-        {
-            out.push(violation(
-                path,
-                format!("a hand-written capability index is not allowed: {problem}"),
-            ));
-        }
     }
 }
 
+/// What the checker found: every violation, and the facts the binding check
+/// and the counts use.
+struct Analysis {
+    violations: Vec<String>,
+    found: Found,
+}
+
 /// Check every rule of the profile over an in-memory repository.
-fn check(repo: &Repo) -> Vec<String> {
+fn analyse(repo: &Repo) -> Analysis {
     let mut out = Vec::new();
     let mut found = Found::default();
-    let mut markers = Vec::new();
     check_directories(repo, &mut out);
     for (path, _) in repo.iter().filter(|(_, text)| *text == SYMLINK_TEXT) {
-        out.push(violation(
-            path,
-            "a tracked symlink is not allowed".to_string(),
-        ));
+        out.push(violation(path, "a tracked symlink is not allowed"));
     }
-    let files = || repo.iter().filter(|(_, text)| *text != SYMLINK_TEXT);
-    for (path, text) in files().filter(|(p, _)| is_markdown(p)) {
-        check_links(repo, path, text, &mut out);
+    let mut bodies: BTreeMap<PathBuf, Body> = BTreeMap::new();
+    for (path, text) in repo
+        .iter()
+        .filter(|(path, text)| *text != SYMLINK_TEXT && is_markdown(path))
+    {
+        if let Some(body) = read_markdown(path, text, &mut found, &mut out) {
+            bodies.insert(path.clone(), body);
+        }
     }
-    for (path, text) in files().filter(|(p, _)| is_scanned(p)) {
-        scan_banned(path, text, &mut out);
-        scan_placeholders(path, text, &mut out);
-        scan_markers(path, text, &mut markers, &mut out);
-        check_document(path, text, &mut found, &mut out);
+    for (path, body) in &bodies {
+        check_links(repo, &bodies, path, body, &mut out);
     }
-    check_cross_references(repo, &found, &markers, &mut out);
+    check_cross_references(repo, &found, &mut out);
     out.sort();
     out.dedup();
+    Analysis {
+        violations: out,
+        found,
+    }
+}
+
+fn check(repo: &Repo) -> Vec<String> {
+    analyse(repo).violations
+}
+
+// ---------------------------------------------------------------------------
+// Bindings
+// ---------------------------------------------------------------------------
+
+/// Resolve every binding of every capability in the source index. A binding
+/// that names nothing, names two things, or goes through a cycle is a
+/// violation that names the capability and the binding.
+fn check_bindings(found: &Found, workspace: &Workspace) -> Vec<String> {
+    let mut out = Vec::new();
+    for cap in &found.capabilities {
+        let lists = [
+            ("code", &cap.bindings.code),
+            ("tests", &cap.bindings.tests),
+            ("examples", &cap.bindings.examples),
+        ];
+        for (kind, bindings) in lists {
+            for binding in bindings {
+                if let Err(error) = workspace.resolve(binding) {
+                    out.push(violation(
+                        &cap.path,
+                        format!(
+                            "{} {kind} binding `{binding}` does not resolve: {error}",
+                            cap.id
+                        ),
+                    ));
+                }
+            }
+        }
+    }
     out
 }
+
+// ---------------------------------------------------------------------------
+// Inventory
+// ---------------------------------------------------------------------------
 
 /// The `id` and `state` of the document at `path`, or why it cannot be read.
 fn identity(repo: &Repo, path: &str) -> Result<(String, Option<String>), String> {
     let text = repo.get(Path::new(path)).ok_or("the document is missing")?;
-    let doc = parse_document(text)
-        .ok_or("the document has no frontmatter")?
-        .map_err(|e| format!("unparseable frontmatter: {e}"))?;
-    let id = scalar_field(&doc, "id").unwrap_or_default().to_string();
-    Ok((id, scalar_field(&doc, "state").map(str::to_string)))
+    let document = Document::parse(text).map_err(|error| match error.kind() {
+        ErrorKind::MissingFence => "the document has no frontmatter".to_string(),
+        _ => format!("unparseable document: {error}"),
+    })?;
+    let scalar = |key: &str| {
+        document
+            .frontmatter()
+            .map()
+            .get(key)
+            .and_then(|entry| entry.value().as_scalar())
+            .map(|scalar| scalar.text().to_string())
+    };
+    let id = scalar("id").ok_or("the document has no `id`")?;
+    Ok((id, scalar("state")))
 }
 
 /// Compare the tree with the inventory: every listed document exists with the
@@ -1750,12 +759,13 @@ fn check_inventory(repo: &Repo, inventory: &Inventory) -> Vec<String> {
                 if let Some(state) = state
                     && found_state.as_deref() != Some(state)
                 {
+                    let found = match &found_state {
+                        Some(found) => found.as_str(),
+                        None => "<no state>",
+                    };
                     out.push(violation(
                         Path::new(&path),
-                        format!(
-                            "inventory expects state `{state}`, found `{}`",
-                            found_state.unwrap_or_default()
-                        ),
+                        format!("inventory expects state `{state}`, found `{found}`"),
                     ));
                 }
             }
@@ -1785,7 +795,7 @@ fn check_inventory(repo: &Repo, inventory: &Inventory) -> Vec<String> {
     }
     for path in repo.keys().filter(|p| is_markdown(p)) {
         let known = path.to_str().is_some_and(|p| listed.contains(p));
-        if expected_type(path).is_some() && !known && !is_capability_index(path) {
+        if expected_type(path).is_some() && !known && !is_capability_index(name(path)) {
             out.push(violation(
                 path,
                 "the document is not in the inventory table",
@@ -1793,20 +803,6 @@ fn check_inventory(repo: &Repo, inventory: &Inventory) -> Vec<String> {
         }
     }
     out
-}
-
-/// Count the valid-looking OKF documents by declared type.
-fn document_types(repo: &Repo) -> BTreeMap<String, usize> {
-    let mut counts = BTreeMap::new();
-    for (path, text) in repo.iter().filter(|(p, _)| is_scanned(p)) {
-        if let Some(Ok(doc)) = parse_document(text)
-            && let Some(kind) = scalar_field(&doc, "type")
-        {
-            *counts.entry(kind.to_string()).or_insert(0) += 1;
-            let _ = path;
-        }
-    }
-    counts
 }
 
 // ---------------------------------------------------------------------------
@@ -1817,7 +813,8 @@ fn document_types(repo: &Repo) -> BTreeMap<String, usize> {
 ///
 /// # Panics
 ///
-/// Panics when `git` cannot run or exits unsuccessfully.
+/// Panics when `git` cannot run, exits unsuccessfully or lists an entry that
+/// is not `<mode> <object> <stage>\t<path>` in UTF-8.
 fn tracked_symlinks() -> Vec<PathBuf> {
     let output = std::process::Command::new("git")
         .arg("-C")
@@ -1833,10 +830,16 @@ fn tracked_symlinks() -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = output
         .stdout
         .split(|b| *b == 0)
+        .filter(|entry| !entry.is_empty())
         .filter_map(|entry| {
             // Each entry is `<mode> <object> <stage>\t<path>`.
-            let text = std::str::from_utf8(entry).ok()?;
-            let (meta, path) = text.split_once('\t')?;
+            let text = match std::str::from_utf8(entry) {
+                Ok(text) => text,
+                Err(e) => panic!("`git ls-files -s -z` entry is not UTF-8: {e}"),
+            };
+            let Some((meta, path)) = text.split_once('\t') else {
+                panic!("`git ls-files -s -z` entry has no tab: {text:?}");
+            };
             meta.starts_with("120000 ").then(|| PathBuf::from(path))
         })
         .collect();
@@ -1856,9 +859,10 @@ fn load_repo(root: &Path) -> Repo {
                 SYMLINK_TEXT.to_string()
             } else if path.extension().is_some_and(|e| e == "md") {
                 let bytes = read_tracked(root, &path);
-                decode_text(&bytes)
-                    .unwrap_or_else(|| panic!("{} is not UTF-8 text", path.display()))
-                    .to_string()
+                match decode_text(&bytes) {
+                    Some(text) => text.to_string(),
+                    None => panic!("{} is not UTF-8 text", path.display()),
+                }
             } else {
                 String::new()
             };
@@ -1871,29 +875,54 @@ fn load_repo(root: &Path) -> Repo {
 // Tests
 // ---------------------------------------------------------------------------
 
+fn report(violations: &[String]) -> String {
+    let mut report = String::new();
+    for v in violations {
+        let _ = writeln!(report, "  {v}");
+    }
+    report
+}
+
 #[test]
 fn repository_documents_satisfy_the_profile() {
     let repo = load_repo(&gate_root());
-    let mut violations = check(&repo);
+    let analysis = analyse(&repo);
+    let mut violations = analysis.violations;
     violations.extend(check_inventory(&repo, &INVENTORY));
-    let mut report = String::new();
-    for v in &violations {
-        let _ = writeln!(report, "  {v}");
-    }
     assert!(
         violations.is_empty(),
-        "{} profile violations:\n{report}",
-        violations.len()
+        "{} profile violations:\n{}",
+        violations.len(),
+        report(&violations)
     );
-    let types = document_types(&repo);
-    for kind in ["Architecture", "Capability", "Change"] {
-        assert!(
-            types.get(kind).copied().unwrap_or(0) >= 1,
-            "no {kind} document found; found types: {types:?}"
-        );
+    for (kind, count) in [
+        ("Architecture", analysis.found.architecture),
+        ("Capability", analysis.found.capabilities.len()),
+        ("Change", analysis.found.changes.len()),
+    ] {
+        assert!(count >= 1, "no {kind} document found");
     }
 }
 
+#[test]
+fn repository_bindings_resolve_in_the_source_index() -> Result<(), Box<dyn Error>> {
+    let root = gate_root();
+    let analysis = analyse(&load_repo(&root));
+    let workspace = Workspace::load(&DiskTree::new(&root)?, &["crates"])?;
+    // A load that found nothing would pass the check below, so require known
+    // symbols first.
+    for symbol in ["raf_okf::Document", "raf_source::Workspace"] {
+        workspace.resolve(symbol)?;
+    }
+    let violations = check_bindings(&analysis.found, &workspace);
+    assert!(
+        violations.is_empty(),
+        "{} unresolved bindings:\n{}",
+        violations.len(),
+        report(&violations)
+    );
+    Ok(())
+}
 mod fixtures {
     use super::{Path, PathBuf, Repo, check};
 
@@ -2007,28 +1036,32 @@ fn assert_hit(violations: &[String], needle: &str) {
 
 #[test]
 fn accepts_valid_fixture() {
-    let violations = check(&valid());
-    assert!(violations.is_empty(), "{violations:#?}");
-    let types = document_types(&valid());
-    assert_eq!(types.get("Capability"), Some(&3));
-    assert_eq!(types.get("Change"), Some(&1));
-    assert_eq!(types.get("Architecture"), Some(&1));
+    let analysis = analyse(&valid());
+    assert!(analysis.violations.is_empty(), "{:#?}", analysis.violations);
+    assert_eq!(analysis.found.capabilities.len(), 3);
+    assert_eq!(analysis.found.changes.len(), 1);
+    assert_eq!(analysis.found.architecture, 1);
 }
 
 #[test]
-fn parses_quoted_and_block_forms() {
-    let doc = parse_document("---\n# note\ntype: X\ntitle: 'It''s'\nitems:\n  - claim: \"a: b\"\n    outcome: dropped\nlist:\n  - one\n  - two\n---\nbody")
-        .expect("has frontmatter")
-        .expect("parses");
-    assert_eq!(doc.fields.get("title"), Some(&Value::Scalar("It's".into())));
-    assert_eq!(
-        doc.fields.get("list"),
-        Some(&Value::List(vec!["one".into(), "two".into()]))
-    );
-    let Some(Value::Items(items)) = doc.fields.get("items") else {
-        panic!("items did not parse");
-    };
-    assert_eq!(items[0].get("claim").map(String::as_str), Some("a: b"));
+fn accepts_quoted_and_block_forms() {
+    assert_clean(&mutated(OVERVIEW, "title: Overview", "title: 'It''s'"));
+    assert_clean(&mutated(OVERVIEW, "title: Overview", "title: \"a: b\""));
+    assert_clean(&mutated(
+        ALPHA,
+        "depends: [cap:beta]",
+        "depends:\n  - cap:beta",
+    ));
+    assert_clean(&mutated(
+        CHANGE,
+        "claim: \"alpha reads input\"\n    outcome: implemented",
+        "claim: \"a: b\"\n    outcome: dropped",
+    ));
+    assert_clean(&mutated(
+        OVERVIEW,
+        "title: Overview",
+        "# note\ntitle: Overview\ntags:\n  - one\n  - two",
+    ));
 }
 
 #[test]
@@ -2038,7 +1071,7 @@ fn rejects_unparseable_frontmatter() {
         "title: Overview",
         "title Overview",
     );
-    assert_hit(&violations, "unparseable frontmatter");
+    assert_hit(&violations, "unparseable document: line 4");
 }
 
 #[test]
@@ -2078,7 +1111,7 @@ fn rejects_scalar_tags() {
         "title: Overview",
         "title: Overview\ntags: a",
     );
-    assert_hit(&violations, "`tags` must be a list");
+    assert_hit(&violations, "`tags`: must be a list of strings");
 }
 
 #[test]
@@ -2108,7 +1141,10 @@ fn rejects_type_in_the_wrong_directory() {
         "type: Architecture",
         "type: Change",
     );
-    assert_hit(&violations, "not allowed here");
+    assert_hit(
+        &violations,
+        "`type`: a Change document belongs directly in work/changes",
+    );
 }
 
 #[test]
@@ -2138,7 +1174,7 @@ fn rejects_wrong_bindings_keys() {
         "  examples: []\n",
         "  docs: []\n",
     );
-    assert_hit(&violations, "bindings must have exactly");
+    assert_hit(&violations, "bindings must have exactly the keys");
 }
 
 #[test]
@@ -2148,13 +1184,13 @@ fn rejects_missing_section() {
         "## Usage\n\nText for Usage.\n\n",
         "",
     );
-    assert_hit(&violations, "missing section `Usage`");
+    assert_hit(&violations, "section `Usage`: missing section");
 }
 
 #[test]
 fn rejects_sections_out_of_order() {
     let violations = mutated("docs/capabilities/alpha.md", "## Purpose", "## Swap");
-    assert_hit(&violations, "unexpected section `Swap`");
+    assert_hit(&violations, "section `Swap`: unexpected section");
     let mut repo = valid();
     let text = repo
         .get_mut(Path::new("docs/capabilities/alpha.md"))
@@ -2169,7 +1205,7 @@ fn rejects_sections_out_of_order() {
 #[test]
 fn rejects_empty_section() {
     let violations = mutated("docs/capabilities/alpha.md", "Text for Examples.\n", "");
-    assert_hit(&violations, "section `Examples` is empty");
+    assert_hit(&violations, "section `Examples`: section is empty");
 }
 
 #[test]
@@ -2243,9 +1279,21 @@ fn rejects_link_leaving_the_repository() {
 
 #[test]
 fn anchors_follow_github_rules() {
-    assert_eq!(github_anchor("Why `x`: it's (fine)"), "why-x-its-fine");
-    let dup = anchors("## Same\n\n## Same\n");
-    assert!(dup.contains("same") && dup.contains("same-1"));
+    let target = "# Target\n\n## Why `x`: it's (fine)\n\n## Same\n\n## Same\n";
+    let link = |anchor: &str| {
+        let mut repo = valid();
+        repo.insert(PathBuf::from("TARGET.md"), target.to_string());
+        repo.insert(
+            PathBuf::from("LINKS.md"),
+            format!("[a](TARGET.md#{anchor})\n"),
+        );
+        check(&repo)
+    };
+    for anchor in ["why-x-its-fine", "same", "same-1", "target"] {
+        assert_clean(&link(anchor));
+    }
+    assert_hit(&link("same-2"), "broken anchor `TARGET.md#same-2`");
+    assert_hit(&link("Why-x-its-fine"), "broken anchor");
 }
 
 #[test]
@@ -2298,8 +1346,8 @@ fn rejects_open_capability_without_change_record() {
 fn rejects_delivered_with_proposed_block() {
     let violations = mutated(
         "docs/capabilities/gamma.md",
-        "# gamma\n",
-        "# gamma\n\n> [!PROPOSED change:add-alpha]\n> Left over.\n",
+        "Text for Purpose.\n",
+        "Text for Purpose.\n\n> [!PROPOSED change:add-alpha]\n> Left over.\n",
     );
     assert_hit(&violations, "delivered must have no PROPOSED blocks");
 }
@@ -2379,7 +1427,7 @@ fn accepts_moved_outcome() {
 #[test]
 fn rejects_change_without_summary() {
     let violations = mutated("work/changes/add-alpha.md", "## Summary", "## Notes");
-    assert_hit(&violations, "missing section `Summary`");
+    assert_hit(&violations, "section `Summary`: missing section");
 }
 
 #[test]
@@ -2389,7 +1437,7 @@ fn rejects_unclosed_generated_block() {
         "Body text.",
         "Body text.\n\n<!-- raf:generated:matrix -->\n",
     );
-    assert_hit(&violations, "generated block is never closed");
+    assert_hit(&violations, "is never closed");
 }
 
 #[test]
@@ -2472,7 +1520,7 @@ fn rejects_proposed_marker_in_architecture() {
     let violations = mutated("docs/architecture/overview.md", "Body text.", marker);
     assert_hit(
         &violations,
-        "overview.md: PROPOSED marker outside a capability",
+        "overview.md: line 10: PROPOSED block `add-alpha` outside a capability",
     );
 }
 
@@ -2482,7 +1530,7 @@ fn rejects_proposed_marker_in_change() {
     let violations = mutated("work/changes/add-alpha.md", "Adds both.", marker);
     assert_hit(
         &violations,
-        "add-alpha.md: PROPOSED marker outside a capability",
+        "add-alpha.md: line 21: PROPOSED block `add-alpha` outside a capability",
     );
 }
 
@@ -2525,13 +1573,13 @@ fn rejects_resource_key() {
         "title: Overview",
         "title: Overview\nresource: https://example.invalid/overview",
     );
-    assert_hit(&violations, "unknown key `resource`");
+    assert_hit(&violations, "`resource` is not a key of a");
     let violations = mutated(
         "docs/capabilities/alpha.md",
         "state: designed",
         "state: designed\nresource: https://example.invalid/alpha",
     );
-    assert_hit(&violations, "unknown key `resource`");
+    assert_hit(&violations, "`resource` is not a key of a");
 }
 
 // ---------------------------------------------------------------------------
@@ -2601,7 +1649,15 @@ fn inventory_accepts_a_matching_tree() {
 fn inventory_table_has_the_documented_shape() {
     let slugs: BTreeSet<&str> = INVENTORY.capabilities.iter().map(|(s, _)| *s).collect();
     assert_eq!(slugs.len(), 21, "21 capability slugs, each listed once");
-    assert!(slugs.iter().all(|s| is_kebab(s)));
+    assert!(slugs.iter().all(|s| {
+        !s.is_empty()
+            && s.split('-').all(|part| {
+                !part.is_empty()
+                    && part
+                        .chars()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+            })
+    }));
     let count = |wanted: &str| {
         INVENTORY
             .capabilities
@@ -2714,24 +1770,28 @@ fn rejects_sections_left_empty_by_comments() {
         "<!-- a --> <!-- b -->\n",
     ] {
         let violations = mutated(ALPHA, "Text for Examples.\n", comment);
-        assert_hit(&violations, "section `Examples` is empty");
+        assert_hit(&violations, "section `Examples`: section is empty");
     }
     let violations = mutated(CHANGE, "Adds both.\n", "<!-- soon -->\n");
-    assert_hit(&violations, "section `Summary` is empty");
+    assert_hit(&violations, "section `Summary`: section is empty");
     let violations = mutated(
         OVERVIEW,
         "# Overview\n\nBody text.\n",
         "<!-- nothing yet -->\n",
     );
-    assert_hit(&violations, "architecture body is empty");
+    assert_hit(&violations, "the body is empty");
 }
 
 #[test]
-fn comment_stripping_keeps_visible_text() {
-    assert_eq!(strip_html_comments("a <!-- x --> b"), "a  b");
-    assert_eq!(strip_html_comments("a <!-- never closed"), "a ");
-    assert!(!is_blank("<!-- x -->\ntext"));
-    assert!(is_blank("  <!-- x -->\n  "));
+fn comments_hide_text_but_not_the_text_beside_them() {
+    assert_clean(&mutated(
+        ALPHA,
+        "Text for Examples.\n",
+        "<!-- x -->\ntext\n",
+    ));
+    assert_clean(&mutated(ALPHA, "Text for Examples.\n", "a <!-- x --> b\n"));
+    let violations = mutated(ALPHA, "Text for Examples.\n", "  <!-- x -->\n  \n");
+    assert_hit(&violations, "section `Examples`: section is empty");
 }
 
 // --- frontmatter scalars ----------------------------------------------------
@@ -2777,13 +1837,22 @@ fn rejects_unquoted_colon_space() {
 
 #[test]
 fn rejects_leading_indicator_character() {
-    for indicator in ['>', '|', '&', '*', '!', '%', '@', '`'] {
+    for (indicator, needle) in [
+        ('>', "cannot start with the YAML indicator character"),
+        ('|', "cannot start with the YAML indicator character"),
+        ('&', "anchor `&Overview` is not accepted"),
+        ('*', "alias `*Overview` is not accepted"),
+        ('!', "tag `!Overview` is not accepted"),
+        ('%', "cannot start with the YAML indicator character"),
+        ('@', "cannot start with the YAML indicator character"),
+        ('`', "cannot start with the YAML indicator character"),
+    ] {
         let violations = mutated(
             OVERVIEW,
             "title: Overview",
             &format!("title: {indicator}Overview"),
         );
-        assert_hit(&violations, "starts with a YAML indicator character");
+        assert_hit(&violations, needle);
     }
 }
 
@@ -2795,36 +1864,47 @@ fn rejects_block_scalar_indicator_value() {
             "description: How it fits.",
             &format!("description: {indicator}"),
         );
-        assert_hit(&violations, "block scalar indicator");
+        assert_hit(&violations, "block scalar header");
     }
 }
 
 #[test]
 fn accepts_comments_after_scalars() {
-    let doc = parse_document(
-        "---\ntitle: Overview # a note\nquoted: \"a # b\" # c\nsingle: 'It''s # x'  # c\n\
-         hash: a#b\nlist: [one, \"two # 2\"] # c\nempty: # nothing\nitems:\n  - claim: x # c\n---\n",
-    )
-    .expect("has frontmatter")
-    .expect("parses");
-    let scalar_of = |key: &str| scalar_field(&doc, key).map(str::to_string);
-    assert_eq!(scalar_of("title").as_deref(), Some("Overview"));
-    assert_eq!(scalar_of("quoted").as_deref(), Some("a # b"));
-    assert_eq!(scalar_of("single").as_deref(), Some("It's # x"));
-    assert_eq!(scalar_of("hash").as_deref(), Some("a#b"));
-    assert_eq!(scalar_of("empty").as_deref(), Some(""));
-    assert_eq!(
-        list_field(&doc, "list"),
-        Some(&["one".to_string(), "two # 2".to_string()][..])
-    );
-    let violations = mutated(ALPHA, "state: designed", "state: designed # still planned");
-    assert_clean(&violations);
-    let violations = mutated(
+    assert_clean(&mutated(
+        OVERVIEW,
+        "title: Overview",
+        "title: Overview # a note",
+    ));
+    assert_clean(&mutated(
+        OVERVIEW,
+        "title: Overview",
+        "title: \"a # b\" # c\ntags: [one, \"two # 2\"] # c",
+    ));
+    assert_clean(&mutated(
+        OVERVIEW,
+        "description: How it fits.",
+        "description: 'It''s # x' # c",
+    ));
+    assert_clean(&mutated(
+        OVERVIEW,
+        "description: How it fits.",
+        "description: a#b",
+    ));
+    assert_clean(&mutated(
+        CHANGE,
+        "outcome: implemented",
+        "outcome: implemented # done",
+    ));
+    assert_clean(&mutated(
+        ALPHA,
+        "state: designed",
+        "state: designed # still planned",
+    ));
+    assert_clean(&mutated(
         ALPHA,
         "depends: [cap:beta]",
         "depends: [cap:beta] # one edge",
-    );
-    assert_clean(&violations);
+    ));
 }
 
 #[test]
@@ -2850,7 +1930,7 @@ fn rejects_bad_scalars_in_every_value_position() {
             (
                 "depends: [cap:beta]",
                 "depends:\n  - >",
-                "block scalar indicator",
+                "block scalar header",
             ),
             (
                 "  code: []\n",
@@ -2860,7 +1940,7 @@ fn rejects_bad_scalars_in_every_value_position() {
             (
                 "  code: []\n",
                 "  code: [*anchor]",
-                "starts with a YAML indicator",
+                "alias `*anchor` is not accepted",
             ),
         ],
     );
@@ -2886,7 +1966,10 @@ fn rejects_bad_scalars_in_every_value_position() {
             items,
         ),
     );
-    assert_hit(&check(&repo), "starts with a YAML indicator");
+    assert_hit(
+        &check(&repo),
+        "cannot start with the YAML indicator character",
+    );
 }
 
 // --- PROPOSED markers -------------------------------------------------------
@@ -2960,10 +2043,7 @@ fn rejects_proposed_block_outside_a_section() {
         "# beta\n",
         "# beta\n\n> [!PROPOSED change:add-alpha]\n> Early.\n",
     );
-    assert_hit(
-        &violations,
-        "a PROPOSED block must sit inside one of the seven sections",
-    );
+    assert_hit(&violations, "PROPOSED block `add-alpha` outside a section");
 }
 
 // --- bindings by state ------------------------------------------------------
@@ -2971,7 +2051,7 @@ fn rejects_proposed_block_outside_a_section() {
 #[test]
 fn rejects_bindings_before_delivery() {
     for (path, state) in [(ALPHA, "designed"), (BETA, "considered")] {
-        for key in BINDING_KEYS {
+        for key in ["code", "tests", "examples"] {
             let violations = mutated(
                 path,
                 &format!("  {key}: []"),
@@ -2990,10 +2070,13 @@ fn rejects_delivered_without_code_or_test_binding() {
     let violations = mutated(GAMMA, "  code: [src/lib.rs]", "  code: []");
     assert_hit(
         &violations,
-        "state delivered must bind at least one code path",
+        "state delivered must bind at least one `code` entry",
     );
     let violations = mutated(GAMMA, "  tests: [tests/it.rs]", "  tests: []");
-    assert_hit(&violations, "state delivered must bind at least one test");
+    assert_hit(
+        &violations,
+        "state delivered must bind at least one `tests` entry",
+    );
 }
 
 // --- links ------------------------------------------------------------------
@@ -3124,7 +2207,7 @@ fn rejects_typed_document_outside_its_directory() {
         repo.insert(PathBuf::from(path), text.clone());
         assert_hit(
             &check(&repo),
-            &format!("{path}: a {kind} document belongs directly in {home}"),
+            &format!("{path}: `type`: a {kind} document belongs directly in {home}"),
         );
     }
 }
@@ -3167,17 +2250,17 @@ fn rejects_empty_or_non_scalar_title() {
             (
                 "title: \"Title of alpha\"",
                 "title: \"\"",
-                "`title` must be a non-empty string",
+                "`title`: must be a non-empty string",
             ),
             (
                 "title: \"Title of alpha\"",
                 "title: [a, b]",
-                "`title` must be a non-empty string",
+                "`title`: must be a non-empty string",
             ),
             (
                 "description: A description of alpha.",
                 "description:",
-                "`description` must be a non-empty string",
+                "`description`: must be a non-empty string",
             ),
         ],
     );
@@ -3216,12 +2299,12 @@ fn rejects_non_scalar_state_and_scalar_bindings() {
             (
                 "state: designed",
                 "state: [designed]",
-                "`state` must be a scalar",
+                "`state`: must be a scalar",
             ),
             (
                 "bindings:\n  code: []\n  tests: []\n  examples: []\n",
                 "bindings: none\n",
-                "bindings must be a map",
+                "`bindings`: must be",
             ),
         ],
     );
@@ -3235,12 +2318,12 @@ fn rejects_bad_depends_shapes() {
             (
                 "depends: [cap:beta]",
                 "depends: [beta]",
-                "depends entry `beta` is not a cap id",
+                "`depends`: entry `beta` is not a cap id",
             ),
             (
                 "depends: [cap:beta]",
                 "depends: cap:beta",
-                "`depends` must be a list",
+                "`depends`: must be a list of cap ids",
             ),
             (
                 "depends: [cap:beta]",
@@ -3292,17 +2375,17 @@ fn rejects_bad_changes_list() {
             (
                 "changes: [cap:alpha, cap:beta]",
                 "changes: []",
-                "`changes` must be a non-empty list",
+                "`changes`: must be a non-empty list",
             ),
             (
                 "changes: [cap:alpha, cap:beta]",
                 "changes: cap:alpha",
-                "`changes` must be a non-empty list",
+                "`changes`: must be a list of cap ids",
             ),
             (
                 "changes: [cap:alpha, cap:beta]",
                 "changes: [cap:alpha, beta]",
-                "changes entry `beta` is not a cap id",
+                "`changes`: entry `beta` is not a cap id",
             ),
         ],
     );
@@ -3316,7 +2399,7 @@ fn rejects_bad_affects_shapes() {
             (
                 "affects:\n  - cap:alpha#contract\n  - cap:beta#purpose\n",
                 "affects: cap:alpha#contract\n",
-                "`affects` must be a list",
+                "`affects`: must be a list of strings",
             ),
             (
                 "cap:alpha#contract",
@@ -3373,22 +2456,19 @@ fn rejects_item_shape_errors() {
         ("  - claim: \"\"\n", "every item needs a non-empty `claim`"),
         (
             "  - claim: \"x\"\n    claim: \"y\"\n",
-            "duplicate entry key `claim`",
+            "duplicate key `claim`",
         ),
         (
             "  - claim: \"x\"\n  - plain\n",
-            "list mixes scalar and map entries",
+            "a list mixes scalar items and mapping items",
         ),
         (
             "  - plain\n    outcome: dropped\n",
-            "continuation without a map entry",
+            "indentation must be a multiple of two spaces",
         ),
-        (
-            "  - claim: \"x\"\n    !!!\n",
-            "cannot parse list entry line",
-        ),
-        ("  - claim: \"x\"\n  junk\n", "cannot parse list line"),
-        ("  - one\n  - two\n", "`items` must be a list of maps"),
+        ("  - claim: \"x\"\n    !!!\n", "tag `!!!` is not accepted"),
+        ("  - claim: \"x\"\n  junk\n", "expected a `- ` list item"),
+        ("  - one\n  - two\n", "`items`: must be a list of maps"),
     ] {
         let violations = with_items(items);
         assert!(
@@ -3398,7 +2478,7 @@ fn rejects_item_shape_errors() {
     }
     assert_hit(
         &mutated(CHANGE, "items:\n", "items: nothing\nignored_by_test:\n"),
-        "`items` must be a list of maps",
+        "`items`: must be a list of maps",
     );
 }
 
@@ -3410,12 +2490,12 @@ fn rejects_frontmatter_shape_errors() {
             (
                 "title: Overview",
                 "title: Overview\ntitle: Again",
-                "duplicate key `title`",
+                "line 5, column 1: duplicate key `title`",
             ),
             (
                 "title: Overview",
                 "title: Overview\nBad Key: 1",
-                "cannot parse frontmatter line",
+                "line 5, column 1: key `Bad Key` holds characters outside",
             ),
         ],
     );
@@ -3425,28 +2505,32 @@ fn rejects_frontmatter_shape_errors() {
             (
                 "  code: []\n",
                 "  code: []\n  code: []\n",
-                "duplicate map key `code`",
+                "duplicate key `code`",
             ),
             (
                 "  code: []\n",
                 "  code: foo\n",
-                "map value of `code` must be a list",
+                "binding `code` must be a list of strings",
             ),
-            ("  code: []\n", "  code: [a\n", "unterminated inline list"),
+            (
+                "  code: []\n",
+                "  code: [a\n",
+                "flow sequence is not closed",
+            ),
             (
                 "  code: []\n",
                 "  code: [a,,b]\n",
-                "empty entry in inline list",
+                "flow sequence has an empty entry",
             ),
             (
                 "  code: []\n",
                 "  code: []\n    - stray\n",
-                "list item without a key",
+                "line 11, column 3: indentation must be a multiple of two spaces",
             ),
             (
                 "  code: []\n",
                 "  code: []\n      deep\n",
-                "cannot parse map line",
+                "line 11, column 3: indentation must be a multiple of two spaces",
             ),
         ],
     );
@@ -3493,7 +2577,7 @@ fn rejects_generated_marker_errors() {
             (
                 "Body text.",
                 "Body text.\n\n<!-- raf:generated:a -->\n<!-- raf:generated:b -->\n<!-- raf:generated:end -->\n",
-                "generated block inside another generated block",
+                "a generated block opens inside the open block",
             ),
             (
                 "Body text.",
@@ -3763,7 +2847,10 @@ fn rejects_an_index_with_an_indented_marker() {
         let text = format!(
             "{indent}<!-- raf:generated:catalogue -->\n| alpha |\n<!-- raf:generated:end -->\n"
         );
-        assert_hit(&index_repo(&text), "text outside a generated block");
+        assert_hit(
+            &index_repo(&text),
+            "hand-written capability index is not allowed",
+        );
         let text = format!(
             "<!-- raf:generated:catalogue -->\n| alpha |\n{indent}<!-- raf:generated:end -->\n"
         );
@@ -3900,4 +2987,494 @@ fn reads_an_attribute_value_that_starts_on_the_next_line() {
         "# Readme\n",
         &format!("# Readme\n\n{fine}"),
     ));
+}
+
+// --- bindings ---------------------------------------------------------------
+
+const DEMO_LIB: &str = "macro_rules! make {\n    ($name:ident) => {\n        pub fn $name() {}\n    };\n}\nmake!(generated);\npub fn real() {}\n";
+
+fn demo_workspace() -> Workspace {
+    let tree = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+        ),
+        ("src/lib.rs", DEMO_LIB),
+        ("tests/it.rs", "fn case() {}\n"),
+    ]);
+    Workspace::load(&tree, &["."]).expect("the demo workspace loads")
+}
+
+/// The fixture with `gamma` delivered and bound as given.
+fn bound(code: &str, tests: &str, examples: &str) -> Repo {
+    let mut repo = valid();
+    let gamma = repo.get_mut(Path::new(GAMMA)).expect("fixture gamma");
+    *gamma = gamma
+        .replace("  code: [src/lib.rs]", &format!("  code: {code}"))
+        .replace("  tests: [tests/it.rs]", &format!("  tests: {tests}"))
+        .replace("  examples: []", &format!("  examples: {examples}"));
+    repo
+}
+
+fn binding_violations(code: &str, tests: &str, examples: &str) -> Vec<String> {
+    let analysis = analyse(&bound(code, tests, examples));
+    assert_clean(&analysis.violations);
+    check_bindings(&analysis.found, &demo_workspace())
+}
+
+#[test]
+fn bindings_that_name_real_symbols_resolve() {
+    assert_clean(&binding_violations(
+        "[demo::real]",
+        "[demo::test_crate::it::case]",
+        "[demo::real]",
+    ));
+}
+
+#[test]
+fn a_binding_to_a_missing_path_is_reported_with_its_capability() {
+    let violations = binding_violations("[demo::nope]", "[demo::test_crate::it::case]", "[]");
+    assert_eq!(violations.len(), 1, "{violations:#?}");
+    assert_hit(
+        &violations,
+        "docs/capabilities/gamma.md: cap:gamma code binding `demo::nope` does not resolve: `demo::nope` names nothing in the workspace",
+    );
+}
+
+#[test]
+fn a_binding_to_a_macro_generated_function_is_not_found() {
+    let violations = binding_violations("[demo::generated]", "[demo::test_crate::it::case]", "[]");
+    assert_eq!(violations.len(), 1, "{violations:#?}");
+    assert_hit(
+        &violations,
+        "cap:gamma code binding `demo::generated` does not resolve: `demo::generated` names nothing in the workspace",
+    );
+}
+
+#[test]
+fn every_unresolved_binding_of_every_list_is_reported() {
+    let violations = binding_violations(
+        "[demo::real, demo::nope, demo::generated]",
+        "[demo::test_crate::it::missing]",
+        "[demo::real, demo::absent]",
+    );
+    assert_eq!(violations.len(), 4, "{violations:#?}");
+    for needle in [
+        "code binding `demo::nope`",
+        "code binding `demo::generated`",
+        "tests binding `demo::test_crate::it::missing`",
+        "examples binding `demo::absent`",
+    ] {
+        assert_hit(&violations, needle);
+    }
+}
+
+// --- Usage and Examples are the crate documentation tests --------------------
+
+/// A fenced `rust` block: its info string and its code.
+#[derive(Debug, PartialEq, Eq)]
+struct RustBlock {
+    info: String,
+    code: String,
+}
+
+/// The lines between the fence lines of a block of `text`.
+fn fenced_code(text: &str, block: &FencedBlock) -> Result<String, String> {
+    let lines: Vec<&str> = text[block.span().bytes.clone()].lines().collect();
+    match lines.as_slice() {
+        [_, inner @ .., last] if last.trim_start().starts_with("```") => {
+            let mut code = inner.join("\n");
+            code.push('\n');
+            Ok(code)
+        }
+        _ => Err(format!(
+            "the block at line {} is never closed",
+            block.span().lines.start
+        )),
+    }
+}
+
+/// The `rust` blocks of a Markdown text, in order: all of them, or only those
+/// under the second-level sections named in `within`.
+fn rust_blocks(text: &str, within: Option<&[&str]>) -> Result<Vec<RustBlock>, String> {
+    let body = Body::parse(text).map_err(|e| format!("the text does not parse: {e}"))?;
+    let mut blocks = Vec::new();
+    for fenced in body.fenced_blocks() {
+        let start = fenced.span().bytes.start;
+        let wanted = within.is_none_or(|names| {
+            body.sections().iter().any(|section| {
+                names.contains(&section.heading())
+                    && section.content().bytes.start <= start
+                    && start < section.content().bytes.end
+            })
+        });
+        let info = fenced.info();
+        if wanted && (info == "rust" || info.starts_with("rust,")) {
+            blocks.push(RustBlock {
+                info: info.to_string(),
+                code: fenced_code(text, fenced)?,
+            });
+        }
+    }
+    Ok(blocks)
+}
+
+/// The crate-level documentation of a library source as Markdown.
+fn crate_docs(library: &str) -> String {
+    let mut docs = String::new();
+    for line in library.lines().filter_map(|l| l.strip_prefix("//!")) {
+        docs.push_str(line.strip_prefix(' ').map_or(line, |rest| rest));
+        docs.push('\n');
+    }
+    docs
+}
+
+/// The 1-based line where two texts first differ; when one is a prefix of the
+/// other, the line after the shorter one.
+fn first_difference(left: &str, right: &str) -> usize {
+    match left.lines().zip(right.lines()).position(|(a, b)| a != b) {
+        Some(at) => at + 1,
+        None => left.lines().count().min(right.lines().count()) + 1,
+    }
+}
+
+/// Why the Usage and Examples blocks of a capability document are not the
+/// leading crate-level documentation tests of its library, or nothing when they
+/// are.
+fn doctest_problems(document: &str, library: &str) -> Result<Vec<String>, String> {
+    let documented = rust_blocks(document, Some(&["Usage", "Examples"]))?;
+    let doctests = rust_blocks(&crate_docs(library), None)?;
+    let mut problems = Vec::new();
+    if documented.is_empty() {
+        problems.push("the document has no `rust` block under Usage or Examples".to_string());
+    }
+    for (index, block) in documented.iter().enumerate() {
+        let number = index + 1;
+        let Some(doctest) = doctests.get(index) else {
+            problems.push(format!("block {number} has no crate doctest to equal"));
+            continue;
+        };
+        if block.info != doctest.info {
+            problems.push(format!(
+                "block {number} is `{}` in the document and `{}` in the crate",
+                block.info, doctest.info
+            ));
+        }
+        if block.code != doctest.code {
+            let line = first_difference(&block.code, &doctest.code);
+            problems.push(format!(
+                "block {number} differs from the crate doctest at line {line} of the block"
+            ));
+        }
+        if block.info == "rust" && block.code.contains("std::fs") {
+            problems.push(format!("block {number} is run and uses `std::fs`"));
+        }
+        if block.info.contains("no_run") && !document.contains("compiled and not run") {
+            problems.push(format!(
+                "block {number} is not run, and the document does not say why"
+            ));
+        }
+    }
+    Ok(problems)
+}
+
+fn tracked_text(root: &Path, path: &str) -> String {
+    let bytes = read_tracked(root, Path::new(path));
+    match decode_text(&bytes) {
+        Some(text) => text.into_owned(),
+        None => panic!("{path} is not text"),
+    }
+}
+
+const DOCTEST_PAIRS: [(&str, &str); 2] = [
+    (
+        "docs/capabilities/okf-profile.md",
+        "crates/raf-okf/src/lib.rs",
+    ),
+    (
+        "docs/capabilities/source-index.md",
+        "crates/raf-source/src/lib.rs",
+    ),
+];
+
+#[test]
+fn usage_and_examples_blocks_are_the_crate_doctests() -> Result<(), String> {
+    let root = gate_root();
+    for (document, library) in DOCTEST_PAIRS {
+        let problems = doctest_problems(
+            &tracked_text(&root, document),
+            &tracked_text(&root, library),
+        )?;
+        assert!(
+            problems.is_empty(),
+            "{document} against {library}: {problems:#?}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn a_block_that_differs_by_one_line_is_reported() -> Result<(), String> {
+    let root = gate_root();
+    for (document, library) in DOCTEST_PAIRS {
+        let document = tracked_text(&root, document);
+        let library = tracked_text(&root, library);
+        let changed = library.replacen("//! use ", "//! use  ", 1);
+        assert_ne!(changed, library);
+        let problems = doctest_problems(&document, &changed)?;
+        assert_eq!(problems.len(), 1, "{problems:#?}");
+        assert!(
+            problems[0].contains("block 1 differs from the crate doctest"),
+            "{problems:#?}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn doctest_comparison_fixtures() -> Result<(), String> {
+    let document = "## Contract\n\n```rust\nignored();\n```\n\n## Usage\n\n```rust\nlet a = 1;\nlet b = 2;\n```\n";
+    let library = "//! Words.\n//!\n//! ```rust\n//! let a = 1;\n//! let b = 2;\n//! ```\n";
+    assert_eq!(doctest_problems(document, library)?, Vec::<String>::new());
+    let one_line = library.replace("let b = 2;", "let b = 3;");
+    assert_eq!(
+        doctest_problems(document, &one_line)?,
+        ["block 1 differs from the crate doctest at line 2 of the block"]
+    );
+    let other_info = library.replace("```rust", "```rust,no_run");
+    assert_eq!(
+        doctest_problems(document, &other_info)?,
+        ["block 1 is `rust` in the document and `rust,no_run` in the crate"]
+    );
+    assert_eq!(
+        doctest_problems(document, "//! No blocks here.\n")?,
+        ["block 1 has no crate doctest to equal"]
+    );
+    assert_eq!(
+        doctest_problems("## Usage\n\nNo block.\n", library)?,
+        ["the document has no `rust` block under Usage or Examples"]
+    );
+    let reads_files = document.replace("let a = 1;", "std::fs::read(\"x\");");
+    let reads_files_library = library.replace("let a = 1;", "std::fs::read(\"x\");");
+    assert_eq!(
+        doctest_problems(&reads_files, &reads_files_library)?,
+        ["block 1 is run and uses `std::fs`"]
+    );
+    let unexplained = document.replace("```rust\nlet a", "```rust,no_run\nlet a");
+    let unexplained_library = library.replace("```rust", "```rust,no_run");
+    assert_eq!(
+        doctest_problems(&unexplained, &unexplained_library)?,
+        ["block 1 is not run, and the document does not say why"]
+    );
+    let explained = format!("{unexplained}\nThe block is compiled and not run.\n");
+    assert_eq!(
+        doctest_problems(&explained, &unexplained_library)?,
+        Vec::<String>::new()
+    );
+    Ok(())
+}
+
+// --- Markdown outside the profile, read through Body -------------------------
+
+/// The fixture with `text` added at `path`.
+fn with_file(path: &str, text: &str) -> Vec<String> {
+    let mut repo = valid();
+    repo.insert(PathBuf::from(path), text.to_string());
+    check(&repo)
+}
+
+#[test]
+fn rejects_a_link_split_across_lines_in_any_tracked_markdown_file() {
+    for path in [
+        "README.md",
+        "docs/notes.md",
+        ".github/PULL_REQUEST_TEMPLATE.md",
+        "crates/tool/README.md",
+    ] {
+        for (text, needle) in [
+            (
+                "# Notes\n\n[text\nmore](README.md)\n",
+                "line 3: a link split across lines (Inline) is not allowed",
+            ),
+            (
+                "# Notes\n\n[a](\nREADME.md)\n",
+                "line 3: a link split across lines (Inline) is not allowed",
+            ),
+            (
+                "# Notes\n\ntext\n\n![alt\ntext](README.md)\n",
+                "line 5: a link split across lines (Image) is not allowed",
+            ),
+        ] {
+            let violations = with_file(path, text);
+            assert_hit(&violations, &format!("{path}: {needle}"));
+        }
+    }
+}
+
+#[test]
+fn rejects_a_link_split_across_lines_in_a_profile_document() {
+    let violations = mutated(
+        OVERVIEW,
+        "Body text.",
+        "Body text [split\nlink](../../README.md).",
+    );
+    assert_hit(
+        &violations,
+        "docs/architecture/overview.md: line 10: a link split across lines (Inline) is not allowed",
+    );
+    assert_eq!(
+        violations
+            .iter()
+            .filter(|v| v.contains("split across lines"))
+            .count(),
+        1,
+        "{violations:#?}"
+    );
+}
+
+#[test]
+fn accepts_one_line_links_and_links_in_fences_beside_the_split_rule() {
+    let text = "# Notes\n\n[a](README.md) and [b](README.md)\n[c](README.md)\n\n\
+                ```text\n[split\nlink](missing.md)\n```\n\nA `[code span](missing.md)` too.\n";
+    assert_clean(&with_file("NOTES.md", text));
+}
+
+#[test]
+fn rejects_an_empty_link_target() {
+    for (text, line) in [
+        ("# Notes\n\n[a]()\n", 3),
+        ("# Notes\n\n![img]()\n", 3),
+        ("# Notes\n\n[a]( )\n", 3),
+    ] {
+        let violations = with_file("NOTES.md", text);
+        assert_hit(
+            &violations,
+            &format!("NOTES.md: line {line}: the link has an empty target"),
+        );
+    }
+    assert_clean(&with_file(
+        "NOTES.md",
+        "# Notes\n\n[a](#notes) and `[b]()`\n",
+    ));
+}
+
+#[test]
+fn does_not_read_links_or_placeholders_inside_html_comments() {
+    let broken = "<!-- [gone](missing.md) <a href=\"missing.md\">x</a> -->\n";
+    let multi = "<!--\n[gone](missing.md)\n[ref]: ./missing.md\nstill hidden\n-->\n";
+    let token = concat!("T", "BD");
+    let hidden = format!("<!-- {token} and {} -->\n", concat!("to", "do"));
+    for body in [broken, multi, hidden.as_str()] {
+        assert_clean(&with_file("NOTES.md", &format!("# Notes\n\n{body}")));
+    }
+    let violations = mutated(
+        OVERVIEW,
+        "Body text.",
+        &format!("Body text.\n\n{broken}{hidden}"),
+    );
+    assert_clean(&violations);
+    let visible = format!("# Notes\n\n<!-- hidden -->\n[gone](missing.md) {token}\n");
+    let violations = with_file("NOTES.md", &visible);
+    assert_hit(&violations, "NOTES.md: line 4: broken link `missing.md`");
+    assert_hit(&violations, "NOTES.md: line 4: placeholder");
+}
+
+#[test]
+fn reads_placeholders_in_plain_markdown_outside_code() {
+    let token = concat!("fix", "me");
+    let violations = with_file("NOTES.md", &format!("# Notes\n\nStill {token} here.\n"));
+    assert_hit(
+        &violations,
+        &format!("NOTES.md: line 3: placeholder `{token}` is not resolved text"),
+    );
+    let spared = format!("# Notes\n\nUse `{token}` and {token}s.\n\n```text\n{token}\n```\n");
+    assert_clean(&with_file("NOTES.md", &spared));
+}
+
+#[test]
+fn reports_marker_errors_of_plain_markdown_once() {
+    for (text, needle) in [
+        (
+            "# Notes\n\n> [!PROPOSED add-alpha]\n",
+            "NOTES.md: unparseable document: line 3, column 1: malformed PROPOSED marker",
+        ),
+        (
+            "# Notes\n\n<!-- raf:generated:matrix -->\n",
+            "NOTES.md: unparseable document: line 3, column 1: the generated block `matrix` is never closed",
+        ),
+        (
+            "# Notes\n\n<!-- raf:generated:end -->\n",
+            "NOTES.md: unparseable document: line 3, column 1: generated end marker without a start",
+        ),
+    ] {
+        let violations = with_file("NOTES.md", text);
+        assert_hit(&violations, needle);
+        assert_eq!(violations.len(), 1, "{violations:#?}");
+    }
+    let violations = with_file(".github/note.md", "# Note\n\n> [!PROPOSED add-alpha]\n");
+    assert_hit(&violations, ".github/note.md: unparseable document: line 3");
+}
+
+#[test]
+fn reads_a_proposed_block_in_plain_markdown_as_outside_a_capability() {
+    let text = "# Notes\n\n> [!PROPOSED change:add-alpha]\n> Candidate text.\n";
+    let violations = with_file("NOTES.md", text);
+    assert_hit(
+        &violations,
+        "NOTES.md: line 3: PROPOSED block `add-alpha` outside a capability",
+    );
+    let orphan = text.replace("add-alpha", "ghost");
+    assert_hit(
+        &with_file("NOTES.md", &orphan),
+        "NOTES.md: orphan PROPOSED marker: work/changes/ghost.md does not exist",
+    );
+    assert_clean(&with_file(
+        "crates/tool/README.md",
+        "# Tool\n\n> [!PROPOSED change:add-alpha]\n> Candidate text.\n",
+    ));
+}
+
+#[test]
+fn reads_markdown_outside_the_document_directories_with_or_without_frontmatter() {
+    let template = "---\nname: Bug\nabout: Report a bug\ntitle: \"[Bug] \"\n---\n\n# Bug\n\nSee [the overview](../../docs/architecture/overview.md).\n";
+    assert_clean(&with_file(".github/ISSUE_TEMPLATE/bug.md", template));
+    let broken = template.replace("overview.md", "missing.md");
+    assert_hit(
+        &with_file(".github/ISSUE_TEMPLATE/bug.md", &broken),
+        ".github/ISSUE_TEMPLATE/bug.md: line 9: broken link `../../docs/architecture/missing.md`",
+    );
+}
+
+#[test]
+fn rejects_unclosed_frontmatter_in_plain_markdown() {
+    let violations = with_file("NOTES.md", "---\n# Notes\n\nNo closing fence.\n");
+    assert_hit(&violations, "NOTES.md: unparseable document: line 1");
+}
+
+#[test]
+fn rejects_absolute_and_empty_link_targets_beside_relative_ones() {
+    assert_hit(
+        &with_file("NOTES.md", "# Notes\n\n[a](/docs/x.md)\n"),
+        "NOTES.md: line 3: link `/docs/x.md` is an absolute path",
+    );
+    assert_clean(&with_file(
+        "NOTES.md",
+        "# Notes\n\n[a](docs/architecture/overview.md)\n",
+    ));
+}
+
+#[test]
+fn rejects_a_link_whose_target_cannot_be_read_for_its_anchor() {
+    let mut repo = valid();
+    repo.insert(
+        PathBuf::from("BAD.md"),
+        "# Bad\n\n> [!PROPOSED add-alpha]\n".to_string(),
+    );
+    repo.insert(PathBuf::from("LINK.md"), "[a](BAD.md#bad)\n".to_string());
+    let violations = check(&repo);
+    assert_hit(
+        &violations,
+        "LINK.md: line 1: link `BAD.md#bad` targets `BAD.md`, which cannot be read as Markdown",
+    );
+    assert_hit(&violations, "BAD.md: unparseable document");
 }

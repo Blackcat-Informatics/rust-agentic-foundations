@@ -12,6 +12,10 @@ license.workspace = true
 repository.workspace = true
 publish = false
 
+[dev-dependencies]
+raf-okf = { path = "crates/raf-okf", version = "0.1.0" }
+raf-source = { path = "crates/raf-source", version = "0.1.0" }
+
 [lints]
 workspace = true
 

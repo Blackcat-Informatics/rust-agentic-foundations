@@ -181,7 +181,9 @@ with `[lints] workspace = true`:
 RAF plans its own work in the workplan format. This section describes the design.
 Today the document-contract test (`tests/docs_contract.rs`) enforces the format
 on every capability, change and architecture document in `cargo test` and in the
-pre-commit hook; `raf-workplan` takes over once implemented.
+pre-commit hook. It reads them through `raf-okf`, resolves their bindings through
+`raf-source`, and keeps the cross-document rules; `raf-workplan` takes those over
+once implemented.
 
 - **Capability documents** live in `docs/capabilities/<slug>.md`, one per
   capability. Frontmatter carries `type`, `id`, `title`, `description`, `state`

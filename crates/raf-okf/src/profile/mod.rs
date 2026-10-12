@@ -15,6 +15,7 @@ use std::collections::HashSet;
 use crate::document::Document;
 use crate::frontmatter::value::{Entry, ItemValue, Map, Scalar, Value};
 
+pub(crate) use body_rules::placeholders;
 pub use schema::{DocType, KeySpec, ValueKind};
 pub use timestamp::{TimestampError, validate_timestamp};
 pub use typed::{
@@ -683,7 +684,7 @@ fn check_frontmatter_placeholders(check: &mut Check<'_>, map: &Map) {
     for (key, text) in texts {
         // Code spans are spared, as in the prose scan.
         let prose = crate::body::remove_code_spans(text);
-        for token in body_rules::placeholders(&prose) {
+        for token in placeholders(&prose) {
             check.key(
                 key,
                 Rule::Placeholder {

@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The Usage and Examples blocks of the capability document.
+//! The Examples block of the capability document validates as written. That the
+//! Usage and Examples `rust` blocks are the crate documentation tests is checked
+//! once, by the document-contract test of the root package.
 
 use std::path::{Path, PathBuf};
 
@@ -86,32 +88,4 @@ fn the_examples_block_validates_between_fences_and_resource_is_rejected() {
     for spec in DocType::Capability.keys() {
         assert!(message.contains(spec.key), "{message} lacks {}", spec.key);
     }
-}
-
-/// The code of the first `rust` block in the crate documentation of `lib.rs`.
-fn crate_doctest() -> String {
-    let source = include_str!("../src/lib.rs");
-    let docs: Vec<&str> = source
-        .lines()
-        .filter_map(|line| line.strip_prefix("//!"))
-        .map(|line| line.strip_prefix(' ').map_or(line, |rest| rest))
-        .collect();
-    let start = docs
-        .iter()
-        .position(|line| *line == "```rust")
-        .expect("a rust block");
-    let end = docs[start + 1..]
-        .iter()
-        .position(|line| *line == "```")
-        .expect("the block ends");
-    let mut code = docs[start + 1..start + 1 + end].join("\n");
-    code.push('\n');
-    code
-}
-
-#[test]
-fn the_usage_block_is_the_crate_doctest() {
-    let usage = block_under(&capability_document(), "Usage", "rust");
-    assert_eq!(usage, crate_doctest());
-    assert!(!usage.contains("std::fs"), "the block needs no file access");
 }

@@ -227,15 +227,13 @@ pub(crate) fn placeholders(text: &str) -> Vec<&'static str> {
 
 /// The placeholder rule over the prose lines of the body.
 pub(crate) fn check_placeholders(body: &Body, file: &str, out: &mut Vec<Violation>) {
-    for line in body.prose_lines() {
-        for token in placeholders(line.text()) {
-            out.push(Violation {
-                file: file.to_string(),
-                at: Location::Line(line.line()),
-                rule: Rule::Placeholder {
-                    token: token.to_string(),
-                },
-            });
-        }
+    for (line, token) in body.placeholder_lines() {
+        out.push(Violation {
+            file: file.to_string(),
+            at: Location::Line(line),
+            rule: Rule::Placeholder {
+                token: token.to_string(),
+            },
+        });
     }
 }

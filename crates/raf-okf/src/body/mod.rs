@@ -289,6 +289,22 @@ impl Body {
         &self.model.prose
     }
 
+    /// The placeholder tokens in the prose lines, as the 1-based line in the
+    /// whole text and the token, in line order. This is the rule
+    /// [`crate::Profile::validate`] applies to a body: a token is matched
+    /// without regard to case, spacing or dots between letters, and fenced
+    /// code, code spans and HTML comments are not read.
+    #[must_use]
+    pub fn placeholder_lines(&self) -> Vec<(usize, &'static str)> {
+        let mut found = Vec::new();
+        for line in &self.model.prose {
+            for token in crate::profile::placeholders(line.text()) {
+                found.push((line.line(), token));
+            }
+        }
+        found
+    }
+
     /// Replace byte ranges of the body in one pass and read the model again.
     ///
     /// The spans are in whole-text coordinates, as the model returns them;

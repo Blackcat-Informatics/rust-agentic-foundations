@@ -86,7 +86,10 @@ section or the line instead. The rules are:
   nothing is left after its HTML comments and generated blocks are removed;
 - a PROPOSED block appears only in a Capability and only inside a section;
 - no prose line, title, description or item claim holds a placeholder token, and
-  no link is split across lines.
+  no link is split across lines. `Body::placeholder_lines` returns the
+  placeholder tokens of any body, with their lines, by the same rule, so a caller
+  that reads Markdown without frontmatter applies the rule `Profile::validate`
+  applies; fenced code, code spans and HTML comments are not read.
 
 Checks that need other documents, such as whether an id exists or whether a graph is
 acyclic, belong to [the document model](./workplan-document-model.md); `raf-okf`

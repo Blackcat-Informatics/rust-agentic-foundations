@@ -75,6 +75,10 @@ dependencies = [
 [[package]]
 name = "rust-agentic-foundations"
 version = "0.1.0"
+dependencies = [
+ "raf-okf",
+ "raf-source",
+]
 
 [[package]]
 name = "serde_core"
