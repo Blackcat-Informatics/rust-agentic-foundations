@@ -72,7 +72,7 @@ bindings.
 | `docs/architecture/` | Shared current decisions (normal form, OKF profile) |
 | `work/changes/` | In-flight change records |
 | `docs/` | Licensing translations and brand material |
-| `.githooks/`, `.github/` | The pre-commit hook, CI workflow, issue and pull request templates |
+| `.githooks/`, `.github/` | The pre-commit and pre-merge-commit hooks, CI workflow, Dependabot configuration, issue and pull request templates |
 
 ---
 
@@ -102,7 +102,8 @@ make hooks   # point core.hooksPath at .githooks for this clone
 - **Install the hooks with `make hooks`.** The pre-commit hook runs fmt and reuse
   on a checkout of the staged index, and the `repo_gates` and `docs_contract`
   test binaries over that checkout. The binaries are compiled from the working
-  tree, not the index; only the files they judge come from the index.
+  tree, not the index; only the files they judge come from the index. A
+  `pre-merge-commit` hook runs the same gates on merge commits.
 - **`make licenses` and `make issue-refs` run the Rust gates** in
   `tests/repo_gates.rs`, so they are a subset of `make test`. Both gate test
   files share one pattern set and one file list in `tests/support/mod.rs`.
@@ -159,8 +160,10 @@ with `[lints] workspace = true`:
 
 ## 6. The capability-doc workflow
 
-RAF plans its own work in the workplan format. This section describes the design;
-`raf-workplan` enforces it once implemented, and until then reviewers do.
+RAF plans its own work in the workplan format. This section describes the design.
+Today the document-contract test (`tests/docs_contract.rs`) enforces the format
+on every capability, change and architecture document in `cargo test` and in the
+pre-commit hook; `raf-workplan` takes over once implemented.
 
 - **Capability documents** live in `docs/capabilities/<slug>.md`, one per
   capability. Frontmatter carries `type`, `id`, `title`, `description`, `state`

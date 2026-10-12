@@ -50,7 +50,7 @@ and pull requests are welcome.
 
 ```bash
 make check   # fmt, clippy, test, doc, deny, reuse, msrv, licenses, issue-refs
-make hooks   # install the pre-commit hook (core.hooksPath = .githooks)
+make hooks   # install the pre-commit and pre-merge-commit hooks (core.hooksPath = .githooks)
 make help    # list every target
 ```
 
@@ -58,7 +58,8 @@ make help    # list every target
   gates. The pre-commit hook runs fmt and reuse on a checkout of the staged
   index, plus the `repo_gates` and `docs_contract` test binaries over that
   checkout. The binaries are compiled from the working tree, not the index.
-  Never bypass a hook.
+  A `pre-merge-commit` hook runs the same gates on merge commits. Never bypass a
+  hook.
 - **Hooks follow the checkout.** With `core.hooksPath` set to `.githooks`,
   committing on a checked-out branch runs that branch's copy of the hook, so a
   hook change takes effect on the branch that carries it.
