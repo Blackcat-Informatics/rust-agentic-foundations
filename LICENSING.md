@@ -64,7 +64,7 @@ The committed text is byte-pinned (SHA-256
 SPDX license-list corpus, matching the canonical text at
 `license.coscl.org.cn/MulanPSL2`) and verified by `make licenses`.
 
-Unless you explicitly state otherwise, any contribution intentionally
+Unless you explicitly state otherwise, any code contribution intentionally
 submitted for inclusion in the work shall be licensed as above
 (MIT OR Apache-2.0 OR MulanPSL-2.0), without any additional terms or
 conditions.
@@ -100,14 +100,15 @@ or origin are not.
 
 ## Contributions
 
-Contributions to RAF are accepted under **MIT OR Apache-2.0 OR
+Code contributions to RAF are accepted under **MIT OR Apache-2.0 OR
 MulanPSL-2.0** and, under the project CLA, under terms that permit separate
 proprietary/commercial licensing. For the commercial reservation above to
 extend to contributed material, contributors agree to license their
 contributions to Blackcat Informatics® Inc. under terms that permit
-relicensing, including under proprietary terms. A Contributor License
-Agreement may be required before substantial contributions are merged. See
-[`CONTRIBUTING.md`](./CONTRIBUTING.md) for details.
+relicensing, including under proprietary terms. Documentation
+contributions (all `*.md` files) are licensed under CC-BY-4.0. A Contributor
+License Agreement may be required before substantial contributions are
+merged. See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for details.
 
 ## Copyright notice
 
