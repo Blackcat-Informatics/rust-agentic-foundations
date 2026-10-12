@@ -118,6 +118,9 @@ unmapped: job iri-parse fingerprint body:aa11bb22cc33dd44: no member symbol reso
 - The output requires a person to write the `summary` of any row the old ledger did
   not state; the command writes an empty string and the ledger check does not accept
   an empty summary until it is filled in.
+- The legacy ledger and baseline are read with the bounds of
+  [census-ledger](./census-ledger.md): at most 1 MiB each and 32 levels of nesting,
+  with a larger or deeper input refused as a typed error that names the file.
 - The command knows the legacy ledger layouts of the earlier census copies and
   rejects any other layout with a usage error.
 
@@ -140,6 +143,8 @@ silently disappears is a rule that silently stops running.
   the exit code is 1.
 - Dialect fields land in `[job.ext]`, and a registered extension accepts them.
 - The old ledger and baseline are unchanged after the run.
+- A legacy ledger of 1 MiB plus one byte and a baseline nested 33 levels deep each
+  fail with an error that names the file and write no output.
 - The migrated ledger passes the ledger parse with `deny_unknown_fields`, with a
   registered extension for any `[job.ext]` content.
 - A fixture shows `cargo census check` exits 2 on a migrated dialect ledger and names

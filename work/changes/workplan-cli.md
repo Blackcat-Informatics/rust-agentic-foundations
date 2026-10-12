@@ -11,12 +11,14 @@ affects:
   - cap:workplan-cli#usage
   - cap:workplan-cli#examples
   - cap:workplan-cli#verification
+  - cap:workplan-cli#constraints
 contract_effect: changes
 items:
   - claim: "check, status, docs sync, docs preview, change new, impact, reconcile, complete and verify are subcommands."
   - claim: "Exit code 0 means success, 1 findings and 2 a tool failure."
   - claim: "The binary holds no logic beyond calling raf-workplan."
   - claim: "Read-only commands write nothing."
+  - claim: "Root discovery runs cargo metadata --format-version 1 --no-deps --frozen without a shell, and every spawned process takes an argv vector."
 ---
 
 ## Summary

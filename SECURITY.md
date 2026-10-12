@@ -32,10 +32,52 @@ Instead:
 - provide reproduction steps, a proof-of-concept input (a Rust source tree,
   ledger, capability document or manifest), or patches when possible
 
+## Trust model
+
+The checked workspace is **trusted build input**. RAF runs as a dev-dependency or
+as a cargo subcommand inside the workspace it checks, and it executes that
+workspace's cargo configuration exactly as `cargo build` or `cargo test` would:
+`.cargo/config.toml` (including `build.rustc` and `build.rustc-wrapper`),
+`rust-toolchain.toml`, `build.rs` and procedural macros all take effect when RAF
+spawns `cargo`. Running RAF on a checkout therefore carries the same trust as
+building that checkout. RAF is not a sandbox, and running it on a checkout you
+would not build is out of scope.
+
+Parsing is hardened regardless. The in-process parsers read Rust, TOML, YAML and
+Markdown that the reader may not control. The aim is that a hostile file is refused
+with a typed error, and that a failure never passes: a run ends in an error, a correct
+result or an abort, and never in success with a wrong or partial result. The
+guarantees are these, and no wider:
+
+- **Containment.** A file is read only if its canonical path lies inside the canonical
+  workspace root. The one exception is the reference scan, which reads the sources of
+  reference packages by design; each of those files must lie inside the package
+  directory that `cargo metadata` reports for that package. Symlinks that leave the
+  root or package, directory-symlink loops and non-regular files are refused.
+- **Bounds.** Input size and nesting depth are bounded. The design of the source
+  index adds, for Rust source, a recursion pre-scan, a dedicated 64 MiB parse stack
+  and a fuzz target (`parse_source`) with a corpus that `cargo test` replays. These
+  are specified in the source index and are not built yet, because RAF is
+  pre-release. They make memory exhaustion and stack overflow unlikely and do not
+  prove that an overflow cannot happen. A residual stack overflow aborts the run, so
+  the gate fails and never passes, and a file ends in a typed error, a correct and
+  complete index, or an abort, never in success with a wrong or partial index. Report
+  an overflow as a robustness bug: under the trust model above its impact is a failed
+  run and not a breach. The parsers set no time bound.
+- **Subprocesses.** Every spawned `cargo` or `git` process runs with no shell and
+  takes its arguments as an argv vector, and `cargo` runs with `--frozen`. A value
+  taken from a document reaches a process only after resolution against the loaded
+  documents or the source index and a stated pattern, and then in one of three
+  forms: after `--`; inside a single `<rev>:<path>` or `-L<start>,<end>:<path>`
+  argument; or, for a test name that the test harness reads, as a validated filter
+  after `-- --exact --`.
+
+Each spec states its own bounds and exact invocations.
+
+## Security surface
+
 The most relevant security surface for this project is **reading untrusted
-repositories**. RAF's crates are designed to run on developer machines and in CI
-against code and documents the reader may not control. Once implemented, the
-following surfaces apply:
+files**. Once implemented, the following surfaces apply:
 
 - **Rust source parsing** — `syn` parsing of untrusted `.rs` files; resource
   exhaustion from pathological nesting, very large files, or deeply recursive
@@ -44,12 +86,17 @@ following surfaces apply:
   and change frontmatter (YAML), and Markdown bodies; resource exhaustion
   (anchors and aliases, deep nesting, huge documents) and any input that is
   accepted where the strict closed-key schema must reject it.
-- **Path traversal** — `#[path]` attributes and `mod` resolution that escape the
-  workspace root, symlinks that point outside the scanned tree, and relative
-  links in capability documents that resolve outside the repository.
-- **Reference-package scanning** — package resolution through `cargo metadata`
-  and the sources of reference packages read from the Cargo registry or git
-  checkouts; a hostile manifest that redirects the scan.
+- **Path traversal** — `#[path]` attributes, `mod` resolution and explicit
+  `Cargo.toml` target paths that escape the workspace root, symlinks that point
+  outside the scanned tree, non-regular files such as FIFOs, directory-symlink
+  loops, and relative links in capability documents that resolve outside the
+  repository. Every path is canonicalised and must lie inside the canonical workspace
+  root, or inside the reported package directory for a reference package.
+- **Reference-package scanning** — package resolution through
+  `cargo metadata --frozen` and the sources of reference packages read from the
+  local Cargo registry or git checkouts; a hostile manifest that redirects the
+  scan. Resolution executes the workspace's cargo configuration (see the trust
+  model above).
 - **Subprocesses** — the `cargo` and `git` processes the gates spawn: argument
   injection through branch names, paths, package names or document fields,
   and unintended inheritance or leakage of the environment.
@@ -97,6 +144,14 @@ There are currently no publicly disclosed project vulnerabilities resolved in th
 
 - Email: <security@blackcatinformatics.ca>
 - PGP key for encrypted reports:
+- Key fingerprint (RSA 4096, created 2016-12-26, expires 2026-12-24):
+  `52E5 4B13 1C29 7D1E AB14  3BAA 0C54 057C 8F9A 0090`
+- The key's user ID is `Blackcat Informatics Inc. (Secure Inbound Key)
+  <secure@blackcatinformatics.ca>`. It names the `secure@` address, not the
+  `security@` contact address above, so a keyring lookup by the contact address does
+  not match this key. Select the key by fingerprint, and check the fingerprint
+  against this page before encrypting.
+
 ```text
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 Version: GnuPG v2

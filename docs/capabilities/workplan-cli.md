@@ -27,6 +27,22 @@ The binary is `cargo-workplan`, a thin wrapper over `raf-workplan`, parsed with 
 derive. It runs from any directory inside the workspace and finds the root from
 `cargo metadata`.
 
+**Root discovery.** When `--root` is absent, the binary spawns exactly this command,
+directly with no shell, as an argv vector. The program is the one named by `$CARGO`
+when that is set (cargo sets it for a subcommand), and `cargo` from `PATH` otherwise:
+
+```text
+cargo metadata --format-version 1 --no-deps --frozen
+```
+
+`--no-deps` skips dependency resolution, which is not needed to find the root, and
+`--frozen` forbids network access and any change to `Cargo.lock`. No value from a
+document is placed on the command line. Even so, cargo reads the workspace's
+`.cargo/config.toml` and the rustup proxy reads its `rust-toolchain.toml`, so the
+workspace is trusted build input, as it is for `cargo build` (see
+[the security policy](../../SECURITY.md)). The binary reads no JSON beyond the
+`workspace_root` field and bounds the output at 64 MiB.
+
 | Command | Effect |
 | --- | --- |
 | `check` | Run every rule of the [document model](./workplan-document-model.md); print each violation |
@@ -84,6 +100,14 @@ $ echo $?
 - `check`, `status`, `docs preview`, `change impact` and `change reconcile` write
   nothing. `docs sync` writes only generated blocks. `change new` writes one file.
   `change complete` deletes one file.
+- Every process the binary starts, directly or through `raf-workplan`, is spawned
+  with no shell and an argv vector. Each spec that spawns lists its exact
+  invocation, and runs `cargo` with `--frozen`. A value taken from a document
+  reaches a process only after resolution and a stated pattern, and then in one of
+  three forms: after `--`; inside a single `<rev>:<path>` or `-L<start>,<end>:<path>`
+  argument; or as a validated test filter (see
+  [the security policy](../../SECURITY.md)).
+- A slug starts with a lowercase letter or digit; any other slug is a usage error.
 - A command that takes a slug fails with exit 2 when `work/changes/<slug>.md` does
   not exist, except `change new`.
 
@@ -105,6 +129,14 @@ rather than kept by hand.
   repetition and `--format`.
 - A fixture repository per command asserting stdout, files written and the exit code,
   with exit 0, 1 and 2 each exercised: a clean check, a finding, and a missing slug.
+- A root-discovery fixture with a stub named by `$CARGO`, and one on `PATH` with
+  `$CARGO` unset, records the argv and asserts
+  it equals `cargo metadata --format-version 1 --no-deps --frozen`. A second fixture
+  has a `.cargo/config.toml` with `build.rustc` set to a script, and asserts that
+  root discovery does not run the script.
+- A slug argument that begins with `-`, such as `-rf` or `--since=x`, is a usage
+  error with exit 2 before any process is spawned, and is never read as an option by
+  a spawned process.
 - A read-only check: the tree is byte-identical after `check`, `status`,
   `docs preview`, `change impact` and `change reconcile`.
 - A `status` fixture with one capability in each state asserting the grouping and the

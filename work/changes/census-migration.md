@@ -20,6 +20,7 @@ items:
   - claim: "Rows that cannot be mapped are listed and kept as comments in the output."
   - claim: "The old ledger and baseline are never modified."
   - claim: "A migrated dialect ledger is validated and its debt recorded through the repository's census test and xtask, not the CLI."
+  - claim: "Legacy ledger and baseline reads are bounded in file size and nesting depth."
 ---
 
 ## Summary

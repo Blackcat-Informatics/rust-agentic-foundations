@@ -46,6 +46,33 @@ Open questions:
 > whole file. A binding that no longer resolves is listed with the last commit in which
 > it did.
 >
+> **Invocation.** Every `git` process is spawned directly with no shell and with its
+> arguments as an argv vector. The command first runs `git --version` and exits 2 when
+> Git is older than 2.30, the minimum for the suite. The history commands are:
+>
+> ```text
+> git --no-pager log --no-show-signature --follow --format=%H%x1f%aI%x1f%s --since=<date> -- <doc-path>
+> git --no-pager log --no-show-signature -L<start>,<end>:<file> --no-patch --since=<date> --format=%H%x1f%aI%x1f%s --
+> ```
+>
+> `--since=<date>` appears only when `--since` was given, and it sits before the final
+> `--` so that it is an option. `<doc-path>` and `<file>` are repository-relative
+> paths that the command takes from the loaded document set and the
+> [source index](./source-index.md), never from the raw command line. In the first
+> form `--` precedes the path. In the second the path is embedded after the colon in
+> the single `-L` argument, so a path that begins with `-` is a path and not an
+> option. `--no-show-signature` keeps a user's `log.showSignature` from adding lines
+> to the output. The `<id>` argument is matched against the ids of the loaded
+> documents and is never passed to `git`. `--since <date>` must match `YYYY-MM-DD`.
+>
+> Each output line is split with at most two splits at `0x1f` (commit, date, then the
+> rest as the subject), because the subject is text an attacker chose and may contain
+> any byte except a newline. The subject is data and is never interpreted. The
+> command reads at most 16 MiB of `git` output and fails with an error that says so
+> when there is more. It runs against the workspace's repository and Git
+> configuration, which is trusted build input (see
+> [the security policy](../../SECURITY.md)).
+>
 > **Output.** The default output is a table. `--format json` emits the same entries
 > for tools. The command is read only and writes no file.
 
@@ -80,6 +107,10 @@ Open questions:
 > - A history entry always names its commit, so every line is checkable with plain Git.
 > - A shallow clone that cannot answer a query produces an error that says so, and never
 >   a partial list presented as complete.
+> - No `git` process receives text from a document or the command line except as a
+>   validated path (after `--` or inside the single `-L` argument), or as a
+>   `--since=<date>` value that matches `YYYY-MM-DD`. A path that begins with `-` is
+>   treated as a path.
 > - The command does not alter what the capability documents say. History is reached on
 >   request and is never embedded in a document.
 
@@ -111,5 +142,15 @@ sequence of proposals, discarded names and reversals that Git retains.
 >   the report lists that commit only.
 > - A binding whose symbol was deleted: the report names the last commit in which it
 >   resolved.
+> - A path fixture: a document and a bound symbol whose file is named `-rf.rs` (and
+>   one named `--output=x.rs`) produce their history, create no file named `x.rs`,
+>   and a stub `git` on `PATH` records `log --follow ... -- -rf.rs` for the document
+>   form and `-L` carrying the path after the colon for the symbol form.
+> - A record fixture: a commit subject that contains `0x1f` bytes and text that looks
+>   like a hash is reported whole as the subject, and output past 16 MiB is an error.
+> - A Git version fixture: a stub `git --version` reporting 2.29 exits 2 before any
+>   history is read.
+> - An argument fixture: an `<id>` or `--since` value that begins with `-` or does not
+>   match its pattern is a usage error with exit 2, and no `git` process starts.
 > - A shallow clone: the command fails with an error that names the missing history.
 > - The JSON output and the table carry the same entries in the same order.

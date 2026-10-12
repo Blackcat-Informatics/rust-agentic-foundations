@@ -29,6 +29,10 @@ The ledger is the file `helpers-ledger.toml` at the workspace root. It is read w
 the `toml` crate into `serde` structures marked `deny_unknown_fields`, so an unknown
 key at any level is an error that names the key and its table.
 
+The read is bounded, because a ledger may arrive in a repository the reader does not
+control: the file is at most 1 MiB, TOML nesting is at most 32 levels, and a larger
+or deeper file is an error that names the file and never a panic or a stack overflow.
+
 `[census]` holds the settings:
 
 - `normal_form`: required; the normal form version the ledger was written for. A
@@ -38,6 +42,10 @@ key at any level is an error that names the key and its table.
   20.
 - `roots`: the repository-relative directories the census walks. It defaults to the
   workspace root.
+- `max_file_bytes`: optional; the largest Rust source or `Cargo.toml` file the census
+  reads, for first-party and reference code alike (see
+  [source-index](./source-index.md)). It defaults to 8 MiB, and a larger file is an
+  error that names it.
 - `reference`: the packages scanned as reference code (see
   [census-reference-scan](./census-reference-scan.md)). It defaults to none.
 
@@ -150,6 +158,7 @@ reason = "Each forwards to a different standard-library type."
 ## Constraints
 
 - Only TOML is read. The census has no hand-written parser.
+- The ledger is at most 1 MiB and 32 levels of nesting deep.
 - A key not listed above is an error; there is no pass-through for unknown keys
   outside `[job.ext]`.
 - `home` and variant symbols resolve through the source index, so a symbol that a
@@ -186,6 +195,12 @@ reviewer saw, and nothing that was copied from it afterwards.
   and the resulting `copies` count.
 - An extension fixture shows `[job.ext]` accepted by a registered `LedgerExtension`,
   rejected by it with its message, and rejected as unknown when none is registered.
+- A bound fixture: a ledger of 1 MiB plus one byte and a ledger nested 33 levels deep
+  each fail with an error that names the file, and a ledger at both limits parses.
+  TOML has no aliases, so no alias fixture applies.
+- A `max_file_bytes` fixture: a source file above a lowered value fails naming the
+  file, and the same file passes under a raised value; the key is accepted only in
+  `[census]`.
 - A ledger with a mismatched `normal_form` fails before any job is read.
 - A fixture whose job forbids `rule:nope`, which is not a built-in detector, a
   pattern or a registered rule, fails ledger validation in the Gate and in

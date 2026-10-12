@@ -21,6 +21,8 @@ items:
   - claim: "Staleness findings cover missing members, unmatched fingerprints, unenforced jobs with zero copies, gone variant symbols, distinct rows that equal no group and unreferenced patterns."
   - claim: "A forbidden rule id that is not a built-in detector, a pattern or a registered rule is a hard ledger error in the Gate and the CLI."
   - claim: "A normal_form mismatch fails before any job is read."
+  - claim: "The ledger read is bounded in file size and nesting depth."
+  - claim: "The census table accepts max_file_bytes, which sets the per-file read cap and defaults to 8 MiB."
 ---
 
 ## Summary

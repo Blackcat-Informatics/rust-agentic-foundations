@@ -11,6 +11,7 @@ affects:
   - cap:workplan-complete-gate#usage
   - cap:workplan-complete-gate#examples
   - cap:workplan-complete-gate#verification
+  - cap:workplan-complete-gate#constraints
 contract_effect: changes
 items:
   - claim: "change complete requires zero obligations, an outcome on every item, no PROPOSED blocks, a clean docs sync and passing bound tests and examples."
@@ -18,6 +19,8 @@ items:
   - claim: "A change with contract_effect none completes without usage or example edits."
   - claim: "verify runs bound tests and examples and persists no evidence."
   - claim: "Scenario A and Scenario B fixtures pass."
+  - claim: "Bound tests and examples run only when they resolve in the source index, through cargo invocations that carry --frozen, use no shell, pin the target and keep document text off the option positions."
+  - claim: "A bound test counts as passed only when exactly one test ran, and doc tests are listed and run by their full libtest name."
 ---
 
 ## Summary

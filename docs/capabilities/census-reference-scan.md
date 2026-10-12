@@ -41,9 +41,44 @@ dependency and report first-party code that copies it.
 - A reference copy is a `COPY` for a job homed in that reference package, and an
   unclassified finding otherwise.
 
-The census runs `cargo metadata` as a subprocess with `--frozen`: it does not
-update `Cargo.lock`, and it makes no network access, so it cannot fetch a package
-that is not already downloaded.
+**Invocation.** The census runs exactly this command, spawned directly with no shell
+and with the arguments as an argv vector, in the workspace root. The program is the
+one named by `$CARGO` when that is set, and `cargo` from `PATH` otherwise:
+
+```text
+cargo metadata --format-version 1 --frozen --manifest-path <root>/Cargo.toml
+```
+
+`--frozen` means `--locked` and `--offline`: the command does not update
+`Cargo.lock` and makes no network access, so it cannot fetch a package that is not
+already downloaded. (`--locked` alone still downloads missing packages.) The
+`<root>` is the canonical workspace root and is the value of `--manifest-path`, so it
+cannot be read as an option. No ledger value, including a reference package name, is
+ever placed on the command line. Names are matched against the parsed JSON output.
+Resolution needs the full dependency graph, so `--no-deps` is not used here.
+
+**Trust.** This step executes the workspace's cargo configuration exactly as
+`cargo build` would: `build.rustc` and `build.rustc-wrapper` from `.cargo/config.toml`
+are spawned, and the rustup proxy honours the workspace's `rust-toolchain.toml`. The
+workspace is trusted build input (see [the security policy](../../SECURITY.md)). The
+output is parsed hardened: it is bounded to 64 MiB and 128 levels of JSON nesting,
+and a larger or deeper output is an error.
+
+**Path containment.** The source of a reference package is read from the directory of
+the `manifest_path` that `cargo metadata` reports. That directory is the containment
+root for the package, in place of the workspace root. The census reads it through the
+same `DiskTree` rules as first-party code (see [source index](./source-index.md)):
+each file's canonical path must lie inside the canonical package directory, a
+directory symlink is not descended into so a walk through a link to an ancestor ends
+at the first link, a file that is not a regular file is refused, and that type is
+checked on the opened handle. A refusal is an error that names the package and the
+file, and the file is not read. The same per-file `max_file_bytes` cap (default 8 MiB,
+set in `[census]`), the pre-scan budgets, the 64 MiB parse stack and the
+`parse_source` fuzz target apply to reference source. They make a stack overflow
+unlikely and do not prove its absence, and a residual overflow aborts the run, which
+fails the scan and never passes it. A file ends in one of three outcomes: refused with
+a typed error, indexed correctly and completely, or an abort with a non-zero status;
+the census never reports success with a wrong or partial index.
 
 ## Usage
 
@@ -106,5 +141,15 @@ stale.
 - A fixture naming a package outside the dependency graph fails with that name.
 - A fixture shows reference code produces no groups among first-party code.
 - A fixture shows the scan does not modify `Cargo.lock`.
+- A fixture with a stub named by `$CARGO` (and one with a stub on `PATH` when
+  `$CARGO` is unset) records the argv of the spawned process and asserts
+  it equals `cargo metadata --format-version 1 --frozen --manifest-path <root>/Cargo.toml`
+  with no shell involved, and that no reference package name appears on it.
+- A fixture whose reference package contains a symlink to a file outside the package,
+  and one with a directory-symlink loop, each fail naming the package and the file
+  without reading the target; a FIFO in the package is refused without blocking.
+- A fixture whose reference source file exceeds `max_file_bytes` or exceeds a
+  pre-scan recursion budget (for example 500 nested `A<A<...>>`) fails with an error
+  that names the file, and does not abort the process.
 - A fixture with a registry reference package that is not downloaded shows the scan
   fails naming the package, with no network access.

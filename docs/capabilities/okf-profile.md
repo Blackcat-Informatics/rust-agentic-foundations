@@ -35,6 +35,17 @@ and a body model. It fails with a positioned error when the file has no frontmat
 fence on line 1, when the YAML does not parse, or when the YAML is not a mapping.
 SPDX lines are YAML comments inside the frontmatter and are preserved.
 
+**Resource bounds.** Documents are read from sources the reader may not control, so
+`Document::parse` bounds its input and fails with a positioned error and never a
+panic, abort or unbounded allocation:
+
+- the text is at most 1 MiB;
+- YAML nesting is at most 32 levels, and the check runs before any recursive
+  descent can overflow the stack;
+- YAML anchors, aliases and merge keys are refused, because the closed key schema
+  has no use for them and an alias expansion can grow without bound;
+- Markdown block nesting (quotes and lists) is at most 64 levels.
+
 **Validate.** `Profile::validate` checks a parsed document against the closed key
 set of its `type`. It reports every violation, not only the first, and each names
 the file, the key and the rule. Values are typed: `state` is an enumeration,
@@ -107,6 +118,8 @@ message that names the `resource` key and the closed key set of `Capability`.
 
 - The crate reads and writes text only. It touches no file and runs no process, so
   a caller supplies the document text as strings.
+- Input is bounded to 1 MiB, 32 YAML levels and 64 Markdown block levels, and YAML
+  anchors and aliases are refused. A bound violation is a parse error.
 - Keys are exactly those of the profile. There is no pass-through for extra keys.
 - A document is valid or invalid. There is no warning level.
 - The writer preserves comments in the frontmatter but does not reflow the body.
@@ -139,6 +152,12 @@ would produce noise in the diff, and a clean check could not be told from a stal
 - A value fixture per rule: `state` outside its set, `bindings` missing a key,
   an `affects` entry with an unknown section, an `items` outcome outside
   `implemented`, `dropped` and `moved:change:<slug>`.
+- Bound fixtures: a document of 1 MiB plus one byte, frontmatter nested 33 levels
+  deep, and a quote nested 65 levels deep each fail with a positioned error, and
+  documents at the limit parse.
+- An alias fixture: frontmatter with an anchor and an alias (a "billion laughs"
+  document) fails fast with a positioned error naming the anchor, and the process
+  allocates no more than the input size times a small constant.
 - A body fixture where a PROPOSED marker and a generated marker appear only inside a
   fence and produce no blocks, and fixtures for each marker error.
 - A round-trip property over the fixture documents: `render(parse(x))` equals `x`

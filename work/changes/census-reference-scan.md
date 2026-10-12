@@ -20,6 +20,8 @@ items:
   - claim: "A first-party body equal to a reference body is reported as a reference copy."
   - claim: "The scan never updates Cargo.lock and fails on a package outside the dependency graph."
   - claim: "cargo metadata runs with --frozen, so an undownloaded registry reference package fails the scan with no network access."
+  - claim: "cargo metadata is spawned without a shell as cargo metadata --format-version 1 --frozen --manifest-path root, and no ledger value reaches the command line."
+  - claim: "Reference source is read only through canonical paths inside the package directory, within size and nesting bounds."
 ---
 
 ## Summary

@@ -19,6 +19,8 @@ items:
   - claim: "A binding that no longer resolves is listed with the last commit in which it resolved."
   - claim: "A repository whose history is incomplete produces an error and no partial list."
   - claim: "The table and JSON outputs carry identical entries."
+  - claim: "git is spawned without a shell, with a path after -- and a validated since date, so a path or argument that begins with a dash is never read as an option."
+  - claim: "git log output is read to a bound, records are split with a bounded split, and the since date sits before the final double dash."
 ---
 
 ## Summary

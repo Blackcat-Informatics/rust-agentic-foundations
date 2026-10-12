@@ -11,6 +11,7 @@ affects:
   - cap:okf-profile#usage
   - cap:okf-profile#examples
   - cap:okf-profile#verification
+  - cap:okf-profile#constraints
 contract_effect: changes
 items:
   - claim: "Documents parse into frontmatter and a body model with positioned errors."
@@ -18,6 +19,7 @@ items:
   - claim: "The body model exposes sections, links, fenced code, generated blocks and PROPOSED blocks."
   - claim: "The writer is deterministic and round-trips documents."
   - claim: "The capability index is accepted only when it holds a generated block."
+  - claim: "Parsing is bounded in text size and nesting depth, and YAML anchors and aliases are refused."
 ---
 
 ## Summary

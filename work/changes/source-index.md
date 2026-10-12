@@ -11,6 +11,7 @@ affects:
   - cap:source-index#usage
   - cap:source-index#examples
   - cap:source-index#verification
+  - cap:source-index#constraints
 contract_effect: changes
 items:
   - claim: "The Tree trait has a disk and a memory implementation."
@@ -18,6 +19,9 @@ items:
   - claim: "Module following honours the path attribute and rejects targets outside the workspace root."
   - claim: "Items under cfg(test) are tagged as test code."
   - claim: "The symbol index and use-alias table resolve paths through re-exports with typed failures."
+  - claim: "Every path the crate opens is canonicalised and must lie inside the canonical workspace root; non-regular files, symlinks leaving the root and directory-symlink loops are refused."
+  - claim: "Files are size-capped by a configurable limit, a token pre-scan bounds delimiter, generic, prefix-operator, closure and else-if recursion, parsing runs on a dedicated stack and a committed fuzz target covers the parser, so a hostile file yields a typed error or, on a residual stack overflow, a failed run and never a pass."
+  - claim: "The file type is checked on the opened handle, and a FIFO or other non-regular file is refused."
 ---
 
 ## Summary

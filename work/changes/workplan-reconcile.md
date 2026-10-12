@@ -11,6 +11,7 @@ affects:
   - cap:workplan-reconcile#usage
   - cap:workplan-reconcile#examples
   - cap:workplan-reconcile#verification
+  - cap:workplan-reconcile#constraints
 contract_effect: changes
 items:
   - claim: "change new creates a valid change record for a capability."
@@ -18,6 +19,8 @@ items:
   - claim: "change reconcile lists obligations of each kind with the evidence that resolves them."
   - claim: "Affected sections untouched since the merge base are found through git."
   - claim: "A change with contract_effect none receives the lighter obligation list."
+  - claim: "git and cargo are spawned without a shell, the default branch is resolved to a commit id first, and document text never reaches a command line as an option."
+  - claim: "Git runs from version 2.30, the default branch comes from the full ref that symbolic-ref prints, and example-failing requires proof that exactly one test ran."
 ---
 
 ## Summary
