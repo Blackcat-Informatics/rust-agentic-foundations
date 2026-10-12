@@ -109,6 +109,44 @@ pub enum ErrorKind {
         /// The bound in levels.
         max: usize,
     },
+    /// Block quotes and list items are nested deeper than the bound.
+    BlockNesting {
+        /// The bound in levels.
+        max: usize,
+    },
+    /// A line reads as a PROPOSED marker in some spelling but is not the
+    /// marker `> [!PROPOSED change:<slug>]`.
+    MalformedProposed,
+    /// A line starts a generated marker but is not `<!-- raf:generated:<kind> -->`
+    /// with a lowercase kebab-case kind, or the end marker.
+    MalformedGenerated,
+    /// A generated block opens inside another one.
+    NestedGenerated {
+        /// The kind of the block that is still open.
+        outer: String,
+    },
+    /// A generated end marker with no block open.
+    OrphanGeneratedEnd,
+    /// A generated block that is never closed.
+    UnclosedGenerated {
+        /// The kind of the block.
+        kind: String,
+    },
+    /// A link destination or title is longer than the bound.
+    LinkPartTooLong {
+        /// The bound in bytes.
+        max: usize,
+    },
+    /// The header comment of an index holds more than SPDX tags, a tag has no
+    /// value, or the comment sits after a block.
+    IndexHeader,
+    /// An index holds text outside its generated blocks.
+    IndexText,
+    /// A marker of an index is malformed, indented, or not at the start of
+    /// its line.
+    IndexMarker,
+    /// An index holds no generated block.
+    IndexEmpty,
 }
 
 impl fmt::Display for ErrorKind {
@@ -168,6 +206,35 @@ impl fmt::Display for ErrorKind {
             Self::EmptyItem => f.write_str("a list item has no value"),
             Self::MixedList => f.write_str("a list mixes scalar items and mapping items"),
             Self::DepthExceeded { max } => write!(f, "nesting is deeper than {max} levels"),
+            Self::BlockNesting { max } => {
+                write!(f, "block quotes and list items are nested deeper than {max} levels")
+            }
+            Self::MalformedProposed => f.write_str(
+                "malformed PROPOSED marker; write exactly `> [!PROPOSED change:<slug>]`",
+            ),
+            Self::MalformedGenerated => f.write_str(
+                "malformed generated marker; write `<!-- raf:generated:<kind> -->` with a lowercase kebab-case kind, or `<!-- raf:generated:end -->`",
+            ),
+            Self::NestedGenerated { outer } => {
+                write!(f, "a generated block opens inside the open block `{outer}`")
+            }
+            Self::OrphanGeneratedEnd => {
+                f.write_str("generated end marker without a start")
+            }
+            Self::UnclosedGenerated { kind } => {
+                write!(f, "the generated block `{kind}` is never closed")
+            }
+            Self::LinkPartTooLong { max } => {
+                write!(f, "a link destination or title is longer than {max} bytes")
+            }
+            Self::IndexHeader => f.write_str(
+                "the header comment must hold only SPDX tags with a value, before the first block",
+            ),
+            Self::IndexText => f.write_str("text outside a generated block"),
+            Self::IndexMarker => f.write_str(
+                "malformed or misplaced marker; a marker starts its own line with no indentation",
+            ),
+            Self::IndexEmpty => f.write_str("the index holds no generated block"),
         }
     }
 }
@@ -288,6 +355,9 @@ pub enum ConstructError {
         /// The bound in bytes.
         max: usize,
     },
+    /// The body does not read: a malformed marker or nesting over the bound.
+    /// The line and offset are in the text the document renders to.
+    Body(ParseError),
 }
 
 impl fmt::Display for ConstructError {
@@ -318,8 +388,68 @@ impl fmt::Display for ConstructError {
             Self::TooLarge { len, max } => {
                 write!(f, "the document is {len} bytes, over the {max} byte bound")
             }
+            Self::Body(error) => write!(f, "the body does not read: {error}"),
         }
     }
 }
 
-impl Error for ConstructError {}
+impl Error for ConstructError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        if let Self::Body(error) = self {
+            Some(error)
+        } else {
+            None
+        }
+    }
+}
+
+/// Why a batch of span edits cannot be applied to a body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SpliceError {
+    /// A span reaches outside the body.
+    OutOfBody {
+        /// Start of the offered span, in whole-text bytes.
+        start: usize,
+        /// End of the offered span, in whole-text bytes.
+        end: usize,
+    },
+    /// A span starts or ends inside a character.
+    NotCharBoundary {
+        /// The offending offset, in whole-text bytes.
+        offset: usize,
+    },
+    /// Two spans share bytes.
+    Overlap {
+        /// The start of the later span, in whole-text bytes.
+        offset: usize,
+    },
+    /// The edited text does not read as a body.
+    Reparse(ParseError),
+}
+
+impl fmt::Display for SpliceError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::OutOfBody { start, end } => {
+                write!(f, "span {start}..{end} reaches outside the body")
+            }
+            Self::NotCharBoundary { offset } => {
+                write!(f, "offset {offset} is inside a character")
+            }
+            Self::Overlap { offset } => {
+                write!(f, "the span at offset {offset} overlaps the one before it")
+            }
+            Self::Reparse(error) => write!(f, "the edited body does not parse: {error}"),
+        }
+    }
+}
+
+impl Error for SpliceError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Reparse(error) => Some(error),
+            Self::OutOfBody { .. } | Self::NotCharBoundary { .. } | Self::Overlap { .. } => None,
+        }
+    }
+}

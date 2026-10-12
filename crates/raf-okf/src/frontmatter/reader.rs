@@ -44,10 +44,6 @@ pub(crate) struct Head {
     pub(crate) eol: LineEnding,
     /// Whether the closing fence line ends with a line ending.
     pub(crate) closing_newline: bool,
-    /// The byte offset where the body starts.
-    pub(crate) body_start: usize,
-    /// The 1-based line where the body starts.
-    pub(crate) body_line: usize,
 }
 
 /// One frontmatter line, without its line ending.
@@ -95,8 +91,24 @@ fn split_cr(line: &str) -> (&str, bool) {
     }
 }
 
-/// Read the fences and the frontmatter of `text`.
-pub(crate) fn read_head(text: &str) -> Result<Head, ParseError> {
+/// Where the fences of a document sit.
+pub(crate) struct Fences {
+    /// The line ending of the fences and the frontmatter lines.
+    pub(crate) eol: LineEnding,
+    /// The byte offset of the first frontmatter line.
+    pub(crate) front_start: usize,
+    /// The byte offset of the closing fence line.
+    pub(crate) fence_start: usize,
+    /// The 1-based number of the closing fence line.
+    pub(crate) fence_line: usize,
+    /// Whether the closing fence line ends with a line ending.
+    pub(crate) closing_newline: bool,
+    /// The byte offset where the body starts.
+    pub(crate) body_start: usize,
+}
+
+/// Find the opening and closing fence of `text`.
+pub(crate) fn locate_fences(text: &str) -> Result<Fences, ParseError> {
     if text.len() > MAX_TEXT_BYTES {
         let line = 1 + text[..text.floor_char_boundary(MAX_TEXT_BYTES)]
             .matches('\n')
@@ -120,11 +132,9 @@ pub(crate) fn read_head(text: &str) -> Result<Head, ParseError> {
         return Err(ParseError::at(ErrorKind::MissingFence, 1, 1, 0));
     };
     let front_start = 3 + eol.as_str().len();
-
-    // Find the closing fence.
     let mut position = front_start;
     let mut number = 2;
-    let (fence_start, closing_newline, body_start) = loop {
+    loop {
         let rest = &text[position..];
         if rest.is_empty() {
             return Err(ParseError::at(ErrorKind::UnclosedFence, 1, 1, 0));
@@ -148,12 +158,30 @@ pub(crate) fn read_head(text: &str) -> Result<Head, ParseError> {
                     position + 3,
                 ));
             }
-            break (position, had_newline, next);
+            return Ok(Fences {
+                eol,
+                front_start,
+                fence_start: position,
+                fence_line: number,
+                closing_newline: had_newline,
+                body_start: next,
+            });
         }
         position = next;
         number += 1;
-    };
+    }
+}
 
+/// Read the fences and the frontmatter of `text`.
+pub(crate) fn read_head(text: &str) -> Result<Head, ParseError> {
+    let Fences {
+        eol,
+        front_start,
+        fence_start,
+        fence_line: number,
+        closing_newline,
+        body_start: _,
+    } = locate_fences(text)?;
     let mut reader = Reader {
         text,
         pos: front_start,
@@ -172,8 +200,6 @@ pub(crate) fn read_head(text: &str) -> Result<Head, ParseError> {
         },
         eol,
         closing_newline,
-        body_start,
-        body_line: number + 1,
     })
 }
 

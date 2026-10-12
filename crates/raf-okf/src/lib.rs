@@ -38,18 +38,23 @@ mod body;
 mod document;
 mod error;
 mod frontmatter;
+mod index;
 mod limits;
 mod profile;
 mod span;
 
-pub use body::Body;
+pub use body::{
+    Body, FencedBlock, GeneratedBlock, Heading, Link, LinkError, LinkForm, LinkTarget,
+    ProposedBlock, ProseLine, Section, SplitLink,
+};
 pub use document::Document;
-pub use error::{ConstructError, ErrorKind, ParseError};
+pub use error::{ConstructError, ErrorKind, ParseError, SpliceError};
 pub use frontmatter::scalar::{ESCAPES, plain_ok};
 pub use frontmatter::value::{
     Comments, Entry, Frontmatter, ItemValue, List, ListForm, ListItem, Map, Scalar, ScalarStyle,
     Value,
 };
-pub use limits::{MAX_TEXT_BYTES, MAX_YAML_DEPTH};
+pub use index::{Index, is_capability_index};
+pub use limits::{MAX_BLOCK_NESTING, MAX_TEXT_BYTES, MAX_YAML_DEPTH};
 pub use profile::{DocType, KeySpec, TimestampError, ValueKind, validate_timestamp};
 pub use span::Span;

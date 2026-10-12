@@ -49,7 +49,11 @@ panic, abort or unbounded allocation:
   descent can overflow the stack;
 - YAML anchors, aliases and merge keys are refused, because the closed key schema
   has no use for them and an alias expansion can grow without bound;
-- Markdown block nesting (quotes and lists) is at most 64 levels.
+- Markdown block nesting (quotes and lists) is at most 64 levels;
+- a link destination or title is at most 4096 bytes, not counting the delimiters of a
+  title or of an angle-bracket destination. This bounds the link scanner, which
+  would otherwise rescan a long paragraph for every `](`. A longer part is a
+  positioned error, never a link that is silently not read.
 
 **Validate.** `Profile::validate` checks a parsed document against the closed key
 set of its `type`. It reports every violation, not only the first, and each names
@@ -64,17 +68,42 @@ whether an id exists or whether a graph is acyclic, belong to
 at a time.
 
 **Body model.** The body is parsed into a structure that tools query instead of
-re-scanning text:
+re-scanning text. `Document::parse` builds the body of a document through
+`Body::parse`, which also reads Markdown that has no frontmatter, such as a README: a
+leading `---` fence closed by a later `---` line is skipped, and otherwise the whole
+text is the body. Every span the model returns carries both line numbers and byte
+offsets, in the coordinates of the whole text. The model holds:
 
-- second-level sections, each with its heading, its slug and the line span of its
-  content;
-- links, each with its target, its anchor and its line;
-- fenced code blocks, so markers inside a fence are never read as markers;
-- generated blocks, each with its kind and span;
-- PROPOSED blocks, each with the change slug it names and its span.
+- headings of levels 1 to 6 outside fenced code, each with its GitHub anchor (repeats
+  numbered `-1`, `-2`), and a check whether an anchor exists;
+- second-level sections, each with its heading, its slug and a span that starts on the
+  line after the heading and ends before the next second-level heading;
+- links, each with its target, its anchor, its line and its form: inline link, image,
+  reference definition, `href` attribute or `src` attribute. Links inside fenced
+  code, code spans of any backtick length and HTML comments are not links. A target
+  resolves against the path of the linking document to an external target, a
+  fragment, or a path inside the repository, and a target that climbs above the root
+  or is an absolute path is an error, never clamped. A link inside a block quote reads
+  the same on every quoted line;
+- split links: an inline link or image whose text or parentheses span a line break is
+  not read as a link and is recorded with its line, so that a split link is a
+  violation;
+- fenced code blocks, matched by character and length and recognised inside block
+  quotes and lists, so markers inside a fence are never read as markers;
+- generated blocks, each with its kind, its outer span (markers included) and its
+  content span (markers excluded);
+- PROPOSED blocks, each with the change slug it names, its span, its marker line, its
+  unquoted content and the section that holds it;
+- prose lines: the lines outside fenced code and HTML comments with code spans
+  removed, each with its section and whether it lies in a PROPOSED or generated block.
 
-A malformed PROPOSED marker, an unclosed generated block, a nested generated block
-and an end marker without a start are parse errors with line numbers.
+A malformed PROPOSED marker in any spelling, an unclosed generated block, a nested
+generated block and an end marker without a start are parse errors with line numbers.
+So are block quotes and list items nested over 64 levels. `Body::replace_spans` applies
+non-overlapping byte-range edits in one pass and reads the model again; it is all or
+nothing, and it fails with a typed error for a range outside the body, a range inside a
+character, two ranges that overlap, or a result that no longer parses. `Document` and
+`Index` delegate to it.
 
 **Write.** `Document::render` writes a document back. The writer is deterministic
 and round-trips: parsing the output yields an equal document, and rendering a
@@ -89,8 +118,15 @@ block. Two documents are equal when their keys, compared as a map, have equal va
 and equal attached comments, and their bodies hold the same bytes.
 
 **Index handling.** `docs/capabilities/index.md` is the one navigation file in the
-capability directory. It is accepted only when it holds a generated block, and it is
-never parsed as a Capability document. A hand-written index is a violation.
+capability directory. `is_capability_index` is true for that path and false for any
+other, including `docs/index.md`. `Index::parse` accepts a text only when apart from an
+SPDX header comment (one line, or several between `<!--` and `-->` lines, each tag with
+a value) every non-blank line lies inside a generated block and each marker starts its
+own line with no indentation. Prose, an indented or mid-line marker, an empty header
+tag, a header after a block, an unclosed block and a text with no block are errors with
+a line. The text of an index never parses as a Capability document: `Document::parse`
+fails on it at line 1. `Index::render` returns the text, and `Index::replace_spans`
+replaces a block and refuses an edit that leaves anything but an index.
 
 ## Usage
 
@@ -128,8 +164,12 @@ message that names the `resource` key and the closed key set of `Capability`.
 
 - The crate reads and writes text only. It touches no file and runs no process, so
   a caller supplies the document text as strings.
-- Input is bounded to 1 MiB, 32 YAML levels and 64 Markdown block levels, and YAML
-  anchors and aliases are refused. A bound violation is a parse error.
+- Input is bounded to 1 MiB, 32 YAML levels, 64 Markdown block levels and 4096 bytes
+  per link destination or title, and YAML anchors and aliases are refused. A bound
+  violation is a parse error.
+- Only ATX headings (`#` marks) and fenced code blocks are modelled. A setext heading
+  is not a heading, and indented code is read as ordinary text, so a marker or a link
+  in it counts; write code that holds a marker or a link in a fence.
 - Keys are exactly those of the profile. There is no pass-through for extra keys.
 - A document is valid or invalid. There is no warning level.
 - The writer preserves comments in the frontmatter but does not reflow the body.
@@ -163,8 +203,9 @@ would produce noise in the diff, and a clean check could not be told from a stal
   an `affects` entry with an unknown section, an `items` outcome outside
   `implemented`, `dropped` and `moved:change:<slug>`.
 - Bound fixtures: a document of 1 MiB plus one byte, frontmatter nested 33 levels
-  deep, and a quote nested 65 levels deep each fail with a positioned error, and
-  documents at the limit parse.
+  deep, a quote nested 65 levels deep, and a link destination or title of 4097 bytes
+  each fail with a positioned error, and documents at the limit (a destination or
+  title of 4096 bytes included) parse.
 - An alias fixture: frontmatter with an anchor and an alias (a "billion laughs"
   document) fails fast with a positioned error naming the anchor, and the process
   allocates no more than the input size times a small constant.

@@ -184,9 +184,10 @@ Each block is opened once, closed once and never nested.
 - Every relative link resolves to an existing file, and a link anchor resolves
   to a heading in the target. The rule covers inline links and images, reference
   definitions (`[label]: target`) and the `href` and `src` attributes of inline
-  HTML, in every tracked Markdown file. Links are single-line: the text and the
-  target of a link sit on one line, and a link split across lines is not read.
-  Anchors follow the GitHub rule: lowercase, spaces become hyphens, other
+  HTML, in every tracked Markdown file. A link split across lines is a violation.
+  Links inside fenced code, code spans and HTML comments are not links. Block quotes
+  and list items nest at most 64 levels, and a link destination or title is at most
+  4096 bytes. Anchors follow the GitHub rule: lowercase, spaces become hyphens, other
   punctuation is dropped.
 - A relative link resolves inside the repository root. The checker joins the link to
   the linking file's directory and normalises it against the canonical repository

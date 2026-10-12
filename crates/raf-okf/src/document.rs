@@ -3,13 +3,14 @@
 
 //! A parsed document and its deterministic rendering.
 
-use crate::body::Body;
-use crate::error::{ConstructError, ParseError};
+use crate::body::{Body, Origin};
+use crate::error::{ConstructError, ParseError, SpliceError};
 use crate::frontmatter::reader::{LineEnding, read_head};
 use crate::frontmatter::value::{Frontmatter, ListItem, Value};
 use crate::frontmatter::writer::write_frontmatter;
 use crate::limits::MAX_TEXT_BYTES;
 use crate::profile::DocType;
+use crate::span::Span;
 
 /// A Markdown document with YAML frontmatter.
 ///
@@ -49,7 +50,7 @@ impl Document {
     pub fn parse(text: &str) -> Result<Self, ParseError> {
         let mut head = read_head(text)?;
         sort_tags(&mut head.frontmatter);
-        let body = Body::new(&text[head.body_start..]).placed(head.body_line, head.body_start);
+        let body = Body::parse(text)?;
         Ok(Self {
             frontmatter: head.frontmatter,
             body,
@@ -65,28 +66,69 @@ impl Document {
     /// # Errors
     ///
     /// [`ConstructError::TooLarge`] when the rendered text would exceed the
-    /// size bound the reader enforces.
+    /// size bound the reader enforces, and [`ConstructError::Body`] when the
+    /// body does not read (a malformed marker, nesting over the bound).
     pub fn new(frontmatter: Frontmatter, body: impl Into<String>) -> Result<Self, ConstructError> {
-        let body = Body::new(body);
         let mut frontmatter = frontmatter;
         sort_tags(&mut frontmatter);
+        let body_text = body.into();
         let mut document = Self {
             frontmatter,
-            body: Body::new(""),
+            body: Body::parse_at("", Origin::START).map_err(ConstructError::Body)?,
             eol: LineEnding::Lf,
             closing_newline: true,
         };
-        let head_len = document.render_head().len();
-        let first_line = 3 + document.frontmatter_line_count();
-        document.body = body.placed(first_line, head_len);
-        let len = head_len + document.body.text().len();
+        let origin = document.body_origin();
+        let len = origin.byte + body_text.len();
         if len > MAX_TEXT_BYTES {
             return Err(ConstructError::TooLarge {
                 len,
                 max: MAX_TEXT_BYTES,
             });
         }
+        // Read the body where it sits in the rendered text, so that an error
+        // carries the line and offset of that text.
+        document.body = Body::parse_at(&body_text, origin).map_err(ConstructError::Body)?;
         Ok(document)
+    }
+
+    /// Replace byte ranges of the body in one pass; see
+    /// [`Body::replace_spans`]. The spans are those the body model returned.
+    /// After a successful edit the body model is in the coordinates of the
+    /// text [`Self::render`] returns.
+    ///
+    /// # Errors
+    ///
+    /// The [`SpliceError`] of [`Body::replace_spans`]; the document is
+    /// unchanged on an error.
+    pub fn replace_spans(&mut self, edits: &[(Span, &str)]) -> Result<(), SpliceError> {
+        let mut body = self.body.clone();
+        body.replace_spans(edits)?;
+        // A body that follows a closing fence with no line ending needs one.
+        let closing_newline = self.closing_newline || !body.text().is_empty();
+        let moved = Self {
+            body,
+            closing_newline,
+            ..self.clone()
+        };
+        let placed = moved.place_body().map_err(SpliceError::Reparse)?;
+        self.body = placed;
+        self.closing_newline = closing_newline;
+        Ok(())
+    }
+
+    /// The body read again at the place it has in the rendered text.
+    fn place_body(&self) -> Result<Body, ParseError> {
+        self.body.placed(self.body_origin())
+    }
+
+    /// Where the body starts in the rendered text.
+    fn body_origin(&self) -> Origin {
+        let head = self.render_head();
+        Origin {
+            byte: head.len(),
+            line: 1 + head.matches('\n').count() + usize::from(!head.ends_with('\n')),
+        }
     }
 
     /// The frontmatter.
@@ -140,13 +182,6 @@ impl Document {
             out.push_str(eol);
         }
         out
-    }
-
-    /// The number of lines the frontmatter takes when written.
-    fn frontmatter_line_count(&self) -> usize {
-        let mut out = String::new();
-        write_frontmatter(&mut out, &self.frontmatter, self.eol);
-        out.matches('\n').count()
     }
 }
 

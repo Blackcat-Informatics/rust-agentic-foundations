@@ -1,30 +1,205 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The body of a document: the text after the closing frontmatter fence.
+//! The body of a document: the Markdown after the frontmatter, and the model
+//! tools query instead of re-scanning the text.
 
+mod blocks;
+mod heading;
+mod link;
+mod marker;
+mod prose;
+
+use crate::error::{ErrorKind, ParseError, SpliceError};
+use crate::frontmatter::reader::locate_fences;
+use crate::limits::MAX_TEXT_BYTES;
 use crate::span::Span;
+
+pub(crate) use blocks::Origin;
+use blocks::{is_blank, remove_code_spans, remove_comments};
+pub use heading::{Heading, Section};
+pub use link::{Link, LinkError, LinkForm, LinkTarget, SplitLink};
+pub(crate) use marker::{GENERATED_END, GENERATED_OPEN, is_kebab};
+pub use marker::{GeneratedBlock, ProposedBlock};
+pub use prose::ProseLine;
+
+/// A fenced code block.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FencedBlock {
+    span: Span,
+    info: String,
+}
+
+impl FencedBlock {
+    /// The fence lines and everything between them, in whole-text
+    /// coordinates. A block that is never closed runs to the end of the body.
+    #[must_use]
+    pub fn span(&self) -> &Span {
+        &self.span
+    }
+
+    /// The info string after the opening fence.
+    #[must_use]
+    pub fn info(&self) -> &str {
+        &self.info
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Model {
+    headings: Vec<Heading>,
+    sections: Vec<Section>,
+    links: Vec<Link>,
+    split_links: Vec<SplitLink>,
+    fences: Vec<FencedBlock>,
+    generated: Vec<GeneratedBlock>,
+    proposed: Vec<ProposedBlock>,
+    prose: Vec<ProseLine>,
+}
 
 /// The body of a document.
 ///
-/// The body is kept byte for byte. [`Body::span`] locates it in the text of
-/// the document it belongs to. A body is built by [`crate::Document::parse`]
-/// or [`crate::Document::new`] only.
+/// The body is kept byte for byte, and its model is read from it once.
+/// Every [`Span`] the model returns is in the coordinates of the whole text:
+/// the text that was parsed, or for a body inside a document that was built
+/// from parts, the text [`crate::Document::render`] returns.
 #[derive(Debug, Clone)]
 pub struct Body {
     text: String,
     span: Span,
+    origin: Origin,
+    model: Model,
 }
 
 impl Body {
-    /// A body holding `text`. Its span is `0..len` until a document places it.
-    pub(crate) fn new(text: impl Into<String>) -> Self {
-        let text = text.into();
-        let span = Span {
-            lines: 1..1 + line_count(&text),
-            bytes: 0..text.len(),
+    /// Read the body model of `text`, which is a Markdown file with or without
+    /// frontmatter. When `text` starts with a `---` fence line that a later
+    /// `---` line closes, the frontmatter is skipped (it is read by
+    /// [`crate::Document::parse`]) and the body is what follows; otherwise the
+    /// whole text is the body.
+    ///
+    /// # Errors
+    ///
+    /// A [`ParseError`] with the line of the offence: a text over the size
+    /// bound, a malformed PROPOSED marker, a malformed, nested, unclosed or
+    /// orphaned generated marker, block quotes and list items nested over 64
+    /// levels, or a link destination or title over 4096 bytes.
+    pub fn parse(text: &str) -> Result<Self, ParseError> {
+        let (start, line) = match locate_fences(text) {
+            Ok(fences) => (fences.body_start, fences.fence_line + 1),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    ErrorKind::MissingFence | ErrorKind::UnclosedFence
+                ) =>
+            {
+                (0, 1)
+            }
+            Err(error) => return Err(error),
         };
-        Self { text, span }
+        Self::parse_at(&text[start..], Origin { byte: start, line })
+    }
+
+    /// Read the model of a body that starts at `origin` in its whole text.
+    pub(crate) fn parse_at(body: &str, origin: Origin) -> Result<Self, ParseError> {
+        if origin.byte + body.len() > MAX_TEXT_BYTES {
+            return Err(ParseError::at_offset(
+                ErrorKind::TooLarge {
+                    len: origin.byte + body.len(),
+                    max: MAX_TEXT_BYTES,
+                },
+                origin.line,
+                MAX_TEXT_BYTES,
+            ));
+        }
+        let scan = blocks::scan(body, origin)?;
+        let lines = &scan.lines;
+        let mut visible: Vec<String> = Vec::with_capacity(lines.len());
+        let mut in_comment = false;
+        for line in lines {
+            if line.fenced {
+                visible.push(String::new());
+            } else {
+                visible.push(remove_comments(
+                    &body[line.start..line.end],
+                    &mut in_comment,
+                ));
+            }
+        }
+        let (headings, sections) = heading::read_headings(lines, &visible, body.len(), origin);
+        let mut section_of: Vec<Option<String>> = vec![None; lines.len()];
+        for section in &sections {
+            let first = section.line() - origin.line;
+            let end = section.content().lines.end - origin.line;
+            for slot in &mut section_of[first..end] {
+                *slot = Some(section.slug().to_string());
+            }
+        }
+        let markers = marker::scan_markers(body, lines, origin, &section_of)?;
+        let views: Vec<link::LineView<'_>> = lines
+            .iter()
+            .zip(&visible)
+            .map(|(line, visible)| link::LineView {
+                fenced: line.fenced,
+                blank: is_blank(&body[line.start..line.end]),
+                heading: !line.fenced && heading::atx(visible).is_some(),
+                visible,
+            })
+            .collect();
+        let found =
+            link::scan_links(&views, origin.line, remove_code_spans).map_err(|too_long| {
+                ParseError::at(
+                    ErrorKind::LinkPartTooLong {
+                        max: link::MAX_LINK_PART,
+                    },
+                    too_long.line,
+                    1,
+                    origin.byte,
+                )
+            })?;
+        let mut prose = Vec::new();
+        for (index, line) in lines.iter().enumerate() {
+            if line.fenced {
+                continue;
+            }
+            let text = remove_code_spans(&visible[index]);
+            if text.trim().is_empty() {
+                continue;
+            }
+            prose.push(ProseLine {
+                line: origin.line + index,
+                text,
+                section: section_of[index].clone(),
+                in_proposed: markers.in_proposed[index],
+                in_generated: markers.in_generated[index],
+            });
+        }
+        let fences = scan
+            .fences
+            .iter()
+            .map(|block| FencedBlock {
+                span: heading::span_of(lines, body.len(), block.first, block.last + 1, origin),
+                info: block.info.clone(),
+            })
+            .collect();
+        Ok(Self {
+            text: body.to_string(),
+            span: Span {
+                lines: origin.line..origin.line + lines.len(),
+                bytes: origin.byte..origin.byte + body.len(),
+            },
+            origin,
+            model: Model {
+                headings,
+                sections,
+                links: found.links,
+                split_links: found.split,
+                fences,
+                generated: markers.generated,
+                proposed: markers.proposed,
+                prose,
+            },
+        })
     }
 
     /// The body text, exactly as written.
@@ -33,35 +208,132 @@ impl Body {
         &self.text
     }
 
-    /// Where the body sits in the whole text of its document.
+    /// Where the body sits in the whole text.
     ///
     /// For a parsed document the coordinates are those of the text that was
-    /// parsed. For a document built with [`crate::Document::new`] they are
-    /// those of the text [`crate::Document::render`] returns. The rendering of
-    /// a parsed document whose keys were reordered can differ in length from
-    /// the text it was parsed from, and its body then sits elsewhere.
+    /// parsed. For a document built with [`crate::Document::new`], and for a
+    /// document after [`crate::Document::replace_spans`], they are those of
+    /// the text [`crate::Document::render`] returns.
     #[must_use]
     pub fn span(&self) -> &Span {
         &self.span
     }
 
-    /// This body placed at `first_line` and byte `start` of a document text.
-    pub(crate) fn placed(mut self, first_line: usize, start: usize) -> Self {
-        self.span = Span {
-            lines: first_line..first_line + line_count(&self.text),
-            bytes: start..start + self.text.len(),
-        };
-        self
+    /// Every heading outside fenced code, levels 1 to 6, in order.
+    #[must_use]
+    pub fn headings(&self) -> &[Heading] {
+        &self.model.headings
     }
-}
 
-/// The number of lines in `text`: a final line without a line ending counts.
-fn line_count(text: &str) -> usize {
-    let newlines = text.bytes().filter(|b| *b == b'\n').count();
-    if text.is_empty() || text.ends_with('\n') {
-        newlines
-    } else {
-        newlines + 1
+    /// Whether a heading has this anchor, repeats numbered.
+    #[must_use]
+    pub fn has_anchor(&self, anchor: &str) -> bool {
+        self.model.headings.iter().any(|h| h.anchor() == anchor)
+    }
+
+    /// The second-level sections, in order.
+    #[must_use]
+    pub fn sections(&self) -> &[Section] {
+        &self.model.sections
+    }
+
+    /// The content of a section of this body, as text: the part of
+    /// [`Self::text`] its span covers. `None` when the section does not belong
+    /// to this body.
+    #[must_use]
+    pub fn section_text(&self, section: &Section) -> Option<&str> {
+        let base = self.span.bytes.start;
+        let bytes = &section.content().bytes;
+        self.text
+            .get(bytes.start.checked_sub(base)?..bytes.end.checked_sub(base)?)
+    }
+
+    /// The links outside fenced code, code spans and HTML comments, in line
+    /// order. A link split across lines is not here; see
+    /// [`Self::split_links`].
+    #[must_use]
+    pub fn links(&self) -> &[Link] {
+        &self.model.links
+    }
+
+    /// The inline links and images whose text or parentheses span a line
+    /// break, outside fenced code and code spans.
+    #[must_use]
+    pub fn split_links(&self) -> &[SplitLink] {
+        &self.model.split_links
+    }
+
+    /// The fenced code blocks.
+    #[must_use]
+    pub fn fenced_blocks(&self) -> &[FencedBlock] {
+        &self.model.fences
+    }
+
+    /// The generated blocks, in order.
+    #[must_use]
+    pub fn generated_blocks(&self) -> &[GeneratedBlock] {
+        &self.model.generated
+    }
+
+    /// The PROPOSED blocks, in order.
+    #[must_use]
+    pub fn proposed_blocks(&self) -> &[ProposedBlock] {
+        &self.model.proposed
+    }
+
+    /// The prose lines: outside fenced code and HTML comments, with code
+    /// spans removed, each with its section and block membership.
+    #[must_use]
+    pub fn prose_lines(&self) -> &[ProseLine] {
+        &self.model.prose
+    }
+
+    /// Replace byte ranges of the body in one pass and read the model again.
+    ///
+    /// The spans are in whole-text coordinates, as the model returns them;
+    /// only their byte ranges count. They must not overlap. The change is
+    /// all or nothing: on an error the body is as it was.
+    ///
+    /// # Errors
+    ///
+    /// [`SpliceError::OutOfBody`] for a range outside the body,
+    /// [`SpliceError::NotCharBoundary`] for an offset inside a character,
+    /// [`SpliceError::Overlap`] for two ranges that share bytes, and
+    /// [`SpliceError::Reparse`] when the edited text does not read as a body.
+    pub fn replace_spans(&mut self, edits: &[(Span, &str)]) -> Result<(), SpliceError> {
+        let mut order: Vec<&(Span, &str)> = edits.iter().collect();
+        order.sort_by_key(|(span, _)| (span.bytes.start, span.bytes.end));
+        let base = self.span.bytes.start;
+        let mut text = String::with_capacity(self.text.len());
+        let mut copied = 0;
+        let mut previous_end = base;
+        for (span, replacement) in order {
+            let (start, end) = (span.bytes.start, span.bytes.end);
+            if start > end || start < base || end > self.span.bytes.end {
+                return Err(SpliceError::OutOfBody { start, end });
+            }
+            for offset in [start, end] {
+                if !self.text.is_char_boundary(offset - base) {
+                    return Err(SpliceError::NotCharBoundary { offset });
+                }
+            }
+            if start < previous_end {
+                return Err(SpliceError::Overlap { offset: start });
+            }
+            text.push_str(&self.text[copied..start - base]);
+            text.push_str(replacement);
+            copied = end - base;
+            previous_end = end;
+        }
+        text.push_str(&self.text[copied..]);
+        let rebuilt = Self::parse_at(&text, self.origin).map_err(SpliceError::Reparse)?;
+        *self = rebuilt;
+        Ok(())
+    }
+
+    /// This body read again as if it started at `origin`.
+    pub(crate) fn placed(&self, origin: Origin) -> Result<Self, ParseError> {
+        Self::parse_at(&self.text, origin)
     }
 }
 
