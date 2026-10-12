@@ -21,10 +21,3 @@ path = ["LICENSE-MIT", "LICENSE-APACHE", "LICENSE-MULAN"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>"
 SPDX-License-Identifier = "MIT OR Apache-2.0 OR MulanPSL-2.0"
-
-# Header-less Markdown document (CC-BY-4.0 per the rule above).
-[[annotations]]
-path = "INITIAL_PLANNING_PLAN.md"
-precedence = "aggregate"
-SPDX-FileCopyrightText = "2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>"
-SPDX-License-Identifier = "CC-BY-4.0"

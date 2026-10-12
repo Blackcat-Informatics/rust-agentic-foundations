@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+# Fast gates on what the commit records: fmt, reuse, licenses, issue-refs.
+# The index is checked out into a temp dir, so a partially staged commit is
+# judged as it will exist. Clippy and tests stay in `make check` and CI.
+# Install with `make hooks`. The Makefile targets are reused; ROOT points them
+# at the snapshot and issue-refs reads the index through `git grep --cached`.
+
+set -euo pipefail
+
+top=$(git rev-parse --show-toplevel)
+cd "$top"
+
+snapshot=$(mktemp -d)
+trap 'rm -rf "$snapshot"' EXIT
+git checkout-index --all --force --prefix="$snapshot/"
+
+failed=0
+run() {
+    local name=$1
+    shift
+    if ! "$@"; then
+        echo "pre-commit: $name failed." >&2
+        failed=1
+    fi
+}
+
+run fmt make --no-print-directory fmt ROOT="$snapshot"
+run reuse make --no-print-directory reuse ROOT="$snapshot"
+run licenses make --no-print-directory licenses ROOT="$snapshot"
+run issue-refs make --no-print-directory issue-refs ISSUE_REFS_GREP="git grep --cached -InE"
+
+if [ "$failed" -ne 0 ]; then
+    echo "pre-commit: the staged snapshot fails the gates above; fix and re-stage." >&2
+    exit 1
+fi
