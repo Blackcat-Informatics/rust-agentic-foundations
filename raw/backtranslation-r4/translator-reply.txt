@@ -1,0 +1,21 @@
+AMBIGUITIES (verbatim from the isolated translator's reply; its TRANSLATION section is reproduced verbatim in docs/LICENSING-BACKTRANSLATION.md):
+- "RAF 第一方代码允许使用者任选 MIT、Apache-2.0 或 MulanPSL-2.0 之一" — "使用者" (user) is undefined; could mean licensee, downstream user, or recipient.
+- "如两者存在冲突不一致" — "冲突不一致" juxtaposes two near-synonyms without a connector ("conflict, inconsistency"); reads as a drafting/edit artifact and could be "conflict or inconsistency" or "conflicting inconsistency."
+- "以中文版本为准" — whether the Chinese version prevails only in case of conflict (most likely) or generally.
+- "第六条规定…第二条规定…第三条不授予…第四条" — article numbers are referenced without stating which document's articles they are (implicitly MulanPSL-2.0, but not restated for later sentences).
+- "每一贡献者依其条款向您授予专利许可" — "其条款" ("its terms") could refer to the license's terms or the contributor's terms; "您" (you) is not the same term as the earlier "使用者."
+- "您或您的关联实体直接或间接就本软件或其中的贡献发起…" — "其中的贡献" (contributions therein) — unclear whether contributions within the software or contributions to it; scope of "本软件" (this software) is unspecified.
+- "(包括反诉或交叉诉讼)或其他专利维权行动" — "专利维权行动" (patent enforcement / rights-assertion actions) is ambiguous; whether "其他" modifies only litigation-like actions or any action.
+- "则本许可证授予您对本软件的专利许可自该行动发起之日起终止" — sentence is structurally heavy; "本许可证" (this license) here means MulanPSL-2.0, whereas "本文件" earlier means this document—referent shift; also unclear whether termination applies to all contributors' patent licenses or only some.
+- "第三条不授予商标许可，履行第四条声明义务所必需的使用除外" — the exception could modify the trademark license grant or the non-grant; ambiguous on its face.
+- "第四条要求向接收者提供许可证副本，并保留版权、专利、商标和免责声明" — "版权、专利、商标和免责声明" could be read as four parallel items (copyright, patent, trademark, disclaimer) or as "copyright, patent, trademark, and disclaimer notices"; whether "声明" applies to all four is unclear.
+- "第三方代码和继承材料保留其原有许可" — "继承材料" (inherited materials) is undefined; could mean upstream-derived or forked material.
+- "选择 MulanPSL-2.0 不会将第三方材料重新许可" — subject of the choice is unspecified; "重新许可" (relicense) ambiguous as to who would be relicensing.
+- "材料来源及适用范围见英文说明" — "英文说明" (English notes) is not clearly identified (link target suggests an English LICENSING document, but not stated).
+- "文件中的 SPDX 标识" — "文件" could mean source files generally or this file.
+- "实际授权及义务以每项许可证全文为准" — "每项许可证" (each license) could mean each of the three options or every applicable license including third-party ones.
+- "说明文档不能改变 MulanPSL-2.0 的语言条款" — "语言条款" (language clause/terms) is unusual; could mean the language-version provisions (Article 6) or the wording of the terms; also singles out MulanPSL-2.0 although the notice applies to all licenses.
+- "这些是三种开源许可选项" — "这些" (these) could refer to the three licenses or to the SPDX expression.
+- "未经法律审核" — who did/did not review is not stated.
+
+FRAGMENTS: none. Possibly awkward: "如两者存在冲突不一致，以中文版本为准" (ungrammatical run-on of "冲突不一致" without connector); line 19-20 split ("第四条要求…保留版权、/专利、商标和免责声明") is complete but split mid-list across lines. All are grammatical sentences aside from the first noted point.

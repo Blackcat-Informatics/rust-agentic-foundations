@@ -1,0 +1,201 @@
+cargo fmt --all --check --manifest-path '/tmp/tmp.tQZxA7O4Fu/Cargo.toml'
+uvx reuse@6.2.0 --root '/tmp/tmp.tQZxA7O4Fu' lint
+# SUMMARY
+
+* Bad licenses: 0
+* Deprecated licenses: 0
+* Licenses without file extension: 0
+* Missing licenses: 0
+* Unused licenses: 0
+* Used licenses: Apache-2.0, CC-BY-4.0, MIT, MulanPSL-2.0
+* Read errors: 0
+* Invalid SPDX License Expressions: 0
+* Files with copyright information: 82 / 82
+* Files with license information: 82 / 82
+
+Congratulations! Your project is compliant with version 3.3 of the REUSE Specification :-)
+   Compiling rust-agentic-foundations v0.1.0 (/tmp/raf-exit-audit.fRgS03/repo)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+     Running tests/docs_contract.rs (/opt/.cargo/18/6d4fb4b3741c1a/debug/build/rust-agentic-foundations/96f38c8842b03738/out/docs_contract-96f38c8842b03738)
+
+running 112 tests
+test anchors_follow_github_rules ... ok
+test fixture_builder_is_self_consistent ... ok
+test comment_stripping_keeps_visible_text ... ok
+test inventory_rejects_a_document_the_table_does_not_list ... ok
+test inventory_rejects_a_missing_capability ... ok
+test inventory_rejects_a_missing_architecture_document ... ok
+test inventory_rejects_a_missing_change_record ... ok
+test inventory_rejects_a_state_change ... ok
+test inventory_table_has_the_documented_shape ... ok
+test parses_quoted_and_block_forms ... ok
+test inventory_rejects_an_id_change ... ok
+test issue_token_scan_spares_hex_colours ... ok
+test refuses_a_file_swapped_in_after_inspection ... ok
+test accepts_moved_outcome ... ok
+test accepts_a_generated_capability_index ... ok
+test accepts_resolving_reference_and_attribute_links ... ok
+test placeholder_scan_spares_longer_words_and_dotted_prose ... ok
+test does_not_read_attributes_that_only_end_in_href_or_src ... ok
+test placeholder_scan_spares_code_and_longer_words ... ok
+test rejects_affects_with_bad_section ... ok
+test rejects_acceptance_label ... ok
+test inventory_accepts_a_matching_tree ... ok
+test accepts_valid_fixture ... ok
+test rejects_affects_slug_not_in_changes ... ok
+test rejects_bad_state ... ok
+test refuses_non_regular_files_instead_of_blocking ... ok
+test rejects_bad_type ... ok
+test accepts_comments_after_scalars ... ok
+test accepts_a_generated_index_with_an_spdx_header ... ok
+test rejects_broken_anchor ... ok
+test reads_attributes_with_spaces_around_the_equals_sign ... ok
+test rejects_broken_relative_link ... ok
+test rejects_bad_outcome ... ok
+test rejects_delivered_with_proposed_block ... ok
+test rejects_an_index_whose_marker_is_only_in_a_code_span ... ok
+test reads_an_attribute_value_that_starts_on_the_next_line ... ok
+test rejects_delivered_with_open_change_record ... ok
+test rejects_capability_without_frontmatter ... ok
+test rejects_considered_without_proposed_block ... ok
+test rejects_bad_depends_shapes ... ok
+test rejects_dangling_depends ... ok
+test rejects_an_index_header_tag_without_a_value ... ok
+test rejects_duplicate_section ... ok
+test rejects_change_without_summary ... ok
+test rejects_change_naming_unknown_capability ... ok
+test rejects_depends_two_cycle ... ok
+test rejects_broken_href_and_src_attributes ... ok
+test rejects_bad_affects_shapes ... ok
+test rejects_an_index_header_with_unknown_tags_or_in_the_wrong_place ... ok
+test rejects_delivered_without_code_or_test_binding ... ok
+test rejects_bad_changes_list ... ok
+test rejects_bad_contract_effect ... ok
+test rejects_an_index_with_prose_outside_the_blocks ... ok
+test rejects_broken_link_outside_the_document_directories ... ok
+test rejects_designed_with_proposed_block ... ok
+test rejects_empty_section ... ok
+test rejects_an_index_with_a_mid_line_marker ... ok
+test rejects_id_filename_mismatch ... ok
+test rejects_hand_written_capability_index ... ok
+test rejects_missing_required_key ... ok
+test rejects_link_leaving_the_repository ... ok
+test rejects_broken_reference_definition ... ok
+test rejects_malformed_proposed_marker ... ok
+test rejects_non_scalar_contract_effect ... ok
+test rejects_orphan_proposed_marker ... ok
+test rejects_moved_outcome_naming_a_missing_change ... ok
+test rejects_issue_number_token ... ok
+test rejects_open_capability_without_change_record ... ok
+test rejects_missing_section ... ok
+test rejects_proposed_change_that_does_not_list_the_capability ... ok
+test rejects_missing_type_key ... ok
+test rejects_non_scalar_state_and_scalar_bindings ... ok
+test rejects_broken_attributes_in_tags_split_across_lines ... ok
+test rejects_broken_unquoted_attribute_values ... ok
+test rejects_lowercase_proposed_marker ... ok
+test rejects_block_scalar_indicator_value ... ok
+test rejects_empty_or_non_scalar_title ... ok
+test rejects_proposed_block_outside_a_section ... ok
+test rejects_proposed_marker_without_space ... ok
+test rejects_nested_documents ... ok
+test rejects_wrong_bindings_keys ... ok
+test rejects_proposed_marker_in_architecture ... ok
+test rejects_unclosed_frontmatter ... ok
+test rejects_process_wording ... ok
+test rejects_bad_id_prefix_or_slug ... ok
+test rejects_type_in_the_wrong_directory ... ok
+test rejects_proposed_marker_in_change ... ok
+test rejects_unquoted_colon_space ... ok
+test rejects_unknown_key ... ok
+test rejects_proposed_section_missing_from_affects ... ok
+test rejects_non_markdown_file_in_a_document_directory ... ok
+test rejects_self_and_three_node_dependency_cycles ... ok
+test tag_scan_spares_prose_autolinks_and_closed_tags ... ok
+test rejects_unclosed_generated_block ... ok
+test rejects_unparseable_frontmatter ... ok
+test rejects_generated_marker_errors ... ok
+test rejects_unterminated_quote ... ok
+test rejects_sections_out_of_order ... ok
+test rejects_bindings_before_delivery ... ok
+test rejects_an_index_with_an_indented_marker ... ok
+test rejects_resource_key ... ok
+test rejects_bad_scalars_in_every_value_position ... ok
+test rejects_frontmatter_shape_errors ... ok
+test tag_state_does_not_survive_a_blank_line_or_a_fence ... ok
+test rejects_leading_indicator_character ... ok
+test rejects_proposed_marker_with_extra_spacing_or_nesting ... ok
+test rejects_placeholder_tokens ... ok
+test rejects_typed_document_outside_its_directory ... ok
+test rejects_sections_left_empty_by_comments ... ok
+test rejects_placeholder_spellings ... ok
+test rejects_item_shape_errors ... ok
+test repository_documents_satisfy_the_profile ... ok
+
+test result: ok. 112 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/repo_gates.rs (/opt/.cargo/18/6d4fb4b3741c1a/debug/build/rust-agentic-foundations/2ef912134acb2daf/out/repo_gates-2ef912134acb2daf)
+
+running 40 tests
+test citation_rejects_a_manifest_bump_without_a_matching_citation ... ok
+test citation_accepts_matching_versions ... ok
+test citation_rejects_a_version_bump_without_a_matching_manifest ... ok
+test citation_rejects_a_missing_version ... ok
+test issue_refs_flags_a_token_in_a_latin_1_file ... ok
+test issue_refs_rejects_a_change_number ... ok
+test issue_refs_rejects_a_colon_prefixed_number_over_four_digits ... ok
+test issue_refs_rejects_a_github_style_number ... ok
+test issue_refs_rejects_a_hash_number_after_a_space ... ok
+test citation_version_matches_the_workspace ... ok
+test issue_refs_rejects_a_parenthesised_hash_number ... ok
+test issue_refs_rejects_a_plan_possessive ... ok
+test issue_refs_rejects_a_pull_request_label ... ok
+test issue_refs_rejects_a_pull_url ... ok
+test issue_refs_rejects_a_task_number ... ok
+test issue_refs_rejects_an_acceptance_label ... ok
+test issue_refs_rejects_an_issue_url ... ok
+test issue_refs_rejects_per_the_plan ... ok
+test issue_refs_rejects_the_words_pull_request_with_a_number ... ok
+test issue_refs_rejects_the_word_issue_with_a_number ... ok
+test issue_refs_rejects_this_branch ... ok
+test issue_refs_rejects_this_issue ... ok
+test issue_refs_reports_every_hit_as_file_and_line ... ok
+test issue_refs_skips_a_nul_containing_file_holding_a_token ... ok
+test issue_refs_spares_a_quoted_three_digit_colour ... ok
+test issue_refs_spares_a_hex_colour_with_letters ... ok
+test issue_refs_spares_an_xml_character_reference ... ok
+test issue_refs_spares_a_six_digit_colour ... ok
+test issue_refs_scans_text_files_and_skips_binary_ones ... ok
+test issue_refs_spares_near_miss_prose ... ok
+test issue_refs_treats_only_a_nul_byte_as_binary ... ok
+test licenses_accepts_a_matching_fingerprint ... ok
+test licenses_accepts_bytes_that_hash_to_the_pin ... ok
+test licenses_rejects_a_fingerprint_mismatch ... ok
+test licenses_rejects_an_altered_mulan_text ... ok
+test licenses_sha256_matches_known_vectors ... ok
+test licenses_rejects_a_record_without_a_fingerprint_line ... ok
+test licenses_zh_hans_matches_the_recorded_fingerprint ... ok
+test licenses_mulan_texts_match_the_pinned_digest ... ok
+test issue_refs_tracked_files_are_clean ... FAILED
+
+failures:
+
+---- issue_refs_tracked_files_are_clean stdout ----
+
+thread 'issue_refs_tracked_files_are_clean' (332503) panicked at tests/repo_gates.rs:318:5:
+issue-refs: 1 hits; remove issue/PR tokens and process wording:
+  notes.txt:4: issue or pull request number
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    issue_refs_tracked_files_are_clean
+
+test result: FAILED. 39 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+error: test failed, to rerun pass `--test repo_gates`
+error: 1 target failed:
+    `--test repo_gates`
+pre-commit: gates failed.
+pre-commit: the staged snapshot fails the gates above; fix and re-stage.
+Not committing merge; use 'git commit' to complete the merge.

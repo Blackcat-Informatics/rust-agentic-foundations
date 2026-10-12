@@ -1,0 +1,19 @@
+df65ee4 docs: bring the changelog and contributor guides up to date
+8ff3859 build(cliff): print each changelog entry once per release
+cb90d10 ci: pin tool versions and run the fast gates on merge commits
+dba307f test(docs): harden the document contract
+2faa697 test: port the licence and issue-reference gates to Rust
+3e20c61 docs(licensing): align the Chinese explanation and the contribution terms
+6120029 docs(security): state the trust model and harden the designed parsing and subprocess contracts
+6f8891e docs(census): give the Gate the full census path and resolve contract details
+f711aa2 docs(workplan): define the seven sections and close the workplan contract gaps
+d6b6572 docs(capabilities): use a neutral example package in the reference scan spec
+9f93e5d docs(capabilities): add considered workplan capabilities and retire the essay
+b499578 test: enforce the OKF document profile in cargo test
+9ce066f docs(capabilities): add workplan capability specs
+25e1978 docs(capabilities): add census capability specs and architecture pages
+49eb42b docs(brand): add RAF brand, logo, social preview and README
+c7edb76 docs: add agent guide, contributing, conduct, security and GitHub templates
+b7db728 ci: add make check, pre-commit hook and CI workflow
+fc6f531 docs(license): add licensing texts and REUSE metadata
+a4eacdc build: scaffold RAF workspace

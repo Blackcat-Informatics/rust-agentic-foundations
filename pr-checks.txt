@@ -1,0 +1,9 @@
+$ stagectl pr-checks 11
+FAILURE    fmt
+FAILURE    clippy
+FAILURE    test
+FAILURE    doc
+FAILURE    deny
+FAILURE    msrv
+FAILURE    reuse
+state: fail

@@ -1,0 +1,9 @@
+FAILURE    fmt  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/38210871728/job/114684499657
+FAILURE    clippy  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/38210871728/job/114684499828
+FAILURE    test  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/38210871728/job/114684499962
+FAILURE    doc  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/38210871728/job/114684499976
+FAILURE    deny  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/38210871728/job/114684499821
+FAILURE    msrv  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/38210871728/job/114684499885
+FAILURE    reuse  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/38210871728/job/114684499776
+FAILURE    gates  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/38210871728/job/114684499922
+state: fail

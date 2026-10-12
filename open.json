@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "issue": 1,
+  "repo": "rust-agentic-foundations",
+  "forge": "github",
+  "nwo": "Blackcat-Informatics/rust-agentic-foundations",
+  "read_access": "auth-required",
+  "main_root": "/home/paudley/Active/rust-agentic-foundations",
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and",
+  "branch": "paudley/1-scaffold-workspace-project-docs-and",
+  "slug": "scaffold-workspace-project-docs-and",
+  "slug_drift": false,
+  "stage_dir": "/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and/.stage/scaffold-workspace-project-docs-and",
+  "stage_tracked": true,
+  "base": "origin/main",
+  "base_oid": "720262df2d137f93916177a7acd43f4fe3faf1fb",
+  "reused": false,
+  "adr_repo": false,
+  "created": [
+    "worktree:/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and",
+    "branch:paudley/1-scaffold-workspace-project-docs-and",
+    ".git/info/exclude:/.worktrees/",
+    "stage:/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and/.stage/scaffold-workspace-project-docs-and",
+    "issue:/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and/.stage/scaffold-workspace-project-docs-and/issue.md"
+  ],
+  "warnings": [],
+  "timestamp": "2026-10-11T22:31:48-0600"
+}

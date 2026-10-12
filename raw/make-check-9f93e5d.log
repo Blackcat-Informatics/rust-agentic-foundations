@@ -1,0 +1,121 @@
+make fmt
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+cargo fmt --all --check --manifest-path ./Cargo.toml
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+make clippy
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+cargo clippy --workspace --all-targets --locked -- -D warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.15s
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+make test
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+cargo test --workspace --locked
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (/opt/.cargo/slots/df0b165e031803a8/0/build/debug/build/rust-agentic-foundations/2067420348e4f253/out/rust_agentic_foundations-2067420348e4f253)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/docs_contract.rs (/opt/.cargo/slots/df0b165e031803a8/0/build/debug/build/rust-agentic-foundations/96f38c8842b03738/out/docs_contract-96f38c8842b03738)
+
+running 46 tests
+test anchors_follow_github_rules ... ok
+test issue_token_scan_spares_hex_colours ... ok
+test fixture_builder_is_self_consistent ... ok
+test parses_quoted_and_block_forms ... ok
+test accepts_moved_outcome ... ok
+test rejects_acceptance_label ... ok
+test rejects_bad_contract_effect ... ok
+test accepts_valid_fixture ... ok
+test rejects_affects_slug_not_in_changes ... ok
+test rejects_affects_with_bad_section ... ok
+test rejects_broken_anchor ... ok
+test rejects_bad_state ... ok
+test rejects_bad_outcome ... ok
+test rejects_bad_type ... ok
+test rejects_capability_without_frontmatter ... ok
+test rejects_broken_relative_link ... ok
+test rejects_change_naming_unknown_capability ... ok
+test rejects_change_without_summary ... ok
+test rejects_considered_without_proposed_block ... ok
+test rejects_dangling_depends ... ok
+test rejects_delivered_with_open_change_record ... ok
+test rejects_delivered_with_proposed_block ... ok
+test rejects_orphan_proposed_marker ... ok
+test rejects_link_leaving_the_repository ... ok
+test rejects_process_wording ... ok
+test rejects_unparseable_frontmatter ... ok
+test rejects_type_in_the_wrong_directory ... ok
+test rejects_issue_number_token ... ok
+test rejects_proposed_marker_in_change ... ok
+test rejects_open_capability_without_change_record ... ok
+test rejects_resource_key ... ok
+test rejects_depends_two_cycle ... ok
+test rejects_unknown_key ... ok
+test rejects_missing_required_key ... ok
+test rejects_unclosed_frontmatter ... ok
+test rejects_missing_section ... ok
+test rejects_sections_out_of_order ... ok
+test rejects_proposed_marker_in_architecture ... ok
+test rejects_hand_written_capability_index ... ok
+test rejects_empty_section ... ok
+test rejects_wrong_bindings_keys ... ok
+test rejects_malformed_proposed_marker ... ok
+test rejects_unclosed_generated_block ... ok
+test rejects_nested_documents ... ok
+test rejects_id_filename_mismatch ... ok
+test repository_documents_satisfy_the_profile ... ok
+
+test result: ok. 46 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+   Doc-tests rust_agentic_foundations
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+make doc
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked
+ Documenting rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.25s
+   Generated /opt/.cargo/slots/df0b165e031803a8/0/target/doc/rust_agentic_foundations/index.html
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+make deny
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+cargo deny --offline check
+advisories ok, bans ok, licenses ok, sources ok
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+make reuse
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+uvx reuse@6.2.0 --root . lint
+# SUMMARY
+
+* Bad licenses: 0
+* Deprecated licenses: 0
+* Licenses without file extension: 0
+* Missing licenses: 0
+* Unused licenses: 0
+* Used licenses: Apache-2.0, CC-BY-4.0, MIT, MulanPSL-2.0
+* Read errors: 0
+* Invalid SPDX License Expressions: 0
+* Files with copyright information: 77 / 77
+* Files with license information: 77 / 77
+
+Congratulations! Your project is compliant with version 3.3 of the REUSE Specification :-)
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+make msrv
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+rust-validate 1.98.1 cargo check --workspace --all-targets --locked
+    Checking rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.70s
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+make licenses
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+make issue-refs
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/1-scaffold-workspace-project-docs-and'
+make check rc=0

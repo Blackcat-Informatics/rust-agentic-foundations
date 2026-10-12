@@ -1,0 +1,137 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running tests/docs_contract.rs (/opt/.cargo/18/6d4fb4b3741c1a/debug/build/rust-agentic-foundations/96f38c8842b03738/out/docs_contract-96f38c8842b03738)
+
+running 112 tests
+test anchors_follow_github_rules ... ok
+test comment_stripping_keeps_visible_text ... ok
+test fixture_builder_is_self_consistent ... ok
+test inventory_rejects_a_document_the_table_does_not_list ... ok
+test inventory_rejects_a_missing_architecture_document ... ok
+test inventory_rejects_a_missing_capability ... ok
+test inventory_rejects_a_missing_change_record ... ok
+test inventory_rejects_a_state_change ... ok
+test inventory_table_has_the_documented_shape ... ok
+test accepts_a_generated_capability_index ... ok
+test inventory_rejects_an_id_change ... ok
+test does_not_read_attributes_that_only_end_in_href_or_src ... ok
+test issue_token_scan_spares_hex_colours ... ok
+test refuses_a_file_swapped_in_after_inspection ... ok
+test parses_quoted_and_block_forms ... ok
+test accepts_moved_outcome ... ok
+test accepts_resolving_reference_and_attribute_links ... ok
+test accepts_valid_fixture ... ok
+test inventory_accepts_a_matching_tree ... ok
+test accepts_comments_after_scalars ... ok
+test refuses_non_regular_files_instead_of_blocking ... ok
+test placeholder_scan_spares_longer_words_and_dotted_prose ... ok
+test placeholder_scan_spares_code_and_longer_words ... ok
+test rejects_acceptance_label ... ok
+test rejects_affects_slug_not_in_changes ... ok
+test rejects_affects_with_bad_section ... ok
+test rejects_bad_type ... ok
+test accepts_a_generated_index_with_an_spdx_header ... ok
+test rejects_bad_contract_effect ... ok
+test rejects_bad_outcome ... ok
+test reads_attributes_with_spaces_around_the_equals_sign ... ok
+test rejects_an_index_whose_marker_is_only_in_a_code_span ... ok
+test rejects_broken_relative_link ... ok
+test reads_an_attribute_value_that_starts_on_the_next_line ... ok
+test rejects_bad_state ... ok
+test rejects_bad_affects_shapes ... ok
+test rejects_an_index_header_tag_without_a_value ... ok
+test rejects_dangling_depends ... ok
+test rejects_delivered_with_open_change_record ... ok
+test rejects_delivered_with_proposed_block ... ok
+test rejects_an_index_header_with_unknown_tags_or_in_the_wrong_place ... ok
+test rejects_broken_link_outside_the_document_directories ... ok
+test rejects_depends_two_cycle ... ok
+test rejects_broken_reference_definition ... ok
+test rejects_change_without_summary ... ok
+test rejects_hand_written_capability_index ... ok
+test rejects_designed_with_proposed_block ... ok
+test rejects_id_filename_mismatch ... ok
+test rejects_an_index_with_a_mid_line_marker ... ok
+test rejects_broken_unquoted_attribute_values ... ok
+test rejects_delivered_without_code_or_test_binding ... ok
+test rejects_an_index_with_prose_outside_the_blocks ... ok
+test rejects_duplicate_section ... ok
+test rejects_capability_without_frontmatter ... ok
+test rejects_link_leaving_the_repository ... ok
+test rejects_issue_number_token ... ok
+test rejects_moved_outcome_naming_a_missing_change ... ok
+test rejects_missing_section ... ok
+test rejects_malformed_proposed_marker ... ok
+test rejects_empty_section ... ok
+test rejects_considered_without_proposed_block ... ok
+test rejects_change_naming_unknown_capability ... ok
+test rejects_missing_required_key ... ok
+test rejects_an_index_with_an_indented_marker ... ok
+test rejects_empty_or_non_scalar_title ... ok
+test rejects_bad_depends_shapes ... ok
+test rejects_broken_anchor ... ok
+test rejects_missing_type_key ... ok
+test rejects_broken_href_and_src_attributes ... ok
+test rejects_non_scalar_state_and_scalar_bindings ... ok
+test rejects_lowercase_proposed_marker ... ok
+test rejects_orphan_proposed_marker ... ok
+test rejects_block_scalar_indicator_value ... ok
+test rejects_open_capability_without_change_record ... ok
+test rejects_nested_documents ... ok
+test rejects_bad_changes_list ... ok
+test rejects_proposed_block_outside_a_section ... ok
+test rejects_proposed_marker_in_change ... ok
+test rejects_proposed_section_missing_from_affects ... ok
+test rejects_generated_marker_errors ... ok
+test rejects_non_scalar_contract_effect ... ok
+test rejects_process_wording ... ok
+test rejects_wrong_bindings_keys ... ok
+test rejects_proposed_change_that_does_not_list_the_capability ... ok
+test rejects_proposed_marker_in_architecture ... ok
+test rejects_bindings_before_delivery ... ok
+test rejects_bad_id_prefix_or_slug ... ok
+test tag_scan_spares_prose_autolinks_and_closed_tags ... ok
+test rejects_unparseable_frontmatter ... ok
+test rejects_broken_attributes_in_tags_split_across_lines ... ok
+test rejects_proposed_marker_without_space ... ok
+test rejects_unclosed_generated_block ... ok
+test rejects_unclosed_frontmatter ... ok
+test rejects_unknown_key ... ok
+test rejects_non_markdown_file_in_a_document_directory ... ok
+test rejects_unquoted_colon_space ... ok
+test rejects_type_in_the_wrong_directory ... ok
+test rejects_unterminated_quote ... ok
+test rejects_sections_out_of_order ... ok
+test rejects_self_and_three_node_dependency_cycles ... ok
+test rejects_resource_key ... ok
+test tag_state_does_not_survive_a_blank_line_or_a_fence ... ok
+test rejects_leading_indicator_character ... ok
+test rejects_proposed_marker_with_extra_spacing_or_nesting ... ok
+test rejects_bad_scalars_in_every_value_position ... ok
+test rejects_sections_left_empty_by_comments ... ok
+test rejects_typed_document_outside_its_directory ... ok
+test rejects_item_shape_errors ... ok
+test rejects_placeholder_tokens ... ok
+test rejects_frontmatter_shape_errors ... ok
+test rejects_placeholder_spellings ... ok
+test repository_documents_satisfy_the_profile ... FAILED
+
+failures:
+
+---- repository_documents_satisfy_the_profile stdout ----
+
+thread 'repository_documents_satisfy_the_profile' (349259) panicked at tests/docs_contract.rs:1807:5:
+4 profile violations:
+  docs/capabilities/workplan-prose-assessment.md: the document is missing
+  work/changes/workplan-prose-assessment.md: the document is missing
+  docs/capabilities/workplan-prose-review.md: the document is not in the inventory table
+  work/changes/workplan-prose-review.md: the document is not in the inventory table
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    repository_documents_satisfy_the_profile
+
+test result: FAILED. 111 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+error: test failed, to rerun pass `--test docs_contract`

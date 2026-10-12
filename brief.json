@@ -1,0 +1,24 @@
+{
+  "issue": 1,
+  "repo": "Blackcat-Informatics/rust-agentic-foundations",
+  "forge": "github",
+  "title": "Scaffold workspace, project docs and branding, plus spec-first capability docs",
+  "state": "OPEN",
+  "adrs": [],
+  "linked_issues": {
+    "1": "Scaffold workspace, project docs and branding, plus spec-first capability docs",
+    "2": "Shared crates: raf-okf + raf-source",
+    "5": "raf-census detectors and extensibility: built-ins, patterns, Rule trait, Gate, reference scan",
+    "7": "raf-workplan model: documents, check, graph, bindings, generated docs",
+    "11": "Scaffold the RAF workspace, project docs, brand and spec-first capability docs",
+    "4": "raf-census ledger: unified schema, staleness, debt ratchet, migration"
+  },
+  "related": [],
+  "defect_classes": {},
+  "coverage": [
+    "issue #1 + 9 comment(s) via github",
+    "link crawl: 6 issue(s) within 2 hop(s) of `#N` references",
+    "forge search on ['Scaffold', 'workspace,', 'project']: 0 other item(s)",
+    "no GhpRsq-Defect-Class trailers in history yet \u2014 recurrence cannot be counted from trailers for this repo"
+  ]
+}

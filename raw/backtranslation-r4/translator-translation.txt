@@ -1,0 +1,24 @@
+TRANSLATION (translator's reply; its top heading was '# RAF Licensing Notes', demoted to '###' in the record):
+# RAF Licensing Notes
+
+This file is an explanatory draft and has not been legally reviewed. For the independent model back-translation record, see
+[Back-translation check notes](./LICENSING-BACKTRANSLATION.md). This file cannot replace the full text of the licenses.
+
+RAF first-party code may be used by the user under any one of MIT, Apache-2.0, or MulanPSL-2.0, at the user's choice.
+The SPDX expression is `MIT OR Apache-2.0 OR MulanPSL-2.0`.
+These are three open-source license options. A commercial license is provided separately by the copyright holder and is not a fourth open-source option.
+Documents bearing the `CC-BY-4.0` identifier retain that license.
+
+[The full Chinese-English text of MulanPSL-2.0](../LICENSE-MULAN) provides in Article 6 that the Chinese and English versions have equal legal effect;
+if the two conflict or are inconsistent, the Chinese version prevails. Article 2 provides that each contributor grants a patent license to you under its terms.
+If you or your affiliated entities, directly or indirectly, initiate patent infringement litigation (including counterclaims or cross-claims)
+or other patent enforcement actions regarding the software or the contributions in it, then the patent license that this license grants you for the software terminates as of the date that action is initiated.
+The scope and conditions of the patent license are governed by the full text of Article 2. Article 3 grants no trademark license, except for the use necessary to fulfill the notice obligations of Article 4.
+Article 4 requires providing recipients with a copy of the license, and retaining the copyright,
+patent, trademark, and disclaimer notices.
+
+Third-party code and inherited materials retain their original licenses. Choosing MulanPSL-2.0 does not
+relicense third-party materials.
+
+For the sources of materials and the scope of application, see the [English notes](../LICENSING.md) and the SPDX identifiers in the files;
+the actual grant and obligations are governed by the full text of each license. An explanatory document cannot change the language terms of MulanPSL-2.0.
