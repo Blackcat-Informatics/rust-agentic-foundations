@@ -51,12 +51,12 @@ Name the reference packages in the ledger and home a job in one of them:
 ```toml
 [census]
 normal_form = 1
-reference = ["purrdf-core"]
+reference = ["acme-core"]
 
 [[job]]
 id = "iri-parse"
 summary = "IRI parsing."
-home = "purrdf_core::iri::parse"
+home = "acme_core::iri::parse"
 entry_points = []
 enforced = true
 
@@ -72,10 +72,10 @@ reference symbol.
 
 ## Examples
 
-A first-party function with the body of `purrdf_core::iri::parse` is reported as:
+A first-party function with the body of `acme_core::iri::parse` is reported as:
 
 ```text
-REFERENCE-COPY  src/iri.rs:12  demo::iri::parse_iri  matches purrdf_core::iri::parse  body:3f9a1c0b7d2e4a65
+REFERENCE-COPY  src/iri.rs:12  demo::iri::parse_iri  matches acme_core::iri::parse  body:3f9a1c0b7d2e4a65
 ```
 
 ## Constraints
