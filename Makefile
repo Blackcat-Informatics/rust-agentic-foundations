@@ -13,7 +13,7 @@
 #   test-release  the raf-source tests again in release mode, because the parse
 #                 stack cost of a nesting level differs between the profiles.
 #   fuzz          fmt, clippy and deny on the fuzz harness, then a bounded run of
-#                 its target over the committed corpus. Needs cargo-fuzz.
+#                 each of its targets over its committed corpus. Needs cargo-fuzz.
 #   cross-check   cargo check of raf-source for the Apple and Windows targets.
 #                 Needs both targets installed (rustup target add).
 
@@ -80,8 +80,10 @@ fuzz: ## Fuzz harness: fmt, clippy, deny, then a bounded run (needs cargo-fuzz).
 	cargo clippy --manifest-path '$(ROOT)/fuzz/Cargo.toml' --locked -- -D warnings
 	cd '$(ROOT)/fuzz' && cargo deny $(FUZZ_DENY) check
 	@work=$$(mktemp -d) && trap 'rm -rf "$$work"' EXIT && \
-	  cargo fuzz run parse_source "$$work" fuzz/corpus/parse_source -- \
-	    -runs=$(FUZZ_RUNS) -seed=$(FUZZ_SEED) -max_len=$(FUZZ_MAX_LEN)
+	  for target in parse_source parse-document; do \
+	    cargo fuzz run "$$target" "$$work" "fuzz/corpus/$$target" -- \
+	      -runs=$(FUZZ_RUNS) -seed=$(FUZZ_SEED) -max_len=$(FUZZ_MAX_LEN) || exit 1; \
+	  done
 
 cross-check: ## cargo check raf-source for the Apple and Windows targets.
 	@for target in $(CROSS_TARGETS); do \

@@ -4,6 +4,7 @@
 //! Headings, their anchors, and second-level sections.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::body::blocks::{Line, Origin};
 use crate::span::Span;
@@ -12,8 +13,8 @@ use crate::span::Span;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Heading {
     level: usize,
-    text: String,
-    anchor: String,
+    text: Arc<str>,
+    anchor: Arc<str>,
     line: usize,
 }
 
@@ -48,8 +49,8 @@ impl Heading {
 /// second-level heading.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Section {
-    heading: String,
-    slug: String,
+    heading: Arc<str>,
+    slug: Arc<str>,
     line: usize,
     content: Span,
 }
@@ -66,6 +67,11 @@ impl Section {
     #[must_use]
     pub fn slug(&self) -> &str {
         &self.slug
+    }
+
+    /// The slug as a shared pointer, for the lines the section holds.
+    pub(crate) fn shared_slug(&self) -> Arc<str> {
+        Arc::clone(&self.slug)
     }
 
     /// The 1-based line of the heading in the whole text.
@@ -130,7 +136,7 @@ pub(crate) fn github_anchor(heading: &str) -> String {
 /// Number the repeats: the first use of an anchor keeps it, the next gets
 /// `-1`, then `-2`.
 pub(crate) struct Anchors {
-    seen: HashMap<String, usize>,
+    seen: HashMap<Arc<str>, usize>,
 }
 
 impl Anchors {
@@ -140,14 +146,17 @@ impl Anchors {
         }
     }
 
-    pub(crate) fn next(&mut self, base: &str) -> String {
-        let uses = self.seen.get(base).map_or(0, |count| *count);
-        self.seen.insert(base.to_string(), uses + 1);
-        if uses == 0 {
-            base.to_string()
-        } else {
-            format!("{base}-{uses}")
+    /// The anchor for the next heading whose base anchor is `base`. The first
+    /// use is the base itself, shared with the table; a repeat is numbered.
+    pub(crate) fn next(&mut self, base: String) -> Arc<str> {
+        if let Some(count) = self.seen.get_mut(base.as_str()) {
+            let anchor = format!("{base}-{count}");
+            *count += 1;
+            return Arc::from(anchor);
         }
+        let anchor: Arc<str> = Arc::from(base);
+        self.seen.insert(Arc::clone(&anchor), 1);
+        anchor
     }
 }
 
@@ -185,10 +194,10 @@ pub(crate) fn read_headings(
             continue;
         }
         if let Some((level, text)) = atx(&visible[index]) {
-            let anchor = anchors.next(&github_anchor(&text));
+            let anchor = anchors.next(github_anchor(&text));
             headings.push(Heading {
                 level,
-                text,
+                text: Arc::from(text),
                 anchor,
                 line: origin.line + index,
             });
@@ -207,9 +216,16 @@ pub(crate) fn read_headings(
             Some((next, _)) => *next,
             None => lines.len(),
         };
+        let slug = github_anchor(&heading.text);
         sections.push(Section {
-            slug: github_anchor(&heading.text),
-            heading: heading.text.clone(),
+            // A heading seen for the first time has its slug as its anchor, so
+            // the two share one allocation.
+            slug: if *slug == *heading.anchor {
+                Arc::clone(&heading.anchor)
+            } else {
+                Arc::from(slug)
+            },
+            heading: Arc::clone(&heading.text),
             line: heading.line,
             content: span_of(lines, body_len, index + 1, end, origin),
         });

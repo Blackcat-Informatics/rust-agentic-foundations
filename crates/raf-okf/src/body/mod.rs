@@ -10,6 +10,8 @@ mod link;
 mod marker;
 mod prose;
 
+use std::sync::Arc;
+
 use crate::error::{ErrorKind, ParseError, SpliceError};
 use crate::frontmatter::reader::locate_fences;
 use crate::limits::MAX_TEXT_BYTES;
@@ -128,12 +130,14 @@ impl Body {
             }
         }
         let (headings, sections) = heading::read_headings(lines, &visible, body.len(), origin);
-        let mut section_of: Vec<Option<String>> = vec![None; lines.len()];
+        // One shared slug per section: a line holds a pointer to it, so the
+        // memory of the line table does not grow with the heading's length.
+        let mut section_of: Vec<Option<Arc<str>>> = vec![None; lines.len()];
         for section in &sections {
             let first = section.line() - origin.line;
             let end = section.content().lines.end - origin.line;
             for slot in &mut section_of[first..end] {
-                *slot = Some(section.slug().to_string());
+                *slot = Some(section.shared_slug());
             }
         }
         let markers = marker::scan_markers(body, lines, origin, &section_of)?;

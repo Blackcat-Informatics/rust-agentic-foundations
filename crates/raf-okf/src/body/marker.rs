@@ -3,6 +3,8 @@
 
 //! PROPOSED blocks and generated blocks.
 
+use std::sync::Arc;
+
 use crate::body::blocks::{Line, Origin, error_at};
 use crate::body::heading::span_of;
 use crate::error::{ErrorKind, ParseError};
@@ -21,7 +23,7 @@ pub struct ProposedBlock {
     span: Span,
     marker: Span,
     content: String,
-    section: Option<String>,
+    section: Option<Arc<str>>,
 }
 
 impl ProposedBlock {
@@ -141,7 +143,7 @@ pub(crate) fn scan_markers(
     body: &str,
     lines: &[Line],
     origin: Origin,
-    section_of: &[Option<String>],
+    section_of: &[Option<Arc<str>>],
 ) -> Result<Markers, ParseError> {
     let mut found = Markers {
         proposed: Vec::new(),

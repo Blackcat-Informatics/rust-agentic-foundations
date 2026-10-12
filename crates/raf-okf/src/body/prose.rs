@@ -3,13 +3,15 @@
 
 //! The prose view of a body.
 
+use std::sync::Arc;
+
 /// One line of prose: outside fenced code and HTML comments, with code spans
 /// removed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProseLine {
     pub(crate) line: usize,
     pub(crate) text: String,
-    pub(crate) section: Option<String>,
+    pub(crate) section: Option<Arc<str>>,
     pub(crate) in_proposed: bool,
     pub(crate) in_generated: bool,
 }

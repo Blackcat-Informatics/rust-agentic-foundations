@@ -116,6 +116,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
+name = "raf-okf"
+version = "0.1.0"
+
+[[package]]
 name = "raf-source"
 version = "0.1.0"
 dependencies = [
@@ -131,6 +135,7 @@ name = "raf-source-fuzz"
 version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
+ "raf-okf",
  "raf-source",
 ]
 

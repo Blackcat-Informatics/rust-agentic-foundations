@@ -22,11 +22,19 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+raf-okf = { path = "../crates/raf-okf", version = "0.1.0" }
 raf-source = { path = "../crates/raf-source", version = "0.1.0" }
 
 [[bin]]
 name = "parse_source"
 path = "fuzz_targets/parse_source.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parse-document"
+path = "fuzz_targets/parse_document.rs"
 test = false
 doc = false
 bench = false
