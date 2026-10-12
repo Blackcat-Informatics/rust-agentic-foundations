@@ -14,7 +14,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::error::{LoadError, LoadErrorKind};
-use crate::facts::{ImplFact, ItemFact, ItemKind, ModBody, PathFact, TestRole, UseTree, Vis};
+use crate::facts::{
+    ImplFact, ItemFact, ItemKind, ModBody, PathFact, SpanFact, TestRole, UseTree, Vis,
+};
 use crate::item::{Item, ItemId, Namespace, SymbolKind, TraitKey};
 use crate::manifest::Dependencies;
 use crate::modtree::TargetId;
@@ -96,6 +98,8 @@ pub(crate) struct Index {
     /// The crate an `extern crate` item names, by item.
     pub(crate) extern_names: BTreeMap<ItemId, String>,
     /// Items grouped by file and the byte offset where their span starts.
+    /// The item of each target's crate root, by the root module.
+    pub(crate) root_items: BTreeMap<usize, ItemId>,
     pub(crate) by_source: BTreeMap<(RelPath, usize), Vec<ItemId>>,
     /// Members of a type or trait, by name.
     pub(crate) assoc: BTreeMap<ItemId, BTreeMap<String, Vec<ItemId>>>,
@@ -475,6 +479,7 @@ impl Index {
                 use_settled: Vec::new(),
                 unsettled: BTreeMap::new(),
                 extern_names: BTreeMap::new(),
+                root_items: BTreeMap::new(),
                 by_source: BTreeMap::new(),
                 assoc: BTreeMap::new(),
                 foreign: BTreeMap::new(),
@@ -509,11 +514,77 @@ impl Index {
             }
         }
         let mut index = builder.index;
+        index.add_roots(files)?;
         index.build_scopes();
         index.settle()?;
         index.attach_impls()?;
         index.finish();
         Ok(index)
+    }
+
+    /// One module item for each target: its crate root, at the crate path.
+    /// The root is not named inside any module, so no scope binds it; a path
+    /// that is exactly a crate path finds it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an `Internal` [`LoadError`] if a target's root file was not
+    /// loaded or its crate root has no module, which the walk guarantees.
+    fn add_roots(&mut self, files: &BTreeMap<RelPath, SourceFile>) -> Result<(), LoadError> {
+        for (position, target) in self.targets.clone().iter().enumerate() {
+            let internal =
+                |what: String| LoadError::new(&target.root, None, LoadErrorKind::Internal { what });
+            let file = files.get(&target.root).ok_or_else(|| {
+                internal(format!(
+                    "the root file of `{}` was not loaded",
+                    target.crate_path
+                ))
+            })?;
+            let module = *self.crate_roots.get(&target.crate_path).ok_or_else(|| {
+                internal(format!("`{}` has no crate root module", target.crate_path))
+            })?;
+            let id = ItemId(self.items.len());
+            let lines = file.text.lines().count().max(1);
+            let name = target
+                .crate_path
+                .rsplit("::")
+                .next()
+                .map_or_else(|| target.crate_path.clone(), str::to_owned);
+            self.items.push(Item {
+                id,
+                path: target.crate_path.clone(),
+                name,
+                kind: SymbolKind::Mod,
+                namespace: Namespace::Type,
+                file: file.path.clone(),
+                name_line: 1,
+                span: SpanFact {
+                    start_line: 1,
+                    end_line: lines,
+                    start_byte: 0,
+                    end_byte: file.text.len(),
+                },
+                body: None,
+                visibility: Vis::Public,
+                documented: file.facts.documented,
+                doc_hidden: file.facts.doc_hidden,
+                test: match target.kind {
+                    TargetKind::Test | TargetKind::Bench => TestRole::CfgTest,
+                    TargetKind::Lib
+                    | TargetKind::Bin
+                    | TargetKind::Example
+                    | TargetKind::BuildScript => TestRole::None,
+                },
+                target: TargetId(position),
+                self_type: None,
+                trait_key: None,
+                trait_path: None,
+                shape: None,
+            });
+            self.module_of.insert(id, module);
+            self.root_items.insert(module, id);
+        }
+        Ok(())
     }
 
     /// Sort the items and file them.
@@ -529,6 +600,10 @@ impl Index {
         }
         let items = &self.items;
         for id in &self.order {
+            // A crate root is a whole file, not a source item inside one.
+            if self.root_items.values().any(|root| root == id) {
+                continue;
+            }
             let item = &items[id.0];
             self.by_source
                 .entry((item.file.clone(), item.span.start_byte))
@@ -625,5 +700,47 @@ impl Builder<'_> {
         self.index.module_by_path.insert(path.to_owned(), idx);
         self.index.crate_roots.insert(path.to_owned(), idx);
         idx
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tree::MemoryTree;
+    use crate::workspace::Workspace;
+
+    #[test]
+    fn a_target_whose_root_file_is_missing_is_a_typed_internal_error() {
+        let tree = MemoryTree::from([
+            ("Cargo.toml", "[package]\nname = \"demo\"\n"),
+            ("src/lib.rs", ""),
+        ]);
+        let ws = Workspace::load(&tree, &["."]).expect("loads");
+        let targets: Vec<Target> = ws.targets().cloned().collect();
+        let files: BTreeMap<RelPath, SourceFile> = ws
+            .files()
+            .map(|file| {
+                (
+                    file.path.clone(),
+                    SourceFile {
+                        path: file.path.clone(),
+                        package: file.package.clone(),
+                        shipping: file.shipping,
+                        test: file.test,
+                        text: file.text.clone(),
+                        facts: file.facts.clone(),
+                        reached: file.reached.clone(),
+                    },
+                )
+            })
+            .collect();
+        let infos = BTreeMap::new();
+        assert!(Index::build(&targets, &files, &infos).is_ok());
+        let error = Index::build(&targets, &BTreeMap::new(), &infos).expect_err("no root file");
+        assert!(
+            matches!(error.kind, LoadErrorKind::Internal { .. }),
+            "{error}"
+        );
+        assert_eq!(error.file.as_str(), "src/lib.rs");
     }
 }

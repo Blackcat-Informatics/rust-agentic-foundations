@@ -665,7 +665,9 @@ fn items_that_share_a_source_item_are_grouped_by_its_identity() {
             .all(|pair| (pair[0].0, pair[0].1) < (pair[1].0, pair[1].1))
     );
     let covered: usize = groups.iter().map(|(_, _, ids)| ids.len()).sum();
-    assert_eq!(covered, ws.items().count());
+    // Crate roots are whole files and are not grouped.
+    let roots = ws.targets().count();
+    assert_eq!(covered + roots, ws.items().count());
     let lone = ws.items().find(|i| i.name == "a").expect("test a");
     assert_eq!(ws.same_source(lone).len(), 1);
 }

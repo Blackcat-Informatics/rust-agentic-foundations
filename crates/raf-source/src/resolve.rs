@@ -387,6 +387,28 @@ impl Index {
                 Err(Fail::SuperAboveRoot) => {}
             }
         }
+        // A path that is exactly a crate path names the crate root, a module.
+        // If a first-party item already has that path, the path names two
+        // things and is ambiguous.
+        if ns == Namespace::Type
+            && let Some(root) = self
+                .crate_roots
+                .get(text)
+                .and_then(|module| self.root_items.get(module))
+        {
+            if !found.is_empty() {
+                let mut all: Vec<ItemId> = found.keys().copied().collect();
+                all.push(*root);
+                return Err(ResolveError::Ambiguous(self.sorted(all)));
+            }
+            found.insert(
+                *root,
+                Hit {
+                    via_glob: false,
+                    last: None,
+                },
+            );
+        }
         if let (true, Some(ids)) = (found.is_empty(), self.foreign.get(text)) {
             for id in ids {
                 if self.items[id.0].in_namespace(ns) {
