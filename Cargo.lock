@@ -9,10 +9,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f125eb85b84a24c36b02ed1d22c9dd8632f53b3cde6e4d23512f94021030003"
 
 [[package]]
+name = "libc"
+version = "0.2.190"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce5d3ddc6d3fa000eb1536d85e147bfe31aacaba692ed6a876f95cb7c855be78"
+
+[[package]]
 name = "raf-okf"
 version = "0.1.0"
 dependencies = [
  "cap",
+]
+
+[[package]]
+name = "raf-source"
+version = "0.1.0"
+dependencies = [
+ "libc",
 ]
 
 [[package]]

@@ -24,27 +24,66 @@ both and cannot disagree.
 
 ## Contract
 
-**Tree.** All file access goes through the `Tree` trait: list a directory, read a
-file, test existence. `DiskTree` reads a directory on disk. `MemoryTree` holds a map
-of path to text and exists so that fixtures build repositories without touching the
-disk. Nothing else in the crate opens a file.
+**Tree.** All file access goes through the `Tree` trait, which takes `RelPath`
+values: validated root-relative `/`-separated UTF-8 paths. `RelPath::join` drops `.`
+segments and refuses an absolute input, a backslash, a NUL, a drive-letter segment
+and a `..` that climbs above the root with a typed `PathError`. A `..` below the
+root is kept, because on a disk it means the parent of the directory the earlier
+segments really reach. The trait has three calls, each returning a `Result`:
+`read(path, max_bytes)` returns the text of a file, `list(path)` returns the
+entries of a directory sorted by name, each with a kind of file, directory, symlink
+or other, and `entry(path)` returns the kind of one path or `None` when nothing is
+there. The trait is object-safe and has no `Send` or `Sync` bound. A failure is a
+`TreeError` that names the path: `NotFound`, `OutsideRoot`, `NotRegular`,
+`SymlinkLoop`, `TooLarge`, `NotUtf8`, `NonUtf8Name`, `DuplicatePath` or `Io`. Only `NotFound` means
+that nothing is there; an entry whose name is not UTF-8 fails the listing and is
+never dropped from it. `DiskTree::new(root)` returns a `Result`: it canonicalises
+the root once, a missing root is `NotFound`, and a symlinked root is followed to its
+target. `MemoryTree` holds a map of path to text, infers directories from the keys,
+and exists so that fixtures build repositories without touching the disk. It
+enforces `max_bytes` like the disk backend and refuses a key such as `../a` or `/a`
+with `OutsideRoot`, and a key that names a path another key already holds, whether
+literally or after normalisation, with `DuplicatePath`; a tree built by the infallible
+conversions from such keys returns the same error from every call. A missing `/proc`
+on Linux is an `Io` failure and never `NotFound`. `entry` returns `OutsideRoot` when
+the directory that holds the path leads outside the root. Nothing else in the crate
+opens a file.
 
 **Path containment.** Every path the crate opens is checked against the workspace
 root, so a hostile tree cannot make the index read a file outside it. This covers
 files reached by `mod name;` with or without `#[path]`, explicit `path` values of
-`Cargo.toml` targets, and every discovered `Cargo.toml`. `DiskTree::new` canonicalises
-the root once. For each candidate it canonicalises the resolved path, which follows
-every symlink and applies every `..` against the real directories, and requires the
-canonical root as a prefix of the result. A candidate outside the root is an error
-that names the module, attribute or manifest key, and it is neither opened nor read.
-A lexical check of `..` segments is not enough, because `link/..` leaves the root when
-`link` is a directory symlink. `DiskTree` refuses any entry that is not a regular
-file, such as a FIFO or a device, and it does not descend into a directory symlink,
-so a symlink loop ends at the first link. The file type is checked on the opened
-handle and not by a stat before the open: the crate opens the canonical path
-non-blocking, so opening a FIFO cannot hang, and then calls `fstat` on the handle and
-refuses anything that is not a regular file. No check separates from the open it
-guards.
+`Cargo.toml` targets, and every discovered `Cargo.toml`. For each candidate
+`DiskTree` canonicalises the resolved path, which follows every symlink and applies
+every `..` against the real directories, and requires the canonical root as a prefix
+of the result. A candidate outside the root is an error that names the module,
+attribute or manifest key, and it is neither opened nor read. A lexical check of
+`..` segments is not enough, because `link/..` leaves the root when `link` is a
+directory symlink, so `DiskTree` never clamps a `..` in text. A symlink whose target
+is inside the root is followed. `DiskTree` refuses any file that is not a regular
+file, such as a FIFO or a device, and it does not descend into a directory symlink:
+a listing reports it with the symlink kind, listing it is refused, and a symlink
+loop ends with `SymlinkLoop` at the first link. The file type is checked on the
+opened handle and not by a stat before the open: the crate opens the canonical path
+non-blocking and without following a final symlink, so opening a FIFO cannot hang,
+and then reads the type from the handle and refuses anything that is not a regular
+file. A listing opens the canonical directory the same way (as a directory, without
+following a final symlink), verifies that handle as reads do, and reads the entries
+through the handle, so a swap between the check and the listing cannot list a
+directory outside the root. The opened handle is checked against the root, and the
+guarantee depends on the platform:
+
+- On Linux the kernel's own path for the handle (`/proc/self/fd/<fd>`) must lie
+  under the canonical root. The check reads what the handle really is, so no check
+  is separated from the open it guards: a directory swapped for a symlink to
+  outside the root after the prefix check is refused.
+- On other Unix systems the path is canonicalised again after the open and must lie
+  under the root and name the file the handle is (same device and inode). A rename
+  that wins the race against the second canonicalisation can still redirect the
+  path, but not the handle, and the identity comparison refuses a handle that is not
+  the file the path names.
+- On other platforms the handle must be a regular file and the path canonicalised
+  again after the open must still lie under the root. A rename that wins the race
+  against the second canonicalisation is a residual window there.
 
 **Resource bounds.** Source is parsed in-process. Each read is capped at
 `max_file_bytes`, which defaults to 8 MiB and is set by `LoadOptions::max_file_bytes`
@@ -108,7 +147,7 @@ and the documentation of the capabilities that rely on the index says so.
 ```rust
 use raf_source::{DiskTree, Workspace};
 
-let ws = Workspace::load(&DiskTree::new("."), &["crates"])?;
+let ws = Workspace::load(&DiskTree::new(".")?, &["crates"])?;
 let item = ws.resolve("raf_okf::Document")?;
 println!("{} at {}:{}", item.path, item.file.display(), item.line);
 for t in ws.targets().filter(|t| !t.shipping) {
@@ -228,4 +267,15 @@ duplicates.
     path outside the root;
   - a link to a symlink that itself points outside the root;
   - a directory-symlink loop, which ends with an error and does not recurse;
-  - a FIFO named as a module file, which is refused without blocking on a read.
+  - a FIFO named as a module file, which is refused without blocking on a read;
+  - a missing root, which is `NotFound`, and a symlinked root, which is followed to
+    its target and judged there;
+  - a directory swapped for a symlink to outside the root between the prefix check
+    and the open, or between the check and a listing, which is refused and leaves the
+    outside file unread and the outside names unreturned;
+  - per-platform handle verifiers, each compiled on every platform and run on Linux:
+    a handle on a file outside the root is refused beside an in-root handle; a
+    differing device and inode pair is refused beside an equal pair; and a
+    non-regular handle and an outside re-canonicalised path are each refused beside
+    an accepted case;
+  - a symlink to a file inside the root, and a chain of such symlinks, is accepted.

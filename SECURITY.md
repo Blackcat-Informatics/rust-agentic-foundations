@@ -53,7 +53,16 @@ guarantees are these, and no wider:
   workspace root. The one exception is the reference scan, which reads the sources of
   reference packages by design; each of those files must lie inside the package
   directory that `cargo metadata` reports for that package. Symlinks that leave the
-  root or package, directory-symlink loops and non-regular files are refused.
+  root or package, directory-symlink loops and non-regular files are refused. The
+  opened handle, for a file read and for a directory listing alike, is verified
+  against the root, and the guarantee depends on the platform. On Linux the kernel's own path for the handle must lie under the root,
+  so no check is separated from the open it guards. On other Unix systems the path
+  is canonicalised again after the open and must lie under the root and name the
+  same file as the handle (device and inode); a rename racing that second
+  canonicalisation can still redirect the path but not the handle. Elsewhere the
+  handle must be a regular file and the path canonicalised again after the open must
+  still lie under the root; a rename racing that second canonicalisation is a
+  residual window.
 - **Bounds.** Input size and nesting depth are bounded. The design of the source
   index adds, for Rust source, a recursion pre-scan, a dedicated 64 MiB parse stack
   and a fuzz target (`parse_source`) with a corpus that `cargo test` replays. These

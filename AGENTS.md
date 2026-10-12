@@ -46,15 +46,17 @@ crates are implemented.
 
 ### Crates
 
-`raf-okf` is a workspace member and is **implementing**: the frontmatter reader and
-the deterministic writer are built. Every other crate below is **designed, not yet
+`raf-okf` and `raf-source` are workspace members and are **implementing**: the
+frontmatter reader, the deterministic writer and the profile validation of `raf-okf`
+are built, and so are the `Tree` trait with its disk and memory backends and the
+path containment of `raf-source`. Every other crate below is **designed, not yet
 implemented**, and joins the workspace members list when it is built. The capability
 documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
 |---|---|---|
 | `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | implementing |
-| `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | designed |
+| `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | implementing |
 | `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | designed |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
 | `raf-workplan` | Capability and change model, graph, obligations, bindings, generated sections, completion gate | designed |
@@ -68,7 +70,7 @@ bindings.
 
 | Path | Contents |
 |---|---|
-| `crates/` | The workspace member crates (`raf-okf` today; each other crate joins `members` when it is built) |
+| `crates/` | The workspace member crates (`raf-okf` and `raf-source` today; each other crate joins `members` when it is built) |
 | `docs/capabilities/` | One permanent capability document per capability |
 | `docs/architecture/` | Shared current decisions (normal form, OKF profile) |
 | `work/changes/` | In-flight change records |
