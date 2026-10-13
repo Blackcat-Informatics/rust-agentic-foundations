@@ -51,3 +51,24 @@ fn an_item_of_a_module_file_that_sorts_before_its_mod_rs_is_found_under_its_own_
         ))
     );
 }
+
+#[test]
+fn a_dependency_re_exported_by_its_crate_name_is_not_found_and_not_a_cycle() {
+    let ws = this_repository();
+    // `raf-source` re-exports `syn` with `pub use syn;`, a crate outside the
+    // workspace.
+    for path in ["raf_source::syn", "raf_source::syn::File"] {
+        assert_eq!(
+            ws.resolve(path),
+            Err(ResolveError::NotFound(path.to_owned())),
+            "{path}"
+        );
+    }
+    // Beside it, a re-export of the crate's own item resolves.
+    assert_eq!(
+        ws.resolve("raf_source::DiskTree")
+            .unwrap_or_else(|e| panic!("{e}"))
+            .path,
+        "raf_source::tree::disk::DiskTree"
+    );
+}

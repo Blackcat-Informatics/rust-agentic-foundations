@@ -163,15 +163,27 @@ fn super_above_the_crate_root_is_an_error_naming_file_and_line() {
     );
 }
 
+/// Load `files` beside a manifest of `edition`.
+fn load_in(edition: &str, files: &[(&str, &str)]) -> Result<Workspace, LoadError> {
+    let manifest = format!("{DEMO}edition = \"{edition}\"\n");
+    let mut all = vec![("Cargo.toml", manifest.as_str())];
+    all.extend_from_slice(files);
+    let tree: MemoryTree = all.into_iter().collect();
+    Workspace::load(&tree, &["."])
+}
+
 #[test]
 fn extern_crate_renames_and_leading_colon_paths_reach_the_library_from_other_targets() {
-    let ws = load(&[
-        ("src/lib.rs", "pub mod inner { pub fn go() {} }\n"),
-        (
-            "src/main.rs",
-            "extern crate demo as d;\npub use d::inner::go;\npub use ::demo::inner::go as g;\nfn main() {}\n",
-        ),
-    ])
+    let ws = load_in(
+        "2021",
+        &[
+            ("src/lib.rs", "pub mod inner { pub fn go() {} }\n"),
+            (
+                "src/main.rs",
+                "extern crate demo as d;\npub use d::inner::go;\npub use ::demo::inner::go as g;\nfn main() {}\n",
+            ),
+        ],
+    )
     .expect("loads");
     assert_eq!(path_of(&ws, "demo::bin_crate::demo::go"), "demo::inner::go");
     assert_eq!(path_of(&ws, "demo::bin_crate::demo::g"), "demo::inner::go");
@@ -182,10 +194,13 @@ fn extern_crate_renames_and_leading_colon_paths_reach_the_library_from_other_tar
         raf_source::SymbolKind::ExternCrate
     );
     // A plain use of the library by name works from a test target.
-    let ws = load(&[
-        ("src/lib.rs", "pub mod inner { pub fn go() {} }\n"),
-        ("tests/it.rs", "use demo::inner::go;\n"),
-    ])
+    let ws = load_in(
+        "2021",
+        &[
+            ("src/lib.rs", "pub mod inner { pub fn go() {} }\n"),
+            ("tests/it.rs", "use demo::inner::go;\n"),
+        ],
+    )
     .expect("loads");
     assert_eq!(path_of(&ws, "demo::test_crate::it::go"), "demo::inner::go");
 }
@@ -430,6 +445,24 @@ fn resolution_does_not_depend_on_the_order_of_the_declarations() {
         }
     }
     assert_eq!(loads, 1440);
+    // A glob and a library of the workspace that share a name: whichever is
+    // declared first, the import through the name is ambiguous.
+    let (resolved, _, orders) = every_order(
+        "pub mod k { pub mod shared { pub fn x() {} pub trait T { fn m(&self); } } }",
+        None,
+        &[
+            "use k::*;",
+            "pub use shared::x;",
+            "use shared::T;\nimpl T for String { fn m(&self) {} }",
+            "pub mod later { pub use crate::x as y; }",
+        ],
+        "demo::later::y",
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(
+        resolved,
+        Err(vec!["demo::k::shared".to_owned(), "shared".to_owned()])
+    );
     let expected = expected.expect("loaded");
     assert_eq!(expected[0], "demo::y::A sites=1 glob=false");
     assert_eq!(expected[5], "ambiguous 2");
@@ -908,4 +941,566 @@ fn a_name_bound_to_several_modules_gives_a_trait_key_through_each() {
             ],
         }
     );
+}
+
+/// Load `text` as the library of a package of `edition` that depends on
+/// `serde`, a crate outside the workspace.
+fn with_serde(edition: &str, text: &str) -> Result<Workspace, LoadError> {
+    let manifest = format!("{DEMO}edition = \"{edition}\"\n\n[dependencies]\nserde = \"1\"\n");
+    let tree: MemoryTree = [("Cargo.toml", manifest.as_str()), ("src/lib.rs", text)]
+        .into_iter()
+        .collect();
+    Workspace::load(&tree, &["."])
+}
+
+#[test]
+fn a_single_segment_import_of_a_dependency_is_an_external_alias_and_never_its_own_cycle() {
+    // The imports, the alias a module imports `Item` through, and the paths
+    // through them.
+    let cases: [(&str, &str, &[&str]); 5] = [
+        (
+            "pub use serde;",
+            "serde",
+            &["demo::serde", "demo::serde::Serialize"],
+        ),
+        (
+            "pub use std;",
+            "std",
+            &["demo::std", "demo::std::fmt::Display"],
+        ),
+        (
+            "pub use serde::{self, Serialize};",
+            "serde",
+            &["demo::serde", "demo::serde::Serialize", "demo::Serialize"],
+        ),
+        (
+            "pub use std::{self as s2};",
+            "s2",
+            &["demo::s2", "demo::s2::fmt"],
+        ),
+        (
+            "pub use std;\npub mod m { pub use std; }\npub use std::{self as s2};",
+            "s2",
+            &[
+                "demo::std::fmt",
+                "demo::m::std",
+                "demo::m::std::fmt",
+                "demo::s2::fmt",
+            ],
+        ),
+    ];
+    for edition in ["2018", "2021", "2024"] {
+        for (imports, alias, paths) in cases {
+            let text = format!(
+                "{imports}\npub mod inner {{ pub fn go() {{}} }}\npub use inner::go;\n\
+                 pub mod through {{ pub use crate::{alias}::Item; }}\n",
+            );
+            let ws = with_serde(edition, &text).unwrap_or_else(|e| panic!("{imports}: {e}"));
+            for path in paths.iter().copied().chain(["demo::through::Item"]) {
+                assert_eq!(
+                    ws.resolve(path),
+                    Err(ResolveError::NotFound(path.to_owned())),
+                    "{edition}: {imports}: {path}"
+                );
+            }
+            // Beside them, a local re-export resolves.
+            assert_eq!(path_of(&ws, "demo::go"), "demo::inner::go", "{imports}");
+        }
+    }
+}
+
+#[test]
+fn a_single_segment_import_of_a_workspace_library_binds_its_crate_root() {
+    let tree: MemoryTree = [
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"one\", \"two\"]\n",
+        ),
+        (
+            "one/Cargo.toml",
+            "[package]\nname = \"p-one\"\nedition = \"2021\"\n",
+        ),
+        ("one/src/lib.rs", "pub struct X;\npub mod inner { pub fn go() {} }\n"),
+        (
+            "two/Cargo.toml",
+            "[package]\nname = \"p-two\"\nedition = \"2021\"\n\n[dependencies]\np-one = { path = \"../one\" }\n",
+        ),
+        (
+            "two/src/lib.rs",
+            "pub use p_one;\npub use p_one::{self as renamed};\npub mod m { pub use crate::p_one::inner::go; }\n",
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(path_of(&ws, "p_two::p_one::X"), "p_one::X");
+    assert_eq!(
+        path_of(&ws, "p_two::renamed::inner::go"),
+        "p_one::inner::go"
+    );
+    assert_eq!(path_of(&ws, "p_two::m::go"), "p_one::inner::go");
+    // The name alone is the library's crate root, a module.
+    let root = ws.resolve("p_two::p_one").expect("the crate root");
+    assert_eq!(root.path, "p_one");
+    assert_eq!(
+        ws.item(root.sites[0]).expect("item").file.as_str(),
+        "one/src/lib.rs"
+    );
+    // A name the library does not define is not found through it.
+    not_found(&ws, "p_two::p_one::Missing");
+}
+
+#[test]
+fn a_use_path_of_edition_2015_starts_at_the_crate_root() {
+    let text = "pub mod inner { pub fn go() {} }\n\
+                pub mod user {\n    pub use inner::go;\n    pub use ::inner::go as colon;\n    pub use inner;\n}\n";
+    let old = load_in("2015", &[("src/lib.rs", text)]).expect("2015");
+    for path in [
+        "demo::user::go",
+        "demo::user::colon",
+        "demo::user::inner::go",
+    ] {
+        assert_eq!(path_of(&old, path), "demo::inner::go", "2015: {path}");
+    }
+    // From edition 2018 on, a `use` path starts in its module or at a crate.
+    let new = load_in("2018", &[("src/lib.rs", text)]).expect("2018");
+    for path in ["demo::user::go", "demo::user::colon", "demo::user::inner"] {
+        not_found(&new, path);
+    }
+    // An `extern crate` item at the root is what a 2015 `use` path names a
+    // dependency by: `use serde;` in a module is that item, and a path
+    // through it goes outside the workspace.
+    let ws = with_serde(
+        "2015",
+        "extern crate serde;\npub mod de {\n    pub use serde;\n    pub use serde::Serialize;\n}\n",
+    )
+    .expect("2015 with serde");
+    let item = ws
+        .resolve("demo::de::serde")
+        .expect("the extern crate item");
+    assert_eq!(item.path, "demo::serde");
+    assert_eq!(
+        ws.item(item.sites[0]).expect("item").kind,
+        raf_source::SymbolKind::ExternCrate
+    );
+    for path in ["demo::de::serde::Serialize", "demo::de::Serialize"] {
+        not_found(&ws, path);
+    }
+    // A test target of edition 2015 names its library through an `extern
+    // crate` item, and not by the name alone.
+    let ws = load_in(
+        "2015",
+        &[
+            ("src/lib.rs", "pub mod inner { pub fn go() {} }\n"),
+            ("tests/bare.rs", "pub use demo::inner::go;\n"),
+            (
+                "tests/item.rs",
+                "extern crate demo;\npub use demo::inner::go;\n",
+            ),
+        ],
+    )
+    .expect("2015 test targets");
+    not_found(&ws, "demo::test_crate::bare::go");
+    assert_eq!(
+        path_of(&ws, "demo::test_crate::item::go"),
+        "demo::inner::go"
+    );
+}
+
+#[test]
+fn a_use_head_from_a_glob_that_is_also_an_extern_prelude_crate_is_ambiguous() {
+    let text = "pub mod local { pub mod serde { pub struct Serialize; } pub fn serde_fn() {} }\n\
+                pub mod values { #[allow(non_snake_case)] pub fn serde() {} }\n\
+                pub mod globbed { pub use crate::local::*; pub use serde::Serialize as S; }\n\
+                pub mod alone { pub use crate::local::*; pub use serde; }\n\
+                pub mod via { pub use crate::globbed::S as T; }\n\
+                pub mod defined { pub mod serde { pub struct Serialize; } pub use serde::Serialize as S; }\n\
+                pub mod valued { pub use crate::values::*; pub use serde::Serialize as S; }\n";
+    let ws = with_serde("2021", text).expect("loads");
+    let local = path_of(&ws, "demo::local::serde");
+    for path in ["demo::globbed::S", "demo::via::T", "demo::alone::serde"] {
+        match ws.resolve(path) {
+            Err(ResolveError::Ambiguous(ids)) => {
+                let paths: Vec<_> = ids
+                    .iter()
+                    .map(|id| ws.item(*id).expect("item").path.to_string())
+                    .collect();
+                assert_eq!(paths.as_slice(), std::slice::from_ref(&local), "{path}");
+            }
+            other => panic!("{path}: {other:?}"),
+        }
+    }
+    // A module's own item shadows the crate, as rustc has it.
+    assert_eq!(
+        path_of(&ws, "demo::defined::S"),
+        "demo::defined::serde::Serialize"
+    );
+    // A glob that brings in only a value does not collide with a crate.
+    not_found(&ws, "demo::valued::S");
+    // In edition 2015 the path starts at the crate root, which binds no
+    // `serde`.
+    let ws = with_serde("2015", text).expect("loads in 2015");
+    not_found(&ws, "demo::globbed::S");
+    not_found(&ws, "demo::via::T");
+}
+
+/// A workspace where `demo` (edition 2021) depends on `p-one`, whose library
+/// is `shared`, with `text` as `demo`'s library.
+fn beside_shared(text: &str) -> Workspace {
+    let tree: MemoryTree = [
+        ("Cargo.toml", "[workspace]\nmembers = [\"one\", \"demo\"]\n"),
+        (
+            "one/Cargo.toml",
+            "[package]\nname = \"p-one\"\nedition = \"2021\"\n\n[lib]\nname = \"shared\"\n",
+        ),
+        (
+            "one/src/lib.rs",
+            "pub fn x() {}\npub trait T { fn m(&self); }\n",
+        ),
+        (
+            "demo/Cargo.toml",
+            "[package]\nname = \"demo\"\nedition = \"2021\"\n\n[dependencies]\np-one = { path = \"../one\" }\n",
+        ),
+        ("demo/src/lib.rs", text),
+    ]
+    .into_iter()
+    .collect();
+    Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{text}: {e}"))
+}
+
+/// The paths a resolution names: its definition, or the ids of an
+/// ambiguity.
+fn named(ws: &Workspace, path: &str) -> Result<String, Vec<String>> {
+    match ws.resolve(path) {
+        Ok(resolution) => Ok(resolution.path),
+        Err(ResolveError::Ambiguous(ids)) => Err(ids
+            .iter()
+            .map(|id| ws.item(*id).expect("item").path.to_string())
+            .collect()),
+        Err(other) => Err(vec![format!("{other:?}")]),
+    }
+}
+
+/// The key of the trait impl on `String` in `ws`.
+fn string_impl_key(ws: &Workspace) -> raf_source::TraitKey {
+    let keys: Vec<raf_source::TraitKey> = ws
+        .items()
+        .filter(|item| item.self_type.as_deref() == Some("String"))
+        .filter_map(|item| item.trait_key.as_deref().cloned())
+        .collect();
+    match keys.as_slice() {
+        [key] => key.clone(),
+        other => panic!("{other:?}"),
+    }
+}
+
+/// For every order of `blocks` in a module: what `path` resolves to and the
+/// key of the trait impl on `String`, which must be one answer.
+fn every_order(
+    prefix: &str,
+    module: Option<&str>,
+    blocks: &[&str],
+    path: &str,
+) -> (Result<String, Vec<String>>, raf_source::TraitKey, usize) {
+    every_order_in(beside_shared, prefix, module, blocks, path)
+}
+
+/// [`every_order`] over the workspace `load` builds around `demo`'s library.
+fn every_order_in(
+    load: fn(&str) -> Workspace,
+    prefix: &str,
+    module: Option<&str>,
+    blocks: &[&str],
+    path: &str,
+) -> (Result<String, Vec<String>>, raf_source::TraitKey, usize) {
+    let mut answer = None;
+    let mut orders = 0;
+    for order in permutations(&blocks.iter().map(|b| (*b).to_owned()).collect::<Vec<_>>()) {
+        let body = order.join("\n");
+        let text = match module {
+            Some(name) => format!("{prefix}\npub mod {name} {{\n{body}\n}}\n"),
+            None => format!("{prefix}\n{body}\n"),
+        };
+        let ws = load(&text);
+        let found = (named(&ws, path), string_impl_key(&ws));
+        match &answer {
+            None => answer = Some(found),
+            Some(first) => assert_eq!(&found, first, "{text}"),
+        }
+        orders += 1;
+    }
+    let (resolved, key) = answer.expect("an order");
+    (resolved, key, orders)
+}
+
+#[test]
+fn a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order() {
+    // The crate name of a library of the workspace, which a glob also brings
+    // in: rustc's E0659 whichever comes first.
+    let (resolved, key, orders) = every_order(
+        "pub mod k { pub mod shared { pub fn x() {} pub trait T { fn m(&self); } } }",
+        None,
+        &[
+            "use k::*;",
+            "pub use shared::x;",
+            "use shared::T;\nimpl T for String { fn m(&self) {} }",
+        ],
+        "demo::x",
+    );
+    assert_eq!(orders, 6);
+    assert_eq!(
+        resolved,
+        Err(vec!["demo::k::shared".to_owned(), "shared".to_owned()])
+    );
+    assert_eq!(
+        key,
+        raf_source::TraitKey::Unresolved {
+            written: "T".to_owned(),
+            candidates: vec!["demo::k::shared::T".to_owned(), "shared::T".to_owned()],
+        }
+    );
+    // The same through an `extern crate` item of the library at the crate
+    // root, named from a module.
+    let (resolved, key, orders) = every_order(
+        "extern crate shared as lib;\n\
+         pub mod k { pub mod lib { pub fn x() {} pub trait T { fn m(&self); } } }",
+        Some("user"),
+        &[
+            "use crate::k::*;",
+            "pub use lib::x;",
+            "use lib::T;\nimpl T for String { fn m(&self) {} }",
+        ],
+        "demo::user::x",
+    );
+    assert_eq!(orders, 6);
+    assert_eq!(
+        resolved,
+        Err(vec!["demo::k::lib".to_owned(), "shared".to_owned()])
+    );
+    assert_eq!(
+        key,
+        raf_source::TraitKey::Unresolved {
+            written: "T".to_owned(),
+            candidates: vec!["demo::k::lib::T".to_owned(), "shared::T".to_owned()],
+        }
+    );
+    // Beside them, without the glob the crate is read in every order, and
+    // with the module's own item the item shadows the crate.
+    let (resolved, key, _) = every_order(
+        "",
+        None,
+        &[
+            "pub use shared::x;",
+            "use shared::T;\nimpl T for String { fn m(&self) {} }",
+        ],
+        "demo::x",
+    );
+    assert_eq!(resolved, Ok("shared::x".to_owned()));
+    assert_eq!(key, raf_source::TraitKey::Canonical("shared::T".to_owned()));
+    let (resolved, key, _) = every_order(
+        "pub mod shared { pub fn x() {} pub trait T { fn m(&self); } }",
+        None,
+        &[
+            "pub use shared::x;",
+            "use shared::T;\nimpl T for String { fn m(&self) {} }",
+        ],
+        "demo::x",
+    );
+    assert_eq!(resolved, Ok("demo::shared::x".to_owned()));
+    assert_eq!(
+        key,
+        raf_source::TraitKey::Canonical("demo::shared::T".to_owned())
+    );
+}
+
+#[test]
+fn a_glob_that_brings_in_an_import_of_another_crate_collides_with_the_crate() {
+    let ws = with_serde(
+        "2021",
+        "pub mod m { pub use std as serde; }\n\
+         pub mod user { use crate::m::*; pub use serde::Serialize; }\n\
+         pub mod same { pub use serde; }\n\
+         pub mod fine { use crate::same::*; pub use serde::Serialize; }\n\
+         pub mod parent {\n    pub use serde::serde;\n    \
+         pub mod tests { use super::*; pub use serde::Serialize; }\n}\n",
+    )
+    .expect("loads");
+    // `std as serde` and the crate `serde` are two things: rustc's E0659.
+    assert_eq!(
+        named(&ws, "demo::user::Serialize"),
+        Err(vec!["demo::m".to_owned()])
+    );
+    // A glob that brings in the crate itself does not collide with it, and
+    // neither does one that brings in an item of the crate under its name,
+    // whose name space the index cannot tell (as `use quote::quote;` brings
+    // in a macro).
+    not_found(&ws, "demo::fine::Serialize");
+    not_found(&ws, "demo::parent::tests::Serialize");
+}
+
+#[test]
+fn a_no_std_crate_does_not_name_std_without_an_extern_crate_item() {
+    let body = "pub mod k { pub mod std { pub mod fmt { pub fn f() {} } } }\n\
+                pub mod user { use crate::k::*; pub use std::fmt; }\n";
+    // Under `#![no_std]` the glob's `std` is the only one.
+    let ws = with_serde("2021", &format!("#![no_std]\n{body}")).expect("no_std");
+    assert_eq!(
+        named(&ws, "demo::user::fmt"),
+        Ok("demo::k::std::fmt".to_owned())
+    );
+    // With `std` in the extern prelude, unconditionally or as a `cfg_attr`
+    // leaves it under some configuration, the glob collides with it.
+    for prefix in [
+        "",
+        "#![cfg_attr(not(feature = \"std\"), no_std)]\n",
+        "#![no_std]\nextern crate std;\n",
+    ] {
+        let ws = with_serde("2021", &format!("{prefix}{body}")).expect("std");
+        assert_eq!(
+            named(&ws, "demo::user::fmt"),
+            Err(vec!["demo::k::std".to_owned()]),
+            "{prefix}"
+        );
+    }
+}
+
+/// A workspace where `demo` (edition 2021) depends on `p-one`, whose library
+/// `shared` has a module `inner::other`, and on `p-two`, whose library is
+/// `other`, with `text` as `demo`'s library.
+fn beside_two(text: &str) -> Workspace {
+    let tree: MemoryTree = [
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"one\", \"two\", \"demo\"]\n",
+        ),
+        (
+            "one/Cargo.toml",
+            "[package]\nname = \"p-one\"\nedition = \"2021\"\n\n[lib]\nname = \"shared\"\n",
+        ),
+        (
+            "one/src/lib.rs",
+            "pub mod inner { pub mod other { pub fn x() {} pub trait T { fn m(&self); } } }\n",
+        ),
+        (
+            "two/Cargo.toml",
+            "[package]\nname = \"p-two\"\nedition = \"2021\"\n\n[lib]\nname = \"other\"\n",
+        ),
+        (
+            "two/src/lib.rs",
+            "pub fn x() {}\npub trait T { fn m(&self); }\n\
+             pub mod inner { pub mod other { pub fn x() {} } }\n",
+        ),
+        (
+            "demo/Cargo.toml",
+            "[package]\nname = \"demo\"\nedition = \"2021\"\n\n[dependencies]\n\
+             p-one = { path = \"../one\" }\np-two = { path = \"../two\" }\n",
+        ),
+        ("demo/src/lib.rs", text),
+    ]
+    .into_iter()
+    .collect();
+    Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{text}: {e}"))
+}
+
+#[test]
+fn a_glob_whose_own_path_starts_at_a_crate_is_ambiguous_with_a_crate_in_every_order() {
+    // The glob's path goes through an import of a crate, and the glob brings
+    // in `other`, which is also a library of the workspace: whatever the
+    // order, every import through `other` is ambiguous, as rustc's E0659.
+    let (resolved, key, orders) = every_order_in(
+        beside_two,
+        "",
+        None,
+        &[
+            "use shared::inner as inn;",
+            "use inn::*;",
+            "pub use other::x;",
+            "use other::T;\nimpl T for String { fn m(&self) {} }",
+        ],
+        "demo::x",
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(
+        resolved,
+        Err(vec!["other".to_owned(), "shared::inner::other".to_owned()])
+    );
+    assert_eq!(
+        key,
+        raf_source::TraitKey::Unresolved {
+            written: "T".to_owned(),
+            candidates: vec!["other::T".to_owned(), "shared::inner::other::T".to_owned()],
+        }
+    );
+    // Without the glob, the crate is read in every order.
+    let (resolved, key, _) = every_order_in(
+        beside_two,
+        "",
+        None,
+        &[
+            "use shared::inner as inn;",
+            "pub use other::x;",
+            "use other::T;\nimpl T for String { fn m(&self) {} }",
+        ],
+        "demo::x",
+    );
+    assert_eq!(resolved, Ok("other::x".to_owned()));
+    assert_eq!(key, raf_source::TraitKey::Canonical("other::T".to_owned()));
+}
+
+#[test]
+fn an_explicit_import_shadows_a_workspace_library_in_every_declaration_order() {
+    // `other` is a library of the workspace and also the name an explicit
+    // import binds: the import shadows the crate whatever the order, as
+    // rustc has it, in a module without globs and in one with a glob.
+    for prefix in ["", "pub mod g { pub fn unrelated() {} }\nuse g::*;"] {
+        let (resolved, key, orders) = every_order_in(
+            beside_two,
+            prefix,
+            None,
+            &[
+                "pub use other::x;",
+                "pub use shared::inner::other;",
+                "use other::T;\nimpl T for String { fn m(&self) {} }",
+                "pub mod later { pub use crate::x as y; }",
+            ],
+            "demo::x",
+        );
+        assert_eq!(orders, 24);
+        assert_eq!(
+            resolved,
+            Ok("shared::inner::other::x".to_owned()),
+            "{prefix}"
+        );
+        assert_eq!(
+            key,
+            raf_source::TraitKey::Canonical("shared::inner::other::T".to_owned()),
+            "{prefix}"
+        );
+    }
+}
+
+#[test]
+fn a_crate_read_before_the_explicit_import_of_its_name_binds_is_read_again_in_every_order() {
+    // `pub use k::other;` binds `other` only once the glob of `k` brings it
+    // in, and that glob goes through `inn`, whose own path starts at
+    // `other`: when the import first fails, `inn` may read `other` as the
+    // crate, after which the import would bind the name. rustc refuses the
+    // import (E0432); the index answers the same whatever the order of the
+    // declarations, and never through both readings of `other`.
+    let blocks = [
+        "pub use k::other;".to_owned(),
+        "pub use other::inner as inn;".to_owned(),
+        "pub mod k { pub use crate::inn::*; }".to_owned(),
+    ];
+    let mut answer = None;
+    for order in permutations(&blocks) {
+        let ws = beside_two(&order.join("\n"));
+        let found = (named(&ws, "demo::other"), named(&ws, "demo::inn"));
+        match &answer {
+            None => answer = Some(found),
+            Some(first) => assert_eq!(&found, first, "{order:?}"),
+        }
+    }
+    let (other, _) = answer.expect("an order");
+    assert_eq!(other, Err(vec!["NotFound(\"demo::other\")".to_owned()]));
 }

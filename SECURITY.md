@@ -106,7 +106,8 @@ guarantees are these, and no wider:
   a smaller host lowers) with a typed error naming the file and the budget, bounds
   the module walk (128 nested modules and 262144 module walks per load, because a
   file reached by several module paths is walked once per path) and discovery (128
-  directories below a root), keeping a stack of its own for each walk, reads and
+  directories below a root), keeping a stack of its own for each walk and for the
+  search that keys the trait of an impl through imports and globs, reads and
   parses each file once whatever spellings reach it (files are told apart by device
   and inode, or on Windows by the path of the handle), and bounds what one load
   reads, keeps in its index and keeps as facts (256 MiB, 512 MiB and 256 MiB by

@@ -59,8 +59,30 @@ bindings:
     - raf_source::test_crate::use_resolution::missing_names_dependency_items_and_macro_generated_items_are_not_found
     - raf_source::test_crate::use_resolution::resolution_does_not_depend_on_the_order_of_the_declarations
     - raf_source::test_crate::use_resolution::a_long_chain_of_re_exports_resolves_in_either_order_without_a_cap
+    - raf_source::test_crate::use_resolution::a_single_segment_import_of_a_dependency_is_an_external_alias_and_never_its_own_cycle
+    - raf_source::test_crate::use_resolution::a_single_segment_import_of_a_workspace_library_binds_its_crate_root
+    - raf_source::test_crate::use_resolution::a_use_path_of_edition_2015_starts_at_the_crate_root
+    - raf_source::test_crate::use_resolution::a_use_head_from_a_glob_that_is_also_an_extern_prelude_crate_is_ambiguous
+    - raf_source::test_crate::use_resolution::a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order
+    - raf_source::test_crate::use_resolution::a_glob_that_brings_in_an_import_of_another_crate_collides_with_the_crate
+    - raf_source::test_crate::use_resolution::a_no_std_crate_does_not_name_std_without_an_extern_crate_item
+    - raf_source::test_crate::use_resolution::a_glob_whose_own_path_starts_at_a_crate_is_ambiguous_with_a_crate_in_every_order
+    - raf_source::test_crate::use_resolution::an_explicit_import_shadows_a_workspace_library_in_every_declaration_order
+    - raf_source::test_crate::use_resolution::a_crate_read_before_the_explicit_import_of_its_name_binds_is_read_again_in_every_order
     - raf_source::test_crate::trait_keys::each_prelude_trait_loads_in_the_edition_that_has_it_and_is_refused_in_the_one_before
     - raf_source::test_crate::trait_keys::inheriting_requires_membership_by_the_members_and_exclude_lists
+    - raf_source::test_crate::trait_keys::a_trait_through_a_single_segment_import_of_a_crate_is_keyed_at_the_crate
+    - raf_source::test_crate::trait_keys::a_glob_through_a_re_exported_crate_is_keyed_under_the_crate
+    - raf_source::test_crate::trait_keys::a_use_path_of_edition_2015_is_followed_from_the_crate_root
+    - raf_source::test_crate::trait_keys::a_trait_through_an_ambiguous_use_head_keys_every_reading
+    - raf_source::test_crate::trait_keys::twenty_thousand_chained_local_aliases_load_on_a_two_mib_thread
+    - raf_source::test_crate::trait_keys::a_trait_found_through_twenty_thousand_chained_globs_is_keyed_on_a_two_mib_thread
+    - raf_source::test_crate::trait_keys::an_import_met_again_through_a_glob_adds_nothing_and_a_pure_cycle_is_refused
+    - raf_source::test_crate::trait_keys::a_trait_through_a_head_a_glob_brings_in_from_another_crate_keys_both
+    - raf_source::test_crate::trait_keys::a_use_path_of_edition_2015_names_a_dependency_only_through_extern_crate
+    - raf_source::test_crate::trait_keys::a_trait_name_that_two_globs_bind_keys_each_trait
+    - raf_source::test_crate::trait_keys::a_trait_that_several_unknown_globs_could_give_is_refused_naming_one_glob_in_every_order
+    - raf_source::test_crate::trait_keys::the_completion_audit_shape_of_a_crate_alias_and_twenty_thousand_imports_loads_on_a_two_mib_thread
     - raf_source::test_crate::target_roots::every_target_kind_resolves_at_its_crate_path_as_a_module_item_of_its_root_file
     - raf_source::test_crate::target_roots::a_first_party_module_at_a_binary_crate_path_is_ambiguous_beside_a_binary_that_is_not
     - raf_source::test_crate::prescan_budgets::delimiter_nesting_is_refused_at_one_hundred_twenty_nine_beside_one_hundred_twenty_eight
@@ -78,6 +100,7 @@ bindings:
     - raf_source::test_crate::fs_confinement::only_the_disk_backend_names_the_file_system_module
     - raf_source::test_crate::this_repository::this_repository_loads_from_its_root_with_the_crates_directory_as_the_root
     - raf_source::test_crate::this_repository::an_item_of_a_module_file_that_sorts_before_its_mod_rs_is_found_under_its_own_module
+    - raf_source::test_crate::this_repository::a_dependency_re_exported_by_its_crate_name_is_not_found_and_not_a_cycle
     - raf_source::tree::disk::tests::linux_verifier_refuses_a_handle_link_that_leads_outside_and_accepts_one_inside
     - raf_source::tree::disk::tests::the_handle_path_verifier_refuses_a_path_outside_the_root_beside_one_inside
     - raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_after_the_check_is_refused
@@ -375,7 +398,9 @@ Two more budgets are counted by the module walk and not by the pre-scan. Module
 nesting is bounded at 128 levels along one path, files and inline modules together.
 The walk, and the index that reads its result, keep a stack of their own, so their
 depth costs the caller's stack nothing: 128 nested modules load on a thread of 512 KiB
-in a debug build. Module walks are bounded at 262144 for one load: every arrival of
+in a debug build. So does the search that keys the trait of an impl (see Symbol index):
+a file of 20,000 chained aliases, and a trait reached through 20,000 chained globs,
+load on a thread of 2 MiB in debug and release builds. Module walks are bounded at 262144 for one load: every arrival of
 the walk at a file, over all targets, and every walk of an inline module body (the
 default one and one per `cfg_attr` path alternative) is one module path, and a file
 reached again is parsed once but walked again, so a chain of files that each declare
@@ -665,7 +690,26 @@ The key of a dependency trait is its absolute path, found by following the writt
 through the module's own `use` declarations and `extern crate` items, through the `use`
 declarations of a local module that the path passes through (`pub mod traits { pub use
 serde::Serialize; }` and a direct `serde::Serialize` are one key), and through the globs
-of local modules (`use super::*` reaches what the parent imported). The head of the
+of local modules (`use super::*` reaches what the parent imported). A `use` declaration
+is followed as the Use-alias index reads it: never through its own binding, so `use
+std;` with `impl std::fmt::Display for &Foo` keys `std::fmt::Display`, and `pub use
+serde;` with `use crate::serde::Serialize;` in a module keys `serde::Serialize`; from
+the crate root in edition 2015; and, when its first segment is ambiguous, through each
+reading, so the key is `Unresolved` with a candidate for each (a local trait at its own
+path). An explicit import met again while its own path is being followed adds nothing to
+that way, as a glob met again does: `mod inner { use super::*; pub use serde::*; }` with
+`pub use inner::Serialize;` keys `serde::Serialize`, and a trait that only a cycle of
+imports names is a typed `UnresolvedTrait` error. A name read from the crate root in
+edition 2015 names a crate only through an `extern crate` item there, or as the crate
+the compiler puts there (`std`, or `core` under `#![no_std]`), so `use
+serde::Serialize;` without `extern crate serde;` at the root keys nothing and the trait
+is refused. In edition 2015 a trait path written with a leading `::` starts at the crate
+root (`extern crate serde as s;` with `impl ::s::Serialize` keys `serde::Serialize`); in
+later editions its first segment is a crate the impl's code can name. A trait path that
+reaches local traits at several paths (two globs that bring in two traits `T`) keys
+`Unresolved` with each, and a name that several `extern crate` items of a module bind
+stands for each of their crates; neither takes the first. The search keeps a stack of its own, so its depth costs the
+caller's stack nothing. The head of the
 resulting path must be a crate the impl's code can name: the sysroot crates `std`, `core`,
 `alloc`, `proc_macro` and `test`, or a crate of its target's extern prelude (see
 Use-alias index): its package's library for a target other than the library and the
@@ -729,7 +773,9 @@ could provide the name, the trait is keyed under that glob's path followed by th
 cannot be looked into, and its path is all the key has. A glob whose first segment is
 neither a local module (`crate`, `self` and `super` included) nor a crate the impl's code
 can name is a typed `UnresolvedTrait`
-error that names the glob's file and line when a trait key consults it. If
+error that names the glob's file and line when a trait key consults it; when several
+such globs could give the trait, it names the first by written path, file and line,
+whatever the order of the declarations. If
 several could, or the name is also in the prelude, the key is `TraitKey::Unresolved`: it
 holds the written path and every absolute path the trait could have, the members are
 recorded under the written path, and `resolve` finds them by that text. Members of
@@ -760,10 +806,14 @@ and the same regular files on disk and in memory give equal indexes.
 
 **Use-alias index.** Every `use` declaration contributes to a table of the names of its
 module: renames, nested groups, `self` in a group, globs, a leading `::` (a crate of the
-extern prelude), `extern crate x as y`, and the keywords `crate`, `self` and `super`; a
-`super` above the crate root is an error that names the file and line. A path whose
-first segment the module does not bind starts at a crate of the extern prelude of the
-importing target. That prelude holds: its package's library, for a target other than the
+extern prelude from edition 2018 on, the crate root in edition 2015), `extern crate x as
+y`, and the keywords `crate`, `self` and `super`; a `super` above the crate root is an
+error that names the file and line. From edition 2018 on, a path whose first segment the
+module does not bind starts at a crate of the extern prelude of the importing target. In
+edition 2015 a `use` path whose first segment is not `crate`, `self` or `super` starts
+at the crate root, as rustc reads it: `use inner::go;` in a module names the root's
+`inner`, and a dependency is named through an `extern crate` item at the root. That
+prelude holds: its package's library, for a target other than the
 library and the build script; the dependencies declared for its kind (`[dependencies]`
 for a library or binary, which also name `[dev-dependencies]` in test code;
 `[dependencies]` and `[dev-dependencies]` for a test, bench or example;
@@ -784,7 +834,45 @@ through it, through an `extern crate` item of it or through an import of it is
 `Ambiguous`, naming the crate root of each library, even where only one of them defines
 the rest of the path, and in each name space the path could end in (an import of the name
 alone names crates, in the type name space); a glob of it, directly or through an import
-of it, brings in nothing. A `package` value that is not a string is
+of it, brings in nothing. An import never resolves through its own binding: the
+path of `use x;` does not look at the `x` it binds, and the import never waits on
+itself. From edition 2018 on, a single-segment import of a crate of the extern prelude
+(`use x;`, `use x::{self};`, `use x::{self as y};`, `use ::x;`) is an alias of that
+crate. For a library of the workspace it binds the library's crate root item, so after
+`pub use p_one;` in `p_two`, `p_two::p_one::X` resolves to `p_one::X`. For a crate outside the
+index, a dependency outside the workspace or a sysroot crate, it binds nothing in the
+index: a path through it, directly or through another import of it, is `NotFound`,
+never `Cyclic`, and a trait key through it is the crate's absolute path. In edition 2018
+and later, a first segment of a `use` path that a glob of the module brings into the
+type name space and that is also a crate of the extern prelude, other than that same
+crate, is ambiguous, as rustc's E0659 has it. Of the sysroot crates, the extern prelude
+of a `use` path holds `core`, and `std` unless the crate root has an unconditional
+`#![no_std]` (a `cfg_attr` applies it under a predicate only, so `std` stays); an
+`extern crate std;` at the root adds it back. The import binds nothing and keeps its
+name indeterminate, so no glob of its module answers for it, and a path through it is
+`Ambiguous`, naming what the glob brings in and the crate root of each library of the
+workspace that the crate name stands for. A glob that brings in an alias of another
+crate under the crate's name (`pub use std as serde;`) collides with the crate as well,
+and the ambiguity names the module of that import. A glob that brings in an item of a
+crate outside the workspace under that name does not: the index cannot tell the item's
+name space, and only the type name space collides (`use quote::quote;` brings in a
+macro). That is a known limit: a glob that brings in a type-namespace item or module of
+an outside crate under the crate's name (`pub use serde::de as other;`), which rustc
+refuses as E0659, is not refused, and a path through the name reads the crate. The
+decision does not depend on the order of the declarations: such a path waits until the
+globs of its module have brought in what they can before it starts at a crate, and once
+the tables are settled every explicit import is walked again against them; if one is
+then ambiguous that was not held from the start (a glob whose own path went through an
+import of a crate brought the name in after it), the tables are settled again from the
+definitions with every such import held from the start, until none is left. A
+module's own item or explicit import of the name shadows the crate without ambiguity,
+whatever the order: a path, `use` path or not, whose first segment an explicit import
+of its module that is still unsettled binds waits on it rather than start at a crate,
+and if a `use` path read a crate under a name that an explicit import of its module
+(other than its own) binds once the tables are settled, the tables are settled again
+from the definitions with that name of that module never read as a crate;
+and a glob that brings in only a value, or the crate itself (`pub use serde;`), does not
+collide with it. A `package` value that is not a string is
 a manifest error that names the dependency key, and so is a `workspace = true`
 dependency when there is no workspace manifest above the package, when the package is
 not a member of it, or when its `[workspace.dependencies]` has no entry of that name. A name that a
@@ -812,8 +900,10 @@ several sites, as `#[cfg(unix)] fn a()` beside `#[cfg(windows)] fn a()`. The fai
 typed: `NotFound` when the workspace defines nothing at the path (an item of a
 dependency, an item that a macro generates, and a misspelling all end here),
 `Ambiguous(ids)` only for a real conflict, which is two globs that bring in different
-items, two imports of one name that reach different items, two canonical targets, or a
-path through a crate name that stands for several libraries, `Cyclic` when the imports on the way depend on each other, `UnresolvedSelf` when the
+items, two imports of one name that reach different items, two canonical targets, a
+path through a crate name that stands for several libraries, or a path through an import
+whose first segment is ambiguous, `Cyclic` when the imports on the way depend on each
+other (an import never depends on itself), `UnresolvedSelf` when the
 workspace defines nothing at the path and the path goes through the self path of an
 inherent impl the index cannot see, and `Invalid` when the text is not a path. A symbol
 is one path and kind in one target's crate: the items of two targets at one path are
@@ -954,7 +1044,9 @@ duplicates.
   reaches the crate root, and `demo::a::in_b` and `demo::a::b::in_a` are `NotFound`
   beside `demo::a::b::in_b`. In this repository `raf_okf::body::blocks::FenceBlock`
   resolves and `raf_okf::body::FenceBlock` is `NotFound`, and the document-contract
-  test rejects a binding to the same misplaced shape.
+  test rejects a binding to the same misplaced shape. `raf_source::syn` and
+  `raf_source::syn::File`, through `pub use syn;`, are `NotFound` beside
+  `raf_source::DiskTree`, which resolves.
 - `#[path]` fixtures: a redirect inside the root resolves; `..` out of the root and
   an absolute path outside it both fail naming the module and the attribute, and a
   recording tree shows that the outside path is never read.
@@ -1091,6 +1183,40 @@ duplicates.
   library that cannot name itself, raw identifiers in both spellings, a chain of 5000 re-exports
   declared in either order, `demo::nope`, `pub use serde::Serialize` and a function that
   a macro generates, each `NotFound` beside a positive resolution.
+- Extern-alias fixtures: `pub use serde;`, `pub use std;`, `pub use serde::{self,
+  Serialize};`, `pub use std::{self as s2};`, and `std` imported at the root, in a module
+  and renamed, each in editions 2018, 2021 and 2024 with every path through them, and
+  through a module that imports from them, `NotFound` and never `Cyclic`, beside a local
+  re-export that resolves; `pub use p_one;` of a library of the workspace, plain and as
+  `{self as renamed}`, reaching its items and its crate root, beside a name it does not
+  define. Edition 2015 fixtures: `use inner::go;`, `use ::inner::go` and `use inner;` in
+  a module resolve from the crate root, and the same file in 2018 gives `NotFound`;
+  `use serde;` in a module is the root's `extern crate serde;` item, and paths through
+  it are `NotFound`; a 2015 test target names its library through `extern crate` and
+  not by the name alone. Ambiguity fixtures: a `use` head that a glob brings in and that
+  is also a dependency is `Ambiguous` naming the glob's module, directly, through a
+  second import and for `use serde;` itself, beside a module's own `serde`, which
+  shadows the crate, a glob of a value, which does not collide, and the same file in
+  2015, which reads from the crate root. A glob and a library of the workspace that
+  share a name, by the library's name and through an `extern crate` item of it at the
+  root, are `Ambiguous` with the trait keyed `Unresolved` in every order of the
+  declarations, beside the same imports without the glob and with the module's own item,
+  which resolve; the order fixture asserts it over all 24 orders. A glob whose own path
+  goes through an import of a crate (`use shared::inner as inn; use inn::*;`) and brings
+  in `other`, which is also a library of the workspace, makes `pub use other::x;`
+  `Ambiguous` and the trait through `other` `Unresolved` in all 24 orders, beside the
+  same imports without the glob, which read the crate. An explicit import that binds the
+  name of a library of the workspace (`pub use shared::inner::other;` beside `pub use
+  other::x;` and a trait through `other`) shadows the crate for the path and the trait
+  key in all 24 orders, in a module without globs and in one with a glob; and a crate
+  read before an explicit import of its name could bind (`pub use k::other;` where `k`
+  globs an alias whose own path starts at `other`, refused by rustc) gives one answer in
+  every order, `NotFound` for the import. A glob that brings in
+  `pub use std as serde;` collides with the crate `serde`, beside one that brings in
+  `pub use serde;` and one that brings in `pub use serde::serde;`; under `#![no_std]` a glob's module `std` is read without ambiguity,
+  beside the same with no attribute, with a `cfg_attr` and with `extern crate std;`. The leading-`::` and plain-name fixtures of a
+  library named from its binary and its test target are written in edition 2021, where
+  rustc accepts them.
 - Extern-prelude fixtures, over two packages whose libraries are both `shared`: `shared`
   and `shared::X` are `Ambiguous` naming both crate roots, `resolve_in_package` resolves
   `shared::X` in each package and gives `UnknownPackage` for a name that is no package;
@@ -1118,6 +1244,30 @@ duplicates.
   cannot be made absolute; the prelude per edition, an inherited edition, one and several
   dependency globs, a head that is no known crate, dependency tables by target kind with
   renames, and a path through a local re-export of a dependency.
+- Trait-key fixtures through `use` declarations: `use std;` with `impl
+  std::fmt::Display for &Foo` in editions 2018, 2021 and 2024 and in a 2015 module, keyed
+  `std::fmt::Display`, beside `use nope;`, which is refused; `pub use serde;` with `use
+  crate::serde::Serialize;` in a module, and `pub use serde::{self, Serialize};`, keyed
+  at `serde`; a glob through a re-exported crate keyed under the glob; in edition 2015,
+  `use serde;` in a module through the root's `extern crate serde;`, a module's `use
+  undo_log::Rollback;` keyed at the local trait, and `impl ::s::Serialize` through
+  `extern crate serde as s;` keyed `serde::Serialize` beside 2018, where `::s` names no
+  crate and the load is refused; a trait through an ambiguous `use` head keyed
+  `Unresolved` with the local trait and the dependency's, and through a glob that brings
+  in `std as serde` keyed with `serde::Serialize` and `std::Serialize`; an import met
+  again through a parent glob adding nothing, so the other glob keys the trait, beside a
+  pure cycle, which is refused; in edition 2015, `use serde::Serialize;` without an
+  `extern crate` item at the root, or with one only in a module, refused, beside the
+  same with the item, and `std` (or `core` under `#![no_std]`) named with no item, beside
+  `core` in a crate with `std`, which is refused; a trait name that two globs bind keyed
+  `Unresolved` with both traits; a trait that two globs of unknown crates could give
+  refused naming the same glob, by written path, in all six orders. On a thread of 2 MiB, in debug
+  and release builds: a file of 20,000 chained local aliases (`use crate::m::T as A0;
+  use A0 as A1;` and so on, no import naming itself) with `impl A19999 for X` loads keyed
+  `demo::m::T`; a trait imported from `std` and reached through 20,000 chained
+  globs of modules loads keyed `std::fmt::Display`; and the completion audit's own
+  shape, `use std;` with `impl std::fmt::Display for &Foo` and 20,000 `use
+  std::collections::HashMap as H..;` lines, loads keyed `std::fmt::Display`.
 - A determinism check: two loads over the same tree give equal indexes, and `items()`
   and `targets()` come in strictly increasing order.
 - A `DiskTree` run over a temporary directory gives the same index as the

@@ -16,8 +16,9 @@ use crate::facts::{ItemKind, PathFact, TestRole};
 use crate::index::{
     ImplDecl, Index, MEMBERS_BYTES, Store, UseDecl, UseKind, combine, member_bytes,
 };
-use crate::item::{ItemId, Namespace, SelfType, SymbolKind, TraitKey, UnresolvedImpl};
-use crate::resolve::{Fail, Heads};
+use crate::item::{ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl};
+use crate::path::RelPath;
+use crate::resolve::{Fail, Heads, Walked};
 
 /// The crates every package can name without declaring them.
 const SYSROOT: [&str; 5] = ["std", "core", "alloc", "proc_macro", "test"];
@@ -68,6 +69,129 @@ const PRELUDE_TRAITS: [(&str, &str, u16); 31] = [
 /// glob whose crate is not one the package can name.
 type Unknown = Option<Box<UseDecl>>;
 
+/// How a path that a trait key follows is read.
+#[derive(Debug, Clone, Copy)]
+enum Reading {
+    /// The trait path of an impl, written in code.
+    Code,
+    /// The path of a `use` declaration; `own` is the named import whose path
+    /// it is.
+    Use { own: Option<usize> },
+}
+
+impl Reading {
+    /// What the first segment may name, for test code (`test`) or other code.
+    fn heads(self, test: bool) -> Heads {
+        match self {
+            Self::Code => Heads::Code { test },
+            Self::Use { own } => Heads::Use { test, own },
+        }
+    }
+
+    /// The named import whose path this is.
+    fn own(self) -> Option<usize> {
+        match self {
+            Self::Code => None,
+            Self::Use { own } => own,
+        }
+    }
+}
+
+/// A name the search looks up in a module that does not bind it to a local
+/// item.
+#[derive(Debug)]
+struct Prefixes {
+    module: usize,
+    name: String,
+    /// True when the name is a whole path, so a prelude trait can stand for
+    /// it.
+    prelude: bool,
+    /// The named import whose own path looks the name up: it is not a way
+    /// the name goes.
+    skip: Option<usize>,
+    /// The scope of the search through globs this lookup belongs to.
+    visited: usize,
+    /// True for a name read from the crate root in edition 2015, which names
+    /// a crate only through an `extern crate` item or as the crate the
+    /// compiler puts at the root.
+    root_only: bool,
+}
+
+/// What the search tracks across its frames.
+#[derive(Debug, Default)]
+struct Search {
+    /// For each name a path looks up, the modules and names its search
+    /// through globs has looked into, innermost last.
+    visited: Vec<BTreeSet<(usize, String)>>,
+    /// The globs whose own paths are being made absolute.
+    globs: BTreeSet<usize>,
+    /// The named imports whose own paths are being made absolute.
+    named: BTreeSet<usize>,
+    /// The globs met that are neither a local path nor a crate the impl's
+    /// code can name, by written path, file and line.
+    failed: BTreeSet<(String, RelPath, usize, usize)>,
+}
+
+/// A call the search makes on its explicit stack.
+#[derive(Debug)]
+enum Call {
+    /// Make a path, written in a module, absolute.
+    Absolute {
+        module: usize,
+        segs: Vec<String>,
+        leading_colon: bool,
+        reading: Reading,
+    },
+    /// Find what a name stands for in a module that does not bind it.
+    Prefixes(Prefixes),
+}
+
+/// What a frame waits for the result of its call to go on with.
+#[derive(Debug)]
+enum Frame {
+    /// A path whose segment looked up gives prefixes, to be followed by
+    /// `tail`.
+    Tail { tail: Vec<String> },
+    /// A path that can go on in several modules: the paths found so far and
+    /// the modules still to go through, each with `from_self`.
+    Inner {
+        out: Vec<Vec<String>>,
+        inner: Vec<usize>,
+        from_self: Vec<String>,
+        reading: Reading,
+    },
+    /// The explicit imports of a name: what they gave so far, those still to
+    /// follow and the one being followed.
+    Named {
+        at: Prefixes,
+        named: Vec<usize>,
+        out: Vec<Vec<String>>,
+        position: usize,
+    },
+    /// A glob of local modules: what the globs gave so far, the globs and
+    /// the modules of this glob still to look into.
+    Target {
+        at: Prefixes,
+        globs: Vec<usize>,
+        out: Vec<Vec<String>>,
+        targets: Vec<usize>,
+    },
+    /// A glob of something else, whose own path is being made absolute.
+    Glob {
+        at: Prefixes,
+        globs: Vec<usize>,
+        out: Vec<Vec<String>>,
+        position: usize,
+    },
+}
+
+/// The next move of the search: make a call and wait in a frame, or return.
+#[derive(Debug)]
+enum Step {
+    Call(Call, Frame),
+    Return(Result<Vec<Vec<String>>, Unknown>),
+}
+
 impl Index {
     /// The local structs, enums and unions that a self type path names,
     /// following type aliases.
@@ -92,7 +216,12 @@ impl Index {
             let walked = match self.walk(at, &path, colon, Namespace::Type, heads) {
                 Ok(walked) => walked,
                 // A path that names nothing names no type.
-                Err(Fail::Missing(_) | Fail::SuperAboveRoot | Fail::SeveralCrates { .. }) => {
+                Err(
+                    Fail::Missing(_)
+                    | Fail::SuperAboveRoot
+                    | Fail::SeveralCrates { .. }
+                    | Fail::Ambiguous(_),
+                ) => {
                     continue;
                 }
             };
@@ -144,211 +273,271 @@ impl Index {
                 .is_some()
     }
 
-    /// The path of the standard prelude trait `name` for the edition of the
-    /// impl's package; `None` if the name is not in that edition's prelude.
-    fn prelude_trait(&self, decl: &ImplDecl<'_>, name: &str) -> Option<&'static str> {
-        let target = &self.targets[decl.target.index()];
-        let edition = self.editions.get(&target.package).copied();
-        PRELUDE_TRAITS
-            .iter()
-            .find(|(trait_name, _, first)| {
-                *trait_name == name && edition.is_some_and(|year| *first <= year)
-            })
-            .map(|(_, path, _)| *path)
-    }
-
-    /// The absolute paths a name that the module does not bind to a local item
-    /// stands for: what its explicit imports say, the name of a declared
-    /// crate, or what its globs could provide. A glob of a local module is
-    /// looked into; a glob of anything else is a candidate that cannot be
-    /// confirmed. A glob whose own path is being made absolute (`active`, by
-    /// position among the imports) provides nothing to that path.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "the search carries its depth, the names it looked for and the globs it is inside"
-    )]
-    fn external_prefixes(
+    /// The readings of an explicit import's path, written in `module`, whose
+    /// first segment a glob of the module brings in from an import outside
+    /// the index and that is also a crate of the extern prelude: rustc's
+    /// E0659, so the path through the crate and the path through each such
+    /// import are candidates. `None` when the first segment is not such.
+    fn carried_readings(
         &self,
         decl: &ImplDecl<'_>,
         module: usize,
-        name: &str,
-        prelude: bool,
-        depth: usize,
-        visited: &mut BTreeSet<(usize, String)>,
-        active: &mut BTreeSet<usize>,
-    ) -> Result<Vec<Vec<String>>, Unknown> {
-        if depth > self.uses.len() + 8 {
-            return Err(None);
+        segs: &[String],
+    ) -> Option<Vec<Vec<String>>> {
+        let (head, rest) = segs.split_first()?;
+        if self.edition(module) == 2015 || !self.in_use_prelude(module, head, Self::test_code(decl))
+        {
+            return None;
         }
-        let named: Vec<&UseDecl> = self
-            .uses
-            .iter()
-            .filter(|u| {
-                u.module == module && matches!(&u.kind, UseKind::Named { name: n, .. } if n == name)
-            })
-            .collect();
-        if !named.is_empty() {
-            let mut out = Vec::new();
-            for u in named {
-                if let UseKind::Named { segs, .. } = &u.kind {
-                    out.extend(self.absolute(
-                        decl,
-                        module,
-                        segs,
-                        u.leading_colon,
-                        depth + 1,
-                        active,
-                    )?);
-                }
-            }
-            return Ok(out);
+        let carried = self.globbed_outside(module, head);
+        if carried.is_empty() {
+            return None;
         }
-        let extern_crate = self.modules[module].defs.iter().find(|id| {
-            self.items[id.0].kind == SymbolKind::ExternCrate && self.items[id.0].name == name
-        });
-        if let Some(real) = extern_crate.and_then(|id| self.extern_names.get(id)) {
-            return if self.crate_known(decl, real) {
-                Ok(vec![vec![real.to_string()]])
-            } else {
-                Err(None)
+        let mut out: Vec<Vec<String>> = Vec::new();
+        if let Some(real) = self.crate_reading(decl, module, head) {
+            let mut path = vec![real];
+            path.extend(rest.iter().cloned());
+            out.push(path);
+        }
+        for position in carried {
+            let (Some(real), UseKind::Named { segs: through, .. }) =
+                (self.outside_crate(position), &self.uses[position].kind)
+            else {
+                continue;
             };
+            let mut path = vec![real];
+            path.extend(through.iter().skip(1).cloned());
+            path.extend(rest.iter().cloned());
+            out.push(path);
         }
-        // The name of a crate this package can name stands for that crate.
-        if self.crate_known(decl, name) {
-            return Ok(vec![vec![name.to_owned()]]);
-        }
-        let mut out = Vec::new();
-        if visited.insert((module, name.to_owned())) {
-            for (position, u) in self.uses.iter().enumerate() {
-                let UseKind::Glob { segs } = &u.kind else {
-                    continue;
-                };
-                if u.module != module || active.contains(&position) {
-                    continue;
-                }
-                match self.glob_targets(u, segs) {
-                    // A glob of a local enum brings in its variants, in the
-                    // type and the value name spaces. A variant is neither a
-                    // trait nor a module, so the glob gives no prefix.
-                    Ok(targets) if targets.is_empty() && self.globs_local_enum(u, segs) => {}
-                    Ok(targets) if !targets.is_empty() => {
-                        for target in targets {
-                            out.extend(self.external_prefixes(
-                                decl,
-                                target,
-                                name,
-                                prelude,
-                                depth + 1,
-                                visited,
-                                active,
-                            )?);
-                        }
-                    }
-                    // A glob that names no local module: a dependency, if the
-                    // crate is one this package can name, or a path in the
-                    // crate that the index cannot see.
-                    _ => {
-                        active.insert(position);
-                        let found =
-                            self.absolute(decl, module, segs, u.leading_colon, depth + 1, active);
-                        active.remove(&position);
-                        let bases = match found {
-                            Ok(bases) => bases,
-                            Err(None) => {
-                                // A glob of a path in the crate that names
-                                // nothing the index can see (a module or an
-                                // enum a macro generates): a candidate that
-                                // cannot be confirmed, under that path.
-                                let bases = self.unseen_local(module, segs, u.leading_colon);
-                                if bases.is_empty() {
-                                    // A glob of something that is neither a
-                                    // local path nor a crate the package can
-                                    // name.
-                                    return Err(Some(Box::new(u.clone())));
-                                }
-                                bases
-                            }
-                            Err(inner) => return Err(inner),
-                        };
-                        for mut base in bases {
-                            base.push(name.to_owned());
-                            out.push(base);
-                        }
-                    }
-                }
-            }
-        }
-        if let (true, Some(path)) = (prelude, self.prelude_trait(decl, name)) {
-            out.push(path.split("::").map(str::to_owned).collect());
-        }
-        Ok(out)
+        Some(out)
     }
 
-    /// Every absolute path that `segs`, written in `module`, could stand for.
-    /// The head of each is a crate the package can name; a path whose head is
-    /// none is an error.
+    /// The key a walk to local items gives: their path when they are at one
+    /// (`cfg` alternatives are one trait), every path as a candidate when
+    /// they are at several, never the first of them; `None` for no item.
+    fn walked_key(&self, walked: &Walked, written: impl Fn() -> String) -> Option<TraitKey> {
+        let mut paths: Vec<String> = self
+            .sorted(walked.items.keys().copied())
+            .iter()
+            .map(|id| self.items[id.0].path.to_string())
+            .collect();
+        paths.dedup();
+        match paths.len() {
+            0 => None,
+            1 => Some(TraitKey::Canonical(paths.remove(0))),
+            _ => Some(TraitKey::Unresolved {
+                written: written(),
+                candidates: paths,
+            }),
+        }
+    }
+
+    /// The crate that `name`, the first segment of a `use` path in `module`,
+    /// stands for as a crate of the extern prelude: a crate the impl's code
+    /// can name, or the crate an `extern crate` item at the crate root names.
+    fn crate_reading(&self, decl: &ImplDecl<'_>, module: usize, name: &str) -> Option<String> {
+        if self.crate_known(decl, name) {
+            return Some(name.to_owned());
+        }
+        let root = self.modules[module].root;
+        self.modules[root]
+            .defs
+            .iter()
+            .filter(|id| {
+                self.items[id.0].kind == SymbolKind::ExternCrate && self.items[id.0].name == name
+            })
+            .filter_map(|id| self.extern_names.get(id))
+            .find(|real| self.crate_known(decl, real))
+            .map(ToString::to_string)
+    }
+
+    /// The path of the standard prelude trait `name` for the edition of the
+    /// impl's package; `None` if the name is not in that edition's prelude.
+    fn prelude_trait(&self, decl: &ImplDecl<'_>, name: &str) -> Option<&'static str> {
+        let edition = self.target_editions[decl.target.index()];
+        PRELUDE_TRAITS
+            .iter()
+            .find(|(trait_name, _, first)| *trait_name == name && *first <= edition)
+            .map(|(_, path, _)| *path)
+    }
+
+    /// Every absolute path that `segs`, written in `module` and read as
+    /// `reading` says, could stand for. The head of each is a crate the
+    /// impl's code can name, or the path is in the impl's own crate where the
+    /// index cannot see; a path that has neither is an error.
+    ///
+    /// The search follows explicit imports, `extern crate` items and globs
+    /// from module to module. It runs on an explicit stack of [`Frame`]s, so
+    /// its depth on the caller's stack does not grow with the input. An
+    /// import never resolves through its own binding, a glob whose own path
+    /// is being made absolute provides nothing to that path, and an explicit
+    /// import met again while its own path is being made absolute is a cycle,
+    /// which is an error.
     fn absolute(
         &self,
         decl: &ImplDecl<'_>,
         module: usize,
         segs: &[String],
         leading_colon: bool,
-        depth: usize,
-        active: &mut BTreeSet<usize>,
+        reading: Reading,
     ) -> Result<Vec<Vec<String>>, Unknown> {
-        if depth > self.uses.len() + 8 || segs.is_empty() {
-            return Err(None);
-        }
-        if leading_colon {
-            return if self.crate_known(decl, &segs[0]) {
-                Ok(vec![segs.to_vec()])
-            } else {
-                Err(None)
+        let mut search = Search::default();
+        let mut stack: Vec<Frame> = Vec::new();
+        let mut step = self.enter_absolute(
+            decl,
+            &mut search,
+            module,
+            segs.to_vec(),
+            leading_colon,
+            reading,
+        );
+        loop {
+            step = match step {
+                Step::Call(call, frame) => {
+                    stack.push(frame);
+                    match call {
+                        Call::Absolute {
+                            module,
+                            segs,
+                            leading_colon,
+                            reading,
+                        } => self.enter_absolute(
+                            decl,
+                            &mut search,
+                            module,
+                            segs,
+                            leading_colon,
+                            reading,
+                        ),
+                        Call::Prefixes(prefixes) => {
+                            self.enter_prefixes(decl, &mut search, prefixes)
+                        }
+                    }
+                }
+                Step::Return(result) => match stack.pop() {
+                    // A glob that names nothing fails the path: the error
+                    // names the first such glob by written path, file and
+                    // line, whatever order the search met them in.
+                    None => {
+                        return match search.failed.first() {
+                            Some((.., position)) if !matches!(result, Err(Some(_))) => {
+                                Err(Some(Box::new(self.uses[*position].clone())))
+                            }
+                            _ => result,
+                        };
+                    }
+                    Some(frame) => self.resume(decl, &mut search, frame, result),
+                },
             };
         }
-        let mut cur = module;
-        let mut at = 0;
-        match segs[0].as_str() {
-            "crate" => {
-                cur = self.modules[module].root;
-                at = 1;
-            }
-            "self" => at = 1,
-            "super" => {
+    }
+
+    /// The module a path written in `module` is read from, and the index of
+    /// its first segment to look up there: the crate root for a path read
+    /// from it (`crate_relative`) or one that starts with `crate`, the module
+    /// itself after `self` or for a plain name, and the module above for each
+    /// `super`; `None` for `super` above the crate root.
+    fn path_start(
+        &self,
+        module: usize,
+        segs: &[String],
+        crate_relative: bool,
+    ) -> Option<(usize, usize)> {
+        if crate_relative {
+            return Some((self.modules[module].root, 0));
+        }
+        match segs.first().map(String::as_str) {
+            Some("crate") => Some((self.modules[module].root, 1)),
+            Some("self") => Some((module, 1)),
+            Some("super") => {
+                let mut cur = module;
+                let mut at = 0;
                 while segs.get(at).is_some_and(|s| s == "super") {
-                    cur = self.modules[cur].parent.ok_or(None)?;
+                    cur = self.modules[cur].parent?;
                     at += 1;
                 }
+                Some((cur, at))
             }
-            _ => {}
+            _ => Some((module, 0)),
         }
+    }
+
+    /// Start making `segs`, written in `module`, absolute.
+    fn enter_absolute(
+        &self,
+        decl: &ImplDecl<'_>,
+        search: &mut Search,
+        module: usize,
+        segs: Vec<String>,
+        leading_colon: bool,
+        reading: Reading,
+    ) -> Step {
+        let Some(head) = segs.first() else {
+            return Step::Return(Err(None));
+        };
+        let heads = reading.heads(Self::test_code(decl));
+        let crate_relative = self.crate_relative(module, head, leading_colon, heads);
+        if leading_colon && !crate_relative {
+            return Step::Return(if self.crate_known(decl, head) {
+                Ok(vec![segs])
+            } else {
+                Err(None)
+            });
+        }
+        let Some((mut cur, mut at)) = self.path_start(module, &segs, crate_relative) else {
+            return Step::Return(Err(None));
+        };
         while at < segs.len() {
             let seg = &segs[at];
-            if let Some((bound, _)) = self.lookup(cur, Namespace::Type, seg) {
+            if let Some((bound, from_glob)) =
+                self.lookup_in(cur, Namespace::Type, seg, reading.own())
+            {
                 // Every item the name is bound to is a way the path can go:
-                // an `extern crate` item stands for the crate it names, and a
-                // module the path goes on through; anything else bound
-                // locally would have resolved the trait already. Several ways
-                // give several candidates, never the first of them.
+                // an `extern crate` item stands for the crate it names, a
+                // module the path goes on through, and a local trait at the
+                // end of the path is a candidate under its own path (which
+                // only a path an ambiguous first segment leaves open meets:
+                // anything bound locally otherwise resolved the trait
+                // already). Several ways give several candidates, never the
+                // first of them.
                 let rest = &segs[at + 1..];
                 let mut out = Vec::new();
                 let mut inner: BTreeSet<usize> = BTreeSet::new();
                 for id in bound.keys() {
+                    let item = &self.items[id.0];
                     if let Some(real) = self.extern_names.get(id) {
                         if !self.crate_known(decl, real) {
-                            return Err(None);
+                            return Step::Return(Err(None));
                         }
                         let mut path = vec![real.to_string()];
                         path.extend(rest.iter().cloned());
                         out.push(path);
+                    } else if rest.is_empty() && item.kind == SymbolKind::Trait {
+                        out.push(item.path.split("::").map(str::to_owned).collect());
                     } else {
                         inner.extend(self.modules_for(*id));
                     }
                 }
+                // The first segment of a `use` path of edition 2018 or later
+                // that a glob binds and that is also a different crate of the
+                // extern prelude is ambiguous: the path through the crate is
+                // a candidate too.
+                if let (0, true, Reading::Use { .. }) = (at, from_glob, reading)
+                    && !crate_relative
+                    && self
+                        .glob_against_prelude(cur, seg, Self::test_code(decl), bound)
+                        .is_some()
+                    && let Some(real) = self.crate_reading(decl, cur, seg)
+                {
+                    let mut path = vec![real];
+                    path.extend(rest.iter().cloned());
+                    out.push(path);
+                }
                 if rest.is_empty() {
                     // A path that ends at a module names no trait; one that
                     // ends at an `extern crate` item names its crate.
-                    return if out.is_empty() { Err(None) } else { Ok(out) };
+                    return Step::Return(if out.is_empty() { Err(None) } else { Ok(out) });
                 }
                 if out.is_empty()
                     && let [only] = inner.iter().copied().collect::<Vec<_>>().as_slice()
@@ -359,37 +548,375 @@ impl Index {
                 }
                 let mut from_self = vec!["self".to_owned()];
                 from_self.extend(rest.iter().cloned());
-                for module in inner {
-                    out.extend(self.absolute(
-                        decl,
-                        module,
-                        &from_self,
-                        false,
-                        depth + 1,
-                        active,
-                    )?);
-                }
-                if out.is_empty() {
-                    return Err(None);
-                }
-                return Ok(out);
+                return Self::next_inner(
+                    out,
+                    inner.into_iter().rev().collect(),
+                    from_self,
+                    reading,
+                );
             }
-            let single = segs.len() == 1;
-            let mut visited = BTreeSet::new();
-            let prefixes =
-                self.external_prefixes(decl, cur, seg, single, depth, &mut visited, active)?;
-            if prefixes.is_empty() {
-                return Err(None);
+            if let (0, Reading::Use { own: Some(_) }) = (at, reading)
+                && !crate_relative
+                && let Some(out) = self.carried_readings(decl, cur, &segs)
+            {
+                return Step::Return(Ok(out));
             }
-            return Ok(prefixes
-                .into_iter()
-                .map(|mut prefix| {
-                    prefix.extend(segs.iter().skip(at + 1).cloned());
-                    prefix
-                })
-                .collect());
+            // The scope of the search through the module's globs, fresh for
+            // each name a path looks up.
+            search.visited.push(BTreeSet::new());
+            let prefixes = Prefixes {
+                module: cur,
+                name: seg.clone(),
+                prelude: segs.len() == 1,
+                skip: reading.own(),
+                visited: search.visited.len() - 1,
+                root_only: crate_relative && at == 0,
+            };
+            return Step::Call(
+                Call::Prefixes(prefixes),
+                Frame::Tail {
+                    tail: segs[at + 1..].to_vec(),
+                },
+            );
         }
-        Err(None)
+        Step::Return(Err(None))
+    }
+
+    /// Go on through the next of the `inner` modules a path can go on in, or
+    /// return what the ways found.
+    fn next_inner(
+        out: Vec<Vec<String>>,
+        mut inner: Vec<usize>,
+        from_self: Vec<String>,
+        reading: Reading,
+    ) -> Step {
+        let Some(module) = inner.pop() else {
+            return Step::Return(if out.is_empty() { Err(None) } else { Ok(out) });
+        };
+        Step::Call(
+            Call::Absolute {
+                module,
+                segs: from_self.clone(),
+                leading_colon: false,
+                reading,
+            },
+            Frame::Inner {
+                out,
+                inner,
+                from_self,
+                reading,
+            },
+        )
+    }
+
+    /// Start finding the absolute paths a name that the module does not bind
+    /// to a local item stands for: what its explicit imports say (but the one
+    /// whose own path asks), the name of a declared crate, or what its globs
+    /// could provide. A glob of a local module is looked into; a glob of
+    /// anything else is a candidate that cannot be confirmed.
+    fn enter_prefixes(&self, decl: &ImplDecl<'_>, search: &mut Search, at: Prefixes) -> Step {
+        let named: Vec<usize> = self
+            .imports_of(at.module, &at.name)
+            .iter()
+            .copied()
+            .filter(|position| Some(*position) != at.skip)
+            .rev()
+            .collect();
+        if !named.is_empty() {
+            return self.next_named(search, at, named, Vec::new());
+        }
+        // Every `extern crate` item of the name stands for its crate (`cfg`
+        // alternatives can name two), never the first of them.
+        let crates: Vec<&SharedStr> = self.modules[at.module]
+            .defs
+            .iter()
+            .filter(|id| {
+                self.items[id.0].kind == SymbolKind::ExternCrate && self.items[id.0].name == at.name
+            })
+            .filter_map(|id| self.extern_names.get(id))
+            .collect();
+        if !crates.is_empty() {
+            return Step::Return(if crates.iter().all(|real| self.crate_known(decl, real)) {
+                Ok(crates.iter().map(|real| vec![real.to_string()]).collect())
+            } else {
+                Err(None)
+            });
+        }
+        // The name of a crate this package can name stands for that crate. A
+        // name read from the crate root in edition 2015 names only the crate
+        // the compiler puts there; any other crate needs an `extern crate`
+        // item.
+        let crate_named = if at.root_only {
+            at.name == self.injected_crate(at.module)
+        } else {
+            self.crate_known(decl, &at.name)
+        };
+        if crate_named {
+            return Step::Return(Ok(vec![vec![at.name]]));
+        }
+        if search.visited[at.visited].insert((at.module, at.name.clone())) {
+            let globs: Vec<usize> = self
+                .globs_of(at.module)
+                .iter()
+                .copied()
+                .filter(|position| !search.globs.contains(position))
+                .rev()
+                .collect();
+            return self.next_glob(decl, search, at, globs, Vec::new());
+        }
+        Step::Return(Ok(self.with_prelude(decl, &at, Vec::new())))
+    }
+
+    /// Make the path of the next of the `named` imports absolute, or return
+    /// what they gave.
+    fn next_named(
+        &self,
+        search: &mut Search,
+        at: Prefixes,
+        mut named: Vec<usize>,
+        out: Vec<Vec<String>>,
+    ) -> Step {
+        // An import met again while its own path is being made absolute adds
+        // nothing to this way, as a glob met again does: a cycle of imports
+        // binds nothing, and a name it alone could give is not found.
+        let position = loop {
+            let Some(position) = named.pop() else {
+                return Step::Return(Ok(out));
+            };
+            if search.named.insert(position) {
+                break position;
+            }
+        };
+        let u = &self.uses[position];
+        let UseKind::Named { segs, .. } = &u.kind else {
+            return Step::Return(Err(None));
+        };
+        Step::Call(
+            Call::Absolute {
+                module: at.module,
+                segs: segs.clone(),
+                leading_colon: u.leading_colon,
+                reading: Reading::Use {
+                    own: Some(position),
+                },
+            },
+            Frame::Named {
+                at,
+                named,
+                out,
+                position,
+            },
+        )
+    }
+
+    /// Look into the next of the `globs` of the module, or return what they
+    /// gave with the prelude trait of the name.
+    fn next_glob(
+        &self,
+        decl: &ImplDecl<'_>,
+        search: &mut Search,
+        at: Prefixes,
+        mut globs: Vec<usize>,
+        out: Vec<Vec<String>>,
+    ) -> Step {
+        while let Some(position) = globs.pop() {
+            let u = &self.uses[position];
+            let UseKind::Glob { segs } = &u.kind else {
+                continue;
+            };
+            match self.glob_targets(u, segs) {
+                // A glob of a local enum brings in its variants, in the type
+                // and the value name spaces. A variant is neither a trait nor
+                // a module, so the glob gives no prefix.
+                Ok(targets) if targets.is_empty() && self.globs_local_enum(u, segs) => {}
+                Ok(targets) if !targets.is_empty() => {
+                    return self.next_target(
+                        decl,
+                        search,
+                        at,
+                        globs,
+                        out,
+                        targets.into_iter().rev().collect(),
+                    );
+                }
+                // A glob that names no local module: a dependency, if the
+                // crate is one this package can name, or a path in the crate
+                // that the index cannot see.
+                _ => {
+                    search.globs.insert(position);
+                    return Step::Call(
+                        Call::Absolute {
+                            module: at.module,
+                            segs: segs.clone(),
+                            leading_colon: u.leading_colon,
+                            reading: Reading::Use { own: None },
+                        },
+                        Frame::Glob {
+                            at,
+                            globs,
+                            out,
+                            position,
+                        },
+                    );
+                }
+            }
+        }
+        let out = self.with_prelude(decl, &at, out);
+        Step::Return(Ok(out))
+    }
+
+    /// Look for the name in the next of the `targets` of a glob of local
+    /// modules, or go on with the next glob.
+    fn next_target(
+        &self,
+        decl: &ImplDecl<'_>,
+        search: &mut Search,
+        at: Prefixes,
+        globs: Vec<usize>,
+        out: Vec<Vec<String>>,
+        mut targets: Vec<usize>,
+    ) -> Step {
+        let Some(target) = targets.pop() else {
+            return self.next_glob(decl, search, at, globs, out);
+        };
+        let call = Prefixes {
+            module: target,
+            name: at.name.clone(),
+            prelude: at.prelude,
+            skip: None,
+            visited: at.visited,
+            root_only: at.root_only,
+        };
+        Step::Call(
+            Call::Prefixes(call),
+            Frame::Target {
+                at,
+                globs,
+                out,
+                targets,
+            },
+        )
+    }
+
+    /// `out` with the path of the prelude trait `at` names, when the name is
+    /// a whole path and in the prelude of the impl's edition.
+    fn with_prelude(
+        &self,
+        decl: &ImplDecl<'_>,
+        at: &Prefixes,
+        mut out: Vec<Vec<String>>,
+    ) -> Vec<Vec<String>> {
+        if let (true, Some(path)) = (at.prelude, self.prelude_trait(decl, &at.name)) {
+            out.push(path.split("::").map(str::to_owned).collect());
+        }
+        out
+    }
+
+    /// Go on with `frame` now that the call it made returned `result`.
+    fn resume(
+        &self,
+        decl: &ImplDecl<'_>,
+        search: &mut Search,
+        frame: Frame,
+        result: Result<Vec<Vec<String>>, Unknown>,
+    ) -> Step {
+        match frame {
+            Frame::Tail { tail } => {
+                search.visited.pop();
+                Step::Return(result.and_then(|prefixes| {
+                    if prefixes.is_empty() {
+                        return Err(None);
+                    }
+                    Ok(prefixes
+                        .into_iter()
+                        .map(|mut prefix| {
+                            prefix.extend(tail.iter().cloned());
+                            prefix
+                        })
+                        .collect())
+                }))
+            }
+            Frame::Inner {
+                mut out,
+                inner,
+                from_self,
+                reading,
+            } => match result {
+                Ok(paths) => {
+                    out.extend(paths);
+                    Self::next_inner(out, inner, from_self, reading)
+                }
+                Err(bad) => Step::Return(Err(bad)),
+            },
+            Frame::Named {
+                at,
+                named,
+                mut out,
+                position,
+            } => {
+                search.named.remove(&position);
+                match result {
+                    Ok(paths) => {
+                        out.extend(paths);
+                        self.next_named(search, at, named, out)
+                    }
+                    Err(bad) => Step::Return(Err(bad)),
+                }
+            }
+            Frame::Target {
+                at,
+                globs,
+                mut out,
+                targets,
+            } => match result {
+                Ok(paths) => {
+                    out.extend(paths);
+                    self.next_target(decl, search, at, globs, out, targets)
+                }
+                Err(bad) => Step::Return(Err(bad)),
+            },
+            Frame::Glob {
+                at,
+                globs,
+                mut out,
+                position,
+            } => {
+                search.globs.remove(&position);
+                let u = &self.uses[position];
+                let UseKind::Glob { segs } = &u.kind else {
+                    return Step::Return(Err(None));
+                };
+                let bases = match result {
+                    Ok(bases) => bases,
+                    Err(None) => {
+                        // A glob of a path in the crate that names nothing
+                        // the index can see (a module or an enum a macro
+                        // generates): a candidate that cannot be confirmed,
+                        // under that path.
+                        let bases = self.unseen_local(u.module, segs, u.leading_colon, u.test);
+                        if bases.is_empty() {
+                            // A glob of something that is neither a local
+                            // path nor a crate the package can name fails the
+                            // path; the search goes on, so that the error
+                            // names one glob whatever the order.
+                            search.failed.insert((
+                                format!("{}::*", segs.join("::")),
+                                u.file.clone(),
+                                u.line,
+                                position,
+                            ));
+                        }
+                        bases
+                    }
+                    Err(inner) => return Step::Return(Err(inner)),
+                };
+                for mut base in bases {
+                    base.push(at.name.clone());
+                    out.push(base);
+                }
+                self.next_glob(decl, search, at, globs, out)
+            }
+        }
     }
 
     /// The key of the trait of an impl that is not on a local type: a local
@@ -421,8 +948,8 @@ impl Index {
             },
         ) {
             Ok(walked) => {
-                if let Some(first) = self.sorted(walked.items.keys().copied()).first() {
-                    return Ok(TraitKey::Canonical(self.items[first.0].path.to_string()));
+                if let Some(key) = self.walked_key(&walked, written) {
+                    return Ok(key);
                 }
             }
             // A crate name that stands for several libraries: the trait is in
@@ -446,7 +973,8 @@ impl Index {
                     candidates,
                 });
             }
-            Err(Fail::Missing(_) | Fail::SuperAboveRoot) => {}
+            // A path in code is never ambiguous at its first segment.
+            Err(Fail::Missing(_) | Fail::SuperAboveRoot | Fail::Ambiguous(_)) => {}
         }
         let paths = self
             .absolute(
@@ -454,8 +982,7 @@ impl Index {
                 decl.module,
                 &tr.segments,
                 tr.leading_colon,
-                0,
-                &mut BTreeSet::new(),
+                Reading::Code,
             )
             .map_err(|bad| match bad {
                 None => unresolved(),
@@ -659,7 +1186,10 @@ impl Index {
             segs,
             decl.leading_colon,
             Namespace::Type,
-            Heads::Code { test: decl.test },
+            Heads::Use {
+                test: decl.test,
+                own: None,
+            },
         )
         .is_ok_and(|walked| {
             !walked.items.is_empty()
@@ -684,10 +1214,15 @@ impl Index {
         let Some(path) = own else {
             return Ok(format!("{}::{self_type}", self.modules[decl.module].path));
         };
-        if path.leading_colon {
-            return Ok(path.segments.join("::"));
-        }
         let mut at = decl.module;
+        if path.leading_colon {
+            // In edition 2015 a path with a leading `::` starts at the crate
+            // root; in later ones at a crate.
+            if self.edition(decl.module) != 2015 {
+                return Ok(path.segments.join("::"));
+            }
+            at = self.modules[at].root;
+        }
         let mut rest = path.segments.as_slice();
         match rest.first().map(String::as_str) {
             Some("crate") => {
@@ -779,35 +1314,44 @@ impl Index {
     }
 
     /// The paths in the crate of a glob path written in `module` that starts
-    /// in the crate (`crate`, `self`, `super`, or a local module the module
-    /// binds) and goes on through names the index cannot see: for each way
-    /// the path can go, the path of the last local module it reaches,
-    /// followed by the rest as written. A name bound to several modules gives
-    /// a path through each. None for a path that starts with `::` or with a
+    /// in the crate (`crate`, `self`, `super`, a local module the module
+    /// binds, or in edition 2015 a local module the crate root binds) and
+    /// goes on through names the index cannot see: for each way the path can
+    /// go, the path of the last local module it reaches, followed by the rest
+    /// as written. A name bound to several modules gives a path through each.
+    /// None for a path that starts at a crate of the extern prelude or with a
     /// name that is not a local module.
     fn unseen_local(
         &self,
         module: usize,
         segs: &[String],
         leading_colon: bool,
+        test: bool,
     ) -> Vec<Vec<String>> {
-        if leading_colon {
+        let Some(head) = segs.first() else {
             return Vec::new();
-        }
+        };
+        let heads = Heads::Use { test, own: None };
+        let start = if self.crate_relative(module, head, leading_colon, heads) {
+            self.modules[module].root
+        } else if leading_colon {
+            return Vec::new();
+        } else {
+            module
+        };
         let bound_modules = |at: usize, name: &str| -> BTreeSet<usize> {
             self.lookup(at, Namespace::Type, name)
                 .map(|(bound, _)| bound.keys().flat_map(|id| self.modules_for(*id)).collect())
                 .unwrap_or_default()
         };
         let mut work: Vec<(usize, &[String])> = Vec::new();
-        match segs.first().map(String::as_str) {
-            None => return Vec::new(),
-            Some("crate") => work.push((self.modules[module].root, &segs[1..])),
-            Some("self") => work.push((module, &segs[1..])),
-            Some("super") => work.push((module, segs)),
-            Some(first) => {
-                for start in bound_modules(module, first) {
-                    work.push((start, &segs[1..]));
+        match head.as_str() {
+            "crate" => work.push((self.modules[module].root, &segs[1..])),
+            "self" => work.push((module, &segs[1..])),
+            "super" => work.push((module, segs)),
+            first => {
+                for at in bound_modules(start, first) {
+                    work.push((at, &segs[1..]));
                 }
             }
         }

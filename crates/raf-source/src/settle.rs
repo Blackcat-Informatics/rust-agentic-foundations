@@ -18,7 +18,7 @@ use crate::facts::Vis;
 use crate::index::{Index, UseDecl, UseKind, binding_bytes};
 use crate::item::{ItemId, Namespace};
 use crate::meter::Meter;
-use crate::resolve::{Fail, Heads};
+use crate::resolve::{Fail, Heads, Hit, Walked};
 
 /// How a name came to be bound in a module.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -227,7 +227,7 @@ impl Index {
 
     /// True when a binding with visibility `vis`, in the scope of `home`, can
     /// be named from `importer`.
-    fn is_visible(&self, vis: &Vis, home: usize, importer: usize) -> bool {
+    pub(crate) fn is_visible(&self, vis: &Vis, home: usize, importer: usize) -> bool {
         match vis {
             Vis::Public => true,
             Vis::Inherited => self.within(importer, home),
@@ -321,6 +321,9 @@ impl Index {
         }
         self.use_resolved = vec![false; self.uses.len()];
         self.use_settled = vec![false; self.uses.len()];
+        if self.use_ambiguous.len() != self.uses.len() {
+            self.use_ambiguous = vec![false; self.uses.len()];
+        }
     }
 
     /// The items a module binds to `name` in `ns`, and whether they come from
@@ -333,12 +336,25 @@ impl Index {
         ns: Namespace,
         name: &str,
     ) -> Option<(&Bound, bool)> {
+        self.lookup_in(module, ns, name, None)
+    }
+
+    /// [`Index::lookup`] for the path of the named import at `own`, which
+    /// does not wait on itself: an import never resolves through its own
+    /// binding.
+    pub(crate) fn lookup_in(
+        &self,
+        module: usize,
+        ns: Namespace,
+        name: &str,
+        own: Option<usize>,
+    ) -> Option<(&Bound, bool)> {
         let entry = self.scopes[module].get(name)?;
         let defs = &entry.defs[slot(ns)];
         if !defs.is_empty() {
             return Some((defs, false));
         }
-        if self.is_unsettled(module, name) {
+        if self.is_unsettled(module, name, own) {
             return None;
         }
         let globbed = &entry.globbed[slot(ns)];
@@ -349,11 +365,41 @@ impl Index {
         }
     }
 
-    fn is_unsettled(&self, module: usize, name: &str) -> bool {
-        self.unsettled
+    /// True when an explicit import of `module` that binds `name`, other than
+    /// the one at `own`, is unsettled.
+    pub(crate) fn is_unsettled(&self, module: usize, name: &str, own: Option<usize>) -> bool {
+        let count = self
+            .unsettled
             .get(&module)
             .and_then(|names| names.get(name))
-            .is_some_and(|count| *count > 0)
+            .copied()
+            .unwrap_or(0);
+        let itself = own.is_some_and(|position| {
+            let decl = &self.uses[position];
+            (!self.use_settled[position] || self.use_ambiguous[position])
+                && decl.module == module
+                && matches!(&decl.kind, UseKind::Named { name: bound, .. } if bound == name)
+        });
+        count > usize::from(itself)
+    }
+
+    /// The items that stand for `module` in a scope: a crate root's item, or
+    /// the `mod` items that declare the module in its parent.
+    pub(crate) fn module_items(&self, module: usize) -> Vec<ItemId> {
+        let Some(parent) = self.modules[module].parent else {
+            return self.root_items.get(&module).copied().into_iter().collect();
+        };
+        let path = &self.modules[module].path;
+        let name = path.rsplit("::").next().unwrap_or(path);
+        self.scopes[parent]
+            .get(name)
+            .map_or_else(Vec::new, |entry| {
+                entry.defs[slot(Namespace::Type)]
+                    .keys()
+                    .copied()
+                    .filter(|id| self.module_of.get(id) == Some(&module))
+                    .collect()
+            })
     }
 
     /// The modules that an item stands for: the module of a `mod` item, or
@@ -392,7 +438,10 @@ impl Index {
             segs,
             decl.leading_colon,
             Namespace::Type,
-            Heads::Code { test: decl.test },
+            Heads::Use {
+                test: decl.test,
+                own: None,
+            },
         )?;
         let mut targets = walked.modules;
         targets.extend(walked.items.keys().flat_map(|id| self.modules_for(*id)));
@@ -412,7 +461,7 @@ impl Index {
             for (ns, (defs, globbed)) in entry.defs.iter().zip(&entry.globbed).enumerate() {
                 let bound = if !defs.is_empty() {
                     defs
-                } else if self.is_unsettled(target, name) {
+                } else if self.is_unsettled(target, name, None) {
                     continue;
                 } else {
                     globbed
@@ -471,12 +520,17 @@ impl Index {
 
     /// Mark an import settled: resolved, or definitively failed. Everything
     /// that waited on the name it binds, or that globs its module, is woken.
+    /// An import whose first segment is ambiguous keeps its name
+    /// indeterminate.
     fn settle_use(&mut self, position: usize, pending: &mut Pending) {
         if self.use_settled[position] {
             return;
         }
         self.use_settled[position] = true;
         let decl = &self.uses[position];
+        if self.use_ambiguous[position] {
+            return;
+        }
         if let UseKind::Named { name, .. } = &decl.kind {
             let module = decl.module;
             let name = name.clone();
@@ -500,7 +554,7 @@ impl Index {
     /// that wait on nothing that can still change are settled as failed, one
     /// round at a time, and the queue runs again. The globs are then rebuilt
     /// against the settled definitions.
-    pub(crate) fn settle(&mut self, meter: &Meter) -> Result<(), LoadError> {
+    fn settle(&mut self, meter: &Meter) -> Result<(), LoadError> {
         for decl in &self.uses {
             match &decl.kind {
                 UseKind::Named { segs, .. } | UseKind::Glob { segs } => {
@@ -518,9 +572,29 @@ impl Index {
                     .or_default() += 1;
             }
         }
+        // An import held as ambiguous from the start is settled and keeps its
+        // name unsettled.
+        for (settled, held) in self.use_settled.iter_mut().zip(&self.use_ambiguous) {
+            *settled |= *held;
+        }
         let mut pending = Pending::default();
         for position in 0..self.uses.len() {
             pending.push(position);
+        }
+        // First, a `use` path whose first segment a module with globs does
+        // not bind waits: a glob may still bring the name in. Then the globs
+        // have brought in what they can, and such a path may start at a
+        // crate of the extern prelude; the globs are tried again first, then
+        // every import still unsettled.
+        self.drain(&mut pending, meter)?;
+        self.crates_open = true;
+        for position in self.glob_imports.clone() {
+            pending.push(position);
+        }
+        for (position, settled) in self.use_settled.iter().enumerate() {
+            if !settled {
+                pending.push(position);
+            }
         }
         loop {
             self.drain(&mut pending, meter)?;
@@ -536,7 +610,7 @@ impl Index {
             let leaves: Vec<usize> = stuck
                 .iter()
                 .copied()
-                .filter(|p| self.blockers(*p, false).iter().all(|b| b == p))
+                .filter(|p| self.blockers(*p, false).is_empty())
                 .collect();
             let chosen = if leaves.is_empty() {
                 vec![first]
@@ -551,12 +625,138 @@ impl Index {
         Ok(())
     }
 
+    /// Settle the scope tables so that the result does not depend on the
+    /// order of the declarations.
+    ///
+    /// While the tables settle, a `use` path may start at a crate before a
+    /// glob of its module, whose own path waited on an import that started
+    /// at a crate, brings in the same name, which makes it ambiguous. So
+    /// once the tables are settled, every named import is walked again
+    /// against them. If one is ambiguous that was not held from the start,
+    /// the tables are rebuilt from the definitions and settled again with
+    /// every such import held from the start: it binds nothing and keeps its
+    /// name indeterminate. Likewise, a `use` path may read its first segment
+    /// as a crate after an explicit import of that name failed for now and
+    /// before it bound the name: an explicit import shadows a crate, so the
+    /// tables are settled again with that name of that module never read as
+    /// a crate. The held imports and the names kept from crates only grow,
+    /// so this ends. Bindings made again are charged again, so the charge
+    /// stays at least what is held; the records of crate reads live only
+    /// while the tables settle.
+    pub(crate) fn settle_agreed(&mut self, meter: &Meter) -> Result<(), LoadError> {
+        loop {
+            let held: Vec<bool> = self.use_ambiguous.clone();
+            self.settle(meter)?;
+            let ambiguous: Vec<bool> = (0..self.uses.len())
+                .map(|position| self.use_ambiguous[position] || self.walks_ambiguous(position))
+                .collect();
+            let shadowed: Vec<(usize, String)> = self
+                .shadowed_crate_reads()
+                .into_iter()
+                .filter(|key| !self.no_crate.contains(key))
+                .collect();
+            if shadowed.is_empty()
+                && ambiguous
+                    .iter()
+                    .zip(&held)
+                    .all(|(now, before)| !now || *before)
+            {
+                self.crate_reads = BTreeMap::new();
+                self.no_crate = BTreeSet::new();
+                return Ok(());
+            }
+            self.no_crate.extend(shadowed);
+            self.crate_reads.clear();
+            self.build_scopes();
+            self.unsettled.clear();
+            self.crates_open = false;
+            self.use_ambiguous = ambiguous;
+        }
+    }
+
+    /// Record that the `use` path of the import at `position`, which just
+    /// resolved, read its first segment as a crate of the extern prelude: a
+    /// plain first segment that its module does not bind (`own` is the
+    /// named import whose path it is).
+    fn note_crate_read(
+        &mut self,
+        position: usize,
+        decl: &UseDecl,
+        segs: &[String],
+        own: Option<usize>,
+    ) {
+        let Some(head) = segs.first() else {
+            return;
+        };
+        let heads = Heads::Use {
+            test: decl.test,
+            own,
+        };
+        if decl.leading_colon
+            || matches!(head.as_str(), "crate" | "self" | "super")
+            || self.crate_relative(decl.module, head, false, heads)
+            || self
+                .lookup_in(decl.module, Namespace::Type, head, own)
+                .is_some()
+        {
+            return;
+        }
+        self.crate_reads
+            .entry((decl.module, head.clone()))
+            .or_default()
+            .insert(position);
+    }
+
+    /// The names that a `use` path read as a crate and that an explicit
+    /// import of the module, other than those paths' own, binds in the
+    /// settled tables: such a path went to the crate before the import that
+    /// shadows it was settled.
+    fn shadowed_crate_reads(&self) -> Vec<(usize, String)> {
+        self.crate_reads
+            .iter()
+            .filter(|((module, name), readers)| {
+                self.scopes[*module]
+                    .get(name)
+                    .is_some_and(|entry| !entry.defs[slot(Namespace::Type)].is_empty())
+                    && self
+                        .imports_of(*module, name)
+                        .iter()
+                        .any(|import| self.use_resolved[*import] && !readers.contains(import))
+            })
+            .map(|(key, _)| key.clone())
+            .collect()
+    }
+
+    /// True when the path of the named import at `position`, walked as a
+    /// `use` path in the type name space, has an ambiguous first segment.
+    fn walks_ambiguous(&self, position: usize) -> bool {
+        let decl = &self.uses[position];
+        let UseKind::Named { segs, .. } = &decl.kind else {
+            return false;
+        };
+        matches!(
+            self.walk(
+                decl.module,
+                segs,
+                decl.leading_colon,
+                Namespace::Type,
+                Heads::Use {
+                    test: decl.test,
+                    own: Some(position),
+                },
+            ),
+            Err(Fail::Ambiguous(_))
+        )
+    }
+
     /// Run the queue until it is empty.
     fn drain(&mut self, pending: &mut Pending, meter: &Meter) -> Result<(), LoadError> {
         while let Some(position) = pending.queue.pop_front() {
             pending.queued.remove(&position);
             let decl = self.uses[position].clone();
             let bound = match &decl.kind {
+                // An import held as ambiguous binds nothing.
+                UseKind::Named { .. } if self.use_ambiguous[position] => Vec::new(),
                 UseKind::Named { name, segs } => {
                     let bound = self.settle_named(position, &decl, name, segs, pending, meter)?;
                     if self.use_resolved[position] {
@@ -610,17 +810,37 @@ impl Index {
         pending: &mut Pending,
         meter: &Meter,
     ) -> Result<Vec<(usize, String)>, LoadError> {
+        let heads = Heads::Use {
+            test: decl.test,
+            own: Some(position),
+        };
+        let walks: Vec<(Namespace, Result<Walked, Fail>)> = Namespace::ALL
+            .into_iter()
+            .map(|ns| {
+                (
+                    ns,
+                    self.walk(decl.module, segs, decl.leading_colon, ns, heads),
+                )
+            })
+            .collect();
+        // A first segment that is ambiguous binds nothing in any name space,
+        // whatever the module binds later, and keeps the name the import
+        // binds indeterminate, so no glob of the module answers for it.
+        if walks
+            .iter()
+            .any(|(_, walk)| matches!(walk, Err(Fail::Ambiguous(_))))
+        {
+            self.hold(position, decl, name);
+            return Ok(Vec::new());
+        }
+        if walks.iter().any(|(_, walk)| walk.is_ok()) {
+            self.note_crate_read(position, decl, segs, Some(position));
+        }
         let mut bound = Vec::new();
-        for ns in Namespace::ALL {
-            match self.walk(
-                decl.module,
-                segs,
-                decl.leading_colon,
-                ns,
-                Heads::Code { test: decl.test },
-            ) {
+        for (ns, walk) in walks {
+            match walk {
                 Ok(walked) => {
-                    for (id, hit) in walked.items {
+                    for (id, hit) in self.walked_items(walked, ns) {
                         self.use_resolved[position] = true;
                         let source = hit.last.as_ref().map_or(0, |last| last.name.capacity());
                         meter.items(
@@ -673,6 +893,8 @@ impl Index {
                         }
                     }
                 }
+                // Refused above.
+                Err(Fail::Ambiguous(_)) => {}
                 Err(Fail::SuperAboveRoot) => {
                     return Err(LoadError::new(
                         &decl.file,
@@ -687,6 +909,46 @@ impl Index {
         Ok(bound)
     }
 
+    /// The items a walk in `ns` binds an import's name to: the items it
+    /// reached, or for a path that ends at a module and not at a name in it
+    /// (`use shared;` of a library of the workspace, `use crate as name;`),
+    /// in the type name space, the item of that module.
+    fn walked_items(&self, walked: Walked, ns: Namespace) -> Vec<(ItemId, Hit)> {
+        let mut items: Vec<(ItemId, Hit)> = walked.items.into_iter().collect();
+        if items.is_empty() && ns == Namespace::Type {
+            for module in &walked.modules {
+                for id in self.module_items(*module) {
+                    items.push((
+                        id,
+                        Hit {
+                            via_glob: false,
+                            last: None,
+                        },
+                    ));
+                }
+            }
+        }
+        items
+    }
+
+    /// Mark the named import at `position`, which binds `name`, ambiguous.
+    /// Its name stays unsettled for good: counted again if the import had
+    /// already settled.
+    fn hold(&mut self, position: usize, decl: &UseDecl, name: &str) {
+        if self.use_ambiguous[position] {
+            return;
+        }
+        self.use_ambiguous[position] = true;
+        if self.use_settled[position]
+            && let Some(count) = self
+                .unsettled
+                .get_mut(&decl.module)
+                .and_then(|names| names.get_mut(name))
+        {
+            *count += 1;
+        }
+    }
+
     /// Try a glob import. Returns the names it newly bound; the glob is
     /// queued again when its target module changes.
     fn settle_glob(
@@ -699,6 +961,7 @@ impl Index {
         let mut bound = Vec::new();
         match self.glob_targets(decl, segs) {
             Ok(targets) => {
+                self.note_crate_read(position, decl, segs, None);
                 for target in targets {
                     pending.watching.entry(target).or_default().insert(position);
                     for (name, ns, names) in self.visible(target, decl.module) {
@@ -713,9 +976,10 @@ impl Index {
             }
             Err(Fail::Missing(sources)) => pending.wait(position, sources),
             // `super` above the root is refused for every import before the
-            // queue runs, and a glob of a name that stands for several crates
-            // brings in nothing: rustc refuses it.
-            Err(Fail::SuperAboveRoot | Fail::SeveralCrates { .. }) => {}
+            // queue runs. A glob of a name that stands for several crates, or
+            // whose first segment is ambiguous, brings in nothing: rustc
+            // refuses it.
+            Err(Fail::SuperAboveRoot | Fail::SeveralCrates { .. } | Fail::Ambiguous(_)) => {}
         }
         bound
     }

@@ -970,3 +970,379 @@ fn an_inherited_dependency_the_workspace_cannot_give_is_an_error_naming_the_key(
     .collect();
     assert!(Workspace::load(&tree, &["m"]).is_ok());
 }
+
+/// Load `text` as the library of a package of `edition` that depends on
+/// `serde`, a crate outside the workspace.
+fn with_serde(edition: &str, text: &str) -> Result<Workspace, LoadError> {
+    load(
+        &manifest(edition, "\n[dependencies]\nserde = \"1\"\n"),
+        &[("src/lib.rs", text)],
+    )
+}
+
+#[test]
+fn a_trait_through_a_single_segment_import_of_a_crate_is_keyed_at_the_crate() {
+    let display = "pub struct Foo;\nimpl std::fmt::Display for &Foo { fn fmt(&self) {} }\n";
+    for edition in ["2018", "2021", "2024"] {
+        let ws = lib(edition, &format!("use std;\n{display}"))
+            .unwrap_or_else(|e| panic!("{edition}: {e}"));
+        assert_eq!(
+            key_of(&ws, "std::fmt::Display::fmt"),
+            TraitKey::Canonical("std::fmt::Display".to_owned()),
+            "{edition}"
+        );
+    }
+    // In edition 2015 a module's `use std;` is the crate root's `std`.
+    let ws = lib(
+        "2015",
+        &format!("pub mod m {{\n    use std;\n    {display}}}\n"),
+    )
+    .unwrap_or_else(|e| panic!("2015: {e}"));
+    assert_eq!(
+        key_of(&ws, "std::fmt::Display::fmt"),
+        TraitKey::Canonical("std::fmt::Display".to_owned())
+    );
+    // A single-segment import of a name that is no crate gives no key.
+    let error = lib(
+        "2021",
+        &format!("use nope;\n{}", display.replace("std", "nope")),
+    )
+    .expect_err("no such crate");
+    assert!(
+        matches!(&error.kind, LoadErrorKind::UnresolvedTrait { path } if path == "nope::fmt::Display"),
+        "{error}"
+    );
+    // Re-exported, through a module and in a group with `self`, the crate
+    // is followed to its own path.
+    let ws = with_serde(
+        "2021",
+        "pub use serde;\npub mod a {\n    use crate::serde::Serialize;\n    \
+         impl Serialize for String { fn serialize(&self) {} }\n}\n",
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        key_of(&ws, "serde::Serialize::serialize"),
+        TraitKey::Canonical("serde::Serialize".to_owned())
+    );
+    let ws = with_serde(
+        "2021",
+        "pub use serde::{self, Serialize};\npub struct L;\n\
+         impl Serialize for Vec<L> { fn serialize(&self) {} }\n\
+         impl serde::de::Deserialize for Vec<L> { fn deserialize(&self) {} }\n",
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        key_of(&ws, "serde::Serialize::serialize"),
+        TraitKey::Canonical("serde::Serialize".to_owned())
+    );
+    assert_eq!(
+        key_of(&ws, "serde::de::Deserialize::deserialize"),
+        TraitKey::Canonical("serde::de::Deserialize".to_owned())
+    );
+}
+
+#[test]
+fn a_glob_through_a_re_exported_crate_is_keyed_under_the_crate() {
+    let ws = with_serde(
+        "2021",
+        "pub use serde;\nuse serde::prelude::*;\npub struct L;\n\
+         impl Serialize for Vec<L> { fn m(&self) {} }\n",
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        key_of(&ws, "serde::prelude::Serialize::m"),
+        TraitKey::Canonical("serde::prelude::Serialize".to_owned())
+    );
+}
+
+#[test]
+fn a_use_path_of_edition_2015_is_followed_from_the_crate_root() {
+    // A module's `use serde;` is the root's `extern crate serde;`.
+    let ws = with_serde(
+        "2015",
+        "extern crate serde;\npub mod de {\n    use serde;\n    pub struct D;\n    \
+         impl<'de> serde::Deserializer<'de> for &'de mut D { fn f(&self) {} }\n}\n",
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        key_of(&ws, "serde::Deserializer::f"),
+        TraitKey::Canonical("serde::Deserializer".to_owned())
+    );
+    // A module's `use undo_log::Rollback;` names the root's module.
+    let ws = lib(
+        "2015",
+        "pub mod undo_log { pub trait Rollback<U> { fn reverse(&mut self, undo: U); } }\n\
+         pub mod snapshot_vec {\n    use undo_log::Rollback;\n    \
+         impl Rollback<u8> for Vec<u8> { fn reverse(&mut self, undo: u8) {} }\n}\n",
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        impl_key(&ws, "Vec<u8>"),
+        TraitKey::Canonical("demo::undo_log::Rollback".to_owned())
+    );
+    // A path with a leading `::` starts at the crate root too, so a renamed
+    // `extern crate` item is the crate it names.
+    let ws = with_serde(
+        "2015",
+        "extern crate serde as s;\npub struct L;\n\
+         impl ::s::Serialize for Vec<L> { fn m(&self) {} }\n\
+         impl ::std::fmt::Display for Vec<L> { fn fmt(&self) {} }\n",
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        key_of(&ws, "serde::Serialize::m"),
+        TraitKey::Canonical("serde::Serialize".to_owned())
+    );
+    assert_eq!(
+        key_of(&ws, "std::fmt::Display::fmt"),
+        TraitKey::Canonical("std::fmt::Display".to_owned())
+    );
+    // From edition 2018 on, the same `::s` names no crate.
+    let error = with_serde(
+        "2018",
+        "extern crate serde as s;\npub struct L;\nimpl ::s::Serialize for Vec<L> { fn m(&self) {} }\n",
+    )
+    .expect_err("`s` is no crate of the extern prelude");
+    assert!(
+        matches!(error.kind, LoadErrorKind::UnresolvedTrait { .. }),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_trait_through_an_ambiguous_use_head_keys_every_reading() {
+    let ws = with_serde(
+        "2021",
+        "pub mod local { pub mod serde { pub trait Serialize { fn m(&self); } } }\n\
+         use crate::local::*;\nuse serde::Serialize;\npub struct L;\n\
+         impl Serialize for Vec<L> { fn m(&self) {} }\n",
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    let resolution = ws
+        .resolve_in("Serialize::m", Namespace::Value)
+        .expect("by its written path");
+    let item = ws.item(resolution.sites[0]).expect("item");
+    assert_eq!(
+        item.trait_key.as_deref(),
+        Some(&TraitKey::Unresolved {
+            written: "Serialize".to_owned(),
+            candidates: vec![
+                "demo::local::serde::Serialize".to_owned(),
+                "serde::Serialize".to_owned()
+            ],
+        })
+    );
+}
+
+/// The key of the one member of a trait impl on `self_type`, which a local
+/// trait's own declaration hides from `resolve`.
+fn impl_key(ws: &Workspace, self_type: &str) -> TraitKey {
+    let keys: Vec<TraitKey> = ws
+        .items()
+        .filter(|item| item.self_type.as_deref() == Some(self_type))
+        .filter_map(|item| item.trait_key.as_deref().cloned())
+        .collect();
+    match keys.as_slice() {
+        [key] => key.clone(),
+        other => panic!("{self_type}: {other:?}"),
+    }
+}
+
+/// Load `text` as the library of `demo` on a thread of 2 MiB, the stack of a
+/// test thread.
+fn load_on_a_small_stack(text: String) -> Result<Workspace, LoadError> {
+    std::thread::Builder::new()
+        .stack_size(2 << 20)
+        .spawn(move || lib("2021", &text))
+        .expect("spawn")
+        .join()
+        .expect("the load does not abort")
+}
+
+#[test]
+fn twenty_thousand_chained_local_aliases_load_on_a_two_mib_thread() {
+    use std::fmt::Write as _;
+    let mut text =
+        String::from("pub mod m { pub trait T { fn t(&self); } }\nuse crate::m::T as A0;\n");
+    for at in 1..20_000 {
+        writeln!(text, "use A{} as A{at};", at - 1).expect("write");
+    }
+    text.push_str("impl A19999 for X { fn t(&self) {} }\n");
+    assert!(!text.contains("use A0 as A0;"));
+    let ws = load_on_a_small_stack(text).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        impl_key(&ws, "X"),
+        TraitKey::Canonical("demo::m::T".to_owned())
+    );
+}
+
+#[test]
+fn a_trait_found_through_twenty_thousand_chained_globs_is_keyed_on_a_two_mib_thread() {
+    use std::fmt::Write as _;
+    let mut text = String::from("pub mod m0 { pub use std::fmt::Display; }\n");
+    for at in 1..20_000 {
+        writeln!(text, "pub mod m{at} {{ pub use crate::m{}::*; }}", at - 1).expect("write");
+    }
+    text.push_str("pub mod last {\n    use crate::m19999::*;\n    impl Display for Vec<u8> { fn fmt(&self) {} }\n}\n");
+    let ws = load_on_a_small_stack(text).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        key_of(&ws, "std::fmt::Display::fmt"),
+        TraitKey::Canonical("std::fmt::Display".to_owned())
+    );
+}
+
+#[test]
+fn an_import_met_again_through_a_glob_adds_nothing_and_a_pure_cycle_is_refused() {
+    // `inner` globs its parent, whose `Serialize` is the import being
+    // followed; the other glob of `inner` gives the trait, as rustc has it.
+    let ws = with_serde(
+        "2021",
+        "mod inner { use super::*; pub use serde::*; }\npub use inner::Serialize;\n\
+         pub struct Foo;\nimpl Serialize for &Foo { fn m(&self) {} }\n",
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        key_of(&ws, "serde::Serialize::m"),
+        TraitKey::Canonical("serde::Serialize".to_owned())
+    );
+    // Imports that only name each other give nothing, and the trait is
+    // refused.
+    let error = lib(
+        "2021",
+        "pub mod a { pub use super::b::T; }\npub mod b { pub use super::a::T; }\n\
+         impl a::T for Vec<u8> { fn m(&self) {} }\n",
+    )
+    .expect_err("a cycle names no trait");
+    assert!(
+        matches!(&error.kind, LoadErrorKind::UnresolvedTrait { path } if path == "a::T"),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_trait_through_a_head_a_glob_brings_in_from_another_crate_keys_both() {
+    let ws = with_serde(
+        "2021",
+        "pub mod m { pub use std as serde; }\nuse m::*;\nuse serde::Serialize;\n\
+         impl Serialize for Vec<u8> { fn m(&self) {} }\n",
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    let resolution = ws
+        .resolve_in("Serialize::m", Namespace::Value)
+        .expect("by its written path");
+    assert_eq!(
+        ws.item(resolution.sites[0])
+            .expect("item")
+            .trait_key
+            .as_deref(),
+        Some(&TraitKey::Unresolved {
+            written: "Serialize".to_owned(),
+            candidates: vec!["serde::Serialize".to_owned(), "std::Serialize".to_owned()],
+        })
+    );
+}
+
+#[test]
+fn a_use_path_of_edition_2015_names_a_dependency_only_through_extern_crate() {
+    let impl_text =
+        "use serde::Serialize;\npub struct L;\nimpl Serialize for Vec<L> { fn m(&self) {} }\n";
+    // Without an `extern crate` item at the root, or with one only in a
+    // module, rustc refuses the import, and no key is made up.
+    for prefix in ["", "pub mod m { extern crate serde; }\n"] {
+        let error = with_serde("2015", &format!("{prefix}{impl_text}"))
+            .expect_err("no `serde` at the crate root");
+        assert!(
+            matches!(&error.kind, LoadErrorKind::UnresolvedTrait { path } if path == "Serialize"),
+            "{prefix}: {error}"
+        );
+    }
+    let ws = with_serde("2015", &format!("extern crate serde;\n{impl_text}"))
+        .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        key_of(&ws, "serde::Serialize::m"),
+        TraitKey::Canonical("serde::Serialize".to_owned())
+    );
+    // The crate the compiler puts at the root needs no item: `std`, or
+    // `core` under `#![no_std]`.
+    for (prefix, krate) in [("", "std"), ("#![no_std]\n", "core")] {
+        let text = format!(
+            "{prefix}use {krate}::fmt::Display;\npub struct L;\nimpl Display for Vec<L> {{ fn fmt(&self) {{}} }}\n"
+        );
+        let ws = lib("2015", &text).unwrap_or_else(|e| panic!("{krate}: {e}"));
+        assert_eq!(
+            key_of(&ws, "std::fmt::Display::fmt"),
+            TraitKey::Canonical("std::fmt::Display".to_owned()),
+            "{krate}"
+        );
+    }
+    let error = lib(
+        "2015",
+        "use core::fmt::Display;\npub struct L;\nimpl Display for Vec<L> { fn fmt(&self) {} }\n",
+    )
+    .expect_err("`core` is not at the root of a crate with `std`");
+    assert!(
+        matches!(error.kind, LoadErrorKind::UnresolvedTrait { .. }),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_trait_name_that_two_globs_bind_keys_each_trait() {
+    let ws = lib(
+        "2021",
+        "pub mod a { pub trait T { fn m(&self); } }\npub mod b { pub trait T { fn m(&self); } }\n\
+         use a::*;\nuse b::*;\nimpl T for Vec<u8> { fn m(&self) {} }\n",
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        impl_key(&ws, "Vec<u8>"),
+        TraitKey::Unresolved {
+            written: "T".to_owned(),
+            candidates: vec!["demo::a::T".to_owned(), "demo::b::T".to_owned()],
+        }
+    );
+}
+
+#[test]
+fn the_completion_audit_shape_of_a_crate_alias_and_twenty_thousand_imports_loads_on_a_two_mib_thread()
+ {
+    use std::fmt::Write as _;
+    let mut text = String::from(
+        "use std;\npub struct Foo;\nimpl std::fmt::Display for &Foo { fn fmt(&self) {} }\n",
+    );
+    for at in 0..20_000 {
+        writeln!(text, "use std::collections::HashMap as H{at};").expect("write");
+    }
+    let ws = load_on_a_small_stack(text).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        key_of(&ws, "std::fmt::Display::fmt"),
+        TraitKey::Canonical("std::fmt::Display".to_owned())
+    );
+}
+
+#[test]
+fn a_trait_that_several_unknown_globs_could_give_is_refused_naming_one_glob_in_every_order() {
+    let blocks = [
+        "use sh::*;",
+        "use inn::inner::*;",
+        "impl T for Vec<u8> { fn m(&self) {} }",
+    ];
+    let orders = [
+        [0, 1, 2],
+        [0, 2, 1],
+        [1, 0, 2],
+        [1, 2, 0],
+        [2, 0, 1],
+        [2, 1, 0],
+    ];
+    for order in orders {
+        let text = order.map(|at| blocks[at]).join("\n");
+        let error = lib("2021", &text).expect_err("no glob can be looked into");
+        let line = order.iter().position(|at| *at == 1).expect("the glob") + 1;
+        assert!(
+            matches!(&error.kind, LoadErrorKind::UnresolvedTrait { path } if path == "inn::inner::*"),
+            "{text}: {error}"
+        );
+        assert_eq!(error.line, Some(line), "{text}");
+    }
+}

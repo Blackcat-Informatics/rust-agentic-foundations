@@ -67,6 +67,12 @@ pub(crate) enum Fail {
         roots: Vec<ItemId>,
         rest: usize,
     },
+    /// The first segment of a `use` path of edition 2018 or later names both
+    /// what a glob of its module brings in and a different crate of the
+    /// extern prelude, which rustc refuses as ambiguous: `ids` are the items
+    /// the glob brings in and the crate roots of the workspace that the crate
+    /// name stands for.
+    Ambiguous(Vec<ItemId>),
 }
 
 /// What the first segment of a path may name besides the items in scope.
@@ -81,6 +87,28 @@ pub(crate) enum Heads {
         /// True for test code.
         test: bool,
     },
+    /// The path of a `use` declaration. In edition 2015 a path whose first
+    /// segment is not `crate`, `self` or `super` starts at the crate root. In
+    /// edition 2018 and later it starts as `Code` does, and a first segment
+    /// that a glob of the module binds and that is also a different crate of
+    /// the extern prelude is ambiguous. `own` is the named import whose path
+    /// it is: an import never resolves through its own binding.
+    Use {
+        /// True for test code.
+        test: bool,
+        /// The position of the named import whose path this is.
+        own: Option<usize>,
+    },
+}
+
+impl Heads {
+    /// The named import whose own binding the walk does not consult.
+    pub(crate) fn own(self) -> Option<usize> {
+        match self {
+            Self::Use { own, .. } => own,
+            Self::Local | Self::Code { .. } => None,
+        }
+    }
 }
 
 /// What `resolve` found.
@@ -187,7 +215,7 @@ impl Index {
         heads: Heads,
         into: &mut BTreeSet<usize>,
     ) -> bool {
-        let Heads::Code { test } = heads else {
+        let (Heads::Code { test } | Heads::Use { test, .. }) = heads else {
             return false;
         };
         let before = into.len();
@@ -205,6 +233,248 @@ impl Index {
         into.len() > before
     }
 
+    /// True when a path read under `heads` from `from` starts at the crate
+    /// root: in edition 2015, a `use` path whose first segment is not a
+    /// keyword, and any path written with a leading `::`.
+    pub(crate) fn crate_relative(
+        &self,
+        from: usize,
+        first: &str,
+        leading_colon: bool,
+        heads: Heads,
+    ) -> bool {
+        let keyword = matches!(first, "crate" | "self" | "super");
+        match heads {
+            Heads::Local => false,
+            Heads::Code { .. } => leading_colon && self.edition(from) == 2015,
+            Heads::Use { .. } => self.edition(from) == 2015 && (leading_colon || !keyword),
+        }
+    }
+
+    /// True when `name` is a crate of the extern prelude that a `use` path in
+    /// `module` can start with: `core`, `std` unless the crate has
+    /// `#![no_std]`, a crate of its target's extern prelude for its test code
+    /// (`test`) or other code, or an `extern crate` item at the crate root.
+    pub(crate) fn in_use_prelude(&self, module: usize, name: &str, test: bool) -> bool {
+        name == "core"
+            || (name == "std" && !self.no_std(module))
+            || self.extern_name(module, name, test).is_some()
+            || self.root_extern_crate(module, name)
+    }
+
+    /// The crate outside the index that the path of the named import at
+    /// `position` starts at, if it starts at one: from edition 2018 on, a
+    /// first segment its module does not bind that is a crate of the extern
+    /// prelude standing for no library of the workspace, or one with a
+    /// leading `::`; in edition 2015, the crate an `extern crate` item at the
+    /// crate root names, or the crate the compiler puts there.
+    pub(crate) fn outside_crate(&self, position: usize) -> Option<String> {
+        let decl = &self.uses[position];
+        let UseKind::Named { segs, .. } = &decl.kind else {
+            return None;
+        };
+        let head = segs.first()?;
+        if matches!(head.as_str(), "crate" | "self" | "super") {
+            return None;
+        }
+        let heads = Heads::Use {
+            test: decl.test,
+            own: Some(position),
+        };
+        if self.crate_relative(decl.module, head, decl.leading_colon, heads) {
+            let root = self.modules[decl.module].root;
+            return match self.lookup(root, Namespace::Type, head) {
+                // An `extern crate` item of a crate outside the index.
+                Some((bound, _)) => match bound.keys().collect::<Vec<_>>().as_slice() {
+                    [id] if self.modules_for(**id).next().is_none() => {
+                        self.extern_names.get(*id).map(ToString::to_string)
+                    }
+                    _ => None,
+                },
+                None => (head == self.injected_crate(decl.module)).then(|| head.clone()),
+            };
+        }
+        let unbound = decl.leading_colon
+            || self
+                .lookup_in(decl.module, Namespace::Type, head, Some(position))
+                .is_none();
+        let mut roots = BTreeSet::new();
+        (unbound
+            && self.in_use_prelude(decl.module, head, decl.test)
+            && !self.extern_roots(decl.module, head, heads, &mut roots))
+        .then(|| head.clone())
+    }
+
+    /// The aliases of another crate that the globs of `from` bring in under
+    /// `name`: named imports whose path is a single segment, a crate outside
+    /// the index other than `name` (`pub use std as serde;`), that bind
+    /// `name` in a module the globs reach, directly or through the globs of
+    /// that module, and are visible from `from`. An import of an item of a
+    /// crate outside the index is not one: the index cannot tell its name
+    /// space, and only the type name space collides with a crate (`use
+    /// quote::quote;` brings in a macro).
+    pub(crate) fn globbed_outside(&self, from: usize, name: &str) -> Vec<usize> {
+        let mut seen = BTreeSet::from([from]);
+        let mut work = vec![from];
+        let mut found = Vec::new();
+        while let Some(module) = work.pop() {
+            for glob in self.globs_of(module) {
+                let decl = &self.uses[*glob];
+                let UseKind::Glob { segs } = &decl.kind else {
+                    continue;
+                };
+                let Ok(targets) = self.glob_targets(decl, segs) else {
+                    continue;
+                };
+                for target in targets {
+                    if !seen.insert(target) {
+                        continue;
+                    }
+                    work.push(target);
+                    for position in self.imports_of(target, name) {
+                        let import = &self.uses[*position];
+                        let crate_alias =
+                            matches!(&import.kind, UseKind::Named { segs, .. } if segs.len() == 1);
+                        if crate_alias
+                            && !self.use_resolved[*position]
+                            && self.is_visible(&import.vis, target, from)
+                            && self
+                                .outside_crate(*position)
+                                .is_some_and(|krate| krate != name)
+                        {
+                            found.push(*position);
+                        }
+                    }
+                }
+            }
+        }
+        found.sort_unstable();
+        found
+    }
+
+    /// True when the crate root of `module` binds `name` to an `extern crate`
+    /// item.
+    fn root_extern_crate(&self, module: usize, name: &str) -> bool {
+        let root = self.modules[module].root;
+        self.scopes[root].get(name).is_some_and(|entry| {
+            entry.defs[slot(Namespace::Type)]
+                .keys()
+                .any(|id| self.items[id.0].kind == SymbolKind::ExternCrate)
+        })
+    }
+
+    /// The ambiguity of a `use` path whose first segment `name`, written in
+    /// `from`, a glob of the module binds to `bound` in the type name space:
+    /// the items, with the crate roots that the crate name stands for, when
+    /// the name is also a crate of the extern prelude and the glob brings in
+    /// something other than that crate.
+    pub(crate) fn glob_against_prelude(
+        &self,
+        from: usize,
+        name: &str,
+        test: bool,
+        bound: &crate::settle::Bound,
+    ) -> Option<Vec<ItemId>> {
+        if self.edition(from) == 2015 || !self.in_use_prelude(from, name, test) {
+            return None;
+        }
+        let mut roots = BTreeSet::new();
+        self.extern_roots(from, name, Heads::Code { test }, &mut roots);
+        let names_the_crate = bound.keys().all(|id| {
+            let item = &self.items[id.0];
+            match item.kind {
+                SymbolKind::ExternCrate => {
+                    let stands_for: BTreeSet<usize> = self.modules_for(*id).collect();
+                    if stands_for.is_empty() {
+                        self.extern_names
+                            .get(id)
+                            .is_some_and(|real| real.as_ref() == name)
+                    } else {
+                        stands_for == roots
+                    }
+                }
+                SymbolKind::Mod => self
+                    .module_of
+                    .get(id)
+                    .is_some_and(|module| roots.contains(module)),
+                _ => false,
+            }
+        });
+        if names_the_crate {
+            return None;
+        }
+        let ids = bound.keys().copied().chain(
+            roots
+                .iter()
+                .filter_map(|root| self.root_items.get(root).copied()),
+        );
+        Some(self.sorted(ids))
+    }
+
+    /// Refuse, or hold back, a path whose first segment `first`, which `from`
+    /// does not bind in `ns`, would start at a crate of the extern prelude.
+    /// An explicit import of the name that is still unsettled may bind it,
+    /// and binds the name before a crate does. For a `use` path, a name an
+    /// explicit import of the module binds once the tables are settled is
+    /// never read as a crate, a glob of the module may still bring the name
+    /// in, and a name
+    /// a glob brings in that is also a crate is ambiguous, so until the
+    /// globs are settled the path waits on the name. An explicit import's
+    /// first segment that a glob brings in from an import outside the index,
+    /// which the index does not bind, is ambiguous with the crate too (a
+    /// glob's own path is not checked: the check reads the globs of the
+    /// module).
+    fn unbound_use_head(
+        &self,
+        from: usize,
+        ns: Namespace,
+        first: &str,
+        heads: Heads,
+    ) -> Result<(), Fail> {
+        let wait = || {
+            Err(Fail::Missing(vec![Source {
+                module: from,
+                ns,
+                name: first.to_owned(),
+            }]))
+        };
+        // An explicit import of the name that is still unsettled may bind it,
+        // and an explicit import shadows a crate: the path waits on it.
+        if self.is_unsettled(from, first, heads.own()) {
+            return wait();
+        }
+        let Heads::Use { test, own } = heads else {
+            return Ok(());
+        };
+        if (!self.crates_open && !self.globs_of(from).is_empty())
+            || (!self.no_crate.is_empty() && self.no_crate.contains(&(from, first.to_owned())))
+        {
+            return wait();
+        }
+        if own.is_none()
+            || ns != Namespace::Type
+            || self.edition(from) == 2015
+            || !self.in_use_prelude(from, first, test)
+        {
+            return Ok(());
+        }
+        let carried = self.globbed_outside(from, first);
+        if carried.is_empty() {
+            return Ok(());
+        }
+        let mut roots = BTreeSet::new();
+        self.extern_roots(from, first, heads, &mut roots);
+        let ids = carried
+            .iter()
+            .flat_map(|position| self.module_items(self.uses[*position].module))
+            .chain(
+                roots
+                    .iter()
+                    .filter_map(|root| self.root_items.get(root).copied()),
+            );
+        Err(Fail::Ambiguous(self.sorted(ids)))
+    }
+
     /// The state after the first segment of a path, and the index of the
     /// segment to read next.
     fn start(
@@ -219,6 +489,12 @@ impl Index {
         let Some(first) = segs.first() else {
             return Err(Fail::Missing(Vec::new()));
         };
+        if self.crate_relative(from, first, leading_colon, heads) {
+            // The walk reads the first segment in the crate root's scope,
+            // which holds its items, its imports and its `extern crate` items.
+            state.modules.insert(self.modules[from].root);
+            return Ok((state, 0));
+        }
         let mut next_index = 1;
         if leading_colon {
             if !self.extern_roots(from, first, heads, &mut state.modules) {
@@ -248,7 +524,17 @@ impl Index {
                     } else {
                         Namespace::Type
                     };
-                    if let Some((bound, from_glob)) = self.lookup(from, ns, first) {
+                    let lookup = self.lookup_in(from, ns, first, heads.own());
+                    if lookup.is_none() {
+                        self.unbound_use_head(from, ns, first, heads)?;
+                    }
+                    if let Some((bound, from_glob)) = lookup {
+                        if let (true, Namespace::Type, Heads::Use { test, .. }) =
+                            (from_glob, ns, heads)
+                            && let Some(ids) = self.glob_against_prelude(from, first, test, bound)
+                        {
+                            return Err(Fail::Ambiguous(ids));
+                        }
                         for (id, origin) in bound {
                             merge(
                                 &mut state.items,
@@ -308,7 +594,7 @@ impl Index {
             let mut found: BTreeMap<ItemId, Hit> = BTreeMap::new();
             let mut missing = Vec::new();
             for module in containers {
-                match self.lookup(module, ns, seg) {
+                match self.lookup_in(module, ns, seg, heads.own()) {
                     Some((bound, from_glob)) => {
                         for (id, origin) in bound {
                             merge(
@@ -362,68 +648,105 @@ impl Index {
     /// The named imports that bind `source`'s name in its module and are not
     /// resolved (`resolved_mode`) or not settled yet.
     fn unresolved_uses(&self, source: &Source, resolved_mode: bool) -> Vec<usize> {
-        self.uses
+        self.imports_of(source.module, &source.name)
             .iter()
-            .enumerate()
-            .filter(|(position, decl)| {
+            .copied()
+            .filter(|position| {
                 !(if resolved_mode {
                     self.use_resolved[*position]
                 } else {
                     self.use_settled[*position]
-                }) && decl.module == source.module
-                    && matches!(&decl.kind, UseKind::Named { name, .. } if *name == source.name)
+                })
             })
-            .map(|(position, _)| position)
             .collect()
     }
 
-    /// The imports that the import at `position` waits on.
-    pub(crate) fn blockers(&self, position: usize, resolved_mode: bool) -> Vec<usize> {
+    /// The walks of the path of the named import at `position`, in every name
+    /// space, read as a `use` path that does not consult its own binding: the
+    /// other imports it waits on (unresolved ones in `resolved_mode`, else
+    /// unsettled ones), and the items of an ambiguous first segment.
+    fn import_walks(&self, position: usize, resolved_mode: bool) -> (Vec<usize>, Vec<ItemId>) {
         let decl = &self.uses[position];
         let UseKind::Named { segs, .. } = &decl.kind else {
-            return Vec::new();
+            return (Vec::new(), Vec::new());
         };
         let mut blockers = BTreeSet::new();
+        let mut ambiguous = BTreeSet::new();
         for ns in Namespace::ALL {
-            if let Err(Fail::Missing(sources)) = self.walk(
+            match self.walk(
                 decl.module,
                 segs,
                 decl.leading_colon,
                 ns,
-                Heads::Code { test: decl.test },
+                Heads::Use {
+                    test: decl.test,
+                    own: Some(position),
+                },
             ) {
-                for source in sources {
-                    blockers.extend(self.unresolved_uses(&source, resolved_mode));
-                }
-            }
-        }
-        blockers.into_iter().collect()
-    }
-
-    /// True when the unresolved imports reachable from `start` contain a cycle.
-    fn depends_on_a_cycle(&self, start: usize) -> bool {
-        let mut state: BTreeMap<usize, bool> = BTreeMap::new();
-        let mut stack: Vec<(usize, Vec<usize>, usize)> =
-            vec![(start, self.blockers(start, true), 0)];
-        state.insert(start, true);
-        while let Some((node, successors, at)) = stack.pop() {
-            if at < successors.len() {
-                let next = successors[at];
-                stack.push((node, successors, at + 1));
-                match state.get(&next) {
-                    Some(true) => return true,
-                    Some(false) => {}
-                    None => {
-                        state.insert(next, true);
-                        let following = self.blockers(next, true);
-                        stack.push((next, following, 0));
+                Err(Fail::Missing(sources)) => {
+                    for source in sources {
+                        blockers.extend(self.unresolved_uses(&source, resolved_mode));
                     }
                 }
-            } else {
-                state.insert(node, false);
+                Err(Fail::Ambiguous(ids)) => ambiguous.extend(ids),
+                Ok(_) | Err(Fail::SuperAboveRoot | Fail::SeveralCrates { .. }) => {}
             }
         }
-        false
+        // The import's own binding is never a way its path goes.
+        blockers.remove(&position);
+        (
+            blockers.into_iter().collect(),
+            ambiguous.into_iter().collect(),
+        )
+    }
+
+    /// The imports that the import at `position` waits on.
+    pub(crate) fn blockers(&self, position: usize, resolved_mode: bool) -> Vec<usize> {
+        self.import_walks(position, resolved_mode).0
+    }
+
+    /// Why nothing is bound at `missing`, the places a walk found unbound:
+    /// `Cyclic` when the unresolved imports that bind them, or that those wait
+    /// on, contain a cycle; else `Ambiguous` naming the items of every
+    /// ambiguous first segment among them; else `NotFound`.
+    fn unbound(&self, missing: &[Source], text: &str) -> ResolveError {
+        // Each import is on the search stack (true) or done (false).
+        let mut state: BTreeMap<usize, bool> = BTreeMap::new();
+        let mut ambiguous: BTreeSet<ItemId> = BTreeSet::new();
+        for source in missing {
+            for start in self.unresolved_uses(source, true) {
+                if state.contains_key(&start) {
+                    continue;
+                }
+                let (following, items) = self.import_walks(start, true);
+                ambiguous.extend(items);
+                state.insert(start, true);
+                let mut stack: Vec<(usize, Vec<usize>, usize)> = vec![(start, following, 0)];
+                while let Some((node, successors, at)) = stack.pop() {
+                    if at < successors.len() {
+                        let next = successors[at];
+                        stack.push((node, successors, at + 1));
+                        match state.get(&next) {
+                            Some(true) => return ResolveError::Cyclic(text.to_owned()),
+                            Some(false) => {}
+                            None => {
+                                state.insert(next, true);
+                                let (following, items) = self.import_walks(next, true);
+                                ambiguous.extend(items);
+                                stack.push((next, following, 0));
+                            }
+                        }
+                    } else {
+                        state.insert(node, false);
+                    }
+                }
+            }
+        }
+        if ambiguous.is_empty() {
+            ResolveError::NotFound(text.to_owned())
+        } else {
+            ResolveError::Ambiguous(self.sorted(ambiguous))
+        }
     }
 
     fn origin_of(&self, source: &Source, id: ItemId) -> Option<&crate::settle::Origin> {
@@ -502,8 +825,8 @@ impl Index {
                             }
                         }
                         Err(Fail::Missing(sources)) => missing.extend(sources),
-                        Err(Fail::SeveralCrates { roots, .. }) => {
-                            return Err(ResolveError::Ambiguous(roots));
+                        Err(Fail::SeveralCrates { roots: ids, .. } | Fail::Ambiguous(ids)) => {
+                            return Err(ResolveError::Ambiguous(ids));
                         }
                         Err(Fail::SuperAboveRoot) => {}
                     }
@@ -541,14 +864,7 @@ impl Index {
             }
         }
         if found.is_empty() {
-            for source in &missing {
-                for position in self.unresolved_uses(source, true) {
-                    if self.depends_on_a_cycle(position) {
-                        return Err(ResolveError::Cyclic(text.to_owned()));
-                    }
-                }
-            }
-            return Err(ResolveError::NotFound(text.to_owned()));
+            return Err(self.unbound(&missing, text));
         }
         // One symbol is one path and kind in one crate. Items of two targets
         // at one path are two symbols, whatever order they were found in; the

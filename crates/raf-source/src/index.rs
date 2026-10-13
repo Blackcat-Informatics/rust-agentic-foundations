@@ -92,13 +92,16 @@ pub(crate) const LOAD_BASE_BYTES: usize = btree_map::<&str, (usize, &str)>()
     + vec_first::<Module>()
     + vec_first::<Scope>()
     + vec_first::<UseDecl>()
-    + 2 * vec_first::<bool>()
+    + 3 * vec_first::<bool>()
     + vec_first::<(usize, usize)>()
     + vec_first::<Visit>()
     + vec_first::<ImplDecl<'static>>()
     + vec_first::<UnresolvedImpl>()
     + vec_first::<usize>()
-    + vec_first::<BTreeMap<String, ExternName>>();
+    + vec_first::<BTreeMap<String, ExternName>>()
+    + vec_first::<u16>()
+    + vec_first::<bool>()
+    + 2 * vec_first::<usize>();
 
 /// What a definition allocates at most in the scope tables: its place among its
 /// module's definitions and in the copy the scopes are built from, the entry of
@@ -213,9 +216,10 @@ impl ExternName {
 
 impl UseDecl {
     /// What the entry allocates at most: its slot in the list of imports, its
-    /// flags, the strings it owns and, for a named import, its entry among the
-    /// unsettled imports of its module (the name copied as the key). What a
-    /// named import binds is charged when it binds it.
+    /// three flags, its place in the named or the glob imports in order, the strings
+    /// it owns and, for a named import, its entry among the unsettled imports of
+    /// its module (the name copied as the key). What a named import binds is
+    /// charged when it binds it.
     fn bytes(&self) -> usize {
         let owned = match &self.kind {
             UseKind::Named { name, segs } => {
@@ -223,7 +227,11 @@ impl UseDecl {
             }
             UseKind::Glob { segs } => strings_bytes(segs),
         };
-        vec_slot::<Self>() + 2 * vec_slot::<bool>() + owned + vis_capacity(&self.vis)
+        vec_slot::<Self>()
+            + 3 * vec_slot::<bool>()
+            + vec_slot::<usize>()
+            + owned
+            + vis_capacity(&self.vis)
     }
 }
 
@@ -275,14 +283,38 @@ pub(crate) struct Index {
     pub(crate) targets: Vec<Target>,
     /// The edition of each package.
     pub(crate) editions: BTreeMap<String, u16>,
+    /// The edition of each target's package, by target.
+    pub(crate) target_editions: Vec<u16>,
+    /// True for a target whose crate root has `#![no_std]`, by target.
+    pub(crate) target_no_std: Vec<bool>,
+    /// True once a `use` path whose first segment a module with globs does
+    /// not bind may start at a crate of the extern prelude: the globs have
+    /// brought in what they can without it.
+    pub(crate) crates_open: bool,
+    /// While the tables settle: the `use` paths whose first segment was read
+    /// as a crate of the extern prelude, by module and name. Emptied once
+    /// they are settled.
+    pub(crate) crate_reads: BTreeMap<(usize, String), BTreeSet<usize>>,
+    /// While the tables settle: the names of a module that an explicit
+    /// import binds once the tables are settled, which a `use` path of the
+    /// module never reads as a crate. Emptied once they are settled.
+    pub(crate) no_crate: BTreeSet<(usize, String)>,
     /// The inherent impls whose self type the index cannot see, sorted by
     /// path, file and position.
     pub(crate) unresolved: Vec<UnresolvedImpl>,
     pub(crate) scopes: Vec<Scope>,
     pub(crate) uses: Vec<UseDecl>,
+    /// The positions of the named imports, sorted by module, bound name and
+    /// position.
+    pub(crate) named_imports: Vec<usize>,
+    /// The positions of the glob imports, sorted by module and position.
+    pub(crate) glob_imports: Vec<usize>,
     pub(crate) use_resolved: Vec<bool>,
     /// True once an import is resolved or has definitively failed.
     pub(crate) use_settled: Vec<bool>,
+    /// True for a named import whose first segment is ambiguous: it keeps the
+    /// name it binds indeterminate, so no glob of its module answers for it.
+    pub(crate) use_ambiguous: Vec<bool>,
     /// Named imports not yet settled, by module and bound name.
     pub(crate) unsettled: BTreeMap<usize, BTreeMap<String, usize>>,
     /// The crate an `extern crate` item names, by item.
@@ -819,6 +851,44 @@ enum Emit<'a> {
 }
 
 impl Index {
+    /// An index of `targets` that holds nothing yet.
+    fn empty(targets: &[Target]) -> Self {
+        Self {
+            items: Vec::new(),
+            order: Vec::new(),
+            modules: Vec::new(),
+            module_by_path: BTreeMap::new(),
+            module_of: BTreeMap::new(),
+            crate_of: BTreeMap::new(),
+            crate_roots: BTreeMap::new(),
+            target_roots: Vec::new(),
+            preludes: Vec::new(),
+            targets: targets.to_vec(),
+            editions: BTreeMap::new(),
+            target_editions: Vec::new(),
+            target_no_std: Vec::new(),
+            crates_open: false,
+            crate_reads: BTreeMap::new(),
+            no_crate: BTreeSet::new(),
+            unresolved: Vec::new(),
+            scopes: Vec::new(),
+            uses: Vec::new(),
+            named_imports: Vec::new(),
+            glob_imports: Vec::new(),
+            use_resolved: Vec::new(),
+            use_settled: Vec::new(),
+            use_ambiguous: Vec::new(),
+            unsettled: BTreeMap::new(),
+            extern_names: BTreeMap::new(),
+            root_items: BTreeMap::new(),
+            by_source: BTreeMap::new(),
+            assoc: BTreeMap::new(),
+            foreign: BTreeMap::new(),
+            by_file: BTreeMap::new(),
+            aliases: BTreeMap::new(),
+        }
+    }
+
     /// Build the index of the module trees held by `files`, reading the files
     /// in the order of `visits`, the arrivals of the module-tree walk.
     ///
@@ -854,32 +924,7 @@ impl Index {
             impls: Vec::new(),
             aliases: HashMap::new(),
             unsettled_modules: HashSet::new(),
-            index: Index {
-                items: Vec::new(),
-                order: Vec::new(),
-                modules: Vec::new(),
-                module_by_path: BTreeMap::new(),
-                module_of: BTreeMap::new(),
-                crate_of: BTreeMap::new(),
-                crate_roots: BTreeMap::new(),
-                target_roots: Vec::new(),
-                preludes: Vec::new(),
-                targets: targets.to_vec(),
-                editions: BTreeMap::new(),
-                unresolved: Vec::new(),
-                scopes: Vec::new(),
-                uses: Vec::new(),
-                use_resolved: Vec::new(),
-                use_settled: Vec::new(),
-                unsettled: BTreeMap::new(),
-                extern_names: BTreeMap::new(),
-                root_items: BTreeMap::new(),
-                by_source: BTreeMap::new(),
-                assoc: BTreeMap::new(),
-                foreign: BTreeMap::new(),
-                by_file: BTreeMap::new(),
-                aliases: BTreeMap::new(),
-            },
+            index: Index::empty(targets),
         };
         for (position, target) in builder.targets.iter().enumerate() {
             builder.ensure_root(TargetId(position), target)?;
@@ -936,8 +981,9 @@ impl Index {
             ..
         } = builder;
         index.add_roots(files, &mut store)?;
+        index.order_imports();
         index.build_scopes();
-        index.settle(store.meter)?;
+        index.settle_agreed(store.meter)?;
         index.attach_impls(impls, &mut store)?;
         index.finish();
         Ok(index)
@@ -982,10 +1028,19 @@ impl Index {
                     + path_cost
                     + name_cost
                     + btree_entry::<ItemId, usize>()
-                    + btree_entry::<usize, ItemId>(),
+                    + btree_entry::<usize, ItemId>()
+                    + vec_slot::<bool>(),
                 &target.root,
                 None,
             )?;
+            // `#![no_std]` takes `std` out of the extern prelude; under a
+            // `cfg_attr` it applies only under its predicate, so `std` stays.
+            self.target_no_std.push(
+                file.facts
+                    .attrs
+                    .iter()
+                    .any(|attr| attr.path == "no_std" && attr.args.is_empty()),
+            );
             self.items.push(Item {
                 id,
                 path,
@@ -1158,6 +1213,77 @@ impl Index {
             .filter(|entry| entry.everywhere || test)
     }
 
+    /// The edition of the package whose crate `module` is in.
+    pub(crate) fn edition(&self, module: usize) -> u16 {
+        self.target_editions[self.modules[module].target.index()]
+    }
+
+    /// True when the crate `module` is in has `#![no_std]`.
+    pub(crate) fn no_std(&self, module: usize) -> bool {
+        self.target_no_std[self.modules[module].target.index()]
+    }
+
+    /// The sysroot crate the compiler puts at the crate root of `module`'s
+    /// crate: `core` under `#![no_std]`, else `std`.
+    pub(crate) fn injected_crate(&self, module: usize) -> &'static str {
+        if self.no_std(module) { "core" } else { "std" }
+    }
+
+    /// Sort the positions of the named imports by module, bound name and
+    /// position, and those of the glob imports by module and position. Each
+    /// list takes exactly its room, which every import's charge covers.
+    fn order_imports(&mut self) {
+        let named = self
+            .uses
+            .iter()
+            .filter(|decl| matches!(decl.kind, UseKind::Named { .. }))
+            .count();
+        let mut named_imports = Vec::with_capacity(named);
+        let mut glob_imports = Vec::with_capacity(self.uses.len() - named);
+        for (position, decl) in self.uses.iter().enumerate() {
+            match decl.kind {
+                UseKind::Named { .. } => named_imports.push(position),
+                UseKind::Glob { .. } => glob_imports.push(position),
+            }
+        }
+        named_imports.sort_by(|a, b| self.named_key(*a).cmp(&self.named_key(*b)));
+        glob_imports.sort_by_key(|position| (self.uses[*position].module, *position));
+        self.named_imports = named_imports;
+        self.glob_imports = glob_imports;
+    }
+
+    /// The module and the name a named import binds, and its position.
+    fn named_key(&self, position: usize) -> (usize, &str, usize) {
+        let decl = &self.uses[position];
+        let name = match &decl.kind {
+            UseKind::Named { name, .. } => name.as_str(),
+            UseKind::Glob { .. } => "",
+        };
+        (decl.module, name, position)
+    }
+
+    /// The named imports of `module` that bind `name`, in order of position.
+    pub(crate) fn imports_of(&self, module: usize, name: &str) -> &[usize] {
+        let start = self
+            .named_imports
+            .partition_point(|position| self.named_key(*position) < (module, name, 0));
+        let end = self.named_imports[start..].partition_point(|position| {
+            let (at, bound, _) = self.named_key(*position);
+            (at, bound) == (module, name)
+        });
+        &self.named_imports[start..start + end]
+    }
+
+    /// The glob imports of `module`, in order of position.
+    pub(crate) fn globs_of(&self, module: usize) -> &[usize] {
+        let start = self
+            .glob_imports
+            .partition_point(|position| self.uses[*position].module < module);
+        let end = self.glob_imports[start..]
+            .partition_point(|position| self.uses[*position].module == module);
+        &self.glob_imports[start..start + end]
+    }
+
     pub(crate) fn error(decl: &ImplDecl<'_>, kind: LoadErrorKind) -> LoadError {
         LoadError::new(&decl.file, Some(decl.fact.line), kind)
     }
@@ -1168,6 +1294,23 @@ impl Index {
             leading_colon: fact.self_leading_colon,
         })
     }
+}
+
+/// The edition of the package of `target`. A package without facts is an
+/// internal error, which discovery rules out.
+fn edition_of(target: &Target, infos: &BTreeMap<String, PackageInfo>) -> Result<u16, LoadError> {
+    infos
+        .get(&target.package)
+        .map(|info| info.edition)
+        .ok_or_else(|| {
+            LoadError::new(
+                &target.root,
+                None,
+                LoadErrorKind::Internal {
+                    what: format!("the package `{}` has no manifest facts", target.package),
+                },
+            )
+        })
 }
 
 impl Builder<'_> {
@@ -1204,7 +1347,9 @@ impl Builder<'_> {
         Ok(idx)
     }
 
-    /// The extern prelude of every target, and the edition of every package.
+    /// The extern prelude and the edition of every target, and the edition of
+    /// every package. A target whose package has no facts is an internal
+    /// error, which discovery rules out.
     ///
     /// A target other than the library and the build script names its
     /// package's library; each target names the dependencies of its kind: the
@@ -1235,6 +1380,8 @@ impl Builder<'_> {
             self.index.editions.insert(package.clone(), info.edition);
         }
         for target in self.targets {
+            self.store.charge(vec_slot::<u16>(), &target.root, None)?;
+            self.index.target_editions.push(edition_of(target, infos)?);
             let mut names: BTreeMap<String, ExternName> = BTreeMap::new();
             let mut offer =
                 |store: &Store<'_>, name: &str, root: Option<usize>, everywhere: bool| {
@@ -1349,6 +1496,17 @@ mod tests {
         Index::build(targets, files, visits, infos, Interner::default(), &meter)
     }
 
+    /// The facts of the one package `demo`, as the index takes them.
+    fn demo_infos() -> BTreeMap<String, PackageInfo> {
+        BTreeMap::from([(
+            "demo".to_owned(),
+            PackageInfo {
+                edition: 2021,
+                dependencies: Vec::new(),
+            },
+        )])
+    }
+
     fn visit(file: &str) -> Visit {
         Visit {
             file: RelPath::new(file).expect("path"),
@@ -1364,8 +1522,15 @@ mod tests {
         ]);
         let ws = Workspace::load(&tree, &["."]).expect("loads");
         let (targets, files) = parts(&ws);
-        let infos = BTreeMap::new();
+        let infos = demo_infos();
         assert!(build_index(&targets, &files, &[visit("src/lib.rs")], &infos).is_ok());
+        // A target whose package has no facts is an internal error too.
+        let error = build_index(&targets, &files, &[visit("src/lib.rs")], &BTreeMap::new())
+            .expect_err("no package facts");
+        assert!(
+            matches!(&error.kind, LoadErrorKind::Internal { what } if what.contains("`demo`")),
+            "{error}"
+        );
         let error = build_index(&targets, &BTreeMap::new(), &[], &infos).expect_err("no root file");
         assert!(
             matches!(error.kind, LoadErrorKind::Internal { .. }),
@@ -1384,7 +1549,7 @@ mod tests {
         ]);
         let ws = Workspace::load(&tree, &["."]).expect("loads");
         let (targets, files) = parts(&ws);
-        let infos = BTreeMap::new();
+        let infos = demo_infos();
         // The order of the walk builds the index.
         let walked = [
             visit("src/lib.rs"),
