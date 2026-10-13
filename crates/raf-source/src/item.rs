@@ -217,6 +217,53 @@ pub enum TraitKey {
     },
 }
 
+/// How the index placed the members of an impl block, by what its self type
+/// names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[non_exhaustive]
+pub enum SelfType {
+    /// The self type names a struct, enum or union of the workspace, through
+    /// any type aliases: the members are recorded under that type.
+    Local,
+    /// The impl is of a trait and its self type is any other type: the
+    /// members are recorded under the key of the trait.
+    Trait,
+    /// The impl is inherent and its self type names no struct, enum or union
+    /// the index can see: a type that a macro generates, a trait object, a
+    /// type that does not exist. The members are recorded under the self
+    /// path written in the impl's module (see [`UnresolvedImpl::path`]), and
+    /// a path that goes through it resolves to
+    /// [`ResolveError::UnresolvedSelf`](crate::ResolveError::UnresolvedSelf).
+    Unresolved,
+}
+
+/// An inherent impl block whose self type names no struct, enum or union the
+/// index can see, once for each module path its file is reached under.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct UnresolvedImpl {
+    /// The self path written in the impl's module, which its members are
+    /// recorded under: the module path followed by the path the self type is
+    /// written with (`crate`, `self` and `super` taken from the module; a path
+    /// that starts with `::` from its first segment, alone), or, for a self
+    /// type that has no path, by the written self type without spaces.
+    pub path: SharedStr,
+    /// The self type as written, without spaces.
+    pub self_type: SharedStr,
+    /// The file that holds the impl.
+    pub file: RelPath,
+    /// The 1-based line of the `impl` keyword.
+    pub line: usize,
+    /// The whole impl block.
+    pub span: SpanFact,
+    /// The target whose module tree holds the impl.
+    pub target: TargetId,
+    /// The test role of the impl, counting the module tree's test flag.
+    pub test: TestRole,
+    /// The members of the impl block, in source order.
+    pub members: Vec<ItemId>,
+}
+
 /// One named item of the workspace.
 ///
 /// An item is identified in its file by the byte offset where its span starts.
@@ -233,8 +280,10 @@ pub struct Item {
     /// The identity of the item.
     pub id: ItemId,
     /// The full path: the module path and the name, with a method under its
-    /// impl type, or `<trait>::<method>` for a trait impl on a type that is not
-    /// a local struct, enum or union.
+    /// impl type, `<trait>::<method>` for a trait impl on a type that is not
+    /// a local struct, enum or union, or `<self path>::<method>` for an
+    /// inherent impl whose self type the index cannot see (see
+    /// [`SelfType::Unresolved`]).
     pub path: SharedStr,
     /// The name without a raw-identifier prefix.
     pub name: SharedStr,
@@ -264,7 +313,8 @@ pub struct Item {
     pub test: TestRole,
     /// The target whose module tree holds the item.
     pub target: TargetId,
-    /// For a trait impl method, the self type as written.
+    /// For a member of an impl block, the self type as written, without
+    /// spaces.
     pub self_type: Option<SharedStr>,
     /// For a trait impl method, the trait path as written.
     pub trait_path: Option<SharedStr>,
@@ -272,6 +322,9 @@ pub struct Item {
     /// keyed; `None` for the members of impls on local types, which are
     /// recorded under the type.
     pub trait_key: Option<Arc<TraitKey>>,
+    /// For a member of an impl block, how its self type placed it; `None` for
+    /// every other item.
+    pub self_key: Option<SelfType>,
     /// For a struct or union, how its fields are declared.
     pub shape: Option<FieldShape>,
 }

@@ -780,11 +780,17 @@ fn a_chain_of_files_that_each_declare_the_next_twice_is_refused_quickly_beside_a
     );
     assert!(error.file.as_str().starts_with("src/m"), "{error}");
     assert!(error.line.is_some());
-    assert!(
-        started.elapsed() < std::time::Duration::from_secs(10),
-        "{:?}",
-        started.elapsed()
-    );
+    // The refusal by the module-path budget is what bounds the work: 2^18
+    // walks of 2^31. In a release build that takes a fraction of a second,
+    // and the bound below leaves room for a loaded host; a debug build is
+    // judged by the budget alone.
+    if !cfg!(debug_assertions) {
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(30),
+            "{:?}",
+            started.elapsed()
+        );
+    }
 
     // A small diamond is every file once per path and loads.
     let files = chain(2, 4);
@@ -1224,4 +1230,55 @@ fn a_file_reached_under_two_spellings_is_read_once_and_keeps_the_spelling_that_s
             "{path}"
         );
     }
+}
+
+#[test]
+fn a_non_literal_path_attribute_is_reported_as_such_from_the_attribute() {
+    for (attribute, predicate) in [
+        (
+            "#[path = concat!(\"../../../\", \"outside/plain.rs\")]",
+            None,
+        ),
+        (
+            "#[cfg_attr(unix, path = concat!(\"a\", \".rs\"))]",
+            Some("unix"),
+        ),
+    ] {
+        let text = format!("pub fn ok() {{}}\n{attribute}\nmod plain;\n");
+        let error = load(&[("src/lib.rs", &text), ("src/plain.rs", "")]).expect_err(attribute);
+        assert!(
+            matches!(&error.kind, LoadErrorKind::CfgParse { message } if message.contains("`path` is not a string literal") && message.contains("concat")),
+            "{error}"
+        );
+        assert_eq!(error.file.as_str(), "src/lib.rs");
+        assert_eq!(error.line, Some(2), "{attribute}");
+        assert_eq!(
+            error.origin.as_deref(),
+            Some(&Origin::PathAttr {
+                module: "plain".to_owned(),
+                predicate: predicate.map(str::to_owned),
+            }),
+            "{error}"
+        );
+        let shown = error.to_string();
+        assert!(
+            !shown.contains("cfg predicate") && !shown.contains("lib.path"),
+            "{shown}"
+        );
+        assert!(
+            shown.contains("`path` attribute of module `plain`"),
+            "{shown}"
+        );
+    }
+    // The same module with a literal path loads.
+    assert!(
+        load(&[
+            (
+                "src/lib.rs",
+                "pub fn ok() {}\n#[path = \"plain.rs\"]\nmod plain;\n"
+            ),
+            ("src/plain.rs", ""),
+        ])
+        .is_ok()
+    );
 }

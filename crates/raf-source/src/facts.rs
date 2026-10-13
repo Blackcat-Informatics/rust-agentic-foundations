@@ -270,10 +270,12 @@ pub struct ImplFact {
     pub trait_segments: Option<PathFact>,
     /// The self type as written.
     pub self_type: String,
-    /// The segments of the self type when it is a plain path.
+    /// The segments of the path the self type is written with: a plain path,
+    /// or the first trait of a trait object (`dyn Tr + Send` gives `Tr`),
+    /// inside any parentheses. `None` for every other type.
     pub self_path: Option<Vec<String>>,
-    /// True when the self type path starts with `::`, so it names an external
-    /// crate and not a local item.
+    /// True when that path starts with `::`, so it names an external crate
+    /// and not a local item.
     pub self_leading_colon: bool,
     /// The names of the generic type and const parameters of the block.
     pub generics: Vec<String>,
@@ -315,6 +317,15 @@ pub struct FileFacts {
 pub(crate) enum ExtractError {
     /// A `cfg` or `cfg_attr` predicate is not readable.
     Cfg { line: usize, message: String },
+    /// A `path` attribute is not `path = "literal"`: on the module `module`
+    /// when it is on a module, under the `cfg_attr` predicate `predicate`
+    /// when one guards it.
+    PathAttr {
+        line: usize,
+        module: Option<String>,
+        predicate: Option<String>,
+        message: String,
+    },
     /// An item the index does not model.
     Unsupported { line: usize, what: String },
     /// A position outside the text.
@@ -541,9 +552,33 @@ fn cfg_error(line: usize, message: String) -> ExtractError {
     ExtractError::Cfg { line, message }
 }
 
+/// A `path` attribute that cannot be read, under `predicate` when a
+/// `cfg_attr` applies it. The module it is on is filled in by the module's
+/// own fact.
+fn path_error(line: usize, predicate: Option<&CfgExpr>, message: String) -> ExtractError {
+    ExtractError::PathAttr {
+        line,
+        module: None,
+        predicate: predicate.map(ToString::to_string),
+        message,
+    }
+}
+
 /// The `path` attribute value, which must be a string literal.
-fn path_value(expr: &Expr, line: usize) -> Found<String> {
-    string_value(expr).ok_or_else(|| cfg_error(line, "`path` is not a string literal".to_owned()))
+fn path_value(expr: &Expr, line: usize, predicate: Option<&CfgExpr>) -> Found<String> {
+    string_value(expr).ok_or_else(|| {
+        let written: String = expr
+            .to_token_stream()
+            .to_string()
+            .chars()
+            .take(60)
+            .collect();
+        path_error(
+            line,
+            predicate,
+            format!("the value of `path` is not a string literal: `{written}`"),
+        )
+    })
 }
 
 /// Read the meta item inside `cfg(..)`.
@@ -577,7 +612,7 @@ fn apply_cfg_attr(
                 let conditional = ConditionalPath {
                     predicate: fit(combined.to_string()),
                     implies_test: combined.implies_test(),
-                    path: fit(path_value(&pair.value, line)?),
+                    path: fit(path_value(&pair.value, line, Some(&combined))?),
                 };
                 meter.charge(
                     size_of::<ConditionalPath>()
@@ -658,12 +693,16 @@ fn summarize(attrs: &[Attribute], meter: &FactMeter) -> Found<AttrSummary> {
                 return Err(cfg_error(line, "`test` takes no arguments".to_owned()));
             }
             ("path", Meta::NameValue(pair)) => {
-                let value = fit(path_value(&pair.value, line)?);
+                let value = fit(path_value(&pair.value, line, None)?);
                 meter.charge(size_of::<String>() + value.capacity(), line)?;
                 summary.paths.unconditional.push(value);
             }
             ("path", _) => {
-                return Err(cfg_error(line, "`path` must be `path = \"..\"`".to_owned()));
+                return Err(path_error(
+                    line,
+                    None,
+                    "`path` must be `path = \"..\"`".to_owned(),
+                ));
             }
             ("cfg", Meta::List(list)) => {
                 let predicate = cfg_predicate(&list.tokens, line)?;
@@ -704,6 +743,28 @@ fn role(own: TestRole, inherited: TestRole) -> TestRole {
         TestRole::CfgTest
     } else {
         TestRole::None
+    }
+}
+
+/// The path a self type is written with: a plain path, or the first trait
+/// of a trait object (`dyn Tr + Send` is written with `Tr`), inside any
+/// parentheses. `None` for every other type.
+fn self_path_of(ty: &syn::Type) -> Option<&syn::Path> {
+    let mut ty = ty;
+    // Parentheses nest no deeper than the pre-scan's delimiter budget.
+    loop {
+        match ty {
+            syn::Type::Paren(inner) => ty = &inner.elem,
+            syn::Type::Group(inner) => ty = &inner.elem,
+            syn::Type::Path(path) if path.qself.is_none() => return Some(&path.path),
+            syn::Type::TraitObject(object) => {
+                return object.bounds.iter().find_map(|bound| match bound {
+                    syn::TypeParamBound::Trait(found) => Some(&found.path),
+                    _ => None,
+                });
+            }
+            _ => return None,
+        }
     }
 }
 
@@ -821,11 +882,12 @@ impl Extractor<'_> {
     ) -> Found<ItemFact> {
         let own = summarize(&t.attrs, &FactMeter::scratch())?;
         let inside = role(own.own_test, inherited);
-        let mut members = t
-            .items
-            .iter()
-            .map(|member| self.trait_member(member, inside))
-            .collect::<Found<Vec<_>>>()?;
+        let mut members = Vec::new();
+        for member in &t.items {
+            if let Some(fact) = self.trait_member(member, inside)? {
+                members.push(fact);
+            }
+        }
         self.meter
             .charge(slack(&mut members), t.ident.span().start().line)?;
         self.item(
@@ -1054,9 +1116,13 @@ impl Extractor<'_> {
         Ok(())
     }
 
-    fn trait_member(&self, member: &syn::TraitItem, inherited: TestRole) -> Found<ItemFact> {
+    fn trait_member(
+        &self,
+        member: &syn::TraitItem,
+        inherited: TestRole,
+    ) -> Found<Option<ItemFact>> {
         let whole = member.span();
-        match member {
+        let fact = match member {
             syn::TraitItem::Fn(f) => self.item(
                 &f.sig.ident,
                 ItemKind::Fn,
@@ -1089,6 +1155,9 @@ impl Extractor<'_> {
                 inherited,
                 Vec::new(),
             ),
+            // A macro invocation in a trait body defines nothing visible, as
+            // in an impl block.
+            syn::TraitItem::Macro(_) => return Ok(None),
             other => Err(ExtractError::Unsupported {
                 line: whole.start().line,
                 what: format!("{}", other.to_token_stream())
@@ -1096,7 +1165,8 @@ impl Extractor<'_> {
                     .take(60)
                     .collect(),
             }),
-        }
+        };
+        fact.map(Some)
     }
 
     fn impl_member(&self, member: &syn::ImplItem, inherited: TestRole) -> Found<Option<ItemFact>> {
@@ -1158,20 +1228,14 @@ impl Extractor<'_> {
                 items.push(fact);
             }
         }
-        let self_path: Option<Vec<String>> = match &*block.self_ty {
-            syn::Type::Path(path) if path.qself.is_none() => Some(
-                path.path
-                    .segments
-                    .iter()
-                    .map(|segment| unraw(&segment.ident))
-                    .collect(),
-            ),
-            _ => None,
-        };
-        let self_leading_colon = matches!(
-            &*block.self_ty,
-            syn::Type::Path(path) if path.qself.is_none() && path.path.leading_colon.is_some()
-        );
+        let written_path = self_path_of(&block.self_ty);
+        let self_path: Option<Vec<String>> = written_path.map(|path| {
+            path.segments
+                .iter()
+                .map(|segment| unraw(&segment.ident))
+                .collect()
+        });
+        let self_leading_colon = written_path.is_some_and(|path| path.leading_colon.is_some());
         let mut generics = block
             .generics
             .params
@@ -1221,7 +1285,20 @@ impl Extractor<'_> {
 
     fn module_fact(&self, module: &syn::ItemMod, inherited: TestRole) -> Found<ModFact> {
         let name_line = module.ident.span().start().line;
-        let summary = summarize(&module.attrs, &self.meter)?;
+        let summary = summarize(&module.attrs, &self.meter).map_err(|error| match error {
+            ExtractError::PathAttr {
+                line,
+                module: None,
+                predicate,
+                message,
+            } => ExtractError::PathAttr {
+                line,
+                module: Some(unraw(&module.ident)),
+                predicate,
+                message,
+            },
+            other => other,
+        })?;
         let test = role(summary.own_test, inherited);
         let (body_span, inline) = match &module.content {
             Some((brace, items)) => (

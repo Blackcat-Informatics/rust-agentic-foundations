@@ -25,8 +25,10 @@ use crate::facts::{
     UseTree, Vis,
 };
 use crate::intern::Interner;
-use crate::item::{Item, ItemId, Namespace, SharedStr, SymbolKind, TraitKey};
-use crate::manifest::Dependencies;
+use crate::item::{
+    Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl,
+};
+use crate::manifest::DependencyKind;
 use crate::meter::Meter;
 use crate::modtree::{TargetId, Visit};
 use crate::path::RelPath;
@@ -47,7 +49,7 @@ const ITEM_BYTES: usize = vec_slot::<Item>()
 /// the table of module paths, its scope table and its slot among the scopes,
 /// the first room of its definitions and of the copy the scopes are built from.
 pub(crate) const MODULE_BYTES: usize = vec_slot::<Module>()
-    + btree_entry::<SharedStr, usize>()
+    + btree_entry::<(usize, SharedStr), usize>()
     + vec_slot::<Scope>()
     + btree_map::<String, Box<Entry>>()
     + 2 * vec_first::<ItemId>()
@@ -64,9 +66,12 @@ const UNSETTLED_BYTES: usize =
 
 /// What the tables and lists of one load allocate before their first entries:
 /// every load-wide table and list at its first room.
-pub(crate) const LOAD_BASE_BYTES: usize = 2 * btree_map::<String, usize>()
-    + btree_map::<SharedStr, usize>()
+pub(crate) const LOAD_BASE_BYTES: usize = btree_map::<&str, (usize, &str)>()
+    + btree_map::<String, Vec<usize>>()
+    + btree_map::<String, u16>()
+    + btree_map::<(usize, SharedStr), usize>()
     + btree_map::<ItemId, usize>()
+    + btree_map::<ItemId, Vec<usize>>()
     + btree_map::<usize, BTreeMap<String, usize>>()
     + btree_map::<ItemId, SharedStr>()
     + btree_map::<usize, ItemId>()
@@ -77,7 +82,7 @@ pub(crate) const LOAD_BASE_BYTES: usize = 2 * btree_map::<String, usize>()
     + btree_map::<ItemId, (usize, Arc<PathFact>)>()
     + btree_map::<RelPath, SourceFile>()
     + btree_map::<(RelPath, TargetId, SharedStr), ()>()
-    + btree_map::<&str, Vec<&SourceFile>>()
+    + btree_map::<(TargetId, &str), Vec<&SourceFile>>()
     + hash_map::<(crate::tree::FileId, usize)>()
     + hash_map::<(RelPath, crate::tree::FileId)>()
     + 2 * hash_map::<SharedStr>()
@@ -90,7 +95,10 @@ pub(crate) const LOAD_BASE_BYTES: usize = 2 * btree_map::<String, usize>()
     + 2 * vec_first::<bool>()
     + vec_first::<(usize, usize)>()
     + vec_first::<Visit>()
-    + vec_first::<ImplDecl<'static>>();
+    + vec_first::<ImplDecl<'static>>()
+    + vec_first::<UnresolvedImpl>()
+    + vec_first::<usize>()
+    + vec_first::<BTreeMap<String, ExternName>>();
 
 /// What a definition allocates at most in the scope tables: its place among its
 /// module's definitions and in the copy the scopes are built from, the entry of
@@ -151,6 +159,9 @@ pub(crate) struct UseDecl {
     pub(crate) line: usize,
     pub(crate) leading_colon: bool,
     pub(crate) vis: Vis,
+    /// True for test code: the declaration or a module around it is guarded
+    /// by a `test` predicate, or its file is reached only through test code.
+    pub(crate) test: bool,
     pub(crate) kind: UseKind,
 }
 
@@ -159,7 +170,45 @@ pub(crate) struct UseDecl {
 pub(crate) struct PackageInfo {
     /// The edition year.
     pub(crate) edition: u16,
-    pub(crate) dependencies: Dependencies,
+    /// Its dependencies, from every table.
+    pub(crate) dependencies: Vec<DependencyInfo>,
+}
+
+/// A dependency of a package, as the extern prelude of its targets sees it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DependencyInfo {
+    /// The table it is declared in.
+    pub(crate) kind: DependencyKind,
+    /// The name it is declared under, with `-` as `_`.
+    pub(crate) name: String,
+    /// True when the entry renames its package (`package = ".."`), so code
+    /// names it by `name`.
+    pub(crate) renamed: bool,
+    /// The package of the workspace its `path` names, if it names one.
+    pub(crate) package: Option<String>,
+}
+
+/// A crate name in the extern prelude of a target.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct ExternName {
+    /// True when every code of the target can name it; false when only its
+    /// test code can (a dev-dependency of a library or a binary).
+    pub(crate) everywhere: bool,
+    /// The library crate roots of the workspace that the name stands for,
+    /// each with whether every code of the target names it (true) or only
+    /// its test code (false); empty for a crate outside the workspace.
+    pub(crate) roots: Vec<(usize, bool)>,
+}
+
+impl ExternName {
+    /// The library crate roots the name stands for in test code (`test`) or
+    /// in other code.
+    pub(crate) fn roots(&self, test: bool) -> impl Iterator<Item = usize> + '_ {
+        self.roots
+            .iter()
+            .filter(move |(_, everywhere)| *everywhere || test)
+            .map(|(root, _)| *root)
+    }
 }
 
 impl UseDecl {
@@ -189,12 +238,15 @@ pub(crate) struct ImplDecl<'f> {
     pub(crate) fact: &'f ImplFact,
 }
 
-/// A module: all the declarations that define the module at one path.
+/// A module: all the declarations that define the module at one path of one
+/// crate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Module {
     pub(crate) path: SharedStr,
     pub(crate) parent: Option<usize>,
     pub(crate) root: usize,
+    /// The target whose crate the module is in.
+    pub(crate) target: TargetId,
     pub(crate) defs: Vec<ItemId>,
 }
 
@@ -205,15 +257,27 @@ pub(crate) struct Index {
     /// The items in the order of [`crate::Workspace::items`].
     pub(crate) order: Vec<ItemId>,
     pub(crate) modules: Vec<Module>,
-    pub(crate) module_by_path: BTreeMap<SharedStr, usize>,
-    /// The module that a `mod` or `extern crate` item stands for.
+    /// The module at each path of each crate, by the crate's root module.
+    pub(crate) module_by_path: BTreeMap<(usize, SharedStr), usize>,
+    /// The module that a `mod` item stands for.
     pub(crate) module_of: BTreeMap<ItemId, usize>,
-    /// Names of the library crates, for paths that start with a crate name.
-    pub(crate) libs: BTreeMap<String, usize>,
-    /// The root module of each target crate path.
-    pub(crate) crate_roots: BTreeMap<String, usize>,
+    /// The crate roots that an `extern crate` item stands for.
+    pub(crate) crate_of: BTreeMap<ItemId, Vec<usize>>,
+    /// The root modules of the targets of each crate path, in the order of
+    /// the targets. Targets of different packages can share one.
+    pub(crate) crate_roots: BTreeMap<String, Vec<usize>>,
+    /// The root module of each target.
+    pub(crate) target_roots: Vec<usize>,
+    /// The crate names each target's code can name, by target: its package's
+    /// library (for a target other than the library and the build script) and
+    /// the dependencies of its kind.
+    pub(crate) preludes: Vec<BTreeMap<String, ExternName>>,
     pub(crate) targets: Vec<Target>,
-    pub(crate) packages: BTreeMap<String, PackageInfo>,
+    /// The edition of each package.
+    pub(crate) editions: BTreeMap<String, u16>,
+    /// The inherent impls whose self type the index cannot see, sorted by
+    /// path, file and position.
+    pub(crate) unresolved: Vec<UnresolvedImpl>,
     pub(crate) scopes: Vec<Scope>,
     pub(crate) uses: Vec<UseDecl>,
     pub(crate) use_resolved: Vec<bool>,
@@ -306,7 +370,7 @@ fn main_namespace(kind: SymbolKind) -> Namespace {
 }
 
 /// The role an item has once its module tree's test flag is counted in.
-fn combine(own: TestRole, reached_in_tests: bool) -> TestRole {
+pub(crate) fn combine(own: TestRole, reached_in_tests: bool) -> TestRole {
     if own == TestRole::None && reached_in_tests {
         TestRole::CfgTest
     } else {
@@ -392,7 +456,7 @@ struct Cx<'a> {
 
 struct Builder<'a> {
     targets: &'a [Target],
-    files_at: BTreeMap<&'a str, Vec<&'a SourceFile>>,
+    files_at: BTreeMap<(TargetId, &'a str), Vec<&'a SourceFile>>,
     store: Store<'a>,
     impls: Vec<ImplDecl<'a>>,
     /// The shared aliased path of each alias fact, by the fact's address in
@@ -414,19 +478,22 @@ impl<'a> Builder<'a> {
         file: &RelPath,
         line: usize,
     ) -> Result<usize, LoadError> {
-        if let Some(&known) = self.index.module_by_path.get(path) {
+        let (path, cost) = self.store.intern(path);
+        let root = self.index.modules[parent].root;
+        let key = (root, path);
+        if let Some(&known) = self.index.module_by_path.get(&key) {
             return Ok(known);
         }
-        let (path, cost) = self.store.intern(path);
         self.store.charge(cost + MODULE_BYTES, file, Some(line))?;
         let idx = self.index.modules.len();
         self.index.modules.push(Module {
-            path: path.clone(),
+            path: key.1.clone(),
             parent: Some(parent),
-            root: self.index.modules[parent].root,
+            root,
+            target: self.index.modules[parent].target,
             defs: Vec::new(),
         });
-        self.index.module_by_path.insert(path, idx);
+        self.index.module_by_path.insert(key, idx);
         Ok(idx)
     }
 
@@ -496,6 +563,7 @@ impl<'a> Builder<'a> {
             target: cx.target,
             self_type: None,
             trait_key: None,
+            self_key: None,
             trait_path: None,
             shape: fact.shape,
         });
@@ -554,13 +622,31 @@ impl<'a> Builder<'a> {
             let crate_name = fact.renamed_from.as_deref().unwrap_or(&fact.name);
             let (shared, cost) = self.store.intern(crate_name);
             self.store.charge(
-                cost + btree_entry::<ItemId, SharedStr>() + btree_entry::<ItemId, usize>(),
+                cost + btree_entry::<ItemId, SharedStr>(),
                 cx.file,
                 Some(fact.name_line),
             )?;
             self.index.extern_names.insert(id, shared);
-            if let Some(&root) = self.index.libs.get(crate_name) {
-                self.index.module_of.insert(id, root);
+            // The crates the item names: the crate itself for `self`, or every
+            // library of the workspace the target's extern prelude gives the
+            // name, so a path through a name of several is told apart by what
+            // each of them defines, as a path through the name itself is.
+            let test = fact.test != TestRole::None || cx.reach_test;
+            let roots: Vec<usize> = if crate_name == "self" {
+                vec![self.index.modules[module].root]
+            } else {
+                self.index
+                    .extern_name(module, crate_name, test)
+                    .map(|name| name.roots(test).collect())
+                    .unwrap_or_default()
+            };
+            if !roots.is_empty() {
+                self.store.charge(
+                    btree_entry::<ItemId, Vec<usize>>() + roots.capacity() * size_of::<usize>(),
+                    cx.file,
+                    Some(fact.name_line),
+                )?;
+                self.index.crate_of.insert(id, roots);
             }
         }
         if !fact.members.is_empty() {
@@ -639,7 +725,7 @@ impl<'a> Builder<'a> {
         let child = self.declare(&path, module, cx.file, decl.name_line)?;
         let file_docs = self
             .files_at
-            .get(path.as_str())
+            .get(&(cx.target, path.as_str()))
             .is_some_and(|files| files.iter().any(|file| file.facts.documented));
         let fact = ItemFact {
             name: decl.name.clone(),
@@ -698,6 +784,7 @@ impl<'a> Builder<'a> {
                     line: decl.line,
                     leading_colon: decl.leading_colon,
                     vis: decl.vis.clone(),
+                    test: decl.test != TestRole::None || cx.reach_test,
                     kind,
                 };
                 let first_named = matches!(entry.kind, UseKind::Named { .. })
@@ -738,8 +825,8 @@ impl Index {
     /// # Errors
     ///
     /// Returns a [`LoadError`] for a `super` path that climbs above the crate
-    /// root, for an inherent impl whose self type is not a local type and for
-    /// records that pass the item-bytes budget of `meter`, and an `Internal`
+    /// root, for the trait of an impl that cannot be named and for records
+    /// that pass the item-bytes budget of `meter`, and an `Internal`
     /// one for a visit that names no loaded file or reach, or that reaches a
     /// module before the declaration that names it, which the walk rules out.
     /// `strings` holds the module paths the walk recorded.
@@ -751,11 +838,11 @@ impl Index {
         strings: Interner,
         meter: &Meter,
     ) -> Result<Self, LoadError> {
-        let mut files_at: BTreeMap<&str, Vec<&SourceFile>> = BTreeMap::new();
+        let mut files_at: BTreeMap<(TargetId, &str), Vec<&SourceFile>> = BTreeMap::new();
         for file in files.values() {
             for reach in &file.reached {
                 files_at
-                    .entry(reach.module_path.as_str())
+                    .entry((reach.target, reach.module_path.as_str()))
                     .or_default()
                     .push(file);
             }
@@ -773,10 +860,13 @@ impl Index {
                 modules: Vec::new(),
                 module_by_path: BTreeMap::new(),
                 module_of: BTreeMap::new(),
-                libs: BTreeMap::new(),
+                crate_of: BTreeMap::new(),
                 crate_roots: BTreeMap::new(),
+                target_roots: Vec::new(),
+                preludes: Vec::new(),
                 targets: targets.to_vec(),
-                packages: infos.clone(),
+                editions: BTreeMap::new(),
+                unresolved: Vec::new(),
                 scopes: Vec::new(),
                 uses: Vec::new(),
                 use_resolved: Vec::new(),
@@ -791,12 +881,10 @@ impl Index {
                 aliases: BTreeMap::new(),
             },
         };
-        for target in builder.targets {
-            let root = builder.ensure_root(&target.crate_path, &target.root)?;
-            if target.kind == TargetKind::Lib {
-                builder.index.libs.insert(target.crate_path.clone(), root);
-            }
+        for (position, target) in builder.targets.iter().enumerate() {
+            builder.ensure_root(TargetId(position), target)?;
         }
+        builder.preludes(infos)?;
         let mut seen: BTreeSet<(RelPath, TargetId, SharedStr)> = BTreeSet::new();
         for visit in visits {
             let internal =
@@ -817,10 +905,17 @@ impl Index {
             }
             // A crate root is created above, and every other module by the
             // declaration that names it, which the walk reached first.
+            let root = *builder
+                .index
+                .target_roots
+                .get(reach.target.index())
+                .ok_or_else(|| {
+                    internal(format!("the target {} has no root", reach.target.index()))
+                })?;
             let module = *builder
                 .index
                 .module_by_path
-                .get(reach.module_path.as_str())
+                .get(&(root, reach.module_path.clone()))
                 .ok_or_else(|| {
                     internal(format!(
                         "the module `{}` was reached before the declaration that names it",
@@ -870,7 +965,7 @@ impl Index {
                     target.crate_path
                 ))
             })?;
-            let module = *self.crate_roots.get(&target.crate_path).ok_or_else(|| {
+            let module = *self.target_roots.get(position).ok_or_else(|| {
                 internal(format!("`{}` has no crate root module", target.crate_path))
             })?;
             let id = ItemId(self.items.len());
@@ -919,6 +1014,7 @@ impl Index {
                 target: TargetId(position),
                 self_type: None,
                 trait_key: None,
+                self_key: None,
                 trait_path: None,
                 shape: None,
             });
@@ -928,8 +1024,16 @@ impl Index {
         Ok(())
     }
 
-    /// Sort the items and file them.
+    /// Sort the items and the unresolved impls, and file the items.
     fn finish(&mut self) {
+        self.unresolved.sort_unstable_by(|a, b| {
+            (&a.path, &a.file, a.span.start_byte, a.target).cmp(&(
+                &b.path,
+                &b.file,
+                b.span.start_byte,
+                b.target,
+            ))
+        });
         let mut order: Vec<ItemId> = self.items.iter().map(|item| item.id).collect();
         order.sort_by(|a, b| self.sort_key(*a).cmp(&self.sort_key(*b)));
         self.order = order;
@@ -995,6 +1099,7 @@ impl Index {
         kind: SymbolKind,
         path: &str,
         self_type: &str,
+        self_key: SelfType,
         trait_key: Option<Arc<TraitKey>>,
         store: &mut Store<'_>,
     ) -> Result<ItemId, LoadError> {
@@ -1036,10 +1141,21 @@ impl Index {
             target: decl.target,
             self_type: Some(self_type),
             trait_key,
+            self_key: Some(self_key),
             trait_path,
             shape: None,
         });
         Ok(id)
+    }
+
+    /// The crate name `name` in the extern prelude of the target of `module`,
+    /// for its test code when `test`; `None` when that code cannot name it.
+    pub(crate) fn extern_name(&self, module: usize, name: &str, test: bool) -> Option<&ExternName> {
+        let target = self.modules[module].target;
+        self.preludes
+            .get(target.index())?
+            .get(name)
+            .filter(|entry| entry.everywhere || test)
     }
 
     pub(crate) fn error(decl: &ImplDecl<'_>, kind: LoadErrorKind) -> LoadError {
@@ -1055,25 +1171,141 @@ impl Index {
 }
 
 impl Builder<'_> {
-    /// Create the module that is the root of a crate.
-    fn ensure_root(&mut self, path: &str, root: &RelPath) -> Result<usize, LoadError> {
+    /// Create the module that is the root of a target's crate.
+    fn ensure_root(&mut self, id: TargetId, target: &Target) -> Result<usize, LoadError> {
         let idx = self.index.modules.len();
+        let path = target.crate_path.as_str();
         let (shared, cost) = self.store.intern(path);
-        // Its module, and its entries among the crate roots and the libraries.
+        // Its module, its entry among the crate roots and its slot among the
+        // roots of the targets.
         self.store.charge(
-            cost + MODULE_BYTES + 2 * (btree_entry::<String, usize>() + path.len()),
-            root,
+            cost + MODULE_BYTES
+                + btree_entry::<String, Vec<usize>>()
+                + path.len()
+                + vec_first::<usize>()
+                + 2 * vec_slot::<usize>(),
+            &target.root,
             None,
         )?;
         self.index.modules.push(Module {
             path: shared.clone(),
             parent: None,
             root: idx,
+            target: id,
             defs: Vec::new(),
         });
-        self.index.module_by_path.insert(shared, idx);
-        self.index.crate_roots.insert(path.to_owned(), idx);
+        self.index.module_by_path.insert((idx, shared), idx);
+        self.index
+            .crate_roots
+            .entry(path.to_owned())
+            .or_default()
+            .push(idx);
+        self.index.target_roots.push(idx);
         Ok(idx)
+    }
+
+    /// The extern prelude of every target, and the edition of every package.
+    ///
+    /// A target other than the library and the build script names its
+    /// package's library; each target names the dependencies of its kind: the
+    /// build dependencies for the build script, the normal and dev
+    /// dependencies for a test, bench or example, and the normal dependencies
+    /// for a library or binary, whose test code also names the dev
+    /// dependencies. A dependency on a package of the workspace stands for
+    /// that package's library, under its library's crate name, or under the
+    /// name it is declared under when it renames its package.
+    fn preludes(&mut self, infos: &BTreeMap<String, PackageInfo>) -> Result<(), LoadError> {
+        let mut libraries: BTreeMap<&str, (usize, &str)> = BTreeMap::new();
+        for (position, target) in self.targets.iter().enumerate() {
+            if target.kind == TargetKind::Lib {
+                self.store
+                    .charge(btree_entry::<&str, (usize, &str)>(), &target.root, None)?;
+                libraries.insert(
+                    &target.package,
+                    (self.index.target_roots[position], &target.crate_path),
+                );
+            }
+        }
+        for (package, info) in infos {
+            self.store.charge(
+                btree_entry::<String, u16>() + package.capacity(),
+                &RelPath::root(),
+                None,
+            )?;
+            self.index.editions.insert(package.clone(), info.edition);
+        }
+        for target in self.targets {
+            let mut names: BTreeMap<String, ExternName> = BTreeMap::new();
+            let mut offer =
+                |store: &Store<'_>, name: &str, root: Option<usize>, everywhere: bool| {
+                    let fresh = !names.contains_key(name);
+                    let pushed = root.is_some();
+                    store.charge(
+                        if fresh {
+                            btree_entry::<String, ExternName>() + name.len()
+                        } else {
+                            0
+                        } + if pushed {
+                            vec_first::<(usize, bool)>() + vec_slot::<(usize, bool)>()
+                        } else {
+                            0
+                        },
+                        &target.root,
+                        None,
+                    )?;
+                    let entry = names.entry(name.to_owned()).or_default();
+                    entry.everywhere |= everywhere;
+                    if let Some(root) = root {
+                        match entry.roots.iter_mut().find(|(known, _)| *known == root) {
+                            Some((_, known)) => *known |= everywhere,
+                            None => entry.roots.push((root, everywhere)),
+                        }
+                    }
+                    Ok::<(), LoadError>(())
+                };
+            if !matches!(target.kind, TargetKind::Lib | TargetKind::BuildScript)
+                && let Some((root, name)) = libraries.get(target.package.as_str())
+            {
+                offer(&self.store, name, Some(*root), true)?;
+            }
+            let dependencies = infos
+                .get(&target.package)
+                .map_or(&[][..], |info| info.dependencies.as_slice());
+            for dependency in dependencies {
+                let everywhere = match (target.kind, dependency.kind) {
+                    (TargetKind::BuildScript, DependencyKind::Build)
+                    | (
+                        TargetKind::Test | TargetKind::Bench | TargetKind::Example,
+                        DependencyKind::Normal | DependencyKind::Dev,
+                    )
+                    | (TargetKind::Lib | TargetKind::Bin, DependencyKind::Normal) => true,
+                    (TargetKind::Lib | TargetKind::Bin, DependencyKind::Dev) => false,
+                    (TargetKind::BuildScript, DependencyKind::Normal | DependencyKind::Dev)
+                    | (_, DependencyKind::Build) => continue,
+                };
+                let library = dependency
+                    .package
+                    .as_deref()
+                    .and_then(|package| libraries.get(package));
+                let name = match library {
+                    Some((_, crate_name)) if !dependency.renamed => crate_name,
+                    _ => dependency.name.as_str(),
+                };
+                offer(
+                    &self.store,
+                    name,
+                    library.map(|(root, _)| *root),
+                    everywhere,
+                )?;
+            }
+            self.store.charge(
+                vec_slot::<BTreeMap<String, ExternName>>() + btree_map::<String, ExternName>(),
+                &target.root,
+                None,
+            )?;
+            self.index.preludes.push(names);
+        }
+        Ok(())
     }
 }
 

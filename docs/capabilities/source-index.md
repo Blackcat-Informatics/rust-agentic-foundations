@@ -23,6 +23,10 @@ bindings:
     - raf_source::Budget
     - raf_source::Opened
     - raf_source::PARSE_BYTES_PER_TOKEN
+    - raf_source::SelfType
+    - raf_source::UnresolvedImpl
+    - raf_source::Workspace::resolve_in_package
+    - raf_source::Workspace::unresolved_impls
   tests:
     - raf_source::test_crate::relpath::a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside
     - raf_source::test_crate::relpath::an_absolute_input_is_refused_beside_its_relative_form
@@ -132,6 +136,24 @@ bindings:
     - raf_source::test_crate::memory_tree::the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses
     - raf_source::test_crate::disk_tree_containment::the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle
     - raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets_in_linear_time
+    - raf_source::test_crate::symbol_index::an_inherent_impl_on_a_type_the_index_cannot_see_is_indexed_under_its_written_self_path
+    - raf_source::test_crate::symbol_index::a_bitflags_style_macro_type_with_an_impl_loads_with_its_members_marked_unresolved
+    - raf_source::test_crate::symbol_index::an_impl_of_a_local_trait_object_loads_with_its_members_marked_unresolved
+    - raf_source::test_crate::symbol_index::a_glob_of_enum_variants_beside_an_impl_loads
+    - raf_source::test_crate::symbol_index::a_glob_of_a_local_path_the_index_cannot_see_is_a_candidate_that_cannot_be_confirmed
+    - raf_source::test_crate::symbol_index::a_first_party_test_crate_module_and_a_test_target_are_ambiguous_only_where_their_paths_meet
+    - raf_source::test_crate::trait_keys::a_macro_call_in_a_trait_body_is_skipped
+    - raf_source::test_crate::use_resolution::two_libraries_with_one_crate_name_are_ambiguous_until_the_package_is_named
+    - raf_source::test_crate::use_resolution::a_crate_name_in_an_import_is_the_dependency_its_target_declares
+    - raf_source::test_crate::use_resolution::a_dev_dependency_is_named_only_by_test_code_even_under_a_normal_dependencys_name
+    - raf_source::test_crate::use_resolution::a_name_bound_to_several_modules_gives_a_trait_key_through_each
+    - raf_source::test_crate::trait_keys::an_inherited_dependency_the_workspace_cannot_give_is_an_error_naming_the_key
+    - raf_source::test_crate::discovery_targets::two_packages_whose_targets_share_crate_paths_load_and_are_told_apart_by_package
+    - raf_source::test_crate::target_roots::a_lib_module_named_bin_crate_stays_in_the_library
+    - raf_source::test_crate::target_roots::a_build_script_main_beside_a_lib_module_build_script_is_ambiguous
+    - raf_source::test_crate::target_roots::an_explicit_path_bin_beside_a_lib_module_bin_crate_is_ambiguous_in_both_file_orders
+    - raf_source::test_crate::target_roots::an_over_cap_inferred_lib_names_discovery_not_lib_path
+    - raf_source::test_crate::module_tree::a_non_literal_path_attribute_is_reported_as_such_from_the_attribute
   examples: []
 depends: []
 ---
@@ -363,7 +385,7 @@ fifty thousand, and a shared test-support diamond records one path per target an
 module that reaches it, so the limit admits every realistic tree. What the walks
 record is charged to the item-bytes budget below, which bounds what the limit costs: a
 chain of seventeen files that each declare the next twice (2^18 - 1 walks from 1 KiB
-of source) is refused by the item-bytes budget after 1.0 s at a peak of 214 MiB
+of source) is refused by the item-bytes budget after 1.0 s at a peak of 170 MiB
 resident, measured in a release build. A load that passes the limit is a `Budget`
 error that names the file and the line of the declaration.
 
@@ -397,12 +419,15 @@ change:
   entry and text; a flattened import its entry, its strings and its place among the
   unsettled imports, and each binding it makes its scope entry and route; each impl
   block once per module path, each trait key and each type's table of members their
-  allocations; and the aliased path of a type alias and the crate an `extern crate`
+  allocations; each target its entries among the crate roots and its extern prelude (its
+  table, and each crate name with the libraries it stands for), each package its
+  edition, and each inherent impl the index cannot see its record and the list of its
+  members; and the aliased path of a type alias and the crate an `extern crate`
   item names are stored once for the file and charged once, however many module paths
   reach it. Measured with a counting allocator, no shape keeps more than it is
-  charged: a chain of files that each declare the next twice keeps 1624 bytes of index
-  for each arrival and is charged 3614, nested inline modules whose scopes hold one
-  name keep 1474 bytes for each module and are charged 2375. An item record is at most
+  charged: a chain of files that each declare the next twice keeps 1646 bytes of index
+  for each arrival and is charged 3693, nested inline modules whose scopes hold one
+  name keep 1499 bytes for each module and are charged 2420. An item record is at most
   256 bytes.
 - `max_fact_bytes` (`FactBytes`, 256 MiB) bounds the facts of the files. Each fact
   charges its size and the room of every string and list it owns (each is trimmed
@@ -423,9 +448,9 @@ what a load spent against each. Two figures follow, measured in a release build:
    in 1.8 s at a peak of 382 MiB, and forty are refused by the fact-bytes budget in
    1.8 s; 31 files of 8 MiB load in 0.30 s, and 33 are refused by the total-bytes
    budget in 0.30 s. A load near all three limits at once (2000 copies of a chain of
-   100 nested inline modules, 20 files of 8.3 MB doc comments and 7 files of 8 MB of
-   comments; 214, 459 and 217 MiB charged) keeps 716 MiB and peaks at 721 MiB, in
-   11.4 s.
+   100 nested inline modules, 20 files of 8.3 MB of doc comments in lines of 300
+   characters and 7 files of 8 MB of comments; 214, 466 and 244 MiB charged) keeps 746
+   MiB and peaks at 752 MiB, in 10 to 15 s (three runs on a shared host).
 2. One-file parse peak. What parsing one file holds at its peak is at most
    `max_file_tokens` × `PARSE_BYTES_PER_TOKEN` (1664 bytes): about 3.1 GiB at the
    default of 2000000 tokens. The costliest arrangement of statement lists at
@@ -508,8 +533,16 @@ build script. Each crate path resolves to the target's root as a module item. Li
 binary and build-script targets are shipping, so the census sees
 `build.rs`; tests, benches and examples are not. These are typed errors that name the manifest key: an explicit
 target file that does not exist (checked with `entry`), a table without a `name`, two
-targets with one root file, two targets (in one package or two) with one crate path,
-which would merge their items, and a `path` that leaves the tree.
+targets with one root file, two targets of one package with one crate path,
+which would merge their items, and a `path` that leaves the tree. Targets of different
+packages may share a crate path, as two packages with one `[lib] name` (or names that
+differ only in `-` and `_`) do: the index keys every crate by its package, and such a
+path is told apart with its package (see `resolve_in_package`). A root file that
+cannot be read names what led to it: the `path` key of its table when the manifest
+names the file, the `[lib]` table (`lib`) when it declares the library without a path,
+the `name` key of a `[[bin]]`, `[[test]]`, `[[bench]]` or `[[example]]` table without a
+path, `package.build` for a named build script, and package discovery for a target
+found at its default location without a table.
 
 **Mod-tree following.** From each target root the crate follows module declarations
 and parses each file with `syn`, as rustc resolves them. Without a `path` attribute,
@@ -555,9 +588,12 @@ Documentation counts a non-blank `#[doc]` text or `#[doc = include_str!(..)]`, a
 `cfg` that implies `test`, directly or through an enclosing module) or `TestFn` (marked
 `#[test]`). A predicate implies `test` by this matrix: `test` does; `all(..)` does when
 any operand does; `any(..)` does when every operand does; `not(..)` and every other
-predicate do not. A `cfg`, `cfg_attr`, `path` or `test` attribute of the wrong shape, and a predicate
-that cannot be read, are a `CfgParse` error that names the file and the attribute's
-line. A module reached through `#[cfg(test)] mod t;`, or
+predicate do not. A `cfg`, `cfg_attr`, `path` or `test` attribute of the wrong shape, a predicate
+that cannot be read, and a `path` whose value is not a string literal (such as
+`concat!(..)`) are a `CfgParse` error that names the file and the attribute's
+line. An error in a `path` attribute of a module is reached by that attribute: its
+origin names the module and the `cfg_attr` predicate that applies it, if any, and not
+what reached the file. A module reached through `#[cfg(test)] mod t;`, or
 through a `path` that a `test` predicate sets, is recorded with the test flag on that
 way of reaching it, so every item in the file is test code when all its ways in are
 tests. Test items stay in the index with that tag so that a caller decides whether they
@@ -570,7 +606,8 @@ macro, `extern crate` item, item of an `extern` block, method of an inherent or 
 An item has an `id`, its full `path`, its `kind`, its `namespace`, its `file`, the line
 of its name, its `span` and `body` in lines and bytes, its `visibility`, `documented`,
 `doc_hidden`, `test` role, `target` and, for an impl member, the written `self_type`
-and `trait_path`. The module path in an item's `path` is the chain of `mod`
+and `trait_path` and the `self_key` that says how its self type placed it (`Local`,
+`Trait` or `Unresolved`). The module path in an item's `path` is the chain of `mod`
 declarations that reached its file, whatever the order of the file names. The name
 spaces are type, value and macro. A function, constant or static is a value; a
 module, trait, enum, union, alias and `extern crate` item is a type; a unit or tuple
@@ -578,7 +615,8 @@ struct is a type and also a value, through its field shape; a `macro_rules!` mac
 a macro, and a `#[macro_export]` macro is indexed at the crate root wherever it is
 written. A name can be in all three at once. `const _` defines no
 name and is not indexed; it stays in the facts of its file. A macro invocation that
-defines items is not expanded, so what it generates is not indexed. `documented` is
+defines items is not expanded, so what it generates is not indexed; in a module, an
+impl block, a trait and an `extern` block alike it is skipped. `documented` is
 true for a non-blank `#[doc]` or `///` text and for `#[doc = include_str!(..)]`, and
 `doc(hidden)` alone does not count; a module that has its own file is documented by the
 file's inner `//!` text as well. The `test` role is `CfgTest` also for an item in a file
@@ -594,27 +632,50 @@ is test code for a test or bench target. `resolve` finds it by the crate path (`
 module has that name. A root item spans the whole file, so its source key is not
 unique: it can equal the key of an item that starts at byte 0. Root items are left out
 of `items_by_source`, and `items()` and `items_in(file)` include them. If a crate path
-is also the path of a first-party item, `resolve` returns `Ambiguous` naming both.
+is also the path of a first-party item of another target, `resolve` returns
+`Ambiguous` naming both. Every module belongs to one crate: a library module that
+shares its path with another target's crate root (`pub mod bin_crate { pub mod x {..} }`
+beside the binary `x`, or `pub mod build_script` beside a build script) keeps its items
+in the library, and each target's items stay under its own root.
 
-A method is recorded under the path of its impl type: an inherent impl must name, after
-resolving type aliases, a struct, enum or union of the workspace, or loading fails with
-a typed error that names the file and line; an impl of a trait on such a type records its
-members under that type, as trait impl methods; an impl of a trait on any other self
+A method is recorded under the path of its impl type: an impl whose self type names,
+after resolving type aliases, a struct, enum or union of the workspace records its members
+under that type (`self_key` is `Local`), as inherent methods or, for a trait impl, trait
+impl methods. An inherent impl whose self type names no struct, enum or union the index
+can see (a type that a macro such as `bitflags!` generates, a trait object such as `dyn
+LocalTrait`, a type that does not exist) does not fail the load: its members are items
+marked `SelfType::Unresolved`, recorded under the self path written in the impl's
+module (the module path followed by the path the self type is written with, with
+`crate`, `self` and `super` taken from the module, a path that starts with `::` from
+its first segment, and the first trait of a trait object; for a self type that has no path, the written self
+type without spaces), so `impl Kind { fn is_a() }` in `demo::kinds` gives
+`demo::kinds::Kind::is_a`. No scope or type names them. `items()` and `item_at()`
+carry the marker, and `unresolved_impls()` lists each such impl once for each module
+path its file is reached under (its self path, written self type, file, line, span,
+target, test role and members, sorted by path, file and position), so a consumer that
+needs every impl placed can refuse them. A path that names nothing else and goes through
+such a self path (`demo::kinds::Kind::is_a`, `demo::kinds::Kind::other`) is
+`UnresolvedSelf`; the self path itself, a type the index cannot see, is `NotFound`. An
+impl of a trait on any other self
 type (a path the workspace does not define, a reference, a slice, a tuple, a generic
 parameter) records its members under the key of the trait followed by the method, with the
 written self type and the written trait path kept on the item, and the key itself
-(`TraitKey`) on the item as well. The key of a local trait is the path it is defined at.
+(`TraitKey`) on the item as well (`self_key` is `Trait`). The key of a local trait is the path it is defined at.
 The key of a dependency trait is its absolute path, found by following the written path
 through the module's own `use` declarations and `extern crate` items, through the `use`
 declarations of a local module that the path passes through (`pub mod traits { pub use
 serde::Serialize; }` and a direct `serde::Serialize` are one key), and through the globs
 of local modules (`use super::*` reaches what the parent imported). The head of the
-resulting path must be a crate the package can name: the sysroot crates `std`, `core`,
-`alloc`, `proc_macro` and `test`, or a crate declared in `[dependencies]` (for a library
+resulting path must be a crate the impl's code can name: the sysroot crates `std`, `core`,
+`alloc`, `proc_macro` and `test`, or a crate of its target's extern prelude (see
+Use-alias index): its package's library for a target other than the library and the
+build script, and a crate declared in `[dependencies]` (for a library
 or binary), in `[dependencies]` and `[dev-dependencies]` (for a test, bench or example
 target, and for test code of a library or binary) or in `[build-dependencies]` (for the
 build script), under the name it has in code (a renamed dependency, `package = ".."`, keys under the new
-name, not the name of the package it renames) and with `-` as `_`. A path whose head is none of these is a typed
+name, not the name of the package it renames; a dependency on a package of the
+workspace, not renamed, under the crate name of that package's library; any other
+under its declared name) with `-` as `_`. A path whose head is none of these is a typed
 `UnresolvedTrait` error that names the file and line. `core` and `alloc` are written as
 `std`, which re-exports their traits at the same paths, so the three spellings of one
 trait are one key. A single-segment name that nothing in the module binds is looked up
@@ -652,11 +713,22 @@ nearest workspace manifest does not set, or with no workspace manifest above the
 package, is a manifest error that names `package.edition`, as it is for cargo, and a
 package with no `edition` key is 2015: the traits of the first prelude, plus `FromIterator`,
 `TryFrom` and `TryInto` from 2021, plus `Future` and `IntoFuture` from 2024. A glob of a
-dependency (`use std::fmt::*;`) cannot be looked into. If exactly one such glob in scope
+local enum (`use self::Inner::*;`) brings in its variants, in the type and the value name
+spaces; a variant is neither a trait nor a module, so the glob gives a trait key nothing.
+A glob of a
+dependency (`use std::fmt::*;`) cannot be looked into, and neither can a glob of a path
+in the crate that names nothing the index can see (a module or an enum that a macro
+generates, `use self::Signal::*;`); such a glob is keyed under its path from the crate
+root (`demo::signal::Signal`), and a glob does not provide a name its own path needs. A
+name on the way that two globs bind to two modules gives a path through each, so the key
+lists them all and is never the first of them. Likewise a trait path through a crate name
+that stands for several libraries (see Use-alias index) keys `Unresolved`, with a
+candidate in each library: its crate path followed by the rest of the path. If exactly one such glob in scope
 could provide the name, the trait is keyed under that glob's path followed by the name, so
 `use serde::*` and `use serde::ser::Serialize` can give two keys for one trait: the glob
 cannot be looked into, and its path is all the key has. A glob whose first segment is
-neither a local module nor a crate the package can name is a typed `UnresolvedTrait`
+neither a local module (`crate`, `self` and `super` included) nor a crate the impl's code
+can name is a typed `UnresolvedTrait`
 error that names the glob's file and line when a trait key consults it. If
 several could, or the name is also in the prelude, the key is `TraitKey::Unresolved`: it
 holds the written path and every absolute path the trait could have, the members are
@@ -687,9 +759,35 @@ has no order that depends on the tree implementation: two loads of one tree are 
 and the same regular files on disk and in memory give equal indexes.
 
 **Use-alias index.** Every `use` declaration contributes to a table of the names of its
-module: renames, nested groups, `self` in a group, globs, a leading `::` (a library
-crate by name), `extern crate x as y`, and the keywords `crate`, `self` and `super`; a
-`super` above the crate root is an error that names the file and line. A name that a
+module: renames, nested groups, `self` in a group, globs, a leading `::` (a crate of the
+extern prelude), `extern crate x as y`, and the keywords `crate`, `self` and `super`; a
+`super` above the crate root is an error that names the file and line. A path whose
+first segment the module does not bind starts at a crate of the extern prelude of the
+importing target. That prelude holds: its package's library, for a target other than the
+library and the build script; the dependencies declared for its kind (`[dependencies]`
+for a library or binary, which also name `[dev-dependencies]` in test code;
+`[dependencies]` and `[dev-dependencies]` for a test, bench or example;
+`[build-dependencies]` for the build script), each in the `[target.*]` tables too, where
+a dependency whose `path`, or whose `workspace = true` entry's `path` in the
+`[workspace.dependencies]` of the package's workspace, names the directory of a package
+of the workspace stands for that package's library, under the crate name of the library
+or, when the entry renames its package (`package = ".."`), under the name it is declared
+under; the names of `extern crate` items at the crate root (`extern crate self as name`
+names the crate itself); and the sysroot crates, which are outside the index. Any other
+dependency is outside the index. So `use shared::X` in a package that depends on one of
+two packages whose libraries are both named `shared` reaches that one. Whether a library
+is named only by test code is kept for each library a name stands for: when a library's
+dependency and its dev-dependency (renamed to it) are two packages under one name, code
+that is not test code names the first only, and test code names both. A name that stands
+for several libraries is ambiguous whatever follows it, as rustc reports it: a path
+through it, through an `extern crate` item of it or through an import of it is
+`Ambiguous`, naming the crate root of each library, even where only one of them defines
+the rest of the path, and in each name space the path could end in (an import of the name
+alone names crates, in the type name space); a glob of it, directly or through an import
+of it, brings in nothing. A `package` value that is not a string is
+a manifest error that names the dependency key, and so is a `workspace = true`
+dependency when there is no workspace manifest above the package, when the package is
+not a member of it, or when its `[workspace.dependencies]` has no entry of that name. A name that a
 module defines or imports explicitly shadows a name that one of its globs brings in, as
 in rustc. A lookup answers from the globs of a module only when every explicit import of
 that module that could bind the same name is settled, resolved or definitively failed;
@@ -714,12 +812,24 @@ several sites, as `#[cfg(unix)] fn a()` beside `#[cfg(windows)] fn a()`. The fai
 typed: `NotFound` when the workspace defines nothing at the path (an item of a
 dependency, an item that a macro generates, and a misspelling all end here),
 `Ambiguous(ids)` only for a real conflict, which is two globs that bring in different
-items, two imports of one name that reach different items, or two canonical targets,
-`Cyclic` when the imports on the way depend on each other, and `Invalid` when the text
-is not a path. The crate path of a test, bench, example or binary target begins with the
+items, two imports of one name that reach different items, two canonical targets, or a
+path through a crate name that stands for several libraries, `Cyclic` when the imports on the way depend on each other, `UnresolvedSelf` when the
+workspace defines nothing at the path and the path goes through the self path of an
+inherent impl the index cannot see, and `Invalid` when the text is not a path. A symbol
+is one path and kind in one target's crate: the items of two targets at one path are
+two symbols and `Ambiguous`, whatever the order of their files, while the members of
+trait impls on types that are not local share their trait's key across crates. The
+crate path of a test, bench, example or binary target begins with the
 package name and a name such as `test_crate`, so a first-party module with that name
-(`mod test_crate;` in the library) and a test target share a prefix: a path through
-that name is `Ambiguous`, naming the module and the test target's item. A symbol that a
+(`mod test_crate;` in the library) and a test target share a prefix: a path that both
+define (`demo::test_crate::it` when the module has `it`) is `Ambiguous`, naming the
+library's item and the test target's, and a path that only one of them defines resolves
+to it. A path that starts with a crate path that targets of several packages share (two
+libraries named `shared`) is `Ambiguous`, naming the crate root of each, whatever
+follows; `resolve_in_package(package, path)` takes the Cargo package name separately and
+resolves among that package's crates only, so `resolve_in_package("p-two", "shared::X")`
+names the `X` of `p-two`, and a name that is no package of the workspace is
+`UnknownPackage`. A symbol that a
 macro generates is not indexed, and the documentation of the capabilities that rely on
 the index says so.
 
@@ -816,9 +926,14 @@ duplicates.
   package with `[workspace]` and a member below it; `target` and dot-directories are
   skipped beside a sibling; roots exclude what they do not name; the `auto*` flags and
   explicit tables; a library and a binary with one name; two packages with one name,
-  two targets with one root and two targets with one crate path, each beside a
-  distinct-name neighbour; a missing target file, a table without a name and a
-  target path that leaves the tree, each naming the manifest key; a manifest of
+  two targets with one root and two targets of one package with one crate path, each
+  beside a distinct-name neighbour; two packages whose libraries and binaries share
+  crate paths (`x-y` and `x_y`), which load, are `Ambiguous` by `resolve` and resolve
+  by `resolve_in_package`; a missing target file, a table without a name and a
+  target path that leaves the tree, each naming the manifest key; a library root over
+  `max_file_bytes` reached by package discovery, by the `lib` table and by `lib.path`,
+  only the last naming `lib.path`; a dependency `package` that is not a string, in a
+  package table and in `[workspace.dependencies]`, naming its key beside a string; a manifest of
   exactly 8 MiB loads and one byte more is refused naming the file; inline tables
   nested 1000 levels are a typed error on the caller's stack and 8 levels load.
 - Mod-tree fixtures: `name.rs`, `name/mod.rs`, both present (an error naming both),
@@ -828,7 +943,8 @@ duplicates.
   unconditional `path` attributes, raw identifiers, a cycle naming both files, a file
   reached by several paths and by two targets listed once, an unresolved `mod` naming
   the file and line, the module-depth budget at 128 and 129, a chain of files that each
-  declare the next twice refused quickly beside a small diamond, and a first-party
+  declare the next twice (2^31 paths) refused by the module-path budget, within 30 s in a
+  release build, beside a small diamond, and a first-party
   `mod test_crate;` beside a test target.
 - Placement fixtures, each asserting every item path: a child file that sorts before
   the file that declares it (`a/mod.rs` with `a/b.rs`, and `a.rs` with `a/b.rs` below a
@@ -844,7 +960,9 @@ duplicates.
   recording tree shows that the outside path is never read.
 - `cfg(test)` fixtures: the predicate matrix, `#[cfg(test)] mod t;` tagging every item
   reached only through it, `#[test]` functions, a `test` predicate on a `path`, and
-  unreadable or misshapen attributes.
+  unreadable or misshapen attributes; a `path = concat!(..)`, plain and under
+  `cfg_attr`, is a `CfgParse` error that names the attribute's line and is reached by
+  the `path` attribute of its module, beside a literal path that loads.
 - Bound fixtures: a file over `max_file_bytes` fails with an error that names the
   file, a lowered `max_file_bytes` is honoured, and a file of 8 MiB parses at the
   default. A file at the delimiter limit (128 levels) parses and one at 129 levels
@@ -938,25 +1056,60 @@ duplicates.
   through it.
 - Symbol fixtures: one item of every kind, asserting kind, file, line and visibility
   (`pub`, `pub(crate)` and private); the impl shapes (inherent on a local type, inherent
-  through an alias, inherent on a type that does not resolve, which is an error, trait
-  impls on a local type, `String`, a blanket `T`, `&Foo`, `[u8]` and a tuple); a module,
+  through an alias, trait impls on a local type, `String`, a blanket `T`, `&Foo`, `[u8]`
+  and a tuple); inherent impls the index cannot see (`Missing`, `Vec<u8>`, a generic
+  `T`, `&Foo`, `[u8]`, `crate::Missing`, a `bitflags!`-style macro type with test and
+  non-test impls, and `impl dyn LocalTrait`), each loading with its members marked
+  `Unresolved` in `items()` and `item_at()` under the written self path, listed by
+  `unresolved_impls()`, `UnresolvedSelf` through the self path and `NotFound` at it,
+  beside a neighbouring impl marked `Local`, and `super` above the root in such a self
+  path still an error; a macro call in a trait body skipped beside one in an impl body;
+  a glob of a local enum (`use self::Inner::*;`, and through `crate`) beside a trait
+  impl, which loads, beside a glob with an unknown head, which is refused; globs of a
+  macro-generated enum and of an `include!`-generated module, keyed under their path in
+  the crate; a module,
   a function and a macro of one name selected by name space, and unit and tuple structs
   in the value name space; `#[cfg(unix)] fn a()` beside `#[cfg(windows)] fn a()` as one
   symbol with two sorted sites; items that share a source item grouped through a shared
   `tests/common/mod.rs`; documentation (text, hidden alone, a blank `///`,
   `include_str!`, a module's inner docs); `files()`, `items_in()`, `item_at()` and
   `is_shipping()`; the `test_fns()` data for a library, a binary and a test target; a
-  first-party `mod test_crate;` beside a test target, which makes the shared path
-  ambiguous beside the same layout without it, which resolves.
+  first-party `mod test_crate;` beside a test target, whose shared paths are ambiguous
+  in either order of the files while a path only one of them defines resolves to it;
+  a library module named `bin_crate`, `test_crate`, `bench_crate`, `example_crate` or
+  `build_script` that keeps its items in the library beside the target that shares
+  its path; a build script's `main` beside a library module `build_script` with a
+  `main`, and an explicit-path binary beside a library module `bin_crate::x`, each in
+  both orders of the file names, each `Ambiguous` beside a layout without the overlap.
 - Alias fixtures: a rename, a nested group, `self` in a group, a glob with `via_glob`
   beside the direct path without it, a chain of three hops with its `chain`, a cycle
   that yields `Cyclic` beside a chain that ends, definitions and explicit imports
   shadowing globs (also for the modules that glob the importer), two globs with
   different items that are `Ambiguous` beside two that reach one, a mutual `super::*`,
   `crate`, `self` and `super` paths, `super` above the root, `extern crate demo as d`
-  and `use ::demo::..`, raw identifiers in both spellings, a chain of 5000 re-exports
+  and `use ::demo::..`, `extern crate self as demo` named from every module beside a
+  library that cannot name itself, raw identifiers in both spellings, a chain of 5000 re-exports
   declared in either order, `demo::nope`, `pub use serde::Serialize` and a function that
   a macro generates, each `NotFound` beside a positive resolution.
+- Extern-prelude fixtures, over two packages whose libraries are both `shared`: `shared`
+  and `shared::X` are `Ambiguous` naming both crate roots, `resolve_in_package` resolves
+  `shared::X` in each package and gives `UnknownPackage` for a name that is no package;
+  a package depending on one of them by `path` reaches it through `use shared::X`; a
+  dev-dependency renamed in `[workspace.dependencies]` is named by its new name in test
+  code and in a test target and not in other code; a renamed path dependency is named
+  by its declared name and not by its library's, also through an `extern crate` item at
+  the crate root from a nested module; a test target and a binary name their own
+  package's library and the build script does not. A library whose dependency and
+  renamed dev-dependency are two packages under one name names the dependency in its
+  code, an `extern crate` of the name and its binary, while paths through the name from
+  test code, an `extern crate` in test code and its test target, and an import of the
+  name itself, are `Ambiguous` naming both crate roots, also for an item that only one
+  of them defines; a trait impl through the name is keyed under the dependency's trait
+  in library code and `Unresolved` with a candidate in each library in test code. A trait path, and a
+  glob of an unseen path, through a name that two globs bind to two modules keys
+  `Unresolved` with a candidate through each. A `workspace = true` dependency with no
+  workspace above, from a workspace the package is not a member of, or without its
+  entry is a manifest error naming the dependency key, beside one that loads.
 - Order fixtures: an explicit import that must shadow a glob for a reader declared before
   it, and the same modules declared in every order of 1440, giving one answer for each
   path, with glob against glob staying ambiguous; glob visibility (private beside public,

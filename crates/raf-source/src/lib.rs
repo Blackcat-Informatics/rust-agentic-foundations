@@ -134,7 +134,9 @@ pub use facts::{
     AttrFact, ConditionalPath, FieldShape, FileFacts, ImplFact, ItemFact, ItemKind, ModBody,
     ModFact, PathAttrs, SpanFact, TestRole, UseFact, UseTree, Vis,
 };
-pub use item::{Item, ItemId, Namespace, SharedStr, SymbolKind, TraitKey};
+pub use item::{
+    Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl,
+};
 pub use meter::Usage;
 pub use modtree::{Reach, TargetId};
 pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};

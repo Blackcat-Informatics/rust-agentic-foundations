@@ -843,3 +843,130 @@ fn an_excluded_literal_member_is_ignored_and_not_required_to_exist() {
         "{error}"
     );
 }
+
+#[test]
+fn a_macro_call_in_a_trait_body_is_skipped() {
+    let text = "macro_rules! decl { () => { fn generated(&self); } }\n\
+                pub trait T {\n    decl!();\n    fn written(&self);\n}\n\
+                pub struct S;\n\
+                impl T for S {\n    decl!();\n    fn written(&self) {}\n}\n\
+                impl T for u8 { fn written(&self) {} }\n";
+    let ws = lib("2021", text).unwrap_or_else(|e| panic!("{e}"));
+    let trait_item = ws
+        .resolve("demo::T")
+        .map(|found| ws.item(found.sites[0]).expect("item").clone())
+        .expect("the trait");
+    assert_eq!(trait_item.kind, raf_source::SymbolKind::Trait);
+    // The written member is indexed; what the macro would generate is not.
+    assert!(ws.resolve("demo::T::written").is_ok());
+    assert!(matches!(
+        ws.resolve("demo::T::generated"),
+        Err(raf_source::ResolveError::NotFound(_))
+    ));
+    assert!(ws.resolve("demo::S::written").is_ok());
+    let on_u8: Vec<_> = ws
+        .items()
+        .filter(|item| item.path == "demo::T::written" && item.trait_key.is_some())
+        .map(|item| item.trait_key.as_deref().cloned())
+        .collect();
+    assert_eq!(on_u8, [Some(TraitKey::Canonical("demo::T".to_owned()))]);
+}
+
+#[test]
+fn a_dependency_package_that_is_not_a_string_is_an_error_naming_the_key() {
+    for (extra, key) in [
+        (
+            "\n[dependencies]\nrenamed = { package = 3, version = \"1\" }\n",
+            "dependencies.renamed",
+        ),
+        (
+            "\n[target.'cfg(unix)'.dev-dependencies]\nrenamed = { package = [\"x\"], path = \"x\" }\n",
+            "target.cfg(unix).dev-dependencies.renamed",
+        ),
+    ] {
+        let m = manifest("2021", extra);
+        let error = load(&m, &[("src/lib.rs", "")]).expect_err(key);
+        assert!(
+            matches!(&error.kind, LoadErrorKind::Manifest { message } if message.contains("`package` must be a string")),
+            "{error}"
+        );
+        assert!(
+            matches!(error.origin.as_deref(), Some(raf_source::Origin::ManifestKey { key: found }) if found == key),
+            "{error}"
+        );
+    }
+    let good = manifest(
+        "2021",
+        "\n[dependencies]\nrenamed = { package = \"original\", version = \"1\" }\n",
+    );
+    assert!(load(&good, &[("src/lib.rs", "")]).is_ok());
+    // The same refusal in `[workspace.dependencies]`.
+    let root = |package: &str| -> MemoryTree {
+        let text = format!(
+            "[workspace]\nmembers = [\"m\"]\n\n[workspace.dependencies]\nhelper = {{ package = {package}, version = \"1\" }}\n"
+        );
+        [
+            ("Cargo.toml", text.as_str()),
+            ("m/Cargo.toml", "[package]\nname = \"m\"\nedition = \"2021\"\n\n[dependencies]\nhelper = { workspace = true }\n"),
+            ("m/src/lib.rs", ""),
+        ]
+        .into_iter()
+        .collect()
+    };
+    let error = Workspace::load(&root("1"), &["m"]).expect_err("not a string");
+    assert!(
+        matches!(error.origin.as_deref(), Some(raf_source::Origin::ManifestKey { key }) if key == "workspace.dependencies.helper"),
+        "{error}"
+    );
+    assert!(Workspace::load(&root("\"h\""), &["m"]).is_ok());
+}
+
+#[test]
+fn an_inherited_dependency_the_workspace_cannot_give_is_an_error_naming_the_key() {
+    let member = "[package]\nname = \"m\"\nedition = \"2021\"\n\n[dependencies]\nhelper = { workspace = true }\n";
+    let cases: [(&str, Option<&str>, &str); 3] = [
+        // No workspace manifest above the package.
+        ("", None, "no workspace manifest above the package"),
+        // A workspace the package is not a member of.
+        (
+            "[workspace]\nmembers = []\n\n[workspace.dependencies]\nhelper = \"1\"\n",
+            Some("Cargo.toml"),
+            "not a member of the workspace",
+        ),
+        // A workspace without the entry.
+        (
+            "[workspace]\nmembers = [\"m\"]\n\n[workspace.dependencies]\nother = \"1\"\n",
+            Some("Cargo.toml"),
+            "has no `[workspace.dependencies]` entry `helper`",
+        ),
+    ];
+    for (root, at, why) in cases {
+        let mut files = vec![("m/Cargo.toml", member), ("m/src/lib.rs", "")];
+        if let Some(path) = at {
+            files.push((path, root));
+        }
+        let tree: MemoryTree = files.into_iter().collect();
+        let error = Workspace::load(&tree, &["m"]).expect_err(why);
+        assert_eq!(error.file.as_str(), "m/Cargo.toml", "{error}");
+        assert!(
+            matches!(&error.kind, LoadErrorKind::Manifest { message } if message.contains(why)),
+            "{error}"
+        );
+        assert!(
+            matches!(error.origin.as_deref(), Some(raf_source::Origin::ManifestKey { key }) if key == "dependencies.helper"),
+            "{error}"
+        );
+    }
+    // The workspace that has the package as a member and the entry loads.
+    let tree: MemoryTree = [
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"m\"]\n\n[workspace.dependencies]\nhelper = \"1\"\n",
+        ),
+        ("m/Cargo.toml", member),
+        ("m/src/lib.rs", ""),
+    ]
+    .into_iter()
+    .collect();
+    assert!(Workspace::load(&tree, &["m"]).is_ok());
+}

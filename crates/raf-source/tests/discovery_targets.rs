@@ -681,24 +681,64 @@ fn two_targets_with_one_crate_path_are_an_error_naming_both_beside_distinct_name
 }
 
 #[test]
-fn two_packages_whose_libraries_share_a_crate_name_are_an_error_naming_both_manifests() {
+fn two_packages_whose_targets_share_crate_paths_load_and_are_told_apart_by_package() {
     let files = [
         ("a/Cargo.toml", "[package]\nname = \"x-y\"\n"),
-        ("a/src/lib.rs", ""),
+        ("a/src/lib.rs", "pub fn in_a() {}\n"),
+        ("a/src/bin/tool.rs", "fn main() {}\n"),
         ("b/Cargo.toml", "[package]\nname = \"x_y\"\n"),
-        ("b/src/lib.rs", ""),
+        ("b/src/lib.rs", "pub fn in_b() {}\n"),
+        ("b/src/bin/tool.rs", "fn main() {}\n"),
     ];
-    let error = load(&files, &["."]).expect_err("same crate path");
-    let (path, other, with) = duplicate_path(&error);
-    assert_eq!((path, other, with), ("x_y", "x-y", "a/Cargo.toml"));
-    assert_eq!(error.file.as_str(), "b/Cargo.toml");
-    let distinct = [
-        ("a/Cargo.toml", "[package]\nname = \"x-y\"\n"),
-        ("a/src/lib.rs", ""),
-        ("b/Cargo.toml", "[package]\nname = \"x-z\"\n"),
-        ("b/src/lib.rs", ""),
+    let ws = load(&files, &["."]).expect("the crates are keyed by package");
+    let paths: Vec<_> = ws
+        .targets()
+        .map(|t| (t.package.as_str(), t.crate_path.as_str()))
+        .collect();
+    assert_eq!(
+        paths,
+        [
+            ("x-y", "x_y"),
+            ("x-y", "x_y::bin_crate::tool"),
+            ("x_y", "x_y"),
+            ("x_y", "x_y::bin_crate::tool"),
+        ]
+    );
+    for path in ["x_y", "x_y::in_a", "x_y::bin_crate::tool"] {
+        match ws.resolve(path) {
+            Err(raf_source::ResolveError::Ambiguous(ids)) => assert_eq!(ids.len(), 2, "{path}"),
+            other => panic!("{path}: {other:?}"),
+        }
+    }
+    let a = ws
+        .resolve_in_package("x-y", "x_y::in_a")
+        .expect("in its package");
+    assert_eq!(
+        ws.item(a.sites[0]).expect("item").file.as_str(),
+        "a/src/lib.rs"
+    );
+    assert!(ws.resolve_in_package("x_y", "x_y::in_a").is_err());
+    let tool = ws
+        .resolve_in_package("x_y", "x_y::bin_crate::tool")
+        .expect("the binary of one package");
+    assert_eq!(
+        ws.item(tool.sites[0]).expect("item").file.as_str(),
+        "b/src/bin/tool.rs"
+    );
+    // Two targets of one package with one crate path stay an error.
+    let one = [
+        (
+            "Cargo.toml",
+            "[package]\nname = \"x-y\"\n\n[[bin]]\nname = \"t\"\npath = \"t1.rs\"\n\n[[bin]]\nname = \"t\"\npath = \"t2.rs\"\n",
+        ),
+        ("t1.rs", ""),
+        ("t2.rs", ""),
     ];
-    assert!(load(&distinct, &["."]).is_ok());
+    let error = load(&one, &["."]).expect_err("one package");
+    assert_eq!(
+        duplicate_path(&error),
+        ("x_y::bin_crate::t", "t", "Cargo.toml")
+    );
 }
 
 #[test]

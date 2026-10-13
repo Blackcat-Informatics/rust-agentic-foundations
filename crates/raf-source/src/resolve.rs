@@ -15,6 +15,7 @@ use std::fmt;
 
 use crate::index::{Index, UseKind};
 use crate::item::{ItemId, Namespace, SymbolKind};
+use crate::modtree::TargetId;
 use crate::settle::{Source, slot};
 
 /// The items a walk reached, and the modules a keyword path named.
@@ -57,6 +58,29 @@ fn merge(found: &mut BTreeMap<ItemId, Hit>, id: ItemId, hit: Hit) {
 pub(crate) enum Fail {
     Missing(Vec<Source>),
     SuperAboveRoot,
+    /// The path goes through a name that stands for the crate roots of
+    /// several crates, as a crate name of the extern prelude that names
+    /// several libraries does: `roots` are those crate roots, and the path
+    /// would go on in each with its segments from `rest` on. rustc refuses
+    /// such a name whatever follows it.
+    SeveralCrates {
+        roots: Vec<ItemId>,
+        rest: usize,
+    },
+}
+
+/// What the first segment of a path may name besides the items in scope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Heads {
+    /// Nothing else: a canonical path, which starts at a crate root.
+    Local,
+    /// A crate of the extern prelude of the module's target, as code written
+    /// in the module names it; `test` for test code, which also names the
+    /// dev-dependencies of a library or a binary.
+    Code {
+        /// True for test code.
+        test: bool,
+    },
 }
 
 /// What `resolve` found.
@@ -86,12 +110,23 @@ pub enum ResolveError {
     /// expansion and a misspelling all end here.
     NotFound(String),
     /// The path names more than one symbol: two globs that bring in different
-    /// items, two imports of one name, or two canonical targets.
+    /// items, two imports of one name, two canonical targets, items of two
+    /// targets at one path, a crate path that targets of several packages
+    /// share, or a path through a crate name that stands for several
+    /// libraries (the ids are then the crate roots).
     Ambiguous(Vec<ItemId>),
     /// The imports that the path goes through depend on each other.
     Cyclic(String),
     /// The text is not a path.
     Invalid(String),
+    /// Nothing the workspace defines has this path, and the path goes through
+    /// the self type of an inherent impl that the index cannot see (see
+    /// [`SelfType::Unresolved`](crate::SelfType::Unresolved)), which may define
+    /// it.
+    UnresolvedSelf(String),
+    /// The package named to qualify the path is not a package of the
+    /// workspace.
+    UnknownPackage(String),
 }
 
 impl fmt::Display for ResolveError {
@@ -101,6 +136,13 @@ impl fmt::Display for ResolveError {
             Self::Ambiguous(ids) => write!(f, "the path names {} different symbols", ids.len()),
             Self::Cyclic(path) => write!(f, "`{path}` goes through imports that form a cycle"),
             Self::Invalid(text) => write!(f, "`{text}` is not a path"),
+            Self::UnresolvedSelf(path) => write!(
+                f,
+                "`{path}` goes through the self type of an inherent impl that the index cannot see"
+            ),
+            Self::UnknownPackage(package) => {
+                write!(f, "`{package}` is not a package of the workspace")
+            }
         }
     }
 }
@@ -112,6 +154,57 @@ fn strip_raw(segment: &str) -> &str {
 }
 
 impl Index {
+    /// Refuse a step of a walk that would go on in the crate roots of several
+    /// crates at once, with the segments from `rest` on.
+    pub(crate) fn one_crate(&self, modules: &BTreeSet<usize>, rest: usize) -> Result<(), Fail> {
+        let roots: Vec<usize> = modules
+            .iter()
+            .copied()
+            .filter(|module| self.modules[*module].parent.is_none())
+            .collect();
+        if roots.len() > 1 {
+            return Err(Fail::SeveralCrates {
+                roots: self.sorted(
+                    roots
+                        .iter()
+                        .filter_map(|root| self.root_items.get(root).copied()),
+                ),
+                rest,
+            });
+        }
+        Ok(())
+    }
+
+    /// Add to `into` the crate roots of the workspace that the crate name
+    /// `name` stands for in code of `module` (see [`Heads`]): a library of the
+    /// extern prelude of the module's target, or what an `extern crate` item
+    /// at the crate root names, which adds its name to that prelude. Returns
+    /// whether it added any.
+    fn extern_roots(
+        &self,
+        module: usize,
+        name: &str,
+        heads: Heads,
+        into: &mut BTreeSet<usize>,
+    ) -> bool {
+        let Heads::Code { test } = heads else {
+            return false;
+        };
+        let before = into.len();
+        if let Some(entry) = self.extern_name(module, name, test) {
+            into.extend(entry.roots(test));
+        }
+        let root = self.modules[module].root;
+        if let Some(entry) = self.scopes[root].get(name) {
+            for id in entry.defs[slot(Namespace::Type)].keys() {
+                if self.items[id.0].kind == SymbolKind::ExternCrate {
+                    into.extend(self.modules_for(*id));
+                }
+            }
+        }
+        into.len() > before
+    }
+
     /// The state after the first segment of a path, and the index of the
     /// segment to read next.
     fn start(
@@ -120,7 +213,7 @@ impl Index {
         segs: &[String],
         leading_colon: bool,
         last_ns: Namespace,
-        prelude: bool,
+        heads: Heads,
     ) -> Result<(Walked, usize), Fail> {
         let mut state = Walked::default();
         let Some(first) = segs.first() else {
@@ -128,10 +221,9 @@ impl Index {
         };
         let mut next_index = 1;
         if leading_colon {
-            let Some(&root) = self.libs.get(first.as_str()) else {
+            if !self.extern_roots(from, first, heads, &mut state.modules) {
                 return Err(Fail::Missing(Vec::new()));
-            };
-            state.modules.insert(root);
+            }
         } else {
             match first.as_str() {
                 "crate" => {
@@ -171,9 +263,7 @@ impl Index {
                                 },
                             );
                         }
-                    } else if let (true, Some(&root)) = (prelude, self.libs.get(first.as_str())) {
-                        state.modules.insert(root);
-                    } else {
+                    } else if !self.extern_roots(from, first, heads, &mut state.modules) {
                         return Err(Fail::Missing(vec![Source {
                             module: from,
                             ns,
@@ -194,9 +284,10 @@ impl Index {
         segs: &[String],
         leading_colon: bool,
         last_ns: Namespace,
-        prelude: bool,
+        heads: Heads,
     ) -> Result<Walked, Fail> {
-        let (mut state, next_index) = self.start(from, segs, leading_colon, last_ns, prelude)?;
+        let (mut state, next_index) = self.start(from, segs, leading_colon, last_ns, heads)?;
+        self.one_crate(&state.modules, next_index)?;
         for (offset, seg) in segs.iter().enumerate().skip(next_index) {
             let last = offset + 1 == segs.len();
             let ns = if last { last_ns } else { Namespace::Type };
@@ -211,10 +302,9 @@ impl Index {
             let mut containers = state.modules.clone();
             let carried = state.items.values().any(|hit| hit.via_glob);
             for id in state.items.keys() {
-                if let Some(module) = self.module_for(*id) {
-                    containers.insert(module);
-                }
+                containers.extend(self.modules_for(*id));
             }
+            self.one_crate(&containers, offset)?;
             let mut found: BTreeMap<ItemId, Hit> = BTreeMap::new();
             let mut missing = Vec::new();
             for module in containers {
@@ -295,9 +385,13 @@ impl Index {
         };
         let mut blockers = BTreeSet::new();
         for ns in Namespace::ALL {
-            if let Err(Fail::Missing(sources)) =
-                self.walk(decl.module, segs, decl.leading_colon, ns, true)
-            {
+            if let Err(Fail::Missing(sources)) = self.walk(
+                decl.module,
+                segs,
+                decl.leading_colon,
+                ns,
+                Heads::Code { test: decl.test },
+            ) {
                 for source in sources {
                     blockers.extend(self.unresolved_uses(&source, resolved_mode));
                 }
@@ -361,55 +455,81 @@ impl Index {
         chain
     }
 
-    /// Resolve a canonical path in one name space.
+    /// The package of the target whose crate `module` is in.
+    fn package_of(&self, module: usize) -> &str {
+        &self.targets[self.modules[module].target.index()].package
+    }
+
+    /// Resolve a canonical path in one name space, among the crates of
+    /// `package` when one is given.
     fn resolve_in(
         &self,
         segs: &[String],
         ns: Namespace,
         text: &str,
+        package: Option<&str>,
     ) -> Result<Resolution, ResolveError> {
         let mut found: BTreeMap<ItemId, Hit> = BTreeMap::new();
         let mut missing: Vec<Source> = Vec::new();
-        for taken in 1..segs.len() {
+        for taken in 1..=segs.len() {
             let prefix = segs[..taken].join("::");
-            let Some(&root) = self.crate_roots.get(&prefix) else {
+            let Some(roots) = self.crate_roots.get(&prefix) else {
                 continue;
             };
-            match self.walk(root, &segs[taken..], false, ns, false) {
-                Ok(walked) => {
-                    for (id, hit) in walked.items {
-                        merge(&mut found, id, hit);
+            let roots: Vec<usize> = roots
+                .iter()
+                .copied()
+                .filter(|root| package.is_none_or(|name| self.package_of(*root) == name))
+                .collect();
+            // A crate path that targets of several packages have (two
+            // libraries with one crate name) names each of their crates; the
+            // path is told apart only with its package.
+            if roots.len() > 1 {
+                return Err(ResolveError::Ambiguous(
+                    self.sorted(
+                        roots
+                            .iter()
+                            .filter_map(|root| self.root_items.get(root).copied()),
+                    ),
+                ));
+            }
+            for root in roots {
+                if taken < segs.len() {
+                    match self.walk(root, &segs[taken..], false, ns, Heads::Local) {
+                        Ok(walked) => {
+                            for (id, hit) in walked.items {
+                                merge(&mut found, id, hit);
+                            }
+                        }
+                        Err(Fail::Missing(sources)) => missing.extend(sources),
+                        Err(Fail::SeveralCrates { roots, .. }) => {
+                            return Err(ResolveError::Ambiguous(roots));
+                        }
+                        Err(Fail::SuperAboveRoot) => {}
                     }
+                } else if ns == Namespace::Type
+                    && let Some(item) = self.root_items.get(&root)
+                {
+                    // A path that is exactly a crate path names the crate
+                    // root, a module.
+                    merge(
+                        &mut found,
+                        *item,
+                        Hit {
+                            via_glob: false,
+                            last: None,
+                        },
+                    );
                 }
-                Err(Fail::Missing(sources)) => missing.extend(sources),
-                Err(Fail::SuperAboveRoot) => {}
             }
         }
-        // A path that is exactly a crate path names the crate root, a module.
-        // If a first-party item already has that path, the path names two
-        // things and is ambiguous.
-        if ns == Namespace::Type
-            && let Some(root) = self
-                .crate_roots
-                .get(text)
-                .and_then(|module| self.root_items.get(module))
-        {
-            if !found.is_empty() {
-                let mut all: Vec<ItemId> = found.keys().copied().collect();
-                all.push(*root);
-                return Err(ResolveError::Ambiguous(self.sorted(all)));
-            }
-            found.insert(
-                *root,
-                Hit {
-                    via_glob: false,
-                    last: None,
-                },
-            );
-        }
-        if let (true, Some(ids)) = (found.is_empty(), self.foreign.get(text)) {
+        let from_keys = found.is_empty();
+        if let (true, Some(ids)) = (from_keys, self.foreign.get(text)) {
             for id in ids {
-                if self.items[id.0].in_namespace(ns) {
+                let item = &self.items[id.0];
+                if item.in_namespace(ns)
+                    && package.is_none_or(|name| self.targets[item.target.index()].package == name)
+                {
                     found.insert(
                         *id,
                         Hit {
@@ -430,23 +550,20 @@ impl Index {
             }
             return Err(ResolveError::NotFound(text.to_owned()));
         }
-        let mut groups: BTreeMap<(String, SymbolKind), Vec<ItemId>> = BTreeMap::new();
+        // One symbol is one path and kind in one crate. Items of two targets
+        // at one path are two symbols, whatever order they were found in; the
+        // members of trait impls on types that are not local are keyed by
+        // the trait, so the impls of every crate share their key.
+        let mut groups: BTreeSet<(Option<TargetId>, &str, SymbolKind)> = BTreeSet::new();
         for id in found.keys() {
             let item = &self.items[id.0];
-            groups
-                .entry((item.path.to_string(), item.kind))
-                .or_default()
-                .push(*id);
+            let target = (!from_keys).then_some(item.target);
+            groups.insert((target, item.path.as_str(), item.kind));
         }
         if groups.len() > 1 {
             return Err(ResolveError::Ambiguous(self.sorted(found.keys().copied())));
         }
         let sites = self.sorted(found.keys().copied());
-        if let Some(shadow) = self.shadowed_namespace(&sites) {
-            let mut all = shadow;
-            all.extend(sites);
-            return Err(ResolveError::Ambiguous(self.sorted(all)));
-        }
         let first = sites[0];
         let hit = &found[&first];
         Ok(Resolution {
@@ -458,39 +575,36 @@ impl Index {
         })
     }
 
-    /// When the crate path of the target that holds `sites` runs through a
-    /// module of another crate (`<pkg>::test_crate` is a module of the
-    /// library and the start of every test crate path), the name stands for
-    /// both, so the modules' declarations are returned.
-    fn shadowed_namespace(&self, sites: &[ItemId]) -> Option<Vec<ItemId>> {
-        let target = &self.targets[self.items[sites[0].0].target.index()];
-        let mut shadow = Vec::new();
-        let segments: Vec<&str> = target.crate_path.split("::").collect();
-        for taken in 1..segments.len() {
-            let prefix = segments[..taken].join("::");
-            if self.crate_roots.contains_key(&prefix) {
-                continue;
-            }
-            shadow.extend(
-                self.items
-                    .iter()
-                    .filter(|item| item.kind == SymbolKind::Mod && item.path == prefix)
-                    .map(|item| item.id),
-            );
-        }
-        if shadow.is_empty() {
-            None
-        } else {
-            Some(shadow)
-        }
+    /// True when a proper prefix of `segs` is the self path of an inherent
+    /// impl that the index cannot see, of `package` when one is given.
+    fn through_unresolved(&self, segs: &[String], package: Option<&str>) -> bool {
+        (1..segs.len()).any(|taken| {
+            let prefix = segs[..taken].join("::");
+            let start = self
+                .unresolved
+                .partition_point(|block| block.path.as_str() < prefix.as_str());
+            self.unresolved[start..]
+                .iter()
+                .take_while(|block| block.path == prefix)
+                .any(|block| {
+                    package.is_none_or(|name| self.targets[block.target.index()].package == name)
+                })
+        })
     }
 
-    /// Resolve `path`, trying the type, value and macro name spaces in turn.
+    /// Resolve `path`, trying the type, value and macro name spaces in turn,
+    /// among the crates of `package` when one is given.
     pub(crate) fn resolve(
         &self,
         path: &str,
         ns: Option<Namespace>,
+        package: Option<&str>,
     ) -> Result<Resolution, ResolveError> {
+        if let Some(name) = package
+            && !self.editions.contains_key(name)
+        {
+            return Err(ResolveError::UnknownPackage(name.to_owned()));
+        }
         let segs: Vec<String> = path.split("::").map(|s| strip_raw(s).to_owned()).collect();
         let valid =
             |s: &String| !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || c == '_');
@@ -499,17 +613,16 @@ impl Index {
         }
         let text = segs.join("::");
         let spaces: Vec<Namespace> = ns.map_or_else(|| Namespace::ALL.to_vec(), |one| vec![one]);
-        let mut last = ResolveError::NotFound(text.clone());
         for space in spaces {
-            match self.resolve_in(&segs, space, &text) {
+            match self.resolve_in(&segs, space, &text, package) {
                 Ok(resolution) => return Ok(resolution),
                 Err(ResolveError::NotFound(_)) => {}
-                Err(other) => {
-                    last = other;
-                    break;
-                }
+                Err(other) => return Err(other),
             }
         }
-        Err(last)
+        if self.through_unresolved(&segs, package) {
+            return Err(ResolveError::UnresolvedSelf(text));
+        }
+        Err(ResolveError::NotFound(text))
     }
 }

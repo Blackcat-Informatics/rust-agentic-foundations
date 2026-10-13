@@ -275,7 +275,9 @@ pub enum LoadErrorKind {
         /// The file that would be entered a second time.
         again: Box<RelPath>,
     },
-    /// A `cfg` or `cfg_attr` predicate could not be read.
+    /// A `cfg`, `cfg_attr`, `path` or `test` attribute could not be read: it
+    /// has the wrong shape, its predicate cannot be read, or the value of a
+    /// `path` is not a string literal.
     CfgParse {
         /// What is wrong with it.
         message: String,
@@ -284,12 +286,6 @@ pub enum LoadErrorKind {
     UnsupportedItem {
         /// A description of the item.
         what: String,
-    },
-    /// An inherent `impl` block whose self type does not resolve, through
-    /// type aliases, to a struct, enum or union of the workspace.
-    InherentImplSelf {
-        /// The self type as written.
-        self_type: String,
     },
     /// The trait of an `impl` block cannot be named by an absolute path.
     UnresolvedTrait {
@@ -334,7 +330,8 @@ pub enum TargetProblem {
         /// The second candidate.
         second: RelPath,
     },
-    /// Two targets have one crate path, so their items could not be told apart.
+    /// Two targets of one package have one crate path, so their items could
+    /// not be told apart.
     DuplicateCratePath {
         /// The crate path.
         crate_path: String,
@@ -407,12 +404,8 @@ impl fmt::Display for LoadErrorKind {
                 f,
                 "module `{module}` leads back to {again}, which is still being followed"
             ),
-            Self::CfgParse { message } => write!(f, "cannot read a cfg predicate: {message}"),
+            Self::CfgParse { message } => write!(f, "cannot read an attribute: {message}"),
             Self::UnsupportedItem { what } => write!(f, "unsupported item: {what}"),
-            Self::InherentImplSelf { self_type } => write!(
-                f,
-                "the self type `{self_type}` of an inherent impl is not a local struct, enum or union"
-            ),
             Self::UnresolvedTrait { path } => {
                 write!(
                     f,

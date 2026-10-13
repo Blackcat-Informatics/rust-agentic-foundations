@@ -9,15 +9,16 @@ use std::rc::Rc;
 use crate::discovery::discover;
 use crate::error::{LoadError, LoadErrorKind, Origin};
 use crate::facts::{FileFacts, TestRole};
-use crate::index::PackageInfo;
-use crate::index::{Index, LOAD_BASE_BYTES};
-use crate::item::{Item, ItemId, Namespace};
-use crate::manifest::{self, EditionDecl, Manifest, PackageDecl};
+use crate::index::{DependencyInfo, Index, LOAD_BASE_BYTES, PackageInfo};
+use crate::item::{Item, ItemId, Namespace, UnresolvedImpl};
+use crate::manifest::{
+    self, Dependency, EditionDecl, Manifest, PackageDecl, PathSource, WorkspaceDependency,
+};
 use crate::members::members;
 use crate::meter::{Meter, Usage};
-use crate::modtree::{Reach, TargetId, Visited, Walker};
+use crate::modtree::{Reach, TargetId, Visited, Walker, tidy};
 use crate::options::LoadOptions;
-use crate::path::RelPath;
+use crate::path::{PathError, RelPath};
 use crate::resolve::{Resolution, ResolveError};
 use crate::target::TargetKind;
 use crate::target::{Context, Package, Target, check_crate_paths, derive_targets};
@@ -127,8 +128,12 @@ impl Workspace {
         meter.items(LOAD_BASE_BYTES, &RelPath::root(), None)?;
         let discovered = discover(tree, &root_paths, &meter)?;
         let found = &discovered.packages;
+        let dirs: BTreeMap<&RelPath, &str> = found
+            .iter()
+            .map(|entry| (&entry.package.dir, entry.package.name.as_str()))
+            .collect();
         let mut infos: BTreeMap<String, PackageInfo> = BTreeMap::new();
-        let mut workspace_editions = Caches::default();
+        let mut caches = Caches::default();
         let mut packages = Vec::new();
         let mut derived = Vec::new();
         for entry in found {
@@ -148,12 +153,15 @@ impl Workspace {
             infos.insert(
                 entry.package.name.clone(),
                 package_info(
-                    tree,
-                    &meter,
+                    &Reader {
+                        tree,
+                        meter: &meter,
+                        dirs: &dirs,
+                    },
                     &entry.package,
                     declared,
                     &entry.manifest,
-                    &mut workspace_editions,
+                    &mut caches,
                 )?,
             );
             packages.push(entry.package.clone());
@@ -309,11 +317,15 @@ impl Workspace {
     ///
     /// Returns [`ResolveError::NotFound`] when the workspace defines nothing at
     /// the path (a dependency item and a macro-generated item both end here),
-    /// [`ResolveError::Ambiguous`] when it names several symbols,
-    /// [`ResolveError::Cyclic`] when the imports on the way form a cycle and
-    /// [`ResolveError::Invalid`] when the text is not a path.
+    /// [`ResolveError::UnresolvedSelf`] when it defines nothing there and the
+    /// path goes through the self type of an inherent impl that the index
+    /// cannot see, [`ResolveError::Ambiguous`] when it names several symbols
+    /// or starts with a crate path that targets of several packages share
+    /// (see [`Workspace::resolve_in_package`]), [`ResolveError::Cyclic`] when
+    /// the imports on the way form a cycle and [`ResolveError::Invalid`] when
+    /// the text is not a path.
     pub fn resolve(&self, path: &str) -> Result<Resolution, ResolveError> {
-        self.index.resolve(path, None)
+        self.index.resolve(path, None, None)
     }
 
     /// Resolve a canonical path in one name space.
@@ -322,7 +334,33 @@ impl Workspace {
     ///
     /// As [`Workspace::resolve`].
     pub fn resolve_in(&self, path: &str, namespace: Namespace) -> Result<Resolution, ResolveError> {
-        self.index.resolve(path, Some(namespace))
+        self.index.resolve(path, Some(namespace), None)
+    }
+
+    /// Resolve a canonical path among the crates of one package, named by its
+    /// Cargo package name: the path starts with the crate path of one of the
+    /// package's targets. Two packages whose libraries share a crate name
+    /// are told apart this way.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ResolveError::UnknownPackage`] when no package of the
+    /// workspace has that name, and otherwise as [`Workspace::resolve`].
+    pub fn resolve_in_package(
+        &self,
+        package: &str,
+        path: &str,
+    ) -> Result<Resolution, ResolveError> {
+        self.index.resolve(path, None, Some(package))
+    }
+
+    /// The inherent impl blocks whose self type names no struct, enum or
+    /// union the index can see, once for each module path their file is
+    /// reached under, sorted by path, file and position. Their members are
+    /// items marked [`SelfType::Unresolved`](crate::SelfType::Unresolved), so a
+    /// consumer that needs every impl placed can refuse them.
+    pub fn unresolved_impls(&self) -> impl Iterator<Item = &UnresolvedImpl> {
+        self.index.unresolved.iter()
     }
 
     /// The items that share a source item, grouped by its identity: the file
@@ -365,20 +403,34 @@ impl Workspace {
 /// What is computed once per workspace manifest during a load.
 #[derive(Default)]
 struct Caches {
-    editions: BTreeMap<RelPath, WorkspaceEdition>,
+    workspaces: BTreeMap<RelPath, WorkspaceOf>,
     members: BTreeMap<RelPath, BTreeSet<RelPath>>,
 }
 
-/// What the nearest workspace manifest says about the edition of a package.
+/// What reading a package's manifest needs: the tree, the meter of the load
+/// and the directory of every package discovery found.
+struct Reader<'a> {
+    tree: &'a dyn Tree,
+    meter: &'a Meter,
+    dirs: &'a BTreeMap<&'a RelPath, &'a str>,
+}
+
+/// The nearest workspace manifest above a package, as far as the package can
+/// inherit from it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum WorkspaceEdition {
-    /// The workspace sets it.
-    Set(u16),
-    /// The workspace has no `[workspace.package] edition`, or there is no
-    /// workspace manifest above the package.
-    Unset,
+enum WorkspaceOf {
+    /// The package is a member of the workspace in `dir`.
+    Member {
+        dir: RelPath,
+        /// `[workspace.package] edition`, if it is set.
+        edition: Option<u16>,
+        /// `[workspace.dependencies]`.
+        dependencies: Rc<BTreeMap<String, WorkspaceDependency>>,
+    },
     /// The nearest workspace manifest does not have the package as a member.
     NotMember(RelPath),
+    /// There is no workspace manifest above the package.
+    Absent,
 }
 
 fn manifest_error(path: &RelPath, key: &str, message: String) -> LoadError {
@@ -389,24 +441,23 @@ fn manifest_error(path: &RelPath, key: &str, message: String) -> LoadError {
     )
 }
 
-/// The `[workspace.package] edition` that applies to a package directory:
-/// the nearest manifest at or above it that has a `[workspace]` table, found
-/// the way cargo finds it, by walking up through the ancestors within the tree.
-/// A missing ancestor manifest is skipped; one that cannot be read or parsed is
-/// an error. The manifest is not added to the packages that discovery found.
-fn workspace_edition(
-    tree: &dyn Tree,
+/// The workspace that a package directory belongs to: the nearest manifest at
+/// or above it that has a `[workspace]` table, found the way cargo finds it,
+/// by walking up through the ancestors within the tree. A missing ancestor
+/// manifest is skipped; one that cannot be read or parsed is an error. The
+/// manifest is not added to the packages that discovery found.
+fn workspace_of(
+    reader: &Reader<'_>,
     dir: &RelPath,
-    meter: &Meter,
     caches: &mut Caches,
-) -> Result<WorkspaceEdition, LoadError> {
-    let cache = &mut caches.editions;
-    if let Some(known) = cache.get(dir) {
+) -> Result<WorkspaceOf, LoadError> {
+    let (tree, meter) = (reader.tree, reader.meter);
+    if let Some(known) = caches.workspaces.get(dir) {
         return Ok(known.clone());
     }
     let origin = Origin::Discovery;
     let mut at = Some(dir.clone());
-    let mut found = WorkspaceEdition::Unset;
+    let mut found = WorkspaceOf::Absent;
     while let Some(current) = at {
         let path = current
             .join("Cargo.toml")
@@ -441,19 +492,21 @@ fn workspace_edition(
                         slot.insert(members(tree, meter, &current, &path, &parsed)?)
                     }
                 };
-                found = if !set.contains(dir) {
-                    WorkspaceEdition::NotMember(path)
-                } else if let Some(edition) = parsed.workspace_edition {
-                    WorkspaceEdition::Set(edition)
+                found = if set.contains(dir) {
+                    WorkspaceOf::Member {
+                        dir: current,
+                        edition: parsed.workspace_edition,
+                        dependencies: Rc::new(parsed.workspace_dependencies),
+                    }
                 } else {
-                    WorkspaceEdition::Unset
+                    WorkspaceOf::NotMember(path)
                 };
                 break;
             }
         }
         at = current.parent();
     }
-    caches.editions.insert(dir.clone(), found.clone());
+    caches.workspaces.insert(dir.clone(), found.clone());
     Ok(found)
 }
 
@@ -463,10 +516,10 @@ fn workspace_edition(
 ///
 /// Returns a manifest error naming `package.edition` when the package inherits
 /// its edition and the nearest workspace manifest above it does not have the
-/// package as a member or does not set an edition, which cargo rejects as well.
+/// package as a member or does not set an edition, which cargo rejects as well,
+/// and one naming a dependency whose `path` cannot be a path here.
 fn package_info(
-    tree: &dyn Tree,
-    meter: &Meter,
+    reader: &Reader<'_>,
     package: &Package,
     declared: &PackageDecl,
     manifest: &Manifest,
@@ -475,9 +528,12 @@ fn package_info(
     let edition = match &declared.edition {
         EditionDecl::Explicit(edition) => *edition,
         EditionDecl::Unset => 2015,
-        EditionDecl::Inherited => match workspace_edition(tree, &package.dir, meter, caches)? {
-            WorkspaceEdition::Set(edition) => edition,
-            WorkspaceEdition::Unset => {
+        EditionDecl::Inherited => match workspace_of(reader, &package.dir, caches)? {
+            WorkspaceOf::Member {
+                edition: Some(edition),
+                ..
+            } => edition,
+            WorkspaceOf::Member { edition: None, .. } | WorkspaceOf::Absent => {
                 return Err(manifest_error(
                         &package.manifest,
                         "package.edition",
@@ -485,7 +541,7 @@ fn package_info(
                             .to_owned(),
                     ));
             }
-            WorkspaceEdition::NotMember(workspace) => {
+            WorkspaceOf::NotMember(workspace) => {
                 return Err(manifest_error(
                     &package.manifest,
                     "package.edition",
@@ -496,9 +552,101 @@ fn package_info(
             }
         },
     };
+    let mut dependencies = Vec::new();
+    for dependency in &manifest.dependencies {
+        dependencies.push(dependency_info(reader, package, dependency, caches)?);
+    }
     Ok(PackageInfo {
         edition,
-        dependencies: manifest.dependencies.clone(),
+        dependencies,
+    })
+}
+
+/// A dependency as the extern prelude of a target sees it: the name it is
+/// declared under, whether it renames its package, and the package of the
+/// workspace that its `path`, or the `path` of the `[workspace.dependencies]`
+/// entry it inherits, names. A path outside the tree, a directory that holds
+/// no package discovery found, and an inherited entry without a path name no
+/// package of the workspace.
+///
+/// # Errors
+///
+/// Returns a manifest error naming the dependency key when it inherits
+/// (`workspace = true`) with no workspace manifest above the package, from a
+/// workspace the package is not a member of, or an entry that the
+/// workspace's `[workspace.dependencies]` does not have, which cargo rejects
+/// as well, and when its `path` cannot be a path here.
+fn dependency_info(
+    reader: &Reader<'_>,
+    package: &Package,
+    dependency: &Dependency,
+    caches: &mut Caches,
+) -> Result<DependencyInfo, LoadError> {
+    let mut renamed = dependency.package.is_some();
+    let place = match &dependency.path {
+        None => None,
+        Some(PathSource::Own(path)) => Some((package.dir.clone(), path.clone())),
+        Some(PathSource::Workspace(name)) => match workspace_of(reader, &package.dir, caches)? {
+            WorkspaceOf::Member {
+                dir, dependencies, ..
+            } => {
+                let Some(entry) = dependencies.get(name) else {
+                    return Err(manifest_error(
+                        &package.manifest,
+                        &dependency.key,
+                        format!(
+                            "`workspace = true` but the workspace in {dir} has no `[workspace.dependencies]` entry `{name}`"
+                        ),
+                    ));
+                };
+                renamed |= entry.package.is_some();
+                entry.path.clone().map(|path| (dir, path))
+            }
+            WorkspaceOf::NotMember(workspace) => {
+                return Err(manifest_error(
+                    &package.manifest,
+                    &dependency.key,
+                    format!(
+                        "`workspace = true` but the package is not a member of the workspace {workspace} (it is not listed in `workspace.members`, or is excluded)"
+                    ),
+                ));
+            }
+            WorkspaceOf::Absent => {
+                return Err(manifest_error(
+                    &package.manifest,
+                    &dependency.key,
+                    "`workspace = true` but there is no workspace manifest above the package"
+                        .to_owned(),
+                ));
+            }
+        },
+    };
+    let named = match place {
+        None => None,
+        Some((base, relative)) => match base.join(&relative) {
+            Ok(joined) => {
+                let target = tidy(reader.tree, &joined).map_err(|error| {
+                    LoadError::tree(&package.manifest, None, &Origin::Discovery, error)
+                })?;
+                reader.dirs.get(&target).map(|name| (*name).to_owned())
+            }
+            // A path that leaves the tree, or is absolute, names no package
+            // of the workspace.
+            Err(PathError::AboveRoot { .. } | PathError::Absolute { .. }) => None,
+            Err(other) => {
+                return Err(manifest_error(
+                    &package.manifest,
+                    &dependency.key,
+                    other.to_string(),
+                ));
+            }
+        },
+    };
+    Ok(DependencyInfo {
+        kind: dependency.kind,
+        name: dependency.name.replace('-', "_"),
+        renamed,
+        package: named,
     })
 }
 

@@ -555,3 +555,357 @@ fn a_trait_path_that_cannot_be_made_absolute_is_a_typed_error() {
         .is_ok()
     );
 }
+
+/// Two packages whose libraries are both named `shared`, a package that
+/// depends on one by path and on the other through `[workspace.dependencies]`
+/// under another name, and one that renames a path dependency.
+const SHARED: [(&str, &str); 14] = [
+    (
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"one\", \"two\", \"three\", \"four\"]\n\n\
+         [workspace.dependencies]\nalias = { path = \"two\", package = \"p-two\" }\n",
+    ),
+    (
+        "one/Cargo.toml",
+        "[package]\nname = \"p-one\"\nedition = \"2021\"\n\n[lib]\nname = \"shared\"\n",
+    ),
+    (
+        "one/src/lib.rs",
+        "pub struct X;\npub fn only_one() {}\npub trait Tr {}\n",
+    ),
+    ("one/tests/it.rs", "pub use shared::only_one;\n"),
+    ("one/build.rs", "pub use shared::only_one;\nfn main() {}\n"),
+    (
+        "two/Cargo.toml",
+        "[package]\nname = \"p-two\"\nedition = \"2021\"\n\n[lib]\nname = \"shared\"\n",
+    ),
+    ("two/src/lib.rs", "pub struct X;\npub trait Tr {}\n"),
+    (
+        "three/Cargo.toml",
+        "[package]\nname = \"p-three\"\nedition = \"2021\"\n\n\
+         [dependencies]\np-one = { path = \"../one\" }\n\n\
+         [dev-dependencies]\nalias = { workspace = true }\n",
+    ),
+    (
+        "three/src/lib.rs",
+        "pub use shared::X;\npub use shared::only_one;\npub use alias::X as NotHere;\n\
+         #[cfg(test)]\nmod tests {\n    pub use alias::X as Two;\n}\n",
+    ),
+    (
+        "three/tests/it.rs",
+        "pub use alias::X as Two;\npub use shared::X;\n",
+    ),
+    (
+        "four/Cargo.toml",
+        "[package]\nname = \"p-four\"\nedition = \"2021\"\n\n\
+         [dependencies]\nrenamed = { path = \"../two\", package = \"p-two\" }\n",
+    ),
+    (
+        "four/src/lib.rs",
+        "pub use renamed::X;\npub use shared::X as Shared;\nextern crate renamed as again;\npub use again::X as Again;\npub mod m {\n    pub use again::X;\n}\n",
+    ),
+    ("four/src/main.rs", "pub use p_four::X;\nfn main() {}\n"),
+    ("four/tests/it.rs", "pub use p_four::X;\n"),
+];
+
+fn shared() -> Workspace {
+    let tree: MemoryTree = SHARED.into_iter().collect();
+    Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"))
+}
+
+/// The file of the definition a path resolves to.
+fn file_of(ws: &Workspace, resolution: &raf_source::Resolution) -> String {
+    ws.item(resolution.sites[0])
+        .expect("the site is an item")
+        .file
+        .to_string()
+}
+
+#[test]
+fn two_libraries_with_one_crate_name_are_ambiguous_until_the_package_is_named() {
+    let ws = shared();
+    for path in ["shared::X", "shared"] {
+        match ws.resolve(path) {
+            Err(ResolveError::Ambiguous(ids)) => {
+                let files: Vec<_> = ids
+                    .iter()
+                    .map(|id| ws.item(*id).expect("item").file.as_str())
+                    .collect();
+                assert_eq!(files, ["one/src/lib.rs", "two/src/lib.rs"], "{path}");
+            }
+            other => panic!("{path}: {other:?}"),
+        }
+    }
+    let two = ws
+        .resolve_in_package("p-two", "shared::X")
+        .expect("in p-two");
+    assert_eq!(two.path, "shared::X");
+    assert_eq!(file_of(&ws, &two), "two/src/lib.rs");
+    let one = ws
+        .resolve_in_package("p-one", "shared::X")
+        .expect("in p-one");
+    assert_eq!(file_of(&ws, &one), "one/src/lib.rs");
+    assert!(matches!(
+        ws.resolve_in_package("p-two", "shared::only_one"),
+        Err(ResolveError::NotFound(_))
+    ));
+    assert_eq!(
+        ws.resolve_in_package("p-nine", "shared::X"),
+        Err(ResolveError::UnknownPackage("p-nine".to_owned()))
+    );
+}
+
+#[test]
+fn a_crate_name_in_an_import_is_the_dependency_its_target_declares() {
+    let ws = shared();
+    // A path dependency names its package's library by the library's name.
+    let x = ws
+        .resolve("p_three::X")
+        .expect("through the path dependency");
+    assert_eq!(file_of(&ws, &x), "one/src/lib.rs");
+    assert_eq!(x.chain, ["p_three::X", "shared::X"]);
+    assert_eq!(
+        file_of(&ws, &ws.resolve("p_three::only_one").expect("resolves")),
+        "one/src/lib.rs"
+    );
+    // A dev-dependency renamed in `[workspace.dependencies]` is named by its
+    // new name, in test code only.
+    let two = ws.resolve("p_three::tests::Two").expect("test code");
+    assert_eq!(file_of(&ws, &two), "two/src/lib.rs");
+    not_found(&ws, "p_three::NotHere");
+    let test_target = ws
+        .resolve("p_three::test_crate::it::Two")
+        .expect("a test target names its dev-dependencies");
+    assert_eq!(file_of(&ws, &test_target), "two/src/lib.rs");
+    assert_eq!(
+        file_of(
+            &ws,
+            &ws.resolve("p_three::test_crate::it::X").expect("resolves")
+        ),
+        "one/src/lib.rs"
+    );
+    // A renamed path dependency is named by the name it is declared under,
+    // and not by its library's name; so is the crate of an `extern crate`.
+    let renamed = ws.resolve("p_four::X").expect("renamed");
+    assert_eq!(file_of(&ws, &renamed), "two/src/lib.rs");
+    let again = ws.resolve("p_four::Again").expect("extern crate");
+    assert_eq!(file_of(&ws, &again), "two/src/lib.rs");
+    // An `extern crate` item at the crate root adds its name to the extern
+    // prelude, so every module of the crate names it.
+    let nested = ws.resolve("p_four::m::X").expect("from a module");
+    assert_eq!(file_of(&ws, &nested), "two/src/lib.rs");
+    not_found(&ws, "p_four::Shared");
+    // A test target and a binary name their own package's library; the
+    // build script does not.
+    let own = ws
+        .resolve("p_one::test_crate::it::only_one")
+        .expect("its own library");
+    assert_eq!(file_of(&ws, &own), "one/src/lib.rs");
+    not_found(&ws, "p_one::build_script::only_one");
+    for path in ["p_four::bin_crate::p_four::X", "p_four::test_crate::it::X"] {
+        assert_eq!(
+            file_of(&ws, &ws.resolve(path).expect("own library")),
+            "two/src/lib.rs",
+            "{path}"
+        );
+    }
+}
+
+#[test]
+fn extern_crate_self_names_the_crate_itself_from_every_module() {
+    let ws = lib("extern crate self as demo;\n\
+         pub mod inner { pub fn go() {} }\n\
+         pub mod user { pub use demo::inner::go; }\n\
+         pub mod traits { pub trait Tr {} }\n\
+         mod impls { impl demo::traits::Tr for u8 {} }\n");
+    assert_eq!(path_of(&ws, "demo::user::go"), "demo::inner::go");
+    // Without the `extern crate` item the library cannot name itself.
+    let ws = lib("pub mod inner { pub fn go() {} }\n\
+         pub mod user { pub use demo::inner::go; }\n");
+    not_found(&ws, "demo::user::go");
+}
+
+/// A package whose library names `shared` for one package and whose test
+/// code names `shared` for another as well: cargo builds its library and
+/// reports the name as ambiguous in its test code.
+const SPLIT: [(&str, &str); 8] = [
+    (
+        "one/Cargo.toml",
+        "[package]\nname = \"p-one\"\nedition = \"2021\"\n\n[lib]\nname = \"shared\"\n",
+    ),
+    (
+        "one/src/lib.rs",
+        "pub struct X;\npub fn only_one() {}\npub trait Tr {}\n",
+    ),
+    (
+        "two/Cargo.toml",
+        "[package]\nname = \"p-two\"\nedition = \"2021\"\n",
+    ),
+    ("two/src/lib.rs", "pub struct X;\npub trait Tr {}\n"),
+    (
+        "three/Cargo.toml",
+        "[package]\nname = \"p-three\"\nedition = \"2021\"\n\n\
+         [dependencies]\np-one = { path = \"../one\" }\n\n\
+         [dev-dependencies]\nshared = { path = \"../two\", package = \"p-two\" }\n",
+    ),
+    (
+        "three/src/lib.rs",
+        "pub use shared::X as A;\npub use shared::only_one as L;\n\
+         impl shared::Tr for Vec<u8> { fn lib_side() {} }\n\
+         #[cfg(test)]\nimpl shared::Tr for Vec<u16> { fn test_side() {} }\n\
+         extern crate shared as one;\n\
+         pub mod d {\n    pub use one::X as D;\n}\n\
+         #[cfg(test)]\nmod tests {\n    pub use shared::X as B;\n    pub use shared::only_one as T;\n    pub use shared as S;\n}\n\
+         #[cfg(test)]\nextern crate shared as sh;\n\
+         #[cfg(test)]\nmod t2 {\n    pub use sh::X as C;\n    pub use sh::only_one as E;\n}\n\
+         #[cfg(test)]\npub mod t {\n    pub use shared;\n    pub use shared::*;\n}\n",
+    ),
+    (
+        "three/tests/it.rs",
+        "pub use shared::X;\npub use shared::only_one;\n",
+    ),
+    ("three/src/main.rs", "pub use shared::X;\nfn main() {}\n"),
+];
+
+#[test]
+fn a_dev_dependency_is_named_only_by_test_code_even_under_a_normal_dependencys_name() {
+    let tree: MemoryTree = SPLIT.into_iter().collect();
+    let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+    // Code that is not test code names the normal dependency only.
+    for path in [
+        "p_three::A",
+        "p_three::L",
+        "p_three::d::D",
+        "p_three::bin_crate::p_three::X",
+    ] {
+        let found = ws.resolve(path).unwrap_or_else(|e| panic!("{path}: {e}"));
+        assert_eq!(file_of(&ws, &found), "one/src/lib.rs", "{path}");
+    }
+    // Test code names both, as rustc does, so a path through the name, or
+    // through an `extern crate` of it, is ambiguous whatever follows it, even
+    // where one library alone defines the rest; it names both crate roots.
+    for path in [
+        "p_three::tests::B",
+        "p_three::tests::T",
+        "p_three::tests::S",
+        "p_three::tests::S::only_one",
+        "p_three::t2::C",
+        "p_three::t2::E",
+        "p_three::test_crate::it::X",
+        "p_three::test_crate::it::only_one",
+    ] {
+        match ws.resolve(path) {
+            Err(ResolveError::Ambiguous(ids)) => {
+                let mut files: Vec<_> = ids
+                    .iter()
+                    .map(|id| {
+                        let item = ws.item(*id).expect("item");
+                        assert_eq!(item.kind, raf_source::SymbolKind::Mod, "{path}");
+                        item.file.as_str()
+                    })
+                    .collect();
+                files.sort_unstable();
+                assert_eq!(files, ["one/src/lib.rs", "two/src/lib.rs"], "{path}");
+            }
+            other => panic!("{path}: {other:?}"),
+        }
+    }
+    // An import that goes on into the crates names something in each name
+    // space, so it is ambiguous in the value name space too.
+    for path in ["p_three::tests::T", "p_three::tests::B"] {
+        assert!(
+            matches!(
+                ws.resolve_in(path, Namespace::Value),
+                Err(ResolveError::Ambiguous(_))
+            ),
+            "{path}: {:?}",
+            ws.resolve_in(path, Namespace::Value)
+        );
+    }
+    // A glob of the name brings in nothing, even through an import of it, so
+    // a name only that glob could bring is not found; the import itself is
+    // ambiguous.
+    assert_eq!(
+        ws.resolve("p_three::t::only_one"),
+        Err(ResolveError::NotFound("p_three::t::only_one".to_owned()))
+    );
+    assert!(matches!(
+        ws.resolve("p_three::t::shared::only_one"),
+        Err(ResolveError::Ambiguous(_))
+    ));
+    // A trait through the name is keyed under the one library in library
+    // code, and in test code under the path in each library, unresolved.
+    let key = |name: &str| {
+        let keys: Vec<_> = ws
+            .items()
+            .filter(|item| item.name == name)
+            .map(|item| item.trait_key.as_deref().cloned())
+            .collect();
+        assert_eq!(keys.len(), 1, "{name}");
+        keys[0].clone().expect("a trait key")
+    };
+    assert_eq!(
+        key("lib_side"),
+        raf_source::TraitKey::Canonical("shared::Tr".to_owned())
+    );
+    assert_eq!(
+        key("test_side"),
+        raf_source::TraitKey::Unresolved {
+            written: "shared::Tr".to_owned(),
+            candidates: vec!["p_two::Tr".to_owned(), "shared::Tr".to_owned()],
+        }
+    );
+}
+
+#[test]
+fn a_name_bound_to_several_modules_gives_a_trait_key_through_each() {
+    let manifest = "[package]\nname = \"demo\"\nedition = \"2021\"\n\n\
+                    [dependencies]\nserde = \"1\"\nother = \"1\"\n";
+    // `m` is brought in by two globs; rustc reports it as ambiguous, and the
+    // trait key lists the path through each module, never the first.
+    let tree: MemoryTree = [
+        ("Cargo.toml", manifest),
+        (
+            "src/lib.rs",
+            "pub mod a { pub mod m { pub use serde::Tr; } }\n\
+             pub mod b { pub mod m { pub use other::Tr; } }\n\
+             pub mod user {\n\
+                 use crate::a::*;\n    use crate::b::*;\n\
+                 impl m::Tr for u8 { fn f() {} }\n\
+             }\n\
+             pub mod unseen {\n\
+                 use crate::a::*;\n    use crate::b::*;\n    use m::Gen::*;\n\
+                 impl Hidden for u8 { fn g() {} }\n\
+             }\n",
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+    let key = |path: &str| {
+        let keys: Vec<_> = ws
+            .items()
+            .filter(|item| item.path == path)
+            .map(|item| item.trait_key.as_deref().cloned())
+            .collect();
+        assert_eq!(keys.len(), 1, "{path}");
+        keys[0].clone().expect("a trait key")
+    };
+    assert_eq!(
+        key("m::Tr::f"),
+        raf_source::TraitKey::Unresolved {
+            written: "m::Tr".to_owned(),
+            candidates: vec!["other::Tr".to_owned(), "serde::Tr".to_owned()],
+        }
+    );
+    assert_eq!(
+        key("Hidden::g"),
+        raf_source::TraitKey::Unresolved {
+            written: "Hidden".to_owned(),
+            candidates: vec![
+                "demo::a::m::Gen::Hidden".to_owned(),
+                "demo::b::m::Gen::Hidden".to_owned()
+            ],
+        }
+    );
+}

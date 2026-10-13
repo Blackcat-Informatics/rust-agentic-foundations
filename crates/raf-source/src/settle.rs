@@ -18,7 +18,7 @@ use crate::facts::Vis;
 use crate::index::{Index, UseDecl, UseKind, binding_bytes};
 use crate::item::{ItemId, Namespace};
 use crate::meter::Meter;
-use crate::resolve::Fail;
+use crate::resolve::{Fail, Heads};
 
 /// How a name came to be bound in a module.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -244,11 +244,11 @@ impl Index {
                         .split("::")
                         .map(str::to_owned)
                         .collect();
-                    self.walk(home, &segs, false, Namespace::Type, false)
+                    self.walk(home, &segs, false, Namespace::Type, Heads::Local)
                         .is_ok_and(|walked| {
                             let mut modules = walked.modules;
                             modules
-                                .extend(walked.items.keys().filter_map(|id| self.module_for(*id)));
+                                .extend(walked.items.keys().flat_map(|id| self.modules_for(*id)));
                             modules
                                 .iter()
                                 .any(|ancestor| self.within(importer, *ancestor))
@@ -356,9 +356,14 @@ impl Index {
             .is_some_and(|count| *count > 0)
     }
 
-    /// The module that an item stands for, if it is a module or an `extern crate`.
-    pub(crate) fn module_for(&self, id: ItemId) -> Option<usize> {
-        self.module_of.get(&id).copied()
+    /// The modules that an item stands for: the module of a `mod` item, or
+    /// the crate roots of an `extern crate` item.
+    pub(crate) fn modules_for(&self, id: ItemId) -> impl Iterator<Item = usize> + '_ {
+        self.module_of
+            .get(&id)
+            .copied()
+            .into_iter()
+            .chain(self.crate_of.get(&id).into_iter().flatten().copied())
     }
 
     pub(crate) fn super_check(&self, decl: &UseDecl, segs: &[String]) -> Result<(), LoadError> {
@@ -382,9 +387,17 @@ impl Index {
         decl: &UseDecl,
         segs: &[String],
     ) -> Result<BTreeSet<usize>, Fail> {
-        let walked = self.walk(decl.module, segs, decl.leading_colon, Namespace::Type, true)?;
+        let walked = self.walk(
+            decl.module,
+            segs,
+            decl.leading_colon,
+            Namespace::Type,
+            Heads::Code { test: decl.test },
+        )?;
         let mut targets = walked.modules;
-        targets.extend(walked.items.keys().filter_map(|id| self.module_for(*id)));
+        targets.extend(walked.items.keys().flat_map(|id| self.modules_for(*id)));
+        // A glob of a name that stands for several crates brings in nothing.
+        self.one_crate(&targets, segs.len())?;
         targets.remove(&decl.module);
         Ok(targets)
     }
@@ -599,7 +612,13 @@ impl Index {
     ) -> Result<Vec<(usize, String)>, LoadError> {
         let mut bound = Vec::new();
         for ns in Namespace::ALL {
-            match self.walk(decl.module, segs, decl.leading_colon, ns, true) {
+            match self.walk(
+                decl.module,
+                segs,
+                decl.leading_colon,
+                ns,
+                Heads::Code { test: decl.test },
+            ) {
                 Ok(walked) => {
                     for (id, hit) in walked.items {
                         self.use_resolved[position] = true;
@@ -624,6 +643,36 @@ impl Index {
                     }
                 }
                 Err(Fail::Missing(sources)) => pending.wait(position, sources),
+                // The import goes through a name that stands for the crate
+                // roots of several crates; it binds its name to them, so a
+                // path through it, or to it, is ambiguous. An import of the
+                // crate name itself names crates, in the type name space; one
+                // that goes on into the crates names something in each name
+                // space the path could end in.
+                Err(Fail::SeveralCrates { roots, rest }) => {
+                    if ns == Namespace::Type || rest < segs.len() {
+                        for id in roots {
+                            self.use_resolved[position] = true;
+                            meter.items(
+                                binding_bytes(name, &decl.vis, 0),
+                                &decl.file,
+                                Some(decl.line),
+                            )?;
+                            let origin = Origin {
+                                via_glob: false,
+                                vis: decl.vis.clone(),
+                                link: Some(Link {
+                                    module: decl.module,
+                                    name: name.to_owned(),
+                                    source: None,
+                                }),
+                            };
+                            if self.insert_def(decl.module, ns, name, id, origin) {
+                                bound.push((decl.module, name.to_owned()));
+                            }
+                        }
+                    }
+                }
                 Err(Fail::SuperAboveRoot) => {
                     return Err(LoadError::new(
                         &decl.file,
@@ -664,8 +713,9 @@ impl Index {
             }
             Err(Fail::Missing(sources)) => pending.wait(position, sources),
             // `super` above the root is refused for every import before the
-            // queue runs.
-            Err(Fail::SuperAboveRoot) => {}
+            // queue runs, and a glob of a name that stands for several crates
+            // brings in nothing: rustc refuses it.
+            Err(Fail::SuperAboveRoot | Fail::SeveralCrates { .. }) => {}
         }
         bound
     }

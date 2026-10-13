@@ -283,7 +283,7 @@ fn reach_bytes(reach: &Reach) -> usize {
         + vec_slot::<(usize, usize)>()
         + vec_slot::<Visit>()
         + btree_entry::<(RelPath, TargetId, SharedStr), ()>()
-        + btree_entry::<&str, Vec<&SourceFile>>()
+        + btree_entry::<(TargetId, &str), Vec<&SourceFile>>()
         + vec_first::<&SourceFile>()
 }
 
@@ -934,6 +934,18 @@ fn parent_dir(file: &RelPath) -> Result<RelPath, LoadError> {
 }
 
 fn extract_error(file: &RelPath, origin: &Origin, problem: ExtractError) -> LoadError {
+    // A `path` attribute on a module is what the error comes from, not what
+    // reached the file that holds it.
+    if let ExtractError::PathAttr {
+        line,
+        module: Some(module),
+        predicate,
+        message,
+    } = problem
+    {
+        return LoadError::new(file, Some(line), LoadErrorKind::CfgParse { message })
+            .reached_by(&Origin::PathAttr { module, predicate });
+    }
     let (line, kind) = match problem {
         ExtractError::Budget { line, limit } => (
             line,
@@ -942,7 +954,9 @@ fn extract_error(file: &RelPath, origin: &Origin, problem: ExtractError) -> Load
                 limit,
             },
         ),
-        ExtractError::Cfg { line, message } => (line, LoadErrorKind::CfgParse { message }),
+        ExtractError::Cfg { line, message } | ExtractError::PathAttr { line, message, .. } => {
+            (line, LoadErrorKind::CfgParse { message })
+        }
         ExtractError::Unsupported { line, what } => (line, LoadErrorKind::UnsupportedItem { what }),
         ExtractError::Position { line } => (
             line,

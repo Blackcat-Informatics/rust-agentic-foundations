@@ -208,10 +208,18 @@ impl Context<'_> {
 
     fn library(&self, out: &mut Vec<Derived>) -> Result<(), LoadError> {
         let explicit = self.manifest.lib.as_ref();
-        let origin = Self::key("lib", "path");
-        let relative = explicit
-            .and_then(|lib| lib.path.as_deref())
-            .unwrap_or("src/lib.rs");
+        let written = explicit.and_then(|lib| lib.path.as_deref());
+        // The key that led to the root: `lib.path` when the manifest names
+        // the file, the `[lib]` table when it only declares the library, and
+        // discovery for the default library of a package without `[lib]`.
+        let origin = match (written, explicit) {
+            (Some(_), _) => Self::key("lib", "path"),
+            (None, Some(_)) => Origin::ManifestKey {
+                key: "lib".to_owned(),
+            },
+            (None, None) => Origin::Discovery,
+        };
+        let relative = written.unwrap_or("src/lib.rs");
         let root = self.join(relative, &origin)?;
         if self.is_file(&root, &origin)? {
             let name = explicit
@@ -445,7 +453,8 @@ pub(crate) fn derive_targets(context: &Context<'_>) -> Result<Vec<Derived>, Load
     Ok(out)
 }
 
-/// Refuse two targets, in this package or another, that share a crate path.
+/// Refuse two targets of one package that share a crate path. Targets of
+/// different packages may share one: the index keys crates by package.
 ///
 /// # Errors
 ///
@@ -453,10 +462,10 @@ pub(crate) fn derive_targets(context: &Context<'_>) -> Result<Vec<Derived>, Load
 /// manifest key that declared it and the earlier target.
 pub(crate) fn check_crate_paths(derived: &[(&RelPath, Derived)]) -> Result<(), LoadError> {
     for (index, (manifest, later)) in derived.iter().enumerate() {
-        if let Some((first_manifest, first)) = derived[..index]
-            .iter()
-            .find(|(_, earlier)| earlier.target.crate_path == later.target.crate_path)
-        {
+        if let Some((first_manifest, first)) = derived[..index].iter().find(|(_, earlier)| {
+            earlier.target.package == later.target.package
+                && earlier.target.crate_path == later.target.crate_path
+        }) {
             return Err(LoadError::new(
                 manifest,
                 None,

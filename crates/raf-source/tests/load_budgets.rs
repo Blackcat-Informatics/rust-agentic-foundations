@@ -483,10 +483,10 @@ fn a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps() 
     // items at each arrival but the last, and one item at each of those.
     let files = reached_many_times(12, "pub type T = a;\n");
     let arrivals = (1 << 13) - 1;
-    // A load of this shape keeps 1624 bytes of index for each arrival,
+    // A load of this shape keeps 1646 bytes of index for each arrival,
     // measured with a counting allocator in a release build over 131071
     // arrivals; what it is charged must cover that.
-    let kept = 1_624 * arrivals;
+    let kept = 1_646 * arrivals;
     let charged = item_bytes_of(&files);
     assert!(charged >= kept, "{charged} charged for {kept} kept");
 }
@@ -501,11 +501,11 @@ fn nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep()
         text
     });
     let modules = 20 * 101;
-    // Such a load keeps 1474 bytes of index for each module, measured with a
+    // Such a load keeps 1499 bytes of index for each module, measured with a
     // counting allocator in a release build over 202000 of them; what it is
     // charged must cover that, as every charge is an upper bound of the
     // allocations it covers.
-    let kept = 1_474 * modules;
+    let kept = 1_499 * modules;
     let charged = usage(&[("src/lib.rs", &text)]).item_bytes;
     assert!(charged >= kept, "{charged} charged for {kept} kept");
 }

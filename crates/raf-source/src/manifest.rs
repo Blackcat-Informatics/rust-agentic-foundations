@@ -8,7 +8,7 @@
 //! limit turns deep nesting into an error and not a crash. Every wrong value
 //! is an error that names its key.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use toml::{Table, Value};
 
@@ -48,20 +48,31 @@ pub(crate) enum EditionDecl {
     Unset,
 }
 
-/// The names of the crates a package declares, as they are written in code.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub(crate) struct Dependencies {
-    pub(crate) normal: BTreeSet<String>,
-    pub(crate) dev: BTreeSet<String>,
-    pub(crate) build: BTreeSet<String>,
+/// The table a dependency is declared in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DependencyKind {
+    /// `[dependencies]`.
+    Normal,
+    /// `[dev-dependencies]`.
+    Dev,
+    /// `[build-dependencies]`.
+    Build,
 }
 
-/// A dependency that names a directory, and where its path comes from.
+/// One dependency of a package, from any of its tables, the `[target.*]`
+/// ones included.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PathDependency {
+pub(crate) struct Dependency {
     /// The table and name, such as `dependencies.helper`, for messages.
     pub(crate) key: String,
-    pub(crate) path: PathSource,
+    /// The table it is declared in.
+    pub(crate) kind: DependencyKind,
+    /// The name it is declared under.
+    pub(crate) name: String,
+    /// `package = ".."`: the package the entry renames, when it renames one.
+    pub(crate) package: Option<String>,
+    /// Where the dependency gets its directory, when it names one.
+    pub(crate) path: Option<PathSource>,
 }
 
 /// Where a path dependency gets its directory.
@@ -72,6 +83,15 @@ pub(crate) enum PathSource {
     /// `workspace = true`: the dependency of that name in
     /// `[workspace.dependencies]`, relative to the workspace manifest.
     Workspace(String),
+}
+
+/// An entry of `[workspace.dependencies]`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct WorkspaceDependency {
+    /// Its `path`, relative to the workspace manifest.
+    pub(crate) path: Option<String>,
+    /// `package = ".."`, when it renames a package.
+    pub(crate) package: Option<String>,
 }
 
 /// A `[lib]` table.
@@ -115,13 +135,12 @@ pub(crate) struct Manifest {
     pub(crate) workspace_edition: Option<u16>,
     /// `workspace.members`, when the manifest has a `[workspace]` table.
     pub(crate) members: Vec<String>,
-    /// The path dependencies of the package, in all dependency tables.
-    pub(crate) path_dependencies: Vec<PathDependency>,
-    /// `[workspace.dependencies]` entries that have a `path`, by name.
-    pub(crate) workspace_paths: BTreeMap<String, String>,
+    /// The dependencies of the package, in all dependency tables.
+    pub(crate) dependencies: Vec<Dependency>,
+    /// The `[workspace.dependencies]` entries, by name.
+    pub(crate) workspace_dependencies: BTreeMap<String, WorkspaceDependency>,
     /// `workspace.exclude`.
     pub(crate) exclude: Vec<String>,
-    pub(crate) dependencies: Dependencies,
     pub(crate) lib: Option<LibDecl>,
     pub(crate) bins: Vec<TargetDecl>,
     pub(crate) tests: Vec<TargetDecl>,
@@ -157,79 +176,67 @@ fn table_of<'a>(value: &'a Value, key: &str) -> Result<&'a Table, ManifestError>
         .ok_or_else(|| at_key(key, "must be a table"))
 }
 
-/// The keys of one dependency table, as crate names in code.
-fn dependency_keys(root: &Table, key: &str) -> Result<BTreeSet<String>, ManifestError> {
-    match root.get(key) {
-        None => Ok(BTreeSet::new()),
-        Some(value) => Ok(table_of(value, key)?
-            .keys()
-            .map(|name| name.replace('-', "_"))
-            .collect()),
+/// The value of `package` in a dependency table at `key`, if it has one.
+fn renamed(details: &Table, key: &str) -> Result<Option<String>, ManifestError> {
+    match details.get("package") {
+        None => Ok(None),
+        Some(Value::String(package)) => Ok(Some(package.clone())),
+        Some(_) => Err(at_key(key, "`package` must be a string")),
     }
 }
 
-/// The dependencies of a manifest: the three tables at the top and the same
-/// three under each `[target.<platform>]`.
-fn dependencies(root: &Table) -> Result<Dependencies, ManifestError> {
-    let mut found = Dependencies {
-        normal: dependency_keys(root, "dependencies")?,
-        dev: dependency_keys(root, "dev-dependencies")?,
-        build: dependency_keys(root, "build-dependencies")?,
-    };
-    if let Some(targets) = root.get("target") {
-        for (platform, value) in table_of(targets, "target")? {
-            let table = table_of(value, &format!("target.{platform}"))?;
-            found.normal.extend(dependency_keys(table, "dependencies")?);
-            found
-                .dev
-                .extend(dependency_keys(table, "dev-dependencies")?);
-            found
-                .build
-                .extend(dependency_keys(table, "build-dependencies")?);
-        }
-    }
-    Ok(found)
-}
-
-/// The dependencies of `table` that name a directory.
-fn path_entries(
+/// The dependencies of the three tables of `table`, whose keys start with
+/// `prefix` in messages.
+fn dependency_entries(
     table: &Table,
     prefix: &str,
-    out: &mut Vec<PathDependency>,
+    out: &mut Vec<Dependency>,
 ) -> Result<(), ManifestError> {
-    for section in ["dependencies", "dev-dependencies", "build-dependencies"] {
+    for (section, kind) in [
+        ("dependencies", DependencyKind::Normal),
+        ("dev-dependencies", DependencyKind::Dev),
+        ("build-dependencies", DependencyKind::Build),
+    ] {
         let Some(value) = table.get(section) else {
             continue;
         };
         for (name, entry) in table_of(value, &format!("{prefix}{section}"))? {
-            let Value::Table(details) = entry else {
-                continue;
-            };
             let key = format!("{prefix}{section}.{name}");
-            match (details.get("path"), details.get("workspace")) {
-                (Some(Value::String(path)), _) => out.push(PathDependency {
-                    key,
-                    path: PathSource::Own(path.clone()),
-                }),
-                (Some(_), _) => return Err(at_key(&key, "`path` must be a string")),
-                (None, Some(Value::Boolean(true))) => out.push(PathDependency {
-                    key,
-                    path: PathSource::Workspace(name.clone()),
-                }),
-                (None, _) => {}
-            }
+            let (package, path) = match entry {
+                Value::Table(details) => {
+                    let path = match (details.get("path"), details.get("workspace")) {
+                        (Some(Value::String(path)), _) => Some(PathSource::Own(path.clone())),
+                        (Some(_), _) => return Err(at_key(&key, "`path` must be a string")),
+                        (None, Some(Value::Boolean(true))) => {
+                            Some(PathSource::Workspace(name.clone()))
+                        }
+                        (None, _) => None,
+                    };
+                    (renamed(details, &key)?, path)
+                }
+                _ => (None, None),
+            };
+            out.push(Dependency {
+                key,
+                kind,
+                name: name.clone(),
+                package,
+                path,
+            });
         }
     }
     Ok(())
 }
 
-fn path_dependencies(root: &Table) -> Result<Vec<PathDependency>, ManifestError> {
+/// The dependencies of a manifest: the three tables at the top and the same
+/// three under each `[target.<platform>]`.
+fn dependencies(root: &Table) -> Result<Vec<Dependency>, ManifestError> {
     let mut found = Vec::new();
-    path_entries(root, "", &mut found)?;
+    dependency_entries(root, "", &mut found)?;
     if let Some(targets) = root.get("target") {
         for (platform, value) in table_of(targets, "target")? {
             let table = table_of(value, &format!("target.{platform}"))?;
-            path_entries(table, &format!("target.{platform}."), &mut found)?;
+            dependency_entries(table, &format!("target.{platform}."), &mut found)?;
         }
     }
     Ok(found)
@@ -334,24 +341,27 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
             })
             .collect()
     };
-    let mut workspace_paths = BTreeMap::new();
+    let mut workspace_dependencies = BTreeMap::new();
     if let Some(value) = workspace.and_then(|table| table.get("dependencies")) {
         for (name, entry) in table_of(value, "workspace.dependencies")? {
+            // A version alone names no path and renames nothing.
             let Value::Table(details) = entry else {
+                workspace_dependencies.insert(name.clone(), WorkspaceDependency::default());
                 continue;
             };
-            match details.get("path") {
-                None => {}
-                Some(Value::String(path)) => {
-                    workspace_paths.insert(name.clone(), path.clone());
-                }
-                Some(_) => {
-                    return Err(at_key(
-                        &format!("workspace.dependencies.{name}"),
-                        "`path` must be a string",
-                    ));
-                }
-            }
+            let key = format!("workspace.dependencies.{name}");
+            let path = match details.get("path") {
+                None => None,
+                Some(Value::String(path)) => Some(path.clone()),
+                Some(_) => return Err(at_key(&key, "`path` must be a string")),
+            };
+            workspace_dependencies.insert(
+                name.clone(),
+                WorkspaceDependency {
+                    path,
+                    package: renamed(details, &key)?,
+                },
+            );
         }
     }
     let members = strings("members")?;
@@ -389,9 +399,8 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
         workspace_edition,
         members,
         exclude,
-        path_dependencies: path_dependencies(&root)?,
-        workspace_paths,
         dependencies: dependencies(&root)?,
+        workspace_dependencies,
         lib,
         bins: declarations(&root, "bin")?,
         tests: declarations(&root, "test")?,

@@ -265,11 +265,16 @@ pub(crate) fn members(
         let owner = dir
             .join("Cargo.toml")
             .map_err(|error| LoadError::tree(&dir, None, &Origin::Discovery, error.into()))?;
-        for dependency in &member.path_dependencies {
+        for dependency in &member.dependencies {
             let (base, relative) = match &dependency.path {
-                PathSource::Own(path) => (dir.clone(), path.as_str()),
-                PathSource::Workspace(name) => match parsed.workspace_paths.get(name) {
-                    Some(path) => (workspace_dir.clone(), path.as_str()),
+                None => continue,
+                Some(PathSource::Own(path)) => (dir.clone(), path.as_str()),
+                Some(PathSource::Workspace(name)) => match parsed
+                    .workspace_dependencies
+                    .get(name)
+                    .and_then(|entry| entry.path.as_deref())
+                {
+                    Some(path) => (workspace_dir.clone(), path),
                     // A workspace dependency without a path is not a path dependency.
                     None => continue,
                 },

@@ -7,8 +7,8 @@
 use std::fmt::Write as _;
 
 use raf_source::{
-    Item, LoadError, LoadErrorKind, MemoryTree, Namespace, RelPath, ResolveError, SymbolKind,
-    TargetKind, TestRole, Vis, Workspace,
+    Item, LoadError, LoadErrorKind, MemoryTree, Namespace, RelPath, ResolveError, SelfType,
+    SymbolKind, TargetKind, TestRole, Vis, Workspace,
 };
 
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
@@ -368,25 +368,254 @@ fn impl_members_are_recorded_under_the_type_or_under_the_trait_by_the_shape_of_t
 }
 
 #[test]
-fn an_inherent_impl_on_a_type_that_does_not_resolve_is_an_error_naming_file_and_line() {
-    for bad in [
-        "impl Missing {}",
-        "impl Vec<u8> {}",
-        "impl &Foo {}",
-        "impl [u8] {}",
-        "impl<T> T {}",
+fn an_inherent_impl_on_a_type_the_index_cannot_see_is_indexed_under_its_written_self_path() {
+    for (written, path) in [
+        ("impl Missing { pub fn f() {} }", "demo::Missing"),
+        ("impl Vec<u8> { pub fn f() {} }", "demo::Vec"),
+        ("impl<T> T { pub fn f() {} }", "demo::T"),
+        ("impl &Foo { pub fn f() {} }", "demo::&Foo"),
+        ("impl [u8] { pub fn f() {} }", "demo::[u8]"),
+        ("impl crate::Missing { pub fn f() {} }", "demo::Missing"),
     ] {
-        let text = format!("pub struct Foo;\n{bad}\n");
-        let error = load(&[("src/lib.rs", &text)]).expect_err(bad);
-        assert!(
-            matches!(error.kind, LoadErrorKind::InherentImplSelf { .. }),
-            "{bad}: {error}"
-        );
-        assert_eq!(error.file.as_str(), "src/lib.rs");
-        assert_eq!(error.line, Some(2), "{bad}");
+        let text = format!("pub struct Foo;\n{written}\nimpl Foo {{ pub fn g() {{}} }}\n");
+        let ws = lib(&text);
+        let blocks: Vec<_> = ws.unresolved_impls().collect();
+        assert_eq!(blocks.len(), 1, "{written}");
+        let block = blocks[0];
+        assert_eq!(block.path, path, "{written}");
+        assert_eq!((block.file.as_str(), block.line), ("src/lib.rs", 2));
+        assert_eq!(block.test, TestRole::None);
+        let member = ws.item(block.members[0]).expect("member");
+        assert_eq!(member.path, format!("{path}::f"), "{written}");
+        assert_eq!(member.kind, SymbolKind::InherentMethod);
+        assert_eq!(member.self_key, Some(SelfType::Unresolved), "{written}");
+        assert_eq!(member.name_line, 2);
+        // The marker is on the item wherever it is read.
+        let found: Vec<_> = ws.items().filter(|item| item.id == member.id).collect();
+        assert_eq!(found[0].self_key, Some(SelfType::Unresolved));
+        let at = ws.item_at(&member.file, member.span.start_byte);
+        assert_eq!(at.len(), 1);
+        assert_eq!(at[0].self_key, Some(SelfType::Unresolved));
+        // The neighbouring impl on a local type is placed under its type.
+        let neighbour = item(&ws, "demo::Foo::g", Namespace::Value);
+        assert_eq!(neighbour.self_key, Some(SelfType::Local));
     }
-    // The neighbouring impl on a local type loads.
-    assert!(load(&[("src/lib.rs", "pub struct Foo;\nimpl Foo {}\n")]).is_ok());
+    // A path through the self path resolves to the typed error, and the self
+    // path itself, a type the index cannot see, names nothing.
+    let ws = lib("impl Missing { pub fn f() {} }\nimpl self::Missing {}\n");
+    assert_eq!(ws.unresolved_impls().count(), 2);
+    for path in ["demo::Missing::f", "demo::Missing::other"] {
+        assert_eq!(
+            ws.resolve(path),
+            Err(ResolveError::UnresolvedSelf(path.to_owned())),
+            "{path}"
+        );
+    }
+    assert!(matches!(
+        ws.resolve("demo::Missing"),
+        Err(ResolveError::NotFound(_))
+    ));
+}
+
+#[test]
+fn a_super_path_above_the_root_in_an_unresolved_self_type_is_still_an_error() {
+    let error = load(&[("src/lib.rs", "impl super::Missing {}\n")]).expect_err("above");
+    assert!(
+        matches!(error.kind, LoadErrorKind::SuperAboveRoot { .. }),
+        "{error}"
+    );
+    assert_eq!(error.line, Some(1));
+    // One `super` from a module stays inside the crate.
+    let ws = lib("mod m { impl super::Missing { fn f() {} } }\n");
+    assert_eq!(
+        ws.unresolved_impls().next().expect("listed").path,
+        "demo::Missing"
+    );
+}
+
+#[test]
+fn a_bitflags_style_macro_type_with_an_impl_loads_with_its_members_marked_unresolved() {
+    let ws = ok(&[
+        (
+            "src/lib.rs",
+            "#[macro_use]\nmod flags;\npub mod kinds;\npub fn plain() {}\n",
+        ),
+        (
+            "src/flags.rs",
+            "macro_rules! bitflags {\n    (pub struct $name:ident: $t:ty { $(const $f:ident = $v:expr;)* }) => {\n        pub struct $name($t);\n    };\n}\n",
+        ),
+        (
+            "src/kinds.rs",
+            "bitflags! {\n    pub struct Kind: u8 {\n        const A = 1;\n    }\n}\n\nimpl Kind {\n    pub fn is_a(&self) -> bool { true }\n    pub const NONE: u8 = 0;\n}\n\n#[cfg(test)]\nmod tests {\n    impl super::Kind { fn helper() {} }\n}\n",
+        ),
+    ]);
+    let blocks: Vec<_> = ws.unresolved_impls().collect();
+    let paths: Vec<_> = blocks
+        .iter()
+        .map(|block| (block.path.as_str(), block.line, block.test))
+        .collect();
+    assert_eq!(
+        paths,
+        [
+            ("demo::kinds::Kind", 7, TestRole::None),
+            ("demo::kinds::Kind", 14, TestRole::CfgTest),
+        ]
+    );
+    assert_eq!(blocks[0].self_type, "Kind");
+    assert_eq!(blocks[1].self_type, "super::Kind");
+    let members: Vec<_> = blocks[0]
+        .members
+        .iter()
+        .map(|id| {
+            let member = ws.item(*id).expect("member");
+            (member.path.as_str(), member.kind, member.self_key)
+        })
+        .collect();
+    assert_eq!(
+        members,
+        [
+            (
+                "demo::kinds::Kind::is_a",
+                SymbolKind::InherentMethod,
+                Some(SelfType::Unresolved)
+            ),
+            (
+                "demo::kinds::Kind::NONE",
+                SymbolKind::AssocConst,
+                Some(SelfType::Unresolved)
+            ),
+        ]
+    );
+    assert_eq!(
+        ws.resolve("demo::kinds::Kind::is_a"),
+        Err(ResolveError::UnresolvedSelf(
+            "demo::kinds::Kind::is_a".to_owned()
+        ))
+    );
+    assert_eq!(
+        ws.resolve_in("demo::kinds::Kind::NONE", Namespace::Value),
+        Err(ResolveError::UnresolvedSelf(
+            "demo::kinds::Kind::NONE".to_owned()
+        ))
+    );
+    // The rest of the crate is indexed and resolves.
+    assert!(ws.resolve("demo::plain").is_ok());
+    assert!(matches!(
+        ws.resolve("demo::kinds::Other::is_a"),
+        Err(ResolveError::NotFound(_))
+    ));
+}
+
+#[test]
+fn an_impl_of_a_local_trait_object_loads_with_its_members_marked_unresolved() {
+    let ws = lib("pub trait Shape { fn area(&self) -> u8; }\n\
+         impl dyn Shape + Send { pub fn describe(&self) {} }\n\
+         impl dyn Shape { pub fn twice(&self) {} }\n");
+    let blocks: Vec<_> = ws
+        .unresolved_impls()
+        .map(|block| (block.path.as_str(), block.self_type.as_str(), block.line))
+        .collect();
+    assert_eq!(
+        blocks,
+        [
+            ("demo::Shape", "dynShape+Send", 2),
+            ("demo::Shape", "dynShape", 3)
+        ]
+    );
+    for (path, line) in [("demo::Shape::describe", 2), ("demo::Shape::twice", 3)] {
+        let members: Vec<_> = ws.items().filter(|item| item.path == path).collect();
+        assert_eq!(members.len(), 1, "{path}");
+        assert_eq!(members[0].self_key, Some(SelfType::Unresolved));
+        assert_eq!(members[0].name_line, line);
+        assert_eq!(
+            ws.resolve(path),
+            Err(ResolveError::UnresolvedSelf(path.to_owned()))
+        );
+    }
+    // The trait's own method still resolves to the trait.
+    let area = item(&ws, "demo::Shape::area", Namespace::Value);
+    assert_eq!(area.kind, SymbolKind::TraitRequiredMethod);
+    assert_eq!(area.self_key, None);
+}
+
+#[test]
+fn a_glob_of_enum_variants_beside_an_impl_loads() {
+    // `http` writes `use self::Inner::*;` beside `impl PartialEq<Method> for
+    // str`: the glob brings in the enum's variants, none of which is a trait.
+    let ws = lib("pub struct Method(Inner);\n\
+         enum Inner { Get, Post }\n\
+         use self::Inner::*;\n\
+         impl PartialEq<Method> for str { fn eq(&self, _: &Method) -> bool { true } }\n\
+         pub fn first() -> Method { Method(Get) }\n");
+    let eq = item(&ws, "std::cmp::PartialEq::eq", Namespace::Value);
+    assert_eq!(eq.self_key, Some(SelfType::Trait));
+    assert_eq!(eq.self_type.as_deref(), Some("str"));
+    // A glob of an enum in another module, through `crate`.
+    let ws = ok(&[
+        (
+            "src/lib.rs",
+            "pub mod kinds;\nuse crate::kinds::Kind::*;\nstruct S;\nimpl Clone for S { fn clone(&self) -> Self { S } }\n",
+        ),
+        ("src/kinds.rs", "pub enum Kind { A, B }\n"),
+    ]);
+    assert!(ws.resolve("std::clone::Clone::clone").is_err());
+    assert!(ws.resolve("demo::S::clone").is_ok());
+    // A glob whose first segment is no local module and no crate is still
+    // refused when a trait key consults it.
+    let error = load(&[("src/lib.rs", "use bogus::Kind::*;\nimpl Tr for str {}\n")])
+        .expect_err("an unknown glob");
+    assert!(
+        matches!(&error.kind, LoadErrorKind::UnresolvedTrait { path } if path == "bogus::Kind::*"),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_glob_of_a_local_path_the_index_cannot_see_is_a_candidate_that_cannot_be_confirmed() {
+    // `nix` globs an enum that `libc_enum!` generates; `zellij-utils` globs a
+    // module that `include!` generates.
+    let ws = ok(&[
+        (
+            "src/lib.rs",
+            "macro_rules! generate { ($name:ident) => { pub enum $name { A } } }\n\
+             pub mod signal;\npub mod event;\n",
+        ),
+        (
+            "src/signal.rs",
+            "generate!(Signal);\n\
+             impl AsRef<str> for Signal { fn as_ref(&self) -> &str { \"\" } }\n\
+             pub use self::Signal::*;\n",
+        ),
+        (
+            "src/event.rs",
+            "use super::generated::api::*;\n\
+             pub struct Event;\n\
+             impl ProtobufMessage for Vec<Event> { fn encode(&self) {} }\n",
+        ),
+    ]);
+    let key = |path: &str| {
+        let found: Vec<_> = ws
+            .items()
+            .filter(|item| item.path == path)
+            .map(|item| item.trait_key.as_deref().cloned())
+            .collect();
+        assert_eq!(found.len(), 1, "{path}");
+        found[0].clone().expect("a trait key")
+    };
+    assert_eq!(
+        key("AsRef::as_ref"),
+        raf_source::TraitKey::Unresolved {
+            written: "AsRef".to_owned(),
+            candidates: vec![
+                "demo::signal::Signal::AsRef".to_owned(),
+                "std::convert::AsRef".to_owned()
+            ],
+        }
+    );
+    assert_eq!(
+        key("demo::generated::api::ProtobufMessage::encode"),
+        raf_source::TraitKey::Canonical("demo::generated::api::ProtobufMessage".to_owned())
+    );
 }
 
 #[test]
@@ -504,7 +733,7 @@ fn test_functions_carry_the_package_target_and_crate_relative_name() {
 }
 
 #[test]
-fn a_first_party_test_crate_module_beside_a_test_target_makes_the_shared_path_ambiguous() {
+fn a_first_party_test_crate_module_and_a_test_target_are_ambiguous_only_where_their_paths_meet() {
     let files = [
         ("src/lib.rs", "mod test_crate;\n"),
         ("src/test_crate.rs", "pub fn first_party() {}\n"),
@@ -521,17 +750,54 @@ fn a_first_party_test_crate_module_beside_a_test_target_makes_the_shared_path_am
     };
     assert_eq!(reached("src/test_crate.rs"), "demo::test_crate");
     assert_eq!(reached("tests/it.rs"), "demo::test_crate::it");
-    // The first-party item and the module resolve.
+    // The first-party item and the module resolve, and so does the test
+    // target's item, which nothing in the library shares a path with.
     assert!(ws.resolve("demo::test_crate::first_party").is_ok());
     assert!(ws.resolve("demo::test_crate").is_ok());
-    // A path through the shared name is ambiguous between the two.
-    match ws.resolve("demo::test_crate::it::case") {
-        Err(ResolveError::Ambiguous(ids)) => assert!(ids.len() >= 2),
-        other => panic!("{other:?}"),
+    let case = ws
+        .resolve("demo::test_crate::it::case")
+        .expect("the test item");
+    assert_eq!(
+        ws.item(case.sites[0]).expect("item").file.as_str(),
+        "tests/it.rs"
+    );
+    // Where the library's module reaches the test target's paths, each shared
+    // path names both, in either order of the files.
+    for (lib_text, file) in [
+        ("mod test_crate;\n", "src/test_crate.rs"),
+        (
+            "#[path = \"a_first.rs\"]\nmod test_crate;\n",
+            "src/a_first.rs",
+        ),
+    ] {
+        let ws = ok(&[
+            ("src/lib.rs", lib_text),
+            (
+                file,
+                "pub mod it { pub fn case() {} pub fn lib_only() {} }\n",
+            ),
+            ("tests/it.rs", "pub fn case() {}\npub fn test_only() {}\n"),
+        ]);
+        for shared in ["demo::test_crate::it::case", "demo::test_crate::it"] {
+            match ws.resolve(shared) {
+                Err(ResolveError::Ambiguous(ids)) => {
+                    let mut files: Vec<_> = ids
+                        .iter()
+                        .map(|id| ws.item(*id).expect("item").file.as_str())
+                        .collect();
+                    files.sort_unstable();
+                    assert_eq!(files, [file, "tests/it.rs"], "{shared}");
+                }
+                other => panic!("{shared}: {other:?}"),
+            }
+        }
+        let only = |path: &str| {
+            let found = ws.resolve(path).unwrap_or_else(|e| panic!("{path}: {e}"));
+            ws.item(found.sites[0]).expect("item").file.to_string()
+        };
+        assert_eq!(only("demo::test_crate::it::lib_only"), file);
+        assert_eq!(only("demo::test_crate::it::test_only"), "tests/it.rs");
     }
-    // Without the first-party module the same test path resolves.
-    let clean = ok(&[("src/lib.rs", ""), ("tests/it.rs", "pub fn case() {}\n")]);
-    assert!(clean.resolve("demo::test_crate::it::case").is_ok());
 }
 
 #[test]
