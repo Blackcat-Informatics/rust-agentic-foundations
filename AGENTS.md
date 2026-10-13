@@ -93,14 +93,26 @@ bindings.
 - The source uses **no unstable features**. A `#![feature(...)]` attribute is
   rejected; the MSRV build proves it on every change.
 - Raising the MSRV is a changelog-recorded change that rides a minor bump.
-- **Path containment is per platform.** `raf-source` verifies every opened handle
-  against the workspace root. On Linux the kernel's path for the handle (`/proc`)
-  is read, so no check is separated from the open it guards and the containment
-  race is closed. On other Unix systems the path is canonicalised again and the
-  device and inode of the handle must match, and elsewhere the handle must be a
-  regular file and the path canonicalised again must lie under the root; on both a
-  rename that wins the race against the second canonicalisation is a residual
-  window. `make cross-check` compiles every platform's verifier.
+- **Path containment is per platform.** `raf-source` verifies every handle it uses
+  against the workspace root, before the use and again after it, and reads a file's
+  contents only through a verified handle. On Linux a candidate is first taken as an
+  `O_PATH` reference and the kernel's path for it (`/proc`) must lie under the root
+  before it is opened for reading or listing through that path, so an outside
+  candidate is never opened for reading or listing. On other Unix systems the path
+  is walked beneath a descriptor of the root with `openat` (through `rustix`), one
+  component at a time and never following a symlink, so no path is resolved by name
+  and an outside candidate is never opened; a walk outside the root may only
+  descend back into it, never climb, so a link cannot leave the root and return. On
+  Windows the path the system gives for the handle (`GetFinalPathNameByHandleW`,
+  through `windows-sys`, in the library's one `unsafe` block) must lie under the
+  root; an outside file can be opened in a race and is then refused before any
+  read, and a listing or an entry lookup goes by the handle's path, so a swap made
+  and undone between the two checks can return outside names or kinds, never
+  contents. Windows also refuses reserved device names, names ending in a dot or a
+  space, and names holding a colon. `make cross-check` compiles every platform's
+  strategy and tests (macOS, FreeBSD and Windows); a Linux host runs the other two
+  strategies through a test override, and the macOS and Windows CI jobs run the
+  native ones there.
 
 ---
 
@@ -125,15 +137,17 @@ make hooks   # point core.hooksPath at .githooks for this clone
 - A missing tool is a hard failure, not a skip. `make reuse` needs `uvx` or
   `reuse`; `make msrv` needs `rust-validate`; `make fuzz` needs `cargo-fuzz`
   (`cargo install --locked cargo-fuzz@0.13.2`); `make cross-check` needs the
-  `x86_64-apple-darwin` and `x86_64-pc-windows-gnu` targets
-  (`rustup target add x86_64-apple-darwin x86_64-pc-windows-gnu`).
+  `x86_64-apple-darwin`, `x86_64-unknown-freebsd` and `x86_64-pc-windows-gnu`
+  targets (`rustup target add x86_64-apple-darwin x86_64-unknown-freebsd
+  x86_64-pc-windows-gnu`).
 - `make test-release` runs the `raf-source` tests in release mode, because the stack
   a nesting level costs the parser differs between profiles, and the `raf-okf`
   validation cost probe (`tests/validate_cost.rs`), whose time bound only holds in
   release. `make fuzz` checks the fuzz harness in `fuzz/` (its own workspace) with
   fmt, clippy and deny, then runs its target over the committed corpus. `make
-  cross-check` runs `cargo check` of `raf-source` for the two targets above. `make
-  msrv` and `make fmt` also cover the fuzz harness manifest.
+  cross-check` runs `cargo check --all-targets` of `raf-source`, warnings denied,
+  for the three targets above. `make msrv` and `make fmt` also cover the fuzz harness
+  manifest.
 - `make deny` runs offline locally; CI fetches the advisory database.
 
 ### Workspace lints
@@ -142,7 +156,11 @@ The root `Cargo.toml` declares `[workspace.lints]`, and every crate inherits the
 with `[lints] workspace = true`:
 
 - `unreachable_pub`, `missing_docs` and `unsafe_code` are denied. Use `pub(crate)`
-  for items that are not API.
+  for items that are not API. Library code has one `unsafe` block, the Windows
+  `GetFinalPathNameByHandleW` call in `crates/raf-source/src/tree/disk/final_path.rs`,
+  under an item-scoped `#[allow(unsafe_code)]` with its reason and a `SAFETY`
+  comment. The only other one is the counting allocator of the `raf-okf` bounds
+  test, under its own scoped allow.
 - The fuzz harness in `fuzz/` is its own workspace and mirrors the same
   `[workspace.lints]` tables; `tests/repo_gates.rs` fails when they differ, and
   likewise when `fuzz/deny.toml` differs from `deny.toml` by more than its one

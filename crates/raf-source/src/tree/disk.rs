@@ -4,38 +4,222 @@
 //! The disk backend, and the only module of the crate that touches the file
 //! system.
 //!
-//! A file read goes through these steps, and none of them trusts a check that
-//! the next one could outlive:
+//! A read, a listing and an entry lookup each open a handle (the file to read,
+//! the directory to list, or the directory that holds the entry), verify it
+//! against the root, use it, and verify it again after the use. How the handle
+//! is opened and verified is the platform's [`Strategy`]:
 //!
-//! 1. the candidate path is canonicalised, which follows every symlink and
-//!    applies every `..` against the real directories;
-//! 2. the canonical path must lie under the canonical root;
-//! 3. the canonical path is opened non-blocking and without following a final
-//!    symlink (Unix), so naming a FIFO cannot hang the open;
-//! 4. the opened handle is verified to lie under the root, by the strongest
-//!    check the platform has (see [`verify_open_handle`]);
-//! 5. the handle must be a regular file;
-//! 6. at most `max_bytes + 1` bytes are read, and the file is refused when
-//!    the extra byte arrives.
+//! * Linux ([`linux`]): the canonical path is taken as an `O_PATH` reference,
+//!   which performs no I/O; the kernel's own path for it must lie under the
+//!   root before it is opened for reading or listed through that path.
+//! * Other Unix systems ([`other_unix`]): the path is walked one component at
+//!   a time from a descriptor of the root, with `openat` and without following
+//!   any symlink; an in-root symlink is resolved by reading it and continuing
+//!   the walk. A walk outside the root may only descend back into it, never
+//!   climb, and opens nothing outside but directories, so an outside
+//!   non-directory is never opened. No path is resolved by name.
+//! * Windows ([`handle_path`]): the canonical path is opened as a handle and
+//!   the path the system gives for that handle must lie under the root.
 //!
-//! A listing opens the canonical directory the same way, verifies that handle
-//! with the same per-platform check, and reads the entries through the handle
-//! while it is held.
+//! On Windows a segment that Win32 would not read as the name it spells (a
+//! reserved device name, a name that ends in a dot or a space, or one that
+//! names an alternate data stream) is refused before anything else. A read
+//! takes at most `max_bytes + 1` bytes and refuses the file when the extra byte
+//! arrives.
+//!
+//! A platform with neither Unix nor Windows has no strategy: [`DiskTree::new`]
+//! fails there, and the calls below it are never reached.
 
-use std::fs::{self, File, Metadata, OpenOptions};
-use std::io::{self, Read as _};
+#![cfg_attr(
+    not(any(unix, windows)),
+    allow(
+        unused_variables,
+        dead_code,
+        reason = "with no strategy no tree is built, so the calls are compiled but never reached"
+    )
+)]
+
+use std::fs::Metadata;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use super::{Entry, EntryKind, FileId, Opened, Tree};
-use crate::error::{TreeError, is_symlink_loop};
+use crate::error::TreeError;
 use crate::path::RelPath;
 
+/// A callback that a test runs at one point of a call.
 #[cfg(test)]
+type Hook = Box<dyn Fn() + Send + Sync>;
+
+/// Run the test hook `$hook` of `$tree`; outside test builds, nothing.
+macro_rules! hook {
+    ($tree:expr, $hook:ident) => {
+        #[cfg(test)]
+        if let Some(hook) = &$tree.$hook {
+            hook();
+        }
+    };
+}
+
+/// Apply `$body` to the strategy's own handle inside a [`Handle`].
+macro_rules! each {
+    ($handle:expr, $inner:ident => $body:expr) => {
+        match *$handle {
+            #[cfg(target_os = "linux")]
+            Handle::Linux(ref $inner) => $body,
+            #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+            Handle::OtherUnix(ref $inner) => $body,
+            #[cfg(any(windows, all(test, target_os = "linux")))]
+            Handle::Windows(ref $inner) => $body,
+        }
+    };
+}
+
+#[cfg(windows)]
+mod final_path;
+#[cfg(any(windows, all(test, target_os = "linux")))]
+mod handle_path;
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(all(unix, any(test, not(target_os = "linux"))))]
+mod other_unix;
+// Without a strategy no tree can be built, so there is nothing to test.
+#[cfg(all(test, any(unix, windows)))]
 mod tests;
 
-/// A callback that runs between the prefix check and the open.
-#[cfg(test)]
-type OpenHook = Box<dyn Fn(&Path) + Send + Sync>;
+/// How a handle is opened and verified against the root.
+///
+/// The platform selects one variant; a Linux test build has all three, so
+/// each is exercised there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Strategy {
+    /// An `O_PATH` reference verified through `/proc/self/fd`, then reopened.
+    #[cfg(target_os = "linux")]
+    Linux,
+    /// A walk beneath a descriptor of the root, one `openat` per component.
+    #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+    OtherUnix,
+    /// A handle opened by path and verified by the path the system gives for
+    /// it: `GetFinalPathNameByHandleW` on Windows, `/proc/self/fd` in a Linux
+    /// test build.
+    #[cfg(any(windows, all(test, target_os = "linux")))]
+    Windows,
+}
+
+impl Strategy {
+    /// The strategy of the platform the crate is built for.
+    #[cfg(target_os = "linux")]
+    #[expect(
+        clippy::unnecessary_wraps,
+        reason = "the signature is shared with the platforms that have no strategy"
+    )]
+    fn native(_shown: &str) -> Result<Self, TreeError> {
+        Ok(Self::Linux)
+    }
+
+    /// The strategy of the platform the crate is built for.
+    #[cfg(all(unix, not(target_os = "linux")))]
+    #[expect(
+        clippy::unnecessary_wraps,
+        reason = "the signature is shared with the platforms that have no strategy"
+    )]
+    fn native(_shown: &str) -> Result<Self, TreeError> {
+        Ok(Self::OtherUnix)
+    }
+
+    /// The strategy of the platform the crate is built for.
+    #[cfg(windows)]
+    #[expect(
+        clippy::unnecessary_wraps,
+        reason = "the signature is shared with the platforms that have no strategy"
+    )]
+    fn native(_shown: &str) -> Result<Self, TreeError> {
+        Ok(Self::Windows)
+    }
+
+    /// Without Unix or Windows no handle can be verified, so no tree opens.
+    #[cfg(not(any(unix, windows)))]
+    fn native(shown: &str) -> Result<Self, TreeError> {
+        Err(TreeError::Io {
+            path: shown.to_owned(),
+            source: std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "this platform cannot verify a handle against the root",
+            ),
+        })
+    }
+}
+
+/// What a handle must be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Want {
+    /// A regular file, to be read; a final symlink is followed.
+    File,
+    /// A directory that holds an entry; a final symlink is followed.
+    Dir,
+    /// A directory to be listed; a final symlink is refused.
+    Listing,
+}
+
+impl Want {
+    /// Refuse `metadata` of a handle that is not what is wanted.
+    fn require(self, metadata: &Metadata, shown: &str) -> Result<(), TreeError> {
+        let file_type = metadata.file_type();
+        let fits = match self {
+            Self::File => file_type.is_file(),
+            Self::Dir | Self::Listing => file_type.is_dir(),
+        };
+        if fits {
+            Ok(())
+        } else {
+            Err(not_regular(shown))
+        }
+    }
+}
+
+/// A verified handle, of the strategy that opened it.
+enum Handle {
+    #[cfg(target_os = "linux")]
+    Linux(linux::Handle),
+    #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+    OtherUnix(other_unix::Handle),
+    #[cfg(any(windows, all(test, target_os = "linux")))]
+    Windows(handle_path::Handle),
+}
+
+impl Handle {
+    /// The identity of the verified file.
+    fn identity(&self, root: &Path, shown: &str) -> Result<FileId, TreeError> {
+        each!(self, inner => inner.identity(root, shown))
+    }
+
+    /// At most `max_bytes` bytes of the text of the verified file.
+    fn read(&self, max_bytes: u64, shown: &str) -> Result<String, TreeError> {
+        each!(self, inner => inner.read(max_bytes, shown))
+    }
+
+    /// The entries of the verified directory, in the order the system gives.
+    fn entries(&self, shown: &str) -> Result<Vec<Entry>, TreeError> {
+        each!(self, inner => inner.entries(shown))
+    }
+
+    /// What `name` is in the verified directory, without following it.
+    fn lookup(&self, name: &str, shown: &str) -> Result<Option<EntryKind>, TreeError> {
+        each!(self, inner => inner.lookup(name, shown))
+    }
+
+    /// Verify the handle again, after a use.
+    fn recheck(&self, tree: &DiskTree, shown: &str) -> Result<(), TreeError> {
+        match *self {
+            #[cfg(target_os = "linux")]
+            Handle::Linux(ref inner) => inner.recheck(&tree.root, shown),
+            #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+            Handle::OtherUnix(ref inner) => inner.recheck(&tree.walk_root, shown),
+            #[cfg(any(windows, all(test, target_os = "linux")))]
+            Handle::Windows(ref inner) => inner.recheck(&tree.root, shown),
+        }
+    }
+}
 
 /// A tree read from a directory on disk.
 ///
@@ -43,10 +227,23 @@ type OpenHook = Box<dyn Fn(&Path) + Send + Sync>;
 /// tree is followed only when its target is also inside the tree.
 pub struct DiskTree {
     root: PathBuf,
-    /// Runs with the canonical path after the prefix check and before the
-    /// open, so a test can change the disk in exactly that window.
+    strategy: Strategy,
+    /// A descriptor of the root, from which the other-Unix walk starts.
+    #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+    walk_root: other_unix::Root,
+    /// Runs after the containment check and before the open.
     #[cfg(test)]
-    before_open: Option<OpenHook>,
+    before_open: Option<Hook>,
+    /// Runs after the open and before the handle is verified.
+    #[cfg(test)]
+    after_open: Option<Hook>,
+    /// Runs after the handle is verified and before it is used.
+    #[cfg(test)]
+    after_verify: Option<Hook>,
+    /// Runs inside one step of the other-Unix walk, after an open failed and
+    /// before the status of the entry is read.
+    #[cfg(all(test, unix))]
+    mid_step: Option<Hook>,
 }
 
 impl std::fmt::Debug for DiskTree {
@@ -67,23 +264,34 @@ impl DiskTree {
     /// Returns [`TreeError::NotFound`] when the root does not exist,
     /// [`TreeError::NotRegular`] when it is not a directory, and
     /// [`TreeError::SymlinkLoop`] or [`TreeError::Io`] when the operating
-    /// system fails.
+    /// system fails or cannot verify a handle against the root.
     pub fn new(root: impl AsRef<Path>) -> Result<Self, TreeError> {
         let given = root.as_ref();
         let shown = given.display().to_string();
-        let root = fs::canonicalize(given).map_err(|e| TreeError::from_io(&shown, e))?;
-        let metadata = fs::metadata(&root).map_err(|e| TreeError::from_io(&shown, e))?;
+        let root = std::fs::canonicalize(given).map_err(|e| TreeError::from_io(&shown, e))?;
+        let metadata = std::fs::metadata(&root).map_err(|e| TreeError::from_io(&shown, e))?;
         if !metadata.is_dir() {
             return Err(TreeError::NotRegular { path: shown });
         }
+        let strategy = Strategy::native(&shown)?;
         Ok(Self {
+            #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+            walk_root: other_unix::Root::open(&root, &shown)?,
             root,
+            strategy,
             #[cfg(test)]
             before_open: None,
+            #[cfg(test)]
+            after_open: None,
+            #[cfg(test)]
+            after_verify: None,
+            #[cfg(all(test, unix))]
+            mid_step: None,
         })
     }
 
     /// The path on disk that `path` names, before any symlink is followed.
+    #[cfg(any(target_os = "linux", windows))]
     fn candidate(&self, path: &RelPath) -> PathBuf {
         if path.is_root() {
             self.root.clone()
@@ -93,47 +301,55 @@ impl DiskTree {
     }
 
     /// Canonicalise `candidate` and require the canonical root as its prefix.
+    #[cfg(any(target_os = "linux", windows))]
     fn contain(&self, candidate: &Path, shown: &str) -> Result<PathBuf, TreeError> {
-        let canonical = fs::canonicalize(candidate).map_err(|e| TreeError::from_io(shown, e))?;
+        let canonical =
+            std::fs::canonicalize(candidate).map_err(|e| TreeError::from_io(shown, e))?;
         if canonical.starts_with(&self.root) {
             Ok(canonical)
         } else {
-            Err(TreeError::OutsideRoot {
-                path: shown.to_owned(),
-            })
+            Err(outside(shown))
         }
     }
-}
 
-impl DiskTree {
-    /// Open the regular file at `path` and verify the handle against the
-    /// root. Returns the handle, its metadata and the canonical path.
-    fn open_verified(
-        &self,
-        path: &RelPath,
-        shown: &str,
-    ) -> Result<(File, Metadata, PathBuf), TreeError> {
-        let canonical = self.contain(&self.candidate(path), shown)?;
-        #[cfg(test)]
-        if let Some(hook) = &self.before_open {
-            hook(&canonical);
+    /// Open `path` as `want` and verify the handle against the root.
+    fn open(&self, path: &RelPath, want: Want, shown: &str) -> Result<Handle, TreeError> {
+        refuse_windows_names(path, shown)?;
+        match self.strategy {
+            #[cfg(target_os = "linux")]
+            Strategy::Linux => linux::open(self, path, want, shown).map(Handle::Linux),
+            #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+            Strategy::OtherUnix => other_unix::open(self, path, want, shown).map(Handle::OtherUnix),
+            #[cfg(any(windows, all(test, target_os = "linux")))]
+            Strategy::Windows => handle_path::open(self, path, want, shown).map(Handle::Windows),
         }
-        let file = open_handle(&canonical).map_err(|e| open_error(shown, e))?;
-        let metadata = verify_open_handle(&file, &canonical, &self.root, shown)?;
-        Ok((file, metadata, canonical))
+    }
+
+    /// Use the verified `handle` with `work`, then verify it again; a handle
+    /// that no longer passes discards what the use returned.
+    fn used<T>(
+        &self,
+        handle: &Handle,
+        shown: &str,
+        work: impl FnOnce(&Handle) -> Result<T, TreeError>,
+    ) -> Result<T, TreeError> {
+        hook!(self, after_verify);
+        let result = work(handle);
+        handle.recheck(self, shown)?;
+        result
     }
 }
 
 impl Tree for DiskTree {
     fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
         let shown = path.to_string();
-        let (file, _, _) = self.open_verified(path, &shown)?;
-        read_capped(file, max_bytes, &shown)
+        let handle = self.open(path, Want::File, &shown)?;
+        self.used(&handle, &shown, |handle| handle.read(max_bytes, &shown))
     }
 
     /// The identity is, on Unix, the device and inode of the verified handle,
-    /// and elsewhere the canonical path below the root; the text, when it is
-    /// read, comes from the same handle.
+    /// and on Windows the path the system gives for it, below the root; the
+    /// text, when it is read, comes from the same handle.
     fn read_unseen(
         &self,
         path: &RelPath,
@@ -141,85 +357,51 @@ impl Tree for DiskTree {
         seen: &dyn Fn(&FileId) -> bool,
     ) -> Result<Opened, TreeError> {
         let shown = path.to_string();
-        let (file, metadata, canonical) = self.open_verified(path, &shown)?;
-        let id = handle_identity(&metadata, &canonical, &self.root, &shown)?;
+        let handle = self.open(path, Want::File, &shown)?;
+        let id = handle.identity(&self.root, &shown)?;
         if seen(&id) {
             return Ok(Opened::Seen(id));
         }
-        let text = read_capped(file, max_bytes, &shown)?;
+        let text = self.used(&handle, &shown, |handle| handle.read(max_bytes, &shown))?;
         Ok(Opened::Read { id, text })
     }
 
     fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
         let shown = path.to_string();
-        let candidate = self.candidate(path);
-        let canonical = self.contain(&candidate, &shown)?;
-        let own = fs::symlink_metadata(&candidate).map_err(|e| TreeError::from_io(&shown, e))?;
-        if !own.is_dir() {
-            return Err(TreeError::NotRegular { path: shown });
-        }
-        #[cfg(test)]
-        if let Some(hook) = &self.before_open {
-            hook(&canonical);
-        }
-        // The handle is held until the entries are read, so the listing is of
-        // the directory that was verified.
-        let (_held, listing) = open_verified_directory(&canonical, &self.root, &shown)?;
-        let mut entries = Vec::new();
-        for item in fs::read_dir(&listing).map_err(|e| TreeError::from_io(&shown, e))? {
-            let item = item.map_err(|e| TreeError::from_io(&shown, e))?;
-            let name = item
-                .file_name()
-                .into_string()
-                .map_err(|raw| TreeError::NonUtf8Name {
-                    path: shown.clone(),
-                    name: raw.to_string_lossy().into_owned(),
-                })?;
-            let file_type = item
-                .file_type()
-                .map_err(|e| TreeError::from_io(&shown, e))?;
-            entries.push(Entry {
-                name,
-                kind: kind_of(file_type),
-            });
-        }
+        let handle = self.open(path, Want::Listing, &shown)?;
+        let mut entries = self.used(&handle, &shown, |handle| handle.entries(&shown))?;
         entries.sort();
         Ok(entries)
     }
 
     fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
         let shown = path.to_string();
+        refuse_windows_names(path, &shown)?;
         let (Some(name), Some(parent)) = (path.file_name(), path.parent()) else {
             return Ok(Some(EntryKind::Dir));
         };
-        if name == ".." {
-            return match self.contain(&self.candidate(path), &shown) {
-                Ok(_) => Ok(Some(EntryKind::Dir)),
-                Err(TreeError::NotFound { .. }) => Ok(None),
-                Err(other) => Err(other),
-            };
-        }
-        let directory = match self.contain(&self.candidate(&parent), &shown) {
-            Ok(directory) => directory,
-            Err(TreeError::NotFound { .. }) => return Ok(None),
+        // `x/..` is the directory the path itself leads to, which may lie
+        // outside the root even when `x` does not, so it is opened whole.
+        let climbs = name == "..";
+        let directory = if climbs { path } else { &parent };
+        let handle = match self.open(directory, Want::Dir, &shown) {
+            Ok(handle) => handle,
+            Err(TreeError::NotFound { .. } | TreeError::NotRegular { .. }) => return Ok(None),
             Err(other) => return Err(other),
         };
-        match fs::symlink_metadata(directory.join(name)) {
-            Ok(metadata) => Ok(Some(kind_of(metadata.file_type()))),
-            Err(e)
-                if matches!(
-                    e.kind(),
-                    io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
-                ) =>
-            {
-                Ok(None)
+        self.used(&handle, &shown, |handle| {
+            if climbs {
+                Ok(Some(EntryKind::Dir))
+            } else {
+                handle.lookup(name, &shown)
             }
-            Err(e) => Err(TreeError::from_io(&shown, e)),
-        }
+        })
     }
 }
 
-fn kind_of(file_type: fs::FileType) -> EntryKind {
+/// What a file type from the standard library is.
+#[cfg(any(target_os = "linux", windows))]
+fn kind_of(file_type: std::fs::FileType) -> EntryKind {
     if file_type.is_symlink() {
         EntryKind::Symlink
     } else if file_type.is_dir() {
@@ -231,101 +413,110 @@ fn kind_of(file_type: fs::FileType) -> EntryKind {
     }
 }
 
+/// What is at `path`, without following a final symlink.
+#[cfg(any(target_os = "linux", windows))]
+fn lookup(path: &Path, shown: &str) -> Result<Option<EntryKind>, TreeError> {
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) => Ok(Some(kind_of(metadata.file_type()))),
+        Err(e)
+            if matches!(
+                e.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+            ) =>
+        {
+            Ok(None)
+        }
+        Err(e) => Err(TreeError::from_io(shown, e)),
+    }
+}
+
+/// The entries of the directory at `listing`, in the order the system gives.
+#[cfg(any(target_os = "linux", windows))]
+fn read_entries(listing: &Path, shown: &str) -> Result<Vec<Entry>, TreeError> {
+    let mut entries = Vec::new();
+    for item in std::fs::read_dir(listing).map_err(|e| TreeError::from_io(shown, e))? {
+        let item = item.map_err(|e| TreeError::from_io(shown, e))?;
+        let name = item
+            .file_name()
+            .into_string()
+            .map_err(|raw| TreeError::NonUtf8Name {
+                path: shown.to_owned(),
+                name: raw.to_string_lossy().into_owned(),
+            })?;
+        let file_type = item.file_type().map_err(|e| TreeError::from_io(shown, e))?;
+        entries.push(Entry {
+            name,
+            kind: kind_of(file_type),
+        });
+    }
+    Ok(entries)
+}
+
+/// A listing refuses a path whose final component is not a real directory,
+/// a symlink included, judged without following it.
+#[cfg(any(target_os = "linux", windows))]
+fn refuse_unless_directory(candidate: &Path, shown: &str) -> Result<(), TreeError> {
+    let own = std::fs::symlink_metadata(candidate).map_err(|e| TreeError::from_io(shown, e))?;
+    if own.is_dir() {
+        Ok(())
+    } else {
+        Err(not_regular(shown))
+    }
+}
+
 /// Classify a failure to open: a symlink in the final position (the canonical
 /// path was swapped for a link after it was checked) is not a regular file.
-fn open_error(shown: &str, error: io::Error) -> TreeError {
-    if is_symlink_loop(&error) {
-        TreeError::NotRegular {
-            path: shown.to_owned(),
-        }
+#[cfg(any(target_os = "linux", windows))]
+fn open_error(shown: &str, error: std::io::Error) -> TreeError {
+    if crate::error::is_symlink_loop(&error) {
+        not_regular(shown)
     } else {
         TreeError::from_io(shown, error)
     }
 }
 
-/// Open `path` for reading without blocking and without following a final
-/// symlink.
-#[cfg(unix)]
-fn open_handle(path: &Path) -> io::Result<File> {
-    use std::os::unix::fs::OpenOptionsExt as _;
-    OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW)
-        .open(path)
-}
-
-/// Open `path` for reading; the platform has no non-blocking open here, so the
-/// regular-file check on the handle is the guard.
-#[cfg(not(unix))]
-fn open_handle(path: &Path) -> io::Result<File> {
-    OpenOptions::new().read(true).open(path)
-}
-
-/// Open the directory `path` for listing without blocking and without
-/// following a final symlink.
-#[cfg(unix)]
-fn open_directory(path: &Path) -> io::Result<File> {
-    use std::os::unix::fs::OpenOptionsExt as _;
-    OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_NONBLOCK)
-        .open(path)
-}
-
-/// A directory cannot be opened as a handle without Unix; dispatch in
-/// [`open_verified_directory`] never selects this.
-#[cfg(not(unix))]
-fn open_directory(path: &Path) -> io::Result<File> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        format!("cannot open the directory {} as a handle", path.display()),
-    ))
-}
-
-/// Open `canonical` as a directory and verify the handle against `root` the
-/// way a file read does. Returns the handle, which the caller keeps open while
-/// it lists, and the path to list: on Linux the handle's own descriptor path,
-/// so the entries are those of the verified directory.
-fn open_verified_directory(
-    canonical: &Path,
-    root: &Path,
-    shown: &str,
-) -> Result<(Option<File>, PathBuf), TreeError> {
-    if cfg!(unix) {
-        let handle = open_directory(canonical).map_err(|e| open_error(shown, e))?;
-        let on_handle = handle
-            .metadata()
-            .map_err(|e| TreeError::from_io(shown, e))?;
-        let listing = if cfg!(target_os = "linux") {
-            let link = descriptor_link(&handle, shown)?;
-            verify_linux_link(root, &link, shown)?;
-            link
-        } else {
-            let after = fs::canonicalize(canonical).map_err(|e| TreeError::from_io(shown, e))?;
-            let on_disk = fs::metadata(&after).map_err(|e| TreeError::from_io(shown, e))?;
-            verify_same_file(
-                root,
-                &after,
-                file_id(&on_disk, shown)?,
-                file_id(&on_handle, shown)?,
-                shown,
-            )?;
-            canonical.to_path_buf()
-        };
-        ensure_directory(&on_handle, shown)?;
-        Ok((Some(handle), listing))
-    } else {
-        let on_disk = fs::metadata(canonical).map_err(|e| TreeError::from_io(shown, e))?;
-        let after = fs::canonicalize(canonical).map_err(|e| TreeError::from_io(shown, e))?;
-        verify_portable_directory(root, &on_disk, &after, shown)?;
-        Ok((None, canonical.to_path_buf()))
+/// A failure to learn the path of a handle. A missing descriptor link (no
+/// `/proc`) is an operating-system failure, never absence of the file.
+#[cfg(any(target_os = "linux", windows))]
+fn link_read_error(shown: &str, source: std::io::Error) -> TreeError {
+    TreeError::Io {
+        path: shown.to_owned(),
+        source,
     }
 }
 
-/// Read at most `max_bytes` bytes of text from the verified handle.
-fn read_capped(file: File, max_bytes: u64, shown: &str) -> Result<String, TreeError> {
+/// The path the system gives for an open handle must lie under the root.
+#[cfg(any(target_os = "linux", windows))]
+fn verify_handle_path(root: &Path, handle_path: &Path, shown: &str) -> Result<(), TreeError> {
+    if handle_path.starts_with(root) {
+        Ok(())
+    } else {
+        Err(outside(shown))
+    }
+}
+
+/// Linux: the kernel's own path for an open handle must lie under the root.
+///
+/// `handle_link` is `/proc/self/fd/<fd>`. This reads what the handle really
+/// is, so no rename of a path can change the answer.
+#[cfg(target_os = "linux")]
+fn verify_linux_link(root: &Path, handle_link: &Path, shown: &str) -> Result<(), TreeError> {
+    let target = std::fs::read_link(handle_link).map_err(|e| link_read_error(shown, e))?;
+    verify_handle_path(root, &target, shown)
+}
+
+/// `/proc/self/fd/<fd>`: the kernel's own path for an open handle.
+#[cfg(target_os = "linux")]
+fn descriptor_path(handle: &std::fs::File) -> PathBuf {
+    use std::os::fd::AsRawFd as _;
+    PathBuf::from(format!("/proc/self/fd/{}", handle.as_raw_fd()))
+}
+
+/// Read at most `max_bytes` bytes of text from a verified handle.
+fn read_capped(source: impl Read, max_bytes: u64, shown: &str) -> Result<String, TreeError> {
     let mut bytes = Vec::new();
-    file.take(max_bytes.saturating_add(1))
+    source
+        .take(max_bytes.saturating_add(1))
         .read_to_end(&mut bytes)
         .map_err(|e| TreeError::from_io(shown, e))?;
     if u64::try_from(bytes.len()).map_or(true, |len| len > max_bytes) {
@@ -339,229 +530,75 @@ fn read_capped(file: File, max_bytes: u64, shown: &str) -> Result<String, TreeEr
     })
 }
 
-/// A file's identity on disk: its device and inode numbers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct DevIno {
-    dev: u64,
-    ino: u64,
-}
-
-#[cfg(unix)]
-#[cfg_attr(
-    unix,
-    allow(
-        clippy::unnecessary_wraps,
-        reason = "the signature is shared with the platforms where the call can fail"
-    )
-)]
-fn file_id(metadata: &Metadata, _shown: &str) -> Result<DevIno, TreeError> {
-    use std::os::unix::fs::MetadataExt as _;
-    Ok(DevIno {
-        dev: metadata.dev(),
-        ino: metadata.ino(),
-    })
-}
-
-#[cfg(not(unix))]
-fn file_id(_metadata: &Metadata, shown: &str) -> Result<DevIno, TreeError> {
-    Err(unsupported(shown, "file identity"))
-}
-
-/// The path of the kernel's view of an open handle (`/proc/self/fd/<fd>`).
-#[cfg(unix)]
-#[cfg_attr(
-    unix,
-    allow(
-        clippy::unnecessary_wraps,
-        reason = "the signature is shared with the platforms where the call can fail"
-    )
-)]
-fn descriptor_link(file: &File, _shown: &str) -> Result<PathBuf, TreeError> {
-    use std::os::fd::AsRawFd as _;
-    Ok(PathBuf::from(format!("/proc/self/fd/{}", file.as_raw_fd())))
-}
-
-#[cfg(not(unix))]
-fn descriptor_link(_file: &File, shown: &str) -> Result<PathBuf, TreeError> {
-    Err(unsupported(shown, "descriptor paths"))
-}
-
-/// An operation the platform lacks. Dispatch in [`verify_open_handle`] never
-/// selects the check that needs it, so this is a guard and not a path.
-#[cfg(not(unix))]
-fn unsupported(shown: &str, what: &str) -> TreeError {
-    TreeError::Io {
-        path: shown.to_owned(),
-        source: io::Error::new(io::ErrorKind::Unsupported, format!("no {what} here")),
-    }
-}
-
-/// Refuse a handle that is not a regular file.
-fn ensure_regular(metadata: &Metadata, shown: &str) -> Result<(), TreeError> {
-    if metadata.file_type().is_file() {
-        Ok(())
-    } else {
-        Err(TreeError::NotRegular {
-            path: shown.to_owned(),
-        })
-    }
-}
-
-/// Refuse a handle that is not a directory.
-fn ensure_directory(metadata: &Metadata, shown: &str) -> Result<(), TreeError> {
-    if metadata.file_type().is_dir() {
-        Ok(())
-    } else {
-        Err(TreeError::NotRegular {
-            path: shown.to_owned(),
-        })
-    }
-}
-
 fn outside(shown: &str) -> TreeError {
     TreeError::OutsideRoot {
         path: shown.to_owned(),
     }
 }
 
-/// A failure to read the descriptor link. A missing link (no `/proc`) is an
-/// operating-system failure, never absence of the file being read.
-fn link_read_error(shown: &str, source: io::Error) -> TreeError {
-    TreeError::Io {
+fn not_regular(shown: &str) -> TreeError {
+    TreeError::NotRegular {
         path: shown.to_owned(),
-        source,
     }
 }
 
-/// Linux: the kernel's own path for the open handle must lie under the root.
-///
-/// `handle_link` is `/proc/self/fd/<fd>`. This reads the file the handle
-/// really is, so no check is separated from the open it guards.
-fn verify_linux_link(root: &Path, handle_link: &Path, shown: &str) -> Result<(), TreeError> {
-    let target = fs::read_link(handle_link).map_err(|e| link_read_error(shown, e))?;
-    if target.starts_with(root) {
-        Ok(())
-    } else {
-        Err(outside(shown))
-    }
-}
-
-/// Other Unix: the path canonicalised again after the open must lie under the
-/// root and must be the file the handle is (same device and inode).
-fn verify_same_file(
-    root: &Path,
-    canonical_after: &Path,
-    on_disk: DevIno,
-    on_handle: DevIno,
-    shown: &str,
-) -> Result<(), TreeError> {
-    if canonical_after.starts_with(root) && on_disk == on_handle {
-        Ok(())
-    } else {
-        Err(outside(shown))
-    }
-}
-
-/// Without Unix, for a directory: the handle must be a directory and the path
-/// canonicalised again after the check must still lie under the root.
-fn verify_portable_directory(
-    root: &Path,
-    on_handle: &Metadata,
-    canonical_after: &Path,
-    shown: &str,
-) -> Result<(), TreeError> {
-    ensure_directory(on_handle, shown)?;
-    if canonical_after.starts_with(root) {
-        Ok(())
-    } else {
-        Err(outside(shown))
-    }
-}
-
-/// Without Unix: the handle must be a regular file, and the path
-/// canonicalised again after the open must still lie under the root.
-fn verify_portable(
-    root: &Path,
-    on_handle: &Metadata,
-    canonical_after: &Path,
-    shown: &str,
-) -> Result<(), TreeError> {
-    ensure_regular(on_handle, shown)?;
-    if canonical_after.starts_with(root) {
-        Ok(())
-    } else {
-        Err(outside(shown))
-    }
-}
-
-/// Verify that the opened `file` is a regular file inside `root`.
-///
-/// * Linux: [`verify_linux_link`]. A rename after the open cannot change what
-///   the handle is, so no window remains between check and open.
-/// * Other Unix: [`verify_same_file`] against a second canonicalisation. A
-///   rename between that canonicalisation and the read can still swap the
-///   path, but not the handle, whose identity was compared.
-/// * Elsewhere: [`verify_portable`]. A rename racing the second
-///   canonicalisation is a residual window.
-///
-/// Every branch compiles on every platform; the platform selects one. Returns
-/// the metadata of the handle.
-fn verify_open_handle(
-    file: &File,
-    canonical: &Path,
-    root: &Path,
-    shown: &str,
-) -> Result<Metadata, TreeError> {
-    let on_handle = file.metadata().map_err(|e| TreeError::from_io(shown, e))?;
-    if cfg!(target_os = "linux") {
-        verify_linux_link(root, &descriptor_link(file, shown)?, shown)?;
-        ensure_regular(&on_handle, shown)?;
-    } else if cfg!(unix) {
-        let after = fs::canonicalize(canonical).map_err(|e| TreeError::from_io(shown, e))?;
-        let on_disk = fs::metadata(&after).map_err(|e| TreeError::from_io(shown, e))?;
-        verify_same_file(
-            root,
-            &after,
-            file_id(&on_disk, shown)?,
-            file_id(&on_handle, shown)?,
-            shown,
-        )?;
-        ensure_regular(&on_handle, shown)?;
-    } else {
-        let after = fs::canonicalize(canonical).map_err(|e| TreeError::from_io(shown, e))?;
-        verify_portable(root, &on_handle, &after, shown)?;
-    }
-    Ok(on_handle)
-}
-
-/// Unix: the device and inode numbers of the verified handle.
+/// Unix: the identity of a file is the device and inode of its handle.
 #[cfg(unix)]
-#[cfg_attr(
-    unix,
-    allow(
-        clippy::unnecessary_wraps,
-        reason = "the signature is shared with the platforms where the call can fail"
-    )
-)]
-fn handle_identity(
-    on_handle: &Metadata,
-    _canonical: &Path,
-    _root: &Path,
-    shown: &str,
-) -> Result<FileId, TreeError> {
-    let id = file_id(on_handle, shown)?;
-    Ok(FileId::from_device(id.dev, id.ino))
+fn device_identity(metadata: &Metadata) -> FileId {
+    use std::os::unix::fs::MetadataExt as _;
+    FileId::from_device(metadata.dev(), metadata.ino())
 }
 
-/// Without Unix: the canonical path below the root, which [`DiskTree::contain`]
-/// computed for the open.
-#[cfg(not(unix))]
-fn handle_identity(
-    _on_handle: &Metadata,
-    canonical: &Path,
-    root: &Path,
-    shown: &str,
-) -> Result<FileId, TreeError> {
-    let below = canonical.strip_prefix(root).map_err(|_| outside(shown))?;
-    Ok(FileId::from_native(below.as_os_str().to_owned()))
+/// Windows: refuse a path with a segment that Win32 would not read as the
+/// name it spells. Such a path is never canonicalised.
+#[cfg(windows)]
+fn refuse_windows_names(path: &RelPath, shown: &str) -> Result<(), TreeError> {
+    if path.segments().any(is_ambiguous_on_windows) {
+        Err(outside(shown))
+    } else {
+        Ok(())
+    }
+}
+
+/// Elsewhere every segment names itself.
+#[cfg(not(windows))]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "the signature is shared with Windows, where the call can refuse"
+)]
+fn refuse_windows_names(_path: &RelPath, _shown: &str) -> Result<(), TreeError> {
+    Ok(())
+}
+
+/// True for a segment that is a reserved device name, bare or with any
+/// extension and in any case; for one that ends in a dot or a space, which
+/// Win32 strips; and for one that holds a colon, which names an alternate
+/// data stream. A `..` segment climbs and names no file.
+#[cfg(any(test, windows))]
+fn is_ambiguous_on_windows(segment: &str) -> bool {
+    if segment == ".." {
+        return false;
+    }
+    if segment.ends_with(['.', ' ']) || segment.contains(':') {
+        return true;
+    }
+    let stem = segment
+        .split('.')
+        .next()
+        .unwrap_or(segment)
+        .trim_end_matches(' ')
+        .to_ascii_uppercase();
+    let numbered = |prefix: &str| {
+        stem.strip_prefix(prefix).is_some_and(|digit| {
+            matches!(
+                digit,
+                "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
+            )
+        })
+    };
+    matches!(
+        stem.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+    ) || numbered("COM")
+        || numbered("LPT")
 }

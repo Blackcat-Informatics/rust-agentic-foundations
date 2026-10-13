@@ -29,7 +29,8 @@ pub enum EntryKind {
 /// The identity of a file: two paths whose identities are equal name one file.
 ///
 /// [`DiskTree`] takes it from the verified handle: on Unix the device and
-/// inode numbers, elsewhere the canonical path below the root. [`MemoryTree`]
+/// inode numbers, on Windows the path the system gives for the handle, below
+/// the root. [`MemoryTree`]
 /// uses the normalised key. Another backend builds one with
 /// [`FileId::from_device`] or [`FileId::from_key`].
 ///
@@ -46,8 +47,8 @@ enum Identity {
     Device { dev: u64, ino: u64 },
     /// A key that names the file in its backend.
     Key(Box<str>),
-    /// A canonical path below the root, in the platform's own encoding.
-    #[cfg(not(unix))]
+    /// A path below the root, in the platform's own encoding.
+    #[cfg(windows)]
     Native(std::ffi::OsString),
 }
 
@@ -70,13 +71,13 @@ impl FileId {
         match &self.0 {
             Identity::Device { .. } => 0,
             Identity::Key(key) => key.len(),
-            #[cfg(not(unix))]
+            #[cfg(windows)]
             Identity::Native(path) => path.capacity(),
         }
     }
 
-    /// The identity of a file given by its canonical path below the root.
-    #[cfg(not(unix))]
+    /// The identity of a file given by its path below the root.
+    #[cfg(windows)]
     pub(crate) fn from_native(path: std::ffi::OsString) -> Self {
         Self(Identity::Native(path))
     }

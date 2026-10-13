@@ -75,11 +75,27 @@ bindings:
     - raf_source::test_crate::this_repository::this_repository_loads_from_its_root_with_the_crates_directory_as_the_root
     - raf_source::test_crate::this_repository::an_item_of_a_module_file_that_sorts_before_its_mod_rs_is_found_under_its_own_module
     - raf_source::tree::disk::tests::linux_verifier_refuses_a_handle_link_that_leads_outside_and_accepts_one_inside
-    - raf_source::tree::disk::tests::unix_verifier_refuses_differing_identities_and_accepts_equal_ones
-    - raf_source::tree::disk::tests::portable_verifier_refuses_a_non_regular_handle_and_an_outside_path_beside_an_accepted_one
+    - raf_source::tree::disk::tests::the_handle_path_verifier_refuses_a_path_outside_the_root_beside_one_inside
     - raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_after_the_check_is_refused
     - raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_before_a_listing_is_refused
     - raf_source::tree::disk::tests::a_missing_descriptor_link_is_an_io_failure_and_never_absence
+    - raf_source::tree::disk::tests::swap::a_directory_swapped_after_verification_before_the_entries_are_read_is_refused
+    - raf_source::tree::disk::tests::swap::a_file_whose_directory_is_moved_out_after_verification_is_refused_after_the_read
+    - raf_source::tree::disk::tests::swap::an_entry_whose_directory_is_swapped_for_an_outside_symlink_is_refused
+    - raf_source::tree::disk::tests::swap::an_outside_fifo_reached_by_a_swap_before_the_open_is_never_opened
+    - raf_source::tree::disk::tests::swap::a_swap_before_the_open_undone_before_the_check_is_refused
+    - raf_source::tree::disk::tests::swap::a_swap_flipped_at_every_hook_point_is_refused
+    - raf_source::tree::disk::tests::strategy::every_strategy_follows_an_absolute_in_root_link_spelled_through_a_linked_parent
+    - raf_source::tree::disk::tests::strategy::links_into_the_outside_are_answered_alike_only_by_the_walk
+    - raf_source::tree::disk::tests::strategy::a_link_that_climbs_back_into_the_root_is_read_only_by_canonicalisation
+    - raf_source::tree::disk::tests::strategy::a_symlink_that_becomes_a_directory_during_a_step_is_stepped_again
+    - raf_source::tree::disk::tests::strategy::a_path_three_hundred_deep_is_walked_under_a_limit_of_sixty_four_descriptors
+    - raf_source::tree::disk::tests::windows::the_final_path_of_a_handle_is_its_canonical_path_and_lies_under_the_root
+    - raf_source::tree::disk::tests::strategy::every_strategy_refuses_an_outside_symlink_and_reads_in_root_links
+    - raf_source::tree::disk::tests::strategy::every_strategy_reports_entry_kinds_and_refuses_an_outside_directory
+    - raf_source::tree::disk::tests::reserved_device_names_and_trailing_dots_or_spaces_are_ambiguous_on_windows_beside_plain_names
+    - raf_source::tree::disk::tests::windows::a_disk_tree_refuses_a_reserved_device_name_or_a_trailing_dot_or_space_beside_a_plain_name
+    - raf_source::test_crate::workspace_containment::a_tree_with_windows_device_names_loads_off_windows
     - raf_source::error::tests::a_spawn_error_displays_the_file_and_carries_its_cause
     - raf_source::item::tests::an_item_record_is_at_most_two_hundred_fifty_six_bytes
     - raf_source::facts::tests::a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines
@@ -135,16 +151,18 @@ both and cannot disagree.
 validated root-relative `/`-separated UTF-8 paths. `RelPath::join` drops `.` segments
 and refuses an absolute input, a backslash, a NUL, a drive-letter segment and a `..`
 that climbs above the root with a typed `PathError`. A `..` below the root is kept,
-because on a disk it means the parent of the directory the earlier segments really
-reach. The trait has four calls, each returning a `Result`: `read(path, max_bytes)`
-returns the text of a file; `read_unseen(path, max_bytes, seen)` opens a file once,
-takes its `FileId` from that open and reads its text from the same open unless `seen`
-accepts the identity (`identity(path)` is the same call with every identity seen);
+because on a Unix disk it means the parent of the directory the earlier segments
+really reach (Windows joins it by text; see Path containment). The trait has four
+calls, each returning a `Result`: `read(path, max_bytes)` returns the text of a
+file; `read_unseen(path, max_bytes, seen)` opens a file once, takes its `FileId`
+from that open and reads its text from the same open unless `seen` accepts the
+identity (`identity(path)` is the same call with every identity seen);
 `list(path)` returns the entries of a directory sorted by name, each with a kind of
 file, directory, symlink or other; and `entry(path)` returns the kind of one path or
 `None` when nothing is there. Two paths have equal identities when they name one file:
 `DiskTree` takes the identity from the handle it opened and verified, its device and
-inode numbers on Unix and its canonical path below the root elsewhere, and
+inode numbers on Unix and on Windows the path the system gives for the handle, below
+the root, and
 `MemoryTree` uses the normalised key. A device and inode pair names one file where the
 file system keeps inode numbers unique and stable while the tree is read, as local
 file systems do; a network or user-space mount that reuses or invents them can make
@@ -164,44 +182,119 @@ key such as `../a` or `/a` with `OutsideRoot`, and a key that names a path anoth
 already holds, whether literally or after normalisation, with `DuplicatePath`; a tree
 built by the infallible conversions from such keys returns the same error from every
 call. A missing `/proc` on Linux is an `Io` failure and never `NotFound`. `entry`
-returns `OutsideRoot` when the directory that holds the path leads outside the root.
-Nothing else in the crate opens a file.
+returns `OutsideRoot` when the directory that holds the path leads outside the root,
+judged on a verified handle of that directory before and after the lookup, and
+`None` when that directory is missing or is not a directory. Nothing else in the
+crate opens a file.
 
 **Path containment.** Every path the crate opens is checked against the workspace
 root, so a hostile tree cannot make the index read a file outside it. This covers
 files reached by `mod name;` with or without `#[path]`, explicit `path` values of
-`Cargo.toml` targets, and every discovered `Cargo.toml`. For each candidate
-`DiskTree` canonicalises the resolved path, which follows every symlink and applies
-every `..` against the real directories, and requires the canonical root as a prefix
-of the result. A candidate outside the root is an error that names the module,
-attribute or manifest key, and it is neither opened nor read. A lexical check of
-`..` segments is not enough, because `link/..` leaves the root when `link` is a
-directory symlink, so `DiskTree` never clamps a `..` in text. A symlink whose target
-is inside the root is followed. `DiskTree` refuses any file that is not a regular
-file, such as a FIFO or a device, and it does not descend into a directory symlink:
-a listing reports it with the symlink kind, listing it is refused, and a symlink
-loop ends with `SymlinkLoop` at the first link. The file type is checked on the
-opened handle and not by a stat before the open: the crate opens the canonical path
-non-blocking and without following a final symlink, so opening a FIFO cannot hang,
-and then reads the type from the handle and refuses anything that is not a regular
-file. A listing opens the canonical directory the same way (as a directory, without
-following a final symlink), verifies that handle as reads do, and reads the entries
-through the handle, so a swap between the check and the listing cannot list a
-directory outside the root. The opened handle is checked against the root, and the
-guarantee depends on the platform:
+`Cargo.toml` targets, and every discovered `Cargo.toml`. A candidate leads where the
+disk says: every symlink is followed and every `..` is applied against the real
+directories, and where it leads must lie under the canonical root. On Linux and
+Windows `DiskTree` canonicalises the resolved path and requires the canonical root as
+its prefix; on other Unix systems it walks the path beneath the root, as stated
+below. A candidate outside the root is an error that names the module, attribute or
+manifest key, and its contents are never read; whether a rename that races the
+check can make it be opened depends on the platform, as stated below. A lexical
+check of `..` segments is not enough, because `link/..` leaves the root when `link`
+is a directory symlink, so `DiskTree` never clamps a `..` in text. On Windows the
+canonical root is a verbatim (`\\?\`) path, and the standard library joins a relative
+path to it by text, removing each `..` with the segment before it, as Win32 does; the
+joined path is still canonicalised and checked against the root, so containment
+holds, but there `link/..` names the directory that holds `link` and not the parent
+of its target. A symlink whose target is inside the root is followed, whether the
+target is relative or absolute. On Linux and Windows the target is followed however
+it spells the root. On other Unix systems (macOS and the BSDs) a `..` taken at the
+root or outside it is `OutsideRoot`, so a target is followed only when its
+resolution reaches the root by descending into it: an absolute target that
+descends into the root through any spelling of it is followed,
+but `../root/real.rs` from the root, `/…/root/../root/real.rs`, and an outside link
+to the root whose own target climbs through `..`, are `OutsideRoot`. A tree that
+holds such links loads on Linux and Windows and not on macOS or the BSDs.
+`DiskTree` refuses any file that is not a regular file, such as a FIFO or a device,
+and it does not descend into a directory symlink: a listing reports it with the
+symlink kind, listing it is refused, and a symlink loop ends with `SymlinkLoop`. The
+file type is checked on the opened handle and not by a stat before the open, and on
+Unix no open follows a final symlink or blocks, so naming a FIFO cannot hang.
 
-- On Linux the kernel's own path for the handle (`/proc/self/fd/<fd>`) must lie
-  under the canonical root. The check reads what the handle really is, so no check
-  is separated from the open it guards: a directory swapped for a symlink to
-  outside the root after the prefix check is refused.
-- On other Unix systems the path is canonicalised again after the open and must lie
-  under the root and name the file the handle is (same device and inode). A rename
-  that wins the race against the second canonicalisation can still redirect the
-  path, but not the handle, and the identity comparison refuses a handle that is not
-  the file the path names.
-- On other platforms the handle must be a regular file and the path canonicalised
-  again after the open must still lie under the root. A rename that wins the race
-  against the second canonicalisation is a residual window there.
+A read, a listing and an entry lookup each open a handle (the file to read, the
+directory to list, or the directory that holds the entry), verify that handle against
+the root and its type, use it, and verify it again after the use. A handle that fails
+either check is refused with `OutsideRoot`, and what the use returned is discarded.
+On every platform the contents of a file are read only through a handle that was
+verified to lie under the root. How the handle is opened, verified and used depends
+on the platform:
+
+- On Linux the canonical path is first taken as an `O_PATH` reference, without
+  following a final symlink. The kernel's own path for it (`/proc/self/fd/<fd>`)
+  must lie under the canonical root and it must be a regular file or a directory as
+  wanted; only then is it opened for reading, or listed, through that descriptor
+  path, which names the verified inode and is never resolved by name again, and an
+  entry is looked up below the same descriptor path. So an outside candidate is
+  never opened for reading or listing; only an `O_PATH` reference is taken, which
+  performs no I/O, device open or FIFO rendezvous. A directory swapped for a symlink
+  to outside the root after the prefix check is refused, and a file or directory
+  moved out of the root while it is used is refused by the check after the use.
+- On other Unix systems (macOS and the BSDs) the root is opened once, and the path is
+  walked one component at a time with `openat`, relative to the directory reached so
+  far, never following a symlink and never blocking. The walk holds the descriptor of
+  that directory only and records the device and inode of the directories it came
+  through: a `..` opens `..` of the current directory and must find the recorded
+  parent, and a `..` at the root leaves the root. A symlink is read with
+  `readlinkat` and its target walked in its place: a relative target from the
+  directory that holds the link, an absolute one from the file system root. A walk
+  outside the root may only descend: it is back inside when it reaches a directory
+  that is the root (same device and inode), and a `..` taken outside the root is
+  `OutsideRoot`, so a link cannot leave the root and climb back into it. More than
+  40 symlinks in one walk, counting the steps taken again because an entry changed
+  between two calls of one step, end it with `SymlinkLoop`. No path is resolved by
+  name. Outside the root only directories are opened (`O_DIRECTORY`, which opens no
+  device and no FIFO), and an outside non-directory is never opened. The file is
+  read, the directory listed and the entry looked up (`fstatat`, without following)
+  through the walked handle. A directory renamed out of the root while the walk is
+  inside it is still walked, and the check after the use refuses it: a file must
+  still be the entry it was found as in its directory, and that directory, or the
+  directory that was used, must reach the root through `..`, so a file or directory
+  moved out of the root during the use is refused.
+- On Windows the canonical path is opened as a handle, held without delete sharing (a
+  directory with backup semantics), and the path the system gives for that handle
+  (`GetFinalPathNameByHandleW`, normalised, with its drive letter) must lie under the
+  canonical root, after the open and again after each use. A file is read through
+  the handle, so its contents are those of the verified file. An outside file can be
+  opened in a race and is then refused before any read. A listing and an entry
+  lookup go by the handle's verified path, between the two checks, so a swap made and
+  undone between them is not seen: through it a listing can return the names of an
+  outside directory and an entry the kind of an outside path, never their contents.
+  Windows also refuses, before canonicalising and with `OutsideRoot`, every call on a
+  path with a segment that Win32 would not read as the name it spells: a reserved
+  device name (`CON`, `PRN`, `AUX`, `NUL`, `COM0` to `COM9`, `LPT0` to `LPT9`, the
+  superscript-digit `COM` and `LPT` names, `CONIN$` and `CONOUT$`) in any case, bare
+  or with any extension; a name that ends in a dot or a space; and a name that holds
+  a colon, which names an alternate data stream. `RelPath` accepts these segments on
+  every platform, and elsewhere they are ordinary names.
+- Elsewhere no handle can be verified, and `DiskTree::new` fails with `Io`.
+
+Whether an outside path exists is answered per strategy. The other-Unix walk answers
+`OutsideRoot` whenever a path or a link leads outside the root, whether the outside
+path exists or not; the one exception is a link whose target descends from outside
+into the root itself (an absolute target that spells the root through another
+path, or passes an outside link to the root), which succeeds only when that outside
+path exists. Linux and Windows canonicalise first, and canonicalisation follows a
+link where it leads, so it tells an outside path that exists from one that does not:
+a link that ends at an outside path is `OutsideRoot` when it exists and `NotFound`
+(`None` for `entry`) when it does not, and a link that passes an outside directory
+and climbs back into the root, such as `../outside/x/../../root/real.rs`, reads the
+in-root file when the outside directory exists and is `NotFound` when it does not. A
+directory swapped for such a link during a call gives the same answers. The
+operating system's canonicalisation cannot be told to refuse the climb back, so
+these two strategies keep these answers.
+
+A Linux host runs the Linux strategy natively and the other-Unix and Windows
+strategies through a test override, the Windows one with `/proc/self/fd/<fd>` as the
+handle's path. On macOS and Windows hosts the native strategies are run only by the
+CI jobs that test the crate there; for FreeBSD they are compiled and not run.
 
 **Resource bounds.** Source is parsed in-process. Each read is capped at
 `max_file_bytes`, which defaults to 8 MiB and is set by `LoadOptions::max_file_bytes`
@@ -892,14 +985,58 @@ duplicates.
   - a FIFO named as a module file, which is refused without blocking on a read;
   - a missing root, which is `NotFound`, and a symlinked root, which is followed to
     its target and judged there;
-  - a directory swapped for a symlink to outside the root between the prefix check
-    and the open, or between the check and a listing, which is refused and leaves the
-    outside file unread and the outside names unreturned;
-  - per-platform handle verifiers, each compiled on every platform and run on Linux:
-    a handle on a file outside the root is refused beside an in-root handle; a
-    differing device and inode pair is refused beside an equal pair; and a
-    non-regular handle and an outside re-canonicalised path are each refused beside
-    an accepted case;
+  - under each strategy (Linux, other Unix and Windows, each run on Linux, the last
+    two through a test override), a directory swapped for a symlink to outside the
+    root between the containment check and the open of a read, a listing or an
+    entry's directory, and a directory moved out of the root, with a symlink to
+    outside put in its place, after the handle is verified and before the file is
+    read, the entries are listed or the entry is looked up, each refused with
+    `OutsideRoot`, leaving the outside file unread and the outside names unreturned,
+    beside the same calls without a swap, which succeed;
+  - under each strategy, a swap made after the containment check and undone after
+    the open, before the handle is verified, for a read, a `read_unseen`, a listing
+    and an entry, and a swap flipped at each of those points and again after the
+    verification: each is `OutsideRoot`, and no outside text, name or kind is
+    returned;
+  - under the Linux and other-Unix strategies, an outside FIFO reached through such
+    a swap before the open, with a writer blocked in its own open of the FIFO: the
+    read is `OutsideRoot` and the writer is never released, because no reader opened
+    the FIFO;
+  - under each strategy on Linux, the containment fixtures of the disk backend: an
+    outside symlink and a chain to it refused beside in-root links, a `..` after an
+    outside directory symlink, a FIFO and a directory named as a file, listings and
+    their refusals, entry kinds and an entry below an outside directory, the identity
+    of a file, its links and a path through a directory link, a symlink loop, and an
+    absolute in-root link spelled through a linked parent of the root, which is
+    followed, beside a `..` from it that leaves the root;
+  - links into the outside, ending there or passing an outside directory and
+    climbing back into the root, each to an outside path that exists and to one that
+    does not: the other-Unix walk answers `OutsideRoot` to all of them, and the
+    Linux and Windows strategies answer `OutsideRoot` and `None`, and the in-root
+    file and `NotFound`; a `..` link that stays inside the root is followed under
+    every strategy;
+  - links to an in-root file whose resolution leaves the root and climbs back
+    (`../root/real.rs`, an absolute `…/root/../root/real.rs`, and an outside link to
+    the root whose own target climbs): Linux and Windows read the file and the
+    other-Unix walk answers `OutsideRoot`, beside an absolute target through a
+    linked parent of the root, which every strategy reads;
+  - under the other-Unix walk, an entry that is a symlink when a step opens it and a
+    directory when its status is read is stepped again, beside the same read with no
+    change; and in a child process limited to 64 descriptors, a path 300 directories
+    deep is read, read through a `..`, listed and looked up under every strategy;
+  - the handle verifiers: the path the system gives for a handle is refused outside
+    the root beside one inside it; on Linux a handle on a file outside the root is
+    refused beside an in-root handle, and a missing descriptor link is `Io`; on
+    Windows the final path of a handle is its canonical path and lies under the root;
+  - the Windows names: the reserved device names, with extensions and in any case,
+    names ending in a dot or a space and names holding a colon are recognised beside
+    neighbouring plain names on every platform; on Windows a `DiskTree` refuses each
+    with `OutsideRoot` beside plain names that read; elsewhere a tree with `aux/`,
+    `aux/con.rs` and `nul.txt` loads and reads;
+  - every target of the crate, its unit tests included, type-checks for macOS,
+    FreeBSD and Windows with warnings denied (`make cross-check`), and CI runs the
+    crate's tests on macOS and Windows hosts, where the other-Unix and Windows
+    strategies are the native ones;
   - a symlink to a file inside the root, and a chain of such symlinks, is accepted;
   - a chain that ends outside the root, a symlinked `Cargo.toml` and a symlinked
     target file that lead outside, and every discovery classification of a symlink

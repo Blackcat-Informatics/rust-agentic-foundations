@@ -16,8 +16,10 @@
 #                 in release only.
 #   fuzz          fmt, clippy and deny on the fuzz harness, then a bounded run of
 #                 each of its targets over its committed corpus. Needs cargo-fuzz.
-#   cross-check   cargo check of raf-source for the Apple and Windows targets.
-#                 Needs both targets installed (rustup target add).
+#   cross-check   cargo check of every raf-source target (the library, its unit
+#                 tests and its test binaries), warnings denied, for the Apple,
+#                 FreeBSD and Windows targets. Needs the three targets installed
+#                 (rustup target add).
 
 REUSE ?= uvx reuse@6.2.0
 MSRV_RUN ?= rust-validate 1.98.1
@@ -32,7 +34,7 @@ FUZZ_SEED ?= 1
 # Inputs are cut to this length: the large corpus files are judged by the
 # replay test in child processes, where an abort cannot take the fuzzer down.
 FUZZ_MAX_LEN ?= 4096
-CROSS_TARGETS ?= x86_64-apple-darwin x86_64-pc-windows-gnu
+CROSS_TARGETS ?= x86_64-apple-darwin x86_64-unknown-freebsd x86_64-pc-windows-gnu
 
 .PHONY: help fmt clippy test test-release doc deny reuse msrv fuzz cross-check licenses issue-refs check hooks
 
@@ -88,11 +90,11 @@ fuzz: ## Fuzz harness: fmt, clippy, deny, then a bounded run (needs cargo-fuzz).
 	      -runs=$(FUZZ_RUNS) -seed=$(FUZZ_SEED) -max_len=$(FUZZ_MAX_LEN) || exit 1; \
 	  done
 
-cross-check: ## cargo check raf-source for the Apple and Windows targets.
+cross-check: ## cargo check every raf-source target for the Apple, FreeBSD and Windows targets, warnings denied.
 	@for target in $(CROSS_TARGETS); do \
 	  rustup target list --installed | grep -qx "$$target" || { \
 	    echo "make cross-check: target '$$target' is not installed; run 'rustup target add $$target'" >&2; exit 1; }; \
-	  cargo check -p raf-source --locked --target "$$target" || exit 1; \
+	  RUSTFLAGS=-Dwarnings cargo check -p raf-source --locked --all-targets --target "$$target" || exit 1; \
 	done
 
 licenses: ## Verify the Mulan text digests and the zh-Hans source fingerprint.

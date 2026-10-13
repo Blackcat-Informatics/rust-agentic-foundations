@@ -49,20 +49,55 @@ with a typed error, and that a failure never passes: a run ends in an error, a c
 result or an abort, and never in success with a wrong or partial result. The
 guarantees are these, and no wider:
 
-- **Containment.** A file is read only if its canonical path lies inside the canonical
-  workspace root. The one exception is the reference scan, which reads the sources of
+- **Containment.** A file is read only if it lies inside the canonical workspace
+  root. The one exception is the reference scan, which reads the sources of
   reference packages by design; each of those files must lie inside the package
   directory that `cargo metadata` reports for that package. Symlinks that leave the
-  root or package, directory-symlink loops and non-regular files are refused. The
-  opened handle, for a file read and for a directory listing alike, is verified
-  against the root, and the guarantee depends on the platform. On Linux the kernel's own path for the handle must lie under the root,
-  so no check is separated from the open it guards. On other Unix systems the path
-  is canonicalised again after the open and must lie under the root and name the
-  same file as the handle (device and inode); a rename racing that second
-  canonicalisation can still redirect the path but not the handle. Elsewhere the
-  handle must be a regular file and the path canonicalised again after the open must
-  still lie under the root; a rename racing that second canonicalisation is a
-  residual window.
+  root or package, directory-symlink loops and non-regular files are refused. A file
+  read, a directory listing and an entry lookup each verify their handle against the
+  root before the use and again after it, and on every platform a file's contents
+  are read only through a handle verified to lie under the root. How the handle is
+  verified depends on the platform:
+  - On Linux a candidate is first taken as an `O_PATH` reference, and the kernel's
+    own path for it must lie under the root before it is opened for reading or
+    listed, through that descriptor path. An outside candidate is never opened for
+    reading or listing; only an `O_PATH` reference is taken, which performs no I/O,
+    device open or FIFO rendezvous.
+  - On other Unix systems (macOS and the BSDs) the path is walked beneath a
+    descriptor of the root, one `openat` per component, never following a symlink
+    and never resolving a path by name; an in-root symlink is read and its target
+    walked in its place. A walk outside the root may only descend back into the
+    root, never climb, so a link cannot leave the root and come back through `..`:
+    `../root/real.rs` from the root and `/…/root/../root/real.rs` are refused there,
+    while Linux and Windows follow them, so a tree holding such links loads on
+    Linux and Windows and not on macOS or the BSDs.
+    Outside the root only directories are opened, and an outside non-directory is
+    never opened. The file is read, the directory listed and the entry looked up
+    through the walked handle; a directory renamed out of the root during the walk
+    or the use is refused by the check after the use.
+  - On Windows the handle is held without delete sharing and the path the system
+    gives for it (`GetFinalPathNameByHandleW`) must lie under the root. An outside
+    file can be opened in a race and is then refused before any read. A listing and
+    an entry lookup go by the handle's verified path between the two checks, so a
+    swap made and undone between them can return the names of an outside directory
+    or the kind of an outside path, never their contents. Windows also refuses a
+    path segment that is a reserved device name, in any case and with any
+    extension, that ends in a dot or a space, or that holds a colon.
+  - Whether an outside path exists. The other-Unix walk answers `OutsideRoot`
+    whenever a path or a link leads outside the root, whether the outside path
+    exists or not, except for a link whose target descends from outside into the
+    root itself (such as an absolute target that spells the root through another
+    path), which succeeds only when that outside path exists. Linux and Windows
+    canonicalise first, and canonicalisation follows a link where it leads, so it
+    tells the two apart: a link the tree holds, or a directory swapped for one
+    during a call, that ends at an outside path is `OutsideRoot` when the path
+    exists and `NotFound` when it does not, and one that passes an outside
+    directory and climbs back into the root reads the in-root file when the
+    directory exists and is `NotFound` when it does not.
+
+  A Linux host runs the Linux strategy natively and the other two through a test
+  override. On macOS and Windows hosts the native strategies are run only by the CI
+  jobs that test the crate there; for FreeBSD they are compiled and not run.
 - **Bounds.** Input size and nesting depth are bounded. For Rust source the source
   index reads each file under a byte cap, runs a pre-scan that refuses a file over a
   budget (delimiter nesting, nested `<`, prefix operators, closure bars, `else if`
@@ -73,8 +108,9 @@ guarantees are these, and no wider:
   file reached by several module paths is walked once per path) and discovery (128
   directories below a root), keeping a stack of its own for each walk, reads and
   parses each file once whatever spellings reach it (files are told apart by device
-  and inode, or by canonical path), and bounds what one load reads, keeps in its
-  index and keeps as facts (256 MiB, 512 MiB and 256 MiB by default, 1 GiB in all).
+  and inode, or on Windows by the path of the handle), and bounds what one load
+  reads, keeps in its index and keeps as facts (256 MiB, 512 MiB and 256 MiB by
+  default, 1 GiB in all).
   The scope tables that `use` declarations and globs build are bounded by no budget:
   a glob-heavy input can exhaust memory (one module of 3000 functions globbed by 3000
   others, 166 KB of source, peaks at 7.3 GiB). The source index parses on a

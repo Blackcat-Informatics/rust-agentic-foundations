@@ -476,3 +476,37 @@ fn a_module_that_reaches_its_own_file_through_a_directory_symlink_is_a_cycle() {
     assert_eq!(error.file.as_str(), "src/x.rs");
     assert_eq!(error.line, Some(2));
 }
+
+/// Names that Windows reserves for devices are refused there, before the
+/// path is canonicalised; elsewhere they are ordinary names.
+#[test]
+fn a_tree_with_windows_device_names_loads_off_windows() {
+    let scratch = fixture();
+    scratch.file("root/src/lib.rs", "mod aux;\n");
+    scratch.file("root/src/aux/mod.rs", "pub mod con;\npub fn go() {}\n");
+    scratch.file("root/src/aux/con.rs", "pub fn device() {}\n");
+    scratch.file("root/src/nul.txt", "data");
+    let ws = load(&scratch).expect("a tree with device names loads");
+    for path in ["demo::aux::go", "demo::aux::con::device"] {
+        assert_eq!(ws.resolve(path).expect(path).path, path);
+    }
+
+    let tree = DiskTree::new(scratch.path("root")).expect("tree");
+    assert_eq!(
+        tree.read(&RelPath::new("src/nul.txt").expect("path"), 1024)
+            .expect("nul.txt"),
+        "data"
+    );
+    assert_eq!(
+        tree.entry(&RelPath::new("src/aux").expect("path"))
+            .expect("aux"),
+        Some(EntryKind::Dir)
+    );
+    let names: Vec<String> = tree
+        .list(&RelPath::new("src/aux").expect("path"))
+        .expect("list aux")
+        .into_iter()
+        .map(|entry| entry.name)
+        .collect();
+    assert_eq!(names, ["con.rs", "mod.rs"]);
+}
