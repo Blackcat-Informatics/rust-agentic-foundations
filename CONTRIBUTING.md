@@ -49,7 +49,7 @@ and pull requests are welcome.
 ## Development
 
 ```bash
-make check   # fmt, clippy, test, doc, deny, reuse, msrv, licenses, issue-refs
+make check   # fmt, clippy, test, test-release, doc, deny, reuse, msrv, fuzz, cross-check, licenses, issue-refs
 make hooks   # install the pre-commit and pre-merge-commit hooks (core.hooksPath = .githooks)
 make help    # list every target
 ```
@@ -63,9 +63,20 @@ make help    # list every target
 - **Hooks follow the checkout.** With `core.hooksPath` set to `.githooks`,
   committing on a checked-out branch runs that branch's copy of the hook, so a
   hook change takes effect on the branch that carries it.
-- **MSRV.** `make msrv` runs `cargo check --workspace --all-targets --locked` on
-  Rust 1.98.1 through `rust-validate`. Install `rust-validate`, or point `MSRV_RUN`
+- **MSRV.** `make msrv` runs `cargo check --workspace --all-targets --locked` (and the
+  same on the fuzz manifest) on Rust 1.98.1 through `rust-validate`. Install `rust-validate`, or point `MSRV_RUN`
   at a command that runs the 1.98.1 toolchain.
+- **Fuzz harness.** `make fuzz` checks `fuzz/` (its own cargo-fuzz workspace) with
+  fmt, clippy and an offline `cargo deny`, then runs each of its targets
+  (`parse-source`, `parse-document` and `load-workspace`) over its committed corpus,
+  with inputs of up to 400000 bytes and limits on resident memory and on one
+  allocation. It needs `cargo-fuzz` (`cargo install --locked
+  cargo-fuzz@0.13.2`); a missing tool is a failure. `make msrv` and `make fmt` cover
+  the fuzz manifest too.
+- **Release tests and cross-check.** `make test-release` runs the `raf-source` tests
+  and the `raf-okf` validation cost probe in release mode. `make cross-check` runs
+  `cargo check -p raf-source` for `x86_64-apple-darwin` and `x86_64-pc-windows-gnu`;
+  install them with `rustup target add`, because a missing target is a failure.
 - **REUSE.** `make reuse` runs `uvx reuse@6.2.0 lint`, so it needs `uv` (or set
   `REUSE=reuse` with `reuse` installed). A missing tool is a failure, not a skip.
 - **Supply chain.** `make deny` runs `cargo deny` offline on your machine; CI runs

@@ -28,7 +28,7 @@ repository it protects.
 `raf_census` exposes the `Rule` trait:
 
 ```rust
-pub trait Rule {
+pub trait Rule: Sync {
     /// The rule id; hits report as `rule:<id>`.
     fn id(&self) -> &'static str;
     /// Inspect one parsed file and push a hit for each finding.
@@ -38,6 +38,7 @@ pub trait Rule {
 }
 ```
 
+- A rule runs on the parse thread, so `Rule: Sync`.
 - `RuleFixtures` holds source snippets in two sets, `positive` and `negative`. A
   rule returns at least one of each.
 - `FileCtx` describes the file being checked: its package, repository-relative

@@ -8,6 +8,36 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
+- **`raf-okf`:** reads and writes the RAF profile of OKF documents. It parses
+  Markdown with YAML frontmatter in a closed subset, validates the closed key sets
+  and typed values of capability, change and architecture documents and reports
+  every violation with its file, rule and position, models the body (sections,
+  links, fenced code, generated and PROPOSED blocks) and rewrites spans in it, and
+  writes documents back deterministically so a parsed document renders to its own
+  bytes. Input is bounded in size and nesting, anchors and aliases are refused, and
+  the crate reads no file.
+- **`raf-source`:** indexes Rust source for other tools. A `Tree` trait with disk
+  and memory backends gives every path confinement to the workspace root; package
+  and target discovery finds library, binary, test, bench, example and build
+  targets; the module tree follows `mod`, `#[path]` and `cfg_attr` paths; and the
+  symbol and use-alias index resolves a path through renames, globs and re-exports
+  with typed failures. Files are size-capped and told apart by identity, so a file
+  is read and parsed once whatever spellings reach it. A token pre-scan bounds
+  recursion, with one count summed over every open delimiter level that keeps an
+  admitted file within half of the parse stack; the tokens of each file and the bytes a load reads, keeps in its index
+  and keeps as facts are budgeted, with limits a caller can set; the walks keep
+  stacks of their own; parsing runs on a dedicated stack; and committed fuzz
+  targets cover the parser and a whole load of a workspace built in memory.
+- **Public API of `raf-source` and `raf-okf`:** the data structs a caller reads
+  (`Package`, `Target`, `SourceFile`, `Reach`, `Entry`, `SpanFact`, beside `Item`)
+  are `#[non_exhaustive]`, so a later field is not a breaking change, and a `Tree`
+  backend builds a listing entry with `Entry::new`. `Target` carries the test
+  settings of its manifest table (`harness`, `required_features`, `test`,
+  `doctest`) with cargo's defaults. `SpanFact` gives its lines as a 1-based
+  half-open `lines` range, as `raf_okf::Span` does. The per-file facts the index
+  is built from stay inside the crate; callers read items through the `Workspace`
+  accessors. `LoadOptions` is `Clone` and not `Copy`. `raf_okf::Outcome` and
+  `raf_okf::LinkTarget` are exhaustive, since the profile closes both sets.
 - **Workspace scaffold:** a Cargo workspace on edition 2024 with a floating
   nightly development toolchain and a minimum supported Rust version of 1.98.1,
   shared workspace lints (missing documentation, unreachable `pub` and unsafe
@@ -17,10 +47,12 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   MulanPSL-2.0` and every Markdown document under CC-BY-4.0, with the licence
   texts, a Chinese-language rendering of the licensing terms, and REUSE
   metadata checked by `reuse lint`.
-- **Gates:** `make check` runs formatting, clippy, tests, documentation,
-  `cargo deny`, REUSE, the minimum-version build, the licence digests and the
-  issue-reference gate. A pre-commit hook runs the fast subset on a checkout of
-  the staged index, and a CI workflow runs the same gates.
+- **Gates:** `make check` runs formatting, clippy, tests, release-mode tests of
+  `raf-source`, documentation, `cargo deny`, REUSE, the minimum-version build, the
+  fuzz harness checks and a bounded fuzz run, a `cargo check` for the Apple and
+  Windows targets, the licence digests and the issue-reference gate. A pre-commit
+  hook runs the fast subset on a checkout of the staged index, and a CI workflow
+  runs the same gates.
 - **Repository gates:** `tests/repo_gates.rs` checks the Mulan licence digests
   and the Chinese-rendering fingerprint, scans every tracked file for issue and
   pull request references and process wording, and requires `CITATION.cff` and

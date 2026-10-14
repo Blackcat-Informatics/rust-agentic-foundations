@@ -17,6 +17,15 @@ confidence-threshold = 0.93
 # repository rather than required of anything in the graph.
 unused-allowed-license = "allow"
 
+# `unicode-ident` ships Unicode's own data tables, and that data is licensed
+# under the Unicode terms (`Unicode-3.0`) in addition to MIT or Apache-2.0.
+# The terms permit use and redistribution of the data as compiled in, and no
+# other crate in the graph needs them, so the exception is scoped to this crate.
+# It is pinned to the audited version, so a new release is re-reviewed.
+[[licenses.exceptions]]
+crate = "unicode-ident@=1.0.27"
+allow = ["Unicode-3.0"]
+
 [bans]
 multiple-versions = "deny"
 wildcards = "deny"

@@ -46,14 +46,18 @@ crates are implemented.
 
 ### Crates
 
-Every crate below is **designed, not yet implemented**. The workspace members list
-is empty until each crate lands; its capability documents in `docs/capabilities/`
-are the specification.
+`raf-okf` and `raf-source` are workspace members and are **delivered**: the
+frontmatter reader, the deterministic writer, the body model and the profile
+validation of `raf-okf`, and the `Tree` trait of `raf-source` with its disk and
+memory backends and path containment, its bounded parse, package and target
+discovery, its module tree and its symbol and use-alias index. Every other crate
+below is **designed, not yet implemented**, and joins the workspace members list when
+it is built. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
 |---|---|---|
-| `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | designed |
-| `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | designed |
+| `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | delivered |
+| `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | delivered |
 | `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | designed |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
 | `raf-workplan` | Capability and change model, graph, obligations, bindings, generated sections, completion gate | designed |
@@ -67,7 +71,7 @@ bindings.
 
 | Path | Contents |
 |---|---|
-| `crates/` | The workspace member crates (none exist yet; `members` is empty) |
+| `crates/` | The workspace member crates (`raf-okf` and `raf-source`; each other crate joins `members` when it is built) |
 | `docs/capabilities/` | One permanent capability document per capability |
 | `docs/architecture/` | Shared current decisions (normal form, OKF profile) |
 | `work/changes/` | In-flight change records |
@@ -84,17 +88,38 @@ bindings.
   into invisible debt.
 - The **minimum supported Rust version is 1.98.1** (`rust-version` in the root
   `Cargo.toml`), enforced on the stable channel. `make msrv` runs
-  `cargo check --workspace --all-targets --locked` through `rust-validate 1.98.1`.
+  `cargo check --workspace --all-targets --locked` through `rust-validate 1.98.1`,
+  and the same check on the fuzz harness manifest.
 - The source uses **no unstable features**. A `#![feature(...)]` attribute is
   rejected; the MSRV build proves it on every change.
 - Raising the MSRV is a changelog-recorded change that rides a minor bump.
+- **Path containment is per platform.** `raf-source` verifies every handle it uses
+  against the workspace root, before the use and again after it, and reads a file's
+  contents only through a verified handle. On Linux a candidate is first taken as an
+  `O_PATH` reference and the kernel's path for it (`/proc`) must lie under the root
+  before it is opened for reading or listing through that path, so an outside
+  candidate is never opened for reading or listing. On other Unix systems the path
+  is walked beneath a descriptor of the root with `openat` (through `rustix`), one
+  component at a time and never following a symlink, so no path is resolved by name
+  and an outside candidate is never opened; a walk outside the root may only
+  descend back into it, never climb, so a link cannot leave the root and return. On
+  Windows the path the system gives for the handle (`GetFinalPathNameByHandleW`,
+  through `windows-sys`, in the library's one `unsafe` block) must lie under the
+  root; an outside file can be opened in a race and is then refused before any
+  read, and a listing or an entry lookup goes by the handle's path, so a swap made
+  and undone between the two checks can return outside names or kinds, never
+  contents. Windows also refuses reserved device names, names ending in a dot or a
+  space, and names holding a colon. `make cross-check` compiles every platform's
+  strategy and tests (macOS, FreeBSD and Windows); a Linux host runs the other two
+  strategies through a test override, and the macOS and Windows CI jobs run the
+  native ones there.
 
 ---
 
 ## 3. Gates
 
 ```bash
-make check   # fmt, clippy, test, doc, deny, reuse, msrv, licenses, issue-refs
+make check   # fmt, clippy, test, test-release, doc, deny, reuse, msrv, fuzz, cross-check, licenses, issue-refs
 make hooks   # point core.hooksPath at .githooks for this clone
 ```
 
@@ -110,7 +135,19 @@ make hooks   # point core.hooksPath at .githooks for this clone
 - **Never bypass a hook or a gate.** Do not pass `--no-verify`, do not edit a hook
   to pass, and do not weaken a gate or a lint to get green. Fix the cause.
 - A missing tool is a hard failure, not a skip. `make reuse` needs `uvx` or
-  `reuse`; `make msrv` needs `rust-validate`.
+  `reuse`; `make msrv` needs `rust-validate`; `make fuzz` needs `cargo-fuzz`
+  (`cargo install --locked cargo-fuzz@0.13.2`); `make cross-check` needs the
+  `x86_64-apple-darwin`, `x86_64-unknown-freebsd` and `x86_64-pc-windows-gnu`
+  targets (`rustup target add x86_64-apple-darwin x86_64-unknown-freebsd
+  x86_64-pc-windows-gnu`).
+- `make test-release` runs the `raf-source` tests in release mode, because the stack
+  a nesting level costs the parser differs between profiles, and the `raf-okf`
+  validation cost probe (`tests/validate_cost.rs`), whose time bound only holds in
+  release. `make fuzz` checks the fuzz harness in `fuzz/` (its own workspace) with
+  fmt, clippy and deny, then runs each of its targets over its committed corpus. `make
+  cross-check` runs `cargo check --all-targets` of `raf-source`, warnings denied,
+  for the three targets above. `make msrv` and `make fmt` also cover the fuzz harness
+  manifest.
 - `make deny` runs offline locally; CI fetches the advisory database.
 
 ### Workspace lints
@@ -119,7 +156,15 @@ The root `Cargo.toml` declares `[workspace.lints]`, and every crate inherits the
 with `[lints] workspace = true`:
 
 - `unreachable_pub`, `missing_docs` and `unsafe_code` are denied. Use `pub(crate)`
-  for items that are not API.
+  for items that are not API. Library code has one `unsafe` block, the Windows
+  `GetFinalPathNameByHandleW` call in `crates/raf-source/src/tree/disk/final_path.rs`,
+  under an item-scoped `#[allow(unsafe_code)]` with its reason and a `SAFETY`
+  comment. The only other one is the counting allocator of the `raf-okf` bounds
+  test, under its own scoped allow.
+- The fuzz harness in `fuzz/` is its own workspace and mirrors the same
+  `[workspace.lints]` tables; `tests/repo_gates.rs` fails when they differ, and
+  likewise when `fuzz/deny.toml` differs from `deny.toml` by more than its one
+  crate-scoped exception.
 - Clippy `all` and `pedantic` warn, and CI denies warnings.
 - `allow_attributes_without_reason` is denied: every `#[allow]` states why, scoped
   as tightly as possible. Prefer fixing the code.
@@ -163,7 +208,9 @@ with `[lints] workspace = true`:
 RAF plans its own work in the workplan format. This section describes the design.
 Today the document-contract test (`tests/docs_contract.rs`) enforces the format
 on every capability, change and architecture document in `cargo test` and in the
-pre-commit hook; `raf-workplan` takes over once implemented.
+pre-commit hook. It reads them through `raf-okf`, resolves their bindings through
+`raf-source`, and keeps the cross-document rules; `raf-workplan` takes those over
+once implemented.
 
 - **Capability documents** live in `docs/capabilities/<slug>.md`, one per
   capability. Frontmatter carries `type`, `id`, `title`, `description`, `state`

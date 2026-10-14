@@ -49,19 +49,90 @@ with a typed error, and that a failure never passes: a run ends in an error, a c
 result or an abort, and never in success with a wrong or partial result. The
 guarantees are these, and no wider:
 
-- **Containment.** A file is read only if its canonical path lies inside the canonical
-  workspace root. The one exception is the reference scan, which reads the sources of
+- **Containment.** A file is read only if it lies inside the canonical workspace
+  root. The one exception is the reference scan, which reads the sources of
   reference packages by design; each of those files must lie inside the package
   directory that `cargo metadata` reports for that package. Symlinks that leave the
-  root or package, directory-symlink loops and non-regular files are refused.
-- **Bounds.** Input size and nesting depth are bounded. The design of the source
-  index adds, for Rust source, a recursion pre-scan, a dedicated 64 MiB parse stack
-  and a fuzz target (`parse_source`) with a corpus that `cargo test` replays. These
-  are specified in the source index and are not built yet, because RAF is
-  pre-release. They make memory exhaustion and stack overflow unlikely and do not
-  prove that an overflow cannot happen. A residual stack overflow aborts the run, so
-  the gate fails and never passes, and a file ends in a typed error, a correct and
-  complete index, or an abort, never in success with a wrong or partial index. Report
+  root or package, directory-symlink loops and non-regular files are refused. A file
+  read, a directory listing and an entry lookup each verify their handle against the
+  root before the use and again after it, and on every platform a file's contents
+  are read only through a handle verified to lie under the root. How the handle is
+  verified depends on the platform:
+  - On Linux a candidate is first taken as an `O_PATH` reference, and the kernel's
+    own path for it must lie under the root before it is opened for reading or
+    listed, through that descriptor path. An outside candidate is never opened for
+    reading or listing; only an `O_PATH` reference is taken, which performs no I/O,
+    device open or FIFO rendezvous.
+  - On other Unix systems (macOS and the BSDs) the path is walked beneath a
+    descriptor of the root, one `openat` per component, never following a symlink
+    and never resolving a path by name; an in-root symlink is read and its target
+    walked in its place. A walk outside the root may only descend back into the
+    root, never climb, so a link cannot leave the root and come back through `..`:
+    `../root/real.rs` from the root and `/…/root/../root/real.rs` are refused there,
+    while Linux and Windows follow them, so a tree holding such links loads on
+    Linux and Windows and not on macOS or the BSDs.
+    Outside the root only directories are opened, and an outside non-directory is
+    never opened. The file is read, the directory listed and the entry looked up
+    through the walked handle; a directory renamed out of the root during the walk
+    or the use is refused by the check after the use.
+  - On Windows the handle is held without delete sharing and the path the system
+    gives for it (`GetFinalPathNameByHandleW`) must lie under the root. An outside
+    file can be opened in a race and is then refused before any read. A listing and
+    an entry lookup go by the handle's verified path between the two checks, so a
+    swap made and undone between them can return the names of an outside directory
+    or the kind of an outside path, never their contents. Windows also refuses a
+    path segment that is a reserved device name, in any case and with any
+    extension, that ends in a dot or a space, or that holds a colon.
+  - Whether an outside path exists. The other-Unix walk answers `OutsideRoot`
+    whenever a path or a link leads outside the root, whether the outside path
+    exists or not, except for a link whose target descends from outside into the
+    root itself (such as an absolute target that spells the root through another
+    path), which succeeds only when that outside path exists. Linux and Windows
+    canonicalise first, and canonicalisation follows a link where it leads, so it
+    tells the two apart: a link the tree holds, or a directory swapped for one
+    during a call, that ends at an outside path is `OutsideRoot` when the path
+    exists and `NotFound` when it does not, and one that passes an outside
+    directory and climbs back into the root reads the in-root file when the
+    directory exists and is `NotFound` when it does not.
+
+  A Linux host runs the Linux strategy natively and the other two through a test
+  override. On macOS and Windows hosts the native strategies are run only by the CI
+  jobs that test the crate there; for FreeBSD they are compiled and not run.
+- **Bounds.** Input size and nesting depth are bounded. For Rust source the source
+  index reads each file under a byte cap, runs a pre-scan that refuses a file over a
+  budget (delimiter nesting, nested `<`, prefix operators, closure bars, `else if`
+  chains, an additive count of the parser's recursion over every open delimiter level,
+  whose limit keeps an admitted file within half of the parse stack, and a token count, 2000000 by default, which bounds the memory of parsing
+  one file at its peak at 1664 bytes per token, about 3.1 GiB, and which a caller on
+  a smaller host lowers) with a typed error naming the file and the budget, bounds
+  the module walk (128 nested modules and 262144 module walks per load, because a
+  file reached by several module paths is walked once per path) and discovery (128
+  directories below a root), keeping a stack of its own for each walk and for the
+  search that keys the trait of an impl through imports and globs, reads and
+  parses each file once whatever spellings reach it (files are told apart by device
+  and inode, or on Windows by the path of the handle), and bounds what one load
+  reads, keeps in its index, keeps as facts and holds at once in the tables of what
+  glob imports bring in (256 MiB, 512 MiB, 256 MiB and 512 MiB by default, 1.5 GiB in
+  all). What a glob brings in is kept once for every class of importers that see the
+  same of a module, so one module of 3000 functions globbed by 3000 others loads at a
+  peak of 24 MiB, and modules that bring in the names of many others are refused by
+  the glob budget (1400 modules that each glob the crate root, which globs each, are
+  refused in 2 to 3 s at a peak of 415 MiB). The work queue and the graph of undecided
+  imports that settling the imports builds are not budgeted; they are dropped once
+  the imports are settled, and the time to decide them grows faster than their size
+  (200 modules that glob the crate root, which globs each, each importing a name
+  nothing defines, settle in 613 s at a peak of 555 MiB resident, with 9.7 MB charged
+  to the glob tables).
+  The source index parses on a
+  dedicated 64 MiB stack on a thread named after the file, and is fuzzed through a
+  target (`parse-source`) whose committed corpus `cargo test` replays in child
+  processes, in debug and in release; a second target (`load-workspace`) fuzzes a
+  whole load from a workspace built in memory. These bound the memory a load keeps
+  and the stack that parsing an admitted file takes; the stack bound rests on an
+  audit of the parser's recursion and on measured costs. A residual stack overflow
+  aborts the run, so the gate fails and never passes, and a file ends in a typed
+  error, a correct and complete index, or an abort, never in success with a wrong or
+  partial index. Report
   an overflow as a robustness bug: under the trust model above its impact is a failed
   run and not a breach. The parsers set no time bound.
 - **Subprocesses.** Every spawned `cargo` or `git` process runs with no shell and
@@ -77,7 +148,8 @@ Each spec states its own bounds and exact invocations.
 ## Security surface
 
 The most relevant security surface for this project is **reading untrusted
-files**. Once implemented, the following surfaces apply:
+files**. The following surfaces apply; `raf-okf` and `raf-source` implement the
+parsing and path-traversal surfaces, and the rest apply as the other crates are built:
 
 - **Rust source parsing** — `syn` parsing of untrusted `.rs` files; resource
   exhaustion from pathological nesting, very large files, or deeply recursive

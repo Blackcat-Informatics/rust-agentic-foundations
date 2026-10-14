@@ -6,7 +6,7 @@
 //! This module is the single definition site for two things:
 //!
 //! * the issue-reference and process-wording patterns, written as a small
-//!   hand-made matcher because the root package takes no dependencies;
+//!   hand-made matcher so that no pattern-matching crate is needed;
 //! * the list of files the gates judge.
 //!
 //! The file list comes from the git index (`git ls-files -z`), so untracked

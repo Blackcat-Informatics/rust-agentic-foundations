@@ -11,11 +11,15 @@
 //!   record;
 //! * no tracked text file carries an issue or pull request number or
 //!   development-process wording;
-//! * `CITATION.cff` and `[workspace.package]` carry the same version.
+//! * `CITATION.cff` and `[workspace.package]` carry the same version;
+//! * the fuzz harness workspace carries the same `[workspace.lints]` tables as
+//!   the root, and every workspace manifest inherits them;
+//! * the fuzz harness `deny.toml` is the root `deny.toml` plus its one
+//!   crate-scoped licence exception.
 //!
 //! Each gate is a pure function over text or bytes, and each has a named
 //! negative fixture below that breaks exactly one thing. Test names start with
-//! `licenses_`, `issue_refs_` or `citation_`, which names the gate a test
+//! `licenses_`, `issue_refs_`, `citation_`, `lints_` or `deny_`, which names the gate a test
 //! belongs to; `make licenses` and `make issue-refs` run the whole binary. Only
 //! the standard library is used.
 
@@ -271,6 +275,149 @@ fn version_problem(manifest: &str, citation: &str) -> Option<String> {
             "CITATION.cff: version {cff} != [workspace.package] version {cargo} in Cargo.toml"
         )),
         _ => None,
+    }
+}
+
+/// The lines of every table whose header starts with `prefix`, headers
+/// included, with blank lines and comments dropped.
+fn tables_with_prefix(toml: &str, prefix: &str) -> Vec<String> {
+    let mut in_section = false;
+    let mut lines = Vec::new();
+    for line in toml.lines().map(str::trim) {
+        if line.starts_with('[') {
+            in_section = line.starts_with(prefix);
+        }
+        if in_section && !line.is_empty() && !line.starts_with('#') {
+            lines.push(line.to_string());
+        }
+    }
+    lines
+}
+
+/// A problem with the lint tables of the fuzz workspace, or `None` when they
+/// equal the root tables.
+fn lint_tables_problem(root: &str, fuzz: &str) -> Option<String> {
+    let want = tables_with_prefix(root, "[workspace.lints");
+    let got = tables_with_prefix(fuzz, "[workspace.lints");
+    if want.is_empty() {
+        Some("Cargo.toml: no [workspace.lints] tables".to_string())
+    } else if want != got {
+        Some(format!(
+            "fuzz/Cargo.toml: [workspace.lints] tables differ from Cargo.toml: root has {want:?}, fuzz has {got:?}"
+        ))
+    } else {
+        None
+    }
+}
+
+/// The level of lint `name` in the `[workspace.lints.rust]` table, as written
+/// between its quotes, or `None` when the table does not set it as a string.
+fn rust_lint_level(manifest: &str, name: &str) -> Option<String> {
+    let mut in_table = false;
+    for line in manifest.lines().map(str::trim) {
+        if line.starts_with('[') {
+            in_table = line == "[workspace.lints.rust]";
+        } else if in_table {
+            let Some((key, value)) = line.split_once('=') else {
+                continue;
+            };
+            if key.trim() == name {
+                return value
+                    .trim()
+                    .strip_prefix('"')
+                    .and_then(|rest| rest.strip_suffix('"'))
+                    .map(str::to_string);
+            }
+        }
+    }
+    None
+}
+
+/// The quoted entries of the `members` array of a workspace manifest.
+fn workspace_members(manifest: &str) -> Vec<String> {
+    let mut in_workspace = false;
+    let mut collecting = false;
+    let mut members = Vec::new();
+    for line in manifest.lines().map(str::trim) {
+        if line.starts_with('[') {
+            in_workspace = line == "[workspace]";
+        }
+        if in_workspace && line.starts_with("members") {
+            collecting = true;
+        }
+        if collecting {
+            members.extend(line.split('"').skip(1).step_by(2).map(str::to_string));
+            if line.contains(']') {
+                collecting = false;
+            }
+        }
+    }
+    members
+}
+
+/// True when the manifest has a `[lints]` table holding `workspace = true`.
+fn inherits_workspace_lints(manifest: &str) -> bool {
+    let mut in_lints = false;
+    for line in manifest.lines().map(str::trim) {
+        if line.starts_with('[') {
+            in_lints = line == "[lints]";
+        } else if in_lints && line.replace(' ', "") == "workspace=true" {
+            return true;
+        }
+    }
+    false
+}
+
+/// The manifests in `names` that do not inherit the workspace lints.
+fn without_workspace_lints(names: &[String], read: impl Fn(&str) -> String) -> Vec<String> {
+    names
+        .iter()
+        .filter(|name| !inherits_workspace_lints(&read(name)))
+        .cloned()
+        .collect()
+}
+
+/// The tables of a `deny.toml` as lines, comments and blank lines dropped,
+/// split at each header.
+fn deny_tables(deny: &str) -> Vec<Vec<String>> {
+    let mut tables: Vec<Vec<String>> = Vec::new();
+    for line in deny.lines().map(str::trim) {
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if line.starts_with('[') {
+            tables.push(Vec::new());
+        }
+        if let Some(table) = tables.last_mut() {
+            table.push(line.to_string());
+        }
+    }
+    tables
+}
+
+/// The crate-scoped exception the fuzz configuration adds to the root one.
+const FUZZ_EXCEPTION: [&str; 3] = [
+    "[[licenses.exceptions]]",
+    "crate = \"libfuzzer-sys@=0.4.13\"",
+    "allow = [\"NCSA\"]",
+];
+
+/// A problem with the fuzz `deny.toml`, or `None` when it is the root
+/// configuration plus exactly the crate-scoped exception.
+fn deny_problem(root: &str, fuzz: &str) -> Option<String> {
+    let want = deny_tables(root);
+    let (extra, shared): (Vec<_>, Vec<_>) = deny_tables(fuzz)
+        .into_iter()
+        .partition(|table| table.iter().map(String::as_str).eq(FUZZ_EXCEPTION));
+    if extra.len() != 1 {
+        Some(format!(
+            "fuzz/deny.toml: expected exactly one exception for libfuzzer-sys, found {}",
+            extra.len()
+        ))
+    } else if shared != want {
+        Some("fuzz/deny.toml: the shared sections differ from deny.toml".to_string())
+    } else {
+        None
     }
 }
 
@@ -652,4 +799,177 @@ fn citation_rejects_a_manifest_bump_without_a_matching_citation() {
 fn citation_rejects_a_missing_version() {
     assert!(version_problem(MANIFEST, "title: x\n").is_some());
     assert!(version_problem("[package]\nversion = \"0.1.0\"\n", "version: \"0.1.0\"\n").is_some());
+}
+
+// ---------------------------------------------------------------------------
+// Gates on the real tree: lints and licence configuration
+// ---------------------------------------------------------------------------
+
+#[test]
+fn lints_fuzz_workspace_tables_equal_the_root_tables() {
+    let root = gate_root();
+    let problem = lint_tables_problem(
+        &read_text(&root, "Cargo.toml"),
+        &read_text(&root, "fuzz/Cargo.toml"),
+    );
+    assert_eq!(problem, None);
+}
+
+#[test]
+fn lints_the_root_denies_missing_docs_unsafe_code_and_unreachable_pub() {
+    let manifest = read_text(&gate_root(), "Cargo.toml");
+    for lint in ["missing_docs", "unsafe_code", "unreachable_pub"] {
+        assert_eq!(
+            rust_lint_level(&manifest, lint).as_deref(),
+            Some("deny"),
+            "[workspace.lints.rust] must set {lint} = \"deny\""
+        );
+    }
+}
+
+#[test]
+fn lints_every_workspace_manifest_inherits_the_workspace_lints() {
+    let root = gate_root();
+    let manifest = read_text(&root, "Cargo.toml");
+    let mut names: Vec<String> = workspace_members(&manifest)
+        .iter()
+        .map(|member| format!("{member}/Cargo.toml"))
+        .collect();
+    assert!(!names.is_empty(), "the root manifest lists no members");
+    names.push("Cargo.toml".to_string());
+    names.push("fuzz/Cargo.toml".to_string());
+    let missing = without_workspace_lints(&names, |name| read_text(&root, name));
+    assert_eq!(missing, Vec::<String>::new());
+}
+
+#[test]
+fn deny_fuzz_configuration_is_the_root_configuration_plus_one_exception() {
+    let root = gate_root();
+    let problem = deny_problem(
+        &read_text(&root, "deny.toml"),
+        &read_text(&root, "fuzz/deny.toml"),
+    );
+    assert_eq!(problem, None);
+}
+
+// ---------------------------------------------------------------------------
+// Fixtures: lints and licence configuration
+// ---------------------------------------------------------------------------
+
+const LINT_ROOT: &str = "[workspace]\nmembers = [\"a\"]\n\n[workspace.lints.rust]\n# why\nmissing_docs = \"deny\"\n\n[workspace.lints.clippy]\nall = \"warn\"\n";
+
+#[test]
+fn lints_reads_the_level_of_a_lint_and_sees_a_weakened_one() {
+    assert_eq!(
+        rust_lint_level(LINT_ROOT, "missing_docs").as_deref(),
+        Some("deny")
+    );
+    let weakened = LINT_ROOT.replace("missing_docs = \"deny\"", "missing_docs = \"warn\"");
+    assert_eq!(
+        rust_lint_level(&weakened, "missing_docs").as_deref(),
+        Some("warn")
+    );
+    // A lint of another table, or one that is not set, has no level here.
+    assert_eq!(rust_lint_level(LINT_ROOT, "all"), None);
+    assert_eq!(rust_lint_level(LINT_ROOT, "unsafe_code"), None);
+}
+
+#[test]
+fn lints_accepts_equal_tables_whatever_the_comments() {
+    let fuzz = "[package]\nname = \"f\"\n\n[workspace.lints.rust]\nmissing_docs = \"deny\"\n# other note\n\n[workspace.lints.clippy]\nall = \"warn\"\n";
+    assert_eq!(lint_tables_problem(LINT_ROOT, fuzz), None);
+}
+
+#[test]
+fn lints_rejects_a_weakened_level_in_the_fuzz_tables() {
+    let fuzz = LINT_ROOT.replace("\"deny\"", "\"warn\"");
+    assert!(lint_tables_problem(LINT_ROOT, &fuzz).is_some());
+}
+
+#[test]
+fn lints_rejects_an_added_or_removed_lint_in_the_fuzz_tables() {
+    let added = format!("{LINT_ROOT}pedantic = \"warn\"\n");
+    assert!(lint_tables_problem(LINT_ROOT, &added).is_some());
+    let removed = LINT_ROOT.replace("missing_docs = \"deny\"\n", "");
+    assert!(lint_tables_problem(LINT_ROOT, &removed).is_some());
+    assert!(lint_tables_problem(LINT_ROOT, "[package]\nname = \"f\"\n").is_some());
+}
+
+#[test]
+fn lints_rejects_a_root_without_lint_tables() {
+    assert!(lint_tables_problem("[workspace]\n", "[workspace]\n").is_some());
+}
+
+#[test]
+fn lints_reads_single_and_multi_line_member_lists() {
+    assert_eq!(workspace_members(LINT_ROOT), ["a"]);
+    let spread = "[workspace]\nresolver = \"3\"\nmembers = [\n  \"crates/a\",\n  \"crates/b\",\n]\nexclude = [\"fuzz\"]\n";
+    assert_eq!(workspace_members(spread), ["crates/a", "crates/b"]);
+}
+
+#[test]
+fn lints_rejects_a_member_manifest_that_does_not_inherit() {
+    let names = [
+        "ok/Cargo.toml",
+        "plain/Cargo.toml",
+        "off/Cargo.toml",
+        "other/Cargo.toml",
+    ]
+    .map(str::to_string);
+    let read = |name: &str| match name {
+        "ok/Cargo.toml" => "[package]\nname = \"ok\"\n\n[lints]\nworkspace = true\n".to_string(),
+        "plain/Cargo.toml" => "[package]\nname = \"plain\"\n".to_string(),
+        "off/Cargo.toml" => "[lints]\nworkspace = false\n".to_string(),
+        // `workspace = true` under another table is not the lint switch.
+        _ => "[package]\nworkspace = true\n\n[lints]\nrust = {}\n".to_string(),
+    };
+    assert_eq!(
+        without_workspace_lints(&names, read),
+        ["plain/Cargo.toml", "off/Cargo.toml", "other/Cargo.toml"]
+    );
+}
+
+const DENY_ROOT: &str = "# note\n[licenses]\nallow = [\"MIT\"]\n\n[[licenses.exceptions]]\ncrate = \"unicode-ident\"\nallow = [\"Unicode-3.0\"]\n\n[bans]\nwildcards = \"deny\"\n";
+
+fn fuzz_deny() -> String {
+    DENY_ROOT.replace(
+        "\n[bans]",
+        "\n# why\n[[licenses.exceptions]]\ncrate = \"libfuzzer-sys@=0.4.13\"\nallow = [\"NCSA\"]\n\n[bans]",
+    )
+}
+
+#[test]
+fn deny_accepts_the_root_configuration_plus_the_one_exception() {
+    assert_eq!(deny_problem(DENY_ROOT, &fuzz_deny()), None);
+}
+
+#[test]
+fn deny_rejects_a_shared_section_that_differs() {
+    let changed = fuzz_deny().replace("wildcards = \"deny\"", "wildcards = \"warn\"");
+    assert!(deny_problem(DENY_ROOT, &changed).is_some());
+    let widened = fuzz_deny().replace("allow = [\"MIT\"]", "allow = [\"MIT\", \"GPL-3.0\"]");
+    assert!(deny_problem(DENY_ROOT, &widened).is_some());
+}
+
+#[test]
+fn deny_rejects_a_missing_or_widened_or_repeated_exception() {
+    assert!(deny_problem(DENY_ROOT, DENY_ROOT).is_some());
+    let widened = fuzz_deny().replace("[\"NCSA\"]", "[\"NCSA\", \"GPL-3.0\"]");
+    assert!(deny_problem(DENY_ROOT, &widened).is_some());
+    let other_crate = fuzz_deny().replace("libfuzzer-sys", "other");
+    assert!(deny_problem(DENY_ROOT, &other_crate).is_some());
+    let twice = fuzz_deny().replace(
+        "\n[bans]",
+        "\n[[licenses.exceptions]]\ncrate = \"libfuzzer-sys@=0.4.13\"\nallow = [\"NCSA\"]\n\n[bans]",
+    );
+    assert!(deny_problem(DENY_ROOT, &twice).is_some());
+}
+
+#[test]
+fn deny_rejects_a_dropped_root_exception() {
+    let dropped = fuzz_deny().replace(
+        "[[licenses.exceptions]]\ncrate = \"unicode-ident\"\nallow = [\"Unicode-3.0\"]\n",
+        "",
+    );
+    assert!(deny_problem(DENY_ROOT, &dropped).is_some());
 }

@@ -34,6 +34,8 @@ jobs:
           components: rustfmt
       - name: Format
         run: cargo fmt --all --check
+      - name: Format the fuzz harness
+        run: cargo fmt --check --manifest-path fuzz/Cargo.toml
 
   clippy:
     runs-on: ubuntu-latest
@@ -65,6 +67,95 @@ jobs:
           toolchain: nightly # keep in sync with rust-toolchain.toml
       - name: Test
         run: cargo test --workspace --locked
+
+  test-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+      - name: Test raf-source in release mode
+        run: cargo test -p raf-source --release --locked
+      - name: Test the raf-okf validation cost in release mode
+        run: cargo test -p raf-okf --release --locked --test validate_cost
+
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+          components: clippy, rustfmt
+      - name: Install cargo-deny
+        run: cargo install --locked cargo-deny@0.20.2
+      - name: Install cargo-fuzz
+        run: cargo install --locked cargo-fuzz@0.13.2
+      - name: Fuzz harness gates and bounded run
+        run: make fuzz FUZZ_DENY=--locked
+
+  cross-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+          targets: x86_64-apple-darwin, x86_64-unknown-freebsd, x86_64-pc-windows-gnu
+      - name: Check every raf-source target for the Apple, FreeBSD and Windows targets
+        run: make cross-check
+
+  # The containment strategies of the other platforms run only on their own
+  # hosts; the Linux jobs run them as test overrides.
+  test-macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+      - name: Test raf-source on macOS
+        run: cargo test -p raf-source --locked
+
+  test-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      # Fixtures and corpus files are compared byte for byte, so the checkout
+      # keeps the committed line endings.
+      - name: Keep line endings
+        run: git config --global core.autocrlf false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+      - name: Test raf-source on Windows
+        run: cargo test -p raf-source --locked
 
   doc:
     runs-on: ubuntu-latest
@@ -99,7 +190,7 @@ jobs:
         run: cargo install --locked cargo-deny@0.20.2
       # The fetching variant: CI may download the advisory database.
       - name: Deny
-        run: cargo deny --locked check
+        run: cargo deny --workspace --locked check
 
   msrv:
     runs-on: ubuntu-latest
@@ -122,6 +213,8 @@ jobs:
           rustc --version | grep -q '^rustc 1\.98\.1 '
       - name: Check workspace on MSRV
         run: cargo check --workspace --all-targets --locked
+      - name: Check the fuzz harness on MSRV
+        run: cargo check --manifest-path fuzz/Cargo.toml --all-targets --locked
 
   reuse:
     runs-on: ubuntu-latest

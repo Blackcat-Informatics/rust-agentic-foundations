@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+[package]
+name = "raf-source"
+description = "Workspace source index: a Tree file seam with disk and memory backends under canonical path containment."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+syn = { version = "3", default-features = false, features = ["full", "parsing", "printing", "visit"] }
+quote = { version = "1", default-features = false }
+toml = { version = "1", default-features = false, features = ["std", "parse", "serde"] }
+proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
+
+# Only constants are taken from libc.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# The handle-relative opens, status calls and listing of the walk beneath the
+# root on Unix systems other than Linux.
+[target.'cfg(all(unix, not(target_os = "linux")))'.dependencies]
+rustix = { version = "1.1.5", default-features = false, features = ["fs", "std"] }
+
+# The same walk runs on Linux through a test override of the strategy.
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+rustix = { version = "1.1.5", default-features = false, features = ["fs", "std"] }
+
+# The path the system gives for an open handle (`GetFinalPathNameByHandleW`).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", default-features = false, features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
+
+[lints]
+workspace = true
