@@ -110,6 +110,7 @@ mod discovery;
 mod error;
 mod facts;
 mod glob;
+mod glob_scope;
 mod impls;
 mod index;
 mod intern;

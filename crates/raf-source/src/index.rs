@@ -24,6 +24,7 @@ use crate::facts::{
     FieldShape, ImplFact, ItemFact, ItemKind, ModBody, ModFact, PathFact, SpanFact, TestRole,
     UseTree, Vis,
 };
+use crate::glob_scope::{GlobTables, ImportReach};
 use crate::intern::Interner;
 use crate::item::{
     Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl,
@@ -349,6 +350,11 @@ pub(crate) struct Index {
     /// The modules the path of each glob import reached when the glob was
     /// last tried, by position; empty for a named import.
     pub(crate) glob_reach: Vec<BTreeSet<usize>>,
+    /// What the glob imports of each module bring in (see
+    /// [`crate::glob_scope`]).
+    pub(crate) globs: GlobTables,
+    /// The modules whose globs reach a module with an explicit import.
+    pub(crate) import_reach: ImportReach,
     /// The crate an `extern crate` item names, by item.
     pub(crate) extern_names: BTreeMap<ItemId, SharedStr>,
     /// Items grouped by file and the byte offset where their span starts.
@@ -908,6 +914,8 @@ impl Index {
             use_empty: Vec::new(),
             glob_closed: Vec::new(),
             glob_reach: Vec::new(),
+            globs: GlobTables::default(),
+            import_reach: ImportReach::default(),
             extern_names: BTreeMap::new(),
             root_items: BTreeMap::new(),
             by_source: BTreeMap::new(),

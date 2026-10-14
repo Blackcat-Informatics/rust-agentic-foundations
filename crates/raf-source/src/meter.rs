@@ -23,6 +23,10 @@ pub struct Usage {
     pub item_bytes: usize,
     /// Bytes charged to the facts of the files ([`Budget::FactBytes`]).
     pub fact_bytes: usize,
+    /// The most bytes charged to the glob scope tables at once
+    /// ([`Budget::GlobBytes`]): what the tables of one settle and the changes
+    /// waiting to be passed on held at their peak, as charged.
+    pub glob_bytes: usize,
     /// The most tokens of one file ([`Budget::FileTokens`]).
     pub max_file_tokens: usize,
     /// The highest value the recursion counter of the pre-scan reached in one
@@ -39,6 +43,8 @@ pub(crate) struct Meter {
     total_bytes: Cell<usize>,
     item_bytes: Cell<usize>,
     fact_bytes: Cell<usize>,
+    glob_bytes: Cell<usize>,
+    glob_peak: Cell<usize>,
     max_file_tokens: Cell<usize>,
     max_recursion: Cell<usize>,
     max_directory_depth: Cell<usize>,
@@ -68,6 +74,8 @@ impl Meter {
             total_bytes: Cell::new(0),
             item_bytes: Cell::new(0),
             fact_bytes: Cell::new(0),
+            glob_bytes: Cell::new(0),
+            glob_peak: Cell::new(0),
             max_file_tokens: Cell::new(0),
             max_recursion: Cell::new(0),
             max_directory_depth: Cell::new(0),
@@ -100,6 +108,38 @@ impl Meter {
         let limit = self.options.max_item_bytes;
         add(&self.item_bytes, bytes, limit)
             .map_err(|()| over_budget(Budget::ItemBytes, limit, file, line))
+    }
+
+    /// Charge `bytes` of glob scope tables built for the glob import at
+    /// `line` of `file`.
+    ///
+    /// Like [`Meter::items`], every charge is an upper bound of the
+    /// allocations it covers, derived from the layout of the containers that
+    /// hold them (see `crate::cost`). Unlike the other byte budgets, this one
+    /// bounds what is held at once: what is freed is released
+    /// ([`Meter::release_globs`]), and the budget refuses the charge that
+    /// would make what is held pass the limit.
+    pub(crate) fn globs(
+        &self,
+        bytes: usize,
+        file: &RelPath,
+        line: Option<usize>,
+    ) -> Result<(), LoadError> {
+        let limit = self.options.max_glob_bytes;
+        let held = add(&self.glob_bytes, bytes, limit);
+        self.glob_peak
+            .set(self.glob_peak.get().max(self.glob_bytes.get()));
+        held.map_err(|()| over_budget(Budget::GlobBytes, limit, file, line))
+    }
+
+    /// Release `bytes` of glob scope tables charged before and now freed.
+    pub(crate) fn release_globs(&self, bytes: usize) {
+        let held = self
+            .glob_bytes
+            .get()
+            .checked_sub(bytes)
+            .expect("only what was charged is released");
+        self.glob_bytes.set(held);
     }
 
     /// What the facts of the next file may still take: the bytes charged so
@@ -145,6 +185,7 @@ impl Meter {
             total_bytes: self.total_bytes.get(),
             item_bytes: self.item_bytes.get(),
             fact_bytes: self.fact_bytes.get(),
+            glob_bytes: self.glob_peak.get(),
             max_file_tokens: self.max_file_tokens.get(),
             max_recursion: self.max_recursion.get(),
             max_directory_depth: self.max_directory_depth.get(),

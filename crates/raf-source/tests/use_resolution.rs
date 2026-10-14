@@ -2995,3 +2995,119 @@ fn cycles_through_private_globs_resolve_as_each_reader_can_access_them_in_every_
     assert_eq!(orders, 120);
     assert_eq!(found, ["demo::e::A", "demo::e::A", ""]);
 }
+
+/// The orders of `blocks` that start at each of them, forward and backward.
+fn rotations<'a>(blocks: &[&'a str]) -> Vec<Vec<&'a str>> {
+    let mut orders = Vec::new();
+    for start in 0..blocks.len() {
+        let order: Vec<&str> = blocks[start..]
+            .iter()
+            .chain(&blocks[..start])
+            .copied()
+            .collect();
+        let mut backward = order.clone();
+        backward.reverse();
+        orders.push(order);
+        orders.push(backward);
+    }
+    orders
+}
+
+#[test]
+fn a_cycle_left_to_a_glob_reads_all_that_the_glob_brings_in_once_its_round_is_decided() {
+    // `m5` and `m21` import `Y` from each other, and the cycle is left to the
+    // glob of `m21`. Through it `m25` brings in `m58::Y` at once and `m33::Y`
+    // once `m38`'s import of `Y`, which binds a module, is decided to bind
+    // nothing in the value name space, in the round that leaves the cycle to
+    // the glob. Both imports read both functions: rustc reports E0659 for
+    // each.
+    let blocks = [
+        "pub mod m5 { pub use crate::m21::Y as Y; }",
+        "pub mod m38 { pub use crate::m50::*; pub use crate::m43::X as Y; }",
+        "pub mod m59 {}",
+        "pub mod m31 { pub use crate::m49::*; }",
+        "pub mod m11 { pub use crate::m38::*; }",
+        "pub mod m49 { pub use crate::m11::*; }",
+        "pub mod m25 { pub use crate::m31::*; pub use crate::m58::*; }",
+        "pub mod m21 { pub use crate::m47::*; pub use crate::m5::Y as Y; }",
+        "pub mod m23 { pub use crate::m25::*; }",
+        "pub mod m33 { pub fn Y() {} }",
+        "pub mod m47 { pub use crate::m23::*; }",
+        "pub mod m50 { pub use crate::m33::*; }",
+        "pub mod m58 { pub fn Y() {} }",
+        "pub mod m43 { pub mod X { use super::*; } pub use crate::m59::*; }",
+    ];
+    let orders = rotations(&blocks);
+    for order in &orders {
+        let ws = lib(&order.join("\n"));
+        for path in ["demo::m5::Y", "demo::m21::Y", "demo::m25::Y"] {
+            assert_eq!(
+                answer(&ws, path, Some(Namespace::Value)),
+                "ambiguous [\"demo::m33::Y\", \"demo::m58::Y\"]",
+                "{path} in {order:?}"
+            );
+        }
+        assert_eq!(
+            answer(&ws, "demo::m38::Y", Some(Namespace::Value)),
+            "demo::m33::Y",
+            "{order:?}"
+        );
+    }
+    assert_eq!(orders.len(), 28);
+}
+
+#[test]
+fn imports_that_read_a_name_through_a_glob_agree_with_the_glob_on_an_ambiguous_re_export() {
+    // `m58` re-exports `Y` ambiguously, `m46::Y` and `m0::Y`, which rustc
+    // only warns about (`ambiguous_glob_reexports`); `m41` globs it and
+    // `m28`, and `m46` imports `m41::Y`. The cycle of `m1` and `m49` is left
+    // to the glob of `m49`, which reads `m46::Y`: it stays ambiguous, as
+    // what `m43` and `m46` bring in is, whatever the order. rustc's own
+    // answer here depends on the order of the declarations: in the orders at
+    // even places of `rotations` it compiles, binding `m28::Y`, and in those at
+    // odd places it reports E0659. `Ambiguous` in every order is deliberate:
+    // it agrees with rustc wherever rustc reports an error and does not
+    // depend on the order, so it is not to be changed to match one order.
+    let blocks = [
+        "pub mod m38 { pub use crate::m15::*; }",
+        "pub mod m58 { pub use crate::m46::*; pub use crate::m42::*; }",
+        "pub mod m43 { pub use crate::m46::*; }",
+        "pub mod m46 { pub use crate::m54::*; pub use crate::m41::Y; }",
+        "pub mod m9 { pub use crate::m0::*; }",
+        "pub mod m0 { pub use crate::m41::*; pub fn Y() {} }",
+        "pub mod m54 { pub use crate::m9::*; }",
+        "pub mod m28 { pub fn Y() {} }",
+        "pub mod m30 { pub use crate::m9::*; pub use crate::m47::Y as Y; }",
+        "pub mod m4 { pub use crate::m38::*; }",
+        "pub mod m41 { pub use crate::m11::*; pub use crate::m28::*; }",
+        "pub mod m47 { use crate::m4::*; pub use crate::m4::Y as Y; }",
+        "pub mod m49 { pub use crate::m1::Y; pub use crate::m43::*; }",
+        "pub mod m27 { pub use crate::m58::*; }",
+        "pub mod m1 { pub use crate::m49::Y; }",
+        "pub mod m42 { pub use crate::m30::*; }",
+        "pub mod m15 { pub mod Y { use super::*; } }",
+        "pub mod m11 { pub use crate::m27::*; }",
+    ];
+    let orders = rotations(&blocks);
+    for order in &orders {
+        let ws = lib(&order.join("\n"));
+        for path in [
+            "demo::m1::Y",
+            "demo::m49::Y",
+            "demo::m43::Y",
+            "demo::m46::Y",
+        ] {
+            assert_eq!(
+                answer(&ws, path, Some(Namespace::Value)),
+                "ambiguous [\"demo::m0::Y\", \"demo::m28::Y\"]",
+                "{path} in {order:?}"
+            );
+        }
+        assert_eq!(
+            answer(&ws, "demo::m42::Y", Some(Namespace::Value)),
+            "demo::m0::Y",
+            "{order:?}"
+        );
+    }
+    assert_eq!(orders.len(), 36);
+}

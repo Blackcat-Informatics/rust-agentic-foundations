@@ -815,10 +815,18 @@ impl Index {
         }
     }
 
-    fn origin_of(&self, source: &Source, id: ItemId) -> Option<&crate::settle::Origin> {
-        let entry = self.scopes[source.module].get(&source.name)?;
+    fn origin_of(&self, source: &Source, id: ItemId) -> Option<crate::settle::Origin> {
         let ns = slot(source.ns);
-        entry.defs[ns].get(id).or_else(|| entry.globbed[ns].get(id))
+        let defs = self.scopes[source.module]
+            .get(&source.name)
+            .and_then(|entry| entry.defs[ns].get(id));
+        match defs {
+            Some(origin) => Some(origin.clone()),
+            None => self
+                .globbed(source.module, &source.name, ns)
+                .get(id)
+                .cloned(),
+        }
     }
 
     fn chain_for(&self, requested: &str, hit: &Hit, id: ItemId) -> Vec<String> {
@@ -834,8 +842,8 @@ impl Index {
             chain.push(format!("{}::{}", self.modules[at.module].path, at.name));
             let next = self
                 .origin_of(&at, id)
-                .and_then(|origin| origin.link.as_ref())
-                .and_then(|link| link.source.clone());
+                .and_then(|origin| origin.link)
+                .and_then(|link| link.source);
             match next {
                 Some(source) => at = source,
                 None => break,

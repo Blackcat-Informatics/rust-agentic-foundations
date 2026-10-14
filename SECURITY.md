@@ -111,15 +111,23 @@ guarantees are these, and no wider:
   search that keys the trait of an impl through imports and globs, reads and
   parses each file once whatever spellings reach it (files are told apart by device
   and inode, or on Windows by the path of the handle), and bounds what one load
-  reads, keeps in its index and keeps as facts (256 MiB, 512 MiB and 256 MiB by
-  default, 1 GiB in all).
-  The scope tables that `use` declarations and globs build are bounded by no budget:
-  a glob-heavy input can exhaust memory (one module of 3000 functions globbed by 3000
-  others, 166 KB of source, peaks at 7.3 GiB). The source index parses on a
+  reads, keeps in its index, keeps as facts and holds at once in the tables of what
+  glob imports bring in (256 MiB, 512 MiB, 256 MiB and 512 MiB by default, 1.5 GiB in
+  all). What a glob brings in is kept once for every class of importers that see the
+  same of a module, so one module of 3000 functions globbed by 3000 others loads at a
+  peak of 24 MiB, and modules that bring in the names of many others are refused by
+  the glob budget (1400 modules that each glob the crate root, which globs each, are
+  refused in 2 to 3 s at a peak of 415 MiB). The work queue and the graph of undecided
+  imports that settling the imports builds are not budgeted; they are dropped once
+  the imports are settled, and the time to decide them grows faster than their size
+  (200 modules that glob the crate root, which globs each, each importing a name
+  nothing defines, settle in 613 s at a peak of 555 MiB resident, with 9.7 MB charged
+  to the glob tables).
+  The source index parses on a
   dedicated 64 MiB stack on a thread named after the file, and is fuzzed through a
   target (`parse-source`) whose committed corpus `cargo test` replays in child
   processes, in debug and in release; a second target (`load-workspace`) fuzzes a
-  whole load from a workspace built in memory. These bound memory outside the scope tables
+  whole load from a workspace built in memory. These bound the memory a load keeps
   and the stack that parsing an admitted file takes; the stack bound rests on an
   audit of the parser's recursion and on measured costs. A residual stack overflow
   aborts the run, so the gate fails and never passes, and a file ends in a typed

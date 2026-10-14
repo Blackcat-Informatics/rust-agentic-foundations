@@ -103,6 +103,8 @@ bindings:
     - raf_source::test_crate::use_resolution::an_import_that_reads_a_name_only_through_a_glob_it_cannot_access_finds_nothing_in_every_order
     - raf_source::test_crate::use_resolution::a_glob_the_importer_cannot_access_holds_nothing_back_in_every_order
     - raf_source::test_crate::use_resolution::cycles_through_private_globs_resolve_as_each_reader_can_access_them_in_every_order
+    - raf_source::test_crate::use_resolution::a_cycle_left_to_a_glob_reads_all_that_the_glob_brings_in_once_its_round_is_decided
+    - raf_source::test_crate::use_resolution::imports_that_read_a_name_through_a_glob_agree_with_the_glob_on_an_ambiguous_re_export
     - raf_source::test_crate::trait_keys::an_explicit_import_of_a_dependency_trait_shadows_a_glob_of_a_local_one
     - raf_source::test_crate::trait_keys::a_trait_through_a_glob_the_importer_cannot_access_is_keyed_at_its_definition_in_every_order
     - raf_source::test_crate::trait_keys::each_prelude_trait_loads_in_the_edition_that_has_it_and_is_refused_in_the_one_before
@@ -220,6 +222,12 @@ bindings:
     - raf_source::test_crate::load_budgets::a_long_extern_crate_name_in_a_file_reached_many_times_is_held_and_charged_once
     - raf_source::test_crate::load_budgets::a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps
     - raf_source::test_crate::load_budgets::nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep
+    - raf_source::test_crate::load_budgets::glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused
+    - raf_source::test_crate::load_budgets::a_module_that_many_modules_glob_is_kept_once_for_all_of_them
+    - raf_source::test_crate::load_budgets::a_chain_of_globs_is_charged_what_each_link_brings_in
+    - raf_source::test_crate::load_budgets::modules_that_glob_one_another_are_refused_over_the_glob_budget_naming_a_glob
+    - raf_source::test_crate::load_budgets::glob_tables_of_a_generated_binding_crate_are_charged_what_they_keep
+    - raf_source::test_crate::load_budgets::repeated_globs_of_one_module_are_charged_once_for_what_it_holds
     - raf_source::cost::tests::a_map_of_one_entry_is_covered_by_what_a_map_costs_once
     - raf_source::cost::tests::a_list_is_charged_at_least_its_room
     - raf_source::cost::tests::a_hash_table_is_charged_at_least_its_buckets
@@ -551,7 +559,7 @@ patterns enter at most 128 directories below their root (`DirectoryDepth`), on a
 of their own; a deeper directory is a `Budget` error that names it, which a chain of
 20000 directories in memory meets on a thread of 2 MiB in a debug build, in under a
 millisecond in a release build, and a chain of 2100 on disk in 22 ms with 4 MiB
-resident. Three byte budgets bound one load. Each is a default that `LoadOptions` can
+resident. Four byte budgets bound one load. Each is a default that `LoadOptions` can
 change:
 
 - `max_total_bytes` (`TotalBytes`) bounds the bytes the load reads, source files
@@ -586,32 +594,59 @@ change:
   members; and the aliased path of a type alias and the crate an `extern crate`
   item names are stored once for the file and charged once, however many module paths
   reach it. Measured with a counting allocator, no shape keeps more than it is
-  charged: a chain of files that each declare the next twice keeps 1646 bytes of index
-  for each arrival and is charged 3693, nested inline modules whose scopes hold one
-  name keep 1499 bytes for each module and are charged 2420. An item record is at most
+  charged: a chain of files that each declare the next twice keeps 1511 bytes of index
+  for each arrival and is charged 3632, nested inline modules whose scopes hold one
+  name keep 1443 bytes for each module and are charged 2380. An item record is at most
   256 bytes.
 - `max_fact_bytes` (`FactBytes`, 256 MiB) bounds the facts of the files. Each fact
   charges its size and the room of every string and list it owns (each is trimmed
   to its length as it is built), on the parse thread, so an oversized file is
   refused at the line of the fact that passes the budget.
+- `max_glob_bytes` (`GlobBytes`, 512 MiB) bounds the glob tables: what the glob imports
+  of the modules bring in (see the use-alias index below). Unlike the other byte
+  budgets it bounds what is held at once: the tables of one settle are released when
+  they are built again, and a refusal comes at the charge that would make what is
+  held pass the limit, naming the glob import it was made for. Each table charges its
+  record, its class and its entries among the tables, each name it holds an entry and
+  its three lists, each item in a list its room, each name's text once for the load,
+  each glob's read of a table its places among the module's reads and the table's
+  readers, the record of each module's visibilities, the record of which modules reach
+  an explicit import through globs (an entry for each glob edge), and a change while it
+  waits to be passed on its place in the list of changes and its items, all by the
+  layout rules above. Measured with a counting allocator, no glob-heavy shape keeps
+  more than it is charged: of four hundred modules that glob one module of a thousand names,
+  of 1500 modules that glob a prelude of 150, of a chain of 4000 globs, of a chain of
+  600 that each add a name, of 300 modules that glob the crate root that globs each of
+  them, of a generated binding crate of 600 child modules, each globbing a parent that
+  globs each child, and of a random network of 1000 modules, each keeps at most one
+  byte of glob tables for each 1.5 it is charged.
 
 A load over a budget is a `Budget` error that names the budget, the limit that
 applied and the file, with the line where there is one. `Workspace::usage` reports
-what a load spent against each. Two figures follow, measured in a release build:
+what a load spent against each, and for the glob tables the most they held at once.
+Two figures follow, measured in a release build:
 
-1. Retained memory, apart from the scope tables of imports. What a load keeps of
-   its index, its source text and its facts is bounded by the item bytes (512 MiB),
-   the source text (`max_total_bytes`, 256 MiB by default, which a caller may raise)
-   and the fact bytes (256 MiB): 1 GiB at the defaults. 300000 unit structs of their
+1. Retained memory. What a load keeps of its index, its source text, its facts and its
+   glob tables is bounded by the item bytes (512 MiB), the source text
+   (`max_total_bytes`, 256 MiB by default, which a caller may raise), the fact bytes
+   (256 MiB) and the glob bytes (512 MiB): 1.5 GiB at the defaults. 300000 unit structs of their
    own names in three files load in 0.70 s at a peak of 380 MiB on the heap, and
    400000 are refused by the item-bytes budget in 1.1 s; thirty files of 4 MiB of doc
    comments made of quotes, which double when escaped, hold 253 MB of facts and load
    in 1.8 s at a peak of 382 MiB, and forty are refused by the fact-bytes budget in
    1.8 s; 31 files of 8 MiB load in 0.30 s, and 33 are refused by the total-bytes
-   budget in 0.30 s. A load near all three limits at once (2000 copies of a chain of
+   budget in 0.30 s. A load near all four limits at once (2000 copies of a chain of
    100 nested inline modules, 20 files of 8.3 MB of doc comments in lines of 300
-   characters and 7 files of 8 MB of comments; 214, 466 and 244 MiB charged) keeps 746
-   MiB and peaks at 752 MiB, in 10 to 15 s (three runs on a shared host).
+   characters, 7 files of 8 MB of comments and a module of 1000 modules that each glob
+   it while it globs each of them; 214 MiB read and 463, 245 and 475 MiB charged to the
+   index, the facts and the glob tables) keeps 1054 MiB and peaks at 1059 MiB, in 14 to
+   23 s on a shared host; without the globs the same load keeps 735 MiB and peaks at
+   741 MiB, in 13 to 16 s. 1000 modules that glob the crate root, which globs each of
+   them, so that every module brings in all 2000 names, load in 2.8 to 4.6 s with 436
+   MiB charged to the glob tables at a peak of 360 MiB resident, and 1400 are refused
+   by the glob-bytes budget in 1.9 to 3.2 s at a peak of 415 MiB; a chain of 2000
+   globs that each add a name loads in 1.9 to 3.1 s with 435 MiB charged at a peak of
+   354 MiB (three runs each).
 2. One-file parse peak. What parsing one file holds at its peak is at most
    `max_file_tokens` × `PARSE_BYTES_PER_TOKEN` (1664 bytes): about 3.1 GiB at the
    default of 2000000 tokens. The costliest arrangement of statement lists at
@@ -623,14 +658,25 @@ what a load spent against each. Two figures follow, measured in a release build:
    arrangement at exactly that limit loads in 0.17 s with 462 MiB allocated, 190 MiB
    resident), and refuses files above it with the same typed error.
 
-Apart from the scope tables of imports, a load holds at most figure (1) and one
-file's figure (2) at once: about 4.1 GiB at the defaults, each term a limit of
-`LoadOptions` that a caller sets to fit its host. The scope tables that `use`
-declarations and globs build are bounded by no budget: their size grows with the
-modules that glob a module times the names it holds, so a glob-heavy input can
-exhaust a machine whatever the limits. One module of 3000 functions that 3000 other
-modules glob, 166 KB of source and 66005 tokens, loads in 21 s at a peak of 7.3 GiB
-on the heap and 9.2 GiB resident, while every budget stays below 14 MiB.
+A load holds at most figure (1) and one file's figure (2) at once: about 4.6 GiB at
+the defaults, each term a limit of `LoadOptions` that a caller sets to fit its host.
+The bindings that explicit imports make are charged to the index and what globs bring
+in to the glob tables, so the scope tables are within figure (1): one module of 3000
+functions that 3000 other modules glob, 163 KB of source and 63004 tokens, loads in
+35 to 61 ms at a peak of 24 MiB resident, with 3.8 MiB charged to the glob tables, as the
+importers read one table of the names. A module that globs one module of 60000 names
+3000 times over, globbed by another, loads in 0.8 s with 94 MiB charged to the glob
+tables and a heap peak of 100 MiB, under the 206 MiB charged in all, as gathering what a
+module exports reads each table it holds once and is charged before it is allocated. While the tables settle, a load also
+holds the work queue of the imports and, each time it runs empty, the graph of the
+imports still undecided and the places they wait on; no budget counts them, and they
+are dropped once the tables are settled. They grow with the undecided imports times
+the places their paths read through globs, and the time it takes to decide them grows
+faster still (the crate sets no time bound): 100 modules that glob the crate root,
+which globs each of them, each with an import of a name that nothing defines, settle
+in 20 to 32 s at a peak of 87 MiB resident, of which the glob tables are charged 2.5 MiB,
+and 200 such modules settle in 613 s at a peak of 555 MiB resident, of which the glob
+tables are charged 9.7 MB: the memory no budget counts can pass the glob budget.
 
 Parsing then runs on a dedicated thread, named after the file, with a stack of 64
 MiB (`PARSE_STACK_BYTES`), which is a stated constant and not the stack of the
@@ -949,8 +995,9 @@ and `test_fns()` returns, for each `#[test]` function (or a typed error if one's
 name of its target (`--lib`, `--bin <name>` or `--test <name>`) and its path inside the
 crate, which is what `cargo test -p <package> --test <target> <name>` needs;
 `usage()` gives what the load spent against its budgets: the bytes read, charged to
-the index and to the facts, the most tokens of one file, the highest value of the
-recursion counter in one file and the deepest directory entered. The index
+the index and to the facts, the most charged to the glob tables at once, the most
+tokens of one file, the highest value of the recursion counter in one file and the
+deepest directory entered. The index
 has no order that depends on the tree implementation: two loads of one tree are equal,
 and the same regular files on disk and in memory give equal indexes.
 
@@ -1080,7 +1127,23 @@ glob and a private one, is as visible from that module as its most visible route
 whichever route is kept, so a module that globs it sees the item in every order. The tables are settled to a fixed point: an import is tried again whenever a
 name its path read gains a binding, so it binds what its path reaches in the settled
 tables, a chain of re-exports of any length resolves, nothing caps the search, and a
-cycle of globs adds nothing. A name space where an import's path reached nothing,
+cycle of globs adds nothing. What a glob brings in from its target depends on the
+target and on which of the target's visibilities the importer can access, so the glob
+tables keep what a module exports to globs (its bindings that shadow globs, and what its
+own globs bring in where none does) once for each class of importers that can access
+the same of it, and every glob of the module from an importer of that class reads that
+one table: no importer holds a copy of what its globs bring in, and a module
+that a thousand modules glob is held once. What a table gains is passed on as it is
+gained, only to the globs that read it, only with the names that gained something, and
+only to the tables of the importing module that the glob's visibility reaches and to
+the imports that wait on one of those names there, so a chain of globs costs what each
+link brings in, once; a glob that reads a table another glob of its module with the same
+visibility reads passes on nothing more, so a module that reads one table through many
+globs passes it on once. As it is passed on at once, every table is up to date when an
+import reads it: after the imports left are decided (see below), the decisions take
+effect in every glob table before the queue runs again, and an import of a cycle left
+to a glob reads all that the glob brings in by then, as rustc does (E0659 for two
+items). A name space where an import's path reached nothing,
 reading there only places in modules without globs that no other import binds or, where
 it found nothing, that every other import of the name was decided to bind nothing at,
 is decided in the queue, as it can never bind there; so a chain of 20,000 imports that
@@ -1223,14 +1286,16 @@ assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
   2000000 tokens by default), or a
   module walk that passes 128 nested modules or 262144 module walks in one load, or a
   directory
-  more than 128 levels below its root, or a load that passes its total, item or fact
-  bytes (256 MiB, 512 MiB and 256 MiB by default), is refused with a typed error.
+  more than 128 levels below its root, or a load that passes its total, item, fact or
+  glob bytes (256 MiB, 512 MiB, 256 MiB and 512 MiB by default), is refused with a
+  typed error.
   Parsing runs on a dedicated 64 MiB stack, of which an admitted file takes at most
   half in a debug build. A residual overflow aborts the run and fails the gate; it is
   never a pass.
-- The scope tables that `use` declarations and globs build are bounded by no
-  budget, so a glob-heavy input can take more memory than the figures of the
-  Contract state.
+- The work queue and the graph of undecided imports that settling the scope tables
+  builds are not budgeted: they are dropped once the tables are settled, and they grow
+  with the undecided imports times the places their paths read through globs, while
+  the time to decide them grows faster (see Work and memory bounds).
 - Resolution covers items the source defines. Items from dependencies are outside the
   index and resolve to a not-found failure.
 - Two visibility rules of rustc are not modelled. An explicit `pub use` of a binding
@@ -1346,11 +1411,19 @@ duplicates.
   long aliased path and a long `extern crate` name in a file reached by 256 module
   paths, each charged once and not once per path, and a chain of files that each
   declare the next twice and nested inline modules each charged at least the bytes of
-  index they keep), and
+  index they keep),
   the facts, over several files and for each large payload: a 1 MiB doc comment, a 1
   MiB written self type and a `use` group of long names, each refused at its own line
-  below its size. `usage()` reports the spent bytes, the most tokens, the highest
-  recursion value and the deepest directory, and an item record is at most 256 bytes.
+  below its size, and the glob tables, refused at the line of a glob, while a load
+  without a glob charges none. A thousand names that four hundred modules glob cost
+  each importer under a kilobyte more than one importer, a chain of 2000 globs is
+  charged less than 2.1 times one of 1000, 200 modules that glob the crate root, which
+  globs each, are refused at 4 MiB naming a glob beside 20 that load, and a generated
+  binding crate of 200 child modules is charged at least the bytes of glob tables it
+  keeps. A module that globs one module of 2000 names 400 times over, globbed by
+  another, is charged under a kilobyte for each more glob, in either order of
+  declaration, and is refused by the glob budget one byte below what it is charged. `usage()` reports the spent bytes, the most tokens, the highest recursion
+  value and the deepest directory, and an item record is at most 256 bytes.
 - Unit fixtures of the structures the bounds rely on: a column of a short line, a
   long line and a long line of two-byte characters, before, on and after an index
   mark, turns into its byte offset, and a column or line past the text is refused;
@@ -1685,7 +1758,15 @@ duplicates.
   every load
   checks, once the tables are settled, that the imports of each name, walked again
   against them, reach every item they bound and nothing the module does not bind under
-  that name, and that one that did not resolve reaches nothing.
+  that name, and that one that did not resolve reaches nothing. A cycle of two imports
+  left to a glob in the round that also decides an import further along the glob's
+  chain reads both functions the chain brings in, `Ambiguous` as rustc's E0659, in 28
+  orders; and the imports of a cycle left to a glob that reads a name a module
+  re-exports ambiguously stay `Ambiguous` with the modules that glob it, in 36 orders.
+  There rustc's own answer depends on the order of the declarations: in half of the
+  orders it compiles, binding `m28::Y`, and in the other half it reports E0659. RAF's
+  `Ambiguous` in every order is deliberate, as it agrees with rustc wherever rustc
+  reports an error and does not depend on the order.
 - Trait-key fixtures through `use` declarations: `use std;` with `impl
   std::fmt::Display for &Foo` in editions 2018, 2021 and 2024 and in a 2015 module, keyed
   `std::fmt::Display`, beside `use nope;`, which is refused; `pub use serde;` with `use

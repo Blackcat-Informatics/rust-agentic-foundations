@@ -13,7 +13,7 @@ use std::fmt;
 /// pre-scan before a file is parsed. The others bound the module walk,
 /// discovery, the tokens of one file and the bytes one load reads and keeps.
 /// The limits live in one table, [`Budget::limit`], which the code and the
-/// documentation share. The token budget and the three byte budgets are
+/// documentation share. The token budget and the four byte budgets are
 /// defaults that [`LoadOptions`](crate::LoadOptions) can change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[non_exhaustive]
@@ -59,13 +59,18 @@ pub enum Budget {
     /// Bytes of the facts read from the files of one load, counted on the
     /// parse thread as they are built.
     FactBytes,
+    /// Bytes of the glob scope tables held at once: what each module exports
+    /// to glob imports, kept once for every class of importers that see the
+    /// same of it and shared by them, the glob imports that read each table,
+    /// and the changes waiting to be passed on as the tables grow.
+    GlobBytes,
 }
 
 /// One mebibyte.
 const MIB: usize = 1024 * 1024;
 
 /// The limit of each budget, indexed by the budget's position.
-const BUDGETS: [(Budget, usize); 13] = [
+const BUDGETS: [(Budget, usize); 14] = [
     (Budget::Delimiters, 128),
     (Budget::Angles, 64),
     (Budget::PrefixOperators, 256),
@@ -79,6 +84,7 @@ const BUDGETS: [(Budget, usize); 13] = [
     (Budget::TotalBytes, 256 * MIB),
     (Budget::ItemBytes, 512 * MIB),
     (Budget::FactBytes, 256 * MIB),
+    (Budget::GlobBytes, 512 * MIB),
 ];
 
 /// The most memory parsing one file holds at its peak for each of its tokens.
@@ -110,7 +116,7 @@ const FILE_TOKENS: usize = 2_000_000;
 
 impl Budget {
     /// Every budget, in table order.
-    pub const ALL: [Budget; 13] = [
+    pub const ALL: [Budget; 14] = [
         BUDGETS[0].0,
         BUDGETS[1].0,
         BUDGETS[2].0,
@@ -124,10 +130,11 @@ impl Budget {
         BUDGETS[10].0,
         BUDGETS[11].0,
         BUDGETS[12].0,
+        BUDGETS[13].0,
     ];
 
     /// The most the budget allows; one more is refused. For the token budget
-    /// and the three byte budgets this is the default of the matching
+    /// and the four byte budgets this is the default of the matching
     /// [`LoadOptions`](crate::LoadOptions) field.
     #[must_use]
     pub const fn limit(self) -> usize {
@@ -151,6 +158,7 @@ impl Budget {
             Self::TotalBytes => "bytes read in one load",
             Self::ItemBytes => "bytes of index records",
             Self::FactBytes => "bytes of file facts",
+            Self::GlobBytes => "bytes of glob tables",
         }
     }
 }
@@ -188,5 +196,6 @@ mod tests {
         assert_eq!(Budget::TotalBytes.limit(), 256 * MIB);
         assert_eq!(Budget::ItemBytes.limit(), 512 * MIB);
         assert_eq!(Budget::FactBytes.limit(), 256 * MIB);
+        assert_eq!(Budget::GlobBytes.limit(), 512 * MIB);
     }
 }

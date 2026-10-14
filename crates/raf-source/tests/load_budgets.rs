@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
 //! The work and memory budgets of a load: the tokens of one file, the bytes a
-//! load reads, the bytes of index records and the bytes of file facts. Each is
-//! shown at its limit, where the load succeeds, and one over, where it is
-//! refused with a `Budget` error that names the budget and the file.
+//! load reads, the bytes of index records, the bytes of file facts and the
+//! bytes of glob tables. Each is shown at its limit, where the load succeeds,
+//! and one over, where it is refused with a `Budget` error that names the
+//! budget and the file.
 
 use std::fmt::Write as _;
 
@@ -386,9 +387,11 @@ fn the_default_budgets_are_the_stated_limits() {
     assert_eq!(options.max_total_bytes, Budget::TotalBytes.limit());
     assert_eq!(options.max_item_bytes, Budget::ItemBytes.limit());
     assert_eq!(options.max_fact_bytes, Budget::FactBytes.limit());
+    assert_eq!(options.max_glob_bytes, Budget::GlobBytes.limit());
     assert_eq!(Budget::TotalBytes.limit(), 256 << 20);
     assert_eq!(Budget::ItemBytes.limit(), 512 << 20);
     assert_eq!(Budget::FactBytes.limit(), 256 << 20);
+    assert_eq!(Budget::GlobBytes.limit(), 512 << 20);
     assert_eq!(Budget::DirectoryDepth.limit(), 128);
 }
 
@@ -485,10 +488,10 @@ fn a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps() 
     // items at each arrival but the last, and one item at each of those.
     let files = reached_many_times(12, "pub type T = a;\n");
     let arrivals = (1 << 13) - 1;
-    // A load of this shape keeps 1646 bytes of index for each arrival,
+    // A load of this shape keeps 1511 bytes of index for each arrival,
     // measured with a counting allocator in a release build over 131071
     // arrivals; what it is charged must cover that.
-    let kept = 1_646 * arrivals;
+    let kept = 1_511 * arrivals;
     let charged = item_bytes_of(&files);
     assert!(charged >= kept, "{charged} charged for {kept} kept");
 }
@@ -503,11 +506,260 @@ fn nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep()
         text
     });
     let modules = 20 * 101;
-    // Such a load keeps 1499 bytes of index for each module, measured with a
+    // Such a load keeps 1443 bytes of index for each module, measured with a
     // counting allocator in a release build over 202000 of them; what it is
     // charged must cover that, as every charge is an upper bound of the
     // allocations it covers.
-    let kept = 1_499 * modules;
+    let kept = 1_443 * modules;
     let charged = usage(&[("src/lib.rs", &text)]).item_bytes;
     assert!(charged >= kept, "{charged} charged for {kept} kept");
+}
+
+/// A library whose module `big` defines `names` functions and whose
+/// `importers` modules each glob it.
+fn glob_fan(names: usize, importers: usize) -> String {
+    let mut text = String::from("pub mod big {\n");
+    for i in 0..names {
+        writeln!(text, "    pub fn f{i}() {{}}").expect("write to a string");
+    }
+    text.push_str("}\n");
+    for i in 0..importers {
+        writeln!(text, "pub mod g{i} {{ pub use super::big::*; }}").expect("write to a string");
+    }
+    text
+}
+
+/// A library of `length` modules, each globbing the next, the last defining
+/// one function.
+fn glob_chain(length: usize) -> String {
+    let mut text = String::new();
+    for i in 0..length {
+        writeln!(text, "mod m{i} {{ pub use super::m{}::*; }}", i + 1).expect("write to a string");
+    }
+    writeln!(text, "pub mod m{length} {{ pub fn f() {{}} }}").expect("write to a string");
+    text
+}
+
+/// A library of `count` modules that each glob the crate root, which globs
+/// each of them, each defining one function: every module brings in every
+/// name of every other.
+fn mutual_globs(count: usize) -> String {
+    let mut text = String::new();
+    for i in 0..count {
+        writeln!(
+            text,
+            "pub use m{i}::*;\npub mod m{i} {{ pub use crate::*; pub fn g{i}() {{}} }}"
+        )
+        .expect("write to a string");
+    }
+    text
+}
+
+/// A crate in the shape of a generated binding crate: a private module of
+/// `children` modules, each of a foreign type and methods, twelve of them
+/// named as in every other child, each child globbing its parent, the parent
+/// globbing each child and the root globbing the parent.
+fn generated_bindings(children: usize) -> Vec<(String, String)> {
+    let mut files = vec![(
+        "src/lib.rs".to_owned(),
+        "mod features;\npub use features::*;\npub fn top() {}\n".to_owned(),
+    )];
+    let mut parent = String::new();
+    for i in 0..children {
+        writeln!(parent, "mod gen_{i};\npub use gen_{i}::*;").expect("write to a string");
+        let mut child = format!("use super::*;\nextern \"C\" {{\n    pub type T{i};\n");
+        for m in 0..12 {
+            writeln!(
+                child,
+                "    pub fn m{m}(this: &T{i});\n    pub fn own_{i}_{m}(this: &T{i});"
+            )
+            .expect("write to a string");
+        }
+        child.push_str("}\n");
+        files.push((format!("src/features/gen_{i}.rs"), child));
+    }
+    files.push(("src/features/mod.rs".to_owned(), parent));
+    files
+}
+
+fn glob_bytes_of(text: &str) -> usize {
+    usage(&[("src/lib.rs", text)]).glob_bytes
+}
+
+#[test]
+fn glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused() {
+    let text = "pub mod a { pub fn f() {} pub struct S; }\n\
+                pub mod b { pub use crate::a::*; }\n\
+                pub mod c { pub use crate::b::*; }\n";
+    let files = [("src/lib.rs", text)];
+    let spent = usage(&files).glob_bytes;
+    assert!(spent > 0, "a load with globs charges its glob tables");
+    let mut options = LoadOptions::default();
+    options.max_glob_bytes = spent;
+    let ws = load_with(&files, &options).expect("at the limit");
+    assert_eq!(
+        ws.resolve("demo::c::f").expect("resolves").path,
+        "demo::a::f"
+    );
+    options.max_glob_bytes = spent - 1;
+    let (budget, limit, line) = refused(load_with(&files, &options), "src/lib.rs");
+    assert_eq!((budget, limit), (Budget::GlobBytes, spent - 1));
+    // The glob of `b` or of `c` passes the limit.
+    assert!(matches!(line, Some(2 | 3)), "{line:?}");
+    // A load without a glob charges none.
+    assert_eq!(
+        glob_bytes_of("pub mod a { pub fn f() {} }\npub use a::f;\n"),
+        0
+    );
+}
+
+#[test]
+fn a_module_that_many_modules_glob_is_kept_once_for_all_of_them() {
+    // A thousand names globbed by one module and by four hundred: each more
+    // importer reads the one table of the module, and costs that read, not a
+    // copy of the thousand names.
+    let one = glob_bytes_of(&glob_fan(1000, 1));
+    let many = glob_bytes_of(&glob_fan(1000, 400));
+    let per_importer = (many - one) / 399;
+    assert!(
+        per_importer < 1024,
+        "{per_importer} bytes for each importer of a thousand names"
+    );
+    assert!(one > 1000 * 64, "{one} bytes for a thousand names");
+}
+
+#[test]
+fn a_chain_of_globs_is_charged_what_each_link_brings_in() {
+    // Each link of a chain of globs brings in one name, so twice the links
+    // cost twice the bytes, not four times.
+    let short = glob_bytes_of(&glob_chain(1000));
+    let long = glob_bytes_of(&glob_chain(2000));
+    assert!(
+        long < 2 * short + short / 10,
+        "{long} bytes for 2000 links, {short} for 1000"
+    );
+    let ws = load_with(
+        &[("src/lib.rs", &glob_chain(2000))],
+        &LoadOptions::default(),
+    )
+    .expect("loads");
+    assert_eq!(
+        ws.resolve("demo::m0::f").expect("resolves").path,
+        "demo::m2000::f"
+    );
+}
+
+#[test]
+fn modules_that_glob_one_another_are_refused_over_the_glob_budget_naming_a_glob() {
+    // Each of 200 modules brings in all 400 names of the others, which the
+    // tables hold once for each module; a limit of 4 MiB refuses them, and
+    // allows 20.
+    let mut options = LoadOptions::default();
+    options.max_glob_bytes = 4 << 20;
+    let text = mutual_globs(200);
+    let (budget, limit, line) =
+        refused(load_with(&[("src/lib.rs", &text)], &options), "src/lib.rs");
+    assert_eq!((budget, limit), (Budget::GlobBytes, 4 << 20));
+    let line = line.expect("the line of a glob");
+    assert!(
+        text.lines()
+            .nth(line - 1)
+            .is_some_and(|glob| glob.contains("::*;")),
+        "{line}"
+    );
+    let ws = load_with(&[("src/lib.rs", &mutual_globs(20))], &options).expect("loads");
+    assert_eq!(
+        ws.resolve("demo::m0::g19").expect("resolves").path,
+        "demo::m19::g19"
+    );
+}
+
+#[test]
+fn glob_tables_of_a_generated_binding_crate_are_charged_what_they_keep() {
+    // Two hundred children of one module, each globbing it, read one table
+    // of all that the module brings in. Such a load keeps 1976740 bytes of
+    // glob tables, measured with a counting allocator in a release build;
+    // what it is charged must cover that, as every charge is an upper bound
+    // of the allocations it covers.
+    let files = generated_bindings(200);
+    let borrowed: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    let ws = load_with(&borrowed, &LoadOptions::default()).expect("loads");
+    let charged = ws.usage().glob_bytes;
+    assert!(charged >= 1_976_740, "{charged} charged");
+    assert_eq!(
+        ws.resolve("demo::T7").expect("resolves").path,
+        "demo::features::gen_7::T7"
+    );
+}
+
+/// A library whose module `a` defines `names` structs, whose module `t` globs
+/// `a` `globs` times over and whose module `u` globs `t`, with `u` declared
+/// first when `u_first`.
+fn repeated_globs(names: usize, globs: usize, u_first: bool) -> Vec<(String, String)> {
+    let mut a = String::new();
+    for i in 0..names {
+        writeln!(a, "pub struct S{i};").expect("write to a string");
+    }
+    let lib = if u_first {
+        "pub mod u;\npub mod a;\npub mod t;\n"
+    } else {
+        "pub mod a;\npub mod t;\npub mod u;\n"
+    };
+    vec![
+        ("src/lib.rs".to_owned(), lib.to_owned()),
+        ("src/a.rs".to_owned(), a),
+        (
+            "src/t.rs".to_owned(),
+            "pub use crate::a::*;\n".repeat(globs),
+        ),
+        ("src/u.rs".to_owned(), "pub use crate::t::*;\n".to_owned()),
+    ]
+}
+
+fn borrowed(files: &[(String, String)]) -> Vec<(&str, &str)> {
+    files
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect()
+}
+
+#[test]
+fn repeated_globs_of_one_module_are_charged_once_for_what_it_holds() {
+    // `t` globs a module of 2000 names 400 times over, which rustc accepts,
+    // and `u` globs `t`. Every glob of `t` reads the one table of `a`, and
+    // gathering what `t` exports reads that table once, so each more glob
+    // costs its read and not a copy of the 2000 names, whichever module is
+    // declared first.
+    for u_first in [false, true] {
+        let one = usage(&borrowed(&repeated_globs(2000, 1, u_first))).glob_bytes;
+        let files = repeated_globs(2000, 400, u_first);
+        let ws = load_with(&borrowed(&files), &LoadOptions::default()).expect("loads");
+        let many = ws.usage().glob_bytes;
+        let per_glob = (many - one) / 399;
+        assert!(
+            per_glob < 1024,
+            "{per_glob} bytes for each more glob of two thousand names ({u_first})"
+        );
+        assert_eq!(
+            ws.resolve("demo::u::S1999").expect("resolves").path,
+            "demo::a::S1999"
+        );
+        // Below what the tables take, the load is refused by the glob budget.
+        let mut options = LoadOptions::default();
+        options.max_glob_bytes = many - 1;
+        let error = load_with(&borrowed(&files), &options).expect_err("over the budget");
+        assert!(
+            matches!(
+                error.kind,
+                LoadErrorKind::Budget {
+                    budget: Budget::GlobBytes,
+                    ..
+                }
+            ),
+            "{error}"
+        );
+    }
 }
