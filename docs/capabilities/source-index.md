@@ -176,6 +176,16 @@ bindings:
     - raf_source::tree::disk::tests::windows::a_disk_tree_refuses_a_reserved_device_name_or_a_trailing_dot_or_space_beside_a_plain_name
     - raf_source::test_crate::workspace_containment::a_tree_with_windows_device_names_loads_off_windows
     - raf_source::error::tests::a_spawn_error_displays_the_file_and_carries_its_cause
+    - raf_source::error::tests::control_characters_in_a_path_are_escaped
+    - raf_source::error::tests::every_user_derived_field_of_every_display_is_escaped
+    - raf_source::test_crate::error_text::a_path_attribute_with_terminal_escapes_is_shown_escaped
+    - raf_source::test_crate::error_text::a_manifest_with_control_characters_in_a_value_is_shown_escaped
+    - raf_source::test_crate::manifest_caps::exclude_at_the_cap_loads_and_one_over_is_refused
+    - raf_source::test_crate::manifest_caps::members_at_the_cap_loads_and_one_over_is_refused
+    - raf_source::test_crate::manifest_caps::the_duplicate_pattern_probe_is_refused_at_once
+    - raf_source::test_crate::manifest_caps::duplicate_patterns_within_the_caps_load_at_once
+    - raf_source::test_crate::manifest_caps::distinct_patterns_at_both_caps_load_at_once
+    - raf_source::test_crate::manifest_caps::exclude_still_removes_literal_wildcard_and_nested_members
     - raf_source::item::tests::an_item_record_is_at_most_two_hundred_fifty_six_bytes
     - raf_source::facts::tests::a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines
     - raf_source::settle::tests::a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room
@@ -861,8 +871,15 @@ workspace directory and are not excluded. A pattern may use `*`, `?` and `[...]`
 ranges and a leading `!` or `^`) in each path segment, and is matched in time
 proportional to the pattern times the name; `**`, a backslash, an unclosed bracket and an
 empty segment (`a//b`, `a//`) are a typed manifest error, never ignored; one trailing `/` is
-allowed (`crates/*/` is `crates/*`). An entry
-of `workspace.members` that has no wildcard names one directory, which must exist and have
+allowed (`crates/*/` is `crates/*`). `workspace.members` and `workspace.exclude` each
+hold at most 4096 entries, a manifest error naming the key beyond that. Each distinct
+pattern is compiled once: a duplicate is dropped, an exclude without a wildcard is a set
+entry looked up once for each directory above a path, and only the excludes with a
+wildcard are matched one by one, so a manifest of 20000 members and 200000 excludes
+(880 KB) is refused at once. The cost that remains is the directories below a root times
+the wildcard excludes: 4096 member directories against 4095 distinct wildcard excludes
+load in about 50 ms, and an adversarial set of star-heavy wildcard excludes over 4096
+directories takes about a second. An entry of `workspace.members` that has no wildcard names one directory, which must exist and have
 a `Cargo.toml`, or it is a manifest error naming `workspace.members`, unless it is
 excluded, in which case it is ignored and need not exist; a glob entry skips
 what it matches that is not a directory or has no `Cargo.toml`. The member manifests are read through
@@ -1213,6 +1230,10 @@ assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
   reading module cannot access, is the other item for that module, where rustc refuses
   the path, usually as an ambiguity (E0659) and sometimes as a name that is not there
   (E0573).
+- `workspace.members` and `workspace.exclude` hold at most 4096 entries each.
+- The text of an error shows input-derived text with control characters escaped by
+  `char::escape_debug`, which also doubles a backslash, so it is safe to print to a
+  terminal; the fields of the error keep the raw text.
 - The index is built once per `Workspace::load`; callers reload to see changed files.
 - Output order is sorted by path, so two loads of the same tree give equal results.
 
@@ -1330,6 +1351,17 @@ duplicates.
   that load; a `workspace.members` pattern at 128 levels expands and one at 129 is
   refused; 128 nested modules, inline and in files, load on 512 KiB, and 129 are
   refused typed.
+- Manifest caps and pattern cost: 4096 `exclude` entries load and 4097 are a `Manifest`
+  error naming `workspace.exclude`; 4096 `members` entries load and 4097 are a
+  `Manifest` error naming `workspace.members`; the 880 KB manifest of 20000 members and
+  200000 duplicate excludes is refused, 4096 duplicates of each kind load, and 4095
+  distinct members against 4096 distinct excludes load, each in under a second; literal,
+  wildcard and nested excludes still remove their members.
+- Error text: the `Display` of `LoadError`, `LoadErrorKind`, `Origin`, `TargetProblem`,
+  `TreeError` and `PathError` escapes every control character of a path, module name, predicate,
+  key or message with `char::escape_debug` (quotes stay as written), so a `#[path]` with
+  terminal escape sequences, a NUL or a line break shows as text. One test builds every
+  variant with such text; two load a hostile `#[path]` and a hostile `members` entry.
 - Identity fixtures: `identity` gives one value for a file, a symlink to it, a hard
   link and a path through a directory symlink, and refuses what `read` refuses;
   `read_unseen` gives the identity and the text of one open, leaves a seen file

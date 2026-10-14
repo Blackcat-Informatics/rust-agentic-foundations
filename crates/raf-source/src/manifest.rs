@@ -19,6 +19,12 @@ pub(crate) struct ManifestError {
     pub(crate) key: Option<String>,
 }
 
+/// The most entries `workspace.members` may have.
+pub(crate) const MAX_MEMBERS: usize = 4096;
+
+/// The most entries `workspace.exclude` may have.
+pub(crate) const MAX_EXCLUDES: usize = 4096;
+
 fn at_key(key: &str, message: impl Into<String>) -> ManifestError {
     ManifestError {
         message: message.into(),
@@ -324,14 +330,21 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
     let package = package(&root)?;
     let has_workspace = root.contains_key("workspace");
     let workspace = root.get("workspace").and_then(Value::as_table);
-    let strings = |key: &str| -> Result<Vec<String>, ManifestError> {
+    let strings = |key: &str, cap: usize| -> Result<Vec<String>, ManifestError> {
         let Some(value) = workspace.and_then(|table| table.get(key)) else {
             return Ok(Vec::new());
         };
         let full = format!("workspace.{key}");
-        value
+        let array = value
             .as_array()
-            .ok_or_else(|| at_key(&full, "must be an array of strings"))?
+            .ok_or_else(|| at_key(&full, "must be an array of strings"))?;
+        if array.len() > cap {
+            return Err(at_key(
+                &full,
+                format!("has {} entries; at most {cap} are allowed", array.len()),
+            ));
+        }
+        array
             .iter()
             .map(|entry| {
                 entry
@@ -364,8 +377,8 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
             );
         }
     }
-    let members = strings("members")?;
-    let exclude = strings("exclude")?;
+    let members = strings("members", MAX_MEMBERS)?;
+    let exclude = strings("exclude", MAX_EXCLUDES)?;
     let workspace_edition = match root
         .get("workspace")
         .and_then(Value::as_table)

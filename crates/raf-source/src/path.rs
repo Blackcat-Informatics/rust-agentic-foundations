@@ -71,7 +71,7 @@ impl PathError {
 
 impl fmt::Display for PathError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let input = self.input();
+        let input = crate::error::Esc(self.input());
         match self {
             Self::Absolute { .. } => write!(
                 f,
@@ -222,5 +222,19 @@ impl fmt::Display for RelPath {
         } else {
             f.write_str(&self.text)
         }
+    }
+}
+
+#[cfg(test)]
+mod display_tests {
+    use super::RelPath;
+
+    #[test]
+    fn control_characters_in_a_refused_path_are_escaped() {
+        let refused = RelPath::new("/a\u{1b}[31m\u{202e}b").expect_err("absolute");
+        let text = refused.to_string();
+        assert!(!text.contains('\u{1b}'), "{text}");
+        assert!(!text.contains('\u{202e}'), "{text}");
+        assert!(text.contains("\\u{1b}"), "{text}");
     }
 }

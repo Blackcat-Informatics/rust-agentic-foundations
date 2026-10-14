@@ -10,7 +10,7 @@
 //! ignored.
 
 /// One piece of a segment pattern.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Piece {
     Literal(char),
     One,
@@ -112,7 +112,7 @@ fn matches_segment(pieces: &[Piece], text: &[char]) -> bool {
 }
 
 /// A parsed pattern.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Pattern {
     segments: Vec<Vec<Piece>>,
 }
@@ -173,15 +173,23 @@ impl Pattern {
             .is_some_and(|pieces| matches_segment(pieces, &chars))
     }
 
-    /// True when the pattern matches the path or a directory above it.
-    pub(crate) fn matches_prefix(&self, parts: &[&str]) -> bool {
-        self.segments.len() <= parts.len() && self.matches_start(parts)
+    /// The segments joined by `/` when no segment has a wildcard.
+    pub(crate) fn literal_key(&self) -> Option<String> {
+        let names: Option<Vec<String>> = (0..self.segments.len())
+            .map(|index| self.literal(index))
+            .collect();
+        names.map(|names| names.join("/"))
     }
 
-    fn matches_start(&self, parts: &[&str]) -> bool {
-        self.segments.iter().zip(parts).all(|(pieces, part)| {
-            let chars: Vec<char> = part.chars().collect();
-            matches_segment(pieces, &chars)
-        })
+    /// True when the pattern matches the path or a directory above it, where
+    /// `parts` holds the characters of each segment of the path. The caller
+    /// collects them once for all the patterns it tests.
+    pub(crate) fn matches_prefix(&self, parts: &[Vec<char>]) -> bool {
+        self.segments.len() <= parts.len()
+            && self
+                .segments
+                .iter()
+                .zip(parts)
+                .all(|(pieces, part)| matches_segment(pieces, part))
     }
 }

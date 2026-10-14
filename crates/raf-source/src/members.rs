@@ -9,7 +9,7 @@
 //! that lies inside the workspace directory and is not excluded. Every
 //! manifest read goes through the [`Tree`], under the size cap.
 
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeSet, HashSet, VecDeque};
 
 use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind, Origin};
@@ -176,23 +176,72 @@ impl Context<'_> {
     }
 }
 
+/// Parse each distinct pattern once, in first-seen order.
 fn patterns(
     manifest_path: &RelPath,
     key: &str,
     texts: &[String],
 ) -> Result<Vec<Pattern>, LoadError> {
-    texts
-        .iter()
-        .map(|text| {
-            Pattern::parse(text).map_err(|why| {
-                manifest_error(
-                    manifest_path,
-                    &format!("workspace.{key}"),
-                    format!("the pattern `{text}` is not supported: {why}"),
-                )
-            })
-        })
-        .collect()
+    let mut seen = HashSet::new();
+    let mut parsed = Vec::new();
+    for text in texts {
+        let pattern = Pattern::parse(text).map_err(|why| {
+            manifest_error(
+                manifest_path,
+                &format!("workspace.{key}"),
+                format!("the pattern `{text}` is not supported: {why}"),
+            )
+        })?;
+        if seen.insert(pattern.clone()) {
+            parsed.push(pattern);
+        }
+    }
+    Ok(parsed)
+}
+
+/// The `workspace.exclude` patterns, compiled once: a pattern without a
+/// wildcard becomes an entry of a set, looked up once per ancestor of the
+/// path, and only the patterns with a wildcard are matched one by one.
+struct Excludes {
+    literal: HashSet<String>,
+    wildcard: Vec<Pattern>,
+}
+
+impl Excludes {
+    fn new(patterns: Vec<Pattern>) -> Self {
+        let mut literal = HashSet::new();
+        let mut wildcard = Vec::new();
+        for pattern in patterns {
+            match pattern.literal_key() {
+                Some(key) => {
+                    literal.insert(key);
+                }
+                None => wildcard.push(pattern),
+            }
+        }
+        Self { literal, wildcard }
+    }
+
+    /// True when a pattern matches the path `parts` or a directory above it.
+    fn matches(&self, parts: &[&str]) -> bool {
+        let mut prefix = String::new();
+        for (index, part) in parts.iter().enumerate() {
+            if index > 0 {
+                prefix.push('/');
+            }
+            prefix.push_str(part);
+            if self.literal.contains(&prefix) {
+                return true;
+            }
+        }
+        if self.wildcard.is_empty() {
+            return false;
+        }
+        let chars: Vec<Vec<char>> = parts.iter().map(|part| part.chars().collect()).collect();
+        self.wildcard
+            .iter()
+            .any(|pattern| pattern.matches_prefix(&chars))
+    }
 }
 
 /// The member directories of the workspace whose manifest `parsed` is at
@@ -213,7 +262,7 @@ pub(crate) fn members(
     parsed: &Manifest,
 ) -> Result<BTreeSet<RelPath>, LoadError> {
     let member_patterns = patterns(manifest_path, "members", &parsed.members)?;
-    let excluded = patterns(manifest_path, "exclude", &parsed.exclude)?;
+    let excluded = Excludes::new(patterns(manifest_path, "exclude", &parsed.exclude)?);
     let mut cx = Context {
         manifest_path,
         tree,
@@ -224,12 +273,7 @@ pub(crate) fn members(
             file: manifest_path.clone(),
         },
     };
-    let is_excluded = |cx: &Context<'_>, dir: &RelPath| {
-        let parts = cx.relative(dir);
-        excluded
-            .iter()
-            .any(|pattern| pattern.matches_prefix(&parts))
-    };
+    let is_excluded = |cx: &Context<'_>, dir: &RelPath| excluded.matches(&cx.relative(dir));
     let mut found: BTreeSet<RelPath> = BTreeSet::new();
     if parsed.package.is_some() {
         found.insert(workspace_dir.clone());
@@ -241,10 +285,7 @@ pub(crate) fn members(
                 .filter_map(|i| pattern.literal(i))
                 .collect();
             let parts: Vec<&str> = names.iter().map(String::as_str).collect();
-            if excluded
-                .iter()
-                .any(|exclude| exclude.matches_prefix(&parts))
-            {
+            if excluded.matches(&parts) {
                 continue;
             }
         }

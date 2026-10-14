@@ -10,6 +10,21 @@ use std::io;
 use crate::budget::Budget;
 use crate::path::{PathError, RelPath};
 
+/// Text that came from the input, shown with every control character escaped
+/// by [`char::escape_debug`], so that an error message cannot carry a terminal
+/// escape sequence, a line break or a NUL.
+pub(crate) struct Esc<'a>(pub(crate) &'a str);
+
+impl fmt::Display for Esc<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.chars().try_for_each(|c| match c {
+            // Quotes are not control characters and stay readable.
+            '\'' | '"' => write!(f, "{c}"),
+            _ => write!(f, "{}", c.escape_debug()),
+        })
+    }
+}
+
 /// Why a [`Tree`](crate::Tree) call failed.
 ///
 /// Every variant names the path it concerns. Only [`TreeError::NotFound`]
@@ -136,24 +151,30 @@ impl From<PathError> for TreeError {
 impl fmt::Display for TreeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NotFound { path } => write!(f, "{path}: no such file or directory"),
-            Self::OutsideRoot { path } => write!(f, "{path} leads outside the root"),
+            Self::NotFound { path } => write!(f, "{}: no such file or directory", Esc(path)),
+            Self::OutsideRoot { path } => write!(f, "{} leads outside the root", Esc(path)),
             Self::NotRegular { path } => {
-                write!(f, "{path} is not a regular file or a real directory")
+                write!(f, "{} is not a regular file or a real directory", Esc(path))
             }
-            Self::SymlinkLoop { path } => write!(f, "{path} runs into a symlink loop"),
+            Self::SymlinkLoop { path } => write!(f, "{} runs into a symlink loop", Esc(path)),
             Self::TooLarge { path, limit } => {
-                write!(f, "{path} is larger than the limit of {limit} bytes")
+                write!(f, "{} is larger than the limit of {limit} bytes", Esc(path))
             }
-            Self::NotUtf8 { path } => write!(f, "{path} is not valid UTF-8"),
+            Self::NotUtf8 { path } => write!(f, "{} is not valid UTF-8", Esc(path)),
             Self::NonUtf8Name { path, name } => write!(
                 f,
-                "directory {path} holds an entry whose name is not valid UTF-8: {name:?}"
+                "directory {} holds an entry whose name is not valid UTF-8: \"{}\"",
+                Esc(path),
+                Esc(name)
             ),
             Self::DuplicatePath { path } => {
-                write!(f, "{path} names a path that an earlier key already holds")
+                write!(
+                    f,
+                    "{} names a path that an earlier key already holds",
+                    Esc(path)
+                )
             }
-            Self::Io { path, source } => write!(f, "{path}: {source}"),
+            Self::Io { path, source } => write!(f, "{}: {source}", Esc(path)),
         }
     }
 }
@@ -199,19 +220,21 @@ pub enum Origin {
 impl fmt::Display for Origin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ModDecl { module } => write!(f, "`mod {module};`"),
+            Self::ModDecl { module } => write!(f, "`mod {};`", Esc(module)),
             Self::PathAttr {
                 module,
                 predicate: None,
-            } => write!(f, "the `path` attribute of module `{module}`"),
+            } => write!(f, "the `path` attribute of module `{}`", Esc(module)),
             Self::PathAttr {
                 module,
                 predicate: Some(predicate),
             } => write!(
                 f,
-                "the `path` attribute of module `{module}` under `{predicate}`"
+                "the `path` attribute of module `{}` under `{}`",
+                Esc(module),
+                Esc(predicate)
             ),
-            Self::ManifestKey { key } => write!(f, "manifest key `{key}`"),
+            Self::ManifestKey { key } => write!(f, "manifest key `{}`", Esc(key)),
             Self::Discovery => f.write_str("package discovery"),
         }
     }
@@ -354,13 +377,25 @@ pub enum TargetProblem {
 impl fmt::Display for TargetProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingFile { path } => write!(f, "the target file {path} does not exist"),
+            Self::MissingFile { path } => {
+                write!(f, "the target file {} does not exist", Esc(path.as_str()))
+            }
             Self::NoName => f.write_str("the target has no name"),
             Self::SharedRoot { root, other } => {
-                write!(f, "the root {root} already belongs to the target `{other}`")
+                write!(
+                    f,
+                    "the root {} already belongs to the target `{}`",
+                    Esc(root.as_str()),
+                    Esc(other)
+                )
             }
             Self::AmbiguousRoot { first, second } => {
-                write!(f, "both {first} and {second} could be the root")
+                write!(
+                    f,
+                    "both {} and {} could be the root",
+                    Esc(first.as_str()),
+                    Esc(second.as_str())
+                )
             }
             Self::DuplicateCratePath {
                 crate_path,
@@ -368,10 +403,18 @@ impl fmt::Display for TargetProblem {
                 with,
             } => write!(
                 f,
-                "the crate path `{crate_path}` is already used by the target `{other}` of {with}"
+                "the crate path `{}` is already used by the target `{}` of {}",
+                Esc(crate_path),
+                Esc(other),
+                Esc(with.as_str())
             ),
             Self::DuplicatePackage { name, with } => {
-                write!(f, "package `{name}` is also defined by {with}")
+                write!(
+                    f,
+                    "package `{}` is also defined by {}",
+                    Esc(name),
+                    Esc(with.as_str())
+                )
             }
         }
     }
@@ -385,39 +428,52 @@ impl fmt::Display for LoadErrorKind {
                 write!(f, "exceeds the budget for {budget} ({limit})")
             }
             Self::Syntax { message, column } => {
-                write!(f, "syntax error at column {column}: {message}")
+                write!(f, "syntax error at column {column}: {}", Esc(message))
             }
             Self::Spawn(error) => write!(f, "cannot start the parse thread: {error}"),
-            Self::Manifest { message } => write!(f, "invalid manifest: {message}"),
+            Self::Manifest { message } => write!(f, "invalid manifest: {}", Esc(message)),
             Self::Target(problem) => write!(f, "{problem}"),
             Self::DirSymlink => f.write_str("a symlinked directory is not followed"),
             Self::NoRoots => f.write_str("no roots were given; name at least one, such as `.`"),
             Self::UnresolvedMod { module } => {
-                write!(f, "module `{module}` has no file")
+                write!(f, "module `{}` has no file", Esc(module))
             }
             Self::BothModFiles {
                 module,
                 first,
                 second,
-            } => write!(f, "module `{module}` has both {first} and {second}"),
+            } => write!(
+                f,
+                "module `{}` has both {} and {}",
+                Esc(module),
+                Esc(first.as_str()),
+                Esc(second.as_str())
+            ),
             Self::DuplicatePathAttr { module } => {
-                write!(f, "module `{module}` has two `path` attributes")
+                write!(f, "module `{}` has two `path` attributes", Esc(module))
             }
             Self::ModuleCycle { module, again } => write!(
                 f,
-                "module `{module}` leads back to {again}, which is still being followed"
+                "module `{}` leads back to {}, which is still being followed",
+                Esc(module),
+                Esc(again.as_str())
             ),
-            Self::CfgParse { message } => write!(f, "cannot read an attribute: {message}"),
-            Self::UnsupportedItem { what } => write!(f, "unsupported item: {what}"),
+            Self::CfgParse { message } => write!(f, "cannot read an attribute: {}", Esc(message)),
+            Self::UnsupportedItem { what } => write!(f, "unsupported item: {}", Esc(what)),
             Self::UnresolvedTrait { path } => {
                 write!(
                     f,
-                    "the trait `{path}` of an impl cannot be named by an absolute path"
+                    "the trait `{}` of an impl cannot be named by an absolute path",
+                    Esc(path)
                 )
             }
-            Self::Internal { what } => write!(f, "internal error: {what}"),
+            Self::Internal { what } => write!(f, "internal error: {}", Esc(what)),
             Self::SuperAboveRoot { path } => {
-                write!(f, "`{path}` climbs above the crate root with `super`")
+                write!(
+                    f,
+                    "`{}` climbs above the crate root with `super`",
+                    Esc(path)
+                )
             }
         }
     }
@@ -468,7 +524,7 @@ impl LoadError {
 
 impl fmt::Display for LoadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.file)?;
+        write!(f, "{}", Esc(self.file.as_str()))?;
         if let Some(line) = self.line {
             write!(f, ":{line}")?;
         }
@@ -495,8 +551,135 @@ mod tests {
     use std::error::Error;
     use std::io;
 
-    use super::{LoadError, LoadErrorKind};
+    use super::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
     use crate::RelPath;
+
+    /// Every kind of control character, including a NUL.
+    const HOSTILE: &str = "a\u{1b}]0;pwned\u{7}\u{1b}[2J\0\r\nb";
+    /// The same for a `RelPath`, which refuses a NUL.
+    const HOSTILE_PATH: &str = "a\u{1b}]0;pwned\u{7}\u{1b}[2J\r\nb";
+
+    fn clean(text: &str) {
+        assert!(
+            !text.chars().any(char::is_control),
+            "a control character got through: {text:?}"
+        );
+    }
+
+    #[test]
+    fn control_characters_in_a_path_are_escaped() {
+        let file = RelPath::new(&format!("src/{HOSTILE_PATH}.rs")).expect("a relative path");
+        let text = LoadError::tree(
+            &file,
+            Some(3),
+            &Origin::PathAttr {
+                module: HOSTILE.to_owned(),
+                predicate: Some(HOSTILE.to_owned()),
+            },
+            TreeError::OutsideRoot {
+                path: HOSTILE.to_owned(),
+            },
+        )
+        .to_string();
+        clean(&text);
+        assert!(
+            text.contains(r"a\u{1b}]0;pwned\u{7}\u{1b}[2J\0\r\nb"),
+            "{text}"
+        );
+        assert!(text.starts_with("src/a\\u{1b}"), "{text}");
+    }
+
+    #[test]
+    fn every_user_derived_field_of_every_display_is_escaped() {
+        let file = RelPath::new("x").expect("a relative path");
+        let hostile = || HOSTILE.to_owned();
+        let path = || RelPath::new(&format!("d/{HOSTILE_PATH}")).expect("a relative path");
+        let tree_errors = [
+            TreeError::NotFound { path: hostile() },
+            TreeError::OutsideRoot { path: hostile() },
+            TreeError::NotRegular { path: hostile() },
+            TreeError::SymlinkLoop { path: hostile() },
+            TreeError::TooLarge {
+                path: hostile(),
+                limit: 1,
+            },
+            TreeError::NotUtf8 { path: hostile() },
+            TreeError::NonUtf8Name {
+                path: hostile(),
+                name: hostile(),
+            },
+            TreeError::DuplicatePath { path: hostile() },
+            TreeError::Io {
+                path: hostile(),
+                source: io::Error::other("x"),
+            },
+        ];
+        for error in tree_errors {
+            clean(&error.to_string());
+        }
+        let origins = [
+            Origin::ModDecl { module: hostile() },
+            Origin::ManifestKey { key: hostile() },
+            Origin::PathAttr {
+                module: hostile(),
+                predicate: None,
+            },
+        ];
+        for origin in origins {
+            clean(&origin.to_string());
+        }
+        let problems = [
+            TargetProblem::MissingFile { path: path() },
+            TargetProblem::SharedRoot {
+                root: path(),
+                other: hostile(),
+            },
+            TargetProblem::AmbiguousRoot {
+                first: path(),
+                second: path(),
+            },
+            TargetProblem::DuplicateCratePath {
+                crate_path: hostile(),
+                other: hostile(),
+                with: path(),
+            },
+            TargetProblem::DuplicatePackage {
+                name: hostile(),
+                with: path(),
+            },
+        ];
+        for problem in problems {
+            clean(&problem.to_string());
+        }
+        let kinds = vec![
+            LoadErrorKind::Syntax {
+                message: hostile(),
+                column: 1,
+            },
+            LoadErrorKind::Manifest { message: hostile() },
+            LoadErrorKind::UnresolvedMod { module: hostile() },
+            LoadErrorKind::BothModFiles {
+                module: hostile(),
+                first: Box::new(path()),
+                second: Box::new(path()),
+            },
+            LoadErrorKind::DuplicatePathAttr { module: hostile() },
+            LoadErrorKind::ModuleCycle {
+                module: hostile(),
+                again: Box::new(path()),
+            },
+            LoadErrorKind::CfgParse { message: hostile() },
+            LoadErrorKind::UnsupportedItem { what: hostile() },
+            LoadErrorKind::UnresolvedTrait { path: hostile() },
+            LoadErrorKind::Internal { what: hostile() },
+            LoadErrorKind::SuperAboveRoot { path: hostile() },
+        ];
+        for kind in kinds {
+            clean(&LoadError::new(&file, None, kind).to_string());
+        }
+        let hostile_file = RelPath::new(&format!("{HOSTILE_PATH}.rs")).expect("a relative path");
+        clean(&LoadError::new(&hostile_file, None, LoadErrorKind::DirSymlink).to_string());
+    }
 
     #[test]
     fn a_spawn_error_displays_the_file_and_carries_its_cause() {
