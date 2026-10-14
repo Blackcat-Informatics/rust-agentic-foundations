@@ -1,0 +1,21 @@
+ghprsq structured squash audit metadata
+
+parent_hashes: 5bcd7411b0ec093c138efa0bbf57a2ad21d2795b
+
+GhpRsq-Schema: 1
+GhpRsq-Merge-Style: structured-squash
+GhpRsq-GitHub-Repo: Blackcat-Informatics/rust-agentic-foundations
+GhpRsq-GitHub-Pull-Request: 13
+GhpRsq-GitHub-PR-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/13
+GhpRsq-Base-Ref: main
+GhpRsq-Base-OID: 2c410824f6e234862f9031c92d361167cb88ea63
+GhpRsq-Head-Ref: paudley/2-shared-crates-raf-okf-raf-source
+GhpRsq-Head-OID: 5bcd7411b0ec093c138efa0bbf57a2ad21d2795b
+GhpRsq-Result-Tree: 3b8a1bee1034359faaf22d9fec79159205850ef9
+GhpRsq-Result-Commit: 762fa99f41830888f5328d48a6629e0ed1304888
+GhpRsq-Parent-Hashes: 5bcd7411b0ec093c138efa0bbf57a2ad21d2795b
+GhpRsq-Squash-Notes-SHA256: 9a8aff27d649f673e6f34674c0ac8ad53c68a265ba206a1fd1501c24a46d5fd1
+GhpRsq-Defect-Class: none
+GhpRsq-Stage-Tree: 2074cc0b5bf334d0486c7427447e2e8a7c02d3c5
+GhpRsq-Stage-Ref: refs/ghprsq/pr/13/stage
+GhpRsq-Stage-Files: 160
