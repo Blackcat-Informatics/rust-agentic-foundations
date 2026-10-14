@@ -257,8 +257,7 @@ impl Workspace {
         self.files.get(path).map(|file| file.text.as_str())
     }
 
-    /// Every item, sorted by path, then name space, file and position, so the
-    /// items under a path prefix form a contiguous run.
+    /// Every item, sorted by path, then name space, file and position.
     pub fn items(&self) -> impl Iterator<Item = &Item> {
         self.index
             .order
@@ -266,8 +265,9 @@ impl Workspace {
             .map(|id| &self.index.items[id.index()])
     }
 
-    /// The items whose path starts with `prefix`, in the order of
-    /// [`Workspace::items`].
+    /// The items at `prefix` or below it, in the order of [`Workspace::items`].
+    /// The prefix matches whole path segments: `demo::a` selects `demo::a` and
+    /// `demo::a::b`, not `demo::ab`. An empty prefix selects every item.
     pub fn items_under<'a>(&'a self, prefix: &'a str) -> impl Iterator<Item = &'a Item> {
         let order = &self.index.order;
         let start = order.partition_point(|id| self.index.items[id.index()].path.as_str() < prefix);
@@ -275,6 +275,13 @@ impl Workspace {
             .iter()
             .map(|id| &self.index.items[id.index()])
             .take_while(move |item| item.path.starts_with(prefix))
+            .filter(move |item| {
+                prefix.is_empty()
+                    || item
+                        .path
+                        .strip_prefix(prefix)
+                        .is_some_and(|rest| rest.is_empty() || rest.starts_with("::"))
+            })
     }
 
     /// One item by id.

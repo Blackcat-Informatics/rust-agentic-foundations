@@ -983,13 +983,16 @@ The identity of an item is its file and the byte offset where its span starts. A
 that several module paths reach is indexed once for each path, so the same source item
 can appear as several `Item` values that share a file and offset and differ in `path`
 and `target`. `items` yields every item sorted by path, then name space, file and
-position, strictly increasing, so the items under a path prefix are a contiguous run
-(`items_under`); `items_by_source()` and `same_source(&item)` group the items that share
+position, strictly increasing. `items_under(prefix)` yields the item at `prefix` and the
+items below it, matching whole path segments: `demo::a` selects `demo::a` and
+`demo::a::b` but not `demo::ab`, and an empty prefix selects every item.
+`items_by_source()` and `same_source(&item)` group the items that share
 one identity, so a census can count a source item once however many paths reach it;
 `item(id)` is a lookup; `items_in(file)` yields a file's items in order
 of position; `item_at(file, offset)` yields the innermost items that hold the offset;
 `is_shipping(&item)` is true for an item of a shipping target that is not test code;
-`files()` yields each source file once, with its package, the targets and module paths
+`files()` yields each source file once, with its package (the package of the first
+target in target order that reaches the file), the targets and module paths
 that reach it, and whether it ships; `source(file)` is the exact text that was indexed;
 and `test_fns()` returns, for each `#[test]` function (or a typed error if one's path does not start with its target's crate path), the package, the kind and Cargo
 name of its target (`--lib`, `--bin <name>` or `--test <name>`) and its path inside the
@@ -1373,6 +1376,14 @@ duplicates.
   test rejects a binding to the same misplaced shape. `raf_source::syn` and
   `raf_source::syn::File`, through `pub use syn;`, are `NotFound` beside
   `raf_source::DiskTree`, which resolves.
+- Path-prefix fixtures: `items_under("demo::a")` beside the modules `demo::ab` and
+  `demo::a1` returns `demo::a` and its descendants only, an empty prefix returns every
+  item, and a file that the targets of two packages reach has the package of the first
+  target in target order, which is the first by manifest path and not by name.
+- Binding fixtures in the document-contract test: a `tests` binding that names an
+  item that is not a function marked `#[test]` is a violation, and so is a `code`
+  binding that names test code or an item of a non-shipping target. The repository's
+  own bindings satisfy both rules.
 - `#[path]` fixtures: a redirect inside the root resolves; `..` out of the root and
   an absolute path outside it both fail naming the module and the attribute, and a
   recording tree shows that the outside path is never read.

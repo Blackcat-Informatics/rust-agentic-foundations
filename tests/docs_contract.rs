@@ -27,7 +27,7 @@ use raf_okf::{
     Bindings, Body, DocType, Document, ErrorKind, FencedBlock, Index, LinkTarget, Outcome,
     ParseError, Profile, RafDocument, Rule, State, is_capability_index,
 };
-use raf_source::{DiskTree, MemoryTree, Workspace};
+use raf_source::{DiskTree, ItemId, MemoryTree, TestRole, Workspace};
 
 mod support;
 
@@ -689,6 +689,22 @@ fn check(repo: &Repo) -> Vec<String> {
 // Bindings
 // ---------------------------------------------------------------------------
 
+/// Why the definitions a binding resolved to do not fit the list it is in: a
+/// `code` binding names shipping items, and a `tests` binding names functions
+/// marked `#[test]`. `examples` bindings only have to resolve.
+fn wrong_role(workspace: &Workspace, kind: &str, sites: &[ItemId]) -> Option<&'static str> {
+    let mut items = sites.iter().filter_map(|id| workspace.item(*id));
+    match kind {
+        "code" if items.any(|item| !workspace.is_shipping(item)) => {
+            Some("names an item that is test code or is not in a shipping target")
+        }
+        "tests" if items.any(|item| item.test != TestRole::TestFn) => {
+            Some("names an item that is not a function marked `#[test]`")
+        }
+        _ => None,
+    }
+}
+
 /// Resolve every binding of every capability in the source index. A binding
 /// that names nothing, names two things, or goes through a cycle is a
 /// violation that names the capability and the binding.
@@ -702,14 +718,22 @@ fn check_bindings(found: &Found, workspace: &Workspace) -> Vec<String> {
         ];
         for (kind, bindings) in lists {
             for binding in bindings {
-                if let Err(error) = workspace.resolve(binding) {
-                    out.push(violation(
+                match workspace.resolve(binding) {
+                    Err(error) => out.push(violation(
                         &cap.path,
                         format!(
                             "{} {kind} binding `{binding}` does not resolve: {error}",
                             cap.id
                         ),
-                    ));
+                    )),
+                    Ok(resolution) => {
+                        if let Some(why) = wrong_role(workspace, kind, &resolution.sites) {
+                            out.push(violation(
+                                &cap.path,
+                                format!("{} {kind} binding `{binding}` {why}", cap.id),
+                            ));
+                        }
+                    }
                 }
             }
         }
@@ -2993,7 +3017,7 @@ fn reads_an_attribute_value_that_starts_on_the_next_line() {
 
 // --- bindings ---------------------------------------------------------------
 
-const DEMO_LIB: &str = "macro_rules! make {\n    ($name:ident) => {\n        pub fn $name() {}\n    };\n}\nmake!(generated);\npub fn real() {}\nmod body;\n";
+const DEMO_LIB: &str = "macro_rules! make {\n    ($name:ident) => {\n        pub fn $name() {}\n    };\n}\nmake!(generated);\npub fn real() {}\nmod body;\n#[cfg(test)]\nmod unit {\n    pub fn helper() {}\n}\n";
 
 fn demo_workspace() -> Workspace {
     let tree = MemoryTree::from([
@@ -3005,7 +3029,7 @@ fn demo_workspace() -> Workspace {
         // `blocks.rs` sorts before `mod.rs`, which declares it, as in raf-okf.
         ("src/body/mod.rs", "mod blocks;\npub fn in_body() {}\n"),
         ("src/body/blocks.rs", "pub(crate) struct FenceBlock;\n"),
-        ("tests/it.rs", "fn case() {}\n"),
+        ("tests/it.rs", "#[test]\nfn case() {}\npub fn plain() {}\n"),
     ]);
     Workspace::load(&tree, &["."]).expect("the demo workspace loads")
 }
@@ -3090,6 +3114,37 @@ fn every_unresolved_binding_of_every_list_is_reported() {
         "examples binding `demo::absent`",
     ] {
         assert_hit(&violations, needle);
+    }
+}
+
+#[test]
+fn a_tests_binding_must_name_a_function_marked_test() {
+    let violations = binding_violations("[demo::real]", "[demo::test_crate::it::plain]", "[]");
+    assert_eq!(violations.len(), 1, "{violations:#?}");
+    assert_hit(
+        &violations,
+        "cap:gamma tests binding `demo::test_crate::it::plain` names an item that is not a function marked `#[test]`",
+    );
+    let violations = binding_violations("[demo::real]", "[demo::real]", "[]");
+    assert_eq!(violations.len(), 1, "{violations:#?}");
+    assert_hit(&violations, "tests binding `demo::real` names an item");
+}
+
+#[test]
+fn a_code_binding_must_name_a_shipping_item() {
+    for binding in ["demo::unit::helper", "demo::test_crate::it::case"] {
+        let violations = binding_violations(
+            &format!("[{binding}]"),
+            "[demo::test_crate::it::case]",
+            "[]",
+        );
+        assert_eq!(violations.len(), 1, "{violations:#?}");
+        assert_hit(
+            &violations,
+            &format!(
+                "cap:gamma code binding `{binding}` names an item that is test code or is not in a shipping target"
+            ),
+        );
     }
 }
 

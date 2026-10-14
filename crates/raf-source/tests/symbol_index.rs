@@ -851,6 +851,59 @@ fn two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order()
 }
 
 #[test]
+fn items_under_matches_whole_path_segments() {
+    let ws = ok(&[
+        (
+            "src/lib.rs",
+            "pub mod a;\npub mod ab;\npub mod a1;\npub fn a_fn() {}\n",
+        ),
+        ("src/a.rs", "pub struct A;\nimpl A { pub fn m() {} }\n"),
+        ("src/ab.rs", "pub struct B;\n"),
+        ("src/a1.rs", "pub struct C;\n"),
+    ]);
+    let under = |prefix: &str| -> Vec<String> {
+        ws.items_under(prefix)
+            .map(|i| i.path.as_str().to_owned())
+            .collect()
+    };
+    assert_eq!(under("demo::a"), ["demo::a", "demo::a::A", "demo::a::A::m"]);
+    assert_eq!(under("demo::ab"), ["demo::ab", "demo::ab::B"]);
+    assert_eq!(under("demo::a::A"), ["demo::a::A", "demo::a::A::m"]);
+    assert_eq!(under("demo::a::"), Vec::<String>::new());
+    assert_eq!(under("demo::nope"), Vec::<String>::new());
+    assert_eq!(under("").len(), ws.items().count());
+}
+
+#[test]
+fn a_file_reached_by_targets_of_two_packages_belongs_to_the_first_target_in_target_order() {
+    let tree: MemoryTree = [
+        ("Cargo.toml", "[workspace]\nmembers = [\"p1\", \"p2\"]\n"),
+        (
+            "p1/Cargo.toml",
+            "[package]\nname = \"zeta\"\nversion = \"0.1.0\"\n",
+        ),
+        (
+            "p2/Cargo.toml",
+            "[package]\nname = \"alpha\"\nversion = \"0.1.0\"\n",
+        ),
+        ("p1/src/lib.rs", "#[path = \"../../shared.rs\"]\nmod s;\n"),
+        ("p2/src/lib.rs", "#[path = \"../../shared.rs\"]\nmod s;\n"),
+        ("shared.rs", "pub fn go() {}\n"),
+    ]
+    .into_iter()
+    .collect();
+    let ws = Workspace::load(&tree, &["."]).expect("loads");
+    let first = ws.targets().next().expect("a target");
+    let shared = ws
+        .file(&RelPath::new("shared.rs").expect("path"))
+        .expect("the shared file");
+    assert_eq!(shared.reached.len(), 2);
+    assert_eq!(shared.package, first.package);
+    // Packages are in manifest-path order, not name order.
+    assert_eq!(first.package, "zeta");
+}
+
+#[test]
 fn an_unnamed_const_is_in_the_facts_and_not_in_the_index() {
     let ws = lib("const _: () = ();\npub const NAMED: u8 = 1;\n");
     assert!(ws.items().all(|i| i.name != "_"));
