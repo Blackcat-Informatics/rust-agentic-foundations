@@ -122,6 +122,12 @@ impl Workspace {
     /// unresolved or ambiguous `mod`, a path that leaves the tree, a module cycle,
     /// a file over `max_file_bytes`, a load over a [`Budget`](crate::Budget) (the
     /// byte budgets as `options` sets them), or a syntax error.
+    ///
+    /// Of the items that syn has no node for, a `use` group with a member that
+    /// starts with `::`, a function with no body and a type with no definition
+    /// are indexed; any other, such as a constant with no value or a type with
+    /// bounds and no definition, is a [`LoadErrorKind::UnsupportedItem`]
+    /// naming the file and the first line of the item.
     pub fn load_with(
         tree: &dyn Tree,
         roots: &[&str],

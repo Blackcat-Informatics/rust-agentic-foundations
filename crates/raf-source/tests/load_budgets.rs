@@ -259,6 +259,48 @@ fn each_large_fact_payload_is_charged_and_refused_at_its_line_once_over_the_fact
 }
 
 #[test]
+fn a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms() {
+    // The members of a `use` group that syn returns as tokens are charged as
+    // the separate `use` declarations, and a function with no body as the
+    // function with an empty one; each is refused at its line once over.
+    let long = "x".repeat(64 * 1024);
+    let pairs = [
+        (
+            format!("pub mod a {{ pub fn f() {{}} }}\npub use {{ ::std::{long}, crate::a::f }};\n"),
+            format!(
+                "pub mod a {{ pub fn f() {{}} }}\npub use ::std::{long};\npub use crate::a::f;\n"
+            ),
+            2,
+        ),
+        (
+            format!(
+                "pub struct S;\nimpl S {{\n    #[doc = \"{long}\"] pub fn new() -> &'static S;\n}}\n"
+            ),
+            format!(
+                "pub struct S;\nimpl S {{\n    #[doc = \"{long}\"] pub fn new() -> &'static S {{}}\n}}\n"
+            ),
+            3,
+        ),
+    ];
+    for (verbatim, plain, at) in &pairs {
+        let files = [("src/lib.rs", verbatim.as_str())];
+        let spent = usage(&files).fact_bytes;
+        assert_eq!(
+            spent,
+            usage(&[("src/lib.rs", plain.as_str())]).fact_bytes,
+            "{verbatim:.40}"
+        );
+        assert!(spent > 64 * 1024, "{spent}");
+        let mut options = LoadOptions::default();
+        options.max_fact_bytes = spent;
+        load_with(&files, &options).unwrap_or_else(|e| panic!("at the limit: {e}"));
+        options.max_fact_bytes = 64 * 1024;
+        let (budget, _, line) = refused(load_with(&files, &options), "src/lib.rs");
+        assert_eq!((budget, line), (Budget::FactBytes, Some(*at)));
+    }
+}
+
+#[test]
 fn the_fact_budget_counts_over_every_file_of_the_load() {
     let doc = format!("/// {}\npub fn f() {{}}\n", "d".repeat(4096));
     let files = [

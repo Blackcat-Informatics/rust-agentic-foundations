@@ -276,6 +276,12 @@ bindings:
     - raf_source::test_crate::target_roots::an_explicit_path_bin_beside_a_lib_module_bin_crate_is_ambiguous_in_both_file_orders
     - raf_source::test_crate::target_roots::an_over_cap_inferred_lib_names_discovery_not_lib_path
     - raf_source::test_crate::module_tree::a_non_literal_path_attribute_is_reported_as_such_from_the_attribute
+    - raf_source::test_crate::use_resolution::a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do
+    - raf_source::test_crate::use_resolution::a_leading_colon_member_of_a_use_group_reads_the_crate_root_in_edition_2015
+    - raf_source::test_crate::use_resolution::a_crate_root_inside_a_group_under_a_path_is_a_syntax_error
+    - raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written
+    - raf_source::test_crate::symbol_index::a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line
+    - raf_source::test_crate::load_budgets::a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms
   examples: []
 depends: []
 ---
@@ -859,6 +865,20 @@ true for a non-blank `#[doc]` or `///` text and for `#[doc = include_str!(..)]`,
 file's inner `//!` text as well. The `test` role is `CfgTest` also for an item in a file
 that is reached only through test code.
 
+Two shapes of item that rustc parses but syn has no node for are read from the tokens
+syn keeps, each with its own attributes, visibility and span. A function with no body,
+at item level or in an impl block, is a function or method whose `body` is `None`; it
+is the input of an attribute macro, such as `#[ref_cast_custom] pub fn new(s: &str) ->
+&Self;`, or an item under a `cfg` that is false. A type with no definition (`#[ty] type
+bool;`) is a type alias whose alias target is `None`, so no path is followed through it.
+Both are indexed as written: what the macro makes of them (kept, renamed, dropped, or an
+item of another kind) is not seen, as for any other item an attribute macro rewrites. The third
+shape syn returns as tokens, a `use` group with a member that starts with `::`, is read
+by the use-alias index below. Every other item that syn returns as tokens fails the load
+with `UnsupportedItem`, naming the file and the first line of the item: a constant with
+no value (`const C: u8;`, in a module or an impl block), a type with bounds and no
+definition (`type T: Bound;`), a trait alias, and any other form.
+
 Every target's crate root is also an item of the module kind, at the target's crate
 path in the type name space: its file is the target's root file, its line is 1, its
 span is the whole file, it is documented when the file starts with `//!` text, and it
@@ -1033,7 +1053,12 @@ and the same regular files on disk and in memory give equal indexes.
 module: renames, nested groups, `self` in a group, globs, a leading `::` (a crate of the
 extern prelude from edition 2018 on, the crate root in edition 2015), `extern crate x as
 y`, and the keywords `crate`, `self` and `super`; a `super` above the crate root is an
-error that names the file and line. From edition 2018 on, a path whose first segment the
+error that names the file and line. A leading `::` on a member of a braced group (`pub
+use { ::std::fmt::Debug as D, crate::a::f };`) has no syn node; each member of such a
+group, and of a group without a path nested in it, binds as the separate `use` with the
+attributes and visibility of the whole declaration would, and its facts span the whole
+declaration. A `::` inside a group under a path (`a::{::b}`), which rustc refuses, is a
+syntax error. From edition 2018 on, a path whose first segment the
 module does not bind starts at a crate of the extern prelude of the importing target. In
 edition 2015 a `use` path whose first segment is not `crate`, `self` or `super` starts
 at the crate root, as rustc reads it: `use inner::go;` in a module names the root's
@@ -1348,7 +1373,10 @@ assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
 ## Constraints
 
 - Parsing is syntactic. The crate does not expand macros, evaluate `cfg` other than
-  the `test` tag, or run type inference.
+  the `test` tag, or run type inference. An item is indexed as written, so a function
+  with no body or a type with no definition, which rustc accepts only as the input of
+  an attribute macro or under a false `cfg`, is indexed under its written name and
+  kind whatever the macro makes of it.
 - Every opened path must be, after canonicalisation, inside the canonical workspace
   root and a regular file; the same rule bounds explicit `Cargo.toml` target paths.
 - A file larger than `max_file_bytes` (default 8 MiB), or one that exceeds a
@@ -1369,6 +1397,10 @@ assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
   the time to decide them grows faster (see Work and memory bounds).
 - Resolution covers items the source defines. Items from dependencies are outside the
   index and resolve to a not-found failure.
+- An item that syn returns as tokens is indexed only in the three shapes the Contract
+  names: a `use` group with a member that starts with `::`, a function with no body and
+  a type with no definition. Any other, such as `const C: u8;` written as the input of an
+  attribute macro, fails the whole load with `UnsupportedItem`, naming the file and line.
 - Two visibility rules of rustc are not modelled. An explicit `pub use` of a binding
   that its module can access only through a private glob binds the name as visible as
   the import, where rustc keeps it no more visible than the binding it re-exports, so a
@@ -1607,6 +1639,22 @@ duplicates.
   `type T<'a> = &'a &'a ... u8;` with 20000 reference marks, each fail with the typed
   budget error that names the file, in process and in the child-process harness; the
   same shapes at 256 links and 256 marks parse.
+- Verbatim-item fixtures: `pub use { ::p_one::X as D, crate::a::f, ::p_one::inner::{self,
+  go as run}, { ::std::fmt::Debug as Dbg } };` and a module's `pub use { ::p_one::X,
+  super::a::g as h };` resolve each name to what the separate `use` declarations give
+  (`D` to `p_one::X`, `f` to `p_two::a::f`), and `Dbg` is `NotFound` in both; in edition
+  2015 a member `::inner::go` reads the crate root. The facts of a group in an inline
+  module are one `use` fact per member in that module, each with the span, line, test
+  role and visibility of the whole declaration. `a::{::b}` is a `Syntax` error naming the
+  file and line. A bodiless function at item level, a bodiless method in an impl block
+  and `type bool;` are indexed with their kind, name line, span and attributes, and no
+  `body`; `const C: u8;`, a bodiless `const` in an impl block and `type T: Bound;` are
+  `UnsupportedItem` naming the file and line. A group of 6000 members under a
+  `cfg` predicate of 6000 names reads that attribute once: it loads within 500 ms in a
+  release build (10 s in a debug build), each member's fact carrying the test role,
+  visibility, span and tree it would have alone. A group and a bodiless method are charged
+  the fact bytes of the separate `use` declarations and of the method with an empty
+  body, and are refused at their line once over the fact budget.
 - A syntax error carries the line and column of the parser's error: a fixture with the
   error on line 3 and another on line 5 assert the exact position, beside a file that
   parses.

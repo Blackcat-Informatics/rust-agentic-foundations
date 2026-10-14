@@ -1020,3 +1020,75 @@ fn items_on_one_long_line_of_wide_characters_get_exact_byte_offsets_in_linear_ti
         );
     }
 }
+
+#[test]
+fn bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written() {
+    // The input of an attribute macro that syn has no node for: a function
+    // with no body, at item level and in an impl block, and a type with no
+    // definition.
+    let text = "pub struct S;\n\
+                #[ref_cast_custom]\n\
+                #[inline]\n\
+                pub(crate) const fn free(x: &str) -> &S;\n\
+                impl S {\n    #[ref_cast_custom]\n    pub fn new(s: &str) -> &S;\n    pub fn body() {}\n}\n\
+                /// A type with two states.\n\
+                #[ty(cast)]\n\
+                pub type bool;\n\
+                pub mod m {\n    #[cfg(test)] pub fn inner();\n}\n";
+    let ws = lib(text);
+    let at = |needle: &str| text.find(needle).expect("in the text");
+    let free = item(&ws, "demo::free", Namespace::Value);
+    assert_eq!(free.kind, SymbolKind::Fn);
+    assert_eq!((free.name_line, free.span.lines.clone()), (4, 2..5));
+    assert_eq!(free.span.start_byte, at("#[ref_cast_custom]"));
+    assert_eq!(free.span.end_byte, at("impl S") - 1);
+    assert!(free.body.is_none());
+    assert_eq!(free.visibility, Vis::Restricted("crate".to_owned()));
+    let new = item(&ws, "demo::S::new", Namespace::Value);
+    assert_eq!(new.kind, SymbolKind::InherentMethod);
+    assert_eq!((new.name_line, new.span.lines.clone()), (7, 6..8));
+    assert_eq!(
+        new.span.start_byte,
+        at("#[ref_cast_custom]\n    pub fn new")
+    );
+    assert!(new.body.is_none());
+    assert!(item(&ws, "demo::S::body", Namespace::Value).body.is_some());
+    let ty = item(&ws, "demo::bool", Namespace::Type);
+    assert_eq!(ty.kind, SymbolKind::TypeAlias);
+    assert_eq!((ty.name_line, ty.span.lines.clone()), (12, 10..13));
+    assert!(ty.documented);
+    let inner = item(&ws, "demo::m::inner", Namespace::Value);
+    assert_eq!((inner.kind, inner.name_line), (SymbolKind::Fn, 14));
+    assert_eq!(inner.test, TestRole::CfgTest);
+    assert!(matches!(
+        ws.resolve_in("demo::inner", Namespace::Value),
+        Err(ResolveError::NotFound(_))
+    ));
+}
+
+#[test]
+fn a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line() {
+    // rustc parses each of these (they compile under `#[cfg(any())]`); syn
+    // has no node for them and the index does not read them.
+    for (text, line) in [
+        ("pub fn ok() {}\n#[cfg(any())]\nconst C: u8;\n", 2),
+        (
+            "pub struct S;\nimpl S {\n    #[cfg(any())]\n    const K: u8;\n}\n",
+            3,
+        ),
+        ("pub fn ok() {}\n#[cfg(any())]\ntype T: Bound;\n", 2),
+    ] {
+        let error = load(&[("src/lib.rs", text)]).expect_err(text);
+        assert!(
+            matches!(error.kind, LoadErrorKind::UnsupportedItem { .. }),
+            "{text}: {error}"
+        );
+        assert_eq!(
+            (error.file.as_str(), error.line),
+            ("src/lib.rs", Some(line)),
+            "{text}"
+        );
+    }
+    // The bodiless function beside them loads.
+    assert!(load(&[("src/lib.rs", "#[cfg(any())]\nfn f();\n")]).is_ok());
+}

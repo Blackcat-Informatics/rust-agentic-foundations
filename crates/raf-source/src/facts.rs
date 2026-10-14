@@ -20,6 +20,7 @@ use syn::{Attribute, Expr, ExprLit, Item, Lit, Meta, Visibility};
 
 use crate::cfg::{CfgExpr, parse_list};
 use crate::meter::FactAllowance;
+use crate::verbatim::{self, Bodiless, Verbatim};
 
 /// A region of the file in lines and bytes.
 ///
@@ -784,6 +785,27 @@ fn self_path_of(ty: &syn::Type) -> Option<&syn::Path> {
     }
 }
 
+/// The refusal of an item the index does not model, naming its first line
+/// and the start of its text.
+fn unsupported(item: &impl quote::ToTokens) -> ExtractError {
+    ExtractError::Unsupported {
+        line: item.span().start().line,
+        what: item
+            .to_token_stream()
+            .to_string()
+            .chars()
+            .take(60)
+            .collect(),
+    }
+}
+
+/// The test role of a `use` declaration with the attributes `attrs`, which
+/// are read for their meaning and not kept.
+fn use_role(attrs: &[Attribute], inherited: TestRole) -> Found<TestRole> {
+    let summary = summarize(attrs, &FactMeter::scratch())?;
+    Ok(role(summary.own_test, inherited))
+}
+
 struct Extractor<'t> {
     positions: Positions<'t>,
     meter: FactMeter,
@@ -1051,31 +1073,97 @@ impl Extractor<'_> {
             Item::Mod(m) => body.mods.push(self.module_fact(m, inherited)?),
             Item::Impl(i) => body.impls.push(self.impl_fact(i, inherited)?),
             Item::Use(u) => {
-                let line = whole.start().line;
-                let summary = summarize(&u.attrs, &FactMeter::scratch())?;
-                let vis = vis(&u.vis);
-                self.meter
-                    .charge(size_of::<UseFact>() + vis_bytes(&vis), line)?;
-                body.uses.push(UseFact {
-                    line,
-                    span: self.positions.span(whole)?,
-                    vis,
-                    leading_colon: u.leading_colon.is_some(),
-                    tree: self.use_tree(&u.tree, line)?,
-                    test: role(summary.own_test, inherited),
-                });
+                let test = use_role(&u.attrs, inherited)?;
+                body.uses.push(self.use_fact(
+                    test,
+                    &u.vis,
+                    u.leading_colon.is_some(),
+                    &u.tree,
+                    whole,
+                )?);
             }
-            other => {
-                return Err(ExtractError::Unsupported {
-                    line: whole.start().line,
-                    what: format!("{}", other.to_token_stream())
-                        .chars()
-                        .take(60)
-                        .collect(),
-                });
-            }
+            Item::Verbatim(tokens) => match verbatim::item(tokens) {
+                // Each member is a `use` of its own, spanning the whole
+                // declaration, as the separate declarations would bind.
+                Some(Verbatim::UseGroup(group)) => {
+                    // The attributes of the whole declaration are read once,
+                    // so the work stays linear in the text however many
+                    // members share them.
+                    let test = use_role(&group.attrs, inherited)?;
+                    for member in &group.members {
+                        body.uses.push(self.use_fact(
+                            test,
+                            &group.vis,
+                            member.leading_colon,
+                            &member.tree,
+                            whole,
+                        )?);
+                    }
+                }
+                Some(Verbatim::Bodiless(read)) => {
+                    body.items.push(self.bodiless(&read, whole, inherited)?);
+                }
+                None => return Err(unsupported(item)),
+            },
+            other => return Err(unsupported(other)),
         }
         Ok(())
+    }
+
+    /// The fact of one `use` declaration spanning `whole`, of the test role
+    /// `test` that [`use_role`] read from its attributes.
+    fn use_fact(
+        &self,
+        test: TestRole,
+        vis_of: &Visibility,
+        leading_colon: bool,
+        tree: &syn::UseTree,
+        whole: proc_macro2::Span,
+    ) -> Found<UseFact> {
+        let line = whole.start().line;
+        let vis = vis(vis_of);
+        self.meter
+            .charge(size_of::<UseFact>() + vis_bytes(&vis), line)?;
+        Ok(UseFact {
+            line,
+            span: self.positions.span(whole)?,
+            vis,
+            leading_colon,
+            tree: self.use_tree(tree, line)?,
+            test,
+        })
+    }
+
+    /// The fact of a function with no body or a type with no definition, read
+    /// from verbatim tokens: a function or a type alias with no body span.
+    fn bodiless(
+        &self,
+        read: &Bodiless,
+        whole: proc_macro2::Span,
+        inherited: TestRole,
+    ) -> Found<ItemFact> {
+        match read {
+            Bodiless::Fn(f) => self.item(
+                &f.sig.ident,
+                ItemKind::Fn,
+                &f.vis,
+                &f.attrs,
+                whole,
+                None,
+                inherited,
+                Vec::new(),
+            ),
+            Bodiless::Type(t) => self.item(
+                &t.ident,
+                ItemKind::TypeAlias,
+                &t.vis,
+                &t.attrs,
+                whole,
+                None,
+                inherited,
+                Vec::new(),
+            ),
+        }
     }
 
     fn foreign(
@@ -1119,15 +1207,7 @@ impl Extractor<'_> {
             // A macro invocation inside an `extern` block names nothing the
             // index can see.
             syn::ForeignItem::Macro(_) => {}
-            other => {
-                return Err(ExtractError::Unsupported {
-                    line: whole.start().line,
-                    what: format!("{}", other.to_token_stream())
-                        .chars()
-                        .take(60)
-                        .collect(),
-                });
-            }
+            other => return Err(unsupported(other)),
         }
         Ok(())
     }
@@ -1174,13 +1254,7 @@ impl Extractor<'_> {
             // A macro invocation in a trait body defines nothing visible, as
             // in an impl block.
             syn::TraitItem::Macro(_) => return Ok(None),
-            other => Err(ExtractError::Unsupported {
-                line: whole.start().line,
-                what: format!("{}", other.to_token_stream())
-                    .chars()
-                    .take(60)
-                    .collect(),
-            }),
+            other => Err(unsupported(other)),
         };
         fact.map(Some)
     }
@@ -1220,15 +1294,11 @@ impl Extractor<'_> {
             )?,
             // A macro invocation in an impl block defines nothing visible.
             syn::ImplItem::Macro(_) => return Ok(None),
-            other => {
-                return Err(ExtractError::Unsupported {
-                    line: whole.start().line,
-                    what: format!("{}", other.to_token_stream())
-                        .chars()
-                        .take(60)
-                        .collect(),
-                });
-            }
+            syn::ImplItem::Verbatim(tokens) => match verbatim::member(tokens) {
+                Some(read) => self.bodiless(&read, whole, inherited)?,
+                None => return Err(unsupported(member)),
+            },
+            other => return Err(unsupported(other)),
         };
         Ok(Some(fact))
     }
@@ -1589,5 +1659,111 @@ mod tests {
                 .facts
                 .documented
         );
+    }
+
+    #[test]
+    fn a_verbatim_use_group_is_one_use_fact_per_member_in_its_module_with_the_whole_span() {
+        let text = "pub mod a { pub fn f() {} }\n\
+                    pub mod m {\n    #[cfg(test)]\n    pub(crate) use {\n        ::std::fmt::Debug as D,\n        crate::a::f,\n    };\n}\n";
+        let ws = loaded(&[("src/lib.rs", text)]);
+        let lib = ws
+            .file(&RelPath::new("src/lib.rs").expect("path"))
+            .expect("loaded");
+        assert_eq!(lib.facts.body.uses, []);
+        let m = lib.facts.body.mods[1].inline.as_ref().expect("inline");
+        let start = text.find("#[cfg(test)]").expect("attr");
+        let end = text.find("};").expect("semi") + 2;
+        let read: Vec<_> = m
+            .uses
+            .iter()
+            .map(|u| {
+                (
+                    u.line,
+                    u.span.lines.clone(),
+                    u.span.start_byte,
+                    u.span.end_byte,
+                    u.leading_colon,
+                    u.test,
+                )
+            })
+            .collect();
+        assert_eq!(
+            read,
+            [
+                (3, 3..8, start, end, true, TestRole::CfgTest),
+                (3, 3..8, start, end, false, TestRole::CfgTest),
+            ]
+        );
+        assert!(
+            m.uses
+                .iter()
+                .all(|u| u.vis == Vis::Restricted("crate".to_owned()))
+        );
+        assert_eq!(
+            m.uses[0].tree,
+            UseTree::Path {
+                name: "std".to_owned(),
+                rest: Box::new(UseTree::Path {
+                    name: "fmt".to_owned(),
+                    rest: Box::new(UseTree::Rename {
+                        name: "Debug".to_owned(),
+                        alias: "D".to_owned(),
+                    }),
+                }),
+            }
+        );
+    }
+
+    #[test]
+    fn a_large_attribute_on_a_verbatim_use_group_is_read_once_for_all_its_members() {
+        use std::fmt::Write as _;
+        // Reading the attribute once per member made this quadratic: 6000
+        // members under a 6000-name predicate took tens of seconds.
+        const MEMBERS: usize = 6000;
+        let names: Vec<String> = (0..MEMBERS).map(|i| format!("a{i}")).collect();
+        let mut members = String::new();
+        for i in 0..MEMBERS {
+            writeln!(members, "    ::std::m{i},").expect("a string takes the text");
+        }
+        let text = format!(
+            "#[cfg(all(test, any({})))]\npub use {{\n{members}}};\n",
+            names.join(", ")
+        );
+        let started = std::time::Instant::now();
+        let ws = loaded(&[("src/lib.rs", &text)]);
+        let took = started.elapsed();
+        let bound = if cfg!(debug_assertions) {
+            std::time::Duration::from_secs(10)
+        } else {
+            std::time::Duration::from_millis(500)
+        };
+        assert!(took < bound, "{took:?}");
+        let lib = ws
+            .file(&RelPath::new("src/lib.rs").expect("path"))
+            .expect("loaded");
+        let uses = &lib.facts.body.uses;
+        assert_eq!(uses.len(), MEMBERS);
+        for (i, u) in uses.iter().enumerate() {
+            assert_eq!(
+                (
+                    u.line,
+                    u.span.lines.clone(),
+                    u.span.start_byte,
+                    u.span.end_byte
+                ),
+                (1, 1..MEMBERS + 4, 0, text.len() - 1),
+                "{i}"
+            );
+            assert!(u.leading_colon, "{i}");
+            assert_eq!((u.test, &u.vis), (TestRole::CfgTest, &Vis::Public), "{i}");
+            assert_eq!(
+                u.tree,
+                UseTree::Path {
+                    name: "std".to_owned(),
+                    rest: Box::new(UseTree::Name(format!("m{i}"))),
+                },
+                "{i}"
+            );
+        }
     }
 }

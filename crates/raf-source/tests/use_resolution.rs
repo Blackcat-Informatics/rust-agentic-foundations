@@ -3111,3 +3111,87 @@ fn imports_that_read_a_name_through_a_glob_agree_with_the_glob_on_an_ambiguous_r
     }
     assert_eq!(orders.len(), 36);
 }
+
+/// A two-package workspace whose `p-two` library is `text` and depends on
+/// `p-one`, which defines `X` and `inner::go`.
+fn beside_p_one(text: &str) -> Result<Workspace, LoadError> {
+    let tree: MemoryTree = [
+        ("Cargo.toml", "[workspace]\nmembers = [\"one\", \"two\"]\n"),
+        (
+            "one/Cargo.toml",
+            "[package]\nname = \"p-one\"\nedition = \"2021\"\n",
+        ),
+        ("one/src/lib.rs", "pub struct X;\npub mod inner { pub fn go() {} }\n"),
+        (
+            "two/Cargo.toml",
+            "[package]\nname = \"p-two\"\nedition = \"2021\"\n\n[dependencies]\np-one = { path = \"../one\" }\n",
+        ),
+        ("two/src/lib.rs", text),
+    ]
+    .into_iter()
+    .collect();
+    Workspace::load(&tree, &["."])
+}
+
+#[test]
+fn a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do() {
+    // syn has no node for a group member that starts with `::`; rustc accepts
+    // it, and each member binds as its own `use` would.
+    let grouped = "pub mod a { pub fn f() {} pub fn g() {} }\n\
+                   #[allow(unused_imports)]\n\
+                   pub use {\n    ::p_one::X as D,\n    crate::a::f,\n    ::p_one::inner::{self, go as run},\n    { ::std::fmt::Debug as Dbg },\n};\n\
+                   pub mod m { pub use { ::p_one::X, super::a::g as h }; }\n";
+    let separate = "pub mod a { pub fn f() {} pub fn g() {} }\n\
+                    pub use ::p_one::X as D;\npub use crate::a::f;\n\
+                    pub use ::p_one::inner::{self, go as run};\npub use ::std::fmt::Debug as Dbg;\n\
+                    pub mod m { pub use ::p_one::X; pub use super::a::g as h; }\n";
+    let grouped = beside_p_one(grouped).unwrap_or_else(|e| panic!("{e}"));
+    let separate = beside_p_one(separate).unwrap_or_else(|e| panic!("{e}"));
+    for (path, expected) in [
+        ("p_two::D", "p_one::X"),
+        ("p_two::f", "p_two::a::f"),
+        ("p_two::inner::go", "p_one::inner::go"),
+        ("p_two::run", "p_one::inner::go"),
+        ("p_two::m::X", "p_one::X"),
+        ("p_two::m::h", "p_two::a::g"),
+    ] {
+        assert_eq!(path_of(&grouped, path), expected, "{path}");
+        assert_eq!(path_of(&separate, path), expected, "{path}");
+    }
+    // A member that names a crate outside the workspace is not found, as
+    // the separate `use` is not.
+    not_found(&grouped, "p_two::Dbg");
+    not_found(&separate, "p_two::Dbg");
+    not_found(&grouped, "p_two::Missing");
+}
+
+#[test]
+fn a_leading_colon_member_of_a_use_group_reads_the_crate_root_in_edition_2015() {
+    let ws = load_in(
+        "2015",
+        &[(
+            "src/lib.rs",
+            "pub mod inner { pub fn go() {} }\n\
+             pub mod user { pub use { ::inner::go as colon, super::inner }; }\n",
+        )],
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(path_of(&ws, "demo::user::colon"), "demo::inner::go");
+    assert_eq!(path_of(&ws, "demo::user::inner::go"), "demo::inner::go");
+}
+
+#[test]
+fn a_crate_root_inside_a_group_under_a_path_is_a_syntax_error() {
+    // rustc refuses `a::{::b}` too (E0433), and syn does not parse it; the
+    // load names the file and line.
+    let error = load(&[(
+        "src/lib.rs",
+        "pub mod a { pub fn b() {} }\npub use { ::std::fmt, a::{::b} };\n",
+    )])
+    .expect_err("a crate root under a path");
+    assert!(
+        matches!(error.kind, LoadErrorKind::Syntax { .. }),
+        "{error}"
+    );
+    assert_eq!((error.file.as_str(), error.line), ("src/lib.rs", Some(2)));
+}

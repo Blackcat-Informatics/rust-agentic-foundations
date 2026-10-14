@@ -127,6 +127,7 @@ mod resolve;
 mod settle;
 mod target;
 mod tree;
+mod verbatim;
 mod workspace;
 
 pub use budget::{Budget, PARSE_BYTES_PER_TOKEN, RECURSION_UNIT_BYTES};
