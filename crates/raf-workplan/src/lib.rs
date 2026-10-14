@@ -40,6 +40,13 @@
 //! [`Gate::assert_clean`] panics with every finding. A repository without a
 //! capability document is an error, not a clean verdict.
 //!
+//! # Preview
+//!
+//! [`Workplan::preview`] returns each capability document a change lists as it
+//! reads once that change is reconciled: the PROPOSED blocks of the change are
+//! replaced by their content and nothing else moves. It returns text and
+//! writes nothing; see [`Preview`] and [`PreviewError`].
+//!
 //! # Generated blocks and sync
 //!
 //! Three kinds of generated block are owned here: `verification-matrix`
@@ -107,6 +114,7 @@ mod links;
 mod load;
 mod model;
 pub mod plain;
+mod preview;
 pub mod refs;
 mod roadmap;
 mod rules;
@@ -121,5 +129,6 @@ pub use graph::{
 };
 pub use links::LinkContext;
 pub use model::{Loaded, Workplan};
+pub use preview::{Preview, PreviewError};
 pub use roadmap::{Gap, Roadmap, RoadmapEntry};
 pub use sync::{SyncError, SyncOptions, SyncReport};

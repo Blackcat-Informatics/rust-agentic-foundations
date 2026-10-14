@@ -79,6 +79,22 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   outside the document directories, and the equality of the Usage and Examples
   blocks with the crate doctests. `docs/capabilities/index.md`
   is created by `make docs-sync`.
+- **`raf-workplan` preview:** `Workplan::preview(change)` returns, for each
+  capability a change record lists (sorted by id), the whole document as it reads
+  once that change is reconciled, as `Preview { capability, path, text }`. The
+  slug is taken with or without the `change:` prefix. Each PROPOSED block of the
+  change is replaced by its content: the marker line goes, and so does the quote
+  marker (`>` and one space after it, if there is one) of each following line,
+  after the block's own indentation, which stays. The blocks of other changes and
+  all text outside blocks are kept byte for byte, each line keeps its own line
+  ending, and a listed capability with no block of the change is returned
+  unchanged. The result is a pure function of the loaded documents and writes
+  nothing. A `PreviewError` names an unknown slug (with the open changes), a
+  change record or a listed capability that did not load (with its findings), a
+  listed capability with no document, a line whose quote prefix cannot be removed
+  unambiguously (with file and line, including a quote that goes on into a fenced
+  code block, which ends a block in the document model), and a reconciled text
+  that does not read back. No finding kind is added.
 - **`raf-okf` rule and error tags:** `Rule::ALL` and `ErrorKind::ALL` list the
   payload-free `RuleTag` and `ErrorTag` of every variant, with `Rule::kind`,
   `ErrorKind::tag` and a kebab-case `name`, so a caller can name and map every rule
