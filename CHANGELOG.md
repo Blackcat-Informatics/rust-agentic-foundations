@@ -25,7 +25,14 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   to read, and the kinds of the flat document directories (`wrong-directory`,
   `nested-directory`, `stray-markdown`) and of unreadable input
   (`unreadable-file`, `unreadable-directory`). A file the tree refuses is reported
-  by name and never skipped.
+  by name and never skipped. The load also builds one `Graph` of the documents and
+  the source they bind to: capabilities, their seven sections, changes, PROPOSED
+  blocks, and the symbols, tests and examples the bindings resolve to, joined by
+  binding, `depends`, `affects`, `changes` and section-granular link edges. The
+  queries `code_of`, `capabilities_of`, `tests_for`, `sections_of` and
+  `linking_sections` return typed, sorted values. The rules between documents are
+  the kinds `depends-missing`, `changes-missing`, `moved-missing` and
+  `depends-cycle`.
 - **`raf-okf` rule and error tags:** `Rule::ALL` and `ErrorKind::ALL` list the
   payload-free `RuleTag` and `ErrorTag` of every variant, with `Rule::kind`,
   `ErrorKind::tag` and a kebab-case `name`, so a caller can name and map every rule

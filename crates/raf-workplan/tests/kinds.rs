@@ -14,12 +14,16 @@ use raf_workplan::Finding;
 use support::cases::all_cases;
 
 /// The kinds that name a rule of this crate.
-const OWN_KINDS: [&str; 5] = [
+const OWN_KINDS: [&str; 9] = [
     "wrong-directory",
     "nested-directory",
     "stray-markdown",
     "unreadable-file",
     "unreadable-directory",
+    "depends-missing",
+    "changes-missing",
+    "moved-missing",
+    "depends-cycle",
 ];
 
 #[test]
@@ -53,7 +57,7 @@ fn every_rule_and_every_reader_error_has_its_own_kind() {
     assert_eq!(have, want);
     assert_eq!(
         Finding::KINDS.len(),
-        Rule::ALL.len() + ErrorKind::ALL.len() + 4
+        Rule::ALL.len() + ErrorKind::ALL.len() + 8
     );
 }
 

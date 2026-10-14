@@ -466,10 +466,82 @@ pub(crate) fn directory_cases() -> Vec<Case> {
     cases
 }
 
+/// The cases for the rules between documents, and for the outcome the profile
+/// refuses.
+pub(crate) fn reference_cases() -> Vec<Case> {
+    let mut cases = Vec::new();
+    let broken = |name: &str, path: &str, from: &str, to: &str, kind: &str, at: Location| {
+        Case::new(name, mutate(path, from, to), kind, path, at)
+    };
+    cases.push(broken(
+        "depends-missing",
+        ALPHA,
+        "depends: [cap:beta]",
+        "depends: [cap:beta, cap:ghost]",
+        "depends-missing",
+        key("depends"),
+    ));
+    cases.push(broken(
+        "changes-missing",
+        CHANGE,
+        "changes: [cap:alpha, cap:beta]",
+        "changes: [cap:alpha, cap:beta, cap:ghost]",
+        "changes-missing",
+        key("changes"),
+    ));
+    cases.push(broken(
+        "moved-missing",
+        CHANGE,
+        "outcome: implemented",
+        "outcome: moved:change:nowhere",
+        "moved-missing",
+        key("items"),
+    ));
+    // Reported once, in the file of the first member.
+    cases.push(broken(
+        "depends-cycle-self",
+        ALPHA,
+        "depends: [cap:beta]",
+        "depends: [cap:alpha, cap:beta]",
+        "depends-cycle",
+        key("depends"),
+    ));
+    cases.push(Case::new(
+        "depends-cycle-two",
+        mutate(BETA, "depends: []", "depends: [cap:alpha]"),
+        "depends-cycle",
+        ALPHA,
+        key("depends"),
+    ));
+    let mut three = mutate(BETA, "depends: []", "depends: [cap:gamma]");
+    three.insert(
+        GAMMA.to_string(),
+        three[GAMMA].replace("depends: [cap:beta, cap:alpha]", "depends: [cap:alpha]"),
+    );
+    cases.push(Case::new(
+        "depends-cycle-three",
+        three,
+        "depends-cycle",
+        ALPHA,
+        key("depends"),
+    ));
+    // The profile closes the outcome set; a deferred claim is refused.
+    cases.push(broken(
+        "okf-bad-outcome-deferred",
+        CHANGE,
+        "outcome: implemented",
+        "outcome: deferred",
+        "okf-bad-outcome",
+        key("items"),
+    ));
+    cases
+}
+
 /// Every named case, one or more per kind.
 pub(crate) fn all_cases() -> Vec<Case> {
     let mut cases: Vec<Case> = Rule::ALL.into_iter().map(rule_case).collect();
     cases.extend(raf_okf::ErrorKind::ALL.into_iter().map(parse_case));
     cases.extend(directory_cases());
+    cases.extend(reference_cases());
     cases
 }

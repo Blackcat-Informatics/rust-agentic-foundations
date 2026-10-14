@@ -11,6 +11,10 @@
 //! [`Finding::KINDS`], a location and a fix; nothing is skipped and nothing
 //! panics. [`Workplan::check`] returns the findings.
 //!
+//! The load also builds the [`Graph`] of the documents and the source they are
+//! bound to, available as [`Workplan::graph`], and reports the references that
+//! name a document that does not exist and the `depends` cycles.
+//!
 //! ```rust
 //! use raf_source::{MemoryTree, Workspace};
 //! use raf_workplan::Workplan;
@@ -39,8 +43,13 @@
 //! ```
 
 mod finding;
+mod graph;
 mod load;
 mod model;
 
 pub use finding::Finding;
+pub use graph::{
+    AffectsEdge, Binding, BindingKind, ChangesEdge, DependsEdge, Edge, EdgeKind, Graph, LinkEdge,
+    LinkEnd, Node, NodeKind, Proposal, SectionId,
+};
 pub use model::{Loaded, Workplan};

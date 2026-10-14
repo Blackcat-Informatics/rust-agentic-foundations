@@ -28,6 +28,10 @@ kinds! {
     STRAY_MARKDOWN = "stray-markdown";
     UNREADABLE_FILE = "unreadable-file";
     UNREADABLE_DIRECTORY = "unreadable-directory";
+    DEPENDS_MISSING = "depends-missing";
+    CHANGES_MISSING = "changes-missing";
+    MOVED_MISSING = "moved-missing";
+    DEPENDS_CYCLE = "depends-cycle";
     OKF_MISSING_KEY = "okf-missing-key";
     OKF_UNKNOWN_KEY = "okf-unknown-key";
     OKF_RESOURCE_KEY = "okf-resource-key";
@@ -142,6 +146,13 @@ impl Finding {
     ///   rules of the flat document directories.
     /// * `unreadable-file` and `unreadable-directory`: a file or a directory
     ///   the tree refused to give, which is reported and never skipped.
+    /// * `depends-missing`, `changes-missing` and `moved-missing`: a `depends`
+    ///   or `changes` entry names a capability with no document, or a `moved`
+    ///   outcome names a change with no record. A name whose document exists
+    ///   but is broken is not missing; the findings of that document say what
+    ///   is wrong with it.
+    /// * `depends-cycle`: capabilities that depend on each other, once for
+    ///   each group, a capability that depends on itself included.
     pub const KINDS: &'static [&'static str] = ALL_KINDS;
 
     pub(crate) fn new(

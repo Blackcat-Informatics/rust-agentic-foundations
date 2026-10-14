@@ -3,10 +3,13 @@
 
 //! The model of a repository's workplan documents.
 
-use raf_okf::{Architecture, Body, Capability, Change};
+use std::collections::BTreeSet;
+
+use raf_okf::{Architecture, Body, Capability, Change, DocType};
 use raf_source::Workspace;
 
 use crate::Finding;
+use crate::graph::{self, Graph};
 use crate::load;
 
 /// A document that satisfies the profile: where it is, what it says in its
@@ -53,6 +56,9 @@ pub struct Workplan<'s> {
     pub(crate) changes: Vec<Loaded<Change>>,
     pub(crate) architecture: Vec<Loaded<Architecture>>,
     pub(crate) findings: Vec<Finding>,
+    /// The ids of the documents that exist as files, loaded or not.
+    present: BTreeSet<String>,
+    graph: Graph,
     source: &'s Workspace,
 }
 
@@ -78,8 +84,38 @@ impl<'s> Workplan<'s> {
             changes: Vec::new(),
             architecture: Vec::new(),
             findings: Vec::new(),
+            present: BTreeSet::new(),
+            graph: Graph::default(),
             source,
         }
+    }
+
+    /// Record that the file at `path` exists as a document of `doc_type`.
+    pub(crate) fn note_present(&mut self, doc_type: DocType, path: &str) {
+        let name = path.rsplit('/').next().unwrap_or(path);
+        let stem = name.strip_suffix(".md").unwrap_or(name);
+        self.present
+            .insert(format!("{}{stem}", doc_type.id_prefix()));
+    }
+
+    /// Build the graph of the loaded documents and add the findings of the
+    /// rules between documents.
+    pub(crate) fn relate(&mut self) {
+        let (graph, findings) = graph::build(
+            &self.capabilities,
+            &self.changes,
+            &self.architecture,
+            &self.present,
+            self.source,
+        );
+        self.graph = graph;
+        self.findings.extend(findings);
+    }
+
+    /// The graph of the documents and the source they are bound to.
+    #[must_use]
+    pub fn graph(&self) -> &Graph {
+        &self.graph
     }
 
     /// The source index the documents are related to.

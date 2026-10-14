@@ -4,7 +4,8 @@
 //! Reading the document directories through a tree.
 
 use raf_okf::{
-    DocType, Document, Index, Location, MAX_TEXT_BYTES, Profile, RafDocument, is_capability_index,
+    DocType, Document, ErrorTag, Index, Location, MAX_TEXT_BYTES, Profile, RafDocument,
+    is_capability_index,
 };
 use raf_source::{EntryKind, RelPath, Tree, TreeError, Workspace};
 
@@ -23,6 +24,7 @@ pub(crate) fn load<'s>(docs: &dyn Tree, source: &'s Workspace) -> Workplan<'s> {
     for doc_type in DocType::ALL {
         scan_directory(docs, doc_type, &mut plan);
     }
+    plan.relate();
     plan
 }
 
@@ -110,6 +112,7 @@ fn read_file(docs: &dyn Tree, dir_type: DocType, path: &str, plan: &mut Workplan
     {
         Ok(text) => text,
         Err(error) => {
+            plan.note_present(dir_type, path);
             plan.findings
                 .push(unreadable(kind::UNREADABLE_FILE, path, "file", &error));
             return;
@@ -128,10 +131,16 @@ fn read_file(docs: &dyn Tree, dir_type: DocType, path: &str, plan: &mut Workplan
     let document = match Document::parse(&text) {
         Ok(document) => document,
         Err(error) => {
+            // A page without a frontmatter fence is no document; any other
+            // failure is a document that is present and broken.
+            if error.kind().tag() != ErrorTag::MissingFence {
+                plan.note_present(dir_type, path);
+            }
             plan.findings.push(Finding::from_parse_error(path, &error));
             return;
         }
     };
+    plan.note_present(document.doc_type().unwrap_or(dir_type), path);
     if let Some(declared) = document.doc_type().filter(|declared| *declared != dir_type) {
         plan.findings.push(Finding::new(
             kind::WRONG_DIRECTORY,
