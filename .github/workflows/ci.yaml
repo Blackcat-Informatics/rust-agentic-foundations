@@ -137,6 +137,14 @@ jobs:
           toolchain: nightly # keep in sync with rust-toolchain.toml
       - name: Test raf-source on macOS
         run: cargo test -p raf-source --locked
+      # The executors of bound tests, doc tests and examples run the real cargo
+      # against crates generated into a scratch directory, and their in-process
+      # matrix runs through the fake runner; both are part of the claim that they
+      # work on every platform.
+      - name: Test the bound executors against the fake runner on macOS
+        run: "cargo test -p raf-workplan --locked --lib bound::"
+      - name: Test the bound executors against the real cargo on macOS
+        run: cargo test -p raf-workplan --locked --test bound
 
   test-windows:
     runs-on: windows-latest
@@ -156,6 +164,14 @@ jobs:
           toolchain: nightly # keep in sync with rust-toolchain.toml
       - name: Test raf-source on Windows
         run: cargo test -p raf-source --locked
+      # The executors of bound tests, doc tests and examples run the real cargo
+      # against crates generated into a scratch directory, and their in-process
+      # matrix runs through the fake runner; both are part of the claim that they
+      # work on every platform.
+      - name: Test the bound executors against the fake runner on Windows
+        run: "cargo test -p raf-workplan --locked --lib bound::"
+      - name: Test the bound executors against the real cargo on Windows
+        run: cargo test -p raf-workplan --locked --test bound
 
   doc:
     runs-on: ubuntu-latest

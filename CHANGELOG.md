@@ -155,6 +155,34 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `Gate::open`: a root that is inside a git work tree but holds no `.git` entry now
   lists its tracked paths, and a root that holds source but no capability document is
   exit 2 with the gate's message instead of a sync with nothing to write.
+- **`raf-workplan` bound executions:** the `bound` module runs the tests,
+  documentation tests and examples a capability binds, through an `exec` runner only.
+  An `Executor` over the source index plans a `Binding` before any process starts: a
+  path that does not resolve, an item that is not a `#[test]` function, a target with
+  `harness = false` or `required-features`, a test in a benchmark, example or
+  build-script target, and a value that fails its pattern are each a typed `Refusal`
+  that names the binding and the target, and nothing reaches `cargo`. The libtest name
+  is the path within the crate (`documents::x`, `bindings::tests::x`), and the target is
+  pinned as `--lib`, `--bin=<bin>` or `--test=<test>` under its Cargo name, hyphens
+  included. A test passes only when the list pass shows exactly one `<name>: test`
+  entry and the run pass reports `1 passed; 0 failed; 0 ignored` in one `test result:`
+  line; zero entries, two entries, `0 passed` and an `#[ignore]`d test (listed, then
+  reported as ignored) are refused. A documentation test is selected by the item part
+  of the package's list (impl items as rustdoc writes them, `Wrapper<T>::get`), run
+  with the bare item path as a substring filter, and passes only when every selected
+  entry has the whole line `test <name> ... ok`; a `no_run` (`- compile ... ok`) or
+  `compile_fail` (`- compile fail ... ok`) test is refused with a request for a
+  runnable one, and a failing sibling the substring also matches fails the exit status
+  and so the binding. An example is run with `cargo run` and standard input null, and
+  its exit status decides. Each pass of a test or documentation test has the 1800 s
+  limit and the run of an example the 300 s limit, which also covers the build `cargo
+  run` does first (`Executor::with_limits` replaces them); a process killed at its limit
+  or for its output is a failed binding that reports how long it ran, and a process that
+  cannot be started is an `ExecError`, not a verdict. The result is an `Evidence` value
+  per binding (the invocations that ran, the counts of the proof, the verdict as
+  `BoundOutcome::{Passed, Failed, Unresolved}` and the wall time) with a `Display`;
+  nothing is written. The fixtures run the real `cargo` against crates generated into a
+  scratch directory on every platform.
 - **Workplan capabilities delivered:** the workplan document model and the
   generated documentation blocks are `delivered`, bound to the `raf-workplan` code,
   tests and examples that realise them, with their verification matrices,

@@ -63,6 +63,14 @@
 //! the workspace root with `cargo metadata --format-version 1 --no-deps
 //! --frozen`, reading nothing but its `workspace_root` field.
 //!
+//! [`bound`] runs what a capability binds: the tests, documentation tests and
+//! examples of `tests` and `examples`, through a runner and only the argv forms of the
+//! completion gate. An [`bound::Executor`] decides from the source index what a
+//! [`Binding`] runs as (refusing a function that is not a test, a target without the
+//! libtest harness, a target with required features, and any value that fails its
+//! pattern, before a process starts), counts a test as passed only on the proof its
+//! kind requires, and returns an [`bound::Evidence`] without writing anything.
+//!
 //! # Preview
 //!
 //! [`Workplan::preview`] returns each capability document a change lists as it
@@ -129,6 +137,7 @@
 //! ```
 
 mod bindings;
+pub mod bound;
 pub mod exec;
 mod finding;
 mod gate;
