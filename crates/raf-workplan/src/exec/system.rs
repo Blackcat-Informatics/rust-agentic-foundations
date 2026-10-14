@@ -1,0 +1,296 @@
+// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+//! The runner that starts real processes.
+
+use std::ffi::OsString;
+use std::io::{self, Read};
+use std::path::PathBuf;
+use std::process::{Child, Command, ExitStatus, Stdio};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, Receiver, TryRecvError};
+use std::thread;
+use std::time::{Duration, Instant};
+
+use super::{ExecError, Invocation, Limits, Output, Programs, Runner, Stream};
+
+/// The longest pause between two looks at a running process.
+const POLL_CEILING: Duration = Duration::from_millis(20);
+
+/// Starts real processes: no shell, the argv vector as given, standard input
+/// null, standard output and standard error captured within the bound of
+/// [`Limits`], and a kill when the wall-clock limit passes.
+///
+/// A bare program name is looked up by the operating system on the `PATH` of
+/// this process, or on the directories given to [`SystemRunner::search_path`].
+#[derive(Debug, Clone)]
+pub struct SystemRunner {
+    programs: Programs,
+    search_path: Option<OsString>,
+}
+
+impl SystemRunner {
+    /// A runner for these programs.
+    #[must_use]
+    pub fn new(programs: Programs) -> Self {
+        Self {
+            programs,
+            search_path: None,
+        }
+    }
+
+    /// Look a bare program name up in these directories (separated as `PATH`
+    /// is) instead of on the `PATH` of this process. The environment of the
+    /// started process is not changed.
+    #[must_use]
+    pub fn search_path(mut self, directories: impl Into<OsString>) -> Self {
+        self.search_path = Some(directories.into());
+        self
+    }
+
+    /// The programs this runner starts.
+    #[must_use]
+    pub fn programs(&self) -> &Programs {
+        &self.programs
+    }
+
+    /// The path to start for the invocation, or the error when a search path
+    /// is set and the name is not in it.
+    fn program_path(&self, invocation: &Invocation) -> Result<PathBuf, ExecError> {
+        let named = self.programs.path_of(invocation.program());
+        let Some(directories) = &self.search_path else {
+            return Ok(named.to_path_buf());
+        };
+        if named.components().count() != 1 {
+            return Ok(named.to_path_buf());
+        }
+        std::env::split_paths(directories)
+            .map(|directory| directory.join(named))
+            .find(|candidate| candidate.is_file())
+            .ok_or_else(|| ExecError::Spawn {
+                command: invocation.to_string(),
+                program: named.display().to_string(),
+                kind: io::ErrorKind::NotFound,
+                message: "is not in the search path".to_string(),
+            })
+    }
+}
+
+impl Runner for SystemRunner {
+    fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
+        let command_text = invocation.to_string();
+        let program = self.program_path(invocation)?;
+        let mut command = Command::new(&program);
+        command
+            .args(invocation.argv())
+            .current_dir(&self.programs.cwd)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if limits.c_locale() {
+            command.env("LC_ALL", "C");
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt as _;
+            command.process_group(0);
+        }
+        let started = Instant::now();
+        let mut child = command.spawn().map_err(|error| ExecError::Spawn {
+            command: command_text.clone(),
+            program: program.display().to_string(),
+            kind: error.kind(),
+            message: error.to_string(),
+        })?;
+        let (Some(stdout), Some(stderr)) = (child.stdout.take(), child.stderr.take()) else {
+            let failure = ExecError::Io {
+                command: command_text.clone(),
+                message: "a standard stream was not captured".to_string(),
+            };
+            return Err(abandon(&mut child, failure, command_text));
+        };
+        let bound = limits.max_output();
+        let out = Capture::start(stdout, bound);
+        let err = Capture::start(stderr, bound);
+        let outcome = wait(&mut child, &out, &err, limits.timeout(), started);
+        let failure = match outcome {
+            Wait::Done(code, stdout, stderr) => {
+                return Ok(Output {
+                    code,
+                    stdout,
+                    stderr,
+                    elapsed: started.elapsed(),
+                });
+            }
+            Wait::Over(stream) => ExecError::OutputTooLarge {
+                command: command_text.clone(),
+                stream,
+                limit: bound,
+            },
+            Wait::Late => ExecError::Timeout {
+                command: command_text.clone(),
+                timeout: limits.timeout(),
+                elapsed: started.elapsed(),
+            },
+            Wait::Failed(error) => ExecError::Io {
+                command: command_text.clone(),
+                message: error.to_string(),
+            },
+        };
+        Err(abandon(&mut child, failure, command_text))
+    }
+}
+
+/// Kill the process that `failure` gave up on. When it cannot be killed the
+/// error says so, since the process may still be running.
+fn abandon(child: &mut Child, failure: ExecError, command: String) -> ExecError {
+    match terminate(child) {
+        Ok(()) => failure,
+        Err(error) => ExecError::Io {
+            command,
+            message: format!(
+                "{failure}; and the process could not be killed, so it may still be running: {error}"
+            ),
+        },
+    }
+}
+
+/// A thread that reads one stream up to a bound.
+struct Capture {
+    overflow: Arc<AtomicBool>,
+    result: Receiver<io::Result<Vec<u8>>>,
+}
+
+impl Capture {
+    /// Read `pipe` to its end on a thread of its own, keeping at most `bound`
+    /// bytes. Reading stops at the first byte past the bound and the overflow
+    /// flag is set before the result is sent.
+    fn start(pipe: impl Read + Send + 'static, bound: usize) -> Self {
+        let overflow = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&overflow);
+        let (send, result) = mpsc::channel();
+        let limit = u64::try_from(bound).map_or(u64::MAX, |bound| bound.saturating_add(1));
+        thread::spawn(move || {
+            let mut kept = Vec::new();
+            let read = pipe.take(limit).read_to_end(&mut kept);
+            let answer = read.map(|length| {
+                if length > bound {
+                    flag.store(true, Ordering::SeqCst);
+                }
+                kept
+            });
+            // The receiver is gone when the run was abandoned.
+            let _ = send.send(answer);
+        });
+        Self { overflow, result }
+    }
+
+    fn overflowed(&self) -> bool {
+        self.overflow.load(Ordering::SeqCst)
+    }
+}
+
+/// How the wait for a process ended.
+enum Wait {
+    /// The process exited and both streams reached their end.
+    Done(Option<i32>, Vec<u8>, Vec<u8>),
+    /// A stream passed its bound.
+    Over(Stream),
+    /// The wall-clock limit passed.
+    Late,
+    /// Waiting or reading failed.
+    Failed(io::Error),
+}
+
+/// Poll the process and the two captures until all three are finished, a bound
+/// is passed, the limit passes, or something fails.
+fn wait(
+    child: &mut Child,
+    out: &Capture,
+    err: &Capture,
+    timeout: Duration,
+    started: Instant,
+) -> Wait {
+    let mut status: Option<ExitStatus> = None;
+    let mut stdout: Option<Vec<u8>> = None;
+    let mut stderr: Option<Vec<u8>> = None;
+    let mut pause = Duration::from_millis(1);
+    loop {
+        if out.overflowed() {
+            return Wait::Over(Stream::Stdout);
+        }
+        if err.overflowed() {
+            return Wait::Over(Stream::Stderr);
+        }
+        if status.is_none() {
+            match child.try_wait() {
+                Ok(found) => status = found,
+                Err(error) => return Wait::Failed(error),
+            }
+        }
+        for (capture, slot) in [(out, &mut stdout), (err, &mut stderr)] {
+            if slot.is_none() {
+                match capture.result.try_recv() {
+                    Ok(Ok(bytes)) => *slot = Some(bytes),
+                    Ok(Err(error)) => return Wait::Failed(error),
+                    Err(TryRecvError::Empty) => {}
+                    Err(TryRecvError::Disconnected) => {
+                        return Wait::Failed(io::Error::other("an output reader stopped"));
+                    }
+                }
+            }
+        }
+        // A stream that overflowed has just been reported as a result too.
+        if out.overflowed() {
+            return Wait::Over(Stream::Stdout);
+        }
+        if err.overflowed() {
+            return Wait::Over(Stream::Stderr);
+        }
+        if let (Some(status), Some(_), Some(_)) = (status, &stdout, &stderr) {
+            return Wait::Done(
+                status.code(),
+                stdout.unwrap_or_default(),
+                stderr.unwrap_or_default(),
+            );
+        }
+        let remaining = timeout.saturating_sub(started.elapsed());
+        if remaining.is_zero() {
+            return Wait::Late;
+        }
+        thread::sleep(pause.min(remaining));
+        pause = (pause * 2).min(POLL_CEILING);
+    }
+}
+
+/// Kill the process, and on Unix the group it leads, and collect it.
+///
+/// A failure to signal is reported: the process may then still be running.
+fn terminate(child: &mut Child) -> io::Result<()> {
+    #[cfg(unix)]
+    let group = kill_group(child);
+    #[cfg(not(unix))]
+    let group = Ok(());
+    // `Child::kill` succeeds on a process that has already exited.
+    let own = child.kill();
+    let _ = child.wait();
+    group.and(own)
+}
+
+/// Send SIGKILL to the process group the child leads. The child is started
+/// with `process_group(0)` (see `run`), so its id is the group id. The group
+/// holds what `cargo` started, such as a test binary that keeps the output
+/// pipes open. A group with no member left is not an error.
+#[cfg(unix)]
+fn kill_group(child: &Child) -> io::Result<()> {
+    use rustix::io::Errno;
+    use rustix::process::{Pid, Signal, kill_process_group};
+
+    let raw = i32::try_from(child.id()).map_err(io::Error::other)?;
+    let pid = Pid::from_raw(raw).ok_or_else(|| io::Error::other("the process id is not valid"))?;
+    match kill_process_group(pid, Signal::KILL) {
+        Ok(()) | Err(Errno::SRCH) => Ok(()),
+        Err(errno) => Err(errno.into()),
+    }
+}

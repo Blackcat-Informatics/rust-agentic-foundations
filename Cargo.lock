@@ -103,6 +103,7 @@ dependencies = [
  "proc-macro2",
  "raf-okf",
  "raf-source",
+ "rustix",
 ]
 
 [[package]]

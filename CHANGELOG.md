@@ -96,6 +96,31 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   unambiguously (with file and line, including a quote that goes on into a fenced
   code block, which ends a block in the document model), and a reconciled text
   that does not read back. No finding kind is added.
+- **`raf-workplan` processes:** the `exec` module is the one place a `cargo` or
+  `git` process is started. An `Invocation` is a `Program` and a list of `Arg`s: fixed
+  text, or a value built through one of the patterns of the completion gate by hand
+  (`<name>`; `<pkg>`, `<bin>`, `<test>` and `<example>`; `<item-path>`, which allows
+  `Wrapper<T>::get`; the relative source path of the list output, which refuses empty,
+  `.` and `..` segments), or a full Git reference name or commit id. A value that
+  fails its pattern is a `PatternError` and never becomes an argument, so document
+  text reaches a command line only after its pattern. The constructors of
+  `Invocation` are the rows of the argv tables and root discovery. `Programs` names
+  `cargo` (from `$CARGO`, else `cargo`), `git` and the working directory, and each can
+  be replaced. `SystemRunner` starts the process directly with no shell, null standard
+  input and the argv vector as given, in the working directory, with `LC_ALL=C` when
+  its output is parsed and no other change to the environment. It captures standard
+  output and standard error, each up to a bound (16 MiB, or 64 MiB for `cargo
+  metadata`), and kills the process, and on Unix its process group, when the bound is
+  passed or the wall-clock limit is (1800 s for a build or test run, 300 s for an
+  example's run and for a query). Each case is a typed `ExecError` and none is a skip.
+  `FakeRunner` answers invocations from a script in process, on every platform, applies
+  the same output bound and time limit and records every call. The general
+  constructor of `Invocation` and the constructor of `Literal`, the type of fixed
+  argument text, are private to the crate, so only the table-row constructors build an
+  invocation. The group is signalled directly with `rustix` (the `process` feature, the
+  version `raf-source` already uses, Unix only) and not through a `kill` program on
+  `PATH`; a kill that cannot be sent is an `ExecError::Io`. `rustix` is the one
+  dependency `raf-workplan` has beyond the RAF crates and `proc-macro2`.
 - **Workplan capabilities delivered:** the workplan document model and the
   generated documentation blocks are `delivered`, bound to the `raf-workplan` code,
   tests and examples that realise them, with their verification matrices,

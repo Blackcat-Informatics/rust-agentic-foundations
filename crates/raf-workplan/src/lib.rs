@@ -40,6 +40,14 @@
 //! [`Gate::assert_clean`] panics with every finding. A repository without a
 //! capability document is an error, not a clean verdict.
 //!
+//! # Processes
+//!
+//! [`exec`] is the one place a `cargo` or `git` process is started. A process is
+//! an [`exec::Invocation`] of fixed text and values validated by the patterns of
+//! the completion gate, started with no shell, null standard input, bounded
+//! output and a wall-clock kill by an [`exec::Runner`]; [`exec::FakeRunner`]
+//! answers in process for tests.
+//!
 //! # Preview
 //!
 //! [`Workplan::preview`] returns each capability document a change lists as it
@@ -106,6 +114,7 @@
 //! ```
 
 mod bindings;
+pub mod exec;
 mod finding;
 mod gate;
 mod generated;
