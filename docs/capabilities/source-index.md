@@ -23,6 +23,7 @@ bindings:
     - raf_source::Budget
     - raf_source::Opened
     - raf_source::PARSE_BYTES_PER_TOKEN
+    - raf_source::RECURSION_UNIT_BYTES
     - raf_source::SelfType
     - raf_source::UnresolvedImpl
     - raf_source::Workspace::resolve_in_package
@@ -123,10 +124,24 @@ bindings:
     - raf_source::test_crate::prescan_budgets::five_hundred_nested_generics_are_refused_beside_sixty_four
     - raf_source::test_crate::prescan_budgets::twenty_thousand_else_if_links_are_refused_beside_two_hundred_fifty_six
     - raf_source::test_crate::prescan_budgets::a_syntax_error_reports_its_own_line_and_column_beside_a_parsing_neighbour
-    - raf_source::test_crate::overflow_harness::composites_and_uncounted_shapes_end_in_exactly_one_allowed_outcome
+    - raf_source::test_crate::prescan_budgets::the_recursion_limit_is_half_the_parse_stack_over_the_measured_cost_of_one_unit
+    - raf_source::test_crate::prescan_budgets::every_operator_counts_one_for_each_of_its_characters_at_the_limit_and_one_over
+    - raf_source::test_crate::prescan_budgets::every_counted_keyword_counts_one_at_the_limit_and_one_over
+    - raf_source::test_crate::prescan_budgets::a_label_a_use_path_separator_and_each_delimiter_count_at_the_limit_and_one_over
+    - raf_source::test_crate::prescan_budgets::a_level_returns_to_zero_where_its_constructs_end_beside_the_same_count_without_the_end
+    - raf_source::test_crate::prescan_budgets::a_construct_that_continues_past_a_comma_or_a_closing_brace_keeps_its_count
+    - raf_source::test_crate::prescan_budgets::a_macro_call_counts_only_its_groups_and_a_match_pattern_only_its_alternatives
+    - raf_source::test_crate::prescan_budgets::chains_that_overflowed_the_parse_stack_are_refused_by_the_recursion_budget
+    - raf_source::test_crate::prescan_budgets::the_eighty_kilobyte_box_pattern_is_refused_in_under_a_second
+    - raf_source::test_crate::prescan_budgets::the_recursion_refusal_names_the_line_where_the_count_went_over
+    - raf_source::test_crate::walk_stack::a_use_tree_at_the_recursion_limit_loads_resolves_and_drops_on_a_five_hundred_twelve_kib_thread
+    - raf_source::test_crate::overflow_harness::every_committed_overflow_shape_is_refused_by_a_budget_and_none_aborts
+    - raf_source::test_crate::overflow_harness::a_deliberate_overflow_aborts_and_the_runtime_names_the_parse_thread
+    - raf_source::test_crate::overflow_harness::a_return_chain_that_needs_twice_the_stack_is_refused_beside_one_at_a_safe_depth
+    - raf_source::test_crate::overflow_harness::every_shape_family_loads_at_its_largest_admitted_size_and_one_size_more_is_refused
     - raf_source::test_crate::overflow_harness::the_parse_thread_is_named_after_the_file_and_has_the_stated_stack
     - raf_source::test_crate::overflow_harness::the_classifier_accepts_only_a_signal_a_stack_overflow_status_or_the_runtime_message_as_an_abort
-    - raf_source::test_crate::corpus_replay::every_corpus_file_ends_in_exactly_one_allowed_outcome_with_its_recorded_symbols
+    - raf_source::test_crate::corpus_replay::every_corpus_file_is_refused_or_indexed_with_its_recorded_symbols_and_none_aborts
     - raf_source::test_crate::read_cap::disk_tree_enforces_the_cap_at_eight_mib
     - raf_source::test_crate::read_cap::the_default_cap_is_eight_mib
     - raf_source::test_crate::index_disk::disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions
@@ -414,6 +429,60 @@ thread that cannot start is a `Spawn` error. The budgets are one table in the so
   at an `else` that is not followed by `if`, and at an identifier other than `else`
   directly after a `}`. A block used as the condition of a link (`else if {x} {}`)
   does not end the chain. The limit is 256.
+- Recursion: one additive count of the nesting that the parser builds, and that the
+  syntax tree and its drop then walk, by recursion. The counted tokens come from an
+  audit of the recursive entry points of `syn` 3.0.8: in expressions the unary
+  operators, the trailers (`?`, `.field`, `.await`, a call, an index), the binary
+  operators, `as`, ranges, closures with their `async`, `const` and `move` heads,
+  `if`, `match`, `while`, `let`, `box`, `return`, `break`, `yield`, `become`, `async`,
+  `const`, `unsafe` and labelled blocks; in types references, pointers, `fn` with a
+  return type, `impl` and `dyn` bounds with a return type and `for<'a>`; in patterns
+  `box`, `&`, `ref`, `mut`, `@` and ranges; and `use` trees. Each delimiter level has
+  its own count, and a counted token adds to the count of the level it is read in:
+  an operator (`!`, `-`, `*`, `&`, `|`, `<`, `>`, `+`, `/`, `%`, `^`, `=`, `?`, `@`,
+  `.`, a range, `->`, `&&`, `||` and the compound forms) adds one for each of its
+  characters, except a `!` after `#`, and two for each character of `&`, `&&` and
+  `<`, because a reference type and a list of generic arguments cost the parser about
+  twice what the other units do; a number with a `.` adds one, because after a `.` it
+  is two tuple indices; each of the keywords `as`, `async`, `become`, `box`, `break`,
+  `const`, `dyn`, `fn`, `for`, `if`, `impl`, `let`, `loop`, `match`, `mod`, `move`,
+  `mut`, `ref`, `return`, `static`, `try`, `unsafe`, `where`, `while` and `yield` adds
+  one, and so does a label (a lifetime followed by `:`); the `(`, `[` or `{` that
+  opens a group adds one to the level around it, except the `[` of an attribute and
+  the delimiter of a macro call; and `::` inside a `use` declaration adds sixteen,
+  because the index turns a `use` tree into its imports on the caller's thread by
+  recursion, at about 1 KiB of stack for each segment in a debug build. A macro call
+  (a name that is not a keyword, `!`, an optional name and a group) is kept by the
+  parser as token trees, so inside its group nothing counts but the levels its own
+  groups open. In the arms of a `match` (the first `{` of the `match`'s level, after a
+  name, a literal, `)` or `]`, with no construct that takes a block between them), a
+  `|` between the alternatives of an arm's pattern counts nothing and ends the count
+  like a `,`, because the parser reads the alternatives in a loop; a guard is an
+  expression and counts. A level's count returns to zero at `;` and `=>`, at a `,`
+  unless a `<` of the level, a closure head (`|a, b|`) or a `where` clause before its
+  item's `{` or `;` is open, and at the token after a `}` that closed a group in the
+  level when that token is a literal, a lifetime, `#`, or an identifier other than
+  `as`, `else` and `in`, where a new statement or item starts. The counter's value is
+  the sum of the counts of every open level plus one for each open delimiter; a level
+  that closes takes its count with it, and nothing else subtracts, so a `>` or a `}`
+  followed by `else` adds to or keeps the count. The limit is 1927
+  (`Budget::Recursion`): half of the parse stack (`PARSE_STACK_BYTES`, 64 MiB) over
+  `RECURSION_UNIT_BYTES`, 17 KiB, the most that one unit takes of the parse thread's
+  stack in a debug build, rounded up from 16481 bytes measured on the costliest counted
+  shape (generic arguments nested in a type, `A<A<...>>`), counting the parse, the
+  reading of the facts and the drop of the syntax tree. A file at the limit therefore
+  takes at most half of the parse stack in a debug build, and less in a release build,
+  where the costliest unit measured 4670 bytes (a `break break ...` chain). Measured in
+  a debug build, a unit costs 16481 bytes for nested generic arguments, 15724 for a
+  type behind references, 14808 for tuple, slice and array types, 12657 for nested
+  `fn` pointer arguments, 12257 for inline modules, 10414 for nested `trait` bodies,
+  10258 for closures with block bodies, 9982 for `break` chains, 8831 for `return`
+  chains, 8277 for struct literals, 7358 for assignment chains, 7279 for closure
+  chains, 3657 for unary operators, and at most 1118 for the trailers and binary
+  operators that the parser reads in a loop and only the drop of the syntax tree
+  nests. A `use` tree at the limit loads, resolves and drops on a thread of 512 KiB in
+  a debug build. Over this repository and the registry scan below the highest value
+  in one file was 987 (`funty`, a trait with more than 160 bounds).
 - Tokens: the number of tokens of the file as the parser's lexer reads them. An
   identifier, a keyword or a literal is one, a lifetime two (the quote and the
   name), each delimiter one and each character of punctuation one (`::` and `->`
@@ -546,19 +615,20 @@ returns what the visitor returns. A committed fuzz
 target, `parse_source` in `fuzz/fuzz_targets/parse_source.rs`, feeds arbitrary bytes
 through the pre-scan and the parse. Its corpus, `fuzz/corpus/parse_source/`, is
 committed and holds the composite and single-shape fixtures of Verification below,
-files at and just over each budget, and every input that ever aborted a run. These
-measures make a stack overflow unlikely. They do not prove its absence: the budgets
-multiply across nesting (a run of prefix operators is legal inside every delimiter
-level), some recursive shapes are counted by no budget, and a level of a nested
-`return return ...` chain costs about 8.8 KiB of stack in a debug build and about
-3.7 KiB in a release build, measured. The crate does not claim that an admitted file cannot
-overflow. A residual overflow aborts the process, so the run fails and is never
-reported as a pass. No budget counts the committed composite shapes or the uncounted
-shapes that repeat `return `, `&mut `, `*const `, `fn() -> ` or `a = ` 20000 times, so a
-file of one of them can end in that abort. Shapes that try to slip past a counter (a block as the condition of each
-`else if`, a lifetime between reference marks) are counted by the definitions above
-and refused. A parser overflow is a robustness bug, and an input that causes
-one is added to the fuzz corpus and to the budgets. `Cargo.toml` is read with the same
+files at and just over each budget, the chains that overflowed the parse stack before
+the recursion budget counted them, and every input that ever aborted a run. The
+recursion budget is additive over the levels, so nesting one shape inside another
+adds their counts: the composite shapes of Verification and every chain of a counted
+token are refused, and an admitted file takes at most half of the parse stack in a
+debug build. Where a construct owns a list, a `,`, `;` or `=>` ends the count of its
+level while the construct stays open; that frame is one for each delimiter level,
+which the delimiter budget bounds. Shapes that try to slip past a counter (a block as
+the condition of each `else if`, a lifetime between reference marks, a `,` inside
+generic arguments or a closure head, an `else`, `in` or `as` after a `}`) are counted
+by the definitions above and refused. The bound rests on the audit of `syn`'s
+recursion and on the measurements above. A residual overflow aborts the process, so
+the run fails and is never reported as a pass. A parser overflow is a robustness bug,
+and an input that causes one is added to the fuzz corpus and to the budgets. `Cargo.toml` is read with the same
 size cap, and the `toml` parser's own recursion limit turns deep nesting into an error
 and not a crash. Every refusal the pre-scan makes is a typed error and not a panic.
 The crate sets no time bound.
@@ -844,8 +914,8 @@ and `test_fns()` returns, for each `#[test]` function (or a typed error if one's
 name of its target (`--lib`, `--bin <name>` or `--test <name>`) and its path inside the
 crate, which is what `cargo test -p <package> --test <target> <name>` needs;
 `usage()` gives what the load spent against its budgets: the bytes read, charged to
-the index and to the facts, the most tokens of one file and the deepest directory
-entered. The index
+the index and to the facts, the most tokens of one file, the highest value of the
+recursion counter in one file and the deepest directory entered. The index
 has no order that depends on the tree implementation: two loads of one tree are equal,
 and the same regular files on disk and in memory give equal indexes.
 
@@ -1114,14 +1184,15 @@ assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
   root and a regular file; the same rule bounds explicit `Cargo.toml` target paths.
 - A file larger than `max_file_bytes` (default 8 MiB), or one that exceeds a
   budget of the pre-scan (128 delimiter levels, 64 nested `<`, 256 prefix
-  operators, 128 closure bars, 256 `else if` links, 2000000 tokens by default), or a
+  operators, 128 closure bars, 256 `else if` links, 1927 units of parser recursion,
+  2000000 tokens by default), or a
   module walk that passes 128 nested modules or 262144 module walks in one load, or a
   directory
   more than 128 levels below its root, or a load that passes its total, item or fact
   bytes (256 MiB, 512 MiB and 256 MiB by default), is refused with a typed error.
-  Parsing runs on a dedicated 64 MiB stack. A residual overflow aborts the run and
-  fails the gate; it is never a pass. No budget counts the composite shapes or most of
-  the uncounted shapes of Verification, so a file of one of them can end in such an abort.
+  Parsing runs on a dedicated 64 MiB stack, of which an admitted file takes at most
+  half in a debug build. A residual overflow aborts the run and fails the gate; it is
+  never a pass.
 - The scope tables that `use` declarations and globs build are bounded by no
   budget, so a glob-heavy input can take more memory than the figures of the
   Contract state.
@@ -1239,8 +1310,8 @@ duplicates.
   index they keep), and
   the facts, over several files and for each large payload: a 1 MiB doc comment, a 1
   MiB written self type and a `use` group of long names, each refused at its own line
-  below its size. `usage()` reports the spent bytes, the most tokens and the deepest
-  directory, and an item record is at most 256 bytes.
+  below its size. `usage()` reports the spent bytes, the most tokens, the highest
+  recursion value and the deepest directory, and an item record is at most 256 bytes.
 - Unit fixtures of the structures the bounds rely on: a column of a short line, a
   long line and a long line of two-byte characters, before, on and after an index
   mark, turns into its byte offset, and a column or line past the text is refused;
@@ -1263,17 +1334,59 @@ duplicates.
   last file 2^17 ways, reads every file once and is refused by the item-bytes budget.
 - Positions: twenty thousand items on one line of two-byte characters get exact byte
   offsets within the time a linear walk takes.
-- Composite and uncounted-shape fixtures: `!` repeated 256 times before `(` repeated
-  across 127 levels; `&` repeated 256 times before `(` across 127 levels, in a type;
-  `&&` repeated 256 times before `(` across 127 levels; `A<` followed by 256 `&`,
-  repeated across 64 levels; `||` repeated 128 times before `(` across 127 levels;
-  and 20000 repetitions each of `return `, `&mut `, `*const `, `fn() -> `, `a = ` and
-  `move || `. A harness runs each in a child process, in debug and in release, and
-  asserts that it ends in exactly one of three outcomes: the pre-scan refuses it with
-  a typed error that names the file and the budget; the process exits 0 with a
-  correct, complete index (the symbols of the fixture, compared with the expected
-  list); or the process aborts with a non-zero status. Exit 0 with a wrong or partial
-  index, or with an index produced after an abort, fails the fixture.
+- Composite, uncounted-shape and chain fixtures: `!` repeated 256 times before `(`
+  repeated across 127 levels; `&` repeated 256 times before `(` across 127 levels, in
+  a type; `&&` repeated 256 times before `(` across 127 levels; `A<` followed by 256
+  `&`, repeated across 64 levels; `||` repeated 128 times before `(` across 127
+  levels; 20000 repetitions each of `return `, `&mut `, `*const `, `fn() -> `, `a = `
+  and `move || `; the chains `x?`, `x.a`, `x()`, `x[0]`, `+x` and `*x` repeated 130000
+  times, `x as T` 78000 times, `.await` 65000 times and `.m()` 97000 times; and 20000
+  repetitions each of `async || `, `async move || `, `const || `, `|| return `,
+  `&raw mut *`, `break `, `yield `, `become `, `a += `, `impl Fn() -> ` as a return
+  type, `extern "C" fn() -> `, `unsafe fn() -> `, `for<'a> fn() -> ` and `*mut `, and
+  of `box ` in a pattern. A harness loads each as the root file of a library through
+  `Workspace::load` in a child process, in debug and in release, so the parse, the
+  reading of the facts and the drop all run as in any load, and asserts that the
+  pre-scan refuses it with a typed error that names the
+  file and the budget: the recursion budget, and the closure bar budget for the
+  `move || ` chain. An abort, an exit 0 or any other end fails the fixture.
+- Shape families, each loaded through `Workspace::load` in a child process in debug
+  and in release: nesting that ends a list or a statement at every level (closures
+  with parameters and statement bodies, tuples, arrays, struct literals, statement
+  blocks, match arms, call arguments, `if let` and `else if` chains, labelled and
+  `async` blocks), groups nested in a macro call, in a `macro_rules!` body and in
+  attribute arguments, `match` alternatives that hold deep patterns, `where` bounds,
+  `impl Trait` arguments and nested `for<'a>`, nested types (generic arguments,
+  turbofish, reference and pointer chains, `fn` pointers, `dyn Fn`, tuple and array
+  types), expression chains (`as`, unary operators, `?`, ranges, method calls),
+  lexical edge cases (raw strings, characters beside lifetimes, nested block
+  comments, raw identifiers, CRLF lines, doc comments on nested statements and long
+  runs of them on nested modules, a leading `#!` line) and nested items (inline modules, functions
+  in blocks, impls in functions). For each, the largest size the budgets admit loads
+  with its index, and one size more is refused naming the budget that meets it
+  first: the recursion budget, or the delimiter budget for the families that nest
+  only through groups.
+- Recursion fixtures, in process: for every counted operator, number, keyword, label,
+  `use` separator and opening delimiter, a file that holds it and reaches exactly the
+  limit parses and the same file with one `return` more is refused with the recursion
+  budget; the limit is half of the parse stack over the measured cost of a unit. Each
+  place where a level's count returns to zero (`;`, `,` between elements, `=>`, an
+  identifier after a block) admits two constructs that together pass the limit, beside
+  the same file with one more unit in either, which is refused; and a `,` inside
+  generic arguments or a closure head, and an `else`, `in` or `as` after a `}`, keep the
+  count, each at the limit and one over, and so do the commas of a `where` clause. A
+  macro call counts its `!` and, inside its delimiters, only the levels its groups
+  open; a `!` after a keyword is an operator. In the arms of a `match` the `|`s of a
+  pattern count nothing, while a guard and a block before the arms count, each at
+  the limit and one over; a macro body of 20000 counted tokens and a pattern of 20000
+  alternatives parse, and a guard or a block before the arms with as many `|`s as
+  the limit is refused. Chains of `for S { a } in`, of reference marks
+  before generic arguments with commas, and of `a < return x > b &&` are refused, beside
+  short ones that parse. Five thousand statements, elements, arms, blocks and items in
+  one level parse. The refusal names the line where the count went over. An 80 KB
+  `let box box ... x` is refused in under a second. A `use` path and a `use` tree of
+  nested groups at the limit load, resolve and drop on a thread of 512 KiB in a debug
+  build, and one separator more is refused.
 - Evasion fixtures: an `if` followed by 20000 `else if {true} {}` links, and
   `type T<'a> = &'a &'a ... u8;` with 20000 reference marks, each fail with the typed
   budget error that names the file, in process and in the child-process harness; the
@@ -1281,16 +1394,20 @@ duplicates.
 - A syntax error carries the line and column of the parser's error: a fixture with the
   error on line 3 and another on line 5 assert the exact position, beside a file that
   parses.
-- The harness judges strictly: a child that panics, one given an unknown selector, and
-  one that exits 3 without a result line each fail the fixture. An abort is accepted
-  only as death by a signal, the Windows stack-overflow status, or the runtime's own
-  stack-overflow message.
+- The harness judges strictly: an abort, a child that panics, one given an unknown
+  selector, and one that exits 3 without a result line each fail the fixture. An abort
+  is recognised only as death by a signal, the Windows stack-overflow status, or the
+  runtime's own stack-overflow message.
 - The parse thread is named after the file it parses, so a stack-overflow message
-  from the runtime names the culprit. A fixture asserts the thread name for a file
-  and that the abort message of the overflow fixtures contains that name.
-- Corpus replay under `cargo test`: a test parses every file of
-  `fuzz/corpus/parse_source/` in a child process and asserts that each ends in one of
-  the three outcomes above, so a regression is caught without running the fuzzer.
+  from the runtime names the culprit. A fixture asserts the thread name for a file,
+  and a child whose visitor recurses without end on the parse thread aborts with that
+  name in the runtime's message, which the judge reports as a failure. A `return`
+  chain that needs twice the parse stack is refused beside one of 1000 levels, which
+  parses.
+- Corpus replay under `cargo test`: a test loads every file of
+  `fuzz/corpus/parse_source/` as the root file of a library in a child process and asserts that each is refused
+  naming its budget or exits 0 with its recorded index, and that none aborts, so a
+  regression is caught without running the fuzzer.
 - The fuzz target `parse_source` builds and runs for a bounded number of iterations
   over its corpus without a crash. That run cuts inputs to 4096 bytes, because an
   abort would end the fuzzer; the larger corpus files are judged by the replay test

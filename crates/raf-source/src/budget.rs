@@ -9,7 +9,7 @@ use std::fmt;
 
 /// A budget of a load.
 ///
-/// The first five bound shapes that make `syn` recurse and are enforced by the
+/// The first six bound shapes that make `syn` recurse and are enforced by the
 /// pre-scan before a file is parsed. The others bound the module walk,
 /// discovery, the tokens of one file and the bytes one load reads and keeps.
 /// The limits live in one table, [`Budget::limit`], which the code and the
@@ -28,6 +28,14 @@ pub enum Budget {
     ClosureBars,
     /// Chained `else if` links.
     ElseIf,
+    /// The nesting that the parser builds by recursion, counted additively
+    /// over every open delimiter level: the counted tokens of each open level
+    /// since its count last returned to zero, plus one for each open
+    /// delimiter. Parsing a file, reading its facts and dropping its syntax
+    /// tree take at most [`RECURSION_UNIT_BYTES`] of the parse stack for each
+    /// unit, so the limit keeps them within half of
+    /// [`PARSE_STACK_BYTES`](crate::PARSE_STACK_BYTES).
+    Recursion,
     /// Modules nested along one path from a target root, files and inline
     /// modules together. Unlike the others it is counted by the module walk
     /// and not by the pre-scan.
@@ -57,12 +65,13 @@ pub enum Budget {
 const MIB: usize = 1024 * 1024;
 
 /// The limit of each budget, indexed by the budget's position.
-const BUDGETS: [(Budget, usize); 12] = [
+const BUDGETS: [(Budget, usize); 13] = [
     (Budget::Delimiters, 128),
     (Budget::Angles, 64),
     (Budget::PrefixOperators, 256),
     (Budget::ClosureBars, 128),
     (Budget::ElseIf, 256),
+    (Budget::Recursion, RECURSION),
     (Budget::ModuleDepth, 128),
     (Budget::ModulePaths, 262_144),
     (Budget::DirectoryDepth, 128),
@@ -83,6 +92,16 @@ const BUDGETS: [(Budget, usize); 12] = [
 /// and 512 MiB at 322,638 tokens.
 pub const PARSE_BYTES_PER_TOKEN: usize = 1664;
 
+/// The most stack of the parse thread that one unit of [`Budget::Recursion`]
+/// takes in a debug build, rounded up: parsing, reading the facts and dropping
+/// the syntax tree, measured on the costliest counted shape, generic arguments
+/// nested in a type (`A<A<...>>`), at 16,481 bytes a unit.
+pub const RECURSION_UNIT_BYTES: usize = 17 * 1024;
+
+/// The recursion limit, 1927: half of the parse stack over the cost of one
+/// unit.
+const RECURSION: usize = crate::parse::PARSE_STACK_BYTES / (2 * RECURSION_UNIT_BYTES);
+
 /// The default token limit of one file. It admits the largest generated source
 /// files of real crates (a time-zone table of 1.5 million tokens); a caller on
 /// a smaller host lowers it through [`LoadOptions`](crate::LoadOptions), to
@@ -91,7 +110,7 @@ const FILE_TOKENS: usize = 2_000_000;
 
 impl Budget {
     /// Every budget, in table order.
-    pub const ALL: [Budget; 12] = [
+    pub const ALL: [Budget; 13] = [
         BUDGETS[0].0,
         BUDGETS[1].0,
         BUDGETS[2].0,
@@ -104,6 +123,7 @@ impl Budget {
         BUDGETS[9].0,
         BUDGETS[10].0,
         BUDGETS[11].0,
+        BUDGETS[12].0,
     ];
 
     /// The most the budget allows; one more is refused. For the token budget
@@ -123,6 +143,7 @@ impl Budget {
             Self::PrefixOperators => "prefix operator run",
             Self::ClosureBars => "closure bar chain",
             Self::ElseIf => "`else if` chain",
+            Self::Recursion => "parser recursion",
             Self::ModuleDepth => "module nesting",
             Self::ModulePaths => "module paths",
             Self::DirectoryDepth => "directory nesting",
@@ -155,6 +176,11 @@ mod tests {
         assert_eq!(Budget::PrefixOperators.limit(), 256);
         assert_eq!(Budget::ClosureBars.limit(), 128);
         assert_eq!(Budget::ElseIf.limit(), 256);
+        assert_eq!(Budget::Recursion.limit(), 1927);
+        assert_eq!(
+            RECURSION,
+            crate::PARSE_STACK_BYTES / (2 * RECURSION_UNIT_BYTES)
+        );
         assert_eq!(Budget::ModuleDepth.limit(), 128);
         assert_eq!(Budget::ModulePaths.limit(), 262_144);
         assert_eq!(Budget::DirectoryDepth.limit(), 128);

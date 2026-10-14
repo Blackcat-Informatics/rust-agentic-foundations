@@ -1,19 +1,22 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Run a parse in a child process: the test binary runs itself.
+//! Run a load in a child process: the test binary runs itself.
 //!
-//! A deep parse can end the process, so the parent cannot judge it in
-//! process. The parent starts this same test binary, selects the one test that
+//! The child loads the selected text as the root file of a library through
+//! `Workspace::load`, so the parse, the reading of its facts and the drop of
+//! its syntax tree all run on the parse thread as in any load. A deep parse
+//! can end the process, so the parent cannot judge it in process. The parent starts this same test binary, selects the one test that
 //! calls [`run_child_if_requested`], and names the work in an environment
 //! variable. The child prints one result line and exits. The parent maps what
-//! happened to exactly one [`Outcome`].
+//! happened to exactly one [`Outcome`]. A parse ends in a typed refusal or a
+//! correct index; an abort is a failure of the parse that the judge reports.
 
 use std::env;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use raf_source::{LoadErrorKind, RelPath, parse_source, syn};
+use raf_source::{LoadErrorKind, MemoryTree, RelPath, Workspace};
 
 /// The environment variable that names the work for a child.
 const SELECTOR: &str = "RAF_SOURCE_CHILD";
@@ -27,7 +30,7 @@ const OVERFLOW_MESSAGE: &str = "has overflowed its stack";
 /// The exit status of any other load error.
 const FAILED: i32 = 4;
 
-/// What became of one parse.
+/// What became of one load.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Outcome {
     /// The pre-scan refused the file, naming it and the budget.
@@ -40,43 +43,52 @@ pub(crate) enum Outcome {
     Failed { message: String },
 }
 
-/// The names of the top-level items of a file.
-pub(crate) fn symbols(file: &syn::File) -> Vec<String> {
-    file.items
-        .iter()
-        .map(|item| match item {
-            syn::Item::Fn(item) => item.sig.ident.to_string(),
-            syn::Item::Struct(item) => item.ident.to_string(),
-            syn::Item::Enum(item) => item.ident.to_string(),
-            syn::Item::Const(item) => item.ident.to_string(),
-            syn::Item::Static(item) => item.ident.to_string(),
-            syn::Item::Type(item) => item.ident.to_string(),
-            syn::Item::Mod(item) => item.ident.to_string(),
-            syn::Item::Trait(item) => item.ident.to_string(),
-            syn::Item::Union(item) => item.ident.to_string(),
-            _ => "<unnamed>".to_owned(),
-        })
+/// The names of the items at the root of the crate `demo`, in path order.
+pub(crate) fn symbols(workspace: &Workspace) -> Vec<String> {
+    workspace
+        .items()
+        .filter_map(|item| item.path.strip_prefix("demo::"))
+        .filter(|name| !name.contains("::"))
+        .map(str::to_owned)
         .collect()
 }
 
-/// In the child: parse the selected text, print one line and exit. Without a
+/// A package `demo` whose library root is `file`, holding `text`.
+fn library(file: &RelPath, text: String) -> MemoryTree {
+    let manifest = format!(
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"{file}\"\n"
+    );
+    [
+        ("Cargo.toml".to_owned(), manifest),
+        (file.to_string(), text),
+    ]
+    .into_iter()
+    .collect()
+}
+
+/// In a child, the work it was started for; `None` in an ordinary run.
+pub(crate) fn selector() -> Option<String> {
+    env::var_os(SELECTOR).map(|selector| selector.to_string_lossy().into_owned())
+}
+
+/// In the child: load the selected text, print one line and exit. Without a
 /// selector this returns at once, so the test that calls it passes when it
 /// runs as an ordinary test.
 pub(crate) fn run_child_if_requested(text_of: impl FnOnce(&str) -> String) {
-    let Some(selector) = env::var_os(SELECTOR) else {
+    let Some(selector) = selector() else {
         return;
     };
-    let selector = selector.to_string_lossy().into_owned();
     let (name, text) = (selector.clone(), text_of(&selector));
     let file = RelPath::new(&format!("{name}.rs")).expect("the selector is a plain name");
-    let code = match parse_source(&file, &text, symbols) {
-        Ok(found) => {
-            println!("{MARK}index {}", found.join(","));
+    let tree = library(&file, text);
+    let code = match Workspace::load(&tree, &["."]) {
+        Ok(workspace) => {
+            println!("{MARK}index {}", symbols(&workspace).join(","));
             0
         }
         Err(error) => {
             if let LoadErrorKind::Budget { budget, .. } = &error.kind {
-                println!("{MARK}refused {file} {budget}");
+                println!("{MARK}refused {} {budget}", error.file);
                 REFUSED
             } else {
                 println!("{MARK}failed {error}");
@@ -186,9 +198,9 @@ fn tail(text: &str) -> String {
     text[start..].to_owned()
 }
 
-/// Judge an outcome against the allowed three. A refusal must name the file;
-/// an index must equal `expected`; an abort stands as it is. Returns the
-/// problem, or `None` when the outcome is allowed.
+/// Judge an outcome against the allowed two. A refusal must name the file and
+/// a budget; an index must equal `expected`. An abort and any other failure
+/// are problems. Returns the problem, or `None` when the outcome is allowed.
 pub(crate) fn problem(outcome: &Outcome, file: &str, expected: &[&str]) -> Option<String> {
     match outcome {
         Outcome::Refused {
@@ -216,9 +228,7 @@ pub(crate) fn problem(outcome: &Outcome, file: &str, expected: &[&str]) -> Optio
                 ))
             }
         }
-        Outcome::Aborted { .. } => None,
-        Outcome::Failed { message } => {
-            Some(format!("failed outside the three outcomes: {message}"))
-        }
+        Outcome::Aborted { detail } => Some(format!("the parse aborted: {detail}")),
+        Outcome::Failed { message } => Some(format!("failed outside the two outcomes: {message}")),
     }
 }

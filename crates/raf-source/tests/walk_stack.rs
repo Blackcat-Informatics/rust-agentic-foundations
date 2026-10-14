@@ -193,3 +193,53 @@ fn a_disk_chain_of_directories_is_refused_typed_on_a_two_mib_thread() {
     let ws = load(&tree, &["."], 2 << 20).expect("at the limit");
     assert_eq!(ws.usage().max_directory_depth, 128);
 }
+
+/// A library that imports `use_path`, beside the module the path names.
+fn importing(use_path: &str) -> MemoryTree {
+    let lib = format!("pub mod a {{ pub fn b() {{}} }}\npub use {use_path};\n");
+    [("Cargo.toml", DEMO.to_owned()), ("src/lib.rs", lib)]
+        .into_iter()
+        .collect()
+}
+
+/// A path of `separators` `::`s.
+fn long_path(separators: usize) -> String {
+    format!("{}b", "a::".repeat(separators))
+}
+
+/// A path of `levels` nested groups, each after a `::`.
+fn nested_groups(levels: usize) -> String {
+    format!("{}b{}", "a::{".repeat(levels), "}".repeat(levels))
+}
+
+#[test]
+fn a_use_tree_at_the_recursion_limit_loads_resolves_and_drops_on_a_five_hundred_twelve_kib_thread()
+{
+    let limit = Budget::Recursion.limit();
+    // A separator counts sixteen, and a group its `{` and the level it opens.
+    for (at, over) in [
+        (long_path(limit / 16), long_path(limit / 16 + 1)),
+        (nested_groups(limit / 18), nested_groups(limit / 18 + 1)),
+    ] {
+        let tree = importing(&at);
+        let unresolved = on_stack(512 << 10, || {
+            let workspace = Workspace::load(&tree, &["."]).expect("loads");
+            let unresolved = workspace.resolve("demo::b").is_err();
+            drop(workspace);
+            unresolved
+        });
+        assert!(unresolved, "the path names nothing the index holds");
+        let over = importing(&over);
+        let error = on_stack(512 << 10, || Workspace::load(&over, &["."])).expect_err("refused");
+        assert!(
+            matches!(
+                error.kind,
+                LoadErrorKind::Budget {
+                    budget: Budget::Recursion,
+                    ..
+                }
+            ),
+            "{error}"
+        );
+    }
+}

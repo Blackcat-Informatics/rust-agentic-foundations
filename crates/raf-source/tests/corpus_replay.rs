@@ -3,8 +3,8 @@
 
 //! The committed fuzz corpus is replayed under `cargo test`, so a file that
 //! once aborted or slipped past a budget fails here without running the
-//! fuzzer. Every file is judged in a child process and must end in one of
-//! the three allowed outcomes, with the index it records.
+//! fuzzer. Every file is judged in a child process and must end in a typed
+//! refusal or in the index it records; an abort fails the replay.
 
 mod support;
 
@@ -94,7 +94,7 @@ fn corpus_files_hold_exactly_the_text_of_their_shapes() {
 }
 
 #[test]
-fn every_corpus_file_ends_in_exactly_one_allowed_outcome_with_its_recorded_symbols() {
+fn every_corpus_file_is_refused_or_indexed_with_its_recorded_symbols_and_none_aborts() {
     for shape in shapes::all() {
         let outcome = run_child("child_main", &format!("{PREFIX}{}", shape.name));
         let named = format!("{PREFIX}{}.rs", shape.name);
@@ -130,6 +130,11 @@ fn files_at_a_budget_exit_zero_and_files_over_it_are_refused_naming_file_and_bud
             "budget_else_if_at",
             "budget_else_if_over",
             "`else if` chain",
+        ),
+        (
+            "budget_recursion_at",
+            "budget_recursion_over",
+            "parser recursion",
         ),
     ] {
         let symbols: Vec<String> = shapes::all()

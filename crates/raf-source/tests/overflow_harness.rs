@@ -1,17 +1,20 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Shapes that no budget bounds are judged in a child process. Each ends in
-//! exactly one of three outcomes: a typed refusal naming the file and the
-//! budget, exit 0 with the exact expected symbol list, or an abort.
+//! Shapes that overflowed the parse stack before the recursion budget counted
+//! them are judged in a child process. Each must end in a typed refusal
+//! naming the file and the budget; an abort, a wrong index or any other
+//! failure fails the fixture. A child can still overflow on purpose, through a
+//! visitor that recurses on the parse thread, which shows what an overflow
+//! looks like.
 
 mod support;
 
 use std::panic;
 use std::thread;
 
-use raf_source::{PARSE_STACK_BYTES, RelPath, parse_source};
-use support::child::{Outcome, classify, problem, run_child, run_child_if_requested};
+use raf_source::{Budget, PARSE_STACK_BYTES, RelPath, parse_source};
+use support::child::{Outcome, classify, problem, run_child, run_child_if_requested, selector};
 use support::shapes;
 
 /// The measured stack cost of one nesting level of the `return` chain, in
@@ -26,6 +29,19 @@ const OVERFLOW_LEVELS: usize = 2 * PARSE_STACK_BYTES / RETURN_LEVEL_BYTES;
 
 /// Levels that fit in a small part of the stack in either profile.
 const SAFE_LEVELS: usize = 1_000;
+
+/// The child that overflows on purpose: its visitor recurses on the parse
+/// thread until the stack is gone.
+const OVERFLOW_VISITOR: &str = "overflow_visitor";
+
+/// Recurse without end; each frame keeps a kilobyte the optimiser cannot drop.
+fn descend(depth: usize) -> usize {
+    let pad = std::hint::black_box([0_u8; 1024]);
+    if depth == usize::MAX {
+        return 0;
+    }
+    descend(depth + 1).wrapping_add(usize::from(pad[depth % 1024]))
+}
 
 fn return_chain(levels: usize) -> String {
     format!("fn f() {{ {}; }}\n", "return ".repeat(levels))
@@ -46,6 +62,9 @@ fn text_of(selector: &str) -> String {
         "fixture_panic" => panic!("deliberate panic in the child"),
         "fixture_exit_three" => std::process::exit(3),
         name => {
+            if let Some(text) = family_text(name) {
+                return text;
+            }
             let Some(shape) = shapes::all().into_iter().find(|shape| shape.name == name) else {
                 panic!("no shape named {name}");
             };
@@ -54,19 +73,49 @@ fn text_of(selector: &str) -> String {
     }
 }
 
+/// The text a `family_<name>_at` or `family_<name>_over` selector names.
+fn family_text(selector: &str) -> Option<String> {
+    let rest = selector.strip_prefix("family_")?;
+    let (name, over) = match rest.strip_suffix("_over") {
+        Some(name) => (name, true),
+        None => (rest.strip_suffix("_at")?, false),
+    };
+    let family = shapes::families()
+        .into_iter()
+        .find(|family| family.name == name)?;
+    Some((family.text)(family.at + usize::from(over)))
+}
+
 /// Selected by the parent process; an ordinary run of it does nothing.
 #[test]
 fn child_main() {
+    if selector().as_deref() == Some(OVERFLOW_VISITOR) {
+        let file = RelPath::new(&format!("{OVERFLOW_VISITOR}.rs")).expect("path");
+        let depth = parse_source(&file, "fn f() {}", |_| descend(0));
+        panic!("the visitor returned {depth:?} instead of overflowing");
+    }
     run_child_if_requested(text_of);
 }
 
+/// The budget that refuses each overflow shape: the recursion budget, except
+/// for a chain of closure heads with `move` between them, which the closure
+/// bar budget meets first.
+fn refusing_budget(name: &str) -> Budget {
+    if name == "uncounted_move_closure" {
+        Budget::ClosureBars
+    } else {
+        Budget::Recursion
+    }
+}
+
 #[test]
-fn composites_and_uncounted_shapes_end_in_exactly_one_allowed_outcome() {
+fn every_committed_overflow_shape_is_refused_by_a_budget_and_none_aborts() {
     let judged: Vec<_> = shapes::composites()
         .into_iter()
         .chain(shapes::uncounted())
+        .chain(shapes::chains())
         .collect();
-    assert_eq!(judged.len(), 11);
+    assert_eq!(judged.len(), 35);
     for shape in judged {
         let outcome = run_child("child_main", shape.name);
         eprintln!("{}: {}", shape.name, summary(&outcome));
@@ -74,8 +123,41 @@ fn composites_and_uncounted_shapes_end_in_exactly_one_allowed_outcome() {
         assert_eq!(
             problem(&outcome, &file, shape.symbols),
             None,
-            "{}: {outcome:?}",
+            "{}",
             shape.name
+        );
+        assert_eq!(
+            outcome,
+            Outcome::Refused {
+                file,
+                budget: refusing_budget(shape.name).name().to_owned(),
+            },
+            "{}",
+            shape.name
+        );
+    }
+}
+
+#[test]
+fn every_shape_family_loads_at_its_largest_admitted_size_and_one_size_more_is_refused() {
+    let families = shapes::families();
+    assert_eq!(families.len(), 39);
+    for family in families {
+        let at = format!("family_{}_at", family.name);
+        let symbols: Vec<String> = family.symbols.iter().map(|s| (*s).to_owned()).collect();
+        assert_eq!(
+            run_child("child_main", &at),
+            Outcome::Index(symbols),
+            "{at}"
+        );
+        let over = format!("family_{}_over", family.name);
+        assert_eq!(
+            run_child("child_main", &over),
+            Outcome::Refused {
+                file: format!("{over}.rs"),
+                budget: family.over.name().to_owned(),
+            },
+            "{over}"
         );
     }
 }
@@ -94,22 +176,31 @@ fn a_shape_just_inside_its_budgets_exits_zero_with_the_exact_symbols() {
 
 #[test]
 fn a_deliberate_overflow_aborts_and_the_runtime_names_the_parse_thread() {
-    let outcome = run_child("child_main", "overflow_return");
+    let outcome = run_child("child_main", OVERFLOW_VISITOR);
     let Outcome::Aborted { detail } = &outcome else {
         panic!("expected an abort, got {outcome:?}");
     };
     // The runtime prints the thread name, then its id, then the verdict.
     assert!(
         detail.lines().any(|line| {
-            line.starts_with("thread 'overflow_return.rs'")
+            line.starts_with(&format!("thread '{OVERFLOW_VISITOR}.rs'"))
                 && line.ends_with("has overflowed its stack")
         }),
         "{detail}"
     );
+    // An abort fails the judge.
+    assert!(problem(&outcome, &format!("{OVERFLOW_VISITOR}.rs"), &["f"]).is_some());
 }
 
 #[test]
-fn the_same_chain_at_a_safe_depth_exits_zero_beside_the_overflowing_one() {
+fn a_return_chain_that_needs_twice_the_stack_is_refused_beside_one_at_a_safe_depth() {
+    assert_eq!(
+        run_child("child_main", "overflow_return"),
+        Outcome::Refused {
+            file: "overflow_return.rs".to_owned(),
+            budget: Budget::Recursion.name().to_owned(),
+        }
+    );
     assert_eq!(
         run_child("child_main", "neighbour_return"),
         Outcome::Index(vec!["f".to_owned()])
@@ -117,7 +208,7 @@ fn the_same_chain_at_a_safe_depth_exits_zero_beside_the_overflowing_one() {
 }
 
 #[test]
-fn the_judge_rejects_a_wrong_index_a_misnamed_refusal_and_a_stray_failure() {
+fn the_judge_rejects_a_wrong_index_a_misnamed_refusal_an_abort_and_a_stray_failure() {
     let wrong = Outcome::Index(vec!["g".to_owned()]);
     assert!(problem(&wrong, "x.rs", &["f"]).is_some());
     let partial = Outcome::Index(Vec::new());
@@ -137,6 +228,11 @@ fn the_judge_rejects_a_wrong_index_a_misnamed_refusal_and_a_stray_failure() {
     };
     assert!(problem(&failed, "x.rs", &[]).is_some());
 
+    let abort = Outcome::Aborted {
+        detail: String::new(),
+    };
+    assert!(problem(&abort, "x.rs", &["f"]).is_some());
+
     // Each allowed outcome passes beside them.
     assert_eq!(
         problem(&Outcome::Index(vec!["f".to_owned()]), "x.rs", &["f"]),
@@ -147,10 +243,6 @@ fn the_judge_rejects_a_wrong_index_a_misnamed_refusal_and_a_stray_failure() {
         budget: "nested `<`".to_owned(),
     };
     assert_eq!(problem(&refusal, "x.rs", &["f"]), None);
-    let abort = Outcome::Aborted {
-        detail: String::new(),
-    };
-    assert_eq!(problem(&abort, "x.rs", &["f"]), None);
 }
 
 #[test]

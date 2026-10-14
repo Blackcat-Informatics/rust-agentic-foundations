@@ -23,7 +23,8 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   symbol and use-alias index resolves a path through renames, globs and re-exports
   with typed failures. Files are size-capped and told apart by identity, so a file
   is read and parsed once whatever spellings reach it. A token pre-scan bounds
-  recursion; the tokens of each file and the bytes a load reads, keeps in its index
+  recursion, with one count summed over every open delimiter level that keeps an
+  admitted file within half of the parse stack; the tokens of each file and the bytes a load reads, keeps in its index
   and keeps as facts are budgeted, with limits a caller can set; the walks keep
   stacks of their own; parsing runs on a dedicated stack; and a committed fuzz
   target covers the parser.

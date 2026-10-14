@@ -30,6 +30,10 @@
 //!   `else` directly after a `}`. A block in a condition (`else if {x} {}`)
 //!   does not end the chain.
 //!
+//! * **Recursion.** One additive count of the nesting that the parser, the
+//!   syntax tree and its drop build by recursion, summed over every open
+//!   delimiter level; it is defined in [`recursion`].
+//!
 //! * **Tokens.** Every token of the file counts, as the parser's lexer sees
 //!   it: an identifier, a keyword, a literal, a lifetime (two: the quote and
 //!   the name), each delimiter, and each character of punctuation (`::` and
@@ -44,10 +48,22 @@ use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind};
 use crate::path::RelPath;
 
+mod recursion;
+
+use recursion::Recursion;
+
+/// The delimiter a group opens with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Delimiter {
+    Paren,
+    Bracket,
+    Brace,
+}
+
 /// One token the counters care about.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Token<'a> {
-    Open,
+    Open(Delimiter),
     CloseBrace,
     CloseOther,
     Ident(&'a str),
@@ -61,9 +77,23 @@ enum Token<'a> {
     Lt,
     Gt,
     Semi,
+    Comma,
+    /// `=>`.
+    FatArrow,
+    Colon,
+    /// `::`.
+    PathSep,
+    Hash,
+    /// Any other operator: `+`, `/`, `%`, `^`, `=`, `?`, `@`, `.`, a range
+    /// (`..`, `..=`, `...`), `->`, and the compound forms that end in `=`.
+    Operator,
     /// A lifetime or a label such as `'a`.
     Lifetime,
-    /// Anything else: literals, lifetimes, other punctuation.
+    /// A literal: a string, a character, a byte or a number without a `.`.
+    Literal,
+    /// A number with a `.`. After a `.` it is two tuple indices (`x.0.1`).
+    Float,
+    /// Any other punctuation.
     Other,
 }
 
@@ -219,7 +249,7 @@ impl Counters {
 
     fn angle_and_delimiter(&mut self, token: Token<'_>, line: usize) -> Result<(), Exceeded> {
         match token {
-            Token::Open => {
+            Token::Open(_) => {
                 self.levels.push(Level::default());
                 if self.depth() > Budget::Delimiters.limit() {
                     return Err(Exceeded {
@@ -415,16 +445,26 @@ impl<'a> Cursor<'a> {
     }
 }
 
+/// What the pre-scan of one admitted file counted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Scan {
+    /// The tokens of the file.
+    pub(crate) tokens: usize,
+    /// The highest value the recursion counter reached.
+    pub(crate) recursion: usize,
+}
+
 /// Scan `text` and refuse it when a counter passes its budget or it holds more
-/// than `max_tokens` tokens. Returns the number of tokens.
+/// than `max_tokens` tokens. Returns what the scan counted.
 ///
 /// # Errors
 ///
 /// Returns a [`LoadError`] with [`LoadErrorKind::Budget`] naming `file`, the
 /// budget and the line where the count went over.
-pub(crate) fn prescan(file: &RelPath, text: &str, max_tokens: usize) -> Result<usize, LoadError> {
+pub(crate) fn prescan(file: &RelPath, text: &str, max_tokens: usize) -> Result<Scan, LoadError> {
     let mut cursor = Cursor::new(text);
     let mut counters = Counters::new();
+    let mut recursion = Recursion::new();
     let mut tokens = 0_usize;
     let over = |budget: Budget, limit: usize, line: usize| {
         LoadError::new(file, Some(line), LoadErrorKind::Budget { budget, limit })
@@ -458,29 +498,36 @@ pub(crate) fn prescan(file: &RelPath, text: &str, max_tokens: usize) -> Result<u
                 }
                 _ => {
                     cursor.bump();
-                    Token::Other
+                    Token::Operator
                 }
             },
             b'"' => {
                 cursor.bump();
                 cursor.skip_quoted(b'"');
-                Token::Other
+                Token::Literal
             }
             b'\'' => {
                 if cursor.skip_quote_or_lifetime() {
                     Token::Lifetime
                 } else {
-                    Token::Other
+                    Token::Literal
                 }
             }
             b if is_ident_start(b) => word(&mut cursor),
             b'0'..=b'9' => {
-                number(&mut cursor);
-                Token::Other
+                if number(&mut cursor) {
+                    Token::Float
+                } else {
+                    Token::Literal
+                }
             }
             b'(' | b'[' | b'{' => {
                 cursor.bump();
-                Token::Open
+                Token::Open(match byte {
+                    b'(' => Delimiter::Paren,
+                    b'[' => Delimiter::Bracket,
+                    _ => Delimiter::Brace,
+                })
             }
             b'}' => {
                 cursor.bump();
@@ -497,8 +544,14 @@ pub(crate) fn prescan(file: &RelPath, text: &str, max_tokens: usize) -> Result<u
         counters
             .feed(token, line)
             .map_err(|exceeded| over(exceeded.budget, exceeded.budget.limit(), exceeded.line))?;
+        if recursion.feed(token, cursor.at - start) > Budget::Recursion.limit() {
+            return Err(over(Budget::Recursion, Budget::Recursion.limit(), line));
+        }
     }
-    Ok(tokens)
+    Ok(Scan {
+        tokens,
+        recursion: recursion.peak(),
+    })
 }
 
 /// The tokens the parser's lexer reads for `token`, whose text is `lexed`:
@@ -516,13 +569,20 @@ fn lexed_tokens(token: Token<'_>, lexed: &[u8]) -> usize {
         | Token::PipePipe
         | Token::Lt
         | Token::Gt
-        | Token::Semi => lexed.len(),
-        Token::Other => match lexed.first() {
-            Some(b'"' | b'\'' | b'0'..=b'9') => 1,
-            Some(first) if first.is_ascii_alphanumeric() || *first >= 0x80 || *first == b'_' => 1,
-            _ => lexed.len(),
-        },
-        Token::Open | Token::CloseBrace | Token::CloseOther | Token::Ident(_) => 1,
+        | Token::Semi
+        | Token::Comma
+        | Token::FatArrow
+        | Token::Colon
+        | Token::PathSep
+        | Token::Hash
+        | Token::Operator
+        | Token::Other => lexed.len(),
+        Token::Open(_)
+        | Token::CloseBrace
+        | Token::CloseOther
+        | Token::Ident(_)
+        | Token::Literal
+        | Token::Float => 1,
     }
 }
 
@@ -532,9 +592,19 @@ fn punctuation<'a>(cursor: &mut Cursor<'_>, byte: u8) -> Token<'a> {
     let (token, width) = match (byte, next) {
         (b'&', Some(b'&')) => (Token::AmpAmp, 2),
         (b'|', Some(b'|')) => (Token::PipePipe, 2),
+        (b'=', Some(b'>')) => (Token::FatArrow, 2),
+        (b':', Some(b':')) => (Token::PathSep, 2),
+        (b'.', Some(b'.')) => (
+            Token::Operator,
+            if matches!(cursor.peek(2), Some(b'=' | b'.')) {
+                3
+            } else {
+                2
+            },
+        ),
         // Compound operators that are not prefix operators or brackets.
-        (b'&' | b'*' | b'-' | b'!' | b'|' | b'<', Some(b'=')) | (b'=' | b'-', Some(b'>')) => {
-            (Token::Other, 2)
+        (b'&' | b'*' | b'-' | b'!' | b'|' | b'<', Some(b'=')) | (b'-', Some(b'>')) => {
+            (Token::Operator, 2)
         }
         (b'&', _) => (Token::Amp, 1),
         (b'|', _) => (Token::Pipe, 1),
@@ -544,6 +614,10 @@ fn punctuation<'a>(cursor: &mut Cursor<'_>, byte: u8) -> Token<'a> {
         (b'<', _) => (Token::Lt, 1),
         (b'>', _) => (Token::Gt, 1),
         (b';', _) => (Token::Semi, 1),
+        (b',', _) => (Token::Comma, 1),
+        (b':', _) => (Token::Colon, 1),
+        (b'#', _) => (Token::Hash, 1),
+        (b'+' | b'/' | b'%' | b'^' | b'=' | b'?' | b'@' | b'.', _) => (Token::Operator, 1),
         _ => (Token::Other, 1),
     };
     cursor.bump_by(width);
@@ -560,18 +634,18 @@ fn word<'a>(cursor: &mut Cursor<'a>) -> Token<'a> {
         ("b" | "c", Some(b'"')) => {
             cursor.bump();
             cursor.skip_quoted(b'"');
-            Token::Other
+            Token::Literal
         }
         ("b", Some(b'\'')) => {
             cursor.bump();
             cursor.skip_quoted(b'\'');
-            Token::Other
+            Token::Literal
         }
         ("r" | "br" | "cr", Some(b'"' | b'#')) => {
             let hashes = cursor.hashes_at(0);
             if cursor.peek(hashes) == Some(b'"') {
                 cursor.skip_raw_string(hashes);
-                Token::Other
+                Token::Literal
             } else if word == "r" && hashes == 1 {
                 // A raw identifier such as `r#type`.
                 cursor.bump();
@@ -584,17 +658,22 @@ fn word<'a>(cursor: &mut Cursor<'a>) -> Token<'a> {
     }
 }
 
-/// Skip a numeric literal. `1.0` and `1e5` are one literal; a range `1..2`
-/// and a method call `1.max(2)` end it before the dot.
-fn number(cursor: &mut Cursor<'_>) {
+/// Skip a numeric literal and return true when it holds a `.`. `1.0` and
+/// `1e5` are one literal; a range `1..2`, a method call `1.max(2)` and the
+/// second `.` of `0.0.0` end it before the dot.
+fn number(cursor: &mut Cursor<'_>) -> bool {
+    let mut dotted = false;
     while cursor
         .peek(0)
         .is_some_and(|byte| is_ident_continue(byte) || byte == b'.')
     {
-        if cursor.peek(0) == Some(b'.') && !cursor.peek(1).is_some_and(|byte| byte.is_ascii_digit())
-        {
-            break;
+        if cursor.peek(0) == Some(b'.') {
+            if dotted || !cursor.peek(1).is_some_and(|byte| byte.is_ascii_digit()) {
+                break;
+            }
+            dotted = true;
         }
         cursor.bump();
     }
+    dotted
 }

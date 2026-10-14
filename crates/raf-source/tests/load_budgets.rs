@@ -411,6 +411,8 @@ fn usage_reports_what_a_load_spent() {
     assert!(spent.item_bytes > 0 && spent.fact_bytes > 0);
     // `pub fn f ( ) { }` is seven tokens.
     assert_eq!(spent.max_file_tokens, 7);
+    // `fn` and `(`, then the body's `{` and the level it opens.
+    assert_eq!(spent.max_recursion, 4);
     // Discovery entered `src/a`, two levels below the root.
     assert_eq!(spent.max_directory_depth, 2);
 }

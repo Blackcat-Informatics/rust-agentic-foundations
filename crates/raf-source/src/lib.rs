@@ -128,7 +128,7 @@ mod target;
 mod tree;
 mod workspace;
 
-pub use budget::{Budget, PARSE_BYTES_PER_TOKEN};
+pub use budget::{Budget, PARSE_BYTES_PER_TOKEN, RECURSION_UNIT_BYTES};
 pub use error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
 pub use facts::{
     AttrFact, ConditionalPath, FieldShape, FileFacts, ImplFact, ItemFact, ItemKind, ModBody,

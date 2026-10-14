@@ -27,13 +27,14 @@
 //! One line is printed per crate, sorted by name:
 //!
 //! ```text
-//! name@version | OK items=N files=N misplaced=N total=N item=N fact=N tokens=N depth=N [first misplaced item]
+//! name@version | OK items=N files=N misplaced=N total=N item=N fact=N tokens=N recursion=N depth=N [first misplaced item]
 //! name@version | ERR <kind> :: <message>
 //! ```
 //!
-//! `total`, `item`, `fact`, `tokens` and `depth` are the load's
+//! `total`, `item`, `fact`, `tokens`, `recursion` and `depth` are the load's
 //! [`Usage`](raf_source::Usage): the bytes read, charged to the index and to
-//! the facts, the most tokens of one file and the deepest directory entered.
+//! the facts, the most tokens of one file, the highest value of the recursion
+//! counter in one file and the deepest directory entered.
 //! The kind is the [`LoadErrorKind`](raf_source::LoadErrorKind) variant, or
 //! `memory` for a child that ran out of its address space, `abort` for a
 //! child that ended without a result otherwise and `timeout` for one that was
@@ -79,7 +80,7 @@ const DEFAULT_MAX_MEMORY: u64 = 8 << 30;
 const ALLOCATION_FAILED: &str = "memory allocation of";
 
 /// The usage figures of an `OK` line, in the order they are printed.
-const USAGE: [&str; 5] = ["total", "item", "fact", "tokens", "depth"];
+const USAGE: [&str; 6] = ["total", "item", "fact", "tokens", "recursion", "depth"];
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -343,7 +344,7 @@ fn load_one(dir: &Path) -> String {
             let misplaced = misplaced(&ws);
             let usage = ws.usage();
             let mut line = format!(
-                "OK items={} files={} misplaced={} total={} item={} fact={} tokens={} depth={}",
+                "OK items={} files={} misplaced={} total={} item={} fact={} tokens={} recursion={} depth={}",
                 ws.items().count(),
                 ws.files().count(),
                 misplaced.len(),
@@ -351,6 +352,7 @@ fn load_one(dir: &Path) -> String {
                 usage.item_bytes,
                 usage.fact_bytes,
                 usage.max_file_tokens,
+                usage.max_recursion,
                 usage.max_directory_depth,
             );
             if let Some(first) = misplaced.first() {

@@ -9,7 +9,7 @@ use std::thread;
 use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind};
 use crate::path::RelPath;
-use crate::prescan::prescan;
+use crate::prescan::{Scan, prescan};
 
 /// The stack of the thread that parses, in bytes: 64 MiB.
 ///
@@ -46,15 +46,15 @@ pub fn parse_source<R: Send>(
     parse_counted(file, text, Budget::FileTokens.limit(), visit).map(|(result, _)| result)
 }
 
-/// [`parse_source`] with a token limit of `max_tokens`, also returning the
-/// number of tokens the pre-scan counted.
+/// [`parse_source`] with a token limit of `max_tokens`, also returning what
+/// the pre-scan counted.
 pub(crate) fn parse_counted<R: Send>(
     file: &RelPath,
     text: &str,
     max_tokens: usize,
     visit: impl FnOnce(&syn::File) -> R + Send,
-) -> Result<(R, usize), LoadError> {
-    let tokens = prescan(file, text, max_tokens)?;
+) -> Result<(R, Scan), LoadError> {
+    let scan = prescan(file, text, max_tokens)?;
     thread::scope(|scope| {
         let worker = thread::Builder::new()
             .name(file.to_string())
@@ -75,7 +75,7 @@ pub(crate) fn parse_counted<R: Send>(
             })
             .map_err(|source| LoadError::new(file, None, LoadErrorKind::Spawn(source)))?;
         match worker.join() {
-            Ok(Ok(result)) => Ok((result, tokens)),
+            Ok(Ok(result)) => Ok((result, scan)),
             Ok(Err(failure)) => Err(LoadError::new(
                 file,
                 Some(failure.line),

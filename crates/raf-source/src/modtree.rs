@@ -491,7 +491,7 @@ impl<'a> Walker<'a> {
             .read(path, &text)
             .map_err(|error| error.reached_by(origin))?;
         let allowance = self.meter.fact_allowance();
-        let (extracted, tokens) =
+        let (extracted, scan) =
             parse_counted(path, &text, self.meter.options().max_file_tokens, |tree| {
                 extract(tree, &text, allowance)
             })
@@ -499,7 +499,7 @@ impl<'a> Walker<'a> {
         let (facts, fact_bytes) =
             extracted.map_err(|problem| extract_error(path, origin, problem))?;
         self.meter.facts(fact_bytes);
-        self.meter.tokens(tokens);
+        self.meter.scanned(scan);
         self.meter
             .items(file_bytes(&id), path, None)
             .map_err(|error| error.reached_by(origin))?;

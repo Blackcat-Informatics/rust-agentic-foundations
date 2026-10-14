@@ -101,7 +101,8 @@ guarantees are these, and no wider:
 - **Bounds.** Input size and nesting depth are bounded. For Rust source the source
   index reads each file under a byte cap, runs a pre-scan that refuses a file over a
   budget (delimiter nesting, nested `<`, prefix operators, closure bars, `else if`
-  chains, and a token count, 2000000 by default, which bounds the memory of parsing
+  chains, an additive count of the parser's recursion over every open delimiter level,
+  whose limit keeps an admitted file within half of the parse stack, and a token count, 2000000 by default, which bounds the memory of parsing
   one file at its peak at 1664 bytes per token, about 3.1 GiB, and which a caller on
   a smaller host lowers) with a typed error naming the file and the budget, bounds
   the module walk (128 nested modules and 262144 module walks per load, because a
@@ -118,10 +119,11 @@ guarantees are these, and no wider:
   dedicated 64 MiB stack on a thread named after the file, and is fuzzed through a
   target (`parse_source`) whose committed corpus `cargo test` replays in child
   processes, in debug and in release. These bound memory outside the scope tables
-  and make stack overflow unlikely, and do not prove that an overflow cannot happen. A residual stack overflow aborts the run, so
-  the gate fails and never passes (no budget counts the committed composite shapes or
-  most of the uncounted shapes, so a file of one of them can end in such an abort), and a file ends in a typed error, a correct and
-  complete index, or an abort, never in success with a wrong or partial index. Report
+  and the stack that parsing an admitted file takes; the stack bound rests on an
+  audit of the parser's recursion and on measured costs. A residual stack overflow
+  aborts the run, so the gate fails and never passes, and a file ends in a typed
+  error, a correct and complete index, or an abort, never in success with a wrong or
+  partial index. Report
   an overflow as a robustness bug: under the trust model above its impact is a failed
   run and not a breach. The parsers set no time bound.
 - **Subprocesses.** Every spawned `cargo` or `git` process runs with no shell and

@@ -9,6 +9,7 @@ use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind};
 use crate::options::LoadOptions;
 use crate::path::RelPath;
+use crate::prescan::Scan;
 
 /// What a load spent against its budgets, as [`Workspace::usage`] reports it.
 ///
@@ -24,6 +25,9 @@ pub struct Usage {
     pub fact_bytes: usize,
     /// The most tokens of one file ([`Budget::FileTokens`]).
     pub max_file_tokens: usize,
+    /// The highest value the recursion counter of the pre-scan reached in one
+    /// file ([`Budget::Recursion`]).
+    pub max_recursion: usize,
     /// The deepest directory that discovery or a `workspace.members` pattern
     /// entered, in levels below its root ([`Budget::DirectoryDepth`]).
     pub max_directory_depth: usize,
@@ -36,6 +40,7 @@ pub(crate) struct Meter {
     item_bytes: Cell<usize>,
     fact_bytes: Cell<usize>,
     max_file_tokens: Cell<usize>,
+    max_recursion: Cell<usize>,
     max_directory_depth: Cell<usize>,
 }
 
@@ -64,6 +69,7 @@ impl Meter {
             item_bytes: Cell::new(0),
             fact_bytes: Cell::new(0),
             max_file_tokens: Cell::new(0),
+            max_recursion: Cell::new(0),
             max_directory_depth: Cell::new(0),
         }
     }
@@ -111,10 +117,12 @@ impl Meter {
             .set(self.fact_bytes.get().saturating_add(bytes));
     }
 
-    /// Record the tokens of a parsed file.
-    pub(crate) fn tokens(&self, tokens: usize) {
+    /// Record what the pre-scan of a parsed file counted.
+    pub(crate) fn scanned(&self, scan: Scan) {
         self.max_file_tokens
-            .set(self.max_file_tokens.get().max(tokens));
+            .set(self.max_file_tokens.get().max(scan.tokens));
+        self.max_recursion
+            .set(self.max_recursion.get().max(scan.recursion));
     }
 
     /// Check a directory `depth` levels below its root and record it.
@@ -138,6 +146,7 @@ impl Meter {
             item_bytes: self.item_bytes.get(),
             fact_bytes: self.fact_bytes.get(),
             max_file_tokens: self.max_file_tokens.get(),
+            max_recursion: self.max_recursion.get(),
             max_directory_depth: self.max_directory_depth.get(),
         }
     }
