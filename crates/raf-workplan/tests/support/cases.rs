@@ -10,7 +10,7 @@ use raf_okf::{ErrorTag, Location, MAX_TEXT_BYTES, MAX_YAML_DEPTH, Rule, RuleTag}
 use raf_workplan::Finding;
 
 use super::fixtures::{ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, mutate, valid};
-use super::{Repo, check, key, line_of, section};
+use super::{Repo, check_with_symlinks, key, line_of, section};
 
 /// A repository in which one file breaks one rule.
 pub(crate) struct Case {
@@ -26,6 +26,8 @@ pub(crate) struct Case {
     pub(crate) at: Location,
     /// The other kinds the same break also causes, all in `file`.
     pub(crate) also: Vec<&'static str>,
+    /// The paths of the repository that are tracked symlinks.
+    pub(crate) symlinks: Vec<&'static str>,
 }
 
 impl Case {
@@ -37,7 +39,14 @@ impl Case {
             file: file.to_string(),
             at,
             also: Vec::new(),
+            symlinks: Vec::new(),
         }
+    }
+
+    /// The paths of the repository that are tracked symlinks.
+    fn symlinks(mut self, paths: &[&'static str]) -> Self {
+        self.symlinks = paths.to_vec();
+        self
     }
 
     fn also(mut self, kinds: &[&'static str]) -> Self {
@@ -47,7 +56,7 @@ impl Case {
 
     /// Run the case and return every finding.
     pub(crate) fn run(&self) -> Vec<Finding> {
-        check(&self.repo)
+        check_with_symlinks(&self.repo, &self.symlinks)
     }
 
     /// Check the findings: the wanted kind is at the wanted place in the
@@ -90,8 +99,12 @@ fn in_overview(text: String) -> Repo {
 }
 
 /// The case for a rule of the profile.
-#[allow(clippy::too_many_lines, reason = "one arm per rule of the profile")]
 pub(crate) fn rule_case(tag: RuleTag) -> Case {
+    rule_case_unplaced(tag)
+}
+
+#[allow(clippy::too_many_lines, reason = "one arm per rule of the profile")]
+fn rule_case_unplaced(tag: RuleTag) -> Case {
     let name = format!("okf-{tag}");
     let kind = name.clone();
     let on = |path: &str, from: &str, to: &str, at: Location| {
@@ -537,11 +550,207 @@ pub(crate) fn reference_cases() -> Vec<Case> {
     cases
 }
 
+/// Replace the first `from` of `path` in `repo`.
+fn edit(repo: &mut Repo, path: &str, from: &str, to: &str) {
+    let text = repo
+        .get_mut(path)
+        .unwrap_or_else(|| panic!("fixture has no {path}"));
+    assert!(text.contains(from), "fixture {path} has no `{from}`");
+    *text = text.replacen(from, to, 1);
+}
+
+/// The proposed block of the beta fixture.
+pub(crate) const BETA_BLOCK: &str = "> [!PROPOSED change:add-alpha]\n> The candidate contract.\n\n";
+
+/// The cases for the PROPOSED block rules and, through `state_rule_cases`, the
+/// state rules between documents.
+pub(crate) fn state_cases() -> Vec<Case> {
+    let mut cases = Vec::new();
+    let marker_line = |repo: &Repo, path: &str| Location::Line(line_of(&repo[path], "[!PROPOSED"));
+    // A block names a change record that does not exist.
+    let repo = mutate(BETA, "change:add-alpha", "change:ghost");
+    let at = marker_line(&repo, BETA);
+    cases.push(Case::new(
+        "proposed-missing-change",
+        repo,
+        "proposed-missing-change",
+        BETA,
+        at,
+    ));
+    // The change exists, and does not list the capability. Beta is then
+    // listed by no record at all.
+    let mut repo = valid();
+    edit(
+        &mut repo,
+        CHANGE,
+        "changes: [cap:alpha, cap:beta]",
+        "changes: [cap:alpha]",
+    );
+    edit(&mut repo, CHANGE, "  - cap:beta#purpose\n", "");
+    let at = marker_line(&repo, BETA);
+    cases.push(
+        Case::new(
+            "proposed-change-not-listing",
+            repo,
+            "proposed-change-not-listing",
+            BETA,
+            at,
+        )
+        .also(&["no-open-record"]),
+    );
+    // The change lists the capability and does not affect the section.
+    let repo = mutate(CHANGE, "  - cap:beta#purpose\n", "  - cap:beta#usage\n");
+    let at = marker_line(&repo, BETA);
+    cases.push(Case::new(
+        "proposed-section-not-affected",
+        repo,
+        "proposed-section-not-affected",
+        BETA,
+        at,
+    ));
+    cases.extend(state_rule_cases());
+    cases
+}
+
+/// The cases for the rules a state fixes.
+fn state_rule_cases() -> Vec<Case> {
+    // A considered capability with no block.
+    let mut cases = vec![Case::new(
+        "state-considered-no-proposal",
+        mutate(BETA, BETA_BLOCK, ""),
+        "state-considered-no-proposal",
+        BETA,
+        key("state"),
+    )];
+    // A marker inside a code fence is not a block.
+    cases.push(Case::new(
+        "state-considered-fenced-marker",
+        mutate(
+            BETA,
+            BETA_BLOCK,
+            "```markdown\n> [!PROPOSED change:add-alpha]\n> The candidate contract.\n```\n\n",
+        ),
+        "state-considered-no-proposal",
+        BETA,
+        key("state"),
+    ));
+    cases.push(Case::new(
+        "state-designed-proposal",
+        mutate(
+            ALPHA,
+            "Text for Contract.\n",
+            "> [!PROPOSED change:add-alpha]\n> Not yet.\n\nText for Contract.\n",
+        ),
+        "state-designed-proposal",
+        ALPHA,
+        key("state"),
+    ));
+    // The change does not list gamma, so the block also names a change that
+    // does not list its capability.
+    cases.push(
+        Case::new(
+            "state-delivered-proposal",
+            mutate(
+                GAMMA,
+                "Text for Purpose.\n",
+                "Text for Purpose.\n\n> [!PROPOSED change:add-alpha]\n> Left over.\n",
+            ),
+            "state-delivered-proposal",
+            GAMMA,
+            key("state"),
+        )
+        .also(&["proposed-change-not-listing"]),
+    );
+    cases.push(Case::new(
+        "state-delivered-open-record",
+        mutate(
+            CHANGE,
+            "changes: [cap:alpha, cap:beta]",
+            "changes: [cap:alpha, cap:beta, cap:gamma]",
+        ),
+        "state-delivered-open-record",
+        GAMMA,
+        key("state"),
+    ));
+    let mut repo = valid();
+    edit(
+        &mut repo,
+        CHANGE,
+        "changes: [cap:alpha, cap:beta]",
+        "changes: [cap:beta]",
+    );
+    edit(&mut repo, CHANGE, "  - cap:alpha#contract\n", "");
+    cases.push(Case::new(
+        "no-open-record",
+        repo,
+        "no-open-record",
+        ALPHA,
+        key("state"),
+    ));
+    cases
+}
+
+/// The cases for the link rules and the issue-reference rule, each in a
+/// document that is loaded.
+pub(crate) fn link_cases() -> Vec<Case> {
+    let mut cases = Vec::new();
+    let in_overview = |name: &str, text: &str, kind: &str, needle: &str| {
+        let repo = mutate(OVERVIEW, "Body text.", &format!("Body text. {text}"));
+        let at = Location::Line(line_of(&repo[OVERVIEW], needle));
+        Case::new(name, repo, kind, OVERVIEW, at)
+    };
+    cases.push(in_overview(
+        "link-broken",
+        "See [gone](nope.md).",
+        "link-broken",
+        "nope.md",
+    ));
+    cases.push(in_overview(
+        "anchor-broken",
+        "See [gone](../capabilities/alpha.md#no-such-heading).",
+        "anchor-broken",
+        "no-such-heading",
+    ));
+    cases.push(in_overview(
+        "link-outside",
+        "See [out](../../../outside.md).",
+        "link-outside",
+        "outside.md",
+    ));
+    let mut linked = in_overview(
+        "link-symlink",
+        "See [out](../outside-link.svg).",
+        "link-symlink",
+        "outside-link.svg",
+    );
+    linked
+        .repo
+        .insert("docs/outside-link.svg".to_string(), String::new());
+    cases.push(linked.symlinks(&["docs/outside-link.svg"]));
+    let number = concat!("Per ", "#", "12");
+    cases.push(in_overview(
+        "issue-reference",
+        &format!("{number} said so."),
+        "issue-reference",
+        number,
+    ));
+    let phrase = concat!("As agreed in ", "this", " branch");
+    cases.push(in_overview(
+        "issue-reference-process-wording",
+        &format!("{phrase}."),
+        "issue-reference",
+        phrase,
+    ));
+    cases
+}
+
 /// Every named case, one or more per kind.
 pub(crate) fn all_cases() -> Vec<Case> {
     let mut cases: Vec<Case> = Rule::ALL.into_iter().map(rule_case).collect();
     cases.extend(raf_okf::ErrorKind::ALL.into_iter().map(parse_case));
     cases.extend(directory_cases());
     cases.extend(reference_cases());
+    cases.extend(state_cases());
+    cases.extend(link_cases());
     cases
 }

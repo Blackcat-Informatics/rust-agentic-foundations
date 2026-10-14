@@ -5,7 +5,7 @@
 
 use std::fmt;
 
-use raf_okf::{ErrorTag, Location, ParseError, RuleTag, Violation};
+use raf_okf::{ErrorTag, Location, ParseError, Rule, RuleTag, Violation};
 
 /// Declare the finding kinds as `const` members of [`kind`] and list them, in
 /// declaration order, as the one slice [`Finding::KINDS`] names. A finding is
@@ -32,6 +32,19 @@ kinds! {
     CHANGES_MISSING = "changes-missing";
     MOVED_MISSING = "moved-missing";
     DEPENDS_CYCLE = "depends-cycle";
+    PROPOSED_MISSING_CHANGE = "proposed-missing-change";
+    PROPOSED_CHANGE_NOT_LISTING = "proposed-change-not-listing";
+    PROPOSED_SECTION_NOT_AFFECTED = "proposed-section-not-affected";
+    STATE_CONSIDERED_NO_PROPOSAL = "state-considered-no-proposal";
+    STATE_DESIGNED_PROPOSAL = "state-designed-proposal";
+    STATE_DELIVERED_OPEN_RECORD = "state-delivered-open-record";
+    STATE_DELIVERED_PROPOSAL = "state-delivered-proposal";
+    NO_OPEN_RECORD = "no-open-record";
+    LINK_BROKEN = "link-broken";
+    ANCHOR_BROKEN = "anchor-broken";
+    LINK_OUTSIDE = "link-outside";
+    LINK_SYMLINK = "link-symlink";
+    ISSUE_REFERENCE = "issue-reference";
     OKF_MISSING_KEY = "okf-missing-key";
     OKF_UNKNOWN_KEY = "okf-unknown-key";
     OKF_RESOURCE_KEY = "okf-resource-key";
@@ -153,6 +166,23 @@ impl Finding {
     ///   is wrong with it.
     /// * `depends-cycle`: capabilities that depend on each other, once for
     ///   each group, a capability that depends on itself included.
+    ///
+    /// * `proposed-missing-change`, `proposed-change-not-listing` and
+    ///   `proposed-section-not-affected`: a PROPOSED block names a change
+    ///   with no record, names a change that does not list its capability,
+    ///   or sits in a section the change does not list in `affects`.
+    /// * `state-considered-no-proposal`, `state-designed-proposal`,
+    ///   `state-delivered-open-record` and `state-delivered-proposal`: a
+    ///   capability whose PROPOSED blocks or open change records do not fit
+    ///   its state, one kind for each rule. `no-open-record`: a capability
+    ///   that is not delivered and that no open change record lists (not
+    ///   reported while a change record exists that failed to load, since that
+    ///   record may list it and its own findings say what is wrong).
+    /// * `link-broken`, `anchor-broken`, `link-outside` and `link-symlink`: a
+    ///   link whose target is not a tracked path, whose anchor no heading
+    ///   has, that leaves the repository, or that leads to a tracked symlink.
+    /// * `issue-reference`: an issue or pull request number, or wording that
+    ///   refers to the development process, in a document.
     pub const KINDS: &'static [&'static str] = ALL_KINDS;
 
     pub(crate) fn new(
@@ -181,6 +211,13 @@ impl Finding {
             violation.rule().to_string(),
             fix,
         )
+    }
+
+    /// The finding for a rule of the `raf-okf` profile that a document outside
+    /// the typed documents breaks.
+    pub(crate) fn from_rule(rule: &Rule, file: &str, at: Location) -> Self {
+        let (kind, fix) = rule_entry(rule.kind());
+        Self::new(kind, file, at, rule.to_string(), fix)
     }
 
     /// The finding for a document or an index that does not read.

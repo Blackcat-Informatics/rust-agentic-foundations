@@ -130,8 +130,10 @@ make hooks   # point core.hooksPath at .githooks for this clone
   tree, not the index; only the files they judge come from the index. A
   `pre-merge-commit` hook runs the same gates on merge commits.
 - **`make licenses` and `make issue-refs` run the Rust gates** in
-  `tests/repo_gates.rs`, so they are a subset of `make test`. Both gate test
-  files share one pattern set and one file list in `tests/support/mod.rs`.
+  `tests/repo_gates.rs`, so they are a subset of `make test`. The pattern set
+  lives once, in `raf_workplan::refs`, which `raf-workplan` also applies to the
+  documents it loads; both gate test files call it and share one file list in
+  `tests/support/mod.rs`.
 - **Never bypass a hook or a gate.** Do not pass `--no-verify`, do not edit a hook
   to pass, and do not weaken a gate or a lint to get green. Fix the cause.
 - A missing tool is a hard failure, not a skip. `make reuse` needs `uvx` or

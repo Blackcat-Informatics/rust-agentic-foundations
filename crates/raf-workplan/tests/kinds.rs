@@ -14,7 +14,7 @@ use raf_workplan::Finding;
 use support::cases::all_cases;
 
 /// The kinds that name a rule of this crate.
-const OWN_KINDS: [&str; 9] = [
+const OWN_KINDS: [&str; 22] = [
     "wrong-directory",
     "nested-directory",
     "stray-markdown",
@@ -24,6 +24,19 @@ const OWN_KINDS: [&str; 9] = [
     "changes-missing",
     "moved-missing",
     "depends-cycle",
+    "proposed-missing-change",
+    "proposed-change-not-listing",
+    "proposed-section-not-affected",
+    "state-considered-no-proposal",
+    "state-designed-proposal",
+    "state-delivered-open-record",
+    "state-delivered-proposal",
+    "no-open-record",
+    "link-broken",
+    "anchor-broken",
+    "link-outside",
+    "link-symlink",
+    "issue-reference",
 ];
 
 #[test]
@@ -57,7 +70,7 @@ fn every_rule_and_every_reader_error_has_its_own_kind() {
     assert_eq!(have, want);
     assert_eq!(
         Finding::KINDS.len(),
-        Rule::ALL.len() + ErrorKind::ALL.len() + 8
+        Rule::ALL.len() + ErrorKind::ALL.len() + OWN_KINDS.len() - 1
     );
 }
 

@@ -11,6 +11,14 @@
 //! [`Finding::KINDS`], a location and a fix; nothing is skipped and nothing
 //! panics. [`Workplan::check`] returns the findings.
 //!
+//! The rules between documents are part of `check`: a PROPOSED block names a
+//! change that lists its capability and affects its section, each state fixes
+//! the blocks and the open change records a capability may have, links resolve
+//! against a set of tracked paths and the anchors of their targets
+//! ([`LinkContext`]), and no document holds an issue or pull request reference
+//! ([`refs`]). Markdown outside the document directories, such as the README,
+//! is judged by the same rules through [`plain::check`].
+//!
 //! The load also builds the [`Graph`] of the documents and the source they are
 //! bound to, available as [`Workplan::graph`], and reports the references that
 //! name a document that does not exist and the `depends` cycles.
@@ -44,12 +52,17 @@
 
 mod finding;
 mod graph;
+mod links;
 mod load;
 mod model;
+pub mod plain;
+pub mod refs;
+mod rules;
 
 pub use finding::Finding;
 pub use graph::{
     AffectsEdge, Binding, BindingKind, ChangesEdge, DependsEdge, Edge, EdgeKind, Graph, LinkEdge,
     LinkEnd, Node, NodeKind, Proposal, SectionId,
 };
+pub use links::LinkContext;
 pub use model::{Loaded, Workplan};

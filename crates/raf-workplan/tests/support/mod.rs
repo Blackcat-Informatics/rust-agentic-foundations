@@ -15,8 +15,8 @@ pub(crate) mod cases;
 use std::collections::BTreeMap;
 
 use raf_okf::Location;
-use raf_source::{MemoryTree, Workspace};
-use raf_workplan::{Finding, Workplan};
+use raf_source::{MemoryTree, RelPath, Workspace};
+use raf_workplan::{Finding, LinkContext, Workplan};
 
 /// Path to text, as the repository holds them.
 pub(crate) type Repo = BTreeMap<String, String>;
@@ -39,9 +39,46 @@ pub(crate) fn demo_workspace() -> Workspace {
 
 /// Load `repo` through a memory tree and return every finding.
 pub(crate) fn check(repo: &Repo) -> Vec<Finding> {
+    check_with_symlinks(repo, &[])
+}
+
+/// Load `repo` through a memory tree whose paths `symlinks` are tracked
+/// symlinks, and return every finding.
+pub(crate) fn check_with_symlinks(repo: &Repo, symlinks: &[&str]) -> Vec<Finding> {
     let tree: MemoryTree = repo.iter().collect();
     let workspace = demo_workspace();
-    Workplan::load(&tree, &workspace).check()
+    let context =
+        LinkContext::of_tree(&tree).with_symlinks(symlinks.iter().map(|path| path_of(path)));
+    Workplan::load_with(&tree, &workspace, &context).check()
+}
+
+/// The path `text` as a tree path.
+pub(crate) fn path_of(text: &str) -> RelPath {
+    match RelPath::new(text) {
+        Ok(path) => path,
+        Err(error) => panic!("`{text}` is not a path: {error}"),
+    }
+}
+
+/// Check the Markdown file `path` of `repo` as a file outside the document
+/// directories, against the tracked paths of the repository and the named
+/// symlinks.
+pub(crate) fn plain_check(repo: &Repo, path: &str, symlinks: &[&str]) -> Vec<Finding> {
+    let tree: MemoryTree = repo.iter().collect();
+    let context =
+        LinkContext::of_tree(&tree).with_symlinks(symlinks.iter().map(|path| path_of(path)));
+    let text = repo
+        .get(path)
+        .unwrap_or_else(|| panic!("the repository has no {path}"));
+    raf_workplan::plain::check(path, text, &context)
+}
+
+/// The valid repository with `text` added at `path`, and the findings of
+/// checking that file as plain Markdown.
+pub(crate) fn with_file(path: &str, text: &str) -> Vec<Finding> {
+    let mut repo = fixtures::valid();
+    repo.insert(path.to_string(), text.to_string());
+    plain_check(&repo, path, &[])
 }
 
 pub(crate) mod fixtures {

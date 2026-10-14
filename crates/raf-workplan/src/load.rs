@@ -10,7 +10,8 @@ use raf_okf::{
 use raf_source::{EntryKind, RelPath, Tree, TreeError, Workspace};
 
 use crate::finding::kind;
-use crate::{Finding, Loaded, Workplan};
+use crate::links::{self, LinkContext};
+use crate::{Finding, Loaded, Workplan, plain, refs};
 
 /// The most bytes a document read may hold: one more than the profile accepts,
 /// so a text over the profile bound reaches the reader and is refused there.
@@ -19,18 +20,36 @@ const READ_LIMIT: u64 = MAX_TEXT_BYTES as u64 + 1;
 /// The file name of the navigation file of a directory.
 const INDEX: &str = "index.md";
 
-pub(crate) fn load<'s>(docs: &dyn Tree, source: &'s Workspace) -> Workplan<'s> {
+pub(crate) fn load<'s>(
+    docs: &dyn Tree,
+    source: &'s Workspace,
+    links: &LinkContext<'_>,
+) -> Workplan<'s> {
     let mut plan = Workplan::empty(source);
     for doc_type in DocType::ALL {
-        scan_directory(docs, doc_type, &mut plan);
+        scan_directory(docs, doc_type, links, &mut plan);
     }
     plan.relate();
+    for (directory, reason) in links.unreadable() {
+        plan.findings.push(Finding::new(
+            kind::UNREADABLE_DIRECTORY,
+            directory,
+            Location::Document,
+            format!("the directory cannot be listed for the tracked paths: {reason}"),
+            "make the directory readable, or remove it; nothing is skipped",
+        ));
+    }
     plan
 }
 
 /// Walk one document directory: the files directly in it are read, and a
 /// Markdown file below it is nested.
-fn scan_directory(docs: &dyn Tree, doc_type: DocType, plan: &mut Workplan<'_>) {
+fn scan_directory(
+    docs: &dyn Tree,
+    doc_type: DocType,
+    links: &LinkContext<'_>,
+    plan: &mut Workplan<'_>,
+) {
     let home = doc_type.directory();
     let mut pending = vec![(home.to_string(), 0_usize)];
     while let Some((directory, depth)) = pending.pop() {
@@ -55,7 +74,7 @@ fn scan_directory(docs: &dyn Tree, doc_type: DocType, plan: &mut Workplan<'_>) {
                 subdirectories.push((path, depth + 1));
             } else if is_markdown(&entry.name) {
                 if depth == 0 {
-                    read_file(docs, doc_type, &path, plan);
+                    read_file(docs, doc_type, &path, links, plan);
                 } else {
                     plan.findings.push(nested(&path, home));
                 }
@@ -103,7 +122,13 @@ fn nested(path: &str, home: &str) -> Finding {
 }
 
 /// Read one file that sits directly in the directory of `dir_type`.
-fn read_file(docs: &dyn Tree, dir_type: DocType, path: &str, plan: &mut Workplan<'_>) {
+fn read_file(
+    docs: &dyn Tree,
+    dir_type: DocType,
+    path: &str,
+    links: &LinkContext<'_>,
+    plan: &mut Workplan<'_>,
+) {
     let text = match RelPath::new(path)
         .map_err(|error| TreeError::OutsideRoot {
             path: error.input().to_string(),
@@ -118,13 +143,18 @@ fn read_file(docs: &dyn Tree, dir_type: DocType, path: &str, plan: &mut Workplan
             return;
         }
     };
+    refs::scan(path, &text, &mut plan.findings);
     if path.rsplit('/').next() == Some(INDEX) {
         // Navigation, not a document. The capability index is generated, so
-        // it must read as an index.
-        if is_capability_index(path)
-            && let Err(error) = Index::parse(&text)
-        {
-            plan.findings.push(Finding::from_parse_error(path, &error));
+        // it must read as an index; any other index is Markdown that every
+        // rule shared by Markdown files judges.
+        if is_capability_index(path) {
+            match Index::parse(&text) {
+                Ok(index) => links::check_body(path, index.body(), links, &mut plan.findings),
+                Err(error) => plan.findings.push(Finding::from_parse_error(path, &error)),
+            }
+        } else {
+            plain::rules(path, &text, links, &mut plan.findings);
         }
         return;
     }
@@ -133,14 +163,20 @@ fn read_file(docs: &dyn Tree, dir_type: DocType, path: &str, plan: &mut Workplan
         Err(error) => {
             // A page without a frontmatter fence is no document; any other
             // failure is a document that is present and broken.
-            if error.kind().tag() != ErrorTag::MissingFence {
+            if error.kind().tag() == ErrorTag::MissingFence {
+                // The page is a stray file, and it is still Markdown: the
+                // rules every Markdown file shares judge it.
+                plan.findings.push(Finding::from_parse_error(path, &error));
+                plain::rules(path, &text, links, &mut plan.findings);
+            } else {
                 plan.note_present(dir_type, path);
+                plan.findings.push(Finding::from_parse_error(path, &error));
             }
-            plan.findings.push(Finding::from_parse_error(path, &error));
             return;
         }
     };
     plan.note_present(document.doc_type().unwrap_or(dir_type), path);
+    links::check_body(path, document.body(), links, &mut plan.findings);
     if let Some(declared) = document.doc_type().filter(|declared| *declared != dir_type) {
         plan.findings.push(Finding::new(
             kind::WRONG_DIRECTORY,
@@ -168,8 +204,28 @@ fn read_file(docs: &dyn Tree, dir_type: DocType, path: &str, plan: &mut Workplan
                 }
             }
         }
-        Err(violations) => plan
-            .findings
-            .extend(violations.iter().map(Finding::from_violation)),
+        Err(violations) => {
+            // The blocks of a document that does not validate still name
+            // change records; the rules between documents judge them once
+            // every record is read.
+            if doc_type_is_capability(&document, dir_type) {
+                plan.unvalidated_blocks
+                    .extend(document.body().proposed_blocks().iter().map(|block| {
+                        (
+                            path.to_string(),
+                            block.slug().to_string(),
+                            block.marker().lines.start,
+                        )
+                    }));
+            }
+            plan.findings
+                .extend(violations.iter().map(Finding::from_violation));
+        }
     }
+}
+
+/// Whether a document is read as a capability: it says so, or says nothing
+/// and sits in the capability directory.
+fn doc_type_is_capability(document: &Document, dir_type: DocType) -> bool {
+    document.doc_type().unwrap_or(dir_type) == DocType::Capability
 }

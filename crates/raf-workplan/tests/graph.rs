@@ -75,7 +75,7 @@ fn repo() -> support::Repo {
             ),
             &format!("Run `{CASE}` to see it.\n\n```text\nuse `{FOURTH}` here\n```"),
             &format!(
-                "Run the example `demo::example_crate::show`, not `{CASE}_extra` or `other::{CASE}`."
+                "Run the example `demo::example_crate::show`, not `{CASE}_extra`, `other::{CASE}` or `{CASE}::inner`."
             ),
             &format!("Also `{CASE}` and `{ABSENT}` hold."),
             "Why.",
@@ -455,4 +455,153 @@ fn the_queries_are_deterministic() {
         (plan.graph().nodes(), plan.graph().edges())
     });
     assert_eq!(first, second);
+}
+
+#[test]
+fn a_code_span_that_continues_the_bound_path_with_a_segment_does_not_substantiate() {
+    with_plan(&repo(), |plan, _| {
+        // The Examples section names `<CASE>::inner`, `<CASE>_extra` and
+        // `other::<CASE>`, and none of them is the bound path.
+        assert!(!tests_in(plan, "cap:alpha", S::Examples).contains(&CASE.to_string()));
+        let case = plan
+            .graph()
+            .bindings()
+            .iter()
+            .find(|b| b.capability() == "cap:alpha" && b.path() == CASE)
+            .expect("binding");
+        assert!(!case.sections().contains(&S::Examples));
+    });
+}
+
+/// How many link edges the unchanged repository has.
+fn baseline_links() -> usize {
+    with_plan(&repo(), |plan, _| plan.graph().links().len())
+}
+
+/// The repository with `extra` appended to the Constraints text of alpha.
+fn with_alpha_text(extra: &str) -> support::Repo {
+    let mut repo = repo();
+    let text = repo.get_mut(ALPHA).expect("alpha");
+    *text = text.replacen("Also `", &format!("{extra}\n\nAlso `"), 1);
+    repo
+}
+
+#[test]
+fn hostile_duplicate_ids_across_files_load_one_capability_and_report_the_other_file() {
+    let mut repo = repo();
+    let copy = repo[ALPHA].clone();
+    repo.insert("docs/capabilities/alpha-copy.md".to_string(), copy);
+    with_plan(&repo, |plan, _| {
+        assert_eq!(
+            plan.graph()
+                .capabilities()
+                .iter()
+                .filter(|id| *id == "cap:alpha")
+                .count(),
+            1
+        );
+        let kinds: Vec<&str> = plan
+            .findings()
+            .iter()
+            .filter(|f| f.file == "docs/capabilities/alpha-copy.md")
+            .map(|f| f.kind)
+            .collect();
+        assert!(kinds.contains(&"okf-id-file-name"), "{kinds:?}");
+        // Nothing else about the copy can reach the graph.
+        assert_eq!(
+            plan.graph()
+                .bindings()
+                .iter()
+                .filter(|b| b.capability() == "cap:alpha")
+                .count(),
+            8
+        );
+    });
+}
+
+#[test]
+fn hostile_self_dependency_is_one_cycle_and_one_edge() {
+    let mut repo = repo();
+    let text = repo.get_mut(ALPHA).expect("alpha");
+    *text = text.replacen("depends: [cap:beta]", "depends: [cap:alpha, cap:beta]", 1);
+    with_plan(&repo, |plan, _| {
+        let cycles: Vec<_> = plan
+            .findings()
+            .iter()
+            .filter(|f| f.kind == "depends-cycle")
+            .collect();
+        assert_eq!(cycles.len(), 1, "{cycles:#?}");
+        let selves = plan
+            .graph()
+            .depends()
+            .iter()
+            .filter(|edge| edge.from() == "cap:alpha" && edge.to() == "cap:alpha")
+            .count();
+        assert_eq!(selves, 1);
+    });
+}
+
+#[test]
+fn hostile_an_anchor_only_another_document_has_is_no_edge_and_a_finding() {
+    // `#overview` is a heading of the overview page and not of alpha.
+    let repo = with_alpha_text("Jump to [there](#overview).");
+    with_plan(&repo, |plan, _| {
+        let broken: Vec<_> = plan
+            .findings()
+            .iter()
+            .filter(|f| f.kind == "anchor-broken")
+            .collect();
+        assert_eq!(broken.len(), 1, "{broken:#?}");
+        assert_eq!(broken[0].file, ALPHA);
+        assert_eq!(plan.graph().links().len(), baseline_links());
+    });
+}
+
+#[test]
+fn hostile_duplicated_heading_anchors_are_numbered_and_the_next_one_is_missing() {
+    let repo = with_alpha_text(
+        "### Same\n\nA.\n\n### Same\n\nB.\n\n[first](#same)\n\n[second](#same-1)\n\n[third](#same-2)",
+    );
+    with_plan(&repo, |plan, _| {
+        let broken: Vec<_> = plan
+            .findings()
+            .iter()
+            .filter(|f| f.kind == "anchor-broken")
+            .collect();
+        assert_eq!(broken.len(), 1, "{broken:#?}");
+        assert!(broken[0].message.contains("#same-2"));
+        let to_constraints = plan
+            .graph()
+            .links()
+            .iter()
+            .filter(|edge| {
+                matches!(edge.to(), LinkEnd::Section(id) if id.section() == S::Constraints)
+                    && matches!(edge.from(), LinkEnd::Section(id) if id.section() == S::Constraints)
+            })
+            .count();
+        assert_eq!(to_constraints, 2);
+    });
+}
+
+#[test]
+fn hostile_links_in_fences_and_code_spans_are_neither_edges_nor_findings() {
+    let repo = with_alpha_text(
+        "```md\n[gone](nothing.md) [bad](#nope)\n```\n\nA span `[gone](nothing.md)` and ``[bad](#nope)``.",
+    );
+    with_plan(&repo, |plan, _| {
+        assert!(plan.findings().is_empty(), "{:#?}", plan.findings());
+        assert_eq!(plan.graph().links().len(), baseline_links());
+    });
+}
+
+#[test]
+fn hostile_unterminated_backticks_name_nothing_and_break_nothing() {
+    let repo = with_alpha_text(&format!(
+        "An open span `{OTHER} never closed.\n\nA run ``{THIRD}` of unequal length."
+    ));
+    with_plan(&repo, |plan, _| {
+        assert!(plan.findings().is_empty(), "{:#?}", plan.findings());
+        // Neither path is in a span, so neither substantiates Constraints.
+        assert_eq!(tests_in(plan, "cap:alpha", S::Constraints), [ABSENT, CASE]);
+    });
 }

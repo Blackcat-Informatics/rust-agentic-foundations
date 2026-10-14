@@ -32,7 +32,18 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   queries `code_of`, `capabilities_of`, `tests_for`, `sections_of` and
   `linking_sections` return typed, sorted values. The rules between documents are
   the kinds `depends-missing`, `changes-missing`, `moved-missing` and
-  `depends-cycle`.
+  `depends-cycle`. The rules of PROPOSED blocks and states are the kinds
+  `proposed-missing-change`, `proposed-change-not-listing`,
+  `proposed-section-not-affected`, `state-considered-no-proposal`,
+  `state-designed-proposal`, `state-delivered-open-record`,
+  `state-delivered-proposal` and `no-open-record`. Links are judged against a
+  caller-supplied `LinkContext` of tracked paths and tracked symlinks (or the
+  files of the tree) as `link-broken`, `anchor-broken`, `link-outside` and
+  `link-symlink`, over inline, reference, image and HTML `href` and `src`
+  links, with anchors by GitHub rules. `plain::check` applies the same rules to
+  tracked Markdown outside the document directories. `refs` holds the one
+  pattern set for issue and pull request numbers and process wording, which
+  `check` reports as `issue-reference` and the repository gates call.
 - **`raf-okf` rule and error tags:** `Rule::ALL` and `ErrorKind::ALL` list the
   payload-free `RuleTag` and `ErrorTag` of every variant, with `Rule::kind`,
   `ErrorKind::tag` and a kebab-case `name`, so a caller can name and map every rule

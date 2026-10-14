@@ -10,7 +10,9 @@ mod support;
 use raf_okf::{CapabilitySection, ContractEffect, Location, MAX_TEXT_BYTES, Section, State};
 use raf_source::MemoryTree;
 use raf_workplan::{Loaded, Workplan};
-use support::fixtures::{ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, capability, mutated, valid};
+use support::fixtures::{
+    ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, capability, change_record, mutated, valid,
+};
 use support::{Repo, assert_cases, assert_clean, assert_hit, assert_kind, check, key, section};
 
 #[test]
@@ -93,6 +95,11 @@ fn fixture_builder_is_self_consistent() {
     assert!(doc.contains("id: cap:delta"));
     let mut repo = valid();
     repo.insert("docs/capabilities/delta.md".to_string(), doc);
+    // A capability that is not delivered is listed by an open record.
+    repo.insert(
+        "work/changes/add-delta.md".to_string(),
+        change_record("add-delta", "[cap:delta]", "  - cap:delta#contract\n", ""),
+    );
     assert_clean(&check(&repo));
 }
 

@@ -10,7 +10,9 @@ use raf_source::Workspace;
 
 use crate::Finding;
 use crate::graph::{self, Graph};
+use crate::links::LinkContext;
 use crate::load;
+use crate::rules;
 
 /// A document that satisfies the profile: where it is, what it says in its
 /// frontmatter, and its body.
@@ -58,6 +60,9 @@ pub struct Workplan<'s> {
     pub(crate) findings: Vec<Finding>,
     /// The ids of the documents that exist as files, loaded or not.
     present: BTreeSet<String>,
+    /// The PROPOSED blocks of capability documents that failed validation:
+    /// file, change slug and line.
+    pub(crate) unvalidated_blocks: Vec<(String, String, usize)>,
     graph: Graph,
     source: &'s Workspace,
 }
@@ -73,9 +78,28 @@ impl<'s> Workplan<'s> {
     /// `index.md` that has no frontmatter is `stray-markdown`, and a file or a
     /// directory the tree refuses is `unreadable-file` or
     /// `unreadable-directory`. A directory that does not exist holds nothing.
+    ///
+    /// Links are judged against every file `docs` lists, which is the set of
+    /// tracked paths only for a tree that holds nothing else. On a disk tree
+    /// the listing includes untracked and ignored files, build output and
+    /// `.git`, so a link to an untracked file passes; a caller that checks a
+    /// working copy passes its tracked list through [`Workplan::load_with`]
+    /// and [`LinkContext::new`]. See [`LinkContext::of_tree`].
     #[must_use]
     pub fn load(docs: &dyn raf_source::Tree, source: &'s Workspace) -> Self {
-        load::load(docs, source)
+        load::load(docs, source, &LinkContext::of_tree(docs))
+    }
+
+    /// As [`Workplan::load`], with the links of the documents judged against
+    /// `links`: the tracked paths, the tracked symlinks, and the tree the
+    /// anchors are read from.
+    #[must_use]
+    pub fn load_with(
+        docs: &dyn raf_source::Tree,
+        source: &'s Workspace,
+        links: &LinkContext<'_>,
+    ) -> Self {
+        load::load(docs, source, links)
     }
 
     pub(crate) fn empty(source: &'s Workspace) -> Self {
@@ -85,6 +109,7 @@ impl<'s> Workplan<'s> {
             architecture: Vec::new(),
             findings: Vec::new(),
             present: BTreeSet::new(),
+            unvalidated_blocks: Vec::new(),
             graph: Graph::default(),
             source,
         }
@@ -110,6 +135,12 @@ impl<'s> Workplan<'s> {
         );
         self.graph = graph;
         self.findings.extend(findings);
+        self.findings.extend(rules::check(
+            &self.capabilities,
+            &self.changes,
+            &self.present,
+            &self.unvalidated_blocks,
+        ));
     }
 
     /// The graph of the documents and the source they are bound to.
