@@ -66,6 +66,26 @@ fn a_byte_order_mark_leaves_the_lines_of_the_text_where_they_are() {
 }
 
 #[test]
+fn a_byte_order_mark_on_the_first_line_starts_the_span_of_its_item_after_the_mark() {
+    let ws = load(&format!("{BOM}pub fn first() {{}} pub fn second() {{}}\n")).expect("loads");
+    let first = item(&ws, "demo::first");
+    assert_eq!(first.span.start_line, 1);
+    assert_eq!(first.span.start_byte, BOM.len());
+    assert_eq!(covered(&ws, first), "pub fn first() {}");
+    // A second item on the same line checks the column arithmetic after the mark.
+    let second = item(&ws, "demo::second");
+    assert_eq!(second.span.start_line, 1);
+    assert_eq!(
+        second.span.start_byte,
+        BOM.len() + "pub fn first() {} ".len()
+    );
+    assert_eq!(covered(&ws, second), "pub fn second() {}");
+    let at = ws.item_at(&first.file, BOM.len());
+    assert_eq!(at.len(), 1);
+    assert_eq!(at[0].name.as_ref(), "first");
+}
+
+#[test]
 fn a_syntax_error_in_a_crlf_file_or_after_a_byte_order_mark_names_its_own_line() {
     for text in [
         "fn ok() {}\n\nfn 1 {}\n",

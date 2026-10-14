@@ -361,7 +361,12 @@ struct Positions<'t> {
 
 impl<'t> Positions<'t> {
     fn new(text: &'t str) -> Self {
-        let mut starts = vec![0];
+        // The parser reads the text without a byte-order mark, so its columns
+        // on the first line count from the character after it.
+        let mut starts = vec![
+            text.strip_prefix('\u{feff}')
+                .map_or(0, |_| '\u{feff}'.len_utf8()),
+        ];
         starts.extend(text.match_indices('\n').map(|(at, _)| at + 1));
         Self {
             text,

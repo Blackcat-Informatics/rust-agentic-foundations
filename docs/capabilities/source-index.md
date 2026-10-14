@@ -154,6 +154,7 @@ bindings:
     - raf_source::test_crate::spawn_limit::a_parse_thread_the_system_refuses_a_stack_is_a_spawn_error_naming_the_file
     - raf_source::test_crate::source_text::crlf_line_endings_give_the_same_lines_and_spans_as_lf
     - raf_source::test_crate::source_text::a_byte_order_mark_leaves_the_lines_of_the_text_where_they_are
+    - raf_source::test_crate::source_text::a_byte_order_mark_on_the_first_line_starts_the_span_of_its_item_after_the_mark
     - raf_source::test_crate::source_text::a_syntax_error_in_a_crlf_file_or_after_a_byte_order_mark_names_its_own_line
     - raf_source::test_crate::source_text::a_budget_refusal_in_a_crlf_file_names_the_same_line_as_in_an_lf_file
     - raf_source::test_crate::source_text::a_module_file_that_is_not_utf8_is_refused_on_disk_naming_the_file
@@ -1797,5 +1798,6 @@ duplicates.
   beside the same child without a limit, which loads. A module file that is not UTF-8
   is refused naming it and the line of its `mod`, beside the same text in UTF-8, which
   loads. CRLF line endings, with and without a byte-order mark, give the lines and byte
-  spans of the LF text; a syntax error and a budget refusal name the same line in LF
+  spans of the LF text; a byte-order mark on the first line leaves its span starting
+  after the mark's bytes; a syntax error and a budget refusal name the same line in LF
   and CRLF text and after a mark.
