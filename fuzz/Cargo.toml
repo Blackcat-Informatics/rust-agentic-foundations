@@ -8,7 +8,7 @@
 
 [package]
 name = "raf-source-fuzz"
-description = "Fuzz harness for the bounded parse of raf-source."
+description = "Fuzz harness for the bounded parse and the workspace load of raf-source and the document reader of raf-okf."
 version = "0.0.0"
 edition = "2024"
 rust-version = "1.98.1"
@@ -26,7 +26,7 @@ raf-okf = { path = "../crates/raf-okf", version = "0.1.0" }
 raf-source = { path = "../crates/raf-source", version = "0.1.0" }
 
 [[bin]]
-name = "parse_source"
+name = "parse-source"
 path = "fuzz_targets/parse_source.rs"
 test = false
 doc = false
@@ -35,6 +35,13 @@ bench = false
 [[bin]]
 name = "parse-document"
 path = "fuzz_targets/parse_document.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "load-workspace"
+path = "fuzz_targets/load_workspace.rs"
 test = false
 doc = false
 bench = false

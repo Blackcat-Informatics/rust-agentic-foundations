@@ -18,7 +18,7 @@ use support::shapes::{self, EXPECTED_NAMES};
 const PREFIX: &str = "corpus/";
 
 fn corpus_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fuzz/corpus/parse_source")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fuzz/corpus/parse-source")
 }
 
 fn corpus_file(name: &str) -> PathBuf {

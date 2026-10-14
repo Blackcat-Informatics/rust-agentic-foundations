@@ -74,7 +74,7 @@ at the first link, a file that is not a regular file is refused, and that type i
 checked on the opened handle. A refusal is an error that names the package and the
 file, and the file is not read. The same per-file `max_file_bytes` cap (default 8 MiB,
 set in `[census]`), the pre-scan budgets, the 64 MiB parse stack and the
-`parse_source` fuzz target apply to reference source. They make a stack overflow
+`parse-source` fuzz target apply to reference source. They make a stack overflow
 unlikely and do not prove its absence, and a residual overflow aborts the run, which
 fails the scan and never passes it. A file ends in one of three outcomes: refused with
 a typed error, indexed correctly and completely, or an abort with a non-zero status;

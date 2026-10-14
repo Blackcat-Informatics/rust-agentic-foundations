@@ -31,9 +31,15 @@ CARGO_FUZZ_VERSION ?= 0.13.2
 FUZZ_DENY ?= --offline
 FUZZ_RUNS ?= 5000
 FUZZ_SEED ?= 1
-# Inputs are cut to this length: the large corpus files are judged by the
-# replay test in child processes, where an abort cannot take the fuzzer down.
-FUZZ_MAX_LEN ?= 4096
+# Inputs are cut to this length, which every corpus file fits, so a run reaches
+# inputs as large as the chains that once overflowed the parse stack.
+FUZZ_MAX_LEN ?= 400000
+# The runs build without `cfg(fuzzing)`: under it `proc-macro2` drops the
+# positions of what it parses, and the source index refuses every item without
+# them, so a load would never reach the index.
+# The memory limits of every run, in MiB: the resident set, and one allocation.
+FUZZ_RSS_LIMIT_MB ?= 2048
+FUZZ_MALLOC_LIMIT_MB ?= 512
 CROSS_TARGETS ?= x86_64-apple-darwin x86_64-unknown-freebsd x86_64-pc-windows-gnu
 
 .PHONY: help fmt clippy test test-release doc deny reuse msrv fuzz cross-check licenses issue-refs check hooks
@@ -85,9 +91,11 @@ fuzz: ## Fuzz harness: fmt, clippy, deny, then a bounded run (needs cargo-fuzz).
 	cargo clippy --manifest-path '$(ROOT)/fuzz/Cargo.toml' --locked -- -D warnings
 	cd '$(ROOT)/fuzz' && cargo deny $(FUZZ_DENY) check
 	@work=$$(mktemp -d) && trap 'rm -rf "$$work"' EXIT && \
-	  for target in parse_source parse-document; do \
-	    cargo fuzz run "$$target" "$$work" "fuzz/corpus/$$target" -- \
-	      -runs=$(FUZZ_RUNS) -seed=$(FUZZ_SEED) -max_len=$(FUZZ_MAX_LEN) || exit 1; \
+	  for target in parse-source parse-document load-workspace; do \
+	    mkdir "$$work/$$target" && \
+	    cargo fuzz run --no-cfg-fuzzing "$$target" "$$work/$$target" "fuzz/corpus/$$target" -- \
+	      -runs=$(FUZZ_RUNS) -seed=$(FUZZ_SEED) -max_len=$(FUZZ_MAX_LEN) \
+	      -rss_limit_mb=$(FUZZ_RSS_LIMIT_MB) -malloc_limit_mb=$(FUZZ_MALLOC_LIMIT_MB) || exit 1; \
 	  done
 
 cross-check: ## cargo check every raf-source target for the Apple, FreeBSD and Windows targets, warnings denied.

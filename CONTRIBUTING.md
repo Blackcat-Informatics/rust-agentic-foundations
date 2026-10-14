@@ -67,8 +67,10 @@ make help    # list every target
   same on the fuzz manifest) on Rust 1.98.1 through `rust-validate`. Install `rust-validate`, or point `MSRV_RUN`
   at a command that runs the 1.98.1 toolchain.
 - **Fuzz harness.** `make fuzz` checks `fuzz/` (its own cargo-fuzz workspace) with
-  fmt, clippy and an offline `cargo deny`, then runs the `parse_source` target over
-  its committed corpus. It needs `cargo-fuzz` (`cargo install --locked
+  fmt, clippy and an offline `cargo deny`, then runs each of its targets
+  (`parse-source`, `parse-document` and `load-workspace`) over its committed corpus,
+  with inputs of up to 400000 bytes and limits on resident memory and on one
+  allocation. It needs `cargo-fuzz` (`cargo install --locked
   cargo-fuzz@0.13.2`); a missing tool is a failure. `make msrv` and `make fmt` cover
   the fuzz manifest too.
 - **Release tests and cross-check.** `make test-release` runs the `raf-source` tests

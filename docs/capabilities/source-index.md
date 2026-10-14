@@ -135,6 +135,8 @@ bindings:
     - raf_source::test_crate::prescan_budgets::the_eighty_kilobyte_box_pattern_is_refused_in_under_a_second
     - raf_source::test_crate::prescan_budgets::the_recursion_refusal_names_the_line_where_the_count_went_over
     - raf_source::test_crate::walk_stack::a_use_tree_at_the_recursion_limit_loads_resolves_and_drops_on_a_five_hundred_twelve_kib_thread
+    - raf_source::test_crate::workspace_seeds::every_load_workspace_seed_loads_with_items_through_the_fuzz_input_code
+    - raf_source::test_crate::workspace_seeds::the_self_check_the_fuzz_target_runs_first_passes_beside_an_input_that_is_not_a_tree
     - raf_source::test_crate::overflow_harness::every_committed_overflow_shape_is_refused_by_a_budget_and_none_aborts
     - raf_source::test_crate::overflow_harness::a_deliberate_overflow_aborts_and_the_runtime_names_the_parse_thread
     - raf_source::test_crate::overflow_harness::a_return_chain_that_needs_twice_the_stack_is_refused_beside_one_at_a_safe_depth
@@ -612,9 +614,12 @@ Parsing then runs on a dedicated thread, named after the file, with a stack of 6
 MiB (`PARSE_STACK_BYTES`), which is a stated constant and not the stack of the
 caller. `parse_source` runs a visitor on the syntax tree on that thread and
 returns what the visitor returns. A committed fuzz
-target, `parse_source` in `fuzz/fuzz_targets/parse_source.rs`, feeds arbitrary bytes
-through the pre-scan and the parse. Its corpus, `fuzz/corpus/parse_source/`, is
-committed and holds the composite and single-shape fixtures of Verification below,
+target, `parse-source` in `fuzz/fuzz_targets/parse_source.rs`, feeds arbitrary bytes
+through the pre-scan and the parse. A second, `load-workspace` in
+`fuzz/fuzz_targets/load_workspace.rs`, builds a `MemoryTree` from its input, a
+manifest and a few files, loads it with `Workspace::load` and resolves paths through
+the index. Each has a committed corpus under `fuzz/corpus/`; that of `parse-source`,
+`fuzz/corpus/parse-source/`, holds the composite and single-shape fixtures of Verification below,
 files at and just over each budget, the chains that overflowed the parse stack before
 the recursion budget counted them, and every input that ever aborted a run. The
 recursion budget is additive over the levels, so nesting one shape inside another
@@ -1405,13 +1410,21 @@ duplicates.
   chain that needs twice the parse stack is refused beside one of 1000 levels, which
   parses.
 - Corpus replay under `cargo test`: a test loads every file of
-  `fuzz/corpus/parse_source/` as the root file of a library in a child process and asserts that each is refused
+  `fuzz/corpus/parse-source/` as the root file of a library in a child process and asserts that each is refused
   naming its budget or exits 0 with its recorded index, and that none aborts, so a
   regression is caught without running the fuzzer.
-- The fuzz target `parse_source` builds and runs for a bounded number of iterations
-  over its corpus without a crash. That run cuts inputs to 4096 bytes, because an
-  abort would end the fuzzer; the larger corpus files are judged by the replay test
-  in child processes.
+- The fuzz target `parse-source` builds and runs for a bounded number of iterations
+  over its corpus without a crash.
+- The fuzz target `load-workspace` builds and runs for a bounded number of iterations
+  over its corpus without a crash. It resolves every query and item path in each
+  namespace and package and lists the items of each file and under each path. Before
+  its first input it loads a seed with items and fails unless the index holds them,
+  and the fuzz runs build without `cfg(fuzzing)`, under which `proc-macro2` drops the
+  positions the index needs. Its seeds are replayed under `cargo test` through the
+  same input code, and each loads with items. Each fuzz run reads inputs of up to
+  400000 bytes, which every corpus file fits, with a resident-memory limit of 2048 MiB
+  and a limit of 512 MiB on one allocation, so a stack overflow, a panic or an
+  allocation past either limit ends the run as a finding.
 - A `cfg(test)` fixture asserting the tag on an item and on a module reached only
   through it.
 - Symbol fixtures: one item of every kind, asserting kind, file, line and visibility

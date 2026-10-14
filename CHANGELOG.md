@@ -26,8 +26,8 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   recursion, with one count summed over every open delimiter level that keeps an
   admitted file within half of the parse stack; the tokens of each file and the bytes a load reads, keeps in its index
   and keeps as facts are budgeted, with limits a caller can set; the walks keep
-  stacks of their own; parsing runs on a dedicated stack; and a committed fuzz
-  target covers the parser.
+  stacks of their own; parsing runs on a dedicated stack; and committed fuzz
+  targets cover the parser and a whole load of a workspace built in memory.
 - **Workspace scaffold:** a Cargo workspace on edition 2024 with a floating
   nightly development toolchain and a minimum supported Rust version of 1.98.1,
   shared workspace lints (missing documentation, unreachable `pub` and unsafe

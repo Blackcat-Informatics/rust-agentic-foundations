@@ -117,8 +117,9 @@ guarantees are these, and no wider:
   a glob-heavy input can exhaust memory (one module of 3000 functions globbed by 3000
   others, 166 KB of source, peaks at 7.3 GiB). The source index parses on a
   dedicated 64 MiB stack on a thread named after the file, and is fuzzed through a
-  target (`parse_source`) whose committed corpus `cargo test` replays in child
-  processes, in debug and in release. These bound memory outside the scope tables
+  target (`parse-source`) whose committed corpus `cargo test` replays in child
+  processes, in debug and in release; a second target (`load-workspace`) fuzzes a
+  whole load from a workspace built in memory. These bound memory outside the scope tables
   and the stack that parsing an admitted file takes; the stack bound rests on an
   audit of the parser's recursion and on measured costs. A residual stack overflow
   aborts the run, so the gate fails and never passes, and a file ends in a typed
