@@ -13,6 +13,7 @@ use crate::bindings;
 use crate::graph::{self, Graph};
 use crate::links::LinkContext;
 use crate::load;
+use crate::roadmap::Roadmap;
 use crate::rules;
 
 /// A document that satisfies the profile: where it is, what it says in its
@@ -180,6 +181,18 @@ impl<'s> Workplan<'s> {
     #[must_use]
     pub fn findings(&self) -> &[Finding] {
         &self.findings
+    }
+
+    /// The roadmap: every capability grouped by state, with its open changes
+    /// and, for an implementing capability, the gaps in its bindings.
+    ///
+    /// The value is computed from the graph on each call and is a pure
+    /// function of the loaded documents and the source index. Its capabilities
+    /// are those that loaded; a document that failed validation is a finding
+    /// of [`Workplan::check`], not an entry.
+    #[must_use]
+    pub fn status(&self) -> Roadmap {
+        Roadmap::build(&self.capabilities, &self.graph)
     }
 
     /// Every finding of every check over the loaded documents.

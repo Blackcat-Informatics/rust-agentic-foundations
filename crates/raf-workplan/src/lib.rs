@@ -31,6 +31,10 @@
 //! `#[test]` function, `examples` an example target or a documented item of a
 //! library whose documentation tests run, see [`ExampleKind`]).
 //!
+//! [`Workplan::status`] groups the capabilities by state into a [`Roadmap`]:
+//! the open changes of each, and for an implementing capability the gaps in its
+//! bindings. A document that failed validation is a finding, not an entry.
+//!
 //! ```rust
 //! use raf_source::{MemoryTree, Workspace};
 //! use raf_workplan::Workplan;
@@ -66,6 +70,7 @@ mod load;
 mod model;
 pub mod plain;
 pub mod refs;
+mod roadmap;
 mod rules;
 
 pub use bindings::ExampleKind;
@@ -76,3 +81,4 @@ pub use graph::{
 };
 pub use links::LinkContext;
 pub use model::{Loaded, Workplan};
+pub use roadmap::{Gap, Roadmap, RoadmapEntry};

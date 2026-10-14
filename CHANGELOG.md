@@ -123,6 +123,14 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   assessment, current rationale, command line), plus two architecture pages: the
   normal form and the RAF profile of OKF, which defines the seven body
   sections.
+- **`raf-workplan` roadmap:** `Workplan::status` returns one `Roadmap`, computed
+  from the graph: every capability grouped by state in the order `delivered`,
+  `implementing`, `designed`, `considered`, each group sorted by slug. An entry
+  carries the id, slug, title, description, state, document path, the link
+  target beside `docs/capabilities/index.md`, the ids of the changes that list
+  the capability, and for an `implementing` capability its `Gap`s: a binding
+  list that is empty, or an entry that does not resolve. `Roadmap::planned` is a
+  view over the `designed` and `considered` groups, not a fifth state.
 - **Document contract:** `tests/docs_contract.rs` runs in `cargo test` and
   enforces the OKF profile on every capability, change and architecture
   document: closed key sets, values, the seven sections, markers, links,
