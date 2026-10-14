@@ -190,8 +190,9 @@ cargo run -p raf-workplan --example docs_sync -- --check   # exit 1 when a block
 ```
 
 A capability document that wants a verification matrix includes an empty block of
-that kind in its Verification section. The first sync fills it. The command line, a
-separate capability ([command line](./workplan-cli.md)), calls the same operations.
+that kind in its Verification section. The first sync fills it. A command line is
+specified separately ([command line](./workplan-cli.md)) and is not part of this
+capability.
 
 ## Examples
 

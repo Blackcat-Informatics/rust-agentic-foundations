@@ -54,7 +54,7 @@ bindings:
     - raf_workplan::test_crate::references::rejects_changes_missing
     - raf_workplan::test_crate::references::rejects_moved_missing
     - raf_workplan::test_crate::references::rejects_depends_cycles_once_for_each_group_naming_its_members
-    - raf_workplan::test_crate::references::r24_a_slug_id_that_differs_from_the_file_name_is_refused
+    - raf_workplan::test_crate::references::a_slug_id_that_differs_from_the_file_name_is_refused
     - raf_workplan::test_crate::graph::the_graph_has_every_kind_of_node
     - raf_workplan::test_crate::graph::the_graph_has_every_kind_of_edge
     - raf_workplan::test_crate::graph::links_run_from_the_section_that_holds_them_to_the_section_they_name
@@ -263,8 +263,8 @@ under the directory, loads the workspace sources from the roots `["."]`
 lists, and runs the checks; `assert_clean` panics with every finding, each with its
 location and fix, when there is one. A directory without a capability document is an
 error, not a clean verdict, and a missing `work/changes` is the empty set of changes.
-The command line, a separate capability ([command line](./workplan-cli.md)), runs
-the same checks.
+A command line is specified separately ([command line](./workplan-cli.md)) and is
+not part of this capability.
 
 ## Examples
 
@@ -436,8 +436,8 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::parse_errors::every_reader_error_has_a_fixture_reported_with_file_and_line` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::a_broken_link_and_a_split_link_are_reported_together_for_a_plain_file` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::reads_markdown_outside_the_document_directories_with_or_without_frontmatter` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::a_slug_id_that_differs_from_the_file_name_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::references::accepts_a_depends_on_an_existing_capability_and_an_acyclic_graph` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::references::r24_a_slug_id_that_differs_from_the_file_name_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::references::rejects_changes_missing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::references::rejects_depends_cycles_once_for_each_group_naming_its_members` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::references::rejects_depends_missing` | test | [Verification](#verification) |

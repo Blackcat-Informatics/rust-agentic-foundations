@@ -204,9 +204,9 @@ fn two_separate_cycles_are_two_findings_and_a_cycle_with_a_tail_is_one() {
     assert!(found[1].message.contains("itself"));
 }
 
-// R24: a slug is lowercase kebab case and equals the file name.
+// A slug is lowercase kebab case and equals the file name.
 #[test]
-fn r24_a_slug_id_that_differs_from_the_file_name_is_refused() {
+fn a_slug_id_that_differs_from_the_file_name_is_refused() {
     for (path, from, to) in [
         (ALPHA, "id: cap:alpha", "id: cap:other"),
         (CHANGE, "id: change:add-alpha", "id: change:add-other"),
@@ -222,7 +222,7 @@ fn r24_a_slug_id_that_differs_from_the_file_name_is_refused() {
 }
 
 #[test]
-fn r24_a_slug_that_is_not_kebab_case_is_refused() {
+fn a_slug_that_is_not_kebab_case_is_refused() {
     for (path, from, to) in [
         (ALPHA, "id: cap:alpha", "id: cap:Alpha"),
         (ALPHA, "id: cap:alpha", "id: cap:al_pha"),
@@ -239,6 +239,6 @@ fn r24_a_slug_that_is_not_kebab_case_is_refused() {
 }
 
 #[test]
-fn r24_a_matching_kebab_slug_is_accepted() {
+fn a_matching_kebab_slug_is_accepted() {
     assert_clean(&check(&valid()));
 }
