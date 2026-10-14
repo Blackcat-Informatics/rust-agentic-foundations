@@ -253,13 +253,21 @@ fn a_non_utf8_entry_name_fails_the_listing_beside_a_listing_without_one() {
     scratch.dir("root/clean");
     scratch.file("root/clean/ok.rs", "ok");
     scratch.dir("root/dirty");
-    std::fs::write(
+    let written = std::fs::write(
         scratch
             .path("root/dirty")
             .join(OsStr::from_bytes(b"bad\xff.rs")),
         "x",
-    )
-    .expect("write a file with a non-UTF-8 name");
+    );
+    if cfg!(target_os = "macos") {
+        // APFS and HFS+ store names as UTF-8 and refuse any other byte
+        // sequence, so no listing there can hold such an entry.
+        written.expect_err("macOS file systems refuse a non-UTF-8 name");
+        assert_eq!(tree.list(&path("dirty")).expect("empty").len(), 0);
+        assert_eq!(tree.list(&path("clean")).expect("clean").len(), 1);
+        return;
+    }
+    written.expect("write a file with a non-UTF-8 name");
 
     let refused = tree.list(&path("dirty")).expect_err("non-UTF-8 name");
     assert!(

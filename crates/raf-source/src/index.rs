@@ -699,8 +699,7 @@ impl<'a> Builder<'a> {
             } else {
                 self.index
                     .extern_name(module, crate_name, test)
-                    .map(|name| name.roots(test).collect())
-                    .unwrap_or_default()
+                    .map_or_default(|name| name.roots(test).collect())
             };
             if !roots.is_empty() {
                 self.store.charge(

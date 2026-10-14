@@ -1341,8 +1341,9 @@ impl Index {
         };
         let bound_modules = |at: usize, name: &str| -> BTreeSet<usize> {
             self.lookup(at, Namespace::Type, name)
-                .map(|(bound, _)| bound.keys().flat_map(|id| self.modules_for(*id)).collect())
-                .unwrap_or_default()
+                .map_or_default(|(bound, _)| {
+                    bound.keys().flat_map(|id| self.modules_for(*id)).collect()
+                })
         };
         let mut work: Vec<(usize, &[String])> = Vec::new();
         match head.as_str() {
