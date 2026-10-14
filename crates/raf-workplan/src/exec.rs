@@ -252,7 +252,22 @@ impl Output {
     pub fn success(&self) -> bool {
         self.code == Some(0)
     }
+
+    /// What the process wrote to standard error, as one trimmed line of text
+    /// for a message: invalid UTF-8 is replaced and a long text is cut.
+    pub(crate) fn stderr_text(&self) -> String {
+        let text = String::from_utf8_lossy(&self.stderr);
+        let text = text.trim();
+        let mut cut: String = text.chars().take(MESSAGE_TEXT).collect();
+        if text.chars().nth(MESSAGE_TEXT).is_some() {
+            cut.push_str("...");
+        }
+        cut
+    }
 }
+
+/// The longest standard error shown in a message, in characters.
+const MESSAGE_TEXT: usize = 2048;
 
 /// One of the two captured streams.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -121,6 +121,40 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   version `raf-source` already uses, Unix only) and not through a `kill` program on
   `PATH`; a kill that cannot be sent is an `ExecError::Io`. `rustix` is the one
   dependency `raf-workplan` has beyond the RAF crates and `proc-macro2`.
+- **`raf-workplan` git, root discovery and one load path:** the `git` module asks
+  `git` its questions through an `exec` runner, in the C locale and in the runner's
+  directory. `require_version` reads `git --version` (vendor suffixes such as
+  `2.45.1.windows.1` and `2.39.5 (Apple Git-154)` are tolerated), accepts 2.30 and
+  newer and refuses 2.29 with a typed `GitError`. `tracked_paths` is the listing the
+  `Gate` made inline, moved onto the runner with the same results: `None` only when
+  `git` answers that the directory is not inside a work tree, and every other failure
+  an error; it now also runs under the runner's limits (16 MiB per stream, 300 s), so a
+  listing larger than that is an error. `default_branch_ref` reads the full reference name
+  `git symbolic-ref refs/remotes/origin/HEAD` prints and, when it is unset, fails with
+  an error that names `git remote set-head origin --auto`; `resolve_commit`,
+  `merge_base` and `blob_at` follow the argv rows of the reconcile contract, and
+  `blob_at` reads up to 1 MiB (the document bound), returns `None` for a path absent
+  at the merge base, and fails on a larger file instead of cutting it. `exec` gains
+  the two rows the tracked-path listing needs, `git rev-parse --is-inside-work-tree`
+  and `git ls-files -z`. `root::discover` runs `cargo metadata --format-version 1
+  --no-deps --frozen` through the runner (64 MiB bound) and reads only the
+  top-level `workspace_root` string: a small scanner validates the whole text as JSON
+  without a JSON dependency, and a text that is not JSON, nests deeper than 128
+  levels, has the member twice or not at all, or holds a non-string or a relative path
+  is an error; a `workspace_root` key nested deeper is not the field. Cargo does not
+  run the `build.rustc`, `build.rustc-wrapper` or `build.rustc-workspace-wrapper`
+  program of the workspace's configuration for this command, which a fixture shows.
+  `Gate::open` returns an `Opened` repository (the disk tree, the source `Workspace`
+  and the tracked paths); `Opened::workplan` loads the documents as they are on disk at
+  the call, because a `Workplan` borrows the workspace and cannot be kept beside it.
+  `Gate::programs` names the programs the gate starts, `try_check`, `check` and
+  `assert_clean` run on `open` and are unchanged, and the Git version gate is not part
+  of the gate. `Workplan::change` is the shared lookup of a change record by slug
+  (`ChangeLookupError::Unknown` or `NotLoaded`), and `Workplan::preview` is built on
+  it with the same errors. The `docs_sync` example opens the repository through
+  `Gate::open`: a root that is inside a git work tree but holds no `.git` entry now
+  lists its tracked paths, and a root that holds source but no capability document is
+  exit 2 with the gate's message instead of a sync with nothing to write.
 - **Workplan capabilities delivered:** the workplan document model and the
   generated documentation blocks are `delivered`, bound to the `raf-workplan` code,
   tests and examples that realise them, with their verification matrices,

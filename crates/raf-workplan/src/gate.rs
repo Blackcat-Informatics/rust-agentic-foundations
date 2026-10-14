@@ -3,18 +3,19 @@
 
 //! The dev-dependency gate: [`Gate::workspace`] loads the documents and the
 //! source of a checkout from disk, runs [`Workplan::check`] and, in
-//! [`Gate::assert_clean`], panics with every finding.
+//! [`Gate::assert_clean`], panics with every finding. [`Gate::open`] is the load
+//! itself, for a caller that reads the documents instead of judging them.
 
 use std::error::Error;
 use std::fmt::{self, Write as _};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use raf_okf::{DocType, Location};
 use raf_source::{DiskTree, EntryKind, LoadError, RelPath, Tree, TreeError, Workspace};
 
-use crate::{Finding, LinkContext, Workplan};
+use crate::exec::{Programs, SystemRunner};
+use crate::{Finding, LinkContext, Workplan, git};
 
 /// The name of the navigation file of the capability directory, which is not a
 /// capability document.
@@ -135,6 +136,7 @@ pub struct Gate {
     dir: PathBuf,
     roots: Vec<String>,
     tracked: Option<Vec<RelPath>>,
+    programs: Option<Programs>,
 }
 
 impl Gate {
@@ -146,6 +148,7 @@ impl Gate {
             dir: dir.as_ref().to_path_buf(),
             roots: vec![".".to_string()],
             tracked: None,
+            programs: None,
         }
     }
 
@@ -165,6 +168,59 @@ impl Gate {
         self
     }
 
+    /// Start the `git` of the tracked-path listing from these [`Programs`]
+    /// instead of the `git` on `PATH`. The working directory of the programs is
+    /// always the gate's directory, whatever `cwd` the value holds, since the
+    /// listing is relative to it. Nothing is started when the caller gives the
+    /// tracked paths with [`Gate::tracked_paths`].
+    #[must_use]
+    pub fn programs(mut self, programs: Programs) -> Self {
+        self.programs = Some(programs);
+        self
+    }
+
+    /// Open the repository: the directory as a tree, its source
+    /// [`Workspace`], and the tracked paths the links are judged against. The
+    /// documents are loaded from what is opened by [`Opened::workplan`].
+    ///
+    /// This is the load that [`Gate::try_check`] runs, with the same errors and
+    /// the same fallback, taken only when `git` itself answers that the
+    /// directory is not inside a git work tree.
+    ///
+    /// # Errors
+    ///
+    /// A [`GateError`] when the gate cannot look at the repository: the
+    /// directory does not open, `docs/capabilities` is missing or holds no
+    /// capability document, the source workspace does not load, or the
+    /// tracked paths of a git checkout cannot be listed.
+    pub fn open(&self) -> Result<Opened, GateError> {
+        let tree = DiskTree::new(&self.dir).map_err(|source| GateError::Root {
+            dir: self.dir.clone(),
+            source,
+        })?;
+        self.require_capabilities(&tree)?;
+        let roots: Vec<&str> = self.roots.iter().map(String::as_str).collect();
+        let workspace = Workspace::load(&tree, &roots).map_err(|source| GateError::Source {
+            dir: self.dir.clone(),
+            roots: self.roots.clone(),
+            source: Box::new(source),
+        })?;
+        let tracked = self.tracked_list()?;
+        let symlinks = tracked
+            .iter()
+            .flatten()
+            .filter(|path| self.is_symlink(path))
+            .cloned()
+            .collect();
+        Ok(Opened {
+            dir: self.dir.clone(),
+            tree,
+            workspace,
+            tracked,
+            symlinks,
+        })
+    }
+
     /// Every finding of the checks over the repository.
     ///
     /// # Errors
@@ -174,29 +230,7 @@ impl Gate {
     /// capability document, the source workspace does not load, or the
     /// tracked paths of a git checkout cannot be listed.
     pub fn try_check(&self) -> Result<Vec<Finding>, GateError> {
-        let tree = DiskTree::new(&self.dir).map_err(|source| GateError::Root {
-            dir: self.dir.clone(),
-            source,
-        })?;
-        self.require_capabilities(&tree)?;
-        let roots: Vec<&str> = self.roots.iter().map(String::as_str).collect();
-        let source = Workspace::load(&tree, &roots).map_err(|source| GateError::Source {
-            dir: self.dir.clone(),
-            roots: self.roots.clone(),
-            source: Box::new(source),
-        })?;
-        let context = match self.tracked_list()? {
-            Some(paths) => {
-                let symlinks: Vec<RelPath> = paths
-                    .iter()
-                    .filter(|path| self.is_symlink(path))
-                    .cloned()
-                    .collect();
-                LinkContext::new(&tree, paths).with_symlinks(symlinks)
-            }
-            None => LinkContext::of_tree(&tree),
-        };
-        Ok(Workplan::load_with(&tree, &source, &context).check())
+        Ok(self.open()?.workplan().check())
     }
 
     /// Every finding of the checks over the repository.
@@ -255,7 +289,15 @@ impl Gate {
         if let Some(paths) = &self.tracked {
             return Ok(Some(paths.clone()));
         }
-        git_tracked(&self.dir)
+        let mut programs = self
+            .programs
+            .clone()
+            .unwrap_or_else(|| Programs::new(&self.dir));
+        programs.cwd.clone_from(&self.dir);
+        git::tracked_paths(&SystemRunner::new(programs)).map_err(|error| GateError::Tracked {
+            dir: self.dir.clone(),
+            reason: error.to_string(),
+        })
     }
 
     /// Whether the path is a symlink on disk. A path that is not there is not
@@ -267,6 +309,78 @@ impl Gate {
     }
 }
 
+/// A repository opened by [`Gate::open`]: the directory as a [`DiskTree`], its
+/// source [`Workspace`] and the tracked paths the links are judged against.
+///
+/// A [`Workplan`] borrows the source workspace, so the documents are not kept
+/// beside it: [`Opened::workplan`] loads them from the tree, as they are on
+/// disk at that call. A caller that rewrites the files loads again to see the
+/// result. The links are judged against the tracked paths and tracked symlinks
+/// the open found ([`Opened::links`]).
+///
+/// ```rust,no_run
+/// use raf_workplan::Gate;
+///
+/// let opened = Gate::workspace(".").open()?;
+/// let findings = opened.workplan().check();
+/// println!("{} capabilities, {} findings", opened.workplan().capabilities().len(), findings.len());
+/// # Ok::<(), raf_workplan::GateError>(())
+/// ```
+#[derive(Debug)]
+pub struct Opened {
+    dir: PathBuf,
+    tree: DiskTree,
+    workspace: Workspace,
+    tracked: Option<Vec<RelPath>>,
+    symlinks: Vec<RelPath>,
+}
+
+impl Opened {
+    /// The directory the gate was given.
+    #[must_use]
+    pub fn dir(&self) -> &Path {
+        &self.dir
+    }
+
+    /// The directory as a tree.
+    #[must_use]
+    pub fn tree(&self) -> &DiskTree {
+        &self.tree
+    }
+
+    /// The source workspace the documents bind to.
+    #[must_use]
+    pub fn workspace(&self) -> &Workspace {
+        &self.workspace
+    }
+
+    /// The tracked paths the links are judged against, or `None` when every
+    /// file of the directory stands for one (a directory that is not inside a
+    /// git work tree, see [`Gate`]).
+    #[must_use]
+    pub fn tracked(&self) -> Option<&[RelPath]> {
+        self.tracked.as_deref()
+    }
+
+    /// The oracle the links of the documents are judged against, over this
+    /// tree.
+    #[must_use]
+    pub fn links(&self) -> LinkContext<'_> {
+        match &self.tracked {
+            Some(paths) => LinkContext::new(&self.tree, paths.iter().cloned())
+                .with_symlinks(self.symlinks.iter().cloned()),
+            None => LinkContext::of_tree(&self.tree),
+        }
+    }
+
+    /// The documents of the repository as they are on disk now, related to the
+    /// source workspace.
+    #[must_use]
+    pub fn workplan(&self) -> Workplan<'_> {
+        Workplan::load_with(&self.tree, &self.workspace, &self.links())
+    }
+}
+
 /// Whether a file name in the capability directory is a capability document:
 /// Markdown other than the index.
 #[allow(
@@ -275,81 +389,6 @@ impl Gate {
 )]
 fn is_document_name(name: &str) -> bool {
     name.ends_with(".md") && name != INDEX_NAME
-}
-
-/// The tracked paths of the git work tree that holds `dir`, relative to `dir`.
-///
-/// `None` is returned in exactly one case: `git` runs and answers that `dir` is
-/// not inside a git work tree (it is outside any repository, or inside a
-/// `.git` directory). Every other failure is an error: `git` cannot run, `git`
-/// fails for another reason, `GIT_DIR` or `GIT_WORK_TREE` names a repository
-/// that cannot be used, or `git ls-files` fails inside a work tree.
-fn git_tracked(dir: &Path) -> Result<Option<Vec<RelPath>>, GateError> {
-    let tracked = |reason: String| GateError::Tracked {
-        dir: dir.to_path_buf(),
-        reason,
-    };
-    let inside = Command::new("git")
-        .env("LC_ALL", "C")
-        .arg("-C")
-        .arg(dir)
-        .args(["rev-parse", "--is-inside-work-tree"])
-        .output()
-        .map_err(|error| tracked(format!("cannot run `git`: {error}")))?;
-    if inside.status.success() {
-        match inside.stdout.trim_ascii() {
-            b"true" => {}
-            b"false" => return Ok(None),
-            other => {
-                return Err(tracked(format!(
-                    "`git rev-parse --is-inside-work-tree` answered `{}`",
-                    String::from_utf8_lossy(other)
-                )));
-            }
-        }
-    } else {
-        let message = String::from_utf8_lossy(&inside.stderr);
-        let environment = ["GIT_DIR", "GIT_WORK_TREE"]
-            .into_iter()
-            .find(|name| std::env::var_os(name).is_some());
-        return match environment {
-            Some(name) => Err(tracked(format!(
-                "{name} is set and `git` cannot use it: {}",
-                message.trim()
-            ))),
-            None if message.contains("not a git repository") => Ok(None),
-            None => Err(tracked(format!(
-                "`git rev-parse --is-inside-work-tree` failed: {}",
-                message.trim()
-            ))),
-        };
-    }
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(dir)
-        .args(["ls-files", "-z"])
-        .output()
-        .map_err(|error| tracked(format!("cannot run `git ls-files`: {error}")))?;
-    if !output.status.success() {
-        return Err(tracked(format!(
-            "`git ls-files` failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        )));
-    }
-    let mut paths = Vec::new();
-    for name in output
-        .stdout
-        .split(|byte| *byte == 0)
-        .filter(|name| !name.is_empty())
-    {
-        let text = std::str::from_utf8(name)
-            .map_err(|error| tracked(format!("a tracked path is not UTF-8: {error}")))?;
-        paths.push(
-            RelPath::new(text)
-                .map_err(|error| tracked(format!("`{text}` is not a path: {error}")))?,
-        );
-    }
-    Ok(Some(paths))
 }
 
 /// The panic message of a gate with findings: one line for each, as

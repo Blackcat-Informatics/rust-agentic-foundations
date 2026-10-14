@@ -269,6 +269,22 @@ impl Invocation {
         Self::git(vec![Arg::lit("--version")])
     }
 
+    /// Whether the working directory is inside a work tree:
+    /// `git rev-parse --is-inside-work-tree`.
+    #[must_use]
+    pub fn git_inside_work_tree() -> Self {
+        Self::git(vec![
+            Arg::lit("rev-parse"),
+            Arg::lit("--is-inside-work-tree"),
+        ])
+    }
+
+    /// The tracked paths, NUL-separated: `git ls-files -z`.
+    #[must_use]
+    pub fn git_ls_files() -> Self {
+        Self::git(vec![Arg::lit("ls-files"), Arg::lit("-z")])
+    }
+
     /// The default branch of the remote: `git symbolic-ref refs/remotes/origin/HEAD`.
     #[must_use]
     pub fn git_default_ref() -> Self {

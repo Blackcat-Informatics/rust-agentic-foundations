@@ -369,17 +369,23 @@ fn a_refusal_names_the_pattern_and_shows_the_value_safely() {
 
 // ------------------------------------------------------------- argv tables
 
+type Row = (&'static str, Invocation, Program, &'static str);
+
 /// The documented rows, with the placeholders filled and the program left off.
-fn rows() -> Vec<(&'static str, Invocation, Program, &'static str)> {
+fn rows() -> Vec<Row> {
+    let mut rows = cargo_rows();
+    rows.extend(git_rows());
+    rows
+}
+
+/// The rows of `cargo`.
+fn cargo_rows() -> Vec<Row> {
     let package = pkg();
     let lib = Target::Lib;
     let bin = Target::Bin(name("my-bin"));
     let test = Target::Test(name("it-tests"));
     let case = filter("tests::it_works");
     let item = DocFilter::new("Wrapper<T>::get").unwrap();
-    let rev = Commit::new(COMMIT).unwrap();
-    let reference = RefName::new("refs/remotes/origin/main").unwrap();
-    let path = SourcePath::new("docs/capabilities/workplan-cli.md").unwrap();
     vec![
         (
             "test, list pass, library",
@@ -429,11 +435,32 @@ fn rows() -> Vec<(&'static str, Invocation, Program, &'static str)> {
             Program::Cargo,
             "metadata --format-version 1 --no-deps --frozen",
         ),
+    ]
+}
+
+/// The rows of `git`.
+fn git_rows() -> Vec<Row> {
+    let rev = Commit::new(COMMIT).unwrap();
+    let reference = RefName::new("refs/remotes/origin/main").unwrap();
+    let path = SourcePath::new("docs/capabilities/workplan-cli.md").unwrap();
+    vec![
         (
             "git version",
             Invocation::git_version(),
             Program::Git,
             "--version",
+        ),
+        (
+            "git work tree query",
+            Invocation::git_inside_work_tree(),
+            Program::Git,
+            "rev-parse --is-inside-work-tree",
+        ),
+        (
+            "git tracked paths",
+            Invocation::git_ls_files(),
+            Program::Git,
+            "ls-files -z",
         ),
         (
             "git default branch",
@@ -465,7 +492,7 @@ fn rows() -> Vec<(&'static str, Invocation, Program, &'static str)> {
 #[test]
 fn every_invocation_is_the_row_of_its_table() {
     let rows = rows();
-    assert_eq!(rows.len(), 13);
+    assert_eq!(rows.len(), 15);
     for (label, invocation, program, expected) in rows {
         assert_eq!(invocation.program(), program, "{label}");
         let expected: Vec<&str> = expected.split(' ').collect();

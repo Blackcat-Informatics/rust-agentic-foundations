@@ -38,7 +38,15 @@
 //! [`Gate::workspace`] is the entry point for a test of a repository: it opens a
 //! checkout on disk, loads its documents and its source, and
 //! [`Gate::assert_clean`] panics with every finding. A repository without a
-//! capability document is an error, not a clean verdict.
+//! capability document is an error, not a clean verdict. [`Gate::open`] is that
+//! load on its own: it returns an [`Opened`] repository (the tree, the source
+//! workspace and the tracked paths), whose [`Opened::workplan`] loads the
+//! documents as they are on disk at the call. Every caller that reads a
+//! repository goes through it, and [`Gate::programs`] names the programs it
+//! starts.
+//!
+//! [`Workplan::change`] finds the change record a slug names, and says whether
+//! the slug is unknown or its record did not load ([`ChangeLookupError`]).
 //!
 //! # Processes
 //!
@@ -47,6 +55,13 @@
 //! the completion gate, started with no shell, null standard input, bounded
 //! output and a wall-clock kill by an [`exec::Runner`]; [`exec::FakeRunner`]
 //! answers in process for tests.
+//!
+//! [`git`] asks `git` its questions through a runner: the version gate
+//! ([`git::require_version`] refuses a Git older than 2.30), the tracked paths
+//! of a checkout, and the four commands that read a file as it was at the merge
+//! base of the current branch and the default branch. [`root::discover`] finds
+//! the workspace root with `cargo metadata --format-version 1 --no-deps
+//! --frozen`, reading nothing but its `workspace_root` field.
 //!
 //! # Preview
 //!
@@ -118,25 +133,29 @@ pub mod exec;
 mod finding;
 mod gate;
 mod generated;
+pub mod git;
 mod graph;
 mod links;
 mod load;
+mod lookup;
 mod model;
 pub mod plain;
 mod preview;
 pub mod refs;
 mod roadmap;
+pub mod root;
 mod rules;
 mod sync;
 
 pub use bindings::ExampleKind;
 pub use finding::Finding;
-pub use gate::{Gate, GateError};
+pub use gate::{Gate, GateError, Opened};
 pub use graph::{
     AffectsEdge, Binding, BindingKind, ChangesEdge, DependsEdge, Edge, EdgeKind, Graph, LinkEdge,
     LinkEnd, Node, NodeKind, Proposal, SectionId,
 };
 pub use links::LinkContext;
+pub use lookup::ChangeLookupError;
 pub use model::{Loaded, Workplan};
 pub use preview::{Preview, PreviewError};
 pub use roadmap::{Gap, Roadmap, RoadmapEntry};

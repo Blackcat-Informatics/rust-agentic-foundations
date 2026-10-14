@@ -14,10 +14,10 @@ use std::fmt;
 use raf_okf::{Body, ProposedBlock, Span, SpliceError};
 use raf_source::RelPath;
 
+use crate::lookup::{
+    ChangeLookupError, bare_slug, write_findings, write_not_loaded, write_unknown,
+};
 use crate::{Finding, Workplan};
-
-/// The prefix a change id carries.
-const CHANGE_PREFIX: &str = "change:";
 
 /// One capability document as it reads once a change is reconciled.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,21 +87,8 @@ pub enum PreviewError {
 impl fmt::Display for PreviewError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::UnknownChange { slug, known } => {
-                write!(f, "no change record `{slug}`; ")?;
-                if known.is_empty() {
-                    write!(f, "there is no open change")
-                } else {
-                    write!(f, "the open changes are {}", known.join(", "))
-                }
-            }
-            Self::ChangeNotLoaded { slug, findings } => {
-                write!(
-                    f,
-                    "the record of change `{slug}` did not load, so what it lists is unknown; fix its findings first"
-                )?;
-                list(f, findings)
-            }
+            Self::UnknownChange { slug, known } => write_unknown(f, slug, known),
+            Self::ChangeNotLoaded { slug, findings } => write_not_loaded(f, slug, findings),
             Self::CapabilityNotLoaded {
                 slug,
                 capability,
@@ -111,7 +98,7 @@ impl fmt::Display for PreviewError {
                     f,
                     "change `{slug}` lists {capability}, which did not load; fix its findings first"
                 )?;
-                list(f, findings)
+                write_findings(f, findings)
             }
             Self::CapabilityMissing { slug, capability } => write!(
                 f,
@@ -128,15 +115,18 @@ impl fmt::Display for PreviewError {
     }
 }
 
-/// The findings, one per line.
-fn list(f: &mut fmt::Formatter<'_>, findings: &[Finding]) -> fmt::Result {
-    for finding in findings {
-        write!(f, "\n  {finding}")?;
-    }
-    Ok(())
-}
-
 impl Error for PreviewError {}
+
+impl From<ChangeLookupError> for PreviewError {
+    fn from(error: ChangeLookupError) -> Self {
+        match error {
+            ChangeLookupError::Unknown { slug, known } => Self::UnknownChange { slug, known },
+            ChangeLookupError::NotLoaded { slug, findings } => {
+                Self::ChangeNotLoaded { slug, findings }
+            }
+        }
+    }
+}
 
 impl Workplan<'_> {
     /// Each capability document that the change `change` lists, as it reads
@@ -207,15 +197,8 @@ impl Workplan<'_> {
     /// code block, which ends a block in the document model); [`PreviewError::Rewrite`] when a
     /// reconciled text does not read back. No text is returned with an error.
     pub fn preview(&self, change: &str) -> Result<Vec<Preview>, PreviewError> {
-        let slug = change.strip_prefix(CHANGE_PREFIX).unwrap_or(change);
-        let id = format!("{CHANGE_PREFIX}{slug}");
-        let Some(record) = self
-            .changes
-            .iter()
-            .find(|record| record.value().header.id == id)
-        else {
-            return Err(self.unknown_change(slug, &id));
-        };
+        let slug = bare_slug(change);
+        let record = self.change(slug)?;
         let listed: BTreeSet<&String> = record.value().changes.iter().collect();
         let mut previews = Vec::new();
         for capability in listed {
@@ -260,27 +243,6 @@ impl Workplan<'_> {
         Ok(previews)
     }
 
-    /// The error for a slug that no loaded record has.
-    fn unknown_change(&self, slug: &str, id: &str) -> PreviewError {
-        if self.unloaded().iter().any(|unloaded| unloaded == id) {
-            return PreviewError::ChangeNotLoaded {
-                slug: slug.to_string(),
-                findings: self.findings_of(&format!("work/changes/{slug}.md")),
-            };
-        }
-        let mut known: Vec<String> = self
-            .changes
-            .iter()
-            .filter_map(|record| record.value().header.id.strip_prefix(CHANGE_PREFIX))
-            .map(str::to_string)
-            .collect();
-        known.sort();
-        PreviewError::UnknownChange {
-            slug: slug.to_string(),
-            known,
-        }
-    }
-
     /// The error for a listed capability that is not among the loaded ones.
     fn missing_capability(&self, slug: &str, capability: &str) -> PreviewError {
         if self
@@ -299,15 +261,6 @@ impl Workplan<'_> {
             slug: slug.to_string(),
             capability: capability.to_string(),
         }
-    }
-
-    /// The findings of the load about the file `path`.
-    fn findings_of(&self, path: &str) -> Vec<Finding> {
-        self.findings
-            .iter()
-            .filter(|finding| finding.file == path)
-            .cloned()
-            .collect()
     }
 }
 
