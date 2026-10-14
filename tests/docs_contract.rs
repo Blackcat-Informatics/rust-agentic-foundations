@@ -1567,7 +1567,8 @@ fn rejects_acceptance_label() {
 
 #[test]
 fn rejects_resource_key() {
-    // `resource` is not in any closed key set, so the unknown-key path rejects it.
+    // `resource` is rejected by its own rule, which names the keys of the type,
+    // and not by the unknown-key rule.
     let violations = mutated(
         "docs/architecture/overview.md",
         "title: Overview",

@@ -310,6 +310,29 @@ fn lint_tables_problem(root: &str, fuzz: &str) -> Option<String> {
     }
 }
 
+/// The level of lint `name` in the `[workspace.lints.rust]` table, as written
+/// between its quotes, or `None` when the table does not set it as a string.
+fn rust_lint_level(manifest: &str, name: &str) -> Option<String> {
+    let mut in_table = false;
+    for line in manifest.lines().map(str::trim) {
+        if line.starts_with('[') {
+            in_table = line == "[workspace.lints.rust]";
+        } else if in_table {
+            let Some((key, value)) = line.split_once('=') else {
+                continue;
+            };
+            if key.trim() == name {
+                return value
+                    .trim()
+                    .strip_prefix('"')
+                    .and_then(|rest| rest.strip_suffix('"'))
+                    .map(str::to_string);
+            }
+        }
+    }
+    None
+}
+
 /// The quoted entries of the `members` array of a workspace manifest.
 fn workspace_members(manifest: &str) -> Vec<String> {
     let mut in_workspace = false;
@@ -793,6 +816,18 @@ fn lints_fuzz_workspace_tables_equal_the_root_tables() {
 }
 
 #[test]
+fn lints_the_root_denies_missing_docs_unsafe_code_and_unreachable_pub() {
+    let manifest = read_text(&gate_root(), "Cargo.toml");
+    for lint in ["missing_docs", "unsafe_code", "unreachable_pub"] {
+        assert_eq!(
+            rust_lint_level(&manifest, lint).as_deref(),
+            Some("deny"),
+            "[workspace.lints.rust] must set {lint} = \"deny\""
+        );
+    }
+}
+
+#[test]
 fn lints_every_workspace_manifest_inherits_the_workspace_lints() {
     let root = gate_root();
     let manifest = read_text(&root, "Cargo.toml");
@@ -822,6 +857,22 @@ fn deny_fuzz_configuration_is_the_root_configuration_plus_one_exception() {
 // ---------------------------------------------------------------------------
 
 const LINT_ROOT: &str = "[workspace]\nmembers = [\"a\"]\n\n[workspace.lints.rust]\n# why\nmissing_docs = \"deny\"\n\n[workspace.lints.clippy]\nall = \"warn\"\n";
+
+#[test]
+fn lints_reads_the_level_of_a_lint_and_sees_a_weakened_one() {
+    assert_eq!(
+        rust_lint_level(LINT_ROOT, "missing_docs").as_deref(),
+        Some("deny")
+    );
+    let weakened = LINT_ROOT.replace("missing_docs = \"deny\"", "missing_docs = \"warn\"");
+    assert_eq!(
+        rust_lint_level(&weakened, "missing_docs").as_deref(),
+        Some("warn")
+    );
+    // A lint of another table, or one that is not set, has no level here.
+    assert_eq!(rust_lint_level(LINT_ROOT, "all"), None);
+    assert_eq!(rust_lint_level(LINT_ROOT, "unsafe_code"), None);
+}
 
 #[test]
 fn lints_accepts_equal_tables_whatever_the_comments() {

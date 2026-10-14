@@ -147,6 +147,16 @@ bindings:
     - raf_source::test_crate::corpus_replay::every_corpus_file_is_refused_or_indexed_with_its_recorded_symbols_and_none_aborts
     - raf_source::test_crate::read_cap::disk_tree_enforces_the_cap_at_eight_mib
     - raf_source::test_crate::read_cap::the_default_cap_is_eight_mib
+    - raf_source::test_crate::load_cap::a_library_root_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it
+    - raf_source::test_crate::load_cap::a_module_file_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it
+    - raf_source::test_crate::load_cap::a_lowered_cap_applies_to_a_child_file_and_spares_a_root_within_it
+    - raf_source::test_crate::load_cap::a_cap_larger_than_the_default_admits_a_file_the_default_refuses
+    - raf_source::test_crate::spawn_limit::a_parse_thread_the_system_refuses_a_stack_is_a_spawn_error_naming_the_file
+    - raf_source::test_crate::source_text::crlf_line_endings_give_the_same_lines_and_spans_as_lf
+    - raf_source::test_crate::source_text::a_byte_order_mark_leaves_the_lines_of_the_text_where_they_are
+    - raf_source::test_crate::source_text::a_syntax_error_in_a_crlf_file_or_after_a_byte_order_mark_names_its_own_line
+    - raf_source::test_crate::source_text::a_budget_refusal_in_a_crlf_file_names_the_same_line_as_in_an_lf_file
+    - raf_source::test_crate::source_text::a_module_file_that_is_not_utf8_is_refused_on_disk_naming_the_file
     - raf_source::test_crate::index_disk::disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions
     - raf_source::test_crate::tree_error::every_variant_names_its_path_in_display_and_in_path
     - raf_source::test_crate::fs_confinement::only_the_disk_backend_names_the_file_system_module
@@ -1777,3 +1787,15 @@ duplicates.
   - a chain that ends outside the root, a symlinked `Cargo.toml` and a symlinked
     target file that lead outside, and every discovery classification of a symlink
     (file, directory, FIFO, outside file, outside directory, dangling, loop).
+- Load-level cap and text fixtures: through `Workspace::load`, a library root and a
+  module file of exactly 8 MiB (padded with comments) load and one byte more is refused
+  with the cap as its limit, naming the file (the declaring file and the line of its
+  `mod`, with the module file in the message); a `max_file_bytes` lowered to 1000 admits
+  a child file of 1000 bytes and refuses one of 1001; a raised cap admits a file the
+  default refuses. A child process under an address-space limit (`ulimit -v`) that
+  cannot give the parse thread its stack ends in a `Spawn` error naming the file,
+  beside the same child without a limit, which loads. A module file that is not UTF-8
+  is refused naming it and the line of its `mod`, beside the same text in UTF-8, which
+  loads. CRLF line endings, with and without a byte-order mark, give the lines and byte
+  spans of the LF text; a syntax error and a budget refusal name the same line in LF
+  and CRLF text and after a mark.
