@@ -1,0 +1,183 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "line": 7,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] **Capability** (`docs/capabilities/<slug>.md`):",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B2",
+      "line": 8,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "- frontmatter `type: Capability`, `id: cap:<slug>`, `title`, `description`, `state` (`considered|designed|implementing|delivered`), `bindings{code,tests,examples}`, `depends`;",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B3",
+      "line": 9,
+      "rules": [
+        "modal",
+        "list-under-requirement-heading"
+      ],
+      "text": "- required sections Purpose, Contract, Usage, Examples, Constraints, Explanation, Verification",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B4",
+      "line": 10,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] **Change** (`work/changes/<slug>.md`): `type: Change`, `id: change:<slug>`, `changes`, `affects: [cap:<slug>#<section>]`, `contract_effect: none|changes`, `items: [{claim, outcome}]`, with outcomes `implemented | dropped | moved:change:<slug>`. There is no \"deferred\", per the no-deferrals rule.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B5",
+      "line": 11,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] **PROPOSED blocks** (`> [!PROPOSED change:<slug>]`) inside capability docs, so the branch diff shows the code and the docs it will produce side by side",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B6",
+      "line": 12,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] **Graph**: capabilities, sections, changes, proposals, code symbols, tests; edges for bindings, depends, affects and links",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B7",
+      "line": 13,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Binding resolution through `raf-source` (code symbols, test fns, example targets/doctests)",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B8",
+      "line": 14,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] **Generated blocks** (`<!-- raf:generated:<kind> -->`): verification matrix, relationship table, catalogue/roadmap index (`docs/capabilities/index.md`); `docs sync` rewrites them deterministically",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B9",
+      "line": 15,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `status`: roadmap view (planned / implementing with gaps / delivered)",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B10",
+      "line": 16,
+      "rules": [
+        "checkbox",
+        "modal"
+      ],
+      "text": "- [ ] `check`: schema and closed keys; links resolve; bindings resolve; generated blocks in sync; no PROPOSED block for a non-existent change; a `delivered` capability has no PROPOSED blocks and no empty required section",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B11",
+      "line": 17,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `raf_workplan::Gate::workspace(..).assert_clean()` for dev-dependency use",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B12",
+      "line": 18,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] IDs are slugs only; `check` rejects issue-number-style references in docs",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B13",
+      "line": 21,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Fixture tests for every `check` failure",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B14",
+      "line": 22,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `docs sync` is idempotent and byte-deterministic",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B15",
+      "line": 23,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] This repo's own `docs/` passes `check`, or the remaining gaps are recorded explicitly in the obligations output",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B16",
+      "line": 24,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Capability docs reconciled",
+      "source": "body",
+      "author": "",
+      "date": ""
+    }
+  ],
+  "silent_comments": []
+}

@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "issue": 7,
+  "repo": "rust-agentic-foundations",
+  "forge": "github",
+  "nwo": "Blackcat-Informatics/rust-agentic-foundations",
+  "read_access": "anon-read",
+  "main_root": "/home/paudley/Active/rust-agentic-foundations",
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/7-raf-workplan-model-documents-check",
+  "branch": "paudley/7-raf-workplan-model-documents-check",
+  "slug": "raf-workplan-model-documents-check",
+  "slug_drift": false,
+  "stage_dir": "/home/paudley/Active/rust-agentic-foundations/.worktrees/7-raf-workplan-model-documents-check/.stage/raf-workplan-model-documents-check",
+  "stage_tracked": true,
+  "base": "origin/main",
+  "base_oid": "762fa99f41830888f5328d48a6629e0ed1304888",
+  "reused": false,
+  "adr_repo": false,
+  "created": [
+    "worktree:/home/paudley/Active/rust-agentic-foundations/.worktrees/7-raf-workplan-model-documents-check",
+    "branch:paudley/7-raf-workplan-model-documents-check",
+    "stage:/home/paudley/Active/rust-agentic-foundations/.worktrees/7-raf-workplan-model-documents-check/.stage/raf-workplan-model-documents-check",
+    "issue:/home/paudley/Active/rust-agentic-foundations/.worktrees/7-raf-workplan-model-documents-check/.stage/raf-workplan-model-documents-check/issue.md"
+  ],
+  "warnings": [],
+  "timestamp": "2026-10-14T02:30:34-0600"
+}

@@ -1,0 +1,38 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "## Context\n`raf-workplan` puts the planning essay into practice: **plan changes to the documented system, implement them, reconcile the docs with the result, and let Git keep the previous states.** Each capability has one permanent OKF document that always states the complete current contract. Readers never apply amendments in their heads.\n\nCapabilities delivered: `cap:workplan-document-model`, `cap:workplan-generated-docs`.\n\n## Scope\n- [ ] **Capability** (`docs/capabilities/<slug>.md`):\n  - frontmatter `type: Capability`, `id: cap:<slug>`, `title`, `description`, `state` (`considered|designed|implementing|delivered`), `bindings{code,tests,examples}`, `depends`;\n  - required sections Purpose, Contract, Usage, Examples, Constraints, Explanation, Verification\n- [ ] **Change** (`work/changes/<slug>.md`): `type: Change`, `id: change:<slug>`, `changes`, `affects: [cap:<slug>#<section>]`, `contract_effect: none|changes`, `items: [{claim, outcome}]`, with outcomes `implemented | dropped | moved:change:<slug>`. There is no \"deferred\", per the no-deferrals rule.\n- [ ] **PROPOSED blocks** (`> [!PROPOSED change:<slug>]`) inside capability docs, so the branch diff shows the code and the docs it will produce side by side\n- [ ] **Graph**: capabilities, sections, changes, proposals, code symbols, tests; edges for bindings, depends, affects and links\n- [ ] Binding resolution through `raf-source` (code symbols, test fns, example targets/doctests)\n- [ ] **Generated blocks** (`<!-- raf:generated:<kind> -->`): verification matrix, relationship table, catalogue/roadmap index (`docs/capabilities/index.md`); `docs sync` rewrites them deterministically\n- [ ] `status`: roadmap view (planned / implementing with gaps / delivered)\n- [ ] `check`: schema and closed keys; links resolve; bindings resolve; generated blocks in sync; no PROPOSED block for a non-existent change; a `delivered` capability has no PROPOSED blocks and no empty required section\n- [ ] `raf_workplan::Gate::workspace(..).assert_clean()` for dev-dependency use\n- [ ] IDs are slugs only; `check` rejects issue-number-style references in docs\n\n## Acceptance criteria\n- [ ] Fixture tests for every `check` failure\n- [ ] `docs sync` is idempotent and byte-deterministic\n- [ ] This repo's own `docs/` passes `check`, or the remaining gaps are recorded explicitly in the obligations output\n- [ ] Capability docs reconciled\n\n## Depends on\n- #1\n- #2",
+  "closedAt": null,
+  "comments": [],
+  "createdAt": "2026-10-12T04:28:21Z",
+  "labels": [
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bapUQ",
+      "name": "enhancement",
+      "description": "New feature or request",
+      "color": "a2eeef"
+    },
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bfyfQ",
+      "name": "crate:raf-workplan",
+      "description": "",
+      "color": "0e8a16"
+    }
+  ],
+  "milestone": {
+    "number": 3,
+    "title": "M1 Workplan",
+    "description": "raf-workplan + cargo-workplan milestone 1: model, check, reconcile, complete gate, scenarios A/B",
+    "dueOn": null
+  },
+  "number": 7,
+  "state": "OPEN",
+  "title": "raf-workplan model: documents, check, graph, bindings, generated docs",
+  "updatedAt": "2026-10-12T04:28:21Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/7"
+}

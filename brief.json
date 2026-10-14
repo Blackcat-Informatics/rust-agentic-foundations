@@ -1,0 +1,47 @@
+{
+  "issue": 7,
+  "repo": "Blackcat-Informatics/rust-agentic-foundations",
+  "forge": "github",
+  "title": "raf-workplan model: documents, check, graph, bindings, generated docs",
+  "state": "OPEN",
+  "adrs": [],
+  "linked_issues": {
+    "1": "Scaffold workspace, project docs and branding, plus spec-first capability docs",
+    "2": "Shared crates: raf-okf + raf-source"
+  },
+  "link_relations": {
+    "1": "mentions",
+    "2": "mentions"
+  },
+  "related": [
+    {
+      "number": 1,
+      "title": "Scaffold workspace, project docs and branding, plus spec-first capability docs",
+      "state": "CLOSED"
+    },
+    {
+      "number": 2,
+      "title": "Shared crates: raf-okf + raf-source",
+      "state": "CLOSED"
+    }
+  ],
+  "defect_classes": {
+    "none": 2
+  },
+  "prior_attempts": {
+    "commits": [],
+    "branches": [],
+    "prs": [],
+    "own_branch": "paudley/7-raf-workplan-model-documents-check"
+  },
+  "coverage": [
+    "issue #7 + 0 comment(s) via github",
+    "link crawl: 2 issue(s) within 2 hop(s) of `#N` references",
+    "forge search on ['raf-workplan', 'model:', 'documents,']: 2 other item(s)",
+    "GhpRsq-Defect-Class trailers: 1 distinct class(es) in the last 200 commits",
+    "prior attempts: 0 commit(s) citing #7 (second parents walked), 0 other branch(es) named for it",
+    "PRs citing #7: 0",
+    "requirement candidates: 16 line(s); 0 comment(s) matched no rule",
+    "referenced artifacts: 2 path(s) (1 on disk), 8 identifier(s), 1 workspace package(s), 0 URL(s)"
+  ]
+}
