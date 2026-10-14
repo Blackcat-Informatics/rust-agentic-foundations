@@ -250,6 +250,56 @@ fn a_cycle_of_imports_is_cyclic_beside_a_chain_that_ends() {
 }
 
 #[test]
+fn a_cycle_of_explicit_imports_is_cyclic_whatever_its_globs_hold_in_every_order() {
+    // The explicit imports of `X` form a cycle, and explicit imports shadow
+    // globs: rustc cannot determine either import, and neither glob answers.
+    let blocks: Vec<String> = [
+        "mod a { pub use crate::b::X; pub use crate::c::*; }",
+        "mod b { pub use crate::a::X; pub use crate::d::*; }",
+        "mod c { pub struct X; }",
+        "mod d { pub struct X; }",
+    ]
+    .map(str::to_owned)
+    .to_vec();
+    let mut orders = 0;
+    for order in permutations(&blocks) {
+        let ws = lib(&order.join("\n"));
+        for path in ["demo::a::X", "demo::b::X"] {
+            assert_eq!(
+                ws.resolve(path),
+                Err(ResolveError::Cyclic(path.to_owned())),
+                "{order:?}"
+            );
+        }
+        orders += 1;
+    }
+    assert_eq!(orders, 24);
+    // Without the import that takes `a::X` from `b` there is no cycle: the
+    // glob of `a` answers, and `b` imports that.
+    let ws = lib(
+        "mod a { pub use crate::c::*; }\nmod b { pub use crate::a::X; pub use crate::d::*; }\n\
+         mod c { pub struct X; }\nmod d { pub struct X; }\n",
+    );
+    assert_eq!(path_of(&ws, "demo::a::X"), "demo::c::X");
+    assert_eq!(path_of(&ws, "demo::b::X"), "demo::c::X");
+    // An import that waits on the cycle never settles either: its own glob
+    // does not answer for its name, which resolves `Cyclic`, and so does the
+    // name in a module that only globs it, which the glob may still bring in.
+    let ws = lib("mod a { pub use crate::b::X; pub use crate::c::*; }\n\
+         mod b { pub use crate::a::X; pub use crate::d::*; }\n\
+         mod c { pub struct X; }\nmod d { pub struct X; }\n\
+         mod e { pub use crate::a::X; pub use crate::c::*; }\nmod f { pub use crate::e::*; }\n");
+    assert_eq!(
+        ws.resolve("demo::e::X"),
+        Err(ResolveError::Cyclic("demo::e::X".to_owned()))
+    );
+    assert_eq!(
+        ws.resolve("demo::f::X"),
+        Err(ResolveError::Cyclic("demo::f::X".to_owned()))
+    );
+}
+
+#[test]
 fn missing_names_dependency_items_and_macro_generated_items_are_not_found() {
     let ws = lib("pub use serde::Serialize;\n\
          macro_rules! make { () => { pub fn made() {} } }\n\
@@ -403,37 +453,19 @@ fn permutations(items: &[String]) -> Vec<Vec<String>> {
     all
 }
 
-#[test]
-fn resolution_does_not_depend_on_the_order_of_the_declarations() {
-    let blocks: Vec<String> = [
-        "mod x { pub struct A; pub fn only_x() {} }",
-        "mod y { pub struct A; }",
-        "mod p { pub use crate::y::A; }",
-        "mod n { pub use crate::m::A; pub use crate::m::only_x; }",
-        "mod both { pub use crate::x::*; pub use crate::y::*; }",
-    ]
-    .map(str::to_owned)
-    .to_vec();
-    let paths = [
-        "demo::n::A",
-        "demo::n::only_x",
-        "demo::m::A",
-        "demo::m::only_x",
-        "demo::p::A",
-        "demo::both::A",
-        "demo::both::only_x",
-        "demo::x::A",
-        "demo::nope",
-    ];
+/// Load every order of `blocks` with each of `variants` among them, at
+/// every position, and assert that `paths` come out the same in each.
+/// Returns that outcome and the number of loads.
+fn one_outcome_in_every_order(
+    blocks: &[&str],
+    variants: &[&str],
+    paths: &[&str],
+) -> (Vec<String>, usize) {
     let mut expected: Option<Vec<String>> = None;
     let mut loads = 0;
-    // `m` has two uses, in either order, and sits at every position.
-    for first_uses in [
-        "mod m { pub use crate::x::*; pub use crate::p::A; }",
-        "mod m { pub use crate::p::A; pub use crate::x::*; }",
-    ] {
-        let mut all = blocks.clone();
-        all.push(first_uses.to_owned());
+    for variant in variants {
+        let mut all: Vec<String> = blocks.iter().map(|block| (*block).to_owned()).collect();
+        all.push((*variant).to_owned());
         for order in permutations(&all) {
             let ws = lib(&order.join("\n"));
             let results: Vec<String> = paths.iter().map(|p| outcome(&ws, p)).collect();
@@ -444,7 +476,81 @@ fn resolution_does_not_depend_on_the_order_of_the_declarations() {
             loads += 1;
         }
     }
+    (expected.expect("loaded"), loads)
+}
+
+#[test]
+fn resolution_does_not_depend_on_the_order_of_the_declarations() {
+    // `m` has two uses, in either order, and sits at every position.
+    let (expected, loads) = one_outcome_in_every_order(
+        &[
+            "mod x { pub struct A; pub fn only_x() {} }",
+            "mod y { pub struct A; }",
+            "mod p { pub use crate::y::A; }",
+            "mod n { pub use crate::m::A; pub use crate::m::only_x; }",
+            "mod both { pub use crate::x::*; pub use crate::y::*; }",
+        ],
+        &[
+            "mod m { pub use crate::x::*; pub use crate::p::A; }",
+            "mod m { pub use crate::p::A; pub use crate::x::*; }",
+        ],
+        &[
+            "demo::n::A",
+            "demo::n::only_x",
+            "demo::m::A",
+            "demo::m::only_x",
+            "demo::p::A",
+            "demo::both::A",
+            "demo::both::only_x",
+            "demo::x::A",
+            "demo::nope",
+        ],
+    );
     assert_eq!(loads, 1440);
+    assert_eq!(expected[0], "demo::y::A sites=1 glob=false");
+    assert_eq!(expected[5], "ambiguous 2");
+    assert_eq!(expected[6], "demo::x::only_x sites=1 glob=true");
+    assert_eq!(expected[8], "NotFound(\"demo::nope\")");
+    // A cycle of explicit imports, an import that waits on it, a chain that
+    // ends and a failing import beside globs: the imports with no way out are
+    // decided as a cycle whatever order they are met in. `p` has its two uses
+    // in either order, and sits at every position.
+    let (cycle, loads) = one_outcome_in_every_order(
+        &[
+            "mod x { pub struct A; pub fn only_x() {} }",
+            "mod y { pub struct A; }",
+            "mod q { pub use crate::p::A; pub use crate::y::*; }",
+            "mod n { pub use crate::q::A; pub use crate::x::only_x; pub use crate::y::*; }",
+            "mod m { pub use crate::x::*; pub use crate::nothing::B; pub use crate::x::A as C; }",
+        ],
+        &[
+            "mod p { pub use crate::q::A; pub use crate::x::*; }",
+            "mod p { pub use crate::x::*; pub use crate::q::A; }",
+        ],
+        &[
+            "demo::p::A",
+            "demo::q::A",
+            "demo::n::A",
+            "demo::n::only_x",
+            "demo::m::A",
+            "demo::m::B",
+            "demo::m::C",
+        ],
+    );
+    assert_eq!(loads, 1440);
+    assert_eq!(
+        cycle,
+        [
+            "Cyclic(\"demo::p::A\")",
+            "Cyclic(\"demo::q::A\")",
+            "Cyclic(\"demo::n::A\")",
+            "demo::x::only_x sites=1 glob=false",
+            "demo::x::A sites=1 glob=true",
+            "NotFound(\"demo::m::B\")",
+            "demo::x::A sites=1 glob=false",
+        ]
+        .map(str::to_owned)
+    );
     // A glob and a library of the workspace that share a name: whichever is
     // declared first, the import through the name is ambiguous.
     let (resolved, _, orders) = every_order(
@@ -463,22 +569,115 @@ fn resolution_does_not_depend_on_the_order_of_the_declarations() {
         resolved,
         Err(vec!["demo::k::shared".to_owned(), "shared".to_owned()])
     );
-    let expected = expected.expect("loaded");
-    assert_eq!(expected[0], "demo::y::A sites=1 glob=false");
-    assert_eq!(expected[5], "ambiguous 2");
-    assert_eq!(expected[6], "demo::x::only_x sites=1 glob=true");
-    assert_eq!(expected[8], "NotFound(\"demo::nope\")");
 }
 
 #[test]
-fn an_import_that_can_never_resolve_still_shadows_nothing_it_cannot_bind() {
-    // `serde::A` does not exist, so the explicit import settles as failed and
-    // the glob's `A` is read afterwards.
-    let ws = lib(
-        "mod x { pub struct A; }\nmod m { pub use crate::x::*; pub use serde::A; }\nmod n { pub use crate::m::A; }\n",
+fn an_explicit_import_shadows_the_glob_whether_or_not_the_index_sees_what_it_binds() {
+    // `serde::A` is an item of a dependency, which the index cannot see. The
+    // explicit import still shadows the glob's `A`, as in rustc, so neither
+    // `m::A` nor `n::A` reads the glob.
+    let ws = load_with(
+        "2021",
+        "[dependencies]\nserde = \"1\"\n",
+        "mod x { pub struct A; }\nmod m { pub use crate::x::*; pub use serde::A; }\n\
+         mod n { pub use crate::m::A; }\n",
     );
-    assert_eq!(path_of(&ws, "demo::n::A"), "demo::x::A");
+    not_found(&ws, "demo::m::A");
+    not_found(&ws, "demo::n::A");
+    // An import that fails shadows the glob too: rustc refuses it rather than
+    // read the glob.
+    let ws = lib(
+        "mod x { pub struct A; }\nmod m { pub use crate::x::*; pub use crate::nothing::A; }\n\
+         mod n { pub use crate::m::A; }\n",
+    );
+    not_found(&ws, "demo::m::A");
+    not_found(&ws, "demo::n::A");
+    // Without the explicit import the glob answers.
+    let ws = lib(
+        "mod x { pub struct A; }\nmod m { pub use crate::x::*; }\nmod n { pub use crate::m::A; }\n",
+    );
     assert_eq!(path_of(&ws, "demo::m::A"), "demo::x::A");
+    assert_eq!(path_of(&ws, "demo::n::A"), "demo::x::A");
+    // An import binds its name only in the name spaces where its path
+    // reaches something, and leaves the others to the globs, as in rustc: the
+    // struct `y::A` in the type name space, the glob's function `x::A` in the
+    // value name space.
+    let ws = lib(
+        "mod x { pub fn A() {} }\nmod y { pub struct A {} }\nmod m { pub use crate::x::*; pub use crate::y::A; }\n",
+    );
+    let ty = ws.resolve_in("demo::m::A", Namespace::Type).expect("type");
+    assert_eq!((ty.path.as_str(), ty.via_glob), ("demo::y::A", false));
+    let value = ws
+        .resolve_in("demo::m::A", Namespace::Value)
+        .expect("value");
+    assert_eq!((value.path.as_str(), value.via_glob), ("demo::x::A", true));
+    // A module that globs `m` sees both.
+    let ws = lib(
+        "mod x { pub fn A() {} }\nmod y { pub struct A {} }\nmod m { pub use crate::x::*; pub use crate::y::A; }\n\
+         mod n { pub use crate::m::*; }\n",
+    );
+    assert_eq!(path_of(&ws, "demo::n::A"), "demo::y::A");
+    let value = ws
+        .resolve_in("demo::n::A", Namespace::Value)
+        .expect("value");
+    assert_eq!(value.path, "demo::x::A");
+    // Beside a private glob of `m`, which `n` cannot name, `n` sees only the
+    // import.
+    let ws = lib(
+        "mod x { pub fn A() {} }\nmod y { pub struct A {} }\nmod m { use crate::x::*; pub use crate::y::A; }\n\
+         mod n { pub use crate::m::*; }\n",
+    );
+    assert_eq!(path_of(&ws, "demo::n::A"), "demo::y::A");
+    not_found_in(&ws, "demo::n::A", Namespace::Value);
+}
+
+#[test]
+fn an_import_that_binds_its_name_in_one_name_space_leaves_the_others_to_the_globs() {
+    // `use super::m::m;` imports the function `m::m`, and `use super::*;`
+    // brings in the module `m`: the import binds the value name space and
+    // the glob answers in the type name space.
+    let ws =
+        lib("pub mod m { pub fn m() {} }\npub mod observed { use super::m::m; use super::*; }\n");
+    let module = ws
+        .resolve_in("demo::observed::m", Namespace::Type)
+        .expect("type");
+    assert_eq!((module.path.as_str(), module.via_glob), ("demo::m", true));
+    let value = ws
+        .resolve_in("demo::observed::m", Namespace::Value)
+        .expect("value");
+    assert_eq!((value.path.as_str(), value.via_glob), ("demo::m::m", false));
+    // A path that goes on through the name reads the module.
+    assert_eq!(path_of(&ws, "demo::observed::m::m"), "demo::m::m");
+    // Without the explicit import the glob answers in the type name space
+    // too.
+    let ws = lib("pub mod m { pub fn m() {} }\npub mod observed { use super::*; }\n");
+    assert_eq!(path_of(&ws, "demo::observed::m"), "demo::m");
+    // An import of an item the index cannot see keeps the name from the
+    // globs in every name space: it may bind it in each.
+    let ws = load_with(
+        "2021",
+        "[dependencies]\nserde = \"1\"\n",
+        "pub mod m { pub fn m() {} }\npub mod observed { use serde::m; use super::*; }\n",
+    );
+    not_found_in(&ws, "demo::observed::m", Namespace::Type);
+}
+
+/// Assert that `path` names nothing in `ns`.
+fn not_found_in(ws: &Workspace, path: &str, ns: Namespace) {
+    assert_eq!(
+        ws.resolve_in(path, ns),
+        Err(ResolveError::NotFound(path.to_owned()))
+    );
+}
+
+/// Load `text` as `demo`'s library, beside a manifest of `edition` with the
+/// tables `extra`.
+fn load_with(edition: &str, extra: &str, text: &str) -> Workspace {
+    let manifest = format!("{DEMO}edition = \"{edition}\"\n{extra}");
+    let tree: MemoryTree = [("Cargo.toml", manifest.as_str()), ("src/lib.rs", text)]
+        .into_iter()
+        .collect();
+    Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"))
 }
 
 #[test]
@@ -1234,6 +1433,48 @@ fn every_order_in(
 }
 
 #[test]
+fn a_cycle_of_imports_through_a_crate_name_and_a_glob_is_cyclic_in_every_order() {
+    // Each import's first segment is the name the other binds, and an
+    // explicit import shadows both a crate and a glob, so neither import may
+    // start at the library `shared` or read the glob: rustc cannot determine
+    // either of them.
+    let prefix = "pub mod k {\n\
+         pub mod inn { pub mod inner { pub mod other { pub fn x() {} } } }\n\
+         pub mod other { pub fn x() {} pub trait T { fn m(&self); } }\n}\n\
+         impl self::k::other::T for String { fn m(&self) {} }";
+    let key = raf_source::TraitKey::Canonical("demo::k::other::T".to_owned());
+    for (blocks, paths) in [
+        (
+            ["use shared::inner as inn;", "use inn::inner as shared;"],
+            ["demo::inn", "demo::shared"],
+        ),
+        (
+            ["pub use inn::inner::other;", "pub use other as inn;"],
+            ["demo::other", "demo::inn"],
+        ),
+    ] {
+        let mut all = blocks.to_vec();
+        all.push("use self::k::*;");
+        for path in paths {
+            let (resolved, found, orders) = every_order(prefix, None, &all, path);
+            assert_eq!(orders, 6);
+            assert_eq!(resolved, Err(vec![format!("Cyclic({path:?})")]), "{all:?}");
+            assert_eq!(found, key);
+        }
+    }
+    // Without one edge of the cycle, the other import reads the glob.
+    let (resolved, found, orders) = every_order(
+        prefix,
+        None,
+        &["pub use inn::inner::other;", "use self::k::*;"],
+        "demo::other::x",
+    );
+    assert_eq!(orders, 2);
+    assert_eq!(resolved, Ok("demo::k::inn::inner::other::x".to_owned()));
+    assert_eq!(found, key);
+}
+
+#[test]
 fn a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order() {
     // The crate name of a library of the workspace, which a glob also brings
     // in: rustc's E0659 whichever comes first.
@@ -1480,13 +1721,48 @@ fn an_explicit_import_shadows_a_workspace_library_in_every_declaration_order() {
 }
 
 #[test]
-fn a_crate_read_before_the_explicit_import_of_its_name_binds_is_read_again_in_every_order() {
-    // `pub use k::other;` binds `other` only once the glob of `k` brings it
-    // in, and that glob goes through `inn`, whose own path starts at
-    // `other`: when the import first fails, `inn` may read `other` as the
-    // crate, after which the import would bind the name. rustc refuses the
-    // import (E0432); the index answers the same whatever the order of the
-    // declarations, and never through both readings of `other`.
+fn an_import_binds_what_a_name_it_read_gains_later_in_every_order() {
+    // `sys` has two `cfg` alternatives. The second starts at the crate
+    // `shared`, which a module with a glob reads only once the globs have
+    // brought in what they can, so `pub use sys::x;` may first read `sys`
+    // with the alternative that has no `x`. It is read again when `sys`
+    // gains the other, whatever the order of the declarations.
+    let prefix = "pub mod unix { pub fn only_unix() {} }\npub mod g {}\nuse self::g::*;\n\
+         impl shared::inner::other::T for String { fn m(&self) {} }";
+    let (resolved, key, orders) = every_order_in(
+        beside_two,
+        prefix,
+        None,
+        &[
+            "#[cfg(unix)] use self::unix as sys;",
+            "#[cfg(windows)] use shared::inner::other as sys;",
+            "pub use sys::x;",
+        ],
+        "demo::x",
+    );
+    assert_eq!(orders, 6);
+    assert_eq!(resolved, Ok("shared::inner::other::x".to_owned()));
+    assert_eq!(
+        key,
+        raf_source::TraitKey::Canonical("shared::inner::other::T".to_owned())
+    );
+    // Through the alternative that has the name, and not through the other.
+    let ws = beside_two(&format!(
+        "{prefix}\n#[cfg(unix)] use self::unix as sys;\n\
+         #[cfg(windows)] use shared::inner::other as sys;\npub use sys::only_unix;\n"
+    ));
+    assert_eq!(path_of(&ws, "demo::only_unix"), "demo::unix::only_unix");
+    not_found(&ws, "demo::sys::nope");
+}
+
+#[test]
+fn a_crate_name_an_explicit_import_binds_is_never_read_as_the_crate_in_every_order() {
+    // `pub use k::other;` could bind `other` only once the glob of `k` brings
+    // it in, and that glob goes through `inn`, whose own path starts at
+    // `other`. The explicit import shadows the crate `other`, so `inn` never
+    // reads the crate: the two imports and the glob wait on one another, a
+    // cycle, and neither import binds. rustc refuses the import (E0432); the
+    // index answers the same whatever the order of the declarations.
     let blocks = [
         "pub use k::other;".to_owned(),
         "pub use other::inner as inn;".to_owned(),
@@ -1502,5 +1778,1220 @@ fn a_crate_read_before_the_explicit_import_of_its_name_binds_is_read_again_in_ev
         }
     }
     let (other, _) = answer.expect("an order");
-    assert_eq!(other, Err(vec!["NotFound(\"demo::other\")".to_owned()]));
+    assert_eq!(other, Err(vec!["Cyclic(\"demo::other\")".to_owned()]));
+}
+
+/// The answer to `path` in `ns`, or in every name space, with the items of
+/// an ambiguity by path.
+fn answer(ws: &Workspace, path: &str, ns: Option<Namespace>) -> String {
+    let result = match ns {
+        Some(ns) => ws.resolve_in(path, ns),
+        None => ws.resolve(path),
+    };
+    match result {
+        Ok(resolution) => resolution.path,
+        Err(ResolveError::Ambiguous(ids)) => format!(
+            "ambiguous {:?}",
+            ids.iter()
+                .map(|id| ws.item(*id).expect("item").path.to_string())
+                .collect::<Vec<_>>()
+        ),
+        Err(other) => format!("{other:?}"),
+    }
+}
+
+/// Load every order of `blocks` with `load`, and assert that the answers to
+/// `queries` and the trait keys of the load are the same in each. Returns
+/// them, the keys last, and the number of orders.
+fn one_answer_in_every_order(
+    load: fn(&str) -> Workspace,
+    blocks: &[&str],
+    queries: &[(&str, Option<Namespace>)],
+) -> (Vec<String>, usize) {
+    let mut expected: Option<Vec<String>> = None;
+    let mut orders = 0;
+    for order in permutations(&blocks.iter().map(|b| (*b).to_owned()).collect::<Vec<_>>()) {
+        let text = order.join("\n");
+        let ws = load(&text);
+        let mut found: Vec<String> = queries
+            .iter()
+            .map(|(path, ns)| answer(&ws, path, *ns))
+            .collect();
+        let mut keys: Vec<String> = ws
+            .items()
+            .filter_map(|item| {
+                item.trait_key
+                    .as_deref()
+                    .map(|key| format!("{} {key:?}", item.path))
+            })
+            .collect();
+        keys.sort();
+        found.push(keys.join("; "));
+        match &expected {
+            None => expected = Some(found),
+            Some(first) => assert_eq!(&found, first, "{text}"),
+        }
+        orders += 1;
+    }
+    (expected.expect("an order"), orders)
+}
+
+#[test]
+fn an_import_keeps_the_globs_out_only_in_the_name_spaces_it_binds_in_every_order() {
+    // `m` imports the struct `y::A` and globs the function `x::A`; `n` globs
+    // `m` and the function `z::A`. In the value name space `n` sees both
+    // functions, rustc's E0659, and in the type name space the struct.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "mod x { pub fn A() {} }",
+            "mod y { pub struct A {} }",
+            "mod z { pub fn A() {} }",
+            "mod m { pub use crate::x::*; pub use crate::y::A; }",
+            "mod n { pub use crate::m::*; pub use crate::z::*; }",
+        ],
+        &[
+            ("demo::n::A", Some(Namespace::Value)),
+            ("demo::n::A", Some(Namespace::Type)),
+            ("demo::m::A", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 120);
+    assert_eq!(
+        found,
+        [
+            "ambiguous [\"demo::x::A\", \"demo::z::A\"]",
+            "demo::y::A",
+            "demo::x::A",
+            "",
+        ]
+    );
+    // The same with traits, and a trait impl through `n`: rustc's E0659,
+    // and the key has both traits.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "mod x { pub trait T { fn m(&self); } }",
+            "mod y { pub fn T() {} }",
+            "mod z { pub trait T { fn m(&self); } }",
+            "mod m { pub use crate::x::*; pub use crate::y::T; }",
+            "mod n { pub use crate::m::*; pub use crate::z::*; }",
+            "impl n::T for String { fn m(&self) {} }",
+        ],
+        &[("demo::n::T", Some(Namespace::Type))],
+    );
+    assert_eq!(orders, 720);
+    assert_eq!(
+        found,
+        [
+            "ambiguous [\"demo::x::T\", \"demo::z::T\"]",
+            "n::T::m Unresolved { written: \"n::T\", candidates: [\"demo::x::T\", \"demo::z::T\"] }",
+        ]
+    );
+    // An import of a function `b::B` beside a glob of a struct `c::B`, read
+    // through another module: the type name space has the struct.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod a { pub use crate::b::B; pub use crate::c::*; }",
+            "pub mod b { pub fn B() {} }",
+            "pub mod c { pub struct B {} }",
+            "pub mod e { pub use crate::a::B; }",
+        ],
+        &[
+            ("demo::e::B", Some(Namespace::Type)),
+            ("demo::e::B", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(found, ["demo::c::B", "demo::b::B", ""]);
+}
+
+#[test]
+fn an_import_of_a_value_named_like_a_crate_leaves_the_crate_and_the_globs_in_every_order() {
+    // A function imported under the name of the library `shared` keeps the
+    // crate only from the value name space, so a `use` path through the
+    // name reads the crate.
+    let (found, orders) = one_answer_in_every_order(
+        beside_shared,
+        &[
+            "pub mod vals { pub fn shared() {} }",
+            "pub mod m { use crate::vals::shared; pub use shared::x; }",
+        ],
+        &[("demo::m::x", None)],
+    );
+    assert_eq!(orders, 2);
+    assert_eq!(found, ["shared::x", ""]);
+    // Where a glob also brings in a module `shared` through another module,
+    // the path through the name is the glob's module and the crate, rustc's
+    // E0659.
+    let (found, orders) = one_answer_in_every_order(
+        beside_shared,
+        &[
+            "pub mod vals { pub fn shared() {} }",
+            "pub mod k { pub mod shared { pub fn x() {} } }",
+            "pub mod p { pub use crate::vals::shared; pub use crate::k::*; }",
+            "pub mod n { use crate::p::*; pub use shared::x; }",
+        ],
+        &[
+            ("demo::n::x", None),
+            ("demo::p::shared", Some(Namespace::Type)),
+        ],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(
+        found,
+        [
+            "ambiguous [\"demo::k::shared\", \"shared\"]",
+            "demo::k::shared",
+            "",
+        ]
+    );
+}
+
+#[test]
+fn a_cycle_of_imports_with_one_glob_on_it_resolves_through_the_glob_in_every_order() {
+    // rustc resolves an import without the import itself: in a cycle where
+    // one module has a glob that brings the name in, the import that reads
+    // that module reads the glob, and the rest of the cycle follows it.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod b { pub trait T { fn m(&self); } }",
+            "pub mod e { pub use crate::d::T; }",
+            "pub mod d { pub use crate::e::T; pub use crate::b::*; }",
+            "pub mod w { pub use crate::e::T as W; }",
+            "impl e::T for String { fn m(&self) {} }",
+        ],
+        &[
+            ("demo::e::T", None),
+            ("demo::d::T", None),
+            ("demo::w::W", None),
+            ("demo::e::T", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 120);
+    assert_eq!(
+        found,
+        [
+            "demo::b::T",
+            "demo::b::T",
+            "demo::b::T",
+            "NotFound(\"demo::e::T\")",
+            "demo::b::T::m Canonical(\"demo::b::T\")",
+        ]
+    );
+    // Three imports, one glob.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod g { pub struct X; }",
+            "pub mod a { pub use crate::b::X; pub use crate::g::*; }",
+            "pub mod b { pub use crate::c::X; }",
+            "pub mod c { pub use crate::a::X; }",
+        ],
+        &[
+            ("demo::a::X", None),
+            ("demo::b::X", None),
+            ("demo::c::X", None),
+        ],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(found, ["demo::g::X", "demo::g::X", "demo::g::X", ""]);
+    // Two globs on the cycle, of one module or of two, or renamed imports
+    // in it, leave every import of the cycle undetermined, as in rustc.
+    let cyclic = |path: &str| format!("Cyclic({path:?})");
+    for (blocks, paths) in [
+        (
+            [
+                "pub mod g { pub struct X; }",
+                "pub mod a { pub use crate::b::X; pub use crate::g::*; }",
+                "pub mod b { pub use crate::a::X; pub use crate::g::*; }",
+            ],
+            vec!["demo::a::X", "demo::b::X"],
+        ),
+        (
+            [
+                "pub mod g { pub struct X; }",
+                "pub mod a { pub use crate::b::X; pub use crate::g::*; }",
+                "pub mod b { pub use crate::c::X; pub use crate::g::*; }\n\
+                 pub mod c { pub use crate::a::X; }",
+            ],
+            vec!["demo::a::X", "demo::b::X", "demo::c::X"],
+        ),
+        (
+            [
+                "pub mod g { pub struct A; pub struct B; }",
+                "pub mod a { pub use self::B as A; pub use self::A as B; pub use crate::g::*; }",
+                "pub mod h { pub use crate::a::A; }",
+            ],
+            vec!["demo::a::A", "demo::a::B", "demo::h::A"],
+        ),
+    ] {
+        let queries: Vec<(&str, Option<Namespace>)> =
+            paths.iter().map(|path| (*path, None)).collect();
+        let (found, orders) = one_answer_in_every_order(lib, &blocks, &queries);
+        assert_eq!(orders, 6);
+        let mut expected: Vec<String> = paths.iter().map(|path| cyclic(path)).collect();
+        expected.push(String::new());
+        assert_eq!(found, expected, "{blocks:?}");
+    }
+}
+
+#[test]
+fn an_import_that_bound_a_name_before_the_crates_opened_binds_the_crate_later_in_every_order() {
+    // `pub use other as inn;` binds the glob's function `other` in the
+    // value name space before the crates of the extern prelude are read,
+    // and the library `other` in the type name space once they are.
+    let (found, orders) = one_answer_in_every_order(
+        beside_two,
+        &[
+            "pub mod vals { pub fn other() {} }",
+            "pub mod a { pub use other as inn; pub use crate::e::*; }",
+            "pub mod e { pub use crate::vals::other; }",
+        ],
+        &[
+            ("demo::a::inn::x", None),
+            ("demo::a::inn", Some(Namespace::Type)),
+            ("demo::a::inn", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 6);
+    assert_eq!(found, ["other::x", "other", "demo::vals::other", ""]);
+    // The same where the glob's function is a definition, so that nothing
+    // the import read changes once the crates are read: it is read again
+    // all the same.
+    let (found, orders) = one_answer_in_every_order(
+        beside_two,
+        &[
+            "pub mod a { pub use other as inn; pub use crate::e::*; }",
+            "pub mod e { pub fn other() {} }",
+        ],
+        &[
+            ("demo::a::inn::x", None),
+            ("demo::a::inn", Some(Namespace::Type)),
+            ("demo::a::inn", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 2);
+    assert_eq!(found, ["other::x", "other", "demo::e::other", ""]);
+}
+
+#[test]
+fn imports_that_wait_on_one_another_through_globs_are_decided_as_rustc_does_in_every_order() {
+    // A cycle `a::B` -> `b::B` -> `e::B` -> `a::B` whose one glob, of `c`,
+    // brings in a function `B`, while `c` also globs `e`, whose `B` is the
+    // cycle's: the cycle resolves to the function in the value name space and
+    // binds nothing in the type name space, as rustc has it.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod c { pub use crate::e::*; pub fn B() {} }",
+            "pub mod e { pub use crate::a::B as B; }",
+            "pub mod a { pub use crate::c::*; pub use crate::b::B; }",
+            "pub mod b { pub use crate::a::B as A; pub use crate::e::B as B; }",
+        ],
+        &[
+            ("demo::a::B", Some(Namespace::Value)),
+            ("demo::b::A", Some(Namespace::Value)),
+            ("demo::e::B", Some(Namespace::Type)),
+        ],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(
+        found,
+        ["demo::c::B", "demo::c::B", "NotFound(\"demo::e::B\")", ""]
+    );
+    // `c` imports the struct `e::A`, and `e` globs `c`: in the value name
+    // space the import reads only its own name through the glob, which rustc
+    // leaves out, so it binds nothing there and `a`'s renamed import of
+    // `e::A` leaves the value name space of `B` to the glob's function.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod c { pub use crate::d::*; pub use crate::e::A; pub fn B() {} }",
+            "pub mod d {}",
+            "pub mod e { pub use crate::c::*; pub struct A {} }",
+            "pub mod a { pub use crate::e::*; pub use crate::e::A as B; }",
+        ],
+        &[
+            ("demo::a::B", Some(Namespace::Value)),
+            ("demo::a::B", Some(Namespace::Type)),
+        ],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(found, ["demo::c::B", "demo::e::A", ""]);
+}
+
+#[test]
+fn imports_whose_heads_are_names_their_globs_bring_in_are_decided_alike_in_every_order() {
+    // Each of `b` and `c` imports `shared::inner as shared` and globs the
+    // other, so each import's first segment is a name the other module's
+    // import may still bring in through the glob: neither may start at the
+    // crate `shared` before the other is settled, so the two wait on one
+    // another and neither binds. rustc refuses both (E0659, E0432); the index
+    // gives one answer whatever the order.
+    let (found, orders) = one_answer_in_every_order(
+        beside_two,
+        &[
+            "pub mod b { pub use shared::inner as shared; pub use super::c::*; }",
+            "pub mod c { pub use super::b::*; pub use shared::inner as shared; }",
+        ],
+        &[("demo::b::shared", None), ("demo::c::shared", None)],
+    );
+    assert_eq!(orders, 2);
+    assert_eq!(
+        found,
+        [
+            "Cyclic(\"demo::b::shared\")",
+            "Cyclic(\"demo::c::shared\")",
+            ""
+        ]
+    );
+    // A glob whose first segment is a crate that a glob of its module also
+    // brings in brings in nothing, also once the globs are rebuilt against
+    // the settled tables, so a module that imports through it finds nothing.
+    let (found, orders) = one_answer_in_every_order(
+        beside_two,
+        &[
+            "pub mod a { pub use shared::inner as shared; }",
+            "pub mod c { pub use super::a::*; pub use shared::*; }",
+            "pub mod b { pub use super::c::inner; }",
+        ],
+        &[
+            ("demo::c::inner", None),
+            ("demo::b::inner", None),
+            ("demo::c::shared", None),
+        ],
+    );
+    assert_eq!(orders, 6);
+    assert_eq!(
+        found,
+        [
+            "NotFound(\"demo::c::inner\")",
+            "NotFound(\"demo::b::inner\")",
+            "shared::inner",
+            "",
+        ]
+    );
+}
+
+#[test]
+fn a_name_space_binds_nothing_only_once_the_globs_that_may_bring_it_in_are_settled_in_every_order()
+{
+    // `m` imports `t::X`, a struct, and globs a function `X` of `g`. `t`
+    // globs `q`, whose own glob of `late` resolves only once `u` leaves the
+    // type name space of `late` to its glob of `w`: that glob brings the
+    // function `late::X` into `t`, so the import binds it in the value name
+    // space too, and the glob of `g` never answers there, as in rustc.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod v { pub fn late() {} }\npub mod w { pub mod late { pub fn X() {} } }\n\
+             pub mod u { pub use crate::v::late; pub use crate::w::*; }",
+            "pub mod q { pub use crate::u::late; pub use self::late::*; }",
+            "pub mod t { pub use crate::q::*; pub struct X {} }\npub mod g { pub fn X() {} }",
+            "pub mod m { pub use crate::t::X; pub use crate::g::*; }\n\
+             pub mod r { pub use crate::m::X as R; }",
+        ],
+        &[
+            ("demo::r::R", Some(Namespace::Value)),
+            ("demo::r::R", Some(Namespace::Type)),
+            ("demo::m::X", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(
+        found,
+        ["demo::w::late::X", "demo::t::X", "demo::w::late::X", ""]
+    );
+}
+
+#[test]
+fn the_rebuilt_globs_read_each_glob_path_in_the_settled_tables_in_every_order() {
+    // `c` globs `a`, which brings in `inner` from `l2` and an alias `shared`
+    // of the library's `inner`, and globs `shared::*`, whose first segment
+    // is then ambiguous with the library `shared`: it brings in nothing, so
+    // `c::inner` is `l2::inner` alone. Read against tables whose globs are
+    // cleared, the path would start at the library and bring in its
+    // `inner` as well.
+    let (found, orders) = one_answer_in_every_order(
+        beside_two,
+        &[
+            "pub mod l2 { pub mod inner { pub mod other { pub fn x() {} } } }",
+            "pub mod a { pub use shared::inner as shared; pub use super::l2::*; }",
+            "pub mod c { pub use super::a::*; pub use shared::*; }",
+            "pub mod b { pub use super::c::inner::other; }",
+        ],
+        &[("demo::b::other", None), ("demo::c::inner", None)],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(found, ["demo::l2::inner::other", "demo::l2::inner", ""]);
+}
+
+/// The key of the one trait impl on `u8` in `ws`.
+fn string_or_u8_key(ws: &Workspace) -> raf_source::TraitKey {
+    let keys: Vec<raf_source::TraitKey> = ws
+        .items()
+        .filter(|item| item.self_type.as_deref() == Some("u8"))
+        .filter_map(|item| item.trait_key.as_deref().cloned())
+        .collect();
+    match keys.as_slice() {
+        [key] => key.clone(),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn globs_that_glob_one_another_beside_names_bound_twice_settle_in_every_order() {
+    // Five modules glob one another and bind `A` and `B` twice (rustc's
+    // E0252 and E0255): what a glob may still bring in is found from the
+    // imports that keep a name open, never from the globs alone, so the
+    // tables settle whatever the order.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod d { pub fn A() {} pub use crate::e::*; pub use crate::d::A; pub use crate::c::*; }",
+            "pub mod e { pub use crate::b::*; pub use crate::e::B; pub struct B {} pub use crate::a::*; }",
+            "pub mod b { pub struct A {} pub struct B {} pub use crate::b::A; }",
+            "pub mod c { pub use crate::d::*; pub use crate::a::B; pub use crate::e::*; }",
+            "pub mod a { pub use crate::b::A as B; pub struct B {} pub use crate::b::B; pub use crate::c::*; }",
+        ],
+        &[("demo::c::A", None), ("demo::c::B", None)],
+    );
+    assert_eq!(orders, 120);
+    assert_eq!(
+        found,
+        [
+            "demo::b::A",
+            "ambiguous [\"demo::a::B\", \"demo::b::A\", \"demo::b::B\"]",
+            "",
+        ]
+    );
+    // A module whose globs both start at crates: each glob's path reads its
+    // first segment without the glob itself, and the globs settle.
+    let ws = beside_two("use shared::*;\nuse other::*;\npub use x as y;\n");
+    assert_eq!(path_of(&ws, "demo::y"), "other::x");
+}
+
+#[test]
+fn a_glob_whose_path_turns_out_ambiguous_brings_in_nothing_in_every_order() {
+    // `c` globs `shared::*` and `a`, which brings in an alias `shared` of
+    // the library's `inner`: once `a`'s glob has brought it in, the first
+    // segment of `shared::*` is ambiguous with the library `shared`, so the
+    // glob brings in nothing, also where its path read the library before
+    // that and brought names in: the tables are settled again with it held.
+    let (found, orders) = one_answer_in_every_order(
+        beside_two,
+        &[
+            "pub mod a { pub use q::q as p; pub use shared::inner as shared; \
+             pub use super::c::shared::X as Y; pub use super::l2::*; }",
+            "pub mod b { pub use super::c as shared; pub use shared::inner::other; \
+             pub use super::a::shared::X as Y; }",
+            "pub mod l2 { pub struct X; pub mod inner { pub mod other { pub fn x() {} } } }",
+            "pub mod c { pub use shared::shared as q; pub use self::shared::X; \
+             pub use shared::*; pub use super::a::*; }",
+        ],
+        &[("demo::b::other", None), ("demo::c::inner", None)],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(found, ["demo::l2::inner::other", "demo::l2::inner", ""]);
+}
+
+#[test]
+fn a_glob_brings_in_what_its_target_binds_later_whatever_its_target_holds_under_its_first_segment()
+{
+    // `shared::prelude` binds `shared` only through a cycle of renamed
+    // imports, which never settles, and `T` through a chain of re-exports
+    // that may settle after the glob of `demo` first reads it. The glob's
+    // own path is read without what the glob itself may bring in, so it
+    // brings in `T` once the chain settles.
+    let lib_text = "pub mod c1 { pub use super::c2::T; }\npub mod c2 { pub use super::c3::T; }\n\
+                    pub mod c3 { pub trait T { fn m(&self); } }\n\
+                    pub mod prelude { pub use self::s2 as shared; pub use self::shared as s2; \
+                    pub use crate::c1::T; }\n";
+    let tree: MemoryTree = [
+        ("Cargo.toml", "[workspace]\nmembers = [\"one\", \"demo\"]\n"),
+        (
+            "one/Cargo.toml",
+            "[package]\nname = \"p-one\"\nedition = \"2021\"\n\n[lib]\nname = \"shared\"\n",
+        ),
+        ("one/src/lib.rs", lib_text),
+        (
+            "demo/Cargo.toml",
+            "[package]\nname = \"demo\"\nedition = \"2021\"\n\n[dependencies]\np-one = { path = \"../one\" }\n",
+        ),
+        (
+            "demo/src/lib.rs",
+            "use shared::prelude::*;\nimpl T for u8 { fn m(&self) {} }\n",
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        string_or_u8_key(&ws),
+        raf_source::TraitKey::Canonical("shared::c3::T".to_owned())
+    );
+}
+
+#[test]
+fn an_import_whose_glob_reads_it_starts_at_the_crate_once_no_glob_may_bring_the_name_in_every_order()
+ {
+    // `use shared::inner as inn;` reads the crate `shared` once `e`'s import
+    // of the function `vals::shared` leaves the type name space, and `use
+    // inn::*;` then reads it: the glob, which waits on the import, does not
+    // hold the import's first segment back, as rustc reads it.
+    let (found, orders) = one_answer_in_every_order(
+        beside_two,
+        &[
+            "pub mod vals { pub fn shared() {} }",
+            "pub mod e { pub use crate::vals::shared; }",
+            "pub mod b { pub use crate::e::*; pub use shared::inner as inn; pub use inn::*; }",
+        ],
+        &[
+            ("demo::b::inn", Some(Namespace::Type)),
+            ("demo::b::other::x", None),
+            ("demo::b::shared", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 6);
+    assert_eq!(
+        found,
+        [
+            "shared::inner",
+            "shared::inner::other::x",
+            "demo::vals::shared",
+            "",
+        ]
+    );
+    // The same where `vals` globs an empty module, so that `e`'s import is
+    // decided only once the queue is empty: the first segment of `b`'s
+    // import still does not wait on `b`'s glob that reads the import.
+    let (found, orders) = one_answer_in_every_order(
+        beside_two,
+        &[
+            "pub mod z {}",
+            "pub mod vals { pub fn shared() {} pub use crate::z::*; }",
+            "pub mod e { pub use crate::vals::shared; }",
+            "pub mod b { pub use crate::e::*; pub use shared::inner as inn; pub use inn::*; }",
+        ],
+        &[
+            ("demo::b::inn", Some(Namespace::Type)),
+            ("demo::b::other::x", None),
+        ],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(found, ["shared::inner", "shared::inner::other::x", ""]);
+}
+
+#[test]
+fn an_item_a_glob_reaches_by_a_public_and_a_private_route_is_visible_in_every_order() {
+    // `m1` brings in `m2::X` through its public glob of `m2` and through its
+    // private glob of `m4`, whose `X` is `m3::X`, which `m3` brings in from
+    // `m1`. Whichever route is kept, the item is as visible as its most
+    // visible route, so `m3`, which globs `m1`, sees it in every order, as
+    // rustc does.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod m3 { pub use crate::m1::*; }",
+            "pub mod m4 { pub use crate::m3::X; }",
+            "pub mod m1 { pub use crate::m2::*; use crate::m4::*; }",
+            "pub mod m2 { pub fn X() {} }",
+        ],
+        &[("demo::m3::X", None), ("demo::m4::X", None)],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(found, ["demo::m2::X", "demo::m2::X", ""]);
+    // Through the private route alone, `m3` cannot see it.
+    let ws = lib(
+        "pub mod m3 { pub use crate::m1::*; }\npub mod m1 { use crate::m2::*; }\n\
+                  pub mod m2 { pub fn X() {} }\n",
+    );
+    not_found(&ws, "demo::m3::X");
+}
+
+#[test]
+fn a_cycle_through_a_glob_and_a_renamed_import_is_decided_in_each_name_space_in_every_order() {
+    // `a::B` and `b::B` import each other. In the type name space the glob
+    // of `d` in `a` answers, `d::B` being `e::B`, the renamed `b::A`; in the
+    // value name space no glob answers and nothing binds. The name spaces
+    // are decided apart, so the cycle resolves in the one and binds nothing
+    // in the other, as rustc does.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod d { pub use crate::e::B; }",
+            "pub mod b { pub use crate::a::B; pub use crate::c::*; pub struct A {} }",
+            "pub mod e { pub use crate::b::A as B; }",
+            "pub mod c { pub use crate::e::B as A; }",
+            "pub mod a { pub use crate::d::*; pub use crate::b::B; }",
+        ],
+        &[
+            ("demo::a::B", Some(Namespace::Type)),
+            ("demo::b::B", Some(Namespace::Type)),
+            ("demo::a::B", Some(Namespace::Value)),
+            ("demo::c::A", Some(Namespace::Type)),
+        ],
+    );
+    assert_eq!(orders, 120);
+    assert_eq!(
+        found,
+        [
+            "demo::b::A",
+            "demo::b::A",
+            "NotFound(\"demo::a::B\")",
+            "demo::b::A",
+            ""
+        ]
+    );
+}
+
+#[test]
+fn an_import_of_its_own_module_reads_what_the_globs_bring_in_in_every_order() {
+    // `c` imports `c::A`, its own name: rustc reads it without the import,
+    // through the glob of `d`, whose `A` is the renamed `a::B`, a value. So
+    // the import binds the value and nothing in the type name space, which
+    // `e`'s renamed import of `a::A` leaves to `e`'s glob of `c`: `c::B`.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod c { pub struct B {} pub use crate::d::*; pub use crate::c::A; }",
+            "pub mod d { pub use crate::a::B as A; pub const fn B() -> u32 { 4 } }",
+            "pub mod e { pub use crate::c::*; pub use crate::a::A as B; }",
+            "pub mod a { pub use crate::d::*; pub use crate::e::A; }",
+        ],
+        &[
+            ("demo::e::B", Some(Namespace::Type)),
+            ("demo::e::B", Some(Namespace::Value)),
+            ("demo::c::A", Some(Namespace::Value)),
+            ("demo::c::A", Some(Namespace::Type)),
+        ],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(
+        found,
+        [
+            "demo::c::B",
+            "demo::d::B",
+            "demo::d::B",
+            "NotFound(\"demo::c::A\")",
+            ""
+        ]
+    );
+}
+
+#[test]
+fn a_path_through_an_import_a_cycle_leaves_undecided_in_another_name_space_is_cyclic() {
+    // `c::B` and `x::B` import each other and nothing else answers, so the
+    // cycle never settles. `e` imports `d::B`, a function in the value name
+    // space and, in the type name space, whatever `d`'s glob of `c` brings
+    // in, which waits on the cycle. rustc refuses the crate, failing an
+    // import of the cycle (E0432). The index answers nothing through an
+    // import a cycle leaves undecided in a name space, in any name space,
+    // nor through one that imports from it.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod d { pub fn B() {} pub use crate::c::*; }",
+            "pub mod c { pub use crate::x::B; }",
+            "pub mod x { pub use crate::c::B; }",
+            "pub mod e { pub use crate::d::B as A; }",
+            "pub mod y { pub use crate::e::A as Q; }",
+        ],
+        &[
+            ("demo::d::B", Some(Namespace::Value)),
+            ("demo::e::A", Some(Namespace::Value)),
+            ("demo::e::A", Some(Namespace::Type)),
+            ("demo::y::Q", Some(Namespace::Value)),
+            ("demo::c::B", Some(Namespace::Type)),
+        ],
+    );
+    assert_eq!(orders, 120);
+    assert_eq!(
+        found,
+        [
+            "demo::d::B",
+            "Cyclic(\"demo::e::A\")",
+            "Cyclic(\"demo::e::A\")",
+            "Cyclic(\"demo::y::Q\")",
+            "Cyclic(\"demo::c::B\")",
+            ""
+        ]
+    );
+    // Where the cycle runs through globs, rustc reports each import that
+    // waits on it as one it cannot determine, whatever it bound in another
+    // name space: here `e`'s import of `d::B`, a function `b` defines in the
+    // value name space and, in the type name space, what `b`'s import of
+    // `a::B` binds, which waits on the globs of `a`, `d` and `b`.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod b { pub use crate::a::B; pub use crate::a::*; pub use crate::e::*; pub fn B() {} }",
+            "pub mod e { pub struct B {} pub use crate::d::B as A; }",
+            "pub mod a { pub use crate::d::*; pub struct A {} }",
+            "pub mod d { pub use crate::b::*; }",
+        ],
+        &[
+            ("demo::e::A", Some(Namespace::Value)),
+            ("demo::e::A", Some(Namespace::Type)),
+        ],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(
+        found,
+        ["Cyclic(\"demo::e::A\")", "Cyclic(\"demo::e::A\")", ""]
+    );
+    // The same import, once the cycle is gone, binds in the value name
+    // space.
+    let ws = lib(
+        "pub mod d { pub fn B() {} pub use crate::c::*; }\npub mod c {}\n\
+                  pub mod e { pub use crate::d::B as A; }\n",
+    );
+    assert_eq!(answer(&ws, "demo::e::A", None), "demo::d::B");
+}
+
+#[test]
+fn a_cycle_whose_import_reads_its_own_name_through_another_glob_is_cyclic_in_every_order() {
+    // `m0` imports `m3::Z`, which `m3`'s import of `m4::Z` keeps from
+    // `m3`'s globs; `m4`'s `Z` is what its glob of `m3` brings in, so the
+    // import of `m4::Z` reads its own name through another module's glob.
+    // The cycle leaves `m3::Z` to `m3`'s globs while `m0`'s import reads it,
+    // but `m4`'s glob does not bring the name in from `m3` until `m3`'s
+    // import is decided, which never happens: rustc never determines that
+    // import (E0432), and the index answers `Cyclic` through it, and through
+    // `m0`'s import, which waits on it in the type name space, whatever the
+    // order.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod m7 { pub fn Z() {} }",
+            "pub mod m6 { pub use crate::m0::*; }",
+            "pub mod m4 { pub use crate::m3::*; }",
+            "pub mod m3 { pub use crate::m4::Z; pub use crate::m7::*; pub use crate::m6::*; use crate::m2::*; }",
+            "pub mod m0 { pub use crate::m3::Z; }",
+            "pub mod m2 { pub fn Z() {} }",
+        ],
+        &[
+            ("demo::m0::Z", Some(Namespace::Value)),
+            ("demo::m3::Z", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 720);
+    assert_eq!(
+        found,
+        ["Cyclic(\"demo::m0::Z\")", "Cyclic(\"demo::m3::Z\")", ""]
+    );
+    // A cycle through renamed imports and globs whose one glob answer, at
+    // `e::B`, leaves `b`'s and `c`'s renamed imports waiting on each other:
+    // rustc reads a place through the glob only while the cycle's imports
+    // resolve without it, which they never do here, so it cannot determine
+    // the imports (E0432), and the index decides none of them.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod c { pub use crate::b::B as A; }",
+            "pub mod e { pub use crate::b::B; pub use crate::d::*; pub use crate::b::B as A; }",
+            "pub mod a { pub use crate::d::*; pub use crate::e::*; pub use crate::e::B; }",
+            "pub mod d { pub struct B {} pub const fn A() -> u32 { 2 } pub use crate::c::*; }",
+            "pub mod b { pub use crate::d::A as B; pub use crate::a::*; }",
+        ],
+        &[
+            ("demo::a::B", Some(Namespace::Type)),
+            ("demo::a::B", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 120);
+    assert_eq!(
+        found,
+        ["Cyclic(\"demo::a::B\")", "Cyclic(\"demo::a::B\")", ""]
+    );
+    // Where the name read back is one an import of the cycle binds, the path
+    // reads it through that import and not through the glob: `e`'s import of
+    // `c::B` keeps `e::B` from `e`'s glob of `d`, and `c::B` is `c`'s import
+    // of `e::B`, though `c` globs `e` too. The cycle resolves through `e`'s
+    // glob, as in rustc: `d::B` for both.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod e { pub use crate::d::*; pub use crate::c::B as B; }",
+            "pub mod c { pub use crate::e::*; pub use crate::e::B; }",
+            "pub mod d { pub use crate::c::*; pub struct B {} }",
+            "pub mod b { pub const fn B() -> u32 { 1 } }",
+        ],
+        &[
+            ("demo::c::B", Some(Namespace::Type)),
+            ("demo::e::B", Some(Namespace::Type)),
+        ],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(found, ["demo::d::B", "demo::d::B", ""]);
+}
+
+/// [`one_answer_in_every_order`] for blocks too many to load in every order:
+/// each rotation of the blocks, forward and reversed.
+fn one_answer_in_every_rotation(
+    blocks: &[&str],
+    queries: &[(&str, Option<Namespace>)],
+) -> (Vec<String>, usize) {
+    one_answer_in_every_rotation_of(lib, blocks, queries)
+}
+
+/// [`one_answer_in_every_rotation`] loaded with `load`.
+fn one_answer_in_every_rotation_of(
+    load: fn(&str) -> Workspace,
+    blocks: &[&str],
+    queries: &[(&str, Option<Namespace>)],
+) -> (Vec<String>, usize) {
+    let mut expected: Option<Vec<String>> = None;
+    let mut orders = 0;
+    for reversed in [false, true] {
+        let mut order: Vec<&str> = blocks.to_vec();
+        if reversed {
+            order.reverse();
+        }
+        for _ in 0..order.len() {
+            order.rotate_left(1);
+            let text = order.join("\n");
+            let ws = load(&text);
+            let found: Vec<String> = queries
+                .iter()
+                .map(|(path, ns)| answer(&ws, path, *ns))
+                .collect();
+            match &expected {
+                None => expected = Some(found),
+                Some(first) => assert_eq!(&found, first, "{text}"),
+            }
+            orders += 1;
+        }
+    }
+    (expected.expect("an order"), orders)
+}
+
+#[test]
+fn a_name_space_binds_nothing_only_once_the_globs_its_globs_reach_are_settled() {
+    // `user` imports `m::T`, which `m` defines as a function and which, in
+    // the type name space, `m`'s glob of `a` brings in once `a`'s glob path
+    // `h::inner` resolves, through a cycle that resolves through `j`'s glob.
+    // `m`'s glob is not settled while `a`'s is not, so the import's type
+    // name space is not left to `user`'s glob of `o` meanwhile: it binds
+    // `z::inner::T`, as rustc has it, and `r`, which imports it, too.
+    let (found, orders) = one_answer_in_every_rotation(
+        &[
+            "pub mod z { pub mod inner { pub struct T {} } }",
+            "pub mod j { pub use crate::h::inner; pub use crate::z::*; }",
+            "pub mod h { pub use crate::j::inner; }",
+            "pub mod a { pub use crate::h::inner::*; }",
+            "pub mod m { pub use crate::a::*; pub fn T() {} }",
+            "pub mod o { pub struct T {} }",
+            "pub mod user { pub use crate::m::T; pub use crate::o::*; }",
+            "pub mod r { pub use crate::user::T; }",
+        ],
+        &[
+            ("demo::user::T", Some(Namespace::Type)),
+            ("demo::r::T", Some(Namespace::Type)),
+            ("demo::r::T", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 16);
+    assert_eq!(
+        found,
+        ["demo::z::inner::T", "demo::z::inner::T", "demo::m::T"]
+    );
+}
+
+#[test]
+fn a_cycle_through_a_renamed_import_that_has_bound_nothing_is_cyclic_in_every_order() {
+    // `a` imports `b::X as Y` and globs `g`, whose `Y` would answer `a::Y`;
+    // `b` imports `a::Y as X`. rustc cannot read `a::Y` without `a`'s
+    // renamed import, which has bound nothing in any name space, and cannot
+    // determine either import (E0432); the index decides neither.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod a { pub use crate::b::X as Y; pub use crate::g::*; }",
+            "pub mod b { pub use crate::a::Y as X; }",
+            "pub mod g { pub struct Y; }",
+        ],
+        &[("demo::a::Y", None), ("demo::b::X", None)],
+    );
+    assert_eq!(orders, 6);
+    assert_eq!(
+        found,
+        ["Cyclic(\"demo::a::Y\")", "Cyclic(\"demo::b::X\")", ""]
+    );
+}
+
+#[test]
+fn a_cycle_resolves_through_its_glob_when_a_place_an_import_keeps_also_waits_on_a_glob() {
+    // `e::B`, `b::B` and `d::B` import one another in a cycle that `d`'s
+    // glob of `c` answers with the function `c::B`; `a`'s renamed import
+    // of `e::B` waits on it, and `e`'s glob of `a` may bring `a::B` back
+    // into `e`. That loop runs through `e::B`, which `e`'s import binds once
+    // the cycle resolves, so it ends with the cycle: every `B` is `c::B` in
+    // the value name space, as rustc has them.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod a { pub struct A {} pub use crate::e::B as B; }",
+            "pub mod e { pub use crate::b::B; pub use crate::a::*; pub struct A {} }",
+            "pub mod c { pub use crate::a::*; pub const fn B() -> u32 { 3 } pub const fn A() -> u32 { 2 } }",
+            "pub mod d { pub use crate::e::B; pub use crate::c::*; }",
+            "pub mod b { pub use crate::d::B; }",
+        ],
+        &[
+            ("demo::a::B", Some(Namespace::Value)),
+            ("demo::b::B", Some(Namespace::Value)),
+            ("demo::d::B", Some(Namespace::Value)),
+            ("demo::e::B", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 120);
+    assert_eq!(
+        found,
+        ["demo::c::B", "demo::c::B", "demo::c::B", "demo::c::B", ""]
+    );
+}
+
+#[test]
+fn an_import_through_an_import_that_keeps_its_name_keeps_its_own_from_the_globs_in_every_order() {
+    // `m`'s import of `m2::N` reaches a module whose glob the index cannot
+    // resolve, so it binds nothing and keeps `N` in the type name space.
+    // `r`'s import of `m::N` binds the function `m::N` and, in the type name
+    // space, reads that kept name: it keeps `r::N` from `r`'s glob of `g`
+    // there too, and nothing answers it, whatever the order.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod m2 { pub use crate::nonexistent::*; }",
+            "pub mod m { pub use crate::m2::N; pub fn N() {} }",
+            "pub mod g { pub struct N {} }",
+            "pub mod r { pub use crate::m::N; pub use crate::g::*; }",
+        ],
+        &[
+            ("demo::r::N", Some(Namespace::Type)),
+            ("demo::r::N", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(found, ["NotFound(\"demo::r::N\")", "demo::m::N", ""]);
+}
+
+#[test]
+fn a_cycle_through_a_glob_the_importer_cannot_access_is_no_cycle_in_every_order() {
+    // `a` imports `b::B`, a function, and globs `c`; `b` globs `a` with a
+    // private glob, which `a` cannot access. rustc resolves `a`'s import
+    // without what `a` cannot access, so there is no cycle: `a::B` is the
+    // function, and `c::B` in the type name space.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod c { pub struct B {} }",
+            "pub mod a { pub use self::b::B; pub use crate::c::*; mod b { pub fn B() {} use super::*; } }",
+        ],
+        &[
+            ("demo::a::B", Some(Namespace::Type)),
+            ("demo::a::B", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 2);
+    assert_eq!(found, ["demo::c::B", "demo::a::b::B", ""]);
+    // The same with `b` beside `a` and its glob of `a` private to it.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod c { pub struct B {} }",
+            "pub mod a { pub use crate::b::B; pub use crate::c::*; }",
+            "pub mod b { pub fn B() {} use crate::a::*; }",
+        ],
+        &[
+            ("demo::a::B", Some(Namespace::Type)),
+            ("demo::a::B", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 6);
+    assert_eq!(found, ["demo::c::B", "demo::b::B", ""]);
+    // With `b`'s glob public, `a`'s import reads `b::B` back through it:
+    // rustc cannot determine the import (E0432), and the index decides
+    // nothing for it.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod c { pub struct B {} }",
+            "pub mod a { pub use self::b::B; pub use crate::c::*; pub mod b { pub fn B() {} pub use super::*; } }",
+        ],
+        &[
+            ("demo::a::B", Some(Namespace::Type)),
+            ("demo::a::B", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 2);
+    assert_eq!(
+        found,
+        ["Cyclic(\"demo::a::B\")", "Cyclic(\"demo::a::B\")", ""]
+    );
+}
+
+#[test]
+fn an_import_a_cycle_leaves_to_the_globs_binds_what_its_readers_could_access_in_every_order() {
+    // `m2` and `m3` import `Y` from each other, and `m2`'s globs answer
+    // `m2::Y`: its private glob of `m0` with `m0::Y` and its public glob of
+    // `m1` with the unit struct `m1::Y`. `m3`, outside `m2`, can access only
+    // `m1::Y`, so it binds that, and `m2`'s import, reading `m3::Y`, binds it
+    // too: what `m3` read is kept, and rustc accepts the crate with both
+    // names `m1::Y`.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod m3 { pub use crate::m2::Y; }",
+            "pub mod m0 { pub struct Y {} }",
+            "pub mod m2 { use crate::m0::*; pub use crate::m3::Y; pub use crate::m1::*; }",
+            "pub mod m1 { pub struct Y; }",
+        ],
+        &[
+            ("demo::m2::Y", Some(Namespace::Type)),
+            ("demo::m2::Y", Some(Namespace::Value)),
+            ("demo::m3::Y", Some(Namespace::Type)),
+        ],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(found, ["demo::m1::Y", "demo::m1::Y", "demo::m1::Y", ""]);
+}
+
+#[test]
+fn a_name_an_import_the_reader_cannot_access_binds_is_hidden_from_it_in_every_order() {
+    // `c` imports `shared::inner as inn` privately and globs `d`, whose `inn`
+    // is the crate `other`. `b`'s import of `c::inn` cannot access `c`'s
+    // import, which hides the glob's `inn` all the same, so it binds nothing
+    // whatever the order (rustc: E0603), and does not bind the glob's crate
+    // before `c`'s import is decided.
+    let (found, orders) = one_answer_in_every_order(
+        beside_two,
+        &[
+            "pub mod c { use shared::inner as inn; pub use crate::d::*; }",
+            "pub mod d { pub use other as inn; }",
+            "pub mod b { pub use crate::c::inn; }",
+        ],
+        &[("demo::b::inn", None), ("demo::c::inn", None)],
+    );
+    assert_eq!(orders, 6);
+    assert_eq!(found, ["NotFound(\"demo::b::inn\")", "shared::inner", ""]);
+    // The program the order search found it in, in every rotation.
+    let (found, orders) = one_answer_in_every_rotation_of(
+        beside_two,
+        &[
+            "pub mod vals { pub fn shared() {} pub fn other() {} }",
+            "pub mod k { pub mod other { pub fn x() {} pub trait T { fn m(&self); } } }",
+            "pub mod c { pub use other::x; use shared::inner as inn; pub use crate::vals::other; pub use crate::d::*; }",
+            "pub mod e {  }",
+            "pub mod b { pub use crate::c::inn; pub use crate::vals::other; pub use shared::inner::other; pub use other::x; }",
+            "pub mod d { pub use other as inn; impl shared::T for u16 { fn m(&self) {} } pub use crate::vals::shared; }",
+            "pub mod a {  }",
+        ],
+        &[("demo::b::inn", None)],
+    );
+    assert_eq!(orders, 14);
+    assert_eq!(found, ["NotFound(\"demo::b::inn\")"]);
+}
+
+#[test]
+fn an_import_that_reads_a_name_only_through_a_glob_it_cannot_access_finds_nothing_in_every_order() {
+    // `c` imports `a::A`, which only `a`'s private glob of `c` could bring
+    // in: `c` cannot access that glob, so its import finds nothing and waits
+    // on nothing (rustc: E0432 for it), and `e`'s import of `d::A`, which
+    // `d`'s glob of `c` would bring in, finds nothing either.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod a { use crate::c::*; }",
+            "pub mod e { pub use crate::d::A; }",
+            "pub mod c { pub use crate::a::A; pub use crate::e::*; }",
+            "pub mod d { pub use crate::c::*; }",
+        ],
+        &[
+            ("demo::a::A", None),
+            ("demo::c::A", None),
+            ("demo::e::A", None),
+        ],
+    );
+    assert_eq!(orders, 24);
+    assert_eq!(
+        found,
+        [
+            "NotFound(\"demo::a::A\")",
+            "NotFound(\"demo::c::A\")",
+            "NotFound(\"demo::e::A\")",
+            ""
+        ]
+    );
+}
+
+#[test]
+fn a_glob_the_importer_cannot_access_holds_nothing_back_in_every_order() {
+    // `m` defines the function `N` and globs a path through the cycle of
+    // `x` and `y` with a private glob, which stays unsettled. `f` cannot
+    // access that glob, so its import of `m::N` binds the function and
+    // leaves the type name space to `f`'s glob of `g`, as rustc does (which
+    // refuses only the cycle, E0432).
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub mod x { pub use crate::y::Q; }",
+            "pub mod y { pub use crate::x::Q; }",
+            "pub mod m { pub fn N() {} use crate::x::Q::*; }",
+            "pub mod g { pub struct N {} }",
+            "pub mod f { pub use crate::m::N; pub use crate::g::*; }",
+        ],
+        &[
+            ("demo::f::N", Some(Namespace::Type)),
+            ("demo::f::N", Some(Namespace::Value)),
+        ],
+    );
+    assert_eq!(orders, 120);
+    assert_eq!(found, ["demo::g::N", "demo::m::N", ""]);
+}
+
+#[test]
+fn cycles_through_private_globs_resolve_as_each_reader_can_access_them_in_every_order() {
+    // Two programs rustc accepts. In the first, `a`'s import of `d::B` and
+    // `d`'s import of `a::B` wait on each other; `a`'s private glob of `b`
+    // would answer `a::B`, but not for `d`, and `d`'s public glob of `b`
+    // answers `d::B`: the cycle resolves through that one glob, to `b::B`.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub trait Id { const ID: u32; }",
+            "pub mod b { pub struct B {} impl crate::Id for B { const ID: u32 = 4; } pub const fn A() -> u32 { 3 } }",
+            "pub mod e { use crate::b::*; }",
+            "pub mod a { pub struct A {} impl crate::Id for A { const ID: u32 = 1; } pub const fn A() -> u32 { 2 } use crate::b::*; pub use crate::d::B as B; }",
+            "pub mod d { use crate::a::*; pub use crate::b::*; pub use crate::a::B; }",
+        ],
+        &[
+            ("demo::a::B", Some(Namespace::Type)),
+            ("demo::d::B", Some(Namespace::Type)),
+        ],
+    );
+    assert_eq!(orders, 120);
+    assert_eq!(found, ["demo::b::B", "demo::b::B", ""]);
+    // In the second, `d`'s and `b`'s imports of `e::A` read the struct; in
+    // the value name space `e`'s glob of `d` brings in only what `e` can
+    // access of `d`, not what `d`'s private globs of `b` and `c` bring in,
+    // so neither import waits on the other there.
+    let (found, orders) = one_answer_in_every_order(
+        lib,
+        &[
+            "pub trait Id { const ID: u32; }",
+            "pub mod b { pub use crate::e::A; pub const fn B() -> u32 { 1 } }",
+            "pub mod c {  }",
+            "pub mod d { use crate::c::*; use crate::b::*; pub use crate::e::*; pub use crate::e::A as A; }",
+            "pub mod e { pub use crate::d::*; pub struct A {} impl crate::Id for A { const ID: u32 = 2; } }",
+        ],
+        &[
+            ("demo::b::A", Some(Namespace::Type)),
+            ("demo::d::A", Some(Namespace::Type)),
+        ],
+    );
+    assert_eq!(orders, 120);
+    assert_eq!(found, ["demo::e::A", "demo::e::A", ""]);
 }

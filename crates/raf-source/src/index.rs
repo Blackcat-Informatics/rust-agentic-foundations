@@ -14,7 +14,7 @@
 //! [`crate::resolve`]). The impl step attaches the members of impl blocks to
 //! the types they resolve to. The order step sorts the items.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::mem::size_of;
 use std::sync::Arc;
 
@@ -59,11 +59,6 @@ pub(crate) const MODULE_BYTES: usize = vec_slot::<Module>()
 pub(crate) const MEMBERS_BYTES: usize =
     btree_entry::<ItemId, BTreeMap<String, Vec<ItemId>>>() + btree_map::<String, Vec<ItemId>>();
 
-/// What a module's table of unsettled imports allocates at most, once for the
-/// module.
-const UNSETTLED_BYTES: usize =
-    btree_entry::<usize, BTreeMap<String, usize>>() + btree_map::<String, usize>();
-
 /// What the tables and lists of one load allocate before their first entries:
 /// every load-wide table and list at its first room.
 pub(crate) const LOAD_BASE_BYTES: usize = btree_map::<&str, (usize, &str)>()
@@ -72,7 +67,6 @@ pub(crate) const LOAD_BASE_BYTES: usize = btree_map::<&str, (usize, &str)>()
     + btree_map::<(usize, SharedStr), usize>()
     + btree_map::<ItemId, usize>()
     + btree_map::<ItemId, Vec<usize>>()
-    + btree_map::<usize, BTreeMap<String, usize>>()
     + btree_map::<ItemId, SharedStr>()
     + btree_map::<usize, ItemId>()
     + btree_map::<(RelPath, usize), Vec<ItemId>>()
@@ -92,7 +86,9 @@ pub(crate) const LOAD_BASE_BYTES: usize = btree_map::<&str, (usize, &str)>()
     + vec_first::<Module>()
     + vec_first::<Scope>()
     + vec_first::<UseDecl>()
-    + 3 * vec_first::<bool>()
+    + 4 * vec_first::<bool>()
+    + 4 * vec_first::<[bool; 3]>()
+    + vec_first::<BTreeSet<usize>>()
     + vec_first::<(usize, usize)>()
     + vec_first::<Visit>()
     + vec_first::<ImplDecl<'static>>()
@@ -101,7 +97,18 @@ pub(crate) const LOAD_BASE_BYTES: usize = btree_map::<&str, (usize, &str)>()
     + vec_first::<BTreeMap<String, ExternName>>()
     + vec_first::<u16>()
     + vec_first::<bool>()
-    + 2 * vec_first::<usize>();
+    + 2 * vec_first::<usize>()
+    + vec_first::<(usize, u64)>();
+
+/// The first eight bytes of `name`, big-endian, padded with zero bytes: two
+/// names compare as their prefixes do whenever the prefixes differ, as a name
+/// holds no zero byte.
+fn name_prefix(name: &str) -> u64 {
+    let mut bytes = [0; 8];
+    let taken = name.len().min(8);
+    bytes[..taken].copy_from_slice(&name.as_bytes()[..taken]);
+    u64::from_be_bytes(bytes)
+}
 
 /// What a definition allocates at most in the scope tables: its place among its
 /// module's definitions and in the copy the scopes are built from, the entry of
@@ -216,20 +223,22 @@ impl ExternName {
 
 impl UseDecl {
     /// What the entry allocates at most: its slot in the list of imports, its
-    /// three flags, its place in the named or the glob imports in order, the strings
-    /// it owns and, for a named import, its entry among the unsettled imports of
-    /// its module (the name copied as the key). What a named import binds is
-    /// charged when it binds it.
+    /// four flags, its four sets of flags by name space, its set of modules
+    /// reached (each module in it is charged when a settle ends), its place in the
+    /// named or the glob imports in order and among the keys of the named
+    /// imports, and the strings it owns. What a
+    /// named import binds is charged when it binds it.
     fn bytes(&self) -> usize {
         let owned = match &self.kind {
-            UseKind::Named { name, segs } => {
-                name.capacity() + strings_bytes(segs) + btree_entry::<String, usize>() + name.len()
-            }
+            UseKind::Named { name, segs } => name.capacity() + strings_bytes(segs),
             UseKind::Glob { segs } => strings_bytes(segs),
         };
         vec_slot::<Self>()
-            + 3 * vec_slot::<bool>()
+            + 4 * vec_slot::<bool>()
+            + 4 * vec_slot::<[bool; 3]>()
+            + vec_slot::<BTreeSet<usize>>()
             + vec_slot::<usize>()
+            + vec_slot::<(usize, u64)>()
             + owned
             + vis_capacity(&self.vis)
     }
@@ -291,14 +300,6 @@ pub(crate) struct Index {
     /// not bind may start at a crate of the extern prelude: the globs have
     /// brought in what they can without it.
     pub(crate) crates_open: bool,
-    /// While the tables settle: the `use` paths whose first segment was read
-    /// as a crate of the extern prelude, by module and name. Emptied once
-    /// they are settled.
-    pub(crate) crate_reads: BTreeMap<(usize, String), BTreeSet<usize>>,
-    /// While the tables settle: the names of a module that an explicit
-    /// import binds once the tables are settled, which a `use` path of the
-    /// module never reads as a crate. Emptied once they are settled.
-    pub(crate) no_crate: BTreeSet<(usize, String)>,
     /// The inherent impls whose self type the index cannot see, sorted by
     /// path, file and position.
     pub(crate) unresolved: Vec<UnresolvedImpl>,
@@ -307,16 +308,47 @@ pub(crate) struct Index {
     /// The positions of the named imports, sorted by module, bound name and
     /// position.
     pub(crate) named_imports: Vec<usize>,
+    /// The module of each of `named_imports` and the first eight bytes of
+    /// the name it binds ([`name_prefix`]), in its order, so that the imports
+    /// of a name are found without reading most declarations.
+    pub(crate) named_keys: Vec<(usize, u64)>,
     /// The positions of the glob imports, sorted by module and position.
     pub(crate) glob_imports: Vec<usize>,
+    /// True for an import that bound something.
     pub(crate) use_resolved: Vec<bool>,
-    /// True once an import is resolved or has definitively failed.
+    /// True once an import is resolved, has failed or is held as ambiguous.
+    /// The named imports of a cycle, and those that wait on one, never
+    /// settle.
     pub(crate) use_settled: Vec<bool>,
-    /// True for a named import whose first segment is ambiguous: it keeps the
-    /// name it binds indeterminate, so no glob of its module answers for it.
+    /// True for a named import whose first segment is ambiguous: it binds
+    /// nothing, and keeps the name it binds from the globs of its module and
+    /// the crates in every name space.
     pub(crate) use_ambiguous: Vec<bool>,
-    /// Named imports not yet settled, by module and bound name.
-    pub(crate) unsettled: BTreeMap<usize, BTreeMap<String, usize>>,
+    /// For each import and name space, true once the import bound something
+    /// there.
+    pub(crate) use_bound: Vec<[bool; 3]>,
+    /// For each import and name space, true once the import leaves its name
+    /// there to the globs of its module: it binds nothing there, and its path
+    /// can bind nothing there whatever is still to be settled.
+    pub(crate) use_free: Vec<[bool; 3]>,
+    /// For each import and name space, true once the import is decided
+    /// there: it bound something, or the settling of the tables decided that
+    /// it binds nothing there. An import of a cycle, and one that waits on a
+    /// cycle, stays undecided in the name spaces the cycle holds.
+    pub(crate) use_decided: Vec<[bool; 3]>,
+    /// For each import and name space, true once the settling of the tables
+    /// found that the import's path can bind nothing there whatever is left
+    /// to settle. Such a name space is left to the globs
+    /// ([`Index::use_free`]) once the import binds something in another.
+    pub(crate) use_empty: Vec<[bool; 3]>,
+    /// True for a glob import whose path resolved and whose target modules'
+    /// globs, those its module can name, are settled: what it brings in can
+    /// then only grow by what its targets bind (see [`Index::pending_at`]).
+    /// Until then no name of its module is decided to bind nothing.
+    pub(crate) glob_closed: Vec<bool>,
+    /// The modules the path of each glob import reached when the glob was
+    /// last tried, by position; empty for a named import.
+    pub(crate) glob_reach: Vec<BTreeSet<usize>>,
     /// The crate an `extern crate` item names, by item.
     pub(crate) extern_names: BTreeMap<ItemId, SharedStr>,
     /// Items grouped by file and the byte offset where their span starts.
@@ -494,8 +526,6 @@ struct Builder<'a> {
     /// The shared aliased path of each alias fact, by the fact's address in
     /// its file's facts, which outlive the build.
     aliases: HashMap<*const PathFact, Arc<PathFact>>,
-    /// The modules whose table of unsettled imports is already charged.
-    unsettled_modules: HashSet<usize>,
     index: Index,
 }
 
@@ -819,11 +849,7 @@ impl<'a> Builder<'a> {
                     test: decl.test != TestRole::None || cx.reach_test,
                     kind,
                 };
-                let first_named = matches!(entry.kind, UseKind::Named { .. })
-                    && self.unsettled_modules.insert(module);
-                let table = if first_named { UNSETTLED_BYTES } else { 0 };
-                self.store
-                    .charge(entry.bytes() + table, cx.file, Some(decl.line))?;
+                self.store.charge(entry.bytes(), cx.file, Some(decl.line))?;
                 self.index.uses.push(entry);
             }
         }
@@ -868,17 +894,21 @@ impl Index {
             target_editions: Vec::new(),
             target_no_std: Vec::new(),
             crates_open: false,
-            crate_reads: BTreeMap::new(),
-            no_crate: BTreeSet::new(),
             unresolved: Vec::new(),
             scopes: Vec::new(),
             uses: Vec::new(),
             named_imports: Vec::new(),
+            named_keys: Vec::new(),
             glob_imports: Vec::new(),
             use_resolved: Vec::new(),
             use_settled: Vec::new(),
             use_ambiguous: Vec::new(),
-            unsettled: BTreeMap::new(),
+            use_bound: Vec::new(),
+            use_free: Vec::new(),
+            use_decided: Vec::new(),
+            use_empty: Vec::new(),
+            glob_closed: Vec::new(),
+            glob_reach: Vec::new(),
             extern_names: BTreeMap::new(),
             root_items: BTreeMap::new(),
             by_source: BTreeMap::new(),
@@ -923,7 +953,6 @@ impl Index {
             store: Store { strings, meter },
             impls: Vec::new(),
             aliases: HashMap::new(),
-            unsettled_modules: HashSet::new(),
             index: Index::empty(targets),
         };
         for (position, target) in builder.targets.iter().enumerate() {
@@ -1248,6 +1277,12 @@ impl Index {
         }
         named_imports.sort_by(|a, b| self.named_key(*a).cmp(&self.named_key(*b)));
         glob_imports.sort_by_key(|position| (self.uses[*position].module, *position));
+        let mut named_keys = Vec::with_capacity(named);
+        named_keys.extend(named_imports.iter().map(|position| {
+            let (module, name, _) = self.named_key(*position);
+            (module, name_prefix(name))
+        }));
+        self.named_keys = named_keys;
         self.named_imports = named_imports;
         self.glob_imports = glob_imports;
     }
@@ -1264,14 +1299,49 @@ impl Index {
 
     /// The named imports of `module` that bind `name`, in order of position.
     pub(crate) fn imports_of(&self, module: usize, name: &str) -> &[usize] {
-        let start = self
-            .named_imports
-            .partition_point(|position| self.named_key(*position) < (module, name, 0));
-        let end = self.named_imports[start..].partition_point(|position| {
-            let (at, bound, _) = self.named_key(*position);
-            (at, bound) == (module, name)
-        });
-        &self.named_imports[start..start + end]
+        // The names are sorted, so their prefixes are too: the imports of
+        // `name` are among those of its module and prefix.
+        let key = (module, name_prefix(name));
+        let from = self.named_keys.partition_point(|at| *at < key);
+        let to = from + self.named_keys[from..].partition_point(|at| *at == key);
+        let here = &self.named_imports[from..to];
+        let start = here.partition_point(|position| self.named_key(*position).1 < name);
+        let end = here[start..].partition_point(|position| self.named_key(*position).1 == name);
+        &here[start..start + end]
+    }
+
+    /// What settling the tables again allocates at most beyond the bindings
+    /// its imports make: the scope tables built from the definitions, with
+    /// the copy of each module's definitions they are built from, and the
+    /// state of every import.
+    pub(crate) fn settle_bytes(&self) -> usize {
+        let definitions: usize = self
+            .modules
+            .iter()
+            .flat_map(|module| &module.defs)
+            .map(|id| {
+                let item = &self.items[id.0];
+                let namespaces = Namespace::ALL
+                    .into_iter()
+                    .filter(|ns| item.in_namespace(*ns))
+                    .count();
+                scope_bytes(&item.name, &item.visibility, namespaces)
+            })
+            .sum();
+        definitions
+            + self.modules.len()
+                * (vec_slot::<Scope>()
+                    + btree_map::<String, Box<Entry>>()
+                    + 2 * vec_first::<ItemId>()
+                    + vec_slot::<(usize, Vec<ItemId>)>())
+            + vec_first::<Scope>()
+            + self.uses.len()
+                * (4 * vec_slot::<bool>()
+                    + 4 * vec_slot::<[bool; 3]>()
+                    + vec_slot::<BTreeSet<usize>>())
+            + 4 * vec_first::<bool>()
+            + 4 * vec_first::<[bool; 3]>()
+            + vec_first::<BTreeSet<usize>>()
     }
 
     /// The glob imports of `module`, in order of position.

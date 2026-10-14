@@ -526,7 +526,7 @@ impl Index {
                 if let (0, true, Reading::Use { .. }) = (at, from_glob, reading)
                     && !crate_relative
                     && self
-                        .glob_against_prelude(cur, seg, Self::test_code(decl), bound)
+                        .glob_against_prelude(cur, seg, Self::test_code(decl), &bound)
                         .is_some()
                     && let Some(real) = self.crate_reading(decl, cur, seg)
                 {
@@ -724,7 +724,7 @@ impl Index {
             let UseKind::Glob { segs } = &u.kind else {
                 continue;
             };
-            match self.glob_targets(u, segs) {
+            match self.glob_targets(position) {
                 // A glob of a local enum brings in its variants, in the type
                 // and the value name spaces. A variant is neither a trait nor
                 // a module, so the glob gives no prefix.

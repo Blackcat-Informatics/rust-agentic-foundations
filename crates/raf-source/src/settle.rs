@@ -6,19 +6,26 @@
 //! Every module has a scope: for each name and name space, the items it
 //! defines and imports by name, which shadow globs, and the items its glob
 //! imports bring in. A lookup answers from the shadowing bindings if there
-//! are any. It answers from the globs only when no explicit import of the
-//! module that could bind the same name is still unsettled: until then the
-//! answer is indeterminate and the asker waits, which is rustc's rule and
-//! makes the result independent of the order of the declarations.
+//! are any, and from the globs only in a name space where no explicit import
+//! of the module keeps the name from them: an explicit import shadows the
+//! globs of its module in each name space where it binds the name, or may
+//! still, or reaches what the index cannot see, which is rustc's rule. Until
+//! such an import is settled the asker waits. Every answer only grows as the
+//! tables settle; that a name space binds nothing is decided only once no
+//! import or glob can bring anything in there, so a decision never takes
+//! back an answer, and the result does not depend on the order of the
+//! declarations.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+use crate::cost::{btree_entry, btree_map};
 use crate::error::{LoadError, LoadErrorKind};
 use crate::facts::Vis;
 use crate::index::{Index, UseDecl, UseKind, binding_bytes};
 use crate::item::{ItemId, Namespace};
 use crate::meter::Meter;
-use crate::resolve::{Fail, Heads, Hit, Walked};
+use crate::resolve::{Fail, Heads, Hit, Walked, places};
 
 /// How a name came to be bound in a module.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -43,6 +50,20 @@ pub(crate) struct Origin {
     /// The visibility of the binding, for the globs that import it.
     pub(crate) vis: Vis,
     pub(crate) link: Option<Link>,
+    /// The visibilities of the other routes found to the item, when they
+    /// differ from `vis`, sorted: a glob imports the item from wherever any
+    /// route makes it visible, whichever route is kept. `None` for one route.
+    pub(crate) also: Option<Box<[Vis]>>,
+}
+
+/// A total order of visibilities, so that a set of them is kept the same
+/// way whatever the order the routes were found in.
+fn vis_key(vis: &Vis) -> (u8, &str) {
+    match vis {
+        Vis::Public => (0, ""),
+        Vis::Restricted(text) => (1, text.as_str()),
+        Vis::Inherited => (2, ""),
+    }
 }
 
 impl Origin {
@@ -51,6 +72,36 @@ impl Origin {
     /// never depends on the order the routes were found in.
     fn rank(&self) -> (bool, &Option<Link>) {
         (self.via_glob, &self.link)
+    }
+
+    /// The visibilities of every route found to the item.
+    pub(crate) fn visibilities(&self) -> impl Iterator<Item = &Vis> {
+        std::iter::once(&self.vis).chain(self.also.iter().flat_map(|also| also.iter()))
+    }
+
+    /// The visibilities of `self` and `other` together, as `self` keeps them,
+    /// or `None` when `other` adds none. A public route makes the item
+    /// public whatever the others are.
+    fn widened(&self, other: &Self) -> Option<(Vis, Option<Box<[Vis]>>)> {
+        if self.vis == Vis::Public {
+            return None;
+        }
+        if other.visibilities().any(|vis| *vis == Vis::Public) {
+            return Some((Vis::Public, None));
+        }
+        let mut all: Vec<Vis> = self.visibilities().cloned().collect();
+        let before = all.len();
+        for vis in other.visibilities() {
+            if !all.contains(vis) {
+                all.push(vis.clone());
+            }
+        }
+        if all.len() == before {
+            return None;
+        }
+        let first = all.remove(0);
+        all.sort_by(|left, right| vis_key(left).cmp(&vis_key(right)));
+        Some((first, Some(all.into_boxed_slice())))
     }
 }
 
@@ -88,16 +139,37 @@ impl Bound {
         self.sorted.iter().map(|(id, origin)| (id, origin))
     }
 
-    /// Bind `id` by `origin`. Returns true when `id` was not bound before; a
-    /// second route to a bound item replaces the first only when it ranks
-    /// lower.
+    /// True when [`Bound::offer`] of `id` by `origin` would change the list:
+    /// `id` is not bound, `origin` ranks lower than its route, or it makes
+    /// the item visible where no route did.
+    pub(crate) fn takes(&self, id: ItemId, origin: &Origin) -> bool {
+        self.get(id)
+            .is_none_or(|known| origin.rank() < known.rank() || known.widened(origin).is_some())
+    }
+
+    /// Bind `id` by `origin`. Returns true when `id` was not bound before or
+    /// the route makes it visible where none did: a second route to a bound
+    /// item replaces the first only when it ranks lower, and the item keeps
+    /// the visibilities of both, so what a glob of the module imports does
+    /// not depend on which route was found first.
     pub(crate) fn offer(&mut self, id: ItemId, origin: Origin) -> bool {
         match self.sorted.binary_search_by_key(&id, |(known, _)| *known) {
             Ok(at) => {
-                if origin.rank() < self.sorted[at].1.rank() {
-                    self.sorted[at].1 = origin;
+                let known = &mut self.sorted[at].1;
+                let grows = known.widened(&origin).is_some();
+                let (kept, union) = if origin.rank() < known.rank() {
+                    let union = origin.widened(known);
+                    *known = origin;
+                    (known, union)
+                } else {
+                    let union = known.widened(&origin);
+                    (known, union)
+                };
+                if let Some((vis, also)) = union {
+                    kept.vis = vis;
+                    kept.also = also;
                 }
-                false
+                grows
             }
             Err(at) => {
                 if self.sorted.is_empty() {
@@ -142,6 +214,9 @@ impl FromIterator<(ItemId, Origin)> for Bound {
     }
 }
 
+/// The walks of an import's path, one in each name space.
+type Walks = Vec<(Namespace, Result<Walked, Fail>)>;
+
 /// The bindings of one name in the three name spaces.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Entry {
@@ -179,12 +254,31 @@ impl Pending {
         }
     }
 
-    fn wait(&mut self, position: usize, sources: Vec<Source>) {
-        for source in sources {
+    /// Queue the import at `position` again whenever one of the places its
+    /// path read gains a binding or an import that binds it settles.
+    fn wait(&mut self, position: usize, reads: Vec<Source>) {
+        for (module, name) in places(reads) {
             self.waiting
-                .entry((source.module, source.name))
+                .entry((module, name))
                 .or_default()
                 .insert(position);
+        }
+    }
+
+    /// Wake everything that waits on a name of `module`, and the globs that
+    /// watch it.
+    fn wake_module(&mut self, module: usize) {
+        let mut woken: Vec<usize> = self
+            .waiting
+            .range((module, String::new())..)
+            .take_while(|((at, _), _)| *at == module)
+            .flat_map(|(_, waiters)| waiters.iter().copied())
+            .collect();
+        if let Some(watchers) = self.watching.get(&module) {
+            woken.extend(watchers.iter().copied());
+        }
+        for position in woken {
+            self.push(position);
         }
     }
 
@@ -313,6 +407,7 @@ impl Index {
                             via_glob: false,
                             vis: vis.clone(),
                             link: None,
+                            also: None,
                         };
                         self.insert_def(module, ns, &name, id, origin);
                     }
@@ -321,66 +416,303 @@ impl Index {
         }
         self.use_resolved = vec![false; self.uses.len()];
         self.use_settled = vec![false; self.uses.len()];
+        self.use_bound = vec![[false; 3]; self.uses.len()];
+        self.use_free = vec![[false; 3]; self.uses.len()];
+        self.use_decided = vec![[false; 3]; self.uses.len()];
+        self.use_empty = vec![[false; 3]; self.uses.len()];
+        self.glob_closed = vec![false; self.uses.len()];
+        self.glob_reach = vec![BTreeSet::new(); self.uses.len()];
         if self.use_ambiguous.len() != self.uses.len() {
             self.use_ambiguous = vec![false; self.uses.len()];
         }
     }
 
     /// The items a module binds to `name` in `ns`, and whether they come from
-    /// its globs. `None` when it binds none, or when the answer is not
-    /// determined yet because an explicit import of the module that could
-    /// bind the name is unsettled.
+    /// its globs. `None` when it binds none there, or the answer is not
+    /// settled yet: the globs answer for a name only in a name space where
+    /// no explicit import of the module keeps it from them (see
+    /// [`Index::blocked`]). What the globs answer may still grow, as a glob
+    /// brings in more, as in rustc: a path that read the name is read again,
+    /// and two items make it ambiguous.
     pub(crate) fn lookup(
         &self,
         module: usize,
         ns: Namespace,
         name: &str,
-    ) -> Option<(&Bound, bool)> {
+    ) -> Option<(Cow<'_, Bound>, bool)> {
         self.lookup_in(module, ns, name, None)
     }
 
-    /// [`Index::lookup`] for the path of the named import at `own`, which
-    /// does not wait on itself: an import never resolves through its own
-    /// binding.
+    /// [`Index::lookup`] for the path of the named import at `own`. An import
+    /// never resolves through its own binding: where its path reads the name
+    /// it binds in its own module, the explicit imports of that name, its own
+    /// among them, are not there for it. They are alternatives under `cfg`,
+    /// as rustc refuses two imports of one name, so the path reads the
+    /// module's definitions, then its globs.
+    /// [`Index::lookup_in`] as a `use` path of `viewer` reads `module`, as
+    /// rustc resolves an import: a binding `viewer` cannot access does not
+    /// count, and a definition or explicit import that it cannot access
+    /// hides the globs all the same, so one still to bind keeps the name from
+    /// them too.
+    pub(crate) fn lookup_seen(
+        &self,
+        module: usize,
+        ns: Namespace,
+        name: &str,
+        own: Option<usize>,
+        viewer: Option<usize>,
+    ) -> Option<(Cow<'_, Bound>, bool)> {
+        let Some(viewer) = viewer.filter(|viewer| *viewer != module) else {
+            return self.lookup_in(module, ns, name, own);
+        };
+        let entry = self.scopes[module].get(name);
+        let at = slot(ns);
+        if let Some(defs) = entry
+            .map(|entry| &entry.defs[at])
+            .filter(|defs| !defs.is_empty())
+        {
+            return self
+                .seen_by(defs, module, viewer)
+                .map(|bound| (bound, false));
+        }
+        // An explicit import that `viewer` cannot name still hides the
+        // globs once it binds, so it keeps the name from them meanwhile.
+        if self.blocked(module, name, ns, own) {
+            return None;
+        }
+        self.seen_by(&entry?.globbed[at], module, viewer)
+            .map(|bound| (bound, true))
+    }
+
+    /// The bindings of `bound`, in `module`, that `viewer` can access, or
+    /// `None` when it can access none.
+    fn seen_by<'a>(
+        &self,
+        bound: &'a Bound,
+        module: usize,
+        viewer: usize,
+    ) -> Option<Cow<'a, Bound>> {
+        let visible = |origin: &Origin| {
+            origin
+                .visibilities()
+                .any(|vis| self.is_visible(vis, module, viewer))
+        };
+        if bound.iter().all(|(_, origin)| visible(origin)) {
+            return (!bound.is_empty()).then_some(Cow::Borrowed(bound));
+        }
+        let kept: Bound = bound
+            .iter()
+            .filter(|(_, origin)| visible(origin))
+            .map(|(id, origin)| (*id, origin.clone()))
+            .collect();
+        (!kept.is_empty()).then_some(Cow::Owned(kept))
+    }
+
     pub(crate) fn lookup_in(
         &self,
         module: usize,
         ns: Namespace,
         name: &str,
         own: Option<usize>,
-    ) -> Option<(&Bound, bool)> {
-        let entry = self.scopes[module].get(name)?;
-        let defs = &entry.defs[slot(ns)];
-        if !defs.is_empty() {
-            return Some((defs, false));
-        }
-        if self.is_unsettled(module, name, own) {
-            return None;
-        }
-        let globbed = &entry.globbed[slot(ns)];
-        if globbed.is_empty() {
-            None
+    ) -> Option<(Cow<'_, Bound>, bool)> {
+        let entry = self.scopes[module].get(name);
+        let at = slot(ns);
+        if own.is_some_and(|position| self.binds_name(position, module, name)) {
+            if let Some(entry) = entry {
+                let defs = &entry.defs[at];
+                if defs.iter().all(|(_, origin)| origin.link.is_none()) {
+                    if !defs.is_empty() {
+                        return Some((Cow::Borrowed(defs), false));
+                    }
+                } else {
+                    let local: Bound = defs
+                        .iter()
+                        .filter(|(_, origin)| origin.link.is_none())
+                        .map(|(id, origin)| (*id, origin.clone()))
+                        .collect();
+                    if !local.is_empty() {
+                        return Some((Cow::Owned(local), false));
+                    }
+                }
+            }
         } else {
-            Some((globbed, true))
+            if let Some(defs) = entry
+                .map(|entry| &entry.defs[at])
+                .filter(|defs| !defs.is_empty())
+            {
+                return Some((Cow::Borrowed(defs), false));
+            }
+            if self.blocked(module, name, ns, own) {
+                return None;
+            }
         }
+        let globbed = &entry?.globbed[at];
+        (!globbed.is_empty()).then_some((Cow::Borrowed(globbed), true))
     }
 
-    /// True when an explicit import of `module` that binds `name`, other than
-    /// the one at `own`, is unsettled.
-    pub(crate) fn is_unsettled(&self, module: usize, name: &str, own: Option<usize>) -> bool {
-        let count = self
-            .unsettled
-            .get(&module)
-            .and_then(|names| names.get(name))
-            .copied()
-            .unwrap_or(0);
-        let itself = own.is_some_and(|position| {
-            let decl = &self.uses[position];
-            (!self.use_settled[position] || self.use_ambiguous[position])
-                && decl.module == module
-                && matches!(&decl.kind, UseKind::Named { name: bound, .. } if bound == name)
-        });
-        count > usize::from(itself)
+    /// True when an explicit import of `module` that binds `name` keeps the
+    /// name from the globs in `ns`: it binds it there, may still bind it
+    /// there, or reaches what the index cannot see or what does not resolve.
+    /// Such an import shadows the globs of its module and the crates of the
+    /// extern prelude under that name in that name space, as in rustc, so
+    /// neither answers for it there. An import that binds the name in other
+    /// name spaces only, and whose path can bind nothing in this one, leaves
+    /// it to the globs here ([`Index::use_free`]). Never for the path of the
+    /// named import at `own` where it reads the name it binds itself (see
+    /// [`Index::lookup_in`]).
+    pub(crate) fn blocked(
+        &self,
+        module: usize,
+        name: &str,
+        ns: Namespace,
+        own: Option<usize>,
+    ) -> bool {
+        !own.is_some_and(|position| self.binds_name(position, module, name))
+            && self
+                .imports_of(module, name)
+                .iter()
+                .any(|position| !self.use_free[*position][slot(ns)])
+    }
+
+    /// [`Index::blocked`] as a glob of `module` in `importer` sees it: only
+    /// the imports that `importer` can name count, and one that a cycle left
+    /// to the globs of `module` still counts until it is decided, as rustc
+    /// brings a glob binding into other modules only once no single import
+    /// may still bind the name ([`Index::left_to_globs`]).
+    fn blocked_for(&self, module: usize, name: &str, at: usize, importer: usize) -> bool {
+        self.imports_of(module, name).iter().any(|position| {
+            (!self.use_free[*position][at] || self.left_to_globs(*position, at))
+                && self.is_visible(&self.uses[*position].vis, module, importer)
+        })
+    }
+
+    /// True when a glob of `module`, one that `importer` can name when one is
+    /// given, other than the one at `except`, may still bring in `name`, or
+    /// more of it, in the name space at `at`: a module its globs reach,
+    /// directly or through the globs of modules that bind nothing there,
+    /// has an explicit import that keeps the name from the globs. A cycle of
+    /// globs brings in nothing of its own. A glob that is not settled may
+    /// bring in any name; that is asked apart ([`Index::open_glob`]).
+    pub(crate) fn pending_at(
+        &self,
+        module: usize,
+        name: &str,
+        at: usize,
+        importer: Option<usize>,
+        except: Option<usize>,
+    ) -> bool {
+        let mut seen = BTreeSet::from([module]);
+        let mut work = vec![(module, importer, except)];
+        while let Some((from, viewer, skip)) = work.pop() {
+            for glob in self.globs_of(from) {
+                if skip == Some(*glob)
+                    || viewer.is_some_and(|to| !self.is_visible(&self.uses[*glob].vis, from, to))
+                {
+                    continue;
+                }
+                // The modules the glob reached when it was last tried: a
+                // glob's path is not walked here, as walking it may ask this
+                // again.
+                for &target in &self.glob_reach[*glob] {
+                    if self.scopes[target]
+                        .get(name)
+                        .is_some_and(|entry| !entry.defs[at].is_empty())
+                    {
+                        continue;
+                    }
+                    if self.blocked_for(target, name, at, from) {
+                        return true;
+                    }
+                    if seen.insert(target) {
+                        work.push((target, Some(from), None));
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /// True when a glob of `module` that `importer` can name, when one is
+    /// given, is not settled.
+    fn open_glob(&self, module: usize, importer: Option<usize>) -> bool {
+        self.globs_of(module).iter().any(|glob| {
+            !self.glob_closed[*glob]
+                && importer.is_none_or(|from| self.is_visible(&self.uses[*glob].vis, module, from))
+        })
+    }
+
+    /// True when what `target` binds to `name` in the name space at `at` is
+    /// not settled for `importer`, which globs it: it binds nothing there
+    /// yet, and an explicit import or a glob of it may still.
+    fn undetermined_for(&self, target: usize, name: &str, at: usize, importer: usize) -> bool {
+        self.scopes[target]
+            .get(name)
+            .is_none_or(|entry| entry.defs[at].is_empty())
+            && (self.blocked_for(target, name, at, importer)
+                || self.pending_at(target, name, at, Some(importer), None))
+    }
+
+    /// True when the walk that found `source` unbound waits on an import that
+    /// never settles: one that keeps the name there from the globs, or, when
+    /// a glob may still bring it in, one that keeps it from a module the glob
+    /// reaches. The settling of the tables leaves such imports only in a
+    /// cycle and among those that wait on one.
+    pub(crate) fn waits_on_cycle(&self, source: &Source) -> bool {
+        let mut seen: BTreeSet<(usize, String, usize)> = BTreeSet::new();
+        let mut work = vec![(source.module, source.name.clone(), slot(source.ns))];
+        while let Some((module, name, at)) = work.pop() {
+            if !seen.insert((module, name.clone(), at)) {
+                continue;
+            }
+            if self.open_glob(module, None)
+                || self
+                    .imports_of(module, &name)
+                    .iter()
+                    .any(|position| !self.use_decided[*position][at])
+            {
+                return true;
+            }
+            work.extend(self.pending_sources(module, &name, at));
+        }
+        false
+    }
+
+    /// The places that keep `name` of `module` open through its globs in the
+    /// name space at `at`: the name in each module one of those globs reaches
+    /// where it is not settled for `module`.
+    fn pending_sources(&self, module: usize, name: &str, at: usize) -> Vec<(usize, String, usize)> {
+        self.pending_sources_for(module, name, at, None)
+    }
+
+    /// [`Index::pending_sources`] through the globs of `module` that
+    /// `viewer`, when one is given, can name: a glob it cannot access brings
+    /// it nothing.
+    fn pending_sources_for(
+        &self,
+        module: usize,
+        name: &str,
+        at: usize,
+        viewer: Option<usize>,
+    ) -> Vec<(usize, String, usize)> {
+        let mut sources = Vec::new();
+        for glob in self.globs_of(module).iter().filter(|glob| {
+            viewer.is_none_or(|viewer| self.is_visible(&self.uses[**glob].vis, module, viewer))
+        }) {
+            for &target in &self.glob_reach[*glob] {
+                if self.undetermined_for(target, name, at, module) {
+                    sources.push((target, name.to_owned(), at));
+                }
+            }
+        }
+        sources
+    }
+
+    /// True when the import at `position` is a named import of `module` that
+    /// binds `name`.
+    pub(crate) fn binds_name(&self, position: usize, module: usize, name: &str) -> bool {
+        let decl = &self.uses[position];
+        decl.module == module
+            && matches!(&decl.kind, UseKind::Named { name: bound, .. } if bound == name)
     }
 
     /// The items that stand for `module` in a scope: a crate root's item, or
@@ -427,21 +759,33 @@ impl Index {
         Ok(())
     }
 
-    /// The modules a glob path names.
-    pub(crate) fn glob_targets(
+    /// The modules the path of the glob import at `position` names.
+    pub(crate) fn glob_targets(&self, position: usize) -> Result<BTreeSet<usize>, Fail> {
+        self.glob_targets_noting(position, None)
+    }
+
+    /// [`Index::glob_targets`], adding to `reads` the places the walk of the
+    /// path looked up. The path is read without the glob itself, as rustc
+    /// resolves an import.
+    fn glob_targets_noting(
         &self,
-        decl: &UseDecl,
-        segs: &[String],
+        position: usize,
+        reads: Option<&mut Vec<Source>>,
     ) -> Result<BTreeSet<usize>, Fail> {
-        let walked = self.walk(
+        let decl = &self.uses[position];
+        let UseKind::Glob { segs } = &decl.kind else {
+            return Err(Fail::Missing(Vec::new()));
+        };
+        let walked = self.walk_noting(
             decl.module,
             segs,
             decl.leading_colon,
             Namespace::Type,
             Heads::Use {
                 test: decl.test,
-                own: None,
+                own: Some(position),
             },
+            reads,
         )?;
         let mut targets = walked.modules;
         targets.extend(walked.items.keys().flat_map(|id| self.modules_for(*id)));
@@ -453,22 +797,28 @@ impl Index {
 
     /// The names a glob of `target` brings in to `importer`: the bindings that
     /// shadow globs first, the target's own glob names where it has neither,
-    /// and only those the importer can name. A name that an unsettled import
-    /// of the target could still bind is left out until it is settled.
+    /// and only those the importer can name. A name that an explicit import
+    /// of the target may still bind in a name space is not brought in there
+    /// yet, as rustc hides a glob binding of a name that a single import may
+    /// still bind.
     fn visible(&self, target: usize, importer: usize) -> Vec<(String, usize, Bound)> {
         let mut names = Vec::new();
         for (name, entry) in &self.scopes[target] {
             for (ns, (defs, globbed)) in entry.defs.iter().zip(&entry.globbed).enumerate() {
                 let bound = if !defs.is_empty() {
                     defs
-                } else if self.is_unsettled(target, name, None) {
+                } else if self.blocked_for(target, name, ns, importer) {
                     continue;
                 } else {
                     globbed
                 };
                 let seen: Bound = bound
                     .iter()
-                    .filter(|(_, origin)| self.is_visible(&origin.vis, target, importer))
+                    .filter(|(_, origin)| {
+                        origin
+                            .visibilities()
+                            .any(|vis| self.is_visible(vis, target, importer))
+                    })
                     .map(|(id, origin)| (*id, origin.clone()))
                     .collect();
                 if !seen.is_empty() {
@@ -492,23 +842,20 @@ impl Index {
                     name: name.to_owned(),
                 }),
             }),
+            also: None,
         }
     }
 
-    fn glob_pass(&self) -> Vec<Scope> {
+    /// One pass of the globs over the tables as they stand, each glob with the
+    /// modules its path reaches: the glob bindings of every module.
+    fn glob_pass(&self, reached: &[(usize, BTreeSet<usize>)]) -> Vec<Scope> {
         let mut fresh = vec![Scope::new(); self.modules.len()];
-        for decl in &self.uses {
-            let UseKind::Glob { segs } = &decl.kind else {
-                continue;
-            };
-            // A glob whose path does not resolve brings in nothing.
-            let Ok(targets) = self.glob_targets(decl, segs) else {
-                continue;
-            };
+        for (position, targets) in reached {
+            let decl = &self.uses[*position];
             for target in targets {
-                for (name, ns, bound) in self.visible(target, decl.module) {
+                for (name, ns, bound) in self.visible(*target, decl.module) {
                     for id in bound.keys() {
-                        let origin = Self::glob_origin(decl, target, ns, &name);
+                        let origin = Self::glob_origin(decl, *target, ns, &name);
                         fresh[decl.module].entry(name.clone()).or_default().globbed[ns]
                             .offer(*id, origin);
                     }
@@ -518,43 +865,41 @@ impl Index {
         fresh
     }
 
-    /// Mark an import settled: resolved, or definitively failed. Everything
-    /// that waited on the name it binds, or that globs its module, is woken.
-    /// An import whose first segment is ambiguous keeps its name
-    /// indeterminate.
+    /// Mark an import settled: resolved, failed, or held as ambiguous. What
+    /// waits on the name it binds, and the globs that watch its module, are
+    /// woken.
     fn settle_use(&mut self, position: usize, pending: &mut Pending) {
         if self.use_settled[position] {
             return;
         }
         self.use_settled[position] = true;
+        self.use_decided[position] = [true; 3];
         let decl = &self.uses[position];
-        if self.use_ambiguous[position] {
-            return;
-        }
         if let UseKind::Named { name, .. } = &decl.kind {
             let module = decl.module;
             let name = name.clone();
-            if let Some(count) = self
-                .unsettled
-                .get_mut(&module)
-                .and_then(|names| names.get_mut(&name))
-            {
-                *count -= 1;
-            }
             pending.wake(module, &name);
         }
     }
 
     /// Settle the scope tables.
     ///
-    /// Imports are resolved from a work queue: an import that cannot resolve
-    /// yet waits on the names it needed, and is queued again when one of them
-    /// is bound or settled. The work is linear in the length of a chain of
-    /// re-exports, and nothing caps it. When the queue is empty, the imports
-    /// that wait on nothing that can still change are settled as failed, one
-    /// round at a time, and the queue runs again. The globs are then rebuilt
-    /// against the settled definitions.
-    fn settle(&mut self, meter: &Meter) -> Result<(), LoadError> {
+    /// Imports are resolved from a work queue. An import is queued again
+    /// whenever a place its path read gains a binding, or what may still
+    /// bind it there settles, so a resolved import binds what its path
+    /// reaches once the tables are settled, a chain of re-exports of any
+    /// length resolves, and nothing caps the search. A lookup does not answer
+    /// from the globs for a name that an explicit import may still bind in
+    /// that name space, and what the globs answer only grows.
+    /// When the queue is empty, [`Index::settle_stuck`] decides the imports
+    /// it left, and the queue runs again, until nothing is left to decide.
+    /// The globs are then rebuilt against the settled definitions.
+    ///
+    /// Returns how many times the queue ran empty and the imports left were
+    /// decided. Each time decides, in one pass, every import that a cycle
+    /// does not hold, so the number does not grow with a chain of imports:
+    /// two for a chain of imports that bind nothing, one for a cycle.
+    fn settle(&mut self, meter: &Meter) -> Result<usize, LoadError> {
         for decl in &self.uses {
             match &decl.kind {
                 UseKind::Named { segs, .. } | UseKind::Glob { segs } => {
@@ -562,20 +907,13 @@ impl Index {
                 }
             }
         }
-        for decl in &self.uses {
-            if let UseKind::Named { name, .. } = &decl.kind {
-                *self
-                    .unsettled
-                    .entry(decl.module)
-                    .or_default()
-                    .entry(name.clone())
-                    .or_default() += 1;
+        // An import held as ambiguous from the start is settled and binds
+        // nothing.
+        for position in 0..self.uses.len() {
+            if self.use_ambiguous[position] {
+                self.use_settled[position] = true;
+                self.use_decided[position] = [true; 3];
             }
-        }
-        // An import held as ambiguous from the start is settled and keeps its
-        // name unsettled.
-        for (settled, held) in self.use_settled.iter_mut().zip(&self.use_ambiguous) {
-            *settled |= *held;
         }
         let mut pending = Pending::default();
         for position in 0..self.uses.len() {
@@ -584,45 +922,906 @@ impl Index {
         // First, a `use` path whose first segment a module with globs does
         // not bind waits: a glob may still bring the name in. Then the globs
         // have brought in what they can, and such a path may start at a
-        // crate of the extern prelude; the globs are tried again first, then
-        // every import still unsettled.
+        // crate of the extern prelude; every import of a module with globs
+        // is tried again, as one that bound a name in one name space may now
+        // bind it in another. The path of an import of a module without
+        // globs reads the same whether the crates are open or not.
         self.drain(&mut pending, meter)?;
         self.crates_open = true;
-        for position in self.glob_imports.clone() {
-            pending.push(position);
-        }
-        for (position, settled) in self.use_settled.iter().enumerate() {
-            if !settled {
+        for position in 0..self.uses.len() {
+            if !self.globs_of(self.uses[position].module).is_empty() {
                 pending.push(position);
             }
         }
+        let mut rounds = 0;
         loop {
             self.drain(&mut pending, meter)?;
-            let stuck: Vec<usize> = (0..self.uses.len())
-                .filter(|p| {
-                    matches!(self.uses[*p].kind, UseKind::Named { .. }) && !self.use_settled[*p]
-                })
-                .collect();
-            let Some(&first) = stuck.first() else {
+            rounds += 1;
+            let before = self.progress();
+            if !self.settle_stuck(&mut pending, meter)? {
                 break;
-            };
-            // Failures first that wait on no other unsettled import.
-            let leaves: Vec<usize> = stuck
-                .iter()
-                .copied()
-                .filter(|p| self.blockers(*p, false).is_empty())
-                .collect();
-            let chosen = if leaves.is_empty() {
-                vec![first]
-            } else {
-                leaves
-            };
-            for position in chosen {
-                self.settle_use(position, &mut pending);
             }
+            self.advanced(rounds, before)?;
         }
         self.rebuild_globs();
-        Ok(())
+        // What the sets of modules the globs reached hold.
+        let reach: usize = self
+            .glob_reach
+            .iter()
+            .filter(|reached| !reached.is_empty())
+            .map(|reached| btree_map::<usize, ()>() + reached.len() * btree_entry::<usize, ()>())
+            .sum();
+        if let Some(&glob) = self.glob_imports.first()
+            && reach > 0
+        {
+            let decl = &self.uses[glob];
+            meter.items(reach, &decl.file, Some(decl.line))?;
+        }
+        Ok(rounds)
+    }
+
+    /// How much of what settling the tables decides is decided: the name
+    /// spaces each import is decided in, binds in and leaves to the globs in,
+    /// the imports settled and held as ambiguous, and the globs
+    /// settled. Each only grows while the tables settle, and it is at most
+    /// eleven for each import.
+    pub(crate) fn progress(&self) -> usize {
+        let flags = |rows: &[[bool; 3]]| rows.iter().flatten().filter(|set| **set).count();
+        let count = |rows: &[bool]| rows.iter().filter(|set| **set).count();
+        flags(&self.use_decided)
+            + flags(&self.use_bound)
+            + flags(&self.use_free)
+            + count(&self.use_settled)
+            + count(&self.use_ambiguous)
+            + count(&self.glob_closed)
+    }
+
+    /// Check that the round `round` of deciding the imports left, which
+    /// changed something, decided for good at least one more of the finitely
+    /// many things there are to decide than the `before` decided when it
+    /// started ([`Index::progress`]), so that the rounds end, in release
+    /// builds too. A round that does not is a bug, reported as `Internal`.
+    fn advanced(&self, round: usize, before: usize) -> Result<(), LoadError> {
+        if self.progress() > before {
+            return Ok(());
+        }
+        Err(self.internal(format!(
+            "round {round} of deciding the imports left decided nothing more"
+        )))
+    }
+
+    /// Check that the tables, settled `settles` times, were settled at most
+    /// once more than there are imports (see [`Index::settle_agreed`]), in
+    /// release builds too. More is a bug, reported as `Internal`.
+    fn within_settles(&self, settles: usize) -> Result<(), LoadError> {
+        if settles <= self.uses.len() + 1 {
+            return Ok(());
+        }
+        Err(self.internal(format!(
+            "the scope tables were settled {settles} times for {} imports",
+            self.uses.len()
+        )))
+    }
+
+    /// An `Internal` [`LoadError`] reporting that the settling of the scope
+    /// tables broke its own bound, at the first import: it is only made when
+    /// there are imports to settle.
+    fn internal(&self, what: String) -> LoadError {
+        let decl = &self.uses[0];
+        LoadError::new(
+            &decl.file,
+            Some(decl.line),
+            LoadErrorKind::Internal { what },
+        )
+    }
+
+    /// Decide the named imports and the globs that are unsettled when the
+    /// queue is empty. Returns whether anything changed, so that the queue
+    /// runs again.
+    ///
+    /// Each such import waits, once for each name space it is undecided in,
+    /// on the places its path reads there: a name in a module in a name
+    /// space. The name it binds itself it reads as rustc does, without
+    /// itself, through what the globs of its module may still bring in. A
+    /// glob waits on the places its path reads, its own module's read
+    /// without it, or once its path resolves on the globs of its targets
+    /// that are unsettled. A place that binds nothing waits on the imports
+    /// undecided there that keep it from the globs (see [`Index::blocked`]),
+    /// on the unsettled globs of its module, and on the places its globs may
+    /// still bring the name in from (see [`Index::pending_at`]). The strongly
+    /// connected components of this graph are decided in waves, each once
+    /// everything it waits on is decided, and the queue runs after each
+    /// wave, so that each decision reads settled tables:
+    /// - one import that waits on no cycle is decided in the name spaces of
+    ///   the component: an ambiguous path is held, and an import that bound
+    ///   something in one name space leaves each name space where its path
+    ///   reached a place that can no longer bind anything to the globs
+    ///   ([`Index::use_free`]), the import itself left out as rustc leaves
+    ///   out the import it resolves; one that waits on itself and reads a
+    ///   place something may still bind is not decided there;
+    /// - a glob, or globs that wait only on one another and whose paths
+    ///   resolved, are settled; places that only a cycle of globs keeps open
+    ///   stop waiting;
+    /// - a cycle of explicit imports in which exactly one place in a name
+    ///   space, read by an import of the cycle as the last segment of its
+    ///   path, would be answered by a glob of its module, whose renamed
+    ///   imports rustc reads without themselves and whose imports read
+    ///   nothing else unsettled, is left to that glob there when that ends
+    ///   every loop of imports in the cycle, as rustc reads it while it
+    ///   resolves the import that reads it; the cycle then resolves through
+    ///   the glob, and an import that keeps the place is decided there only
+    ///   once it binds what keeps every item a path that read the place
+    ///   found the glob answering, or can bind nothing ([`Index::left_to_globs`]). A cycle where no glob answers, whose
+    ///   imports all bound their names in another name space, binds nothing
+    ///   in this one;
+    /// - any other cycle, and every component that waits on one, never
+    ///   settles: the names its imports bind stay kept from the globs and
+    ///   the crates, and a path through one resolves `Cyclic`.
+    ///
+    /// A component whose paths now read a place that waits on an import or
+    /// a glob outside it, which the graph did not hold, waits for the next
+    /// round.
+    fn settle_stuck(&mut self, pending: &mut Pending, meter: &Meter) -> Result<bool, LoadError> {
+        let graph = self.blocker_graph();
+        if graph.imports.is_empty() {
+            return Ok(false);
+        }
+        let found = components(&graph.successors);
+        let mut component_of = vec![0; graph.successors.len()];
+        for (at, component) in found.iter().enumerate() {
+            for node in component {
+                component_of[*node] = at;
+            }
+        }
+        let mut after: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); found.len()];
+        let mut before: Vec<Vec<usize>> = vec![Vec::new(); found.len()];
+        for (at, component) in found.iter().enumerate() {
+            for node in component {
+                for next in &graph.successors[*node] {
+                    let target = component_of[*next];
+                    if target != at && after[at].insert(target) {
+                        before[target].push(at);
+                    }
+                }
+            }
+        }
+        let mut waiting: Vec<usize> = after.iter().map(BTreeSet::len).collect();
+        let mut state = vec![Decided::Open; found.len()];
+        let mut wave: Vec<usize> = (0..found.len()).filter(|at| waiting[*at] == 0).collect();
+        let mut changed = false;
+        while !wave.is_empty() {
+            // Every component of a wave is decided against the tables as the
+            // wave found them, then the decisions are made together.
+            let mut acts = Vec::new();
+            for &at in &wave {
+                state[at] = if after[at].iter().any(|next| state[*next] == Decided::Cyclic) {
+                    Decided::Cyclic
+                } else if after[at].iter().any(|next| state[*next] == Decided::Again) {
+                    Decided::Again
+                } else {
+                    self.decide(&graph, &found[at], pending, &mut acts)
+                };
+            }
+            changed |= !acts.is_empty();
+            for act in acts {
+                self.act(act, pending);
+            }
+            self.drain(pending, meter)?;
+            let mut next_wave = Vec::new();
+            for &at in &wave {
+                for &waiter in &before[at] {
+                    waiting[waiter] -= 1;
+                    if waiting[waiter] == 0 {
+                        next_wave.push(waiter);
+                    }
+                }
+            }
+            wave = next_wave;
+        }
+        Ok(changed)
+    }
+
+    /// The blocker graph of the undecided named imports, a node for each name
+    /// space an import is undecided in, and of the unsettled globs (see
+    /// [`Index::settle_stuck`]).
+    fn blocker_graph(&self) -> Blockers {
+        let members = self.graph_members();
+        let node_of: BTreeMap<(usize, Option<usize>), usize> = members
+            .iter()
+            .enumerate()
+            .map(|(node, member)| (*member, node))
+            .collect();
+        let mut graph = Blockers {
+            places: Vec::new(),
+            place_of: BTreeMap::new(),
+            successors: vec![Vec::new(); members.len()],
+            imports: members,
+        };
+        let mut work = Vec::new();
+        for node in 0..graph.imports.len() {
+            let (position, at) = graph.imports[node];
+            let decl = &self.uses[position];
+            if let Some(at) = at {
+                for (module, name, ns, head) in self.places_read_in(position, at) {
+                    if !self.binds_name(position, module, &name) {
+                        let viewer = (module != decl.module).then_some(decl.module);
+                        let next = graph.place((module, name, ns, None, head, viewer), &mut work);
+                        graph.successors[node].push(next);
+                        continue;
+                    }
+                    // The name it binds itself, which it reads as rustc
+                    // does, without itself: what the globs of its module may
+                    // bring in.
+                    for glob in self.globs_of(module) {
+                        if !head && !self.glob_closed[*glob] {
+                            graph.successors[node].push(node_of[&(*glob, None)]);
+                        }
+                    }
+                    for (target, name, ns) in self.pending_sources(module, &name, ns) {
+                        let next =
+                            graph.place((target, name, ns, None, false, Some(module)), &mut work);
+                        graph.successors[node].push(next);
+                    }
+                }
+                continue;
+            }
+            // A glob waits on the places its path reads, or once it resolves
+            // on the globs of its targets that are not settled.
+            let mut reads = Vec::new();
+            if let Ok(targets) = self.glob_targets_noting(position, Some(&mut reads)) {
+                for target in targets {
+                    for glob in self.globs_of(target) {
+                        if !self.glob_closed[*glob]
+                            && self.is_visible(&self.uses[*glob].vis, target, decl.module)
+                        {
+                            graph.successors[node].push(node_of[&(*glob, None)]);
+                        }
+                    }
+                }
+            } else {
+                // A place of its own module is read without the glob.
+                let places: BTreeSet<Place> = reads
+                    .into_iter()
+                    .map(|source| {
+                        let own = source.module == decl.module;
+                        let except = own.then_some(position);
+                        let viewer = (!own).then_some(decl.module);
+                        (
+                            source.module,
+                            source.name,
+                            slot(source.ns),
+                            except,
+                            false,
+                            viewer,
+                        )
+                    })
+                    .collect();
+                for place in places {
+                    let next = graph.place(place, &mut work);
+                    graph.successors[node].push(next);
+                }
+            }
+        }
+        while let Some(node) = work.pop() {
+            graph.successors[node] = self.place_successors(&mut graph, node, &node_of, &mut work);
+        }
+        graph
+    }
+
+    /// The successors of the place at `node` of `graph`: what it waits on
+    /// when nothing its reader can access binds it (see
+    /// [`Index::blocker_graph`]). New places are queued in `work`.
+    fn place_successors(
+        &self,
+        graph: &mut Blockers,
+        node: usize,
+        node_of: &BTreeMap<(usize, Option<usize>), usize>,
+        work: &mut Vec<usize>,
+    ) -> Vec<usize> {
+        let (module, name, at, except, head, viewer) =
+            graph.places[node - graph.imports.len()].clone();
+        // What `viewer`, the module whose path reads the place, cannot
+        // access does not count, as rustc resolves an import.
+        let seen = |vis: &Vis| viewer.is_none_or(|viewer| self.is_visible(vis, module, viewer));
+        let mut next = Vec::new();
+        if self
+            .lookup_seen(module, Namespace::ALL[at], &name, except, viewer)
+            .is_none()
+        {
+            for position in self.imports_of(module, &name) {
+                if let Some(member) = node_of.get(&(*position, Some(at)))
+                    && !self.use_free[*position][at]
+                {
+                    next.push(*member);
+                }
+            }
+            for glob in self.globs_of(module) {
+                if !head
+                    && !self.glob_closed[*glob]
+                    && except != Some(*glob)
+                    && seen(&self.uses[*glob].vis)
+                {
+                    next.push(node_of[&(*glob, None)]);
+                }
+            }
+            for (target, name, at) in self.pending_sources_for(module, &name, at, viewer) {
+                next.push(graph.place((target, name, at, None, false, Some(module)), work));
+            }
+        }
+        next
+    }
+
+    /// The members of the blocker graph: each named import that is not
+    /// settled, once for each name space it is undecided in, then each glob
+    /// that is not settled, without a name space.
+    fn graph_members(&self) -> Vec<(usize, Option<usize>)> {
+        let mut members: Vec<(usize, Option<usize>)> = Vec::new();
+        for &position in &self.named_imports {
+            if self.use_settled[position] {
+                continue;
+            }
+            for (at, decided) in self.use_decided[position].iter().enumerate() {
+                if !decided {
+                    members.push((position, Some(at)));
+                }
+            }
+        }
+        members.extend(
+            self.glob_imports
+                .iter()
+                .filter(|position| !self.glob_closed[**position])
+                .map(|position| (*position, None)),
+        );
+        members
+    }
+
+    /// The places the path of the named import at `position` reads when it
+    /// is walked in the name space at `at`, the name it binds itself among
+    /// them when it reads it.
+    ///
+    /// Each place is marked when it is the first segment of the path read in
+    /// its own module under the name of a crate of the extern prelude: a glob
+    /// of the module that is not settled does not hold such a path back (see
+    /// [`Index::unbound_use_head`]), so the place does not wait on one.
+    fn places_read_in(&self, position: usize, at: usize) -> BTreeSet<(usize, String, usize, bool)> {
+        let decl = &self.uses[position];
+        let UseKind::Named { segs, .. } = &decl.kind else {
+            return BTreeSet::new();
+        };
+        let mut reads = Vec::new();
+        let _ = self.walk_noting(
+            decl.module,
+            segs,
+            decl.leading_colon,
+            Namespace::ALL[at],
+            Heads::Use {
+                test: decl.test,
+                own: Some(position),
+            },
+            Some(&mut reads),
+        );
+        reads
+            .into_iter()
+            .map(|source| {
+                let head = !decl.leading_colon
+                    && source.module == decl.module
+                    && segs.first() == Some(&source.name)
+                    && !matches!(source.name.as_str(), "crate" | "self" | "super")
+                    && self.edition(decl.module) != 2015
+                    && self.in_use_prelude(decl.module, &source.name, decl.test);
+                (source.module, source.name, slot(source.ns), head)
+            })
+            .collect()
+    }
+
+    /// True when the place a path read waits on an import undecided there
+    /// outside `inside`, or on a glob that is not settled, directly or
+    /// through what its globs may still bring in.
+    fn waits_outside(
+        &self,
+        place: (usize, String, usize, bool),
+        reader: usize,
+        inside: &BTreeSet<usize>,
+    ) -> bool {
+        let (module, name, at, head) = place;
+        let mut seen = BTreeSet::new();
+        // Each place is read by a module, which sees only what it can
+        // access: the import's own module first, then the module whose
+        // glob reaches the place.
+        let mut work = vec![(module, name, at, head, reader)];
+        while let Some((module, name, at, head, viewer)) = work.pop() {
+            if !seen.insert((module, name.clone(), at, viewer)) {
+                continue;
+            }
+            if self
+                .lookup_seen(module, Namespace::ALL[at], &name, None, Some(viewer))
+                .is_some()
+            {
+                continue;
+            }
+            let visible = |vis: &Vis| module == viewer || self.is_visible(vis, module, viewer);
+            if self.imports_of(module, &name).iter().any(|position| {
+                !self.use_decided[*position][at]
+                    && !self.use_free[*position][at]
+                    && !inside.contains(position)
+            }) || !head
+                && self.globs_of(module).iter().any(|glob| {
+                    !self.glob_closed[*glob]
+                        && !inside.contains(glob)
+                        && visible(&self.uses[*glob].vis)
+                })
+            {
+                return true;
+            }
+            work.extend(
+                self.pending_sources_for(module, &name, at, Some(viewer))
+                    .into_iter()
+                    .map(|(target, name, at)| (target, name, at, false, module)),
+            );
+        }
+        false
+    }
+
+    /// Decide one component of the blocker graph, whose successors are all
+    /// decided, adding what it does to `acts` (see [`Index::settle_stuck`]).
+    fn decide(
+        &self,
+        graph: &Blockers,
+        component: &[usize],
+        pending: &Pending,
+        acts: &mut Vec<Act>,
+    ) -> Decided {
+        let mut imports: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+        let mut globs: Vec<usize> = Vec::new();
+        for node in component.iter().filter(|node| **node < graph.imports.len()) {
+            match graph.imports[*node] {
+                (position, Some(at)) => {
+                    if !self.use_decided[position][at] && !self.use_settled[position] {
+                        imports.entry(position).or_default().push(at);
+                    }
+                }
+                (position, None) => {
+                    if !self.glob_closed[position] {
+                        globs.push(position);
+                    }
+                }
+            }
+        }
+        let looped = component.len() > 1
+            || component
+                .first()
+                .is_some_and(|node| graph.successors[*node].contains(node));
+        if !globs.is_empty() {
+            // A glob that waits on nothing unsettled is settled: its path
+            // reaches what it reaches. Globs that only wait on one another,
+            // each of whose paths resolved, are settled together. A glob in a
+            // cycle with imports, or one whose path waits on a cycle, is not.
+            let resolved = globs
+                .iter()
+                .all(|position| self.glob_targets(*position).is_ok());
+            if !imports.is_empty() || (looped && !resolved) {
+                return Decided::Cyclic;
+            }
+            acts.extend(globs.into_iter().map(Act::CloseGlob));
+            return Decided::Done;
+        }
+        let inside: BTreeSet<usize> = imports.keys().copied().collect();
+        for (&position, spaces) in &imports {
+            for &at in spaces {
+                if self
+                    .places_read_in(position, at)
+                    .into_iter()
+                    .any(|place| self.waits_outside(place, self.uses[position].module, &inside))
+                {
+                    return Decided::Again;
+                }
+            }
+        }
+        match imports.len() {
+            0 => Decided::Done,
+            1 => {
+                let (position, spaces) = imports.iter().next().expect("one import");
+                self.decide_one(*position, spaces, &inside, looped, pending, acts)
+            }
+            _ if self.cycle_falls_back(graph, component, &imports, acts) => Decided::Again,
+            // A cycle where no glob answers, whose imports all bound their
+            // names in another name space: each binds nothing in this one, as
+            // in rustc, and is decided.
+            _ if self
+                .cycle_fallbacks(graph, component, &imports)
+                .is_some_and(|fallbacks| fallbacks.is_empty())
+                && imports
+                    .keys()
+                    .all(|position| self.use_bound[*position].iter().any(|bound| *bound)) =>
+            {
+                let mut decided = Vec::new();
+                for (&position, spaces) in &imports {
+                    if self.decide_one(position, spaces, &inside, true, pending, &mut decided)
+                        != Decided::Done
+                    {
+                        return Decided::Cyclic;
+                    }
+                }
+                acts.extend(decided);
+                Decided::Done
+            }
+            _ => Decided::Cyclic,
+        }
+    }
+
+    /// For a cycle of two or more imports: in each name space where exactly
+    /// one place of the cycle would be answered by a glob of its module (see
+    /// [`Index::cycle_fallbacks`]) and leaving it to the glob ends every loop
+    /// of imports in the cycle, leave that place to the glob, and return
+    /// whether there was one. The name spaces are apart: a glob that brings
+    /// in a unit struct answers in two.
+    fn cycle_falls_back(
+        &self,
+        graph: &Blockers,
+        component: &[usize],
+        imports: &BTreeMap<usize, Vec<usize>>,
+        acts: &mut Vec<Act>,
+    ) -> bool {
+        let Some(fallbacks) = self.cycle_fallbacks(graph, component, imports) else {
+            return false;
+        };
+        let mut any = false;
+        for at in 0..3 {
+            let mut here = fallbacks.iter().filter(|place| place.2 == at);
+            let (Some((module, name, _)), None) = (here.next(), here.next()) else {
+                continue;
+            };
+            let keepers: Vec<usize> = self
+                .imports_of(*module, name)
+                .iter()
+                .copied()
+                .filter(|position| imports.contains_key(position))
+                .collect();
+            // rustc reads the place through the glob only while it resolves
+            // an import whose speculation ends the cycle: one that leaves
+            // another loop of imports waiting is never determined.
+            if looped_without(graph, component, &(*module, name.clone(), at)) {
+                continue;
+            }
+            acts.push(Act::Fallback(keepers, (*module, name.clone(), at)));
+            any = true;
+        }
+        any
+    }
+
+    /// The places of a cycle of two or more imports, in the name spaces each
+    /// is undecided in there, that a glob of their module would answer, each
+    /// read by an import of the cycle as the last segment of its path and
+    /// kept from the globs only by imports of the cycle; or `None` when an
+    /// import of the cycle waits anywhere but at the last segment of its
+    /// path, or is renamed and rustc cannot resolve it without itself: it
+    /// has bound nothing yet, or a glob of its module brings in its name
+    /// there.
+    fn cycle_fallbacks(
+        &self,
+        graph: &Blockers,
+        component: &[usize],
+        imports: &BTreeMap<usize, Vec<usize>>,
+    ) -> Option<Vec<(usize, String, usize)>> {
+        if imports.len() < 2 {
+            return None;
+        }
+        let nodes: BTreeSet<usize> = component.iter().copied().collect();
+        let mut candidates: BTreeSet<(usize, String, usize)> = BTreeSet::new();
+        for (&position, spaces) in imports {
+            let decl = &self.uses[position];
+            let UseKind::Named { name, segs } = &decl.kind else {
+                return None;
+            };
+            let last = segs.last()?;
+            for &at in spaces {
+                if name != last {
+                    let globbed = self.scopes[decl.module]
+                        .get(name)
+                        .is_some_and(|entry| !entry.globbed[at].is_empty());
+                    if !self.use_bound[position].iter().any(|bound| *bound) || globbed {
+                        return None;
+                    }
+                }
+                let walk = self.walk(
+                    decl.module,
+                    segs,
+                    decl.leading_colon,
+                    Namespace::ALL[at],
+                    Heads::Use {
+                        test: decl.test,
+                        own: Some(position),
+                    },
+                );
+                match walk {
+                    Err(Fail::Missing(sources)) => {
+                        if sources.iter().any(|source| &source.name != last) {
+                            return None;
+                        }
+                        for source in sources {
+                            let place = (source.module, source.name, slot(source.ns));
+                            // A glob answer the reading module cannot access
+                            // answers nothing for it, as rustc reads it.
+                            let answered = source.module == decl.module
+                                || self.scopes[place.0].get(&place.1).is_some_and(|entry| {
+                                    self.seen_by(&entry.globbed[place.2], place.0, decl.module)
+                                        .is_some()
+                                });
+                            if answered && graph.nodes_of(&place).any(|node| nodes.contains(&node))
+                            {
+                                candidates.insert(place);
+                            }
+                        }
+                    }
+                    Err(Fail::Ambiguous(_) | Fail::SeveralCrates { .. } | Fail::SuperAboveRoot) => {
+                        return None;
+                    }
+                    Ok(_) => {}
+                }
+            }
+        }
+        let kept_inside = |module: usize, name: &str, at: usize| {
+            self.imports_of(module, name)
+                .iter()
+                .any(|position| imports.contains_key(position) && !self.use_free[*position][at])
+        };
+        let fallbacks: Vec<(usize, String, usize)> = candidates
+            .into_iter()
+            .filter(|(module, name, at)| {
+                kept_inside(*module, name, *at)
+                    && self.scopes[*module].get(name).is_some_and(|entry| {
+                        entry.defs[*at].is_empty() && !entry.globbed[*at].is_empty()
+                    })
+            })
+            .collect();
+        Some(fallbacks)
+    }
+
+    /// Decide the named import at `position` in the name spaces `spaces`, where
+    /// it waits on nothing undecided but the imports `inside` its component
+    /// (see [`Index::settle_stuck`]), which is `looped` when they wait on one
+    /// another or the import on itself. In a loop, a name space where the
+    /// path reads a place that something may still bind without the imports
+    /// inside is not decided: rustc, which resolves an import without
+    /// itself but cannot read through a glob a name that an import still
+    /// keeps from the globs, never determines it.
+    fn decide_one(
+        &self,
+        position: usize,
+        spaces: &[usize],
+        inside: &BTreeSet<usize>,
+        looped: bool,
+        pending: &Pending,
+        acts: &mut Vec<Act>,
+    ) -> Decided {
+        let decl = &self.uses[position];
+        let UseKind::Named { segs, .. } = &decl.kind else {
+            return Decided::Done;
+        };
+        let (walks, _, _) = self.import_paths(position, decl, segs);
+        if walks
+            .iter()
+            .any(|(_, walk)| matches!(walk, Err(Fail::Ambiguous(_))))
+        {
+            acts.push(Act::Hold(position));
+            return Decided::Done;
+        }
+        let mut decided = [false; 3];
+        let mut empty = [false; 3];
+        for (ns, walk) in walks {
+            let at = slot(ns);
+            if !spaces.contains(&at) {
+                continue;
+            }
+            match walk {
+                Err(Fail::Missing(sources)) => {
+                    decided[at] = true;
+                    empty[at] = self.binds_nothing_at(position, segs, &sources, inside);
+                    // Nor is one that a cycle left to the globs, whose path
+                    // may still reach something there.
+                    if (looped || self.left_to_globs(position, at)) && !empty[at] {
+                        return Decided::Cyclic;
+                    }
+                }
+                walk => {
+                    // A path that now reaches something, as a glob no longer
+                    // may bring in the crate name its first segment reads,
+                    // is tried again in the queue before it is decided. One
+                    // that a cycle left to the globs and that would take an
+                    // item they answer away is never decided there.
+                    let items = self.binds(ns, walk, segs.len());
+                    if !items.is_empty() {
+                        if self.left_to_globs(position, at)
+                            && !self.covers_globbed(position, at, &items, pending)
+                        {
+                            return Decided::Cyclic;
+                        }
+                        acts.push(Act::Requeue(position));
+                        return Decided::Again;
+                    }
+                    decided[at] = true;
+                }
+            }
+        }
+        acts.push(Act::Settle(position, decided, empty));
+        Decided::Done
+    }
+
+    /// True when a walk of the path of the named import at `position`, which
+    /// found the places `sources` unbound, can bind nothing whatever is still
+    /// to be settled: no explicit import other than those `inside` its
+    /// component keeps any of them from the globs, no glob may still bring
+    /// one in, none is the first segment of the path read as a crate the
+    /// index cannot see, and no glob of their modules fails to resolve, as
+    /// one of a crate outside the index does.
+    fn binds_nothing_at(
+        &self,
+        position: usize,
+        segs: &[String],
+        sources: &[Source],
+        inside: &BTreeSet<usize>,
+    ) -> bool {
+        let decl = &self.uses[position];
+        !sources.is_empty()
+            && sources.iter().all(|source| {
+                let outside_head = source.module == decl.module
+                    && segs.first() == Some(&source.name)
+                    && self.in_use_prelude(decl.module, &source.name, decl.test);
+                let at = slot(source.ns);
+                // The module of the import sees only what it can access in
+                // the module it reads, as rustc resolves the import.
+                let viewer = decl.module;
+                let visible = |vis: &Vis| {
+                    source.module == viewer || self.is_visible(vis, source.module, viewer)
+                };
+                !outside_head
+                    && (self.binds_name(position, source.module, &source.name)
+                        || !self
+                            .imports_of(source.module, &source.name)
+                            .iter()
+                            .any(|other| {
+                                self.keeps_out(*other, source.module, &source.name, at, inside)
+                            }))
+                    && !self.open_glob(source.module, Some(viewer))
+                    && self
+                        .pending_sources_for(source.module, &source.name, at, Some(viewer))
+                        .into_iter()
+                        .all(|place| !self.may_bind_without(place, source.module, inside))
+                    && self
+                        .globs_of(source.module)
+                        .iter()
+                        .filter(|glob| visible(&self.uses[**glob].vis))
+                        .all(|glob| self.glob_targets(*glob).is_ok())
+            })
+    }
+
+    /// True when the import at `other`, of `name` in `module`, may still
+    /// keep the name there in the name space at `at` from the globs or bind
+    /// it, with the imports `inside` a component left out: it is not one of
+    /// those, its name is not left to the globs there, and it is not decided
+    /// to bind nothing there with no glob bringing the name in.
+    fn keeps_out(
+        &self,
+        other: usize,
+        module: usize,
+        name: &str,
+        at: usize,
+        inside: &BTreeSet<usize>,
+    ) -> bool {
+        let left_empty = self.use_empty[other][at]
+            && self.scopes[module]
+                .get(name)
+                .is_none_or(|entry| entry.globbed[at].is_empty());
+        !inside.contains(&other) && !self.use_free[other][at] && !left_empty
+    }
+
+    /// True when a glob that reads `place` may bring something in from it,
+    /// now or once it is settled, with the imports `inside` a component left
+    /// out, as rustc resolves an import without itself: it binds something
+    /// there, an import other than those keeps it from the globs, a glob of
+    /// its module is not settled or brings something in, or one of the
+    /// places its globs may still bring the name in from may.
+    fn may_bind_without(
+        &self,
+        place: (usize, String, usize),
+        viewer: usize,
+        inside: &BTreeSet<usize>,
+    ) -> bool {
+        let mut seen = BTreeSet::new();
+        // Each place is read by the module whose glob reaches it, which
+        // sees only what it can access there.
+        let (module, name, at) = place;
+        let mut work = vec![(module, name, at, viewer)];
+        while let Some((module, name, at, viewer)) = work.pop() {
+            if !seen.insert((module, name.clone(), at, viewer)) {
+                continue;
+            }
+            let entry = self.scopes[module].get(&name);
+            if entry.is_some_and(|entry| {
+                self.seen_by(&entry.defs[at], module, viewer).is_some()
+                    || self.seen_by(&entry.globbed[at], module, viewer).is_some()
+            }) || self.open_glob(module, Some(viewer))
+                || self.imports_of(module, &name).iter().any(|other| {
+                    self.is_visible(&self.uses[*other].vis, module, viewer)
+                        && self.keeps_out(*other, module, &name, at, inside)
+                })
+            {
+                return true;
+            }
+            work.extend(
+                self.pending_sources_without(module, &name, at, viewer, inside)
+                    .into_iter()
+                    .map(|(target, name, at)| (target, name, at, module)),
+            );
+        }
+        false
+    }
+
+    /// [`Index::pending_sources`] through the globs of `module` that
+    /// `viewer` can name, with the imports `inside` a component left out: the
+    /// places a glob of `module` reads for `name` where the name is kept from
+    /// the globs only by those imports count too.
+    fn pending_sources_without(
+        &self,
+        module: usize,
+        name: &str,
+        at: usize,
+        viewer: usize,
+        inside: &BTreeSet<usize>,
+    ) -> Vec<(usize, String, usize)> {
+        let mut sources = Vec::new();
+        for glob in self
+            .globs_of(module)
+            .iter()
+            .filter(|glob| self.is_visible(&self.uses[**glob].vis, module, viewer))
+        {
+            for &target in &self.glob_reach[*glob] {
+                let kept = self.imports_of(target, name).iter().any(|position| {
+                    inside.contains(position)
+                        && !self.use_free[*position][at]
+                        && self.is_visible(&self.uses[*position].vis, target, module)
+                });
+                if kept || self.undetermined_for(target, name, at, module) {
+                    sources.push((target, name.to_owned(), at));
+                }
+            }
+        }
+        sources
+    }
+
+    /// Do what deciding a component decided.
+    fn act(&mut self, act: Act, pending: &mut Pending) {
+        match act {
+            Act::Settle(position, decided, empty) => {
+                let bound = self.use_bound[position].iter().any(|bound| *bound);
+                for at in 0..3 {
+                    self.use_decided[position][at] |= decided[at];
+                    self.use_empty[position][at] |= empty[at];
+                    self.use_free[position][at] |= empty[at] && bound;
+                }
+                if self.use_decided[position] == [true; 3] {
+                    self.settle_use(position, pending);
+                } else if let UseKind::Named { name, .. } = &self.uses[position].kind {
+                    let (module, name) = (self.uses[position].module, name.clone());
+                    pending.wake(module, &name);
+                }
+            }
+            Act::Hold(position) => {
+                self.hold(position);
+                self.settle_use(position, pending);
+            }
+            Act::Requeue(position) => pending.push(position),
+            Act::CloseGlob(position) => {
+                self.close_glob(position, pending);
+                pending.push(position);
+            }
+            Act::Fallback(keepers, (module, name, at)) => {
+                for position in keepers {
+                    self.use_free[position][at] = true;
+                }
+                pending.wake(module, &name);
+            }
+        }
     }
 
     /// Settle the scope tables so that the result does not depend on the
@@ -631,100 +1830,103 @@ impl Index {
     /// While the tables settle, a `use` path may start at a crate before a
     /// glob of its module, whose own path waited on an import that started
     /// at a crate, brings in the same name, which makes it ambiguous. So
-    /// once the tables are settled, every named import is walked again
-    /// against them. If one is ambiguous that was not held from the start,
-    /// the tables are rebuilt from the definitions and settled again with
-    /// every such import held from the start: it binds nothing and keeps its
-    /// name indeterminate. Likewise, a `use` path may read its first segment
-    /// as a crate after an explicit import of that name failed for now and
-    /// before it bound the name: an explicit import shadows a crate, so the
-    /// tables are settled again with that name of that module never read as
-    /// a crate. The held imports and the names kept from crates only grow,
-    /// so this ends. Bindings made again are charged again, so the charge
-    /// stays at least what is held; the records of crate reads live only
-    /// while the tables settle.
-    pub(crate) fn settle_agreed(&mut self, meter: &Meter) -> Result<(), LoadError> {
+    /// once the tables are settled, every import is walked again against
+    /// them. If one is ambiguous that was not held from the start, the tables
+    /// are rebuilt from the definitions and settled again with every such
+    /// import held from the start: a named one binds nothing and keeps its
+    /// name from the globs, and a glob brings in nothing. The held imports
+    /// only grow, by at least one each time, so the tables are settled at
+    /// most once more than there are imports, which is checked in every build
+    /// ([`Index::within_settles`]). Each settle after the first is charged what it builds
+    /// again, the scope tables of the definitions and the state of every
+    /// import ([`Index::settle_bytes`]), on top of the bindings it makes
+    /// again, so the repeated settles are bounded by the budget of index
+    /// bytes as well. Returns how many times the tables were settled.
+    pub(crate) fn settle_agreed(&mut self, meter: &Meter) -> Result<usize, LoadError> {
+        let mut settles = 0;
         loop {
             let held: Vec<bool> = self.use_ambiguous.clone();
             self.settle(meter)?;
+            settles += 1;
+            self.within_settles(settles)?;
             let ambiguous: Vec<bool> = (0..self.uses.len())
                 .map(|position| self.use_ambiguous[position] || self.walks_ambiguous(position))
                 .collect();
-            let shadowed: Vec<(usize, String)> = self
-                .shadowed_crate_reads()
-                .into_iter()
-                .filter(|key| !self.no_crate.contains(key))
-                .collect();
-            if shadowed.is_empty()
-                && ambiguous
-                    .iter()
-                    .zip(&held)
-                    .all(|(now, before)| !now || *before)
-            {
-                self.crate_reads = BTreeMap::new();
-                self.no_crate = BTreeSet::new();
-                return Ok(());
-            }
-            self.no_crate.extend(shadowed);
-            self.crate_reads.clear();
+            let Some(first) = (0..self.uses.len()).find(|at| ambiguous[*at] && !held[*at]) else {
+                #[cfg(debug_assertions)]
+                self.check_settled();
+                return Ok(settles);
+            };
+            let decl = &self.uses[first];
+            meter.items(self.settle_bytes(), &decl.file, Some(decl.line))?;
             self.build_scopes();
-            self.unsettled.clear();
             self.crates_open = false;
             self.use_ambiguous = ambiguous;
         }
     }
 
-    /// Record that the `use` path of the import at `position`, which just
-    /// resolved, read its first segment as a crate of the extern prelude: a
-    /// plain first segment that its module does not bind (`own` is the
-    /// named import whose path it is).
-    fn note_crate_read(
-        &mut self,
-        position: usize,
-        decl: &UseDecl,
-        segs: &[String],
-        own: Option<usize>,
-    ) {
-        let Some(head) = segs.first() else {
-            return;
-        };
-        let heads = Heads::Use {
-            test: decl.test,
-            own,
-        };
-        if decl.leading_colon
-            || matches!(head.as_str(), "crate" | "self" | "super")
-            || self.crate_relative(decl.module, head, false, heads)
-            || self
-                .lookup_in(decl.module, Namespace::Type, head, own)
-                .is_some()
-        {
-            return;
+    /// Check that the settled tables agree with every named import that is
+    /// not held as ambiguous. Walked again against the final tables, with
+    /// the globs rebuilt: the imports of a name that resolved reach what they
+    /// bound, and each one that did not resolve reaches nothing. The queue
+    /// binds what a path reads while the tables settle and the globs are
+    /// rebuilt once they are settled; this is the invariant that makes the
+    /// two agree. Run in debug builds.
+    #[cfg(debug_assertions)]
+    fn check_settled(&self) {
+        let mut at = 0;
+        while let Some(&first) = self.named_imports.get(at) {
+            let decl = &self.uses[first];
+            let UseKind::Named { name, .. } = &decl.kind else {
+                unreachable!("the named imports are named");
+            };
+            let group = self.imports_of(decl.module, name);
+            let mut reached: [BTreeSet<ItemId>; 3] = Default::default();
+            for &position in group {
+                let import = &self.uses[position];
+                let UseKind::Named { segs, .. } = &import.kind else {
+                    continue;
+                };
+                if self.use_ambiguous[position] {
+                    continue;
+                }
+                let (walks, _, _) = self.import_paths(position, import, segs);
+                for (ns, walk) in walks {
+                    // A name space a cycle leaves undecided binds nothing,
+                    // and a path through it resolves `Cyclic`.
+                    if !self.use_decided[position][slot(ns)] {
+                        continue;
+                    }
+                    let binds = self.binds(ns, walk, segs.len());
+                    assert!(
+                        self.use_bound[position][slot(ns)] || binds.is_empty(),
+                        "{}:{}: an import that bound nothing in {ns:?} reaches {binds:?} there in the settled tables",
+                        import.file,
+                        import.line
+                    );
+                    reached[slot(ns)].extend(binds.into_iter().map(|(id, _)| id));
+                }
+            }
+            let entry = self.scopes[decl.module].get(name.as_str());
+            for (ns, reached) in reached.iter().enumerate() {
+                let defs = entry.map(|entry| &entry.defs[ns]);
+                let imported: BTreeSet<ItemId> = defs
+                    .into_iter()
+                    .flat_map(Bound::iter)
+                    .filter(|(_, origin)| origin.link.is_some())
+                    .map(|(id, _)| *id)
+                    .collect();
+                let all: BTreeSet<ItemId> =
+                    defs.into_iter().flat_map(Bound::keys).copied().collect();
+                assert!(
+                    imported.is_subset(reached) && reached.is_subset(&all),
+                    "{}:{}: the imports of `{name}` bound {imported:?} and reach {reached:?} in the settled tables",
+                    decl.file,
+                    decl.line
+                );
+            }
+            at += group.len();
         }
-        self.crate_reads
-            .entry((decl.module, head.clone()))
-            .or_default()
-            .insert(position);
-    }
-
-    /// The names that a `use` path read as a crate and that an explicit
-    /// import of the module, other than those paths' own, binds in the
-    /// settled tables: such a path went to the crate before the import that
-    /// shadows it was settled.
-    fn shadowed_crate_reads(&self) -> Vec<(usize, String)> {
-        self.crate_reads
-            .iter()
-            .filter(|((module, name), readers)| {
-                self.scopes[*module]
-                    .get(name)
-                    .is_some_and(|entry| !entry.defs[slot(Namespace::Type)].is_empty())
-                    && self
-                        .imports_of(*module, name)
-                        .iter()
-                        .any(|import| self.use_resolved[*import] && !readers.contains(import))
-            })
-            .map(|(key, _)| key.clone())
-            .collect()
     }
 
     /// True when the path of the named import at `position`, walked as a
@@ -732,7 +1934,7 @@ impl Index {
     fn walks_ambiguous(&self, position: usize) -> bool {
         let decl = &self.uses[position];
         let UseKind::Named { segs, .. } = &decl.kind else {
-            return false;
+            return matches!(self.glob_targets(position), Err(Fail::Ambiguous(_)));
         };
         matches!(
             self.walk(
@@ -759,12 +1961,15 @@ impl Index {
                 UseKind::Named { .. } if self.use_ambiguous[position] => Vec::new(),
                 UseKind::Named { name, segs } => {
                     let bound = self.settle_named(position, &decl, name, segs, pending, meter)?;
-                    if self.use_resolved[position] {
+                    // An import held as ambiguous binds nothing for good and
+                    // is settled. One decided in every name space, bound or
+                    // not, is settled too (see [`Index::settle_stuck`]).
+                    if self.use_ambiguous[position] || self.use_decided[position] == [true; 3] {
                         self.settle_use(position, pending);
                     }
                     bound
                 }
-                UseKind::Glob { segs } => self.settle_glob(position, &decl, segs, pending),
+                UseKind::Glob { .. } => self.settle_glob(position, &decl, pending),
             };
             for (module, name) in bound {
                 pending.wake(module, &name);
@@ -774,15 +1979,27 @@ impl Index {
     }
 
     /// Rebuild every glob table against the final definitions, so that an
-    /// explicit import shadows a glob of the same name for every importer.
+    /// explicit import shadows a glob of the same name for every importer,
+    /// each glob bringing in from the modules its path reaches in the settled
+    /// tables. The names each glob may still bring in are kept as the queue
+    /// left them: each glob recorded them anew whenever a module it reads
+    /// changed, so they are those of the settled tables.
     fn rebuild_globs(&mut self) {
+        // What each glob's path reaches in the settled tables. A path read
+        // against tables whose globs are cleared could reach something else,
+        // as a crate a glob of the module shadows.
+        let reached: Vec<(usize, BTreeSet<usize>)> = self
+            .glob_imports
+            .iter()
+            .filter_map(|position| Some((*position, self.glob_targets(*position).ok()?)))
+            .collect();
         for scope in &mut self.scopes {
             for entry in scope.values_mut() {
                 entry.globbed = [Bound::new(), Bound::new(), Bound::new()];
             }
         }
         loop {
-            let fresh = self.glob_pass();
+            let fresh = self.glob_pass(&reached);
             let mut changed = false;
             for (module, scope) in fresh.into_iter().enumerate() {
                 for (name, entry) in scope {
@@ -799,8 +2016,80 @@ impl Index {
         }
     }
 
-    /// Try an explicit import. Returns the names it newly bound; an import
-    /// that cannot resolve yet waits on the names it needed.
+    /// The walks of the path of the named import at `position`, written as
+    /// `decl` with the segments `segs`, in every name space, read as a `use`
+    /// path that does not consult the import's own binding, with the places
+    /// they read, those of the walk in the name space at `at` from `ends[at]`
+    /// to `ends[at + 1]`.
+    fn import_paths(
+        &self,
+        position: usize,
+        decl: &UseDecl,
+        segs: &[String],
+    ) -> (Walks, Vec<Source>, [usize; 4]) {
+        let heads = Heads::Use {
+            test: decl.test,
+            own: Some(position),
+        };
+        let mut reads = Vec::new();
+        let mut ends = [0; 4];
+        let walks = Namespace::ALL
+            .into_iter()
+            .enumerate()
+            .map(|(at, ns)| {
+                let walk = self.walk_noting(
+                    decl.module,
+                    segs,
+                    decl.leading_colon,
+                    ns,
+                    heads,
+                    Some(&mut reads),
+                );
+                ends[at + 1] = reads.len();
+                (ns, walk)
+            })
+            .collect();
+        (walks, reads, ends)
+    }
+
+    /// What a walk in `ns` of an import's path of `len` segments binds the
+    /// import's name to: the items it reached. A path through a name that
+    /// stands for the crate roots of several crates binds the name to them,
+    /// so a path through it, or to it, is ambiguous: an import of the crate
+    /// name itself names crates, in the type name space; one that goes on
+    /// into the crates names something in each name space the path could
+    /// end in. A walk that failed otherwise binds nothing.
+    fn binds(&self, ns: Namespace, walk: Result<Walked, Fail>, len: usize) -> Vec<(ItemId, Hit)> {
+        match walk {
+            Ok(walked) => self.walked_items(walked, ns),
+            Err(Fail::SeveralCrates { roots, rest }) if ns == Namespace::Type || rest < len => {
+                roots
+                    .into_iter()
+                    .map(|id| {
+                        (
+                            id,
+                            Hit {
+                                via_glob: false,
+                                last: None,
+                            },
+                        )
+                    })
+                    .collect()
+            }
+            // An ambiguous first segment is refused before a walk is bound.
+            Err(
+                Fail::Missing(_)
+                | Fail::SuperAboveRoot
+                | Fail::SeveralCrates { .. }
+                | Fail::Ambiguous(_),
+            ) => Vec::new(),
+        }
+    }
+
+    /// Try an explicit import. Returns the names it newly bound. The import
+    /// waits on every place its path read, so it is tried again when one of
+    /// them changes: one that cannot resolve yet waits, and one that resolved
+    /// binds what its path reaches as the tables grow.
     fn settle_named(
         &mut self,
         position: usize,
@@ -810,103 +2099,186 @@ impl Index {
         pending: &mut Pending,
         meter: &Meter,
     ) -> Result<Vec<(usize, String)>, LoadError> {
-        let heads = Heads::Use {
-            test: decl.test,
-            own: Some(position),
-        };
-        let walks: Vec<(Namespace, Result<Walked, Fail>)> = Namespace::ALL
-            .into_iter()
-            .map(|ns| {
-                (
-                    ns,
-                    self.walk(decl.module, segs, decl.leading_colon, ns, heads),
-                )
-            })
-            .collect();
+        let (walks, reads, ends) = self.import_paths(position, decl, segs);
         // A first segment that is ambiguous binds nothing in any name space,
         // whatever the module binds later, and keeps the name the import
-        // binds indeterminate, so no glob of the module answers for it.
+        // binds from the globs.
         if walks
             .iter()
             .any(|(_, walk)| matches!(walk, Err(Fail::Ambiguous(_))))
         {
-            self.hold(position, decl, name);
+            self.hold(position);
             return Ok(Vec::new());
         }
-        if walks.iter().any(|(_, walk)| walk.is_ok()) {
-            self.note_crate_read(position, decl, segs, Some(position));
-        }
+        // A name space where the path reached nothing, reading there only
+        // places in modules without globs that no other import binds or, for
+        // the places it found unbound, that every other import binding the
+        // name was decided to bind nothing at, can never bind, whether the
+        // crates are open or not (its first segment is read in its own
+        // module, which has no globs to wait on): it is decided now, as the
+        // stuck phase would decide it (see [`Index::decide_one`]).
+        let missing: Vec<usize> = walks
+            .iter()
+            .enumerate()
+            .filter_map(|(at, (ns, walk))| match walk {
+                Err(Fail::Missing(sources))
+                    if self.reads_final(position, &reads[ends[at]..ends[at + 1]], sources) =>
+                {
+                    Some(slot(*ns))
+                }
+                _ => None,
+            })
+            .collect();
+        let decide_now = !missing.is_empty();
+        pending.wait(position, reads);
         let mut bound = Vec::new();
         for (ns, walk) in walks {
-            match walk {
-                Ok(walked) => {
-                    for (id, hit) in self.walked_items(walked, ns) {
-                        self.use_resolved[position] = true;
-                        let source = hit.last.as_ref().map_or(0, |last| last.name.capacity());
-                        meter.items(
-                            binding_bytes(name, &decl.vis, source),
-                            &decl.file,
-                            Some(decl.line),
-                        )?;
-                        let origin = Origin {
-                            via_glob: hit.via_glob,
-                            vis: decl.vis.clone(),
-                            link: Some(Link {
-                                module: decl.module,
-                                name: name.to_owned(),
-                                source: hit.last,
-                            }),
-                        };
-                        if self.insert_def(decl.module, ns, name, id, origin) {
-                            bound.push((decl.module, name.to_owned()));
-                        }
+            if let Err(Fail::SuperAboveRoot) = walk {
+                return Err(LoadError::new(
+                    &decl.file,
+                    Some(decl.line),
+                    LoadErrorKind::SuperAboveRoot {
+                        path: segs.join("::"),
+                    },
+                ));
+            }
+            let items = self.binds(ns, walk, segs.len());
+            // An import that a cycle left to the globs binds only what keeps
+            // every item that a path which read its name found them
+            // answering, so that what a path read there only grows; else
+            // rustc never determines it, and neither does the index (see
+            // [`Index::left_to_globs`]).
+            if self.left_to_globs(position, slot(ns))
+                && !items.is_empty()
+                && !self.covers_globbed(position, slot(ns), &items, pending)
+            {
+                continue;
+            }
+            for (id, hit) in items {
+                if !self.use_bound[position].iter().any(|bound| *bound) {
+                    // The name spaces where its path can bind nothing are
+                    // left to the globs once it binds in one.
+                    let empty = self.use_empty[position];
+                    for (free, empty) in self.use_free[position].iter_mut().zip(empty) {
+                        *free |= empty;
                     }
                 }
-                Err(Fail::Missing(sources)) => pending.wait(position, sources),
-                // The import goes through a name that stands for the crate
-                // roots of several crates; it binds its name to them, so a
-                // path through it, or to it, is ambiguous. An import of the
-                // crate name itself names crates, in the type name space; one
-                // that goes on into the crates names something in each name
-                // space the path could end in.
-                Err(Fail::SeveralCrates { roots, rest }) => {
-                    if ns == Namespace::Type || rest < segs.len() {
-                        for id in roots {
-                            self.use_resolved[position] = true;
-                            meter.items(
-                                binding_bytes(name, &decl.vis, 0),
-                                &decl.file,
-                                Some(decl.line),
-                            )?;
-                            let origin = Origin {
-                                via_glob: false,
-                                vis: decl.vis.clone(),
-                                link: Some(Link {
-                                    module: decl.module,
-                                    name: name.to_owned(),
-                                    source: None,
-                                }),
-                            };
-                            if self.insert_def(decl.module, ns, name, id, origin) {
-                                bound.push((decl.module, name.to_owned()));
-                            }
-                        }
-                    }
-                }
-                // Refused above.
-                Err(Fail::Ambiguous(_)) => {}
-                Err(Fail::SuperAboveRoot) => {
-                    return Err(LoadError::new(
+                self.use_resolved[position] = true;
+                self.use_bound[position][slot(ns)] = true;
+                self.use_decided[position][slot(ns)] = true;
+                let origin = Origin {
+                    via_glob: hit.via_glob,
+                    vis: decl.vis.clone(),
+                    link: Some(Link {
+                        module: decl.module,
+                        name: name.to_owned(),
+                        source: hit.last,
+                    }),
+                    also: None,
+                };
+                // A binding is charged when it is made or replaced; one
+                // walked again and kept costs nothing more.
+                let kept = self.scopes[decl.module]
+                    .get(name)
+                    .is_some_and(|entry| !entry.defs[slot(ns)].takes(id, &origin));
+                if !kept {
+                    let source = origin
+                        .link
+                        .as_ref()
+                        .and_then(|link| link.source.as_ref())
+                        .map_or(0, |last| last.name.capacity());
+                    meter.items(
+                        binding_bytes(name, &decl.vis, source),
                         &decl.file,
                         Some(decl.line),
-                        LoadErrorKind::SuperAboveRoot {
-                            path: segs.join("::"),
-                        },
-                    ));
+                    )?;
+                }
+                if self.insert_def(decl.module, ns, name, id, origin) {
+                    bound.push((decl.module, name.to_owned()));
                 }
             }
         }
+        if decide_now {
+            let bound_any = self.use_bound[position].iter().any(|bound| *bound);
+            let mut changed = false;
+            for at in missing {
+                if !self.use_decided[position][at] {
+                    self.use_decided[position][at] = true;
+                    self.use_empty[position][at] = true;
+                    self.use_free[position][at] |= bound_any;
+                    changed = true;
+                }
+            }
+            if changed {
+                pending.wake(decl.module, name);
+            }
+        }
         Ok(bound)
+    }
+
+    /// True when every place in `reads`, read by the path of the named import
+    /// at `position` in one name space, is in a module without globs and is
+    /// bound by no other import, or, for a place among `missing`, which the
+    /// path found unbound, by none that was not decided to bind nothing
+    /// there whatever is left to settle: what the path reaches there never
+    /// changes.
+    fn reads_final(&self, position: usize, reads: &[Source], missing: &[Source]) -> bool {
+        reads.iter().all(|source| {
+            let unbound = missing.contains(source);
+            let at = slot(source.ns);
+            self.globs_of(source.module).is_empty()
+                && self
+                    .imports_of(source.module, &source.name)
+                    .iter()
+                    .all(|other| {
+                        *other == position
+                            || unbound && self.use_decided[*other][at] && self.use_empty[*other][at]
+                    })
+        })
+    }
+
+    /// True when the named import at `position` was left out of a cycle in
+    /// the name space at `at`, so that the globs of its module answer its
+    /// name there while the imports of the cycle resolve (see
+    /// [`Index::cycle_falls_back`]), and is not decided there yet. One that
+    /// stays so never settles, and a path through its name there resolves
+    /// `Cyclic`, as rustc never determines it.
+    pub(crate) fn left_to_globs(&self, position: usize, at: usize) -> bool {
+        self.use_free[position][at] && !self.use_decided[position][at]
+    }
+
+    /// True when `items`, what the named import at `position` would bind in
+    /// the name space at `at`, hold every item that each other path that
+    /// read its name there, as `pending` records the readers, found the globs
+    /// of its module answering there, as that path's module can access them:
+    /// binding them then takes nothing away from what a path read there.
+    fn covers_globbed(
+        &self,
+        position: usize,
+        at: usize,
+        items: &[(ItemId, Hit)],
+        pending: &Pending,
+    ) -> bool {
+        let decl = &self.uses[position];
+        let UseKind::Named { name, .. } = &decl.kind else {
+            return true;
+        };
+        let Some(entry) = self.scopes[decl.module].get(name) else {
+            return true;
+        };
+        let readers = pending.waiting.get(&(decl.module, name.clone()));
+        readers.into_iter().flatten().all(|reader| {
+            let viewer = self.uses[*reader].module;
+            *reader == position
+                || self
+                    .seen_by(&entry.globbed[at], decl.module, viewer)
+                    .is_none_or(|seen| {
+                        self.is_visible(&decl.vis, decl.module, viewer)
+                            && seen
+                                .keys()
+                                .all(|id| items.iter().any(|(item, _)| item == id))
+                    })
+        })
     }
 
     /// The items a walk in `ns` binds an import's name to: the items it
@@ -931,37 +2303,39 @@ impl Index {
         items
     }
 
-    /// Mark the named import at `position`, which binds `name`, ambiguous.
-    /// Its name stays unsettled for good: counted again if the import had
-    /// already settled.
-    fn hold(&mut self, position: usize, decl: &UseDecl, name: &str) {
-        if self.use_ambiguous[position] {
-            return;
-        }
+    /// Hold the named import at `position` as ambiguous: it binds nothing,
+    /// and like every explicit import it keeps its name from the globs and
+    /// the crates.
+    fn hold(&mut self, position: usize) {
         self.use_ambiguous[position] = true;
-        if self.use_settled[position]
-            && let Some(count) = self
-                .unsettled
-                .get_mut(&decl.module)
-                .and_then(|names| names.get_mut(name))
-        {
-            *count += 1;
-        }
     }
 
     /// Try a glob import. Returns the names it newly bound; the glob is
-    /// queued again when its target module changes.
+    /// queued again when its target module changes, or a place its path read
+    /// does. A glob held as ambiguous brings in nothing.
     fn settle_glob(
         &mut self,
         position: usize,
         decl: &UseDecl,
-        segs: &[String],
         pending: &mut Pending,
     ) -> Vec<(usize, String)> {
         let mut bound = Vec::new();
-        match self.glob_targets(decl, segs) {
+        if self.use_ambiguous[position] {
+            self.close_glob(position, pending);
+            return bound;
+        }
+        let mut reads = Vec::new();
+        let targets = self.glob_targets_noting(position, Some(&mut reads));
+        pending.wait(position, reads);
+        let mut settled = false;
+        match targets {
             Ok(targets) => {
-                self.note_crate_read(position, decl, segs, None);
+                self.glob_reach[position].clone_from(&targets);
+                // Settled once every glob of its targets that its module can
+                // name is.
+                settled = targets
+                    .iter()
+                    .all(|target| !self.open_glob(*target, Some(decl.module)));
                 for target in targets {
                     pending.watching.entry(target).or_default().insert(position);
                     for (name, ns, names) in self.visible(target, decl.module) {
@@ -974,26 +2348,500 @@ impl Index {
                     }
                 }
             }
-            Err(Fail::Missing(sources)) => pending.wait(position, sources),
+            // A glob whose path does not resolve yet waits on the places it
+            // read, and is decided once the queue is empty.
+            Err(Fail::Missing(_)) => {}
             // `super` above the root is refused for every import before the
             // queue runs. A glob of a name that stands for several crates, or
             // whose first segment is ambiguous, brings in nothing: rustc
             // refuses it.
-            Err(Fail::SuperAboveRoot | Fail::SeveralCrates { .. } | Fail::Ambiguous(_)) => {}
+            Err(Fail::SuperAboveRoot | Fail::SeveralCrates { .. } | Fail::Ambiguous(_)) => {
+                settled = true;
+            }
+        }
+        if settled {
+            self.close_glob(position, pending);
         }
         bound
     }
+
+    /// Mark the glob at `position` settled, waking what waits on a name of
+    /// its module.
+    fn close_glob(&mut self, position: usize, pending: &mut Pending) {
+        if !self.glob_closed[position] {
+            self.glob_closed[position] = true;
+            pending.wake_module(self.uses[position].module);
+        }
+    }
+}
+
+/// The blocker graph of the unsettled named imports (see
+/// [`Index::settle_stuck`]): node `n` below `imports.len()` is the import at
+/// position `imports[n]`, an import or a glob, and node `imports.len() + p`
+/// is the place `places[p]`: a name in a module in a name space, read without
+/// the glob at the position given, for the reads of a glob's path in its own
+/// module.
+struct Blockers {
+    imports: Vec<(usize, Option<usize>)>,
+    places: Vec<Place>,
+    place_of: BTreeMap<Place, usize>,
+    successors: Vec<Vec<usize>>,
+}
+
+impl Blockers {
+    /// The node of `place`, added and queued in `work` the first time.
+    fn place(&mut self, place: Place, work: &mut Vec<usize>) -> usize {
+        if let Some(node) = self.place_of.get(&place) {
+            return *node;
+        }
+        let node = self.imports.len() + self.places.len();
+        self.places.push(place.clone());
+        self.place_of.insert(place, node);
+        self.successors.push(Vec::new());
+        work.push(node);
+        node
+    }
+
+    /// The nodes of the places of `name` in `module` in the name space at
+    /// `at` read with no glob left out, by any reader.
+    fn nodes_of<'a>(
+        &'a self,
+        place: &'a (usize, String, usize),
+    ) -> impl Iterator<Item = usize> + 'a {
+        let (module, name, at) = place;
+        self.place_of
+            .range((*module, name.clone(), *at, None, false, None)..)
+            .take_while(move |((m, n, a, _, _, _), _)| m == module && n == name && a == at)
+            .filter(|((_, _, _, except, _, _), _)| except.is_none())
+            .map(|(_, node)| *node)
+    }
+}
+
+/// A place of the blocker graph: a name in a module in a name space, the
+/// glob whose own path reads it without the glob, whether an import reads it
+/// as the first segment of its path under a crate's name, and the module
+/// that reads it from outside, which sees only what it can access.
+type Place = (usize, String, usize, Option<usize>, bool, Option<usize>);
+
+/// True when `component` of `graph` still holds a loop through an import
+/// once the nodes of `place` are taken out of it.
+fn looped_without(graph: &Blockers, component: &[usize], place: &(usize, String, usize)) -> bool {
+    let cut: BTreeSet<usize> = graph.nodes_of(place).collect();
+    let kept: Vec<usize> = component
+        .iter()
+        .copied()
+        .filter(|node| !cut.contains(node))
+        .collect();
+    let local: BTreeMap<usize, usize> = kept
+        .iter()
+        .enumerate()
+        .map(|(at, node)| (*node, at))
+        .collect();
+    // A place that an import keeps waits on the import alone: once it
+    // binds, what the globs of the place's module may bring in is shadowed.
+    let named = |node: usize| graph.imports.get(node).is_some_and(|(_, at)| at.is_some());
+    let successors: Vec<Vec<usize>> = kept
+        .iter()
+        .map(|node| {
+            let next = &graph.successors[*node];
+            let kept_by_import = *node >= graph.imports.len() && next.iter().any(|to| named(*to));
+            next.iter()
+                .filter(|to| !kept_by_import || named(**to))
+                .filter_map(|to| local.get(to).copied())
+                .collect()
+        })
+        .collect();
+    // A loop of places alone is globs that glob one another, which adds
+    // nothing; a loop through an import is one the place does not end.
+    components(&successors).iter().any(|found| {
+        found.iter().any(|node| named(kept[*node]))
+            && (found.len() > 1 || found.iter().any(|node| successors[*node].contains(node)))
+    })
+}
+
+/// What deciding a component of the blocker graph does.
+enum Act {
+    /// Decide the import at the position in the name spaces marked first,
+    /// binding nothing in those marked second: there its name is left to the
+    /// globs once it binds in another.
+    Settle(usize, [bool; 3], [bool; 3]),
+    /// Hold the import at the position as ambiguous.
+    Hold(usize),
+    /// Queue the import at the position again.
+    Requeue(usize),
+    /// Settle the glob at the position.
+    CloseGlob(usize),
+    /// Leave the place to the globs of its module for the imports of a cycle
+    /// that keep it from them.
+    Fallback(Vec<usize>, (usize, String, usize)),
+}
+
+/// How a component of the blocker graph was decided in one round.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Decided {
+    /// Not yet.
+    Open,
+    /// Decided.
+    Done,
+    /// A cycle, or a component that waits on one: it never settles.
+    Cyclic,
+    /// Left for the next round.
+    Again,
+}
+
+/// The strongly connected components of the graph whose node `n` leads to
+/// the nodes `successors[n]`, each component once, in reverse topological
+/// order: a component comes after every component it leads to. Tarjan's
+/// algorithm, with an explicit stack in place of recursion, so a long chain
+/// does not exhaust the caller's stack.
+fn components(successors: &[Vec<usize>]) -> Vec<Vec<usize>> {
+    const UNSEEN: usize = usize::MAX;
+    let count = successors.len();
+    let mut index = vec![UNSEEN; count];
+    let mut low = vec![0; count];
+    let mut on_stack = vec![false; count];
+    let mut stack: Vec<usize> = Vec::new();
+    let mut found: Vec<Vec<usize>> = Vec::new();
+    let mut next_index = 0;
+    // Each frame is a node and how many of its successors it has visited.
+    let mut frames: Vec<(usize, usize)> = Vec::new();
+    for root in 0..count {
+        if index[root] != UNSEEN {
+            continue;
+        }
+        index[root] = next_index;
+        low[root] = next_index;
+        next_index += 1;
+        stack.push(root);
+        on_stack[root] = true;
+        frames.push((root, 0));
+        while let Some(frame) = frames.last_mut() {
+            let (node, visited) = *frame;
+            if let Some(&next) = successors[node].get(visited) {
+                frame.1 += 1;
+                if index[next] == UNSEEN {
+                    index[next] = next_index;
+                    low[next] = next_index;
+                    next_index += 1;
+                    stack.push(next);
+                    on_stack[next] = true;
+                    frames.push((next, 0));
+                } else if on_stack[next] {
+                    low[node] = low[node].min(index[next]);
+                }
+                continue;
+            }
+            frames.pop();
+            if let Some(&(parent, _)) = frames.last() {
+                low[parent] = low[parent].min(low[node]);
+            }
+            if low[node] == index[node] {
+                let mut component = Vec::new();
+                while let Some(member) = stack.pop() {
+                    on_stack[member] = false;
+                    component.push(member);
+                    if member == node {
+                        break;
+                    }
+                }
+                found.push(component);
+            }
+        }
+    }
+    found
 }
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Write as _;
+
     use super::*;
+    use crate::options::LoadOptions;
+    use crate::tree::MemoryTree;
+    use crate::workspace::Workspace;
+
+    /// The settled index of a workspace of the libraries `shared` and `other`
+    /// and the package `demo`, which depends on both, with `text` as
+    /// `demo`'s library.
+    fn settled(text: &str) -> Index {
+        let tree = MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[workspace]\nmembers = [\"shared\", \"other\", \"demo\"]\n",
+            ),
+            (
+                "shared/Cargo.toml",
+                "[package]\nname = \"shared\"\nedition = \"2021\"\n",
+            ),
+            (
+                "shared/src/lib.rs",
+                "pub mod inner { pub mod other { pub fn x() {} } }\n",
+            ),
+            (
+                "other/Cargo.toml",
+                "[package]\nname = \"other\"\nedition = \"2021\"\n",
+            ),
+            ("other/src/lib.rs", "pub fn x() {}\n"),
+            (
+                "demo/Cargo.toml",
+                "[package]\nname = \"demo\"\nedition = \"2021\"\n\n[dependencies]\n\
+                 shared = { path = \"../shared\" }\nother = { path = \"../other\" }\n",
+            ),
+            ("demo/src/lib.rs", text),
+        ]);
+        Workspace::load(&tree, &["."])
+            .expect("loads")
+            .index()
+            .clone()
+    }
+
+    /// Settle `index` once from its definitions with `held` held from the
+    /// start, and return what it charged.
+    fn settle_once(index: &mut Index, held: &[bool]) -> usize {
+        index.build_scopes();
+        index.crates_open = false;
+        index.use_ambiguous = held.to_vec();
+        let meter = Meter::new(&LoadOptions::default());
+        index.settle(&meter).expect("settles");
+        meter.usage().item_bytes
+    }
+
+    #[test]
+    fn each_settle_after_the_first_is_charged_what_it_builds_again() {
+        // `use inn::*` waits on `inn`, which starts at the crate `shared`, so
+        // `pub use other::x` reads the crate `other` before the glob brings
+        // in `inner::other`: the walk against the settled tables finds the
+        // ambiguity, and the tables are settled again with it held.
+        let mut index = settled("pub use other::x;\nuse shared::inner as inn;\nuse inn::*;\n");
+        let held = index.use_ambiguous.clone();
+        assert_eq!(held.iter().filter(|held| **held).count(), 1);
+        let none = vec![false; held.len()];
+        index.build_scopes();
+        index.crates_open = false;
+        index.use_ambiguous.clone_from(&none);
+        let meter = Meter::new(&LoadOptions::default());
+        assert_eq!(index.settle_agreed(&meter).expect("settles"), 2);
+        assert!(2 <= index.uses.len() + 1);
+        let both = meter.usage().item_bytes;
+        let first = settle_once(&mut index, &none);
+        let second = settle_once(&mut index, &held);
+        assert_eq!(both, first + index.settle_bytes() + second);
+        // Settled with the ambiguous import held from the start, it settles
+        // once and charges no more than the bindings.
+        index.build_scopes();
+        index.crates_open = false;
+        index.use_ambiguous.clone_from(&held);
+        let meter = Meter::new(&LoadOptions::default());
+        assert_eq!(index.settle_agreed(&meter).expect("settles"), 1);
+        assert_eq!(meter.usage().item_bytes, second);
+    }
+
+    /// Settle `text` once more from its definitions, with no import held
+    /// from the start, and return how many times the imports left were
+    /// decided and how many imports were held as ambiguous.
+    fn rounds(text: &str) -> (usize, usize) {
+        let mut index = settled(text);
+        index.build_scopes();
+        index.crates_open = false;
+        index.use_ambiguous = vec![false; index.uses.len()];
+        let meter = Meter::new(&LoadOptions::default());
+        let rounds = index.settle(&meter).expect("settles");
+        // Each round but the last decided at least one more thing, of at
+        // most eleven for each import.
+        assert!(rounds <= index.progress() + 1, "{rounds} rounds");
+        assert!(index.progress() <= 11 * index.uses.len());
+        let held = index.use_ambiguous.iter().filter(|held| **held).count();
+        (rounds, held)
+    }
+
+    #[test]
+    fn the_imports_of_a_name_are_found_among_names_that_share_its_first_eight_bytes() {
+        // Names that share their first eight bytes, a name that is a prefix
+        // of another, and the same names in two modules.
+        let index = settled(
+            "mod a { pub use crate::z::abcdefgh2; pub use crate::z::abcdefgh1; \
+             pub use crate::z::abcdefgh; pub use crate::z::abc; pub use crate::z::abcdefgh1 as x; }\n\
+             mod b { pub use crate::z::abcdefgh1; pub use crate::z::abc; }\n\
+             mod z { pub fn abcdefgh2() {} pub fn abcdefgh1() {} pub fn abcdefgh() {} pub fn abc() {} }\n",
+        );
+        let module = |path: &str| {
+            index
+                .modules
+                .iter()
+                .position(|module| module.path.as_str() == path)
+                .expect("module")
+        };
+        let (a, b) = (module("demo::a"), module("demo::b"));
+        let names = |module: usize, name: &str| -> Vec<String> {
+            index
+                .imports_of(module, name)
+                .iter()
+                .map(|position| match &index.uses[*position].kind {
+                    UseKind::Named { name, segs } => format!("{name}={}", segs.join("::")),
+                    UseKind::Glob { .. } => "glob".to_owned(),
+                })
+                .collect()
+        };
+        assert_eq!(names(a, "abcdefgh1"), ["abcdefgh1=crate::z::abcdefgh1"]);
+        assert_eq!(names(a, "abcdefgh2"), ["abcdefgh2=crate::z::abcdefgh2"]);
+        assert_eq!(names(a, "abcdefgh"), ["abcdefgh=crate::z::abcdefgh"]);
+        assert_eq!(names(a, "abc"), ["abc=crate::z::abc"]);
+        assert_eq!(names(a, "x"), ["x=crate::z::abcdefgh1"]);
+        assert_eq!(names(a, "abcdefgh3"), Vec::<String>::new());
+        assert_eq!(names(a, "ab"), Vec::<String>::new());
+        assert_eq!(names(b, "abcdefgh1"), ["abcdefgh1=crate::z::abcdefgh1"]);
+        assert_eq!(names(b, "abcdefgh2"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_round_that_decides_nothing_more_or_a_settle_too_many_is_reported_in_every_build() {
+        let index = settled("mod a { pub struct T; }\nmod b { pub use super::a::T; }\n");
+        let done = index.progress();
+        assert!(done > 0);
+        assert!(index.advanced(1, done - 1).is_ok());
+        let error = index.advanced(3, done).expect_err("no progress");
+        assert!(
+            matches!(&error.kind, LoadErrorKind::Internal { what }
+                if what == "round 3 of deciding the imports left decided nothing more"),
+            "{error:?}"
+        );
+        let error = index.internal("bound".to_owned());
+        assert_eq!(error.line, Some(2));
+        // One import: the tables are settled at most twice.
+        assert!(index.within_settles(2).is_ok());
+        let error = index.within_settles(3).expect_err("one settle too many");
+        assert!(
+            matches!(&error.kind, LoadErrorKind::Internal { what }
+                if what == "the scope tables were settled 3 times for 1 imports"),
+            "{error:?}"
+        );
+    }
+
+    #[test]
+    fn the_imports_left_are_decided_in_rounds_that_do_not_grow_with_them() {
+        // A chain of imports that bind nothing: each waits on the next, and
+        // the last names an item that does not exist. No module has globs,
+        // so the queue decides each import once the next is decided, and one
+        // round confirms that nothing is left.
+        for length in [2, 20_000] {
+            let mut text = String::new();
+            for at in 0..length {
+                writeln!(text, "mod m{at} {{ pub use super::m{}::T; }}", at + 1)
+                    .expect("write to a string");
+            }
+            writeln!(text, "mod m{length} {{ pub use crate::nothing::T; }}")
+                .expect("write to a string");
+            assert_eq!(rounds(&text), (1, 0), "a chain of {length}");
+        }
+        // The same chain where each module globs an empty module: a glob may
+        // bring a name in, so the imports are left to the rounds. Every one
+        // fails in one round, and one more confirms that nothing is left.
+        for length in [2, 20_000] {
+            let mut text = String::from("mod e {}\n");
+            for at in 0..length {
+                writeln!(
+                    text,
+                    "mod m{at} {{ pub use super::m{}::T; pub use super::e::*; }}",
+                    at + 1
+                )
+                .expect("write to a string");
+            }
+            writeln!(
+                text,
+                "mod m{length} {{ pub use crate::nothing::T; pub use super::e::*; }}"
+            )
+            .expect("write to a string");
+            assert_eq!(rounds(&text), (2, 0), "a chain of {length} beside globs");
+        }
+        // A cycle, with a chain that waits on it: nothing fails, so one round
+        // decides everything.
+        for length in [2, 20_000] {
+            let mut text = String::new();
+            for at in 0..length {
+                writeln!(
+                    text,
+                    "mod m{at} {{ pub use super::m{}::T; }}\nmod w{at} {{ pub use super::m{at}::T; }}",
+                    (at + 1) % length
+                )
+                .expect("write to a string");
+            }
+            assert_eq!(rounds(&text), (1, 0), "a cycle of {length}");
+        }
+        // An import that bound its name before the crates opened is walked
+        // again in the queue once they are, and binds the crate there: one
+        // round decides its macro name space, and one more confirms.
+        assert_eq!(
+            rounds(
+                "pub mod a { pub use other as inn; pub use crate::e::*; }\npub mod e { pub fn other() {} }\n"
+            ),
+            (2, 0)
+        );
+        // An import whose first segment a glob and a crate both bring in is
+        // held as ambiguous while the queue runs, and adds no round to the
+        // chain beside it.
+        assert_eq!(
+            rounds(
+                "pub mod k { pub mod shared { pub fn x() {} } }\nuse k::*;\n\
+                 pub use shared::x;\nmod a { pub use super::b::T; }\n\
+                 mod b { pub use crate::nothing::T; }\n"
+            ),
+            (2, 1)
+        );
+    }
+
+    #[test]
+    fn components_come_out_once_each_after_every_component_they_lead_to() {
+        // 0 -> 1 -> 2 -> 1 (a cycle), 2 -> 3, 4 -> 0, 5 alone, 6 <-> 7 -> 3.
+        let successors = vec![
+            vec![1],
+            vec![2],
+            vec![1, 3],
+            vec![],
+            vec![0],
+            vec![],
+            vec![7],
+            vec![6, 3],
+        ];
+        let found = components(&successors);
+        let mut sorted: Vec<Vec<usize>> = found
+            .iter()
+            .map(|component| {
+                let mut nodes = component.clone();
+                nodes.sort_unstable();
+                nodes
+            })
+            .collect();
+        sorted.sort();
+        assert_eq!(
+            sorted,
+            [vec![0], vec![1, 2], vec![3], vec![4], vec![5], vec![6, 7]]
+        );
+        let at = |node: usize| {
+            found
+                .iter()
+                .position(|component| component.contains(&node))
+                .expect("every node is in a component")
+        };
+        for (node, next) in successors.iter().enumerate() {
+            for target in next {
+                assert!(at(*target) <= at(node), "{node} -> {target}");
+            }
+        }
+        // A chain far longer than a recursive search could follow on a small
+        // stack.
+        let chain: Vec<Vec<usize>> = (0..200_000)
+            .map(|node| vec![node + 1])
+            .chain([vec![0]])
+            .collect();
+        assert_eq!(components(&chain).len(), 1);
+    }
 
     fn origin(via_glob: bool) -> Origin {
         Origin {
             via_glob,
             vis: Vis::Public,
             link: None,
+            also: None,
         }
     }
 

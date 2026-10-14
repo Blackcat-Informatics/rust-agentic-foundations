@@ -198,6 +198,12 @@ impl Workspace {
         })
     }
 
+    /// The index, for the tests of the crate.
+    #[cfg(test)]
+    pub(crate) fn index(&self) -> &Index {
+        &self.index
+    }
+
     /// What the load spent against its budgets: the bytes it read, kept in the
     /// index and in the facts of its files, the most tokens of one file and
     /// the deepest directory it entered.

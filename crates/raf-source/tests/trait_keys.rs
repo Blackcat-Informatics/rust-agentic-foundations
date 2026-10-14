@@ -314,6 +314,35 @@ fn the_same_trait_through_a_glob_and_through_a_named_import_can_have_two_keys() 
     );
 }
 
+#[test]
+fn an_explicit_import_of_a_dependency_trait_shadows_a_glob_of_a_local_one() {
+    // rustc reads `Serialize` through the explicit import, not the glob,
+    // though the index cannot see the dependency's trait.
+    let m = manifest("2021", "\n[dependencies]\nserde = \"1\"\n");
+    let local =
+        "mod local { pub trait Serialize { fn local(&self); } }\nuse local::*;\npub struct L;\n";
+    let explicit = format!(
+        "{local}use serde::Serialize;\nimpl Serialize for Vec<L> {{ fn ser(&self) {{}} }}\n"
+    );
+    let ws = load(&m, &[("src/lib.rs", &explicit)]).expect("loads");
+    assert_eq!(
+        key_of(&ws, "serde::Serialize::ser"),
+        TraitKey::Canonical("serde::Serialize".to_owned())
+    );
+    // Without the explicit import the glob's local trait is the one.
+    let globbed = format!("{local}impl Serialize for Vec<L> {{ fn local(&self) {{}} }}\n");
+    let ws = load(&m, &[("src/lib.rs", &globbed)]).expect("loads");
+    let keys: Vec<TraitKey> = ws
+        .items()
+        .filter(|item| item.self_type.as_deref() == Some("Vec<L>"))
+        .filter_map(|item| item.trait_key.as_deref().cloned())
+        .collect();
+    assert_eq!(
+        keys,
+        [TraitKey::Canonical("demo::local::Serialize".to_owned())]
+    );
+}
+
 /// A tree with a workspace manifest at the root and one member under `crates/`.
 fn inherited(root: &str, extra: &[(&str, &str)]) -> MemoryTree {
     let member = "[package]\nname = \"member\"\nedition.workspace = true\n";
@@ -1344,5 +1373,67 @@ fn a_trait_that_several_unknown_globs_could_give_is_refused_naming_one_glob_in_e
             "{text}: {error}"
         );
         assert_eq!(error.line, Some(line), "{text}");
+    }
+}
+
+/// Every order of `blocks`.
+fn every_order(blocks: &[&str]) -> Vec<Vec<String>> {
+    if blocks.is_empty() {
+        return vec![Vec::new()];
+    }
+    let mut out = Vec::new();
+    for at in 0..blocks.len() {
+        let mut rest = blocks.to_vec();
+        let first = rest.remove(at);
+        for mut order in every_order(&rest) {
+            order.insert(0, first.to_owned());
+            out.push(order);
+        }
+    }
+    out
+}
+
+#[test]
+fn a_trait_through_a_glob_the_importer_cannot_access_is_keyed_at_its_definition_in_every_order() {
+    // `a` imports `b::B`, a function, and globs `c`, whose trait `B` its
+    // impl names. `b`'s glob of `a` is private to `b`, so `a`'s import reads
+    // nothing of it, as rustc resolves the import: no cycle, and the trait
+    // is `c::B`.
+    let blocks = [
+        "pub mod c { pub trait B { fn m(&self); } }",
+        "pub mod a { pub use crate::b::B; pub use crate::c::*; }",
+        "pub mod b { #[allow(non_snake_case)] pub fn B() {} use crate::a::*; }",
+        "impl a::B for String { fn m(&self) {} }",
+    ];
+    let orders = every_order(&blocks);
+    assert_eq!(orders.len(), 24);
+    for order in &orders {
+        let text = order.join("\n");
+        let ws = lib("2021", &text).unwrap_or_else(|e| panic!("{text}: {e}"));
+        let keys: Vec<TraitKey> = ws
+            .items()
+            .filter(|item| item.self_type.as_deref() == Some("String"))
+            .filter_map(|item| item.trait_key.as_deref().cloned())
+            .collect();
+        assert_eq!(
+            keys,
+            [TraitKey::Canonical("demo::c::B".to_owned())],
+            "{text}"
+        );
+    }
+    // With `b`'s glob public, `a` reads `b::B` back through it: rustc cannot
+    // determine the import (E0432), and the trait cannot be named.
+    for order in every_order(&[
+        blocks[0],
+        blocks[1],
+        "pub mod b { #[allow(non_snake_case)] pub fn B() {} pub use crate::a::*; }",
+        blocks[3],
+    ]) {
+        let text = order.join("\n");
+        let error = lib("2021", &text).expect_err("refused");
+        assert!(
+            matches!(&error.kind, LoadErrorKind::UnresolvedTrait { path } if path == "a::B"),
+            "{text}: {error:?}"
+        );
     }
 }

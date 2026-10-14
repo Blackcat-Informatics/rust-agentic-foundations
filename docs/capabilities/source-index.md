@@ -68,7 +68,41 @@ bindings:
     - raf_source::test_crate::use_resolution::a_no_std_crate_does_not_name_std_without_an_extern_crate_item
     - raf_source::test_crate::use_resolution::a_glob_whose_own_path_starts_at_a_crate_is_ambiguous_with_a_crate_in_every_order
     - raf_source::test_crate::use_resolution::an_explicit_import_shadows_a_workspace_library_in_every_declaration_order
-    - raf_source::test_crate::use_resolution::a_crate_read_before_the_explicit_import_of_its_name_binds_is_read_again_in_every_order
+    - raf_source::test_crate::use_resolution::a_crate_name_an_explicit_import_binds_is_never_read_as_the_crate_in_every_order
+    - raf_source::test_crate::use_resolution::an_import_binds_what_a_name_it_read_gains_later_in_every_order
+    - raf_source::test_crate::use_resolution::a_cycle_of_explicit_imports_is_cyclic_whatever_its_globs_hold_in_every_order
+    - raf_source::test_crate::use_resolution::a_cycle_of_imports_through_a_crate_name_and_a_glob_is_cyclic_in_every_order
+    - raf_source::test_crate::use_resolution::an_explicit_import_shadows_the_glob_whether_or_not_the_index_sees_what_it_binds
+    - raf_source::test_crate::use_resolution::an_import_that_binds_its_name_in_one_name_space_leaves_the_others_to_the_globs
+    - raf_source::test_crate::use_resolution::an_import_keeps_the_globs_out_only_in_the_name_spaces_it_binds_in_every_order
+    - raf_source::test_crate::use_resolution::an_import_of_a_value_named_like_a_crate_leaves_the_crate_and_the_globs_in_every_order
+    - raf_source::test_crate::use_resolution::a_cycle_of_imports_with_one_glob_on_it_resolves_through_the_glob_in_every_order
+    - raf_source::test_crate::use_resolution::an_import_that_bound_a_name_before_the_crates_opened_binds_the_crate_later_in_every_order
+    - raf_source::test_crate::use_resolution::imports_that_wait_on_one_another_through_globs_are_decided_as_rustc_does_in_every_order
+    - raf_source::test_crate::use_resolution::imports_whose_heads_are_names_their_globs_bring_in_are_decided_alike_in_every_order
+    - raf_source::test_crate::use_resolution::a_name_space_binds_nothing_only_once_the_globs_that_may_bring_it_in_are_settled_in_every_order
+    - raf_source::test_crate::use_resolution::the_rebuilt_globs_read_each_glob_path_in_the_settled_tables_in_every_order
+    - raf_source::test_crate::use_resolution::globs_that_glob_one_another_beside_names_bound_twice_settle_in_every_order
+    - raf_source::test_crate::use_resolution::a_glob_whose_path_turns_out_ambiguous_brings_in_nothing_in_every_order
+    - raf_source::test_crate::use_resolution::a_glob_brings_in_what_its_target_binds_later_whatever_its_target_holds_under_its_first_segment
+    - raf_source::test_crate::use_resolution::an_import_whose_glob_reads_it_starts_at_the_crate_once_no_glob_may_bring_the_name_in_every_order
+    - raf_source::test_crate::use_resolution::an_item_a_glob_reaches_by_a_public_and_a_private_route_is_visible_in_every_order
+    - raf_source::test_crate::use_resolution::a_cycle_through_a_glob_and_a_renamed_import_is_decided_in_each_name_space_in_every_order
+    - raf_source::test_crate::use_resolution::an_import_of_its_own_module_reads_what_the_globs_bring_in_in_every_order
+    - raf_source::test_crate::use_resolution::a_path_through_an_import_a_cycle_leaves_undecided_in_another_name_space_is_cyclic
+    - raf_source::test_crate::use_resolution::a_cycle_whose_import_reads_its_own_name_through_another_glob_is_cyclic_in_every_order
+    - raf_source::test_crate::use_resolution::a_name_space_binds_nothing_only_once_the_globs_its_globs_reach_are_settled
+    - raf_source::test_crate::use_resolution::a_cycle_through_a_renamed_import_that_has_bound_nothing_is_cyclic_in_every_order
+    - raf_source::test_crate::use_resolution::a_cycle_resolves_through_its_glob_when_a_place_an_import_keeps_also_waits_on_a_glob
+    - raf_source::test_crate::use_resolution::an_import_through_an_import_that_keeps_its_name_keeps_its_own_from_the_globs_in_every_order
+    - raf_source::test_crate::use_resolution::a_cycle_through_a_glob_the_importer_cannot_access_is_no_cycle_in_every_order
+    - raf_source::test_crate::use_resolution::an_import_a_cycle_leaves_to_the_globs_binds_what_its_readers_could_access_in_every_order
+    - raf_source::test_crate::use_resolution::a_name_an_import_the_reader_cannot_access_binds_is_hidden_from_it_in_every_order
+    - raf_source::test_crate::use_resolution::an_import_that_reads_a_name_only_through_a_glob_it_cannot_access_finds_nothing_in_every_order
+    - raf_source::test_crate::use_resolution::a_glob_the_importer_cannot_access_holds_nothing_back_in_every_order
+    - raf_source::test_crate::use_resolution::cycles_through_private_globs_resolve_as_each_reader_can_access_them_in_every_order
+    - raf_source::test_crate::trait_keys::an_explicit_import_of_a_dependency_trait_shadows_a_glob_of_a_local_one
+    - raf_source::test_crate::trait_keys::a_trait_through_a_glob_the_importer_cannot_access_is_keyed_at_its_definition_in_every_order
     - raf_source::test_crate::trait_keys::each_prelude_trait_loads_in_the_edition_that_has_it_and_is_refused_in_the_one_before
     - raf_source::test_crate::trait_keys::inheriting_requires_membership_by_the_members_and_exclude_lists
     - raf_source::test_crate::trait_keys::a_trait_through_a_single_segment_import_of_a_crate_is_keyed_at_the_crate
@@ -127,6 +161,11 @@ bindings:
     - raf_source::item::tests::an_item_record_is_at_most_two_hundred_fifty_six_bytes
     - raf_source::facts::tests::a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines
     - raf_source::settle::tests::a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room
+    - raf_source::settle::tests::components_come_out_once_each_after_every_component_they_lead_to
+    - raf_source::settle::tests::each_settle_after_the_first_is_charged_what_it_builds_again
+    - raf_source::settle::tests::the_imports_left_are_decided_in_rounds_that_do_not_grow_with_them
+    - raf_source::settle::tests::a_round_that_decides_nothing_more_or_a_settle_too_many_is_reported_in_every_build
+    - raf_source::settle::tests::the_imports_of_a_name_are_found_among_names_that_share_its_first_eight_bytes
     - raf_source::test_crate::load_budgets::a_file_at_the_token_limit_parses_and_one_more_token_is_refused_naming_its_line
     - raf_source::test_crate::load_budgets::each_costly_shape_at_the_token_limit_loads_and_one_more_token_is_refused
     - raf_source::test_crate::load_budgets::a_doc_comment_counts_as_the_tokens_of_its_attribute_and_other_comments_count_nothing
@@ -441,8 +480,12 @@ change:
   the first room of its definitions; an arrival of the module walk its reach, its
   places in the orders of arrivals and its entries in the tables that mark it
   indexed; a file read its entries among the files and identities; a spelling its
-  entry and text; a flattened import its entry, its strings and its place among the
-  unsettled imports, and each binding it makes its scope entry and route; each impl
+  entry and text; a flattened import its entry, its places in the ordered lists of
+  imports and of their keys, its strings and its flags, each binding
+  it makes or replaces its scope entry and route, a glob import the set of modules its
+  path reached, and each settle of the tables after
+  the first what it builds again (the scope tables of the definitions and the state of
+  every import), besides the bindings it makes again; each impl
   block once per module path, each trait key and each type's table of members their
   allocations; each target its entries among the crate roots and its extern prelude (its
   table, and each crate name with the libraries it stands for), each package its
@@ -699,7 +742,9 @@ reading, so the key is `Unresolved` with a candidate for each (a local trait at 
 path). An explicit import met again while its own path is being followed adds nothing to
 that way, as a glob met again does: `mod inner { use super::*; pub use serde::*; }` with
 `pub use inner::Serialize;` keys `serde::Serialize`, and a trait that only a cycle of
-imports names is a typed `UnresolvedTrait` error. A name read from the crate root in
+imports names is a typed `UnresolvedTrait` error. An explicit import of the name
+shadows the globs of its module here too: `use serde::Serialize;` beside `use
+local::*;`, whose `local` defines a trait `Serialize`, keys `serde::Serialize`. A name read from the crate root in
 edition 2015 names a crate only through an `extern crate` item there, or as the crate
 the compiler puts there (`std`, or `core` under `#![no_std]`), so `use
 serde::Serialize;` without `extern crate serde;` at the root keys nothing and the trait
@@ -836,7 +881,10 @@ the rest of the path, and in each name space the path could end in (an import of
 alone names crates, in the type name space); a glob of it, directly or through an import
 of it, brings in nothing. An import never resolves through its own binding: the
 path of `use x;` does not look at the `x` it binds, and the import never waits on
-itself. From edition 2018 on, a single-segment import of a crate of the extern prelude
+itself. Where its path reads the name it binds in its own module, the explicit imports
+of that name, its own among them, are not there for it: they are alternatives under
+`cfg`, as rustc refuses two imports of one name, so `use shared::inner as shared;`
+reads the crate `shared` and binds `shared::inner`. From edition 2018 on, a single-segment import of a crate of the extern prelude
 (`use x;`, `use x::{self};`, `use x::{self as y};`, `use ::x;`) is an alias of that
 crate. For a library of the workspace it binds the library's crate root item, so after
 `pub use p_one;` in `p_two`, `p_two::p_one::X` resolves to `p_one::X`. For a crate outside the
@@ -860,33 +908,128 @@ macro). That is a known limit: a glob that brings in a type-namespace item or mo
 an outside crate under the crate's name (`pub use serde::de as other;`), which rustc
 refuses as E0659, is not refused, and a path through the name reads the crate. The
 decision does not depend on the order of the declarations: such a path waits until the
-globs of its module have brought in what they can before it starts at a crate, and once
+globs of its module have brought in what they can before it starts at a crate, every
+import of a module with globs is then tried again, as one that bound its name in one
+name space may then bind a crate in another, and once
 the tables are settled every explicit import is walked again against them; if one is
 then ambiguous that was not held from the start (a glob whose own path went through an
-import of a crate brought the name in after it), the tables are settled again from the
-definitions with every such import held from the start, until none is left. A
-module's own item or explicit import of the name shadows the crate without ambiguity,
-whatever the order: a path, `use` path or not, whose first segment an explicit import
-of its module that is still unsettled binds waits on it rather than start at a crate,
-and if a `use` path read a crate under a name that an explicit import of its module
-(other than its own) binds once the tables are settled, the tables are settled again
-from the definitions with that name of that module never read as a crate;
-and a glob that brings in only a value, or the crate itself (`pub use serde;`), does not
-collide with it. A `package` value that is not a string is
+import of a crate brought the name in after it), or a glob whose own path is then
+ambiguous, the tables are settled again from the definitions with every such import
+held from the start, a held glob bringing in nothing, until none is left. Each repeat
+holds at least one more import, so the tables are settled at most once more than there
+are imports, which is checked in release builds too (more is an `Internal` load error),
+and each settle after the first is charged to `ItemBytes`
+what it builds again besides the bindings it makes again, so the repeats are bounded
+by the budget as well. A module's own item or explicit import of the name shadows the
+crate without ambiguity, whatever the order: a path, `use` path or not, whose first
+segment an explicit import of its module keeps from the globs in the type name space
+(see below) never starts at a crate; it waits until the import binds the name and goes
+on through what the import binds, and finds nothing there if the import never binds it
+(an import of an item outside the index, or one that fails or is part of a cycle). An
+import of a function under a crate's name (`use crate::vals::shared;`) leaves the type
+name space, so `pub use shared::x;` beside it reads the library `shared`, and beside a
+glob that brings in a module `shared` as well, through another module, is ambiguous;
+and a glob that brings in only a value, or the crate
+itself (`pub use serde;`), does not collide with it. A `package` value that is not a string is
 a manifest error that names the dependency key, and so is a `workspace = true`
 dependency when there is no workspace manifest above the package, when the package is
 not a member of it, or when its `[workspace.dependencies]` has no entry of that name. A name that a
-module defines or imports explicitly shadows a name that one of its globs brings in, as
-in rustc. A lookup answers from the globs of a module only when every explicit import of
-that module that could bind the same name is settled, resolved or definitively failed;
-until then the answer is indeterminate and the asker waits, so the result does not depend
-on the order of the declarations. A glob brings in only the names the importing module
-can name: `pub` items, `pub(crate)`, `pub(super)` and `pub(in path)` items when the
-importer is inside the restriction, and private items only when the importer is the
-defining module or lies inside it; a path walk does not check visibility otherwise. The
-tables are settled to a fixed point, so a chain of re-exports of any length resolves and
-nothing caps the search, and a cycle of globs adds nothing. Of two routes to one item the
-one that uses no glob decides `via_glob`.
+module defines or imports explicitly shadows a name that one of its globs brings in, in
+each name space where it binds it, as in rustc. An explicit import keeps its name from
+the globs of its module, and from the crates, in each name space until it is decided
+there, and then in each name space where it binds the name, or where its path reaches an item
+of a crate outside the index, a module with a glob the index cannot resolve, or nothing
+that the index can settle; it leaves to the globs only a name space where it binds
+nothing and its path reached places that can bind nothing there, which the index knows
+only for an import that binds the name in another name space. So `pub use serde::A;` or
+an import that fails, beside `pub use crate::x::*;`, leaves `A` unresolved and never
+reads the glob's `A`, while `use crate::y::A;` of a struct beside a glob of a function
+`A` binds the struct in the type name space and leaves the value name space to the
+glob's function, for the module and for the modules that glob it. Until the import is
+decided in a name space, an asker there waits, and a glob of another module does not
+bring the name in there from the import's module meanwhile, as rustc hides a glob
+binding of a name that a single import may still bind; a name space the import is
+decided in no longer waits on what it is undecided in. What the globs of a module answer may grow as they bring in
+more: a path that read the name is read again, and two items make it ambiguous, as in
+rustc, so a module that globs both that module and another that brings in a function
+`A` reads both functions, an ambiguity, whatever the order. A name that a module brings
+in ambiguously through its globs stays `Ambiguous` for a module that globs it, also where
+another glob of that module brings in one of the items: rustc then only warns
+(`ambiguous_glob_reexports`) and resolves the name, and the index refuses it. That a name space binds
+nothing is decided only once no glob that reads it can still bring anything in, its
+own path left out as rustc leaves out the import it resolves: a glob whose path does
+not resolve yet, or whose targets' globs are not settled, holds the decision back, and
+a glob's own path is read without the names the glob itself may still bring in. A glob brings in only the names the
+importing module can name: `pub` items, `pub(crate)`, `pub(super)` and `pub(in path)`
+items when the importer is inside the restriction, and private items only when the
+importer is the defining module or lies inside it. A `use` path, of an explicit import
+or of a glob, is walked as rustc resolves an import: a binding that the importing module
+cannot access does not count (a definition or explicit import it cannot access hides the
+globs all the same, and keeps the name from them until it is decided), and a glob it
+cannot access brings it nothing, so a cycle that only such a glob
+closes is no cycle (`pub mod a { pub use self::b::B; pub use crate::c::*; mod b { pub fn
+B() {} use super::*; } }` binds the function and leaves the type name space to `c`'s
+glob). A canonical path given to `resolve` and the path of an impl's trait are not
+checked for visibility. An item that the globs of a module reach by several routes, through a public
+glob and a private one, is as visible from that module as its most visible route,
+whichever route is kept, so a module that globs it sees the item in every order. The tables are settled to a fixed point: an import is tried again whenever a
+name its path read gains a binding, so it binds what its path reaches in the settled
+tables, a chain of re-exports of any length resolves, nothing caps the search, and a
+cycle of globs adds nothing. A name space where an import's path reached nothing,
+reading there only places in modules without globs that no other import binds or, where
+it found nothing, that every other import of the name was decided to bind nothing at,
+is decided in the queue, as it can never bind there; so a chain of 20,000 imports that
+bind nothing is decided in the queue. When nothing more resolves,
+the imports left are decided. Each waits, in each name space it is undecided in, on the
+places its path reads there, a name in a module in a name space; the name it binds
+itself it reads as rustc does, without itself, through what the globs of its module may
+bring in. A place waits on the imports undecided there that keep it from the globs and
+on the places its globs may still bring the name in from. The name spaces of one import
+are decided apart, as rustc holds back a glob binding only in the name space where a
+single import may still bind the name. The strongly
+connected components of this graph are decided in waves, each once what it waits on is
+decided, and the queue runs after each wave: an import that waits on no cycle is
+settled, and leaves to the globs each name space where it binds nothing and can bind
+nothing; places that only a cycle of globs keeps open stop waiting. In a cycle, a name
+space where an import's path reads a place that something may still bind without the
+imports of the cycle is not decided, as rustc, which cannot read through a glob a name
+that a single import still keeps from the globs, never determines it. A component with
+two or more imports is a cycle, which rustc resolves while it ignores the import being
+resolved: in a name space where exactly one place of the cycle, read by one of its
+imports as the last segment of its path, is one a glob of its module would answer, no
+import of the cycle waits anywhere else, and each renamed one is one rustc reads
+without itself (it bound its name in another name space, and no glob of its module
+brings the name in there), and leaving the place to the glob ends every loop of
+imports in the cycle, that place is left to the glob for the paths that read it, though
+not yet for the globs of other modules, and the cycle resolves through it. An import
+that keeps the place then binds only what keeps every item that a path which read the
+place found the glob answering there, as that path's module can access it; one that
+would take such an item away, or whose path may still reach something there, is
+never decided, as rustc never determines it, and a path through its name resolves
+`Cyclic` (`e { pub use crate::d::T; }` beside `d { pub
+use crate::e::T; pub use crate::b::*; }` gives `demo::b::T` for both, and a trait impl
+through `e::T` is keyed there); a cycle where no glob answers, whose imports all bound
+their names in another name space, binds nothing in this one; any other cycle, and
+every import that waits on one, never settles, so the name it binds resolves `Cyclic`
+and no glob or crate answers for it: `mod a { pub use crate::b::X; pub use
+crate::c::*; }` beside `mod b { pub use crate::a::X; pub use crate::d::*; }` gives
+`Cyclic` for `demo::a::X` and `demo::b::X`, as does a cycle with two globs of one
+module or a renamed import that has bound nothing, where rustc cannot determine the
+imports. A path through a name that an import bound in one name space while a cycle
+leaves it undecided in another resolves `Cyclic` in every name space: such a cycle,
+read with only what each import can access, is one that rustc does not break either, so
+it refuses the crate, failing an import of the cycle (E0432), and when the cycle runs
+through globs it reports an import that waits on it as one it cannot determine, whatever
+it bound. A decision binds
+nothing that a path read before, so the result does not depend on the order of the
+declarations. Neither does the work grow with a chain or a cycle: each round decides
+every import that no cycle holds, in waves that each run the queue only for what the
+wave woke, so a chain of 20,000 imports that bind nothing beside globs is decided in
+one round and confirmed in a second. Each round that changes something decides for good at least one
+more of the at most eleven things there are to decide for each import, so the rounds
+end; that is checked in release builds too, and a round that decides nothing more is an
+`Internal` load error. Of two routes to one item the one that uses no
+glob decides `via_glob`.
 
 `resolve(path)` takes a canonical path such as `demo::inner::go` (a segment may be
 written as a raw identifier: `r#match` and `match` are the same name) and tries the type,
@@ -903,7 +1046,7 @@ dependency, an item that a macro generates, and a misspelling all end here),
 items, two imports of one name that reach different items, two canonical targets, a
 path through a crate name that stands for several libraries, or a path through an import
 whose first segment is ambiguous, `Cyclic` when the imports on the way depend on each
-other (an import never depends on itself), `UnresolvedSelf` when the
+other or wait on imports that do (an import never depends on itself), `UnresolvedSelf` when the
 workspace defines nothing at the path and the path goes through the self path of an
 inherent impl the index cannot see, and `Invalid` when the text is not a path. A symbol
 is one path and kind in one target's crate: the items of two targets at one path are
@@ -984,6 +1127,14 @@ assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
   Contract state.
 - Resolution covers items the source defines. Items from dependencies are outside the
   index and resolve to a not-found failure.
+- Two visibility rules of rustc are not modelled. An explicit `pub use` of a binding
+  that its module can access only through a private glob binds the name as visible as
+  the import, where rustc keeps it no more visible than the binding it re-exports, so a
+  module that globs it can read a name that rustc hides from it. And a name that the
+  globs of a module bring in ambiguously, one of the items through a glob that a
+  reading module cannot access, is the other item for that module, where rustc refuses
+  the path, usually as an ambiguity (E0659) and sometimes as a name that is not there
+  (E0573).
 - The index is built once per `Workspace::load`; callers reload to see changed files.
 - Output order is sorted by path, so two loads of the same tree give equal results.
 
@@ -1175,8 +1326,90 @@ duplicates.
   both orders of the file names, each `Ambiguous` beside a layout without the overlap.
 - Alias fixtures: a rename, a nested group, `self` in a group, a glob with `via_glob`
   beside the direct path without it, a chain of three hops with its `chain`, a cycle
-  that yields `Cyclic` beside a chain that ends, definitions and explicit imports
-  shadowing globs (also for the modules that glob the importer), two globs with
+  that yields `Cyclic` beside a chain that ends, a cycle of explicit imports whose two
+  modules glob two different `X` (`demo::a::X` and `demo::b::X` both `Cyclic` in all 24
+  orders, beside the neighbour without the import of `b::X` into `a`, where both resolve
+  to `demo::c::X`, and an import that waits on the cycle, `Cyclic` though its own glob
+  brings in `X`, as is the name in a module that globs it), a cycle with one glob on
+  it resolving through the glob in every order (two imports with a waiter and a trait
+  impl keyed at the glob's trait, whose value name space is `NotFound`, and three
+  imports), beside cycles with two globs of one module, with globs in two of its
+  modules and of renamed imports, each `Cyclic` in all six orders, a cycle whose one glob
+  answers in the value name space only, while the glob's module globs the cycle too,
+  resolving there and binding nothing in the type name space, and an import that reads
+  only its own name through a glob, which binds nothing there and leaves another
+  module's renamed import of the same item to its glob in the other name space, as
+  rustc has them, two modules that each import `shared::inner as shared` and glob each
+  other, which wait on one another, `Cyclic` for both in either order, and a glob `shared::*` beside a glob that
+  brings in `shared`, which brings in nothing, also once the globs are rebuilt (a path
+  through it reads only the other glob's `inner`), an import whose value name space a
+  glob brings in only once a glob path two modules away resolves, which binds it there
+  and keeps a glob of its module out, five modules that glob one another and bind two names twice,
+  which settle to one answer in all 120 orders, a cycle of two imports through a glob
+  whose answer is a renamed import, which resolves through the glob in the type name space
+  and binds nothing in the value name space in all 120 orders, an import of its own
+  module's name that reads it through the glob of its module and binds the value only,
+  leaving another module's renamed import to its glob in the type name space in all 24
+  orders, an import of a function whose type name space waits on a cycle, `Cyclic` in
+  every name space for it and for a module that imports from it in all 120 orders, also
+  where the cycle runs through globs, beside the import resolving once the cycle is gone,
+  an item that a module's globs reach by a public and a private route, visible to a
+  module that globs it in all 24 orders and not through the private route alone, a
+  cycle whose one glob answer is kept by an import that reads its own name back through
+  another module's glob, `Cyclic` in all 720 orders, a cycle of renamed imports through
+  globs that leaving the one glob answer to the glob does not end, `Cyclic` in all 120
+  orders, as rustc cannot determine them, beside a cycle whose import reads its name
+  back through an import of the cycle, which resolves through the glob in all 24
+  orders, a cycle of two renamed imports one of which has bound nothing, `Cyclic` in
+  all six orders, a cycle of three imports that a glob answers while a renamed import
+  waiting on it is brought back by a glob of a module the cycle binds in, which resolves
+  in all 120 orders, an import whose type name space waits on a glob whose target's
+  glob waits on a cycle, which binds the cycle's item and not its own module's glob in
+  16 rotations of the eight modules, an import that reads, in one name space, a name
+  another import keeps there as its path reaches a glob the index cannot resolve,
+  which keeps its own name from its module's glob there in all 24 orders, a cycle that
+  only a glob the importing module cannot access closes, in a child module (`mod b {
+  use super::*; }`) and beside it, which binds the function and leaves the type name
+  space to the importer's glob in every order, beside the same with the glob public,
+  `Cyclic` (rustc: E0432), and the trait form of it, keyed at `demo::c::B` in all 24
+  orders and refused as `UnresolvedTrait` with the glob public, a cycle whose glob
+  answer holds an item of a private glob that the other import of the cycle cannot
+  access, which resolves to the item it can access in all 24 orders, an import of a
+  name that another module binds with a private import beside a glob of the crate
+  `other`, `NotFound` in all six orders and in 14 rotations of the program the order
+  search found it in, an import that reads a name only through a private glob of the
+  module it reads, `NotFound` (rustc: E0432) with an import that waits on it in all 24
+  orders, an unsettled private glob that holds nothing back for a module that cannot
+  access it in all 120 orders, two cycles through private globs that rustc resolves,
+  each read only as its imports can access it, in all 120 orders, and a module whose two globs start at
+  crates, which settle, a glob `shared::*` whose first segment a glob of its module later
+  brings in, which brings in nothing in all 24 orders though its path read the library
+  first, a glob whose target binds its first segment only through a cycle and a trait
+  only once a chain settles, which brings the trait in, an import `use shared::inner as
+  inn;` beside `use inn::*;` and a glob that may bring in `shared` until an import of a
+  function leaves the type name space, which reads the library in all six orders, also
+  where that import is decided only once the queue is empty, in all 24 orders,
+  definitions and explicit imports
+  shadowing globs (also for the modules that glob the importer), an explicit import of a
+  dependency's item and one that fails each shadowing a glob of the same name, which
+  are `NotFound` beside the same modules without the import, and an import of a struct
+  leaving the value name space to the glob's function, also for a module that globs
+  the importer, beside a private glob, which leaves `NotFound` there; the import of a
+  function `m::m` beside a glob of the module `m`, which gives the module in the type
+  name space and the function in the value name space, and a path through the module,
+  beside the same without the import and beside an import of a dependency's item, which
+  stays `NotFound`; in every order, a module that globs the importer of a struct `A`
+  (beside its glob of a function `A`) and another module with a function `A`, which is
+  `Ambiguous` in the value name space and the struct in the type name space, the same
+  with traits and a trait impl through it keyed `Unresolved` with both traits, and an
+  import of a function beside a glob of a struct read through another module; a
+  function imported under the name of the library `shared`, after which `pub use
+  shared::x;` reads the library, `Ambiguous` where a glob also brings in a module
+  `shared` through another module; an alias whose first reading binds the glob's
+  function before the crates are read and the library in the type name space after
+  (`pub use other as inn;`), so `a::inn::x` is `other::x` in all six orders, and in both
+  orders where the glob's function is a definition, so nothing the import read changes
+  once the crates are read, two globs with
   different items that are `Ambiguous` beside two that reach one, a mutual `super::*`,
   `crate`, `self` and `super` paths, `super` above the root, `extern crate demo as d`
   and `use ::demo::..`, `extern crate self as demo` named from every module beside a
@@ -1208,10 +1441,20 @@ duplicates.
   same imports without the glob, which read the crate. An explicit import that binds the
   name of a library of the workspace (`pub use shared::inner::other;` beside `pub use
   other::x;` and a trait through `other`) shadows the crate for the path and the trait
-  key in all 24 orders, in a module without globs and in one with a glob; and a crate
-  read before an explicit import of its name could bind (`pub use k::other;` where `k`
-  globs an alias whose own path starts at `other`, refused by rustc) gives one answer in
-  every order, `NotFound` for the import. A glob that brings in
+  key in all 24 orders, in a module without globs and in one with a glob; a name that an
+  explicit import binds is never read as the crate (`pub use k::other;` where `k` globs
+  an alias whose own path starts at `other`, refused by rustc) and gives one answer in
+  every order, `Cyclic` for the import; an import through a name with two `cfg`
+  alternatives, an alias of a local module and an alias of a module of a workspace
+  library, which a module with a glob reads only once the globs have brought in what
+  they can (`pub use sys::x;`), binds what the second alternative reaches in all six
+  orders, with an unchanged trait key, beside `pub use sys::only_unix;`, which binds
+  through the first; and two imports whose first segments are the
+  names the other binds, beside a glob and the crate of one of those names (`use
+  shared::inner as inn; use inn::inner as shared;`, and `pub use inn::inner::other; pub
+  use other as inn;`, which rustc cannot determine), are `Cyclic` in all six orders with
+  an unchanged trait key, beside the neighbour without one import, which reads the
+  glob. A glob that brings in
   `pub use std as serde;` collides with the crate `serde`, beside one that brings in
   `pub use serde;` and one that brings in `pub use serde::serde;`; under `#![no_std]` a glob's module `std` is read without ambiguity,
   beside the same with no attribute, with a `cfg_attr` and with `extern crate std;`. The leading-`::` and plain-name fixtures of a
@@ -1238,12 +1481,36 @@ duplicates.
   entry is a manifest error naming the dependency key, beside one that loads.
 - Order fixtures: an explicit import that must shadow a glob for a reader declared before
   it, and the same modules declared in every order of 1440, giving one answer for each
-  path, with glob against glob staying ambiguous; glob visibility (private beside public,
+  path, with glob against glob staying ambiguous; a second set of 1440 orders with a
+  cycle of explicit imports beside globs, an import that waits on it, a failing import
+  and a chain that ends, giving `Cyclic` for the three imports of the cycle and the one
+  waiting on it and one answer for each other path; glob visibility (private beside public,
   a private item into a descendant, `pub(crate)`, `pub(super)`, `pub(in path)`); the
   canonical keys of trait impls in each spelling and the error for a trait path that
   cannot be made absolute; the prelude per edition, an inherited edition, one and several
   dependency globs, a head that is no known crate, dependency tables by target kind with
   renames, and a path through a local re-export of a dependency.
+- Settling fixtures: the strongly connected components of a graph come out once each,
+  after every component they lead to, also for a chain of 200,000 nodes on the test
+  thread's stack; a load whose tables settle twice (a glob whose own path starts at a
+  crate brings in a name an import read as another crate) is charged the bindings of
+  each settle and what the second builds again, and with the ambiguous import held from
+  the start settles once and is charged its bindings only. The imports left are decided
+  in one round for a chain of 2 and of 20,000 imports that bind nothing, which the
+  queue decides, in two for the same chains beside globs, in two for an import that
+  bound its name before the crates opened and binds the crate in the queue once they
+  are, and in one
+  round for a cycle of 2 and of 20,000 imports with an import waiting on each of them,
+  beside an import held as ambiguous, which adds no round; each of those rounds but the
+  last decided at least one more thing, of at most eleven for each import. A round that
+  decides nothing more, and a settle past one more than there are imports, are each
+  reported as an `Internal` load error naming the round or the count, in every build.
+  The imports of a name are found among names that share its first eight bytes, a
+  name that is a prefix of another and the same names in two modules. In debug builds
+  every load
+  checks, once the tables are settled, that the imports of each name, walked again
+  against them, reach every item they bound and nothing the module does not bind under
+  that name, and that one that did not resolve reaches nothing.
 - Trait-key fixtures through `use` declarations: `use std;` with `impl
   std::fmt::Display for &Foo` in editions 2018, 2021 and 2024 and in a 2015 module, keyed
   `std::fmt::Display`, beside `use nope;`, which is refused; `pub use serde;` with `use
@@ -1261,7 +1528,9 @@ duplicates.
   same with the item, and `std` (or `core` under `#![no_std]`) named with no item, beside
   `core` in a crate with `std`, which is refused; a trait name that two globs bind keyed
   `Unresolved` with both traits; a trait that two globs of unknown crates could give
-  refused naming the same glob, by written path, in all six orders. On a thread of 2 MiB, in debug
+  refused naming the same glob, by written path, in all six orders; `use
+  serde::Serialize;` beside a glob of a local trait `Serialize` keyed `serde::Serialize`,
+  beside the same glob without the import, keyed at the local trait. On a thread of 2 MiB, in debug
   and release builds: a file of 20,000 chained local aliases (`use crate::m::T as A0;
   use A0 as A1;` and so on, no import naming itself) with `impl A19999 for X` loads keyed
   `demo::m::T`; a trait imported from `std` and reached through 20,000 chained
