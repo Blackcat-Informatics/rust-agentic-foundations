@@ -39,20 +39,24 @@ carry the weight:
 
 The repository dogfoods both. Its own design is written in the workplan format,
 and the root package's test suite carries its gates. Today those are the
-document-contract test (`tests/docs_contract.rs`) and the repository gates
+document-contract test (`tests/docs_contract.rs`), which runs the workplan checks
+of `raf-workplan` over the tracked documents, and the repository gates
 (`tests/repo_gates.rs`: licence digests, issue-reference and process-wording
-scan, version agreement); the census and workplan gates join them once those
-crates are implemented.
+scan, version agreement); the census gate joins them when `raf-census` is
+built.
 
 ### Crates
 
-`raf-okf` and `raf-source` are workspace members and are **delivered**: the
-frontmatter reader, the deterministic writer, the body model and the profile
-validation of `raf-okf`, and the `Tree` trait of `raf-source` with its disk and
-memory backends and path containment, its bounded parse, package and target
-discovery, its module tree and its symbol and use-alias index. Every other crate
-below is **designed, not yet implemented**, and joins the workspace members list when
-it is built. The capability documents in `docs/capabilities/` are the specification.
+`raf-okf`, `raf-source` and `raf-workplan` are workspace members. `raf-okf` and
+`raf-source` are **delivered**: the frontmatter reader, the deterministic writer,
+the body model and the profile validation of `raf-okf`, and the `Tree` trait of
+`raf-source` with its disk and memory backends and path containment, its bounded
+parse, package and target discovery, its module tree and its symbol and use-alias
+index. `raf-workplan` delivers the document model (loading, the graph, binding
+resolution, the check rules and the `Gate`) and the generated blocks with their
+sync and preview; its reconcile step and completion gate are **designed**. Every
+other crate below is **designed** and joins the workspace members list when it is
+built. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
 |---|---|---|
@@ -60,7 +64,7 @@ it is built. The capability documents in `docs/capabilities/` are the specificat
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | delivered |
 | `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | designed |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
-| `raf-workplan` | Capability and change model, graph, obligations, bindings, generated sections, completion gate | designed |
+| `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | model and generated sections delivered; obligations and completion gate designed |
 | `cargo-workplan` | Thin command-line wrapper over `raf-workplan` | designed |
 
 `raf-source` is shared on purpose: the census needs its symbol index to resolve
@@ -71,7 +75,7 @@ bindings.
 
 | Path | Contents |
 |---|---|
-| `crates/` | The workspace member crates (`raf-okf` and `raf-source`; each other crate joins `members` when it is built) |
+| `crates/` | The workspace member crates (`raf-okf`, `raf-source` and `raf-workplan`; each other crate joins `members` when it is built) |
 | `docs/capabilities/` | One permanent capability document per capability |
 | `docs/architecture/` | Shared current decisions (normal form, OKF profile) |
 | `work/changes/` | In-flight change records |
@@ -210,12 +214,12 @@ with `[lints] workspace = true`:
 
 ## 6. The capability-doc workflow
 
-RAF plans its own work in the workplan format. This section describes the design.
-Today the document-contract test (`tests/docs_contract.rs`) enforces the format
-on every capability, change and architecture document in `cargo test` and in the
-pre-commit hook. It reads them through `raf-okf`, resolves their bindings through
-`raf-source`, and keeps the cross-document rules; `raf-workplan` takes those over
-once implemented.
+RAF plans its own work in the workplan format. The document-contract test
+(`tests/docs_contract.rs`) enforces the format on every capability, change and
+architecture document in `cargo test` and in the pre-commit hook. It loads the
+tracked documents into `raf-workplan`, which reads them through `raf-okf`, resolves
+their bindings through `raf-source` and runs the cross-document rules, and it adds
+this repository's own policy, such as the capability inventory.
 
 - **Capability documents** live in `docs/capabilities/<slug>.md`, one per
   capability. Frontmatter carries `type`, `id`, `title`, `description`, `state`
@@ -224,8 +228,9 @@ once implemented.
   Explanation, Verification. Outside a proposal, the text states the current
   contract only. The document-contract test pins the set of capabilities in one
   inventory table (`INVENTORY` in `tests/docs_contract.rs`): changing a state or
-  adding a capability edits that table in the same commit, until
-  `raf_workplan::Gate` replaces it.
+  adding a capability edits that table in the same commit. `make docs-sync`
+  rewrites the generated blocks, including the catalogue in
+  `docs/capabilities/index.md`.
 - **Change records** live in `work/changes/<slug>.md`. Each names the capabilities it
   changes, the sections it affects, and its items. Every item ends with an outcome:
   `implemented`, `dropped`, or `moved` to another tracked change.
@@ -235,7 +240,9 @@ once implemented.
 - **Completion** is a gate. A change is complete only when no obligation remains,
   every item has an outcome, no proposed block is left, generated sections are in
   sync, and the bound tests and examples pass. The change record is then
-  **deleted**; Git keeps the history.
+  **deleted**; Git keeps the history. The command that enforces this is designed
+  ([workplan completion gate](docs/capabilities/workplan-complete-gate.md)); the
+  conditions are checked by hand before a record is deleted.
 - **Identifiers are slugs**, never numbers. Documents never refer to a tracker.
 
 ---

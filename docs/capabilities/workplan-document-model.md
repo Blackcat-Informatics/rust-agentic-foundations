@@ -5,11 +5,98 @@ type: Capability
 id: cap:workplan-document-model
 title: "Workplan document model"
 description: "Capability and change documents, the four states, PROPOSED blocks, the graph, binding resolution and the check rules."
-state: designed
+state: delivered
 bindings:
-  code: []
-  tests: []
-  examples: []
+  code:
+    - raf_workplan::Workplan
+    - raf_workplan::Workplan::load
+    - raf_workplan::Workplan::check
+    - raf_workplan::Workplan::status
+    - raf_workplan::Finding
+    - raf_workplan::Graph
+    - raf_workplan::Graph::code_of
+    - raf_workplan::Graph::capabilities_of
+    - raf_workplan::Graph::tests_for
+    - raf_workplan::Graph::sections_of
+    - raf_workplan::Graph::linking_sections
+    - raf_workplan::Roadmap
+    - raf_workplan::LinkContext
+    - raf_workplan::Gate
+    - raf_workplan::Gate::workspace
+    - raf_workplan::Gate::assert_clean
+    - raf_workplan::plain::check
+    - raf_workplan::refs::banned_in_line
+  tests:
+    - raf_workplan::test_crate::documents::accepts_valid_fixture
+    - raf_workplan::test_crate::documents::the_model_holds_typed_values_and_bodies
+    - raf_workplan::test_crate::documents::a_broken_document_is_a_finding_and_not_in_the_model
+    - raf_workplan::test_crate::documents::rejects_type_in_the_wrong_directory
+    - raf_workplan::test_crate::documents::rejects_nested_documents
+    - raf_workplan::test_crate::documents::rejects_capability_without_frontmatter
+    - raf_workplan::test_crate::documents::rejects_proposed_marker_in_architecture
+    - raf_workplan::test_crate::rules::every_rule_has_a_fixture_reported_with_file_and_location
+    - raf_workplan::test_crate::parse_errors::every_reader_error_has_a_fixture_reported_with_file_and_line
+    - raf_workplan::test_crate::kinds::every_rule_and_every_reader_error_has_its_own_kind
+    - raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
+    - raf_workplan::test_crate::states::accepts_each_state_with_matching_content
+    - raf_workplan::test_crate::states::rejects_considered_without_proposed_block
+    - raf_workplan::test_crate::states::rejects_designed_with_proposed_block
+    - raf_workplan::test_crate::states::rejects_delivered_with_proposed_block
+    - raf_workplan::test_crate::states::rejects_delivered_with_open_change_record
+    - raf_workplan::test_crate::states::rejects_each_non_delivered_state_without_an_open_record
+    - raf_workplan::test_crate::states::rejects_orphan_proposed_marker
+    - raf_workplan::test_crate::states::rejects_proposed_change_that_does_not_list_the_capability
+    - raf_workplan::test_crate::states::rejects_proposed_section_missing_from_affects
+    - raf_workplan::test_crate::states::a_marker_in_a_code_fence_is_not_read_as_a_block
+    - raf_workplan::test_crate::states::surfaces_the_single_document_state_rules_from_the_profile
+    - raf_workplan::test_crate::references::accepts_a_depends_on_an_existing_capability_and_an_acyclic_graph
+    - raf_workplan::test_crate::references::rejects_depends_missing
+    - raf_workplan::test_crate::references::rejects_changes_missing
+    - raf_workplan::test_crate::references::rejects_moved_missing
+    - raf_workplan::test_crate::references::rejects_depends_cycles_once_for_each_group_naming_its_members
+    - raf_workplan::test_crate::references::r24_a_slug_id_that_differs_from_the_file_name_is_refused
+    - raf_workplan::test_crate::graph::the_graph_has_every_kind_of_node
+    - raf_workplan::test_crate::graph::the_graph_has_every_kind_of_edge
+    - raf_workplan::test_crate::graph::links_run_from_the_section_that_holds_them_to_the_section_they_name
+    - raf_workplan::test_crate::graph::code_of_lists_the_items_that_realise_a_capability_in_path_order
+    - raf_workplan::test_crate::graph::capabilities_of_names_every_capability_bound_to_a_symbol
+    - raf_workplan::test_crate::graph::tests_for_a_binding_named_in_two_sections_substantiates_both
+    - raf_workplan::test_crate::graph::sections_of_a_change_are_its_affected_sections_sorted
+    - raf_workplan::test_crate::graph::linking_sections_are_section_granular
+    - raf_workplan::test_crate::links::rejects_broken_relative_link
+    - raf_workplan::test_crate::links::rejects_broken_anchor
+    - raf_workplan::test_crate::links::rejects_link_to_a_tracked_symlink
+    - raf_workplan::test_crate::links::rejects_link_leaving_the_repository
+    - raf_workplan::test_crate::links::anchors_follow_github_rules
+    - raf_workplan::test_crate::links::the_oracle_is_the_tracked_set_and_not_the_tree
+    - raf_workplan::test_crate::refs::the_matcher_bans_references_and_process_wording
+    - raf_workplan::test_crate::refs::the_matcher_spares_colours_prose_numbers_and_near_misses
+    - raf_workplan::test_crate::refs::every_document_type_and_the_frontmatter_are_scanned
+    - raf_workplan::test_crate::bindings::bindings_that_name_real_symbols_resolve
+    - raf_workplan::test_crate::bindings::a_binding_through_a_re_export_resolves_to_its_definition
+    - raf_workplan::test_crate::bindings::a_binding_to_a_missing_path_is_reported_with_its_capability
+    - raf_workplan::test_crate::bindings::a_binding_to_a_macro_generated_function_is_not_found
+    - raf_workplan::test_crate::bindings::a_path_two_globs_both_bring_in_is_ambiguous_and_names_both_definitions
+    - raf_workplan::test_crate::bindings::a_tests_binding_must_name_a_function_marked_test
+    - raf_workplan::test_crate::bindings::a_code_binding_must_name_a_shipping_item
+    - raf_workplan::test_crate::bindings::an_examples_binding_is_an_example_target_or_a_documented_library_item
+    - raf_workplan::test_crate::bindings::a_missing_example_target_is_reported_with_its_capability_list_and_binding
+    - raf_workplan::test_crate::roadmap::the_groups_are_in_catalogue_order_and_sorted_by_slug
+    - raf_workplan::test_crate::roadmap::an_implementing_capability_lists_its_gaps_exactly
+    - raf_workplan::test_crate::roadmap::this_repository_lists_every_capability_once_in_its_state_group
+    - raf_workplan::test_crate::gate::a_clean_repository_passes
+    - raf_workplan::test_crate::gate::a_broken_repository_panics_listing_every_finding
+    - raf_workplan::test_crate::gate::a_missing_capabilities_directory_is_an_error
+    - raf_workplan::test_crate::gate::a_capabilities_directory_without_a_capability_document_is_an_error
+    - raf_workplan::test_crate::gate::a_missing_changes_directory_is_the_empty_set_of_changes
+    - raf_workplan::test_crate::gate::inside_a_git_checkout_the_tracked_paths_come_from_the_index
+    - raf_workplan::test_crate::plain::reads_markdown_outside_the_document_directories_with_or_without_frontmatter
+    - raf_workplan::test_crate::plain::a_broken_link_and_a_split_link_are_reported_together_for_a_plain_file
+    - raf_workplan::test_crate::generated::a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check
+  examples:
+    - raf_workplan::Gate
+    - raf_workplan::LinkContext
+    - raf_workplan::plain::check
 depends: [cap:okf-profile, cap:source-index]
 ---
 
@@ -57,12 +144,14 @@ document, marked as a block quote whose first line names the change:
 > the caller finishes the stream.
 ```
 
-The block continues while lines keep the quote marker. The branch diff therefore
+The block continues while lines keep the quote marker, and ends at the first line
+without it, at the next marker, or at a fenced code block. The branch diff therefore
 shows the code and the documentation it produces together. Outside PROPOSED
 blocks a document states the current contract only. A PROPOSED block is valid only in
-a Capability document, only when `work/changes/<slug>.md` exists, and only when that
-record lists the capability. A `delivered` capability has none, and a `considered`
-capability has at least one.
+a Capability document, only when `work/changes/<slug>.md` exists, only when that
+record lists the capability, and only when the record's `affects` names the section
+that holds the block. A `delivered` or `designed` capability has none, and a
+`considered` capability has at least one.
 
 **Change documents.** A change lives at `work/changes/<slug>.md` with the identity
 `change:<slug>`. Its keys are `type`, `id`, `title`, `description`, `changes`,
@@ -85,38 +174,76 @@ holds its history.
 `.md`. Every reference between documents uses the id form, so a rename is one edit to
 the file name, the id and the references, which `check` verifies.
 
-**The graph.** `raf-workplan` builds a graph from the documents and the source.
+**Loading.** `Workplan::load` reads `docs/capabilities`, `docs/architecture` and
+`work/changes` through a source tree, validates each document with the OKF reader
+and keeps the typed documents and their bodies. A document that does not validate is
+a finding and is not in the model; nothing is skipped and nothing panics. Links are
+judged against the tracked paths of a `LinkContext` (`Workplan::load_with`);
+`Workplan::load` takes every file of the tree as tracked. `Workplan::check` returns
+every finding. A `Finding` has a stable kebab-case kind
+from `Finding::KINDS`, the file, a location (a key, a section or a line) and a fix;
+each rule of the profile and each reader error has its own kind.
 
-- Nodes: capabilities, sections, changes, proposals, code symbols and tests.
-- Edges: bindings (capability to symbol, test or example), `depends`, `affects` and
-  Markdown links.
+**The graph.** `raf-workplan` builds a graph (`Workplan::graph`) from the documents
+and the source.
 
-The graph must have no `depends` cycle. It supports questions in both directions:
-which code realises this capability, which capability explains this symbol, which
-tests address this guarantee, and which sections this change must update.
+- Nodes: capabilities, sections, changes, architecture pages, proposals, and the
+  code symbols, tests and examples that bindings name.
+- Edges: bindings (capability to symbol, test or example), `depends`, `changes`,
+  `affects` and Markdown links. A link runs from the section that holds it to the
+  section its anchor names, or to the document when it has no anchor.
 
-**Binding resolution.** Each entry in `bindings.code` is a Rust path, each entry in
-`bindings.tests` a test function path, and each entry in `bindings.examples` an
-example target or a documentation test item. All resolve through the
-[source index](./source-index.md), including re-exports. A binding that does not
-resolve is an error. A symbol that a macro generates is not in the index, so it cannot be
-bound. A capability with nothing built binds nothing, so `designed`
-capabilities carry empty lists. An `implementing` capability may have empty or
-missing bindings; `status`, the catalogue and the reconcile obligations report each
-one as a gap. A `delivered` capability binds at least one code path and one test.
+The graph must have no `depends` cycle. It answers questions in both directions:
+which code realises this capability (`Graph::code_of`), which capabilities a symbol
+is bound to (`Graph::capabilities_of`), which tests address a section
+(`Graph::tests_for`), which sections a change must update (`Graph::sections_of`),
+and which sections link to a section (`Graph::linking_sections`).
+
+**Binding resolution.** Each entry in `bindings.code` is a Rust path to a shipping
+item, each entry in `bindings.tests` a path to a function marked `#[test]`, and each
+entry in `bindings.examples` an example target (`<package>::example_crate::<name>`)
+or a documented item of a library whose documentation tests run. All resolve through
+the [source index](./source-index.md), including re-exports, and the role is judged
+on the definition the path leads to. A binding that does not resolve, that names more
+than one definition, or whose item does not fit its list is an error naming the
+capability, the list and the binding. A symbol that a macro generates is not in the
+index, so it cannot be bound. A capability with nothing built binds nothing, so
+`designed` capabilities carry empty lists. An `implementing` capability may have
+empty or missing bindings; `status` and the catalogue report each one as a gap;
+[reconcile](./workplan-reconcile.md) defines the obligation it becomes. A
+`delivered` capability binds at least one code path and one test.
+
+**Status.** `Workplan::status` returns the `Roadmap`: every capability that loaded,
+grouped by state in the order `delivered`, `implementing`, `designed`, `considered`
+and sorted by slug inside a group. Each entry carries its state, the open changes
+that list it and, for an `implementing` capability, its gaps: the binding lists that
+are empty and the bindings that do not resolve.
 
 **Checks.** `check` reports every violation of these rules, each naming its file:
 
 - the schemas and closed key sets of every document;
+- flat document directories, each document in the directory of its type, and no
+  Markdown file without frontmatter beside the documents;
 - ids that equal their file names, and references that exist;
 - an acyclic `depends` graph;
-- links that resolve, including heading anchors;
-- bindings that resolve through the source index;
-- generated blocks that match what `docs sync` writes (see
-  [generated documents](./workplan-generated-docs.md));
-- PROPOSED blocks that name an existing change which lists their capability;
-- a `delivered` capability with no PROPOSED block and no empty required section;
+- links that resolve inside the repository against the tracked paths, including
+  heading anchors, and no link to a tracked symlink;
+- no issue or pull request reference and no development-process wording, by the
+  one pattern set of `raf_workplan::refs` that every consumer's `check` applies;
+- a document whose body mixes CRLF and LF line endings, which is an error;
+- bindings that resolve through the source index in their roles;
+- generated blocks that match what the sync operation (`Workplan::sync`) writes
+  (see [generated documents](./workplan-generated-docs.md));
+- PROPOSED blocks that name an existing change which lists their capability and
+  affects their section;
+- an open change record for every capability that is not `delivered`;
+- a `delivered` capability with no PROPOSED block, no open change record and no
+  empty required section;
+- a `designed` capability with no PROPOSED block;
 - a `considered` capability with its candidate contract in PROPOSED blocks.
+
+Markdown outside the document directories, such as a README, is judged by the same
+link, marker and reference rules through `raf_workplan::plain::check`.
 
 ## Usage
 
@@ -130,10 +257,14 @@ fn workplan() {
 }
 ```
 
-`Gate::workspace` loads `docs/` and `work/` under the manifest directory and the
-workspace sources, runs the checks, and `assert_clean` panics with every violation
-when there is one. The `cargo workplan` binary exposes the same checks and the change
-lifecycle ([command line](./workplan-cli.md)).
+`Gate::workspace` reads `docs/capabilities`, `docs/architecture` and `work/changes`
+under the directory, loads the workspace sources from the roots `["."]`
+(`Gate::source_roots` changes them), judges links against the paths `git ls-files`
+lists, and runs the checks; `assert_clean` panics with every finding, each with its
+location and fix, when there is one. A directory without a capability document is an
+error, not a clean verdict, and a missing `work/changes` is the empty set of changes.
+The command line, a separate capability ([command line](./workplan-cli.md)), runs
+the same checks.
 
 ## Examples
 
@@ -170,8 +301,9 @@ items:
 ## Constraints
 
 - Types, keys and values are exactly those of the profile page; this model adds
-  rules between documents and the source, and restates the profile's single-document
-  binding minimum for `delivered`.
+  rules between documents and the source, and the line-ending rule for the documents
+  it rewrites, and restates the profile's single-document binding minimum for
+  `delivered`.
 - A change names at least one capability, and every `affects` slug is in `changes`.
 - Outside PROPOSED blocks, text states the current contract. A statement about
   behaviour that is not built belongs in a `designed` or `considered` capability or
@@ -180,6 +312,9 @@ items:
 - A state does not advance on its own. The state of a capability is edited in the
   same change that earns it, and the check rules above reject a state its content
   does not support.
+- Outside a git work tree, such as a copy of a commit's files, the gate takes every
+  file under the directory as a tracked path, so a link to an untracked file passes
+  there. `Gate::tracked_paths` supplies the list instead.
 
 ## Explanation
 
@@ -217,25 +352,126 @@ directions. It follows the discipline of the GMEOW
 [Grounding Contract](https://github.com/Blackcat-Informatics/gmeow-ontology/blob/a631f73e6e39b4493d295bcd83b4deec80637f54/docs/GROUNDING.md):
 a design promise needs an accounted-for realisation, and built functionality needs
 documentation that follows it. Documentation maintenance becomes work the system can
-identify. If a referenced API disappears, the affected section receives a
-`binding-missing` obligation, and if a bound example or doctest stops compiling or
-running, it receives an `example-failing` obligation
-([reconcile](./workplan-reconcile.md)).
+identify: the graph shows which sections a broken binding or a failing example
+touches, and the obligations those sections receive are defined by
+[reconcile](./workplan-reconcile.md).
 
 ## Verification
 
-- Schema fixtures for the Capability and Change documents, one per failing rule,
-  reuse the document-level fixtures of the OKF reader.
+- End-to-end fixtures for the Capability and Change documents: each rule of the OKF
+  profile and each reader error surfaces through `check` with its file and location,
+  and every kind in `Finding::KINDS` is produced by a named fixture.
 - A state fixture per state: each accepted with matching content, and each rejected
-  with a mismatch, such as a `delivered` capability holding a PROPOSED block or a
-  `considered` capability holding none.
+  with a mismatch, such as a `delivered` capability holding a PROPOSED block or an
+  open record, a `designed` capability holding a block, or a `considered` capability
+  holding none.
 - Marker fixtures: a block naming a missing change, a block whose change does not
-  list the capability, a block in an Architecture document, and a marker inside a
-  code fence that is not read as a block.
-- Graph fixtures: an acyclic graph passes, a two-node and a three-node `depends`
-  cycle fail, and a `changes` entry for a missing capability fails.
-- Binding fixtures over a `MemoryTree` source: a symbol, a re-exported symbol, a test
-  and an example resolve; a renamed symbol, a missing test and an example target that
-  does not exist fail with the binding named.
+  list the capability, a block whose section the change does not affect, a block in
+  an Architecture document, and a marker inside a code fence that is not read as a
+  block.
+- Graph fixtures: every kind of node and edge, section-to-section links, each query,
+  an acyclic graph that passes, cycles of one, two and three nodes that fail, and
+  `depends`, `changes` and `moved` references to a missing document that fail.
+- Link fixtures over every link form: a missing target, a missing anchor, a target
+  outside the repository and a tracked symlink, judged against the tracked set and
+  not the tree.
+- Reference fixtures: issue and pull request numbers and process wording in every
+  document type and in the frontmatter, beside hex colours and prose numbers that
+  pass.
+- Binding fixtures over a `MemoryTree` source: a symbol, a re-exported symbol, a test,
+  an example target and a documented library item resolve; a missing path, an
+  ambiguous path, a macro-generated symbol, a missing example target and an item of
+  the wrong role fail with the capability, the list and the binding named.
+- Roadmap fixtures: the group and slug order, the gaps of an `implementing`
+  capability, and this repository with every capability once.
 - The dev-dependency API: `Gate::workspace(...).assert_clean()` passes on a clean
-  fixture repository and panics with every violation on a broken one.
+  fixture repository on disk, panics with every finding on a broken one, and is an
+  error for a directory without capability documents.
+
+<!-- raf:generated:verification-matrix -->
+| Item | Kind | Section |
+| --- | --- | --- |
+| `raf_workplan::Gate` | doctest | [Verification](#verification) |
+| `raf_workplan::LinkContext` | doctest | [Verification](#verification) |
+| `raf_workplan::plain::check` | doctest | [Contract](#contract) |
+| `raf_workplan::test_crate::bindings::a_binding_through_a_re_export_resolves_to_its_definition` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::a_binding_to_a_macro_generated_function_is_not_found` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::a_binding_to_a_missing_path_is_reported_with_its_capability` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::a_code_binding_must_name_a_shipping_item` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::a_missing_example_target_is_reported_with_its_capability_list_and_binding` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::a_path_two_globs_both_bring_in_is_ambiguous_and_names_both_definitions` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::a_tests_binding_must_name_a_function_marked_test` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::an_examples_binding_is_an_example_target_or_a_documented_library_item` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::bindings_that_name_real_symbols_resolve` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::a_broken_document_is_a_finding_and_not_in_the_model` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::accepts_valid_fixture` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_capability_without_frontmatter` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_nested_documents` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_proposed_marker_in_architecture` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_type_in_the_wrong_directory` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::the_model_holds_typed_values_and_bodies` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::a_broken_repository_panics_listing_every_finding` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::a_capabilities_directory_without_a_capability_document_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::a_clean_repository_passes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::a_missing_capabilities_directory_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::a_missing_changes_directory_is_the_empty_set_of_changes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::inside_a_git_checkout_the_tracked_paths_come_from_the_index` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::capabilities_of_names_every_capability_bound_to_a_symbol` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::code_of_lists_the_items_that_realise_a_capability_in_path_order` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::linking_sections_are_section_granular` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::links_run_from_the_section_that_holds_them_to_the_section_they_name` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::sections_of_a_change_are_its_affected_sections_sorted` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::tests_for_a_binding_named_in_two_sections_substantiates_both` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::the_graph_has_every_kind_of_edge` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::the_graph_has_every_kind_of_node` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::kinds::every_rule_and_every_reader_error_has_its_own_kind` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::anchors_follow_github_rules` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::rejects_broken_anchor` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::rejects_broken_relative_link` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::rejects_link_leaving_the_repository` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::rejects_link_to_a_tracked_symlink` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::the_oracle_is_the_tracked_set_and_not_the_tree` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::parse_errors::every_reader_error_has_a_fixture_reported_with_file_and_line` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::plain::a_broken_link_and_a_split_link_are_reported_together_for_a_plain_file` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::plain::reads_markdown_outside_the_document_directories_with_or_without_frontmatter` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::accepts_a_depends_on_an_existing_capability_and_an_acyclic_graph` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::r24_a_slug_id_that_differs_from_the_file_name_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::rejects_changes_missing` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::rejects_depends_cycles_once_for_each_group_naming_its_members` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::rejects_depends_missing` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::rejects_moved_missing` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::refs::every_document_type_and_the_frontmatter_are_scanned` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::refs::the_matcher_bans_references_and_process_wording` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::refs::the_matcher_spares_colours_prose_numbers_and_near_misses` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::an_implementing_capability_lists_its_gaps_exactly` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::the_groups_are_in_catalogue_order_and_sorted_by_slug` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::this_repository_lists_every_capability_once_in_its_state_group` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rules::every_rule_has_a_fixture_reported_with_file_and_location` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::a_marker_in_a_code_fence_is_not_read_as_a_block` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::accepts_each_state_with_matching_content` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::rejects_considered_without_proposed_block` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::rejects_delivered_with_open_change_record` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::rejects_delivered_with_proposed_block` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::rejects_designed_with_proposed_block` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::rejects_each_non_delivered_state_without_an_open_record` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::rejects_orphan_proposed_marker` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::rejects_proposed_change_that_does_not_list_the_capability` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::rejects_proposed_section_missing_from_affects` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::surfaces_the_single_document_state_rules_from_the_profile` | test | [Verification](#verification) |
+<!-- raf:generated:end -->
+
+<!-- raf:generated:relationships -->
+| Relation | Capability |
+| --- | --- |
+| Depends on | [okf-profile](./okf-profile.md) |
+| Depends on | [source-index](./source-index.md) |
+| Depended on by | [workplan-current-rationale](./workplan-current-rationale.md) |
+| Depended on by | [workplan-entity-history](./workplan-entity-history.md) |
+| Depended on by | [workplan-evidence-claims](./workplan-evidence-claims.md) |
+| Depended on by | [workplan-generated-docs](./workplan-generated-docs.md) |
+| Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
+| Depended on by | [workplan-reconcile](./workplan-reconcile.md) |
+| Depended on by | [workplan-two-way-coverage](./workplan-two-way-coverage.md) |
+<!-- raf:generated:end -->

@@ -240,6 +240,24 @@ fn a_block_in_a_list_item_keeps_its_indentation() {
 }
 
 #[test]
+fn a_tab_after_the_quote_marker_is_kept_as_written() {
+    let mut repo = base();
+    let text = format!(
+        "{}\n> [!PROPOSED change:grow]\n>\ttabbed\n> \tspace then tab\n",
+        repo[GAMMA]
+    );
+    repo.insert(GAMMA.to_string(), text);
+    let previews = preview(&repo, "grow").expect("previews");
+    assert_eq!(
+        previews[2].text,
+        format!(
+            "{}\n\ttabbed\n\tspace then tab\n",
+            document("gamma", &[], "\n")
+        )
+    );
+}
+
+#[test]
 fn a_continuation_that_is_not_indented_as_the_marker_is_refused_with_its_line() {
     let mut repo = base();
     let text = format!(

@@ -146,10 +146,11 @@ impl Workplan<'_> {
     /// prefix. In each listed capability every PROPOSED block of this change
     /// is replaced by its content: the marker line goes, and so does the
     /// quote marker (`>` and one space after it, if there is one) of each
-    /// following line, after the block's own indentation, which stays. The
-    /// blocks of other changes and all text outside blocks are kept byte for
-    /// byte, and every line keeps its own line ending. A listed capability
-    /// with no block of the change is returned unchanged.
+    /// following line, after the block's own indentation, which stays. Only a
+    /// space is removed: a tab after `>` is kept as written. The blocks of
+    /// other changes and all text outside blocks are kept byte for byte, and
+    /// every line keeps its own line ending. A listed capability with no block
+    /// of the change is returned unchanged.
     ///
     /// The result is a pure function of the loaded documents: it returns text
     /// and writes nothing.
@@ -165,14 +166,32 @@ impl Workplan<'_> {
     ///     ]),
     ///     &["."],
     /// )?;
-    /// let docs = MemoryTree::from([(
-    ///     "docs/architecture/overview.md",
-    ///     "---\ntype: Architecture\nid: arch:overview\ntitle: Overview\n\
-    ///      description: How it fits.\n---\n\n# Overview\n\nBody text.\n",
-    /// )]);
+    /// let sections = "## Purpose\n\nParse.\n\n## Contract\n\nIt parses.\n\n\
+    ///     > [!PROPOSED change:grow]\n> It also streams.\n\n## Usage\n\n\
+    ///     Call it.\n\n## Examples\n\nOne.\n\n## Constraints\n\nNone.\n\n## Explanation\n\n\
+    ///     Why.\n\n## Verification\n\nTests.\n";
+    /// let parser = format!(
+    ///     "---\ntype: Capability\nid: cap:parser\ntitle: Parser\n\
+    ///      description: Parses.\nstate: considered\n\
+    ///      bindings:\n  code: []\n  tests: []\n  examples: []\n\
+    ///      depends: []\n---\n\n# Parser\n\n{sections}"
+    /// );
+    /// let grow = "---\ntype: Change\nid: change:grow\ntitle: Grow\n\
+    ///     description: Streams.\nchanges: [cap:parser]\n\
+    ///     affects:\n  - cap:parser#contract\ncontract_effect: changes\n\
+    ///     items: []\n---\n\n## Summary\n\nStreams.\n";
+    /// let docs = MemoryTree::from([
+    ///     ("docs/capabilities/parser.md", parser.as_str()),
+    ///     ("work/changes/grow.md", grow),
+    /// ]);
     /// let plan = Workplan::load(&docs, &source);
-    /// // There is no change record, so there is nothing to preview.
-    /// assert!(plan.preview("grow").is_err());
+    /// let previews = plan.preview("grow")?;
+    /// assert_eq!(previews.len(), 1);
+    /// assert!(previews[0].text.contains("It parses.\n\nIt also streams.\n"));
+    /// assert!(!previews[0].text.contains("PROPOSED"));
+    ///
+    /// // A change that has no record has nothing to preview.
+    /// assert!(plan.preview("shrink").is_err());
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     ///

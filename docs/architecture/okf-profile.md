@@ -29,15 +29,17 @@ OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key
   Any other value is an error.
 
 `raf-okf` enforces the per-document profile: it reads each document and reports
-every violation of the keys, values, sections, markers and links. This repository
-runs it through the document-contract test of the root package, over every tracked
-Markdown file. That test adds the rules that span documents: the dependency graph
-and its cycles, the capabilities and sections that change records name, the
-open change record each undelivered capability needs, the exact capability
-inventory, link targets and anchors against the tracked files, and the directory
-layout. It also resolves every binding of every capability through `raf-source`
-against the source of `crates`, so a bound symbol must exist. The cross-document
-checks are what `raf-workplan` replaces once it is implemented.
+every violation of the keys, values, sections, markers and links. `raf-workplan`
+loads the documents of a repository through it and adds the rules that span
+documents ([workplan document model](../capabilities/workplan-document-model.md)):
+the directory layout, the dependency graph and its cycles, the capabilities and
+sections that change records name, the PROPOSED blocks against their records, the
+open change record each undelivered capability needs, link targets and anchors
+against the tracked files, and the generated blocks. It also resolves every binding
+of every capability through `raf-source`, so a bound symbol must exist. This
+repository runs those checks through the document-contract test of the root
+package, over every tracked Markdown file, which adds its own exact capability
+inventory.
 
 ## Document types and keys
 
@@ -52,7 +54,8 @@ type in the order of this table.
 
 `docs/capabilities` holds only Capability documents, with one exception: the
 generated catalogue `docs/capabilities/index.md`. It has no frontmatter and carries
-only generated blocks written by `docs sync`. A hand-written index is not allowed:
+only generated blocks written by the sync operation (`Workplan::sync`). A
+hand-written index is not allowed:
 apart from its SPDX comment, every non-blank line lies inside a generated block,
 and each block marker starts its own line.
 Every document sits directly in its directory, and a document of a type lives only
@@ -171,7 +174,8 @@ record. A PROPOSED block appears only in a Capability document.
 ### Generated blocks
 
 A generated block is delimited as follows and is reserved for the `raf-workplan`
-crate, which rewrites it deterministically. None exist yet.
+crate, which rewrites it deterministically
+([generated documents](../capabilities/workplan-generated-docs.md)).
 
 ```markdown
 <!-- raf:generated:<kind> -->
