@@ -100,6 +100,7 @@ dependencies = [
 name = "raf-workplan"
 version = "0.1.0"
 dependencies = [
+ "proc-macro2",
  "raf-okf",
  "raf-source",
 ]

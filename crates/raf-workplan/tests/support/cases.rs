@@ -9,7 +9,7 @@ use std::fmt::Write as _;
 use raf_okf::{ErrorTag, Location, MAX_TEXT_BYTES, MAX_YAML_DEPTH, Rule, RuleTag};
 use raf_workplan::Finding;
 
-use super::fixtures::{ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, mutate, valid};
+use super::fixtures::{ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, bound, mutate, valid};
 use super::{Repo, check_with_symlinks, key, line_of, section};
 
 /// A repository in which one file breaks one rule.
@@ -146,9 +146,9 @@ fn rule_case_unplaced(tag: RuleTag) -> Case {
         RuleTag::BadState => alpha("state: designed", "state: draft", key("state")),
         RuleTag::BindingsKeys => alpha("  examples: []\n", "", key("bindings")),
         RuleTag::BindingNotAList => alpha("  code: []", "  code: src", key("bindings")),
-        RuleTag::BindingNotEmpty => alpha("  code: []", "  code: [src/lib.rs]", key("bindings")),
+        RuleTag::BindingNotEmpty => alpha("  code: []", "  code: [demo::real]", key("bindings")),
         RuleTag::BindingRequired => {
-            on(GAMMA, "  code: [src/lib.rs]", "  code: []", key("bindings"))
+            on(GAMMA, "  code: [demo::real]", "  code: []", key("bindings"))
         }
         RuleTag::BadCapabilityId => alpha("depends: [cap:beta]", "depends: [beta]", key("depends")),
         RuleTag::EmptyChanges => change(
@@ -744,6 +744,121 @@ pub(crate) fn link_cases() -> Vec<Case> {
     cases
 }
 
+const T: &str = "[demo::test_crate::it::case]";
+const BINDING_ROWS: [(&str, &str, &str, &str, &str); 15] = [
+    ("renamed-symbol", "unresolved", "[demo::nope]", T, "[]"),
+    (
+        "missing-test",
+        "unresolved",
+        "[demo::real]",
+        "[demo::test_crate::it::missing]",
+        "[]",
+    ),
+    (
+        "missing-example-target",
+        "unresolved",
+        "[demo::real]",
+        T,
+        "[demo::example_crate::absent]",
+    ),
+    (
+        "item-under-the-declaring-module",
+        "unresolved",
+        "[demo::body::FenceBlock]",
+        T,
+        "[]",
+    ),
+    (
+        "macro-generated-symbol",
+        "macro-generated",
+        "[demo::generated]",
+        T,
+        "[]",
+    ),
+    ("ambiguous-glob-names", "ambiguous", "[demo::dup]", T, "[]"),
+    (
+        "code-in-test-module",
+        "wrong-role",
+        "[demo::unit::helper]",
+        T,
+        "[]",
+    ),
+    (
+        "code-in-test-target",
+        "wrong-role",
+        "[demo::test_crate::it::case]",
+        T,
+        "[]",
+    ),
+    (
+        "code-through-a-re-export-of-test-code",
+        "wrong-role",
+        "[demo::unit_helper]",
+        T,
+        "[]",
+    ),
+    (
+        "test-is-not-a-test-function",
+        "wrong-role",
+        "[demo::real]",
+        "[demo::test_crate::it::plain]",
+        "[]",
+    ),
+    (
+        "test-is-shipping-code",
+        "wrong-role",
+        "[demo::real]",
+        "[demo::real]",
+        "[]",
+    ),
+    (
+        "example-in-a-target-without-doctests",
+        "wrong-role",
+        "[demo::real]",
+        T,
+        "[demo::example_crate::show::helper]",
+    ),
+    (
+        "example-is-undocumented",
+        "wrong-role",
+        "[demo::real]",
+        T,
+        "[demo::bare]",
+    ),
+    (
+        "example-is-not-an-example-target",
+        "wrong-role",
+        "[demo::real]",
+        T,
+        "[demo::test_crate::it]",
+    ),
+    (
+        "example-doctest-key-on-a-non-library",
+        "wrong-role",
+        "[demo::real]",
+        T,
+        "[demo::example_crate::flagged::flagged_helper]",
+    ),
+];
+
+/// The cases for the binding rules: a delivered capability whose lists hold
+/// one entry the source index resolves and the rules refuse. Each row is the
+/// name, the kind, and the `code`, `tests` and `examples` lists.
+pub(crate) fn binding_cases() -> Vec<Case> {
+    BINDING_ROWS
+        .iter()
+        .map(|(name, kind, code, tests, examples)| {
+            Case::new(
+                &format!("binding-{name}"),
+                bound(code, tests, examples),
+                &format!("binding-{kind}"),
+                GAMMA,
+                key("bindings"),
+            )
+        })
+        .collect()
+}
+
 /// Every named case, one or more per kind.
 pub(crate) fn all_cases() -> Vec<Case> {
     let mut cases: Vec<Case> = Rule::ALL.into_iter().map(rule_case).collect();
@@ -752,5 +867,6 @@ pub(crate) fn all_cases() -> Vec<Case> {
     cases.extend(reference_cases());
     cases.extend(state_cases());
     cases.extend(link_cases());
+    cases.extend(binding_cases());
     cases
 }

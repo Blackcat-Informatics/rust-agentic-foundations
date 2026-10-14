@@ -9,6 +9,7 @@ use raf_okf::{Architecture, Body, Capability, Change, DocType};
 use raf_source::Workspace;
 
 use crate::Finding;
+use crate::bindings;
 use crate::graph::{self, Graph};
 use crate::links::LinkContext;
 use crate::load;
@@ -133,8 +134,10 @@ impl<'s> Workplan<'s> {
             &self.present,
             self.source,
         );
-        self.graph = graph;
         self.findings.extend(findings);
+        self.findings
+            .extend(bindings::check(&graph, &self.capabilities, self.source));
+        self.graph = graph;
         self.findings.extend(rules::check(
             &self.capabilities,
             &self.changes,

@@ -23,6 +23,14 @@
 //! bound to, available as [`Workplan::graph`], and reports the references that
 //! name a document that does not exist and the `depends` cycles.
 //!
+//! Each entry of a capability's `bindings` is resolved through the source
+//! index once, when the graph is built, and the result is kept on its
+//! [`Binding`] ([`Graph::bindings_of`]). `check` judges it: a path that does
+//! not resolve, or names more than one symbol, or that a macro generates, and
+//! an item that does not fit its list (`code` a shipping item, `tests` a
+//! `#[test]` function, `examples` an example target or a documented item of a
+//! library whose documentation tests run, see [`ExampleKind`]).
+//!
 //! ```rust
 //! use raf_source::{MemoryTree, Workspace};
 //! use raf_workplan::Workplan;
@@ -50,6 +58,7 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+mod bindings;
 mod finding;
 mod graph;
 mod links;
@@ -59,6 +68,7 @@ pub mod plain;
 pub mod refs;
 mod rules;
 
+pub use bindings::ExampleKind;
 pub use finding::Finding;
 pub use graph::{
     AffectsEdge, Binding, BindingKind, ChangesEdge, DependsEdge, Edge, EdgeKind, Graph, LinkEdge,

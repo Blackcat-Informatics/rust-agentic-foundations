@@ -21,15 +21,67 @@ use raf_workplan::{Finding, LinkContext, Workplan};
 /// Path to text, as the repository holds them.
 pub(crate) type Repo = BTreeMap<String, String>;
 
-/// A small source workspace the documents bind to.
+/// The library of the demo workspace: a documented and an undocumented
+/// function, a macro-generated function, a module declared in its own file, an
+/// inline module, a re-export, two globs that bring in one name each, and a
+/// test-only module with a re-export of its function.
+pub(crate) const DEMO_LIB: &str = "\
+macro_rules! make {
+    ($name:ident) => {
+        pub fn $name() {}
+    };
+}
+make!(generated);
+/// A documented function.
+pub fn real() {}
+pub fn bare() {}
+mod body;
+pub mod inner {
+    /// Goes.
+    pub fn go() {}
+}
+pub use inner::go as shown;
+pub mod left {
+    pub fn dup() {}
+}
+pub mod right {
+    pub fn dup() {}
+}
+pub use left::*;
+pub use right::*;
+#[cfg(test)]
+mod unit {
+    /// A documented helper of the tests.
+    pub fn helper() {}
+}
+#[cfg(test)]
+pub use unit::helper as unit_helper;
+";
+
+/// A small source workspace the documents bind to: the library
+/// [`DEMO_LIB`], a module in its own file, an integration test with a test
+/// function and a plain one, an example with a documented helper, and an
+/// example the manifest marks `doctest = true`.
 pub(crate) fn demo_workspace() -> Workspace {
     let tree = MemoryTree::from([
         (
             "Cargo.toml",
-            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n\n\
+             [[example]]\nname = \"flagged\"\npath = \"examples/flagged.rs\"\ndoctest = true\n",
         ),
-        ("src/lib.rs", "pub(crate) fn real() {}\n"),
-        ("tests/it.rs", "#[test]\nfn case() {}\n"),
+        ("src/lib.rs", DEMO_LIB),
+        // `blocks.rs` sorts before `mod.rs`, which declares it.
+        ("src/body/mod.rs", "mod blocks;\npub fn in_body() {}\n"),
+        ("src/body/blocks.rs", "pub(crate) struct FenceBlock;\n"),
+        ("tests/it.rs", "#[test]\nfn case() {}\npub fn plain() {}\n"),
+        (
+            "examples/show.rs",
+            "fn main() {}\n/// A documented helper of the example.\npub fn helper() {}\n/// A documented module of the example.\npub mod inner {}\n",
+        ),
+        (
+            "examples/flagged.rs",
+            "fn main() {}\n/// A documented helper.\npub fn flagged_helper() {}\n",
+        ),
     ]);
     match Workspace::load(&tree, &["."]) {
         Ok(workspace) => workspace,
@@ -105,7 +157,7 @@ pub(crate) mod fixtures {
             .collect::<Vec<_>>()
             .join("\n");
         let (code, tests) = if state == "delivered" {
-            ("[src/lib.rs]", "[tests/it.rs]")
+            ("[demo::real]", "[demo::test_crate::it::case]")
         } else {
             ("[]", "[]")
         };
@@ -183,6 +235,26 @@ pub(crate) mod fixtures {
         assert!(text.contains(from), "fixture {path} has no `{from}`");
         *text = text.replacen(from, to, 1);
         repo
+    }
+
+    /// The valid repository with `gamma` bound as given: the three lists as
+    /// the text after `code:`, `tests:` and `examples:`.
+    pub(crate) fn bound(code: &str, tests: &str, examples: &str) -> Repo {
+        let mut repo = mutate(GAMMA, "  code: [demo::real]", &format!("  code: {code}"));
+        let text = repo.get_mut(GAMMA).unwrap_or_else(|| panic!("no gamma"));
+        *text = text
+            .replacen(
+                "  tests: [demo::test_crate::it::case]",
+                &format!("  tests: {tests}"),
+                1,
+            )
+            .replacen("  examples: []", &format!("  examples: {examples}"), 1);
+        repo
+    }
+
+    /// The findings of the valid repository with `gamma` bound as given.
+    pub(crate) fn bound_findings(code: &str, tests: &str, examples: &str) -> Vec<Finding> {
+        check(&bound(code, tests, examples))
     }
 
     pub(crate) fn mutated(path: &str, from: &str, to: &str) -> Vec<Finding> {

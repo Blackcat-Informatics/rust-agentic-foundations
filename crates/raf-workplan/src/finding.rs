@@ -45,6 +45,10 @@ kinds! {
     LINK_OUTSIDE = "link-outside";
     LINK_SYMLINK = "link-symlink";
     ISSUE_REFERENCE = "issue-reference";
+    BINDING_UNRESOLVED = "binding-unresolved";
+    BINDING_AMBIGUOUS = "binding-ambiguous";
+    BINDING_WRONG_ROLE = "binding-wrong-role";
+    BINDING_MACRO_GENERATED = "binding-macro-generated";
     OKF_MISSING_KEY = "okf-missing-key";
     OKF_UNKNOWN_KEY = "okf-unknown-key";
     OKF_RESOURCE_KEY = "okf-resource-key";
@@ -183,6 +187,13 @@ impl Finding {
     ///   has, that leaves the repository, or that leads to a tracked symlink.
     /// * `issue-reference`: an issue or pull request number, or wording that
     ///   refers to the development process, in a document.
+    /// * `binding-unresolved`, `binding-ambiguous`, `binding-wrong-role` and
+    ///   `binding-macro-generated`: an entry of `bindings` that the source
+    ///   index does not resolve (or resolves to more than one symbol), whose
+    ///   definitions do not fit its list (`code` is a shipping item, `tests`
+    ///   a `#[test]` function, `examples` an example target or a documented
+    ///   item of a library whose documentation tests run), or that does not
+    ///   resolve because a macro invocation in the parent module generates it.
     pub const KINDS: &'static [&'static str] = ALL_KINDS;
 
     pub(crate) fn new(

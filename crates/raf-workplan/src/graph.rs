@@ -30,6 +30,7 @@ use raf_okf::{
 };
 use raf_source::{ItemId, ResolveError, Workspace};
 
+use crate::bindings::{self, ExampleKind};
 use crate::finding::kind;
 use crate::{Finding, Loaded};
 
@@ -216,7 +217,8 @@ pub enum BindingKind {
 /// index made of its path.
 ///
 /// The edge records a path that does not resolve as well as one that does;
-/// the binding rules that judge the result are not part of the graph.
+/// the binding rules that judge the result are in `check`, and read this
+/// record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Binding {
     capability: String,
@@ -224,6 +226,7 @@ pub struct Binding {
     path: String,
     resolution: Result<Vec<ItemId>, ResolveError>,
     sections: Vec<CapabilitySection>,
+    examples: Vec<(ItemId, ExampleKind)>,
 }
 
 impl Binding {
@@ -259,6 +262,18 @@ impl Binding {
     #[must_use]
     pub fn items(&self) -> &[ItemId] {
         self.resolution.as_deref().unwrap_or_default()
+    }
+
+    /// How a resolved item is an example, for a binding in `examples`: the
+    /// crate root of an example target or a documentation test item. `None`
+    /// for an item that is not an example, for an item the binding does not
+    /// resolve to, and for a binding in another list.
+    #[must_use]
+    pub fn example_kind(&self, item: ItemId) -> Option<ExampleKind> {
+        self.examples
+            .iter()
+            .find(|(id, _)| *id == item)
+            .map(|(_, kind)| *kind)
     }
 
     /// The sections the binding substantiates, in document order. A test or an
@@ -554,6 +569,15 @@ impl Graph {
     #[must_use]
     pub fn bindings(&self) -> &[Binding] {
         &self.bindings
+    }
+
+    /// The bindings of one capability, with the result of resolving each, by
+    /// list (code, tests, examples) and then by path. A binding that did not
+    /// resolve is here with its error, so a reader never resolves again.
+    pub fn bindings_of<'a>(&'a self, capability: &'a str) -> impl Iterator<Item = &'a Binding> {
+        self.bindings
+            .iter()
+            .filter(move |binding| binding.capability == capability)
     }
 
     /// The `depends` edges between capabilities that exist, sorted.
@@ -888,6 +912,16 @@ fn bind(
         sites.dedup();
         sites
     });
+    let examples = match (&resolution, kind) {
+        (Ok(sites), BindingKind::Example) => sites
+            .iter()
+            .filter_map(|id| {
+                let item = source.item(*id)?;
+                Some((*id, bindings::example_kind(source, item)?))
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
     let sections = match kind {
         BindingKind::Code => Vec::new(),
         BindingKind::Test | BindingKind::Example => substantiated(body, path),
@@ -898,6 +932,7 @@ fn bind(
         path: path.to_string(),
         resolution,
         sections,
+        examples,
     }
 }
 

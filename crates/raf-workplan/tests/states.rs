@@ -237,10 +237,10 @@ fn a_marker_in_a_code_fence_is_not_read_as_a_block() {
 #[test]
 fn surfaces_the_single_document_state_rules_from_the_profile() {
     // A delivered capability with no code binding.
-    let findings = mutated(GAMMA, "  code: [src/lib.rs]", "  code: []");
+    let findings = mutated(GAMMA, "  code: [demo::real]", "  code: []");
     assert_hit(&findings, "okf-binding-required", GAMMA, &key("bindings"));
     // A designed capability that binds code.
-    let findings = mutated(ALPHA, "  code: []", "  code: [src/lib.rs]");
+    let findings = mutated(ALPHA, "  code: []", "  code: [demo::real]");
     assert_hit(&findings, "okf-binding-not-empty", ALPHA, &key("bindings"));
     // A delivered section left empty by a comment.
     let findings = mutated(GAMMA, "Text for Usage.\n", "<!-- nothing yet -->\n");
@@ -263,7 +263,7 @@ fn surfaces_the_single_document_state_rules_from_the_profile() {
         &marker(&repo, OVERVIEW),
     );
     // None of these is reported a second time by a rule of this crate.
-    let kinds: Vec<&str> = mutated(GAMMA, "  code: [src/lib.rs]", "  code: []")
+    let kinds: Vec<&str> = mutated(GAMMA, "  code: [demo::real]", "  code: []")
         .iter()
         .map(|f| f.kind)
         .collect();

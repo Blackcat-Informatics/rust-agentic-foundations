@@ -131,11 +131,30 @@ fn paths(workspace: &Workspace, items: &[ItemId]) -> Vec<String> {
         .collect()
 }
 
+/// The fixture binds two paths on purpose that the index does not resolve;
+/// they are its only findings.
+fn assert_only_the_unresolved_bindings(plan: &Workplan<'_>) {
+    let found: Vec<(&str, &str)> = plan
+        .findings()
+        .iter()
+        .map(|f| (f.kind, f.file.as_str()))
+        .collect();
+    assert_eq!(
+        found,
+        [
+            ("binding-unresolved", "docs/capabilities/alpha.md"),
+            ("binding-unresolved", "docs/capabilities/beta.md"),
+        ],
+        "{:#?}",
+        plan.findings()
+    );
+    assert!(plan.findings()[0].message.contains(ABSENT));
+    assert!(plan.findings()[1].message.contains("demo::gone"));
+}
+
 #[test]
-fn the_fixture_loads_without_a_finding() {
-    with_plan(&repo(), |plan, _| {
-        assert!(plan.findings().is_empty(), "{:#?}", plan.findings());
-    });
+fn the_fixture_loads_with_only_its_two_unresolved_bindings() {
+    with_plan(&repo(), |plan, _| assert_only_the_unresolved_bindings(plan));
 }
 
 #[test]
@@ -589,7 +608,7 @@ fn hostile_links_in_fences_and_code_spans_are_neither_edges_nor_findings() {
         "```md\n[gone](nothing.md) [bad](#nope)\n```\n\nA span `[gone](nothing.md)` and ``[bad](#nope)``.",
     );
     with_plan(&repo, |plan, _| {
-        assert!(plan.findings().is_empty(), "{:#?}", plan.findings());
+        assert_only_the_unresolved_bindings(plan);
         assert_eq!(plan.graph().links().len(), baseline_links());
     });
 }
@@ -600,7 +619,7 @@ fn hostile_unterminated_backticks_name_nothing_and_break_nothing() {
         "An open span `{OTHER} never closed.\n\nA run ``{THIRD}` of unequal length."
     ));
     with_plan(&repo, |plan, _| {
-        assert!(plan.findings().is_empty(), "{:#?}", plan.findings());
+        assert_only_the_unresolved_bindings(plan);
         // Neither path is in a span, so neither substantiates Constraints.
         assert_eq!(tests_in(plan, "cap:alpha", S::Constraints), [ABSENT, CASE]);
     });

@@ -44,6 +44,20 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   tracked Markdown outside the document directories. `refs` holds the one
   pattern set for issue and pull request numbers and process wording, which
   `check` reports as `issue-reference` and the repository gates call.
+  Each entry of `bindings` is resolved through the source index once, when the
+  graph is built, and the result is kept: `Graph::bindings_of` returns the
+  bindings of a capability with their sites or their resolve error, and
+  `Binding::example_kind` says whether a bound example is an example target
+  crate root or a documentation test item (`ExampleKind`). `check` reports the
+  kinds `binding-unresolved`, `binding-ambiguous`, `binding-wrong-role` and
+  `binding-macro-generated`. The roles are: `code` is a shipping item, `tests` is
+  a `#[test]` function, `examples` is an example target's crate root or a
+  documented item of a library whose documentation tests run; a binding that
+  resolves to several definitions fits only when each one does, and the role of
+  a re-exported item is judged on its definition. `binding-macro-generated` is
+  reported when the path does not resolve and an item-level macro invocation of
+  its parent module holds the name, so the symbol may be generated, which the
+  index cannot see.
 - **`raf-okf` rule and error tags:** `Rule::ALL` and `ErrorKind::ALL` list the
   payload-free `RuleTag` and `ErrorTag` of every variant, with `Rule::kind`,
   `ErrorKind::tag` and a kebab-case `name`, so a caller can name and map every rule

@@ -48,7 +48,7 @@ fn the_model_holds_typed_values_and_bodies() {
     );
     let gamma = &plan.capabilities()[2];
     assert_eq!(gamma.value().header.id, "cap:gamma");
-    assert_eq!(gamma.value().bindings.code, ["src/lib.rs"]);
+    assert_eq!(gamma.value().bindings.code, ["demo::real"]);
     assert_eq!(gamma.value().depends, ["cap:beta", "cap:alpha"]);
     let headings: Vec<&str> = gamma
         .body()
