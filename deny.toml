@@ -21,8 +21,9 @@ unused-allowed-license = "allow"
 # under the Unicode terms (`Unicode-3.0`) in addition to MIT or Apache-2.0.
 # The terms permit use and redistribution of the data as compiled in, and no
 # other crate in the graph needs them, so the exception is scoped to this crate.
+# It is pinned to the audited version, so a new release is re-reviewed.
 [[licenses.exceptions]]
-crate = "unicode-ident"
+crate = "unicode-ident@=1.0.27"
 allow = ["Unicode-3.0"]
 
 [bans]

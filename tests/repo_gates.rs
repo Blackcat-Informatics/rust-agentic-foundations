@@ -398,7 +398,7 @@ fn deny_tables(deny: &str) -> Vec<Vec<String>> {
 /// The crate-scoped exception the fuzz configuration adds to the root one.
 const FUZZ_EXCEPTION: [&str; 3] = [
     "[[licenses.exceptions]]",
-    "crate = \"libfuzzer-sys\"",
+    "crate = \"libfuzzer-sys@=0.4.13\"",
     "allow = [\"NCSA\"]",
 ];
 
@@ -934,7 +934,7 @@ const DENY_ROOT: &str = "# note\n[licenses]\nallow = [\"MIT\"]\n\n[[licenses.exc
 fn fuzz_deny() -> String {
     DENY_ROOT.replace(
         "\n[bans]",
-        "\n# why\n[[licenses.exceptions]]\ncrate = \"libfuzzer-sys\"\nallow = [\"NCSA\"]\n\n[bans]",
+        "\n# why\n[[licenses.exceptions]]\ncrate = \"libfuzzer-sys@=0.4.13\"\nallow = [\"NCSA\"]\n\n[bans]",
     )
 }
 
@@ -960,7 +960,7 @@ fn deny_rejects_a_missing_or_widened_or_repeated_exception() {
     assert!(deny_problem(DENY_ROOT, &other_crate).is_some());
     let twice = fuzz_deny().replace(
         "\n[bans]",
-        "\n[[licenses.exceptions]]\ncrate = \"libfuzzer-sys\"\nallow = [\"NCSA\"]\n\n[bans]",
+        "\n[[licenses.exceptions]]\ncrate = \"libfuzzer-sys@=0.4.13\"\nallow = [\"NCSA\"]\n\n[bans]",
     );
     assert!(deny_problem(DENY_ROOT, &twice).is_some());
 }
