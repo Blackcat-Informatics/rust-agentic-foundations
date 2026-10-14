@@ -10,13 +10,18 @@ affects:
   - cap:workplan-generated-docs#contract
   - cap:workplan-generated-docs#usage
   - cap:workplan-generated-docs#examples
+  - cap:workplan-generated-docs#constraints
   - cap:workplan-generated-docs#verification
 contract_effect: changes
 items:
   - claim: "docs sync rewrites verification matrix, relationship and catalogue blocks deterministically."
+    outcome: implemented
   - claim: "Sync is idempotent and leaves text outside blocks unchanged."
+    outcome: implemented
   - claim: "check fails on a stale generated block."
+    outcome: implemented
   - claim: "The catalogue groups capabilities by state and shows the gaps of implementing ones."
+    outcome: implemented
 ---
 
 ## Summary

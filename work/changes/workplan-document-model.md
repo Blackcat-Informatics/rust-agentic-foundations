@@ -10,14 +10,21 @@ affects:
   - cap:workplan-document-model#contract
   - cap:workplan-document-model#usage
   - cap:workplan-document-model#examples
+  - cap:workplan-document-model#constraints
+  - cap:workplan-document-model#explanation
   - cap:workplan-document-model#verification
 contract_effect: changes
 items:
   - claim: "Capability and change documents load with the four states and slug identities."
+    outcome: implemented
   - claim: "PROPOSED blocks are validated against the change records that name them."
+    outcome: implemented
   - claim: "The graph of capabilities, sections, changes, proposals, symbols and tests is built with an acyclic depends check."
+    outcome: implemented
   - claim: "Bindings resolve through the source index."
+    outcome: implemented
   - claim: "Gate::workspace(...).assert_clean() runs every check rule."
+    outcome: implemented
 ---
 
 ## Summary
