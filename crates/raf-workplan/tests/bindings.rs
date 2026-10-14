@@ -66,7 +66,7 @@ fn a_binding_to_a_missing_path_is_reported_with_its_capability() {
 }
 
 #[test]
-fn a_binding_to_a_macro_generated_function_is_not_found_and_says_why() {
+fn a_binding_to_a_macro_generated_function_is_not_found() {
     let findings = bound_findings("[demo::generated]", CASE, "[]");
     let (kind, message) = only(&findings);
     assert_eq!(kind, "binding-macro-generated");

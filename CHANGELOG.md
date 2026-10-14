@@ -58,6 +58,27 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   reported when the path does not resolve and an item-level macro invocation of
   its parent module holds the name, so the symbol may be generated, which the
   index cannot see.
+  `Gate::workspace(dir)` is the dev-dependency entry point: it loads the
+  documents and the source workspace (roots `["."]`, or `source_roots`) of a
+  checkout on disk and runs `check`; `assert_clean` panics listing every finding
+  as `kind file:line message (fix)`. Links are judged against the paths
+  `git ls-files` lists inside a git work tree, or against a list given to
+  `tracked_paths`; a path that is a symlink on disk is a tracked symlink. A
+  `git` that cannot run, fails, is told by `GIT_DIR` or `GIT_WORK_TREE` about
+  a repository it cannot use, or cannot list the index is a `GateError`. The one
+  fallback is taken when `git` itself answers that the directory is not inside a
+  git work tree (a copy of the files such as a commit hook's snapshot): every
+  file of the directory then stands for a tracked path, which makes the rule
+  that a link to an untracked file is broken weaker.
+  A missing `docs/capabilities`, or one with no capability document, is an error
+  (`GateError`, `try_check`) and not a clean verdict; a missing `work/changes` is
+  an empty set of changes. The repository's own document-contract test now loads
+  its tracked files through `raf-workplan` and keeps only the repository's policy:
+  the capability inventory (now with the generated `docs/capabilities/index.md`),
+  tracked symlinks, Markdown-only document directories, no frontmatter on a page
+  outside the document directories, and the equality of the Usage and Examples
+  blocks with the crate doctests. `docs/capabilities/index.md`
+  is created by `make docs-sync`.
 - **`raf-okf` rule and error tags:** `Rule::ALL` and `ErrorKind::ALL` list the
   payload-free `RuleTag` and `ErrorTag` of every variant, with `Rule::kind`,
   `ErrorKind::tag` and a kebab-case `name`, so a caller can name and map every rule

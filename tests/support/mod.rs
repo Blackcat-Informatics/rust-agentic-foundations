@@ -22,6 +22,10 @@ use std::process::Command;
 
 /// Why a line is banned, or `None` when it is clean. The patterns live in
 /// `raf_workplan::refs`, the one place that defines them.
+#[allow(
+    dead_code,
+    reason = "the repository gates call it; the document-contract test judges the same patterns through the model"
+)]
 pub(crate) fn banned_in_line(line: &str) -> Option<&'static str> {
     raf_workplan::refs::banned_in_line(line).map(raf_workplan::refs::Banned::description)
 }

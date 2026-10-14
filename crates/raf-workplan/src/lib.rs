@@ -35,6 +35,11 @@
 //! the open changes of each, and for an implementing capability the gaps in its
 //! bindings. A document that failed validation is a finding, not an entry.
 //!
+//! [`Gate::workspace`] is the entry point for a test of a repository: it opens a
+//! checkout on disk, loads its documents and its source, and
+//! [`Gate::assert_clean`] panics with every finding. A repository without a
+//! capability document is an error, not a clean verdict.
+//!
 //! # Generated blocks and sync
 //!
 //! Three kinds of generated block are owned here: `verification-matrix`
@@ -95,6 +100,7 @@
 
 mod bindings;
 mod finding;
+mod gate;
 mod generated;
 mod graph;
 mod links;
@@ -108,6 +114,7 @@ mod sync;
 
 pub use bindings::ExampleKind;
 pub use finding::Finding;
+pub use gate::{Gate, GateError};
 pub use graph::{
     AffectsEdge, Binding, BindingKind, ChangesEdge, DependsEdge, Edge, EdgeKind, Graph, LinkEdge,
     LinkEnd, Node, NodeKind, Proposal, SectionId,

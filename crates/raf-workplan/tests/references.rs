@@ -78,6 +78,21 @@ fn accepts_a_moved_outcome_that_names_an_existing_change() {
 }
 
 #[test]
+fn accepts_moved_outcome() {
+    // The item moved to a second record, which exists and lists the capability.
+    let mut repo = mutate(
+        CHANGE,
+        "outcome: implemented",
+        "outcome: moved:change:other-work",
+    );
+    repo.insert(
+        "work/changes/other-work.md".to_string(),
+        change_record("other-work", "[cap:alpha]", "  - cap:alpha#usage\n", ""),
+    );
+    assert_clean(&check(&repo));
+}
+
+#[test]
 fn rejects_moved_missing() {
     let findings = check(&mutate(
         CHANGE,
