@@ -1,0 +1,120 @@
+// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+//! The model of a repository's workplan documents.
+
+use raf_okf::{Architecture, Body, Capability, Change};
+use raf_source::Workspace;
+
+use crate::Finding;
+use crate::load;
+
+/// A document that satisfies the profile: where it is, what it says in its
+/// frontmatter, and its body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Loaded<T> {
+    path: String,
+    value: T,
+    body: Body,
+}
+
+impl<T> Loaded<T> {
+    pub(crate) fn new(path: String, value: T, body: Body) -> Self {
+        Self { path, value, body }
+    }
+
+    /// The repository-relative path of the file, with `/` separators.
+    #[must_use]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// The typed frontmatter.
+    #[must_use]
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+
+    /// The body.
+    #[must_use]
+    pub fn body(&self) -> &Body {
+        &self.body
+    }
+}
+
+/// The capability, change and architecture documents of a repository, loaded
+/// through a [`Tree`](raf_source::Tree), with every finding the load made.
+///
+/// A document that breaks the profile is not part of the model; its findings
+/// are. A file the tree refuses to give is a finding that names it.
+#[derive(Debug)]
+pub struct Workplan<'s> {
+    pub(crate) capabilities: Vec<Loaded<Capability>>,
+    pub(crate) changes: Vec<Loaded<Change>>,
+    pub(crate) architecture: Vec<Loaded<Architecture>>,
+    pub(crate) findings: Vec<Finding>,
+    source: &'s Workspace,
+}
+
+impl<'s> Workplan<'s> {
+    /// Load the documents under `docs/capabilities`, `docs/architecture` and
+    /// `work/changes` of `docs`, and relate them to the source index `source`.
+    ///
+    /// The load never fails and never panics: every problem is a [`Finding`].
+    /// Each directory holds its documents directly. A typed document in the
+    /// directory of another type is `wrong-directory`, a Markdown file below a
+    /// document directory is `nested-directory`, a Markdown file other than
+    /// `index.md` that has no frontmatter is `stray-markdown`, and a file or a
+    /// directory the tree refuses is `unreadable-file` or
+    /// `unreadable-directory`. A directory that does not exist holds nothing.
+    #[must_use]
+    pub fn load(docs: &dyn raf_source::Tree, source: &'s Workspace) -> Self {
+        load::load(docs, source)
+    }
+
+    pub(crate) fn empty(source: &'s Workspace) -> Self {
+        Self {
+            capabilities: Vec::new(),
+            changes: Vec::new(),
+            architecture: Vec::new(),
+            findings: Vec::new(),
+            source,
+        }
+    }
+
+    /// The source index the documents are related to.
+    #[must_use]
+    pub fn source(&self) -> &'s Workspace {
+        self.source
+    }
+
+    /// The capability documents, in directory order.
+    #[must_use]
+    pub fn capabilities(&self) -> &[Loaded<Capability>] {
+        &self.capabilities
+    }
+
+    /// The change records, in directory order.
+    #[must_use]
+    pub fn changes(&self) -> &[Loaded<Change>] {
+        &self.changes
+    }
+
+    /// The architecture pages, in directory order.
+    #[must_use]
+    pub fn architecture(&self) -> &[Loaded<Architecture>] {
+        &self.architecture
+    }
+
+    /// The findings the load made.
+    #[must_use]
+    pub fn findings(&self) -> &[Finding] {
+        &self.findings
+    }
+
+    /// Every finding of every check over the loaded documents.
+    #[must_use]
+    pub fn check(&self) -> Vec<Finding> {
+        self.findings.clone()
+    }
+}

@@ -16,6 +16,21 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   writes documents back deterministically so a parsed document renders to its own
   bytes. Input is bounded in size and nesting, anchors and aliases are refused, and
   the crate reads no file.
+- **`raf-workplan`:** loads a repository's capability, change and architecture
+  documents through a `raf-source` `Tree` into typed values with their bodies,
+  validating each with `raf-okf`. `Workplan::load` never fails and never panics:
+  every problem is a `Finding` with a stable kind, a file, a location, a message
+  and a fix. `Finding::KINDS` lists every kind, with one `okf-<rule>` kind for each
+  rule of the profile, one `okf-parse-<error>` kind for each way a document fails
+  to read, and the kinds of the flat document directories (`wrong-directory`,
+  `nested-directory`, `stray-markdown`) and of unreadable input
+  (`unreadable-file`, `unreadable-directory`). A file the tree refuses is reported
+  by name and never skipped.
+- **`raf-okf` rule and error tags:** `Rule::ALL` and `ErrorKind::ALL` list the
+  payload-free `RuleTag` and `ErrorTag` of every variant, with `Rule::kind`,
+  `ErrorKind::tag` and a kebab-case `name`, so a caller can name and map every rule
+  and every reader error. Both tag enums are exhaustive, and an in-crate test keeps
+  each list equal to the variants it names. The change is additive.
 - **`raf-source`:** indexes Rust source for other tools. A `Tree` trait with disk
   and memory backends gives every path confinement to the workspace root; package
   and target discovery finds library, binary, test, bench, example and build

@@ -67,7 +67,7 @@ pub use body::{
     ProposedBlock, ProseLine, Section, SplitLink,
 };
 pub use document::Document;
-pub use error::{ConstructError, ErrorKind, ParseError, SpliceError};
+pub use error::{ConstructError, ErrorKind, ErrorTag, ParseError, SpliceError};
 pub use frontmatter::scalar::{ESCAPES, plain_ok};
 pub use frontmatter::value::{
     Comments, Entry, Frontmatter, ItemValue, List, ListForm, ListItem, Map, Scalar, ScalarStyle,
@@ -77,7 +77,7 @@ pub use index::{Index, is_capability_index};
 pub use limits::{MAX_BLOCK_NESTING, MAX_TEXT_BYTES, MAX_YAML_DEPTH};
 pub use profile::{
     Affects, Architecture, Bindings, Capability, CapabilitySection, Change, ChangeItem,
-    ContractEffect, DocType, Header, KeySpec, Location, Outcome, Profile, RafDocument, Rule, State,
-    TimestampError, ValueKind, Violation, validate_timestamp,
+    ContractEffect, DocType, Header, KeySpec, Location, Outcome, Profile, RafDocument, Rule,
+    RuleTag, State, TimestampError, ValueKind, Violation, validate_timestamp,
 };
 pub use span::Span;

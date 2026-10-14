@@ -329,3 +329,389 @@ impl fmt::Display for Violation {
         write!(f, "{}", self.rule)
     }
 }
+
+/// The rule a violation breaks, without its data.
+///
+/// One variant per variant of [`Rule`], so a caller can name, list and map the
+/// rules without matching their payloads. The set is closed on purpose: a
+/// `match` over `RuleTag` is exhaustive, so a rule added to [`Rule`] adds a
+/// variant here and breaks every match that must name them all. [`Rule::ALL`]
+/// lists every tag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum RuleTag {
+    /// [`Rule::MissingKey`].
+    MissingKey,
+    /// [`Rule::UnknownKey`].
+    UnknownKey,
+    /// [`Rule::ResourceKey`].
+    ResourceKey,
+    /// [`Rule::UnknownType`].
+    UnknownType,
+    /// [`Rule::WrongDirectory`].
+    WrongDirectory,
+    /// [`Rule::WrongShape`].
+    WrongShape,
+    /// [`Rule::InvalidId`].
+    InvalidId,
+    /// [`Rule::IdFileName`].
+    IdFileName,
+    /// [`Rule::EmptyText`].
+    EmptyText,
+    /// [`Rule::BadState`].
+    BadState,
+    /// [`Rule::BindingsKeys`].
+    BindingsKeys,
+    /// [`Rule::BindingNotAList`].
+    BindingNotAList,
+    /// [`Rule::BindingNotEmpty`].
+    BindingNotEmpty,
+    /// [`Rule::BindingRequired`].
+    BindingRequired,
+    /// [`Rule::BadCapabilityId`].
+    BadCapabilityId,
+    /// [`Rule::EmptyChanges`].
+    EmptyChanges,
+    /// [`Rule::BadAffects`].
+    BadAffects,
+    /// [`Rule::BadAffectsSection`].
+    BadAffectsSection,
+    /// [`Rule::AffectsNotInChanges`].
+    AffectsNotInChanges,
+    /// [`Rule::BadContractEffect`].
+    BadContractEffect,
+    /// [`Rule::ItemUnknownKey`].
+    ItemUnknownKey,
+    /// [`Rule::ItemClaimEmpty`].
+    ItemClaimEmpty,
+    /// [`Rule::BadOutcome`].
+    BadOutcome,
+    /// [`Rule::EmptyTag`].
+    EmptyTag,
+    /// [`Rule::DuplicateTag`].
+    DuplicateTag,
+    /// [`Rule::BadTimestamp`].
+    BadTimestamp,
+    /// [`Rule::SectionMissing`].
+    SectionMissing,
+    /// [`Rule::SectionUnexpected`].
+    SectionUnexpected,
+    /// [`Rule::SectionDuplicated`].
+    SectionDuplicated,
+    /// [`Rule::SectionsOutOfOrder`].
+    SectionsOutOfOrder,
+    /// [`Rule::SectionEmpty`].
+    SectionEmpty,
+    /// [`Rule::BodyEmpty`].
+    BodyEmpty,
+    /// [`Rule::ProposedOutsideCapability`].
+    ProposedOutsideCapability,
+    /// [`Rule::ProposedOutsideSection`].
+    ProposedOutsideSection,
+    /// [`Rule::Placeholder`].
+    Placeholder,
+    /// [`Rule::SplitLink`].
+    SplitLink,
+}
+
+impl RuleTag {
+    /// The name of the tag: the variant in lowercase kebab-case.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::MissingKey => "missing-key",
+            Self::UnknownKey => "unknown-key",
+            Self::ResourceKey => "resource-key",
+            Self::UnknownType => "unknown-type",
+            Self::WrongDirectory => "wrong-directory",
+            Self::WrongShape => "wrong-shape",
+            Self::InvalidId => "invalid-id",
+            Self::IdFileName => "id-file-name",
+            Self::EmptyText => "empty-text",
+            Self::BadState => "bad-state",
+            Self::BindingsKeys => "bindings-keys",
+            Self::BindingNotAList => "binding-not-a-list",
+            Self::BindingNotEmpty => "binding-not-empty",
+            Self::BindingRequired => "binding-required",
+            Self::BadCapabilityId => "bad-capability-id",
+            Self::EmptyChanges => "empty-changes",
+            Self::BadAffects => "bad-affects",
+            Self::BadAffectsSection => "bad-affects-section",
+            Self::AffectsNotInChanges => "affects-not-in-changes",
+            Self::BadContractEffect => "bad-contract-effect",
+            Self::ItemUnknownKey => "item-unknown-key",
+            Self::ItemClaimEmpty => "item-claim-empty",
+            Self::BadOutcome => "bad-outcome",
+            Self::EmptyTag => "empty-tag",
+            Self::DuplicateTag => "duplicate-tag",
+            Self::BadTimestamp => "bad-timestamp",
+            Self::SectionMissing => "section-missing",
+            Self::SectionUnexpected => "section-unexpected",
+            Self::SectionDuplicated => "section-duplicated",
+            Self::SectionsOutOfOrder => "sections-out-of-order",
+            Self::SectionEmpty => "section-empty",
+            Self::BodyEmpty => "body-empty",
+            Self::ProposedOutsideCapability => "proposed-outside-capability",
+            Self::ProposedOutsideSection => "proposed-outside-section",
+            Self::Placeholder => "placeholder",
+            Self::SplitLink => "split-link",
+        }
+    }
+}
+
+impl fmt::Display for RuleTag {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+impl Rule {
+    /// Every tag, in the order of the variants of [`Rule`].
+    pub const ALL: [RuleTag; 36] = [
+        RuleTag::MissingKey,
+        RuleTag::UnknownKey,
+        RuleTag::ResourceKey,
+        RuleTag::UnknownType,
+        RuleTag::WrongDirectory,
+        RuleTag::WrongShape,
+        RuleTag::InvalidId,
+        RuleTag::IdFileName,
+        RuleTag::EmptyText,
+        RuleTag::BadState,
+        RuleTag::BindingsKeys,
+        RuleTag::BindingNotAList,
+        RuleTag::BindingNotEmpty,
+        RuleTag::BindingRequired,
+        RuleTag::BadCapabilityId,
+        RuleTag::EmptyChanges,
+        RuleTag::BadAffects,
+        RuleTag::BadAffectsSection,
+        RuleTag::AffectsNotInChanges,
+        RuleTag::BadContractEffect,
+        RuleTag::ItemUnknownKey,
+        RuleTag::ItemClaimEmpty,
+        RuleTag::BadOutcome,
+        RuleTag::EmptyTag,
+        RuleTag::DuplicateTag,
+        RuleTag::BadTimestamp,
+        RuleTag::SectionMissing,
+        RuleTag::SectionUnexpected,
+        RuleTag::SectionDuplicated,
+        RuleTag::SectionsOutOfOrder,
+        RuleTag::SectionEmpty,
+        RuleTag::BodyEmpty,
+        RuleTag::ProposedOutsideCapability,
+        RuleTag::ProposedOutsideSection,
+        RuleTag::Placeholder,
+        RuleTag::SplitLink,
+    ];
+
+    /// The tag of this value, which drops its data.
+    #[must_use]
+    pub fn kind(&self) -> RuleTag {
+        match self {
+            Self::MissingKey { .. } => RuleTag::MissingKey,
+            Self::UnknownKey { .. } => RuleTag::UnknownKey,
+            Self::ResourceKey { .. } => RuleTag::ResourceKey,
+            Self::UnknownType { .. } => RuleTag::UnknownType,
+            Self::WrongDirectory { .. } => RuleTag::WrongDirectory,
+            Self::WrongShape { .. } => RuleTag::WrongShape,
+            Self::InvalidId { .. } => RuleTag::InvalidId,
+            Self::IdFileName { .. } => RuleTag::IdFileName,
+            Self::EmptyText => RuleTag::EmptyText,
+            Self::BadState { .. } => RuleTag::BadState,
+            Self::BindingsKeys => RuleTag::BindingsKeys,
+            Self::BindingNotAList { .. } => RuleTag::BindingNotAList,
+            Self::BindingNotEmpty { .. } => RuleTag::BindingNotEmpty,
+            Self::BindingRequired { .. } => RuleTag::BindingRequired,
+            Self::BadCapabilityId { .. } => RuleTag::BadCapabilityId,
+            Self::EmptyChanges => RuleTag::EmptyChanges,
+            Self::BadAffects { .. } => RuleTag::BadAffects,
+            Self::BadAffectsSection { .. } => RuleTag::BadAffectsSection,
+            Self::AffectsNotInChanges { .. } => RuleTag::AffectsNotInChanges,
+            Self::BadContractEffect { .. } => RuleTag::BadContractEffect,
+            Self::ItemUnknownKey { .. } => RuleTag::ItemUnknownKey,
+            Self::ItemClaimEmpty => RuleTag::ItemClaimEmpty,
+            Self::BadOutcome { .. } => RuleTag::BadOutcome,
+            Self::EmptyTag => RuleTag::EmptyTag,
+            Self::DuplicateTag { .. } => RuleTag::DuplicateTag,
+            Self::BadTimestamp { .. } => RuleTag::BadTimestamp,
+            Self::SectionMissing => RuleTag::SectionMissing,
+            Self::SectionUnexpected => RuleTag::SectionUnexpected,
+            Self::SectionDuplicated => RuleTag::SectionDuplicated,
+            Self::SectionsOutOfOrder { .. } => RuleTag::SectionsOutOfOrder,
+            Self::SectionEmpty => RuleTag::SectionEmpty,
+            Self::BodyEmpty => RuleTag::BodyEmpty,
+            Self::ProposedOutsideCapability { .. } => RuleTag::ProposedOutsideCapability,
+            Self::ProposedOutsideSection { .. } => RuleTag::ProposedOutsideSection,
+            Self::Placeholder { .. } => RuleTag::Placeholder,
+            Self::SplitLink { .. } => RuleTag::SplitLink,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tag_tests {
+    use super::{Rule, RuleTag};
+    use crate::body::LinkForm;
+    use crate::profile::schema::DocType;
+    use crate::profile::timestamp::validate_timestamp;
+    use crate::profile::typed::State;
+
+    /// A rule of each tag. The match names every tag, so a tag added to
+    /// `RuleTag` stops this from compiling until it has a sample.
+    fn sample(tag: RuleTag) -> Rule {
+        match tag {
+            RuleTag::MissingKey => Rule::MissingKey { key: String::new() },
+            RuleTag::UnknownKey => Rule::UnknownKey { key: String::new() },
+            RuleTag::ResourceKey => Rule::ResourceKey {
+                doc_type: DocType::Capability,
+            },
+            RuleTag::UnknownType => Rule::UnknownType {
+                found: String::new(),
+            },
+            RuleTag::WrongDirectory => Rule::WrongDirectory {
+                declared: DocType::Capability,
+            },
+            RuleTag::WrongShape => Rule::WrongShape { expected: "" },
+            RuleTag::InvalidId => Rule::InvalidId { prefix: "" },
+            RuleTag::IdFileName => Rule::IdFileName {
+                id: String::new(),
+                stem: String::new(),
+            },
+            RuleTag::EmptyText => Rule::EmptyText,
+            RuleTag::BadState => Rule::BadState {
+                found: String::new(),
+            },
+            RuleTag::BindingsKeys => Rule::BindingsKeys,
+            RuleTag::BindingNotAList => Rule::BindingNotAList {
+                binding: String::new(),
+            },
+            RuleTag::BindingNotEmpty => Rule::BindingNotEmpty {
+                state: State::Designed,
+                binding: String::new(),
+            },
+            RuleTag::BindingRequired => Rule::BindingRequired {
+                binding: String::new(),
+            },
+            RuleTag::BadCapabilityId => Rule::BadCapabilityId {
+                entry: String::new(),
+            },
+            RuleTag::EmptyChanges => Rule::EmptyChanges,
+            RuleTag::BadAffects => Rule::BadAffects {
+                entry: String::new(),
+            },
+            RuleTag::BadAffectsSection => Rule::BadAffectsSection {
+                entry: String::new(),
+                section: String::new(),
+            },
+            RuleTag::AffectsNotInChanges => Rule::AffectsNotInChanges {
+                entry: String::new(),
+            },
+            RuleTag::BadContractEffect => Rule::BadContractEffect {
+                found: String::new(),
+            },
+            RuleTag::ItemUnknownKey => Rule::ItemUnknownKey { key: String::new() },
+            RuleTag::ItemClaimEmpty => Rule::ItemClaimEmpty,
+            RuleTag::BadOutcome => Rule::BadOutcome {
+                found: String::new(),
+            },
+            RuleTag::EmptyTag => Rule::EmptyTag,
+            RuleTag::DuplicateTag => Rule::DuplicateTag { tag: String::new() },
+            RuleTag::BadTimestamp => Rule::BadTimestamp {
+                reason: validate_timestamp("x").expect_err("not a timestamp"),
+            },
+            RuleTag::SectionMissing => Rule::SectionMissing,
+            RuleTag::SectionUnexpected => Rule::SectionUnexpected,
+            RuleTag::SectionDuplicated => Rule::SectionDuplicated,
+            RuleTag::SectionsOutOfOrder => Rule::SectionsOutOfOrder { found: Vec::new() },
+            RuleTag::SectionEmpty => Rule::SectionEmpty,
+            RuleTag::BodyEmpty => Rule::BodyEmpty,
+            RuleTag::ProposedOutsideCapability => Rule::ProposedOutsideCapability {
+                slug: String::new(),
+            },
+            RuleTag::ProposedOutsideSection => Rule::ProposedOutsideSection {
+                slug: String::new(),
+            },
+            RuleTag::Placeholder => Rule::Placeholder {
+                token: String::new(),
+            },
+            RuleTag::SplitLink => Rule::SplitLink {
+                form: LinkForm::Inline,
+            },
+        }
+    }
+
+    /// The position of a rule among the variants of `Rule`. The match names
+    /// every variant, so a variant added to `Rule` stops this from compiling
+    /// until it is placed here and listed in `Rule::ALL`.
+    fn position(rule: &Rule) -> usize {
+        match rule {
+            Rule::MissingKey { .. } => 0,
+            Rule::UnknownKey { .. } => 1,
+            Rule::ResourceKey { .. } => 2,
+            Rule::UnknownType { .. } => 3,
+            Rule::WrongDirectory { .. } => 4,
+            Rule::WrongShape { .. } => 5,
+            Rule::InvalidId { .. } => 6,
+            Rule::IdFileName { .. } => 7,
+            Rule::EmptyText => 8,
+            Rule::BadState { .. } => 9,
+            Rule::BindingsKeys => 10,
+            Rule::BindingNotAList { .. } => 11,
+            Rule::BindingNotEmpty { .. } => 12,
+            Rule::BindingRequired { .. } => 13,
+            Rule::BadCapabilityId { .. } => 14,
+            Rule::EmptyChanges => 15,
+            Rule::BadAffects { .. } => 16,
+            Rule::BadAffectsSection { .. } => 17,
+            Rule::AffectsNotInChanges { .. } => 18,
+            Rule::BadContractEffect { .. } => 19,
+            Rule::ItemUnknownKey { .. } => 20,
+            Rule::ItemClaimEmpty => 21,
+            Rule::BadOutcome { .. } => 22,
+            Rule::EmptyTag => 23,
+            Rule::DuplicateTag { .. } => 24,
+            Rule::BadTimestamp { .. } => 25,
+            Rule::SectionMissing => 26,
+            Rule::SectionUnexpected => 27,
+            Rule::SectionDuplicated => 28,
+            Rule::SectionsOutOfOrder { .. } => 29,
+            Rule::SectionEmpty => 30,
+            Rule::BodyEmpty => 31,
+            Rule::ProposedOutsideCapability { .. } => 32,
+            Rule::ProposedOutsideSection { .. } => 33,
+            Rule::Placeholder { .. } => 34,
+            Rule::SplitLink { .. } => 35,
+        }
+    }
+
+    /// How many variants `Rule` has.
+    const VARIANTS: usize = 36;
+
+    #[test]
+    fn all_lists_every_rule_once_in_variant_order() {
+        assert_eq!(Rule::ALL.len(), VARIANTS);
+        for (index, tag) in Rule::ALL.into_iter().enumerate() {
+            let rule = sample(tag);
+            assert_eq!(rule.kind(), tag, "{tag}");
+            assert_eq!(position(&rule), index, "{tag} is out of order in Rule::ALL");
+        }
+    }
+
+    #[test]
+    fn names_are_unique_lowercase_kebab_case() {
+        let mut names: Vec<&str> = Rule::ALL.iter().map(|tag| tag.name()).collect();
+        for name in &names {
+            assert!(
+                !name.is_empty()
+                    && name.split('-').all(
+                        |part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_lowercase())
+                    ),
+                "{name}"
+            );
+        }
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), VARIANTS);
+    }
+}

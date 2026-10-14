@@ -453,3 +453,408 @@ impl Error for SpliceError {
         }
     }
 }
+
+/// The kind of a reader error, without its data.
+///
+/// One variant per variant of [`ErrorKind`]. The set is closed on purpose: a
+/// `match` over `ErrorTag` is exhaustive, so an error kind added to
+/// [`ErrorKind`] adds a variant here and breaks every match that must name them
+/// all. [`ErrorKind::ALL`] lists every tag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ErrorTag {
+    /// [`ErrorKind::MissingFence`].
+    MissingFence,
+    /// [`ErrorKind::UnclosedFence`].
+    UnclosedFence,
+    /// [`ErrorKind::TooLarge`].
+    TooLarge,
+    /// [`ErrorKind::MixedLineEndings`].
+    MixedLineEndings,
+    /// [`ErrorKind::ControlCharacter`].
+    ControlCharacter,
+    /// [`ErrorKind::TrailingWhitespace`].
+    TrailingWhitespace,
+    /// [`ErrorKind::Indentation`].
+    Indentation,
+    /// [`ErrorKind::Spacing`].
+    Spacing,
+    /// [`ErrorKind::NotAMapping`].
+    NotAMapping,
+    /// [`ErrorKind::ExpectedKey`].
+    ExpectedKey,
+    /// [`ErrorKind::ExpectedItem`].
+    ExpectedItem,
+    /// [`ErrorKind::InvalidKey`].
+    InvalidKey,
+    /// [`ErrorKind::DuplicateKey`].
+    DuplicateKey,
+    /// [`ErrorKind::MergeKey`].
+    MergeKey,
+    /// [`ErrorKind::Anchor`].
+    Anchor,
+    /// [`ErrorKind::Alias`].
+    Alias,
+    /// [`ErrorKind::Tag`].
+    Tag,
+    /// [`ErrorKind::BlockScalar`].
+    BlockScalar,
+    /// [`ErrorKind::IndicatorCharacter`].
+    IndicatorCharacter,
+    /// [`ErrorKind::FlowMapping`].
+    FlowMapping,
+    /// [`ErrorKind::NestedFlow`].
+    NestedFlow,
+    /// [`ErrorKind::NestedSequence`].
+    NestedSequence,
+    /// [`ErrorKind::UnterminatedFlow`].
+    UnterminatedFlow,
+    /// [`ErrorKind::EmptyFlowEntry`].
+    EmptyFlowEntry,
+    /// [`ErrorKind::TextAfterFlow`].
+    TextAfterFlow,
+    /// [`ErrorKind::UnterminatedQuote`].
+    UnterminatedQuote,
+    /// [`ErrorKind::TextAfterQuote`].
+    TextAfterQuote,
+    /// [`ErrorKind::UnknownEscape`].
+    UnknownEscape,
+    /// [`ErrorKind::PlainColonSpace`].
+    PlainColonSpace,
+    /// [`ErrorKind::EmptyItem`].
+    EmptyItem,
+    /// [`ErrorKind::MixedList`].
+    MixedList,
+    /// [`ErrorKind::DepthExceeded`].
+    DepthExceeded,
+    /// [`ErrorKind::BlockNesting`].
+    BlockNesting,
+    /// [`ErrorKind::MalformedProposed`].
+    MalformedProposed,
+    /// [`ErrorKind::MalformedGenerated`].
+    MalformedGenerated,
+    /// [`ErrorKind::NestedGenerated`].
+    NestedGenerated,
+    /// [`ErrorKind::OrphanGeneratedEnd`].
+    OrphanGeneratedEnd,
+    /// [`ErrorKind::UnclosedGenerated`].
+    UnclosedGenerated,
+    /// [`ErrorKind::LinkPartTooLong`].
+    LinkPartTooLong,
+    /// [`ErrorKind::IndexHeader`].
+    IndexHeader,
+    /// [`ErrorKind::IndexText`].
+    IndexText,
+    /// [`ErrorKind::IndexMarker`].
+    IndexMarker,
+    /// [`ErrorKind::IndexEmpty`].
+    IndexEmpty,
+}
+
+impl ErrorTag {
+    /// The name of the tag: the variant in lowercase kebab-case.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::MissingFence => "missing-fence",
+            Self::UnclosedFence => "unclosed-fence",
+            Self::TooLarge => "too-large",
+            Self::MixedLineEndings => "mixed-line-endings",
+            Self::ControlCharacter => "control-character",
+            Self::TrailingWhitespace => "trailing-whitespace",
+            Self::Indentation => "indentation",
+            Self::Spacing => "spacing",
+            Self::NotAMapping => "not-a-mapping",
+            Self::ExpectedKey => "expected-key",
+            Self::ExpectedItem => "expected-item",
+            Self::InvalidKey => "invalid-key",
+            Self::DuplicateKey => "duplicate-key",
+            Self::MergeKey => "merge-key",
+            Self::Anchor => "anchor",
+            Self::Alias => "alias",
+            Self::Tag => "tag",
+            Self::BlockScalar => "block-scalar",
+            Self::IndicatorCharacter => "indicator-character",
+            Self::FlowMapping => "flow-mapping",
+            Self::NestedFlow => "nested-flow",
+            Self::NestedSequence => "nested-sequence",
+            Self::UnterminatedFlow => "unterminated-flow",
+            Self::EmptyFlowEntry => "empty-flow-entry",
+            Self::TextAfterFlow => "text-after-flow",
+            Self::UnterminatedQuote => "unterminated-quote",
+            Self::TextAfterQuote => "text-after-quote",
+            Self::UnknownEscape => "unknown-escape",
+            Self::PlainColonSpace => "plain-colon-space",
+            Self::EmptyItem => "empty-item",
+            Self::MixedList => "mixed-list",
+            Self::DepthExceeded => "depth-exceeded",
+            Self::BlockNesting => "block-nesting",
+            Self::MalformedProposed => "malformed-proposed",
+            Self::MalformedGenerated => "malformed-generated",
+            Self::NestedGenerated => "nested-generated",
+            Self::OrphanGeneratedEnd => "orphan-generated-end",
+            Self::UnclosedGenerated => "unclosed-generated",
+            Self::LinkPartTooLong => "link-part-too-long",
+            Self::IndexHeader => "index-header",
+            Self::IndexText => "index-text",
+            Self::IndexMarker => "index-marker",
+            Self::IndexEmpty => "index-empty",
+        }
+    }
+}
+
+impl fmt::Display for ErrorTag {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+impl ErrorKind {
+    /// Every tag, in the order of the variants of [`ErrorKind`].
+    pub const ALL: [ErrorTag; 43] = [
+        ErrorTag::MissingFence,
+        ErrorTag::UnclosedFence,
+        ErrorTag::TooLarge,
+        ErrorTag::MixedLineEndings,
+        ErrorTag::ControlCharacter,
+        ErrorTag::TrailingWhitespace,
+        ErrorTag::Indentation,
+        ErrorTag::Spacing,
+        ErrorTag::NotAMapping,
+        ErrorTag::ExpectedKey,
+        ErrorTag::ExpectedItem,
+        ErrorTag::InvalidKey,
+        ErrorTag::DuplicateKey,
+        ErrorTag::MergeKey,
+        ErrorTag::Anchor,
+        ErrorTag::Alias,
+        ErrorTag::Tag,
+        ErrorTag::BlockScalar,
+        ErrorTag::IndicatorCharacter,
+        ErrorTag::FlowMapping,
+        ErrorTag::NestedFlow,
+        ErrorTag::NestedSequence,
+        ErrorTag::UnterminatedFlow,
+        ErrorTag::EmptyFlowEntry,
+        ErrorTag::TextAfterFlow,
+        ErrorTag::UnterminatedQuote,
+        ErrorTag::TextAfterQuote,
+        ErrorTag::UnknownEscape,
+        ErrorTag::PlainColonSpace,
+        ErrorTag::EmptyItem,
+        ErrorTag::MixedList,
+        ErrorTag::DepthExceeded,
+        ErrorTag::BlockNesting,
+        ErrorTag::MalformedProposed,
+        ErrorTag::MalformedGenerated,
+        ErrorTag::NestedGenerated,
+        ErrorTag::OrphanGeneratedEnd,
+        ErrorTag::UnclosedGenerated,
+        ErrorTag::LinkPartTooLong,
+        ErrorTag::IndexHeader,
+        ErrorTag::IndexText,
+        ErrorTag::IndexMarker,
+        ErrorTag::IndexEmpty,
+    ];
+
+    /// The tag of this value, which drops its data.
+    #[must_use]
+    pub fn tag(&self) -> ErrorTag {
+        match self {
+            Self::MissingFence => ErrorTag::MissingFence,
+            Self::UnclosedFence => ErrorTag::UnclosedFence,
+            Self::TooLarge { .. } => ErrorTag::TooLarge,
+            Self::MixedLineEndings => ErrorTag::MixedLineEndings,
+            Self::ControlCharacter => ErrorTag::ControlCharacter,
+            Self::TrailingWhitespace => ErrorTag::TrailingWhitespace,
+            Self::Indentation => ErrorTag::Indentation,
+            Self::Spacing => ErrorTag::Spacing,
+            Self::NotAMapping => ErrorTag::NotAMapping,
+            Self::ExpectedKey => ErrorTag::ExpectedKey,
+            Self::ExpectedItem => ErrorTag::ExpectedItem,
+            Self::InvalidKey { .. } => ErrorTag::InvalidKey,
+            Self::DuplicateKey { .. } => ErrorTag::DuplicateKey,
+            Self::MergeKey => ErrorTag::MergeKey,
+            Self::Anchor { .. } => ErrorTag::Anchor,
+            Self::Alias { .. } => ErrorTag::Alias,
+            Self::Tag { .. } => ErrorTag::Tag,
+            Self::BlockScalar { .. } => ErrorTag::BlockScalar,
+            Self::IndicatorCharacter { .. } => ErrorTag::IndicatorCharacter,
+            Self::FlowMapping { .. } => ErrorTag::FlowMapping,
+            Self::NestedFlow => ErrorTag::NestedFlow,
+            Self::NestedSequence => ErrorTag::NestedSequence,
+            Self::UnterminatedFlow => ErrorTag::UnterminatedFlow,
+            Self::EmptyFlowEntry => ErrorTag::EmptyFlowEntry,
+            Self::TextAfterFlow => ErrorTag::TextAfterFlow,
+            Self::UnterminatedQuote => ErrorTag::UnterminatedQuote,
+            Self::TextAfterQuote => ErrorTag::TextAfterQuote,
+            Self::UnknownEscape { .. } => ErrorTag::UnknownEscape,
+            Self::PlainColonSpace => ErrorTag::PlainColonSpace,
+            Self::EmptyItem => ErrorTag::EmptyItem,
+            Self::MixedList => ErrorTag::MixedList,
+            Self::DepthExceeded { .. } => ErrorTag::DepthExceeded,
+            Self::BlockNesting { .. } => ErrorTag::BlockNesting,
+            Self::MalformedProposed => ErrorTag::MalformedProposed,
+            Self::MalformedGenerated => ErrorTag::MalformedGenerated,
+            Self::NestedGenerated { .. } => ErrorTag::NestedGenerated,
+            Self::OrphanGeneratedEnd => ErrorTag::OrphanGeneratedEnd,
+            Self::UnclosedGenerated { .. } => ErrorTag::UnclosedGenerated,
+            Self::LinkPartTooLong { .. } => ErrorTag::LinkPartTooLong,
+            Self::IndexHeader => ErrorTag::IndexHeader,
+            Self::IndexText => ErrorTag::IndexText,
+            Self::IndexMarker => ErrorTag::IndexMarker,
+            Self::IndexEmpty => ErrorTag::IndexEmpty,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tag_tests {
+    use super::{ErrorKind, ErrorTag};
+
+    /// A kind of each tag. The match names every tag, so a tag added to
+    /// `ErrorTag` stops this from compiling until it has a sample.
+    fn sample(tag: ErrorTag) -> ErrorKind {
+        match tag {
+            ErrorTag::MissingFence => ErrorKind::MissingFence,
+            ErrorTag::UnclosedFence => ErrorKind::UnclosedFence,
+            ErrorTag::TooLarge => ErrorKind::TooLarge { len: 0, max: 0 },
+            ErrorTag::MixedLineEndings => ErrorKind::MixedLineEndings,
+            ErrorTag::ControlCharacter => ErrorKind::ControlCharacter,
+            ErrorTag::TrailingWhitespace => ErrorKind::TrailingWhitespace,
+            ErrorTag::Indentation => ErrorKind::Indentation,
+            ErrorTag::Spacing => ErrorKind::Spacing,
+            ErrorTag::NotAMapping => ErrorKind::NotAMapping,
+            ErrorTag::ExpectedKey => ErrorKind::ExpectedKey,
+            ErrorTag::ExpectedItem => ErrorKind::ExpectedItem,
+            ErrorTag::InvalidKey => ErrorKind::InvalidKey { key: String::new() },
+            ErrorTag::DuplicateKey => ErrorKind::DuplicateKey { key: String::new() },
+            ErrorTag::MergeKey => ErrorKind::MergeKey,
+            ErrorTag::Anchor => ErrorKind::Anchor {
+                name: String::new(),
+            },
+            ErrorTag::Alias => ErrorKind::Alias {
+                name: String::new(),
+            },
+            ErrorTag::Tag => ErrorKind::Tag {
+                name: String::new(),
+            },
+            ErrorTag::BlockScalar => ErrorKind::BlockScalar {
+                header: String::new(),
+            },
+            ErrorTag::IndicatorCharacter => ErrorKind::IndicatorCharacter { indicator: '&' },
+            ErrorTag::FlowMapping => ErrorKind::FlowMapping { key: String::new() },
+            ErrorTag::NestedFlow => ErrorKind::NestedFlow,
+            ErrorTag::NestedSequence => ErrorKind::NestedSequence,
+            ErrorTag::UnterminatedFlow => ErrorKind::UnterminatedFlow,
+            ErrorTag::EmptyFlowEntry => ErrorKind::EmptyFlowEntry,
+            ErrorTag::TextAfterFlow => ErrorKind::TextAfterFlow,
+            ErrorTag::UnterminatedQuote => ErrorKind::UnterminatedQuote,
+            ErrorTag::TextAfterQuote => ErrorKind::TextAfterQuote,
+            ErrorTag::UnknownEscape => ErrorKind::UnknownEscape { escape: 'q' },
+            ErrorTag::PlainColonSpace => ErrorKind::PlainColonSpace,
+            ErrorTag::EmptyItem => ErrorKind::EmptyItem,
+            ErrorTag::MixedList => ErrorKind::MixedList,
+            ErrorTag::DepthExceeded => ErrorKind::DepthExceeded { max: 0 },
+            ErrorTag::BlockNesting => ErrorKind::BlockNesting { max: 0 },
+            ErrorTag::MalformedProposed => ErrorKind::MalformedProposed,
+            ErrorTag::MalformedGenerated => ErrorKind::MalformedGenerated,
+            ErrorTag::NestedGenerated => ErrorKind::NestedGenerated {
+                outer: String::new(),
+            },
+            ErrorTag::OrphanGeneratedEnd => ErrorKind::OrphanGeneratedEnd,
+            ErrorTag::UnclosedGenerated => ErrorKind::UnclosedGenerated {
+                kind: String::new(),
+            },
+            ErrorTag::LinkPartTooLong => ErrorKind::LinkPartTooLong { max: 0 },
+            ErrorTag::IndexHeader => ErrorKind::IndexHeader,
+            ErrorTag::IndexText => ErrorKind::IndexText,
+            ErrorTag::IndexMarker => ErrorKind::IndexMarker,
+            ErrorTag::IndexEmpty => ErrorKind::IndexEmpty,
+        }
+    }
+
+    /// The position of a kind among the variants of `ErrorKind`. The match
+    /// names every variant, so a variant added to `ErrorKind` stops this from
+    /// compiling until it is placed here and listed in `ErrorKind::ALL`.
+    fn position(kind: &ErrorKind) -> usize {
+        match kind {
+            ErrorKind::MissingFence => 0,
+            ErrorKind::UnclosedFence => 1,
+            ErrorKind::TooLarge { .. } => 2,
+            ErrorKind::MixedLineEndings => 3,
+            ErrorKind::ControlCharacter => 4,
+            ErrorKind::TrailingWhitespace => 5,
+            ErrorKind::Indentation => 6,
+            ErrorKind::Spacing => 7,
+            ErrorKind::NotAMapping => 8,
+            ErrorKind::ExpectedKey => 9,
+            ErrorKind::ExpectedItem => 10,
+            ErrorKind::InvalidKey { .. } => 11,
+            ErrorKind::DuplicateKey { .. } => 12,
+            ErrorKind::MergeKey => 13,
+            ErrorKind::Anchor { .. } => 14,
+            ErrorKind::Alias { .. } => 15,
+            ErrorKind::Tag { .. } => 16,
+            ErrorKind::BlockScalar { .. } => 17,
+            ErrorKind::IndicatorCharacter { .. } => 18,
+            ErrorKind::FlowMapping { .. } => 19,
+            ErrorKind::NestedFlow => 20,
+            ErrorKind::NestedSequence => 21,
+            ErrorKind::UnterminatedFlow => 22,
+            ErrorKind::EmptyFlowEntry => 23,
+            ErrorKind::TextAfterFlow => 24,
+            ErrorKind::UnterminatedQuote => 25,
+            ErrorKind::TextAfterQuote => 26,
+            ErrorKind::UnknownEscape { .. } => 27,
+            ErrorKind::PlainColonSpace => 28,
+            ErrorKind::EmptyItem => 29,
+            ErrorKind::MixedList => 30,
+            ErrorKind::DepthExceeded { .. } => 31,
+            ErrorKind::BlockNesting { .. } => 32,
+            ErrorKind::MalformedProposed => 33,
+            ErrorKind::MalformedGenerated => 34,
+            ErrorKind::NestedGenerated { .. } => 35,
+            ErrorKind::OrphanGeneratedEnd => 36,
+            ErrorKind::UnclosedGenerated { .. } => 37,
+            ErrorKind::LinkPartTooLong { .. } => 38,
+            ErrorKind::IndexHeader => 39,
+            ErrorKind::IndexText => 40,
+            ErrorKind::IndexMarker => 41,
+            ErrorKind::IndexEmpty => 42,
+        }
+    }
+
+    /// How many variants `ErrorKind` has.
+    const VARIANTS: usize = 43;
+
+    #[test]
+    fn all_lists_every_error_kind_once_in_variant_order() {
+        assert_eq!(ErrorKind::ALL.len(), VARIANTS);
+        for (index, tag) in ErrorKind::ALL.into_iter().enumerate() {
+            let kind = sample(tag);
+            assert_eq!(kind.tag(), tag, "{tag}");
+            assert_eq!(
+                position(&kind),
+                index,
+                "{tag} is out of order in ErrorKind::ALL"
+            );
+        }
+    }
+
+    #[test]
+    fn names_are_unique_lowercase_kebab_case() {
+        let mut names: Vec<&str> = ErrorKind::ALL.iter().map(|tag| tag.name()).collect();
+        for name in &names {
+            assert!(
+                !name.is_empty()
+                    && name.split('-').all(
+                        |part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_lowercase())
+                    ),
+                "{name}"
+            );
+        }
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), VARIANTS);
+    }
+}

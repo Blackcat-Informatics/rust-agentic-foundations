@@ -22,7 +22,7 @@ pub use typed::{
     Affects, Architecture, Bindings, Capability, CapabilitySection, Change, ChangeItem,
     ContractEffect, Header, Outcome, RafDocument, State,
 };
-pub use violation::{Location, Rule, Violation};
+pub use violation::{Location, Rule, RuleTag, Violation};
 
 /// The binding keys of a capability.
 const BINDING_KEYS: [&str; 3] = ["code", "tests", "examples"];

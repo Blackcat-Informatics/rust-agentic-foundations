@@ -1,0 +1,206 @@
+// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+//! Shared fixtures: a valid repository over an in-memory tree, the helpers that
+//! mutate it and judge the findings, and the named cases the coverage test
+//! reads.
+
+#![allow(
+    dead_code,
+    reason = "each test binary uses a part of the shared support"
+)]
+
+pub(crate) mod cases;
+
+use std::collections::BTreeMap;
+
+use raf_okf::Location;
+use raf_source::{MemoryTree, Workspace};
+use raf_workplan::{Finding, Workplan};
+
+/// Path to text, as the repository holds them.
+pub(crate) type Repo = BTreeMap<String, String>;
+
+/// A small source workspace the documents bind to.
+pub(crate) fn demo_workspace() -> Workspace {
+    let tree = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+        ),
+        ("src/lib.rs", "pub(crate) fn real() {}\n"),
+        ("tests/it.rs", "#[test]\nfn case() {}\n"),
+    ]);
+    match Workspace::load(&tree, &["."]) {
+        Ok(workspace) => workspace,
+        Err(error) => panic!("the demo workspace loads: {error}"),
+    }
+}
+
+/// Load `repo` through a memory tree and return every finding.
+pub(crate) fn check(repo: &Repo) -> Vec<Finding> {
+    let tree: MemoryTree = repo.iter().collect();
+    let workspace = demo_workspace();
+    Workplan::load(&tree, &workspace).check()
+}
+
+pub(crate) mod fixtures {
+    use super::{Repo, check};
+    use raf_workplan::Finding;
+
+    pub(crate) const SECTIONS: [&str; 7] = [
+        "Purpose",
+        "Contract",
+        "Usage",
+        "Examples",
+        "Constraints",
+        "Explanation",
+        "Verification",
+    ];
+
+    pub(crate) fn capability(slug: &str, state: &str, depends: &str, body: &str) -> String {
+        let sections = SECTIONS
+            .iter()
+            .map(|name| {
+                let extra = if *name == "Purpose" { body } else { "" };
+                format!("## {name}\n\n{extra}Text for {name}.\n")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let (code, tests) = if state == "delivered" {
+            ("[src/lib.rs]", "[tests/it.rs]")
+        } else {
+            ("[]", "[]")
+        };
+        format!(
+            "---\n# SPDX-FileCopyrightText: 2026 Example\n# SPDX-License-Identifier: CC-BY-4.0\n\
+             type: Capability\nid: cap:{slug}\ntitle: \"Title of {slug}\"\n\
+             description: A description of {slug}.\nstate: {state}\n\
+             bindings:\n  code: {code}\n  tests: {tests}\n  examples: []\n\
+             depends: {depends}\n---\n\n# {slug}\n\n{sections}"
+        )
+    }
+
+    const PROPOSED: &str = "> [!PROPOSED change:add-alpha]\n> The candidate contract.\n\n";
+
+    pub(crate) const ALPHA: &str = "docs/capabilities/alpha.md";
+    pub(crate) const BETA: &str = "docs/capabilities/beta.md";
+    pub(crate) const GAMMA: &str = "docs/capabilities/gamma.md";
+    pub(crate) const OVERVIEW: &str = "docs/architecture/overview.md";
+    pub(crate) const CHANGE: &str = "work/changes/add-alpha.md";
+
+    pub(crate) fn valid() -> Repo {
+        let mut repo = Repo::new();
+        let mut put = |path: &str, text: String| {
+            repo.insert(path.to_string(), text);
+        };
+        put(ALPHA, capability("alpha", "designed", "[cap:beta]", ""));
+        put(BETA, capability("beta", "considered", "[]", PROPOSED));
+        put(
+            GAMMA,
+            capability("gamma", "delivered", "[cap:beta, cap:alpha]", ""),
+        );
+        put(
+            OVERVIEW,
+            "---\ntype: Architecture\nid: arch:overview\ntitle: Overview\n\
+             description: How it fits.\n---\n\n# Overview\n\nBody text.\n"
+                .to_string(),
+        );
+        put(
+            CHANGE,
+            "---\ntype: Change\nid: change:add-alpha\ntitle: Add alpha\n\
+             description: Adds alpha and beta.\n\
+             changes: [cap:alpha, cap:beta]\naffects:\n  - cap:alpha#contract\n  - cap:beta#purpose\n\
+             contract_effect: changes\nitems:\n  - claim: \"alpha reads input\"\n    outcome: implemented\n  \
+             - claim: \"beta is sketched\"\n---\n\n## Summary\n\nAdds both.\n"
+                .to_string(),
+        );
+        put(
+            "README.md",
+            "# Readme\n\nSee [alpha](docs/capabilities/alpha.md#purpose).\n".to_string(),
+        );
+        repo
+    }
+
+    /// A change record with the given `changes` list, `affects` lines and
+    /// `items` block (the text after `items:`).
+    pub(crate) fn change_record(slug: &str, changes: &str, affects: &str, items: &str) -> String {
+        let items = if items.is_empty() {
+            "items: []\n".to_string()
+        } else {
+            format!("items:\n{items}")
+        };
+        format!(
+            "---\ntype: Change\nid: change:{slug}\ntitle: Change {slug}\n\
+             description: Changes {slug}.\nchanges: {changes}\naffects:\n{affects}\
+             contract_effect: changes\n{items}---\n\n## Summary\n\nChanges it.\n"
+        )
+    }
+
+    /// The valid repository with the first `from` in `path` replaced by `to`.
+    pub(crate) fn mutate(path: &str, from: &str, to: &str) -> Repo {
+        let mut repo = valid();
+        let text = repo
+            .get_mut(path)
+            .unwrap_or_else(|| panic!("fixture has no {path}"));
+        assert!(text.contains(from), "fixture {path} has no `{from}`");
+        *text = text.replacen(from, to, 1);
+        repo
+    }
+
+    pub(crate) fn mutated(path: &str, from: &str, to: &str) -> Vec<Finding> {
+        check(&mutate(path, from, to))
+    }
+}
+
+/// Require a finding of `kind` in `file` at `at`.
+pub(crate) fn assert_hit(findings: &[Finding], kind: &str, file: &str, at: &Location) {
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.kind == kind && f.file == file && &f.location == at),
+        "expected `{kind}` in {file} at {at:?}, got: {findings:#?}"
+    );
+}
+
+/// Require a finding of `kind` in `file`, wherever it is.
+pub(crate) fn assert_kind(findings: &[Finding], kind: &str, file: &str) {
+    assert!(
+        findings.iter().any(|f| f.kind == kind && f.file == file),
+        "expected `{kind}` in {file}, got: {findings:#?}"
+    );
+}
+
+/// Apply each `(from, to, kind, location)` mutation to `path` and require the
+/// finding.
+pub(crate) fn assert_cases(path: &str, cases: &[(&str, &str, &str, Location)]) {
+    for (from, to, kind, at) in cases {
+        let findings = fixtures::mutated(path, from, to);
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.kind == *kind && f.file == path && &f.location == at),
+            "replacing `{from}` with `{to}` should report `{kind}` at {at:?}, got: {findings:#?}"
+        );
+    }
+}
+
+pub(crate) fn assert_clean(findings: &[Finding]) {
+    assert!(findings.is_empty(), "{findings:#?}");
+}
+
+pub(crate) fn key(name: &str) -> Location {
+    Location::Key(name.to_string())
+}
+
+pub(crate) fn section(name: &str) -> Location {
+    Location::Section(name.to_string())
+}
+
+/// The 1-based line of the first line of `text` that contains `needle`.
+pub(crate) fn line_of(text: &str, needle: &str) -> usize {
+    match text.lines().position(|line| line.contains(needle)) {
+        Some(index) => index + 1,
+        None => panic!("no line contains `{needle}`"),
+    }
+}

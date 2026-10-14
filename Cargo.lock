@@ -97,6 +97,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "raf-workplan"
+version = "0.1.0"
+dependencies = [
+ "raf-okf",
+ "raf-source",
+]
+
+[[package]]
 name = "rust-agentic-foundations"
 version = "0.1.0"
 dependencies = [
