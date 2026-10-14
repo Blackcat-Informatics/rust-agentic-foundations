@@ -5,11 +5,12 @@
 
 use std::collections::BTreeSet;
 
-use raf_okf::{Architecture, Body, Capability, Change, DocType};
+use raf_okf::{Architecture, Body, Capability, Change, DocType, Index};
 use raf_source::Workspace;
 
 use crate::Finding;
 use crate::bindings;
+use crate::generated;
 use crate::graph::{self, Graph};
 use crate::links::LinkContext;
 use crate::load;
@@ -23,11 +24,27 @@ pub struct Loaded<T> {
     path: String,
     value: T,
     body: Body,
+    /// The text before the body: both frontmatter fences and the frontmatter,
+    /// byte for byte, so a rewritten body can be joined to it unchanged.
+    head: String,
 }
 
 impl<T> Loaded<T> {
-    pub(crate) fn new(path: String, value: T, body: Body) -> Self {
-        Self { path, value, body }
+    /// A loaded document. `text` is the whole file and `body` is read from it,
+    /// so the body starts where its span says.
+    pub(crate) fn new(path: String, value: T, body: Body, text: &str) -> Self {
+        let head = text[..body.span().bytes.start].to_string();
+        Self {
+            path,
+            value,
+            body,
+            head,
+        }
+    }
+
+    /// The file text up to the body.
+    pub(crate) fn head(&self) -> &str {
+        &self.head
     }
 
     /// The repository-relative path of the file, with `/` separators.
@@ -49,6 +66,18 @@ impl<T> Loaded<T> {
     }
 }
 
+/// What the load found at `docs/capabilities/index.md`.
+#[derive(Debug, Clone)]
+pub(crate) enum IndexSlot {
+    /// There is no such file.
+    Absent,
+    /// The file reads as a generated index.
+    Valid(Index),
+    /// The file is there and cannot be used: it did not read, or it is
+    /// hand-written. The finding says why.
+    Invalid(Finding),
+}
+
 /// The capability, change and architecture documents of a repository, loaded
 /// through a [`Tree`](raf_source::Tree), with every finding the load made.
 ///
@@ -65,6 +94,7 @@ pub struct Workplan<'s> {
     /// The PROPOSED blocks of capability documents that failed validation:
     /// file, change slug and line.
     pub(crate) unvalidated_blocks: Vec<(String, String, usize)>,
+    pub(crate) index: IndexSlot,
     graph: Graph,
     source: &'s Workspace,
 }
@@ -112,6 +142,7 @@ impl<'s> Workplan<'s> {
             findings: Vec::new(),
             present: BTreeSet::new(),
             unvalidated_blocks: Vec::new(),
+            index: IndexSlot::Absent,
             graph: Graph::default(),
             source,
         }
@@ -123,6 +154,33 @@ impl<'s> Workplan<'s> {
         let stem = name.strip_suffix(".md").unwrap_or(name);
         self.present
             .insert(format!("{}{stem}", doc_type.id_prefix()));
+    }
+
+    /// Whether the repository has a capability document, loaded or not: the
+    /// capability index is required exactly then.
+    pub(crate) fn has_capability_files(&self) -> bool {
+        self.present.iter().any(|id| id.starts_with("cap:"))
+    }
+
+    /// The ids of the capability and change documents that exist as files and
+    /// did not load, sorted. Their findings are in `check`.
+    pub(crate) fn unloaded(&self) -> Vec<String> {
+        let loaded: BTreeSet<&str> = self
+            .capabilities
+            .iter()
+            .map(|cap| cap.value().header.id.as_str())
+            .chain(
+                self.changes
+                    .iter()
+                    .map(|change| change.value().header.id.as_str()),
+            )
+            .collect();
+        self.present
+            .iter()
+            .filter(|id| id.starts_with("cap:") || id.starts_with("change:"))
+            .filter(|id| !loaded.contains(id.as_str()))
+            .cloned()
+            .collect()
     }
 
     /// Build the graph of the loaded documents and add the findings of the
@@ -195,9 +253,21 @@ impl<'s> Workplan<'s> {
         Roadmap::build(&self.capabilities, &self.graph)
     }
 
-    /// Every finding of every check over the loaded documents.
+    /// Every finding of every check over the loaded documents: the findings
+    /// of the load, then those of the generated blocks (`index-missing`,
+    /// `generated-stale`, `generated-unknown-kind`, `generated-misplaced` and
+    /// `mixed-line-endings`), which are judged by the renderers that
+    /// [`Workplan::sync`] writes with, so a clean `check` is a `sync` with
+    /// nothing to write.
     #[must_use]
     pub fn check(&self) -> Vec<Finding> {
-        self.findings.clone()
+        let mut findings = self.findings.clone();
+        findings.extend(generated::analyze(self).into_findings());
+        findings
     }
+
+    /// The kinds of generated block `raf-workplan` owns, in the order they are
+    /// documented: `verification-matrix` and `relationships` for a capability
+    /// document, `catalogue` for `docs/capabilities/index.md`.
+    pub const GENERATED_KINDS: [&'static str; 3] = generated::KINDS;
 }

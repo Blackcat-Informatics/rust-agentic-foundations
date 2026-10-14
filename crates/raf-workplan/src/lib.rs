@@ -35,6 +35,37 @@
 //! the open changes of each, and for an implementing capability the gaps in its
 //! bindings. A document that failed validation is a finding, not an entry.
 //!
+//! # Generated blocks and sync
+//!
+//! Three kinds of generated block are owned here: `verification-matrix`
+//! (`Item | Kind | Section`, one row per `tests` and `examples` binding, sorted
+//! by path), `relationships` (`Relation | Capability`: depends on, depended on
+//! by, changed by) and `catalogue` (one `## <State>` table per state, in the
+//! order delivered, implementing, designed, considered, with the gaps of an
+//! implementing capability). `verification-matrix` and `relationships` sit in
+//! a section of a capability document; `catalogue` sits in
+//! `docs/capabilities/index.md`, the only index, which holds nothing but its
+//! SPDX comment and generated blocks.
+//!
+//! [`Workplan::sync`] returns the whole new text of every stale or missing
+//! file as a [`SyncReport`], without writing; [`Workplan::write`] puts a report
+//! on a disk through a temporary file and a rename. `check` judges staleness
+//! with the renderers that sync writes with (`generated-stale`), so a clean
+//! `check` is a sync with nothing to write. A missing index is `index-missing`,
+//! and sync creates it with the SPDX text of [`SyncOptions`].
+//!
+//! Text that comes from a document and is written into a table cell is
+//! escaped by one rule: `\` becomes `\\`, `|` becomes `\|`, `[` and `]`
+//! become `\[` and `\]`, `<` becomes `&lt;` (so a description can never open
+//! a comment or forge a marker), and each line break becomes one space.
+//!
+//! A block is written in the line ending of the body it sits in, read from the
+//! first line break of that body, so the frontmatter's ending does not matter.
+//! A body that mixes CRLF and LF is `mixed-line-endings` and sync refuses it.
+//! The index is created with LF line endings. A sync stops with
+//! [`SyncError::Unloaded`] while a capability or change document does not load,
+//! since the tables that list it would be wrong.
+//!
 //! ```rust
 //! use raf_source::{MemoryTree, Workspace};
 //! use raf_workplan::Workplan;
@@ -64,6 +95,7 @@
 
 mod bindings;
 mod finding;
+mod generated;
 mod graph;
 mod links;
 mod load;
@@ -72,6 +104,7 @@ pub mod plain;
 pub mod refs;
 mod roadmap;
 mod rules;
+mod sync;
 
 pub use bindings::ExampleKind;
 pub use finding::Finding;
@@ -82,3 +115,4 @@ pub use graph::{
 pub use links::LinkContext;
 pub use model::{Loaded, Workplan};
 pub use roadmap::{Gap, Roadmap, RoadmapEntry};
+pub use sync::{SyncError, SyncOptions, SyncReport};

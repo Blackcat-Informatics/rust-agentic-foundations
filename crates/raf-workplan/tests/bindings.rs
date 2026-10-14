@@ -9,7 +9,7 @@ mod support;
 use raf_source::{MemoryTree, Workspace};
 use raf_workplan::{BindingKind, ExampleKind, Finding, LinkContext, Workplan};
 use support::fixtures::{GAMMA, bound, bound_findings};
-use support::{assert_clean, demo_workspace};
+use support::{assert_clean, demo_workspace, without_sync_findings};
 
 const CASE: &str = "[demo::test_crate::it::case]";
 
@@ -284,7 +284,7 @@ fn findings_with_lists(lib: &str, code: &str, tests: &str, examples: &str) -> Ve
     let repo = bound(code, tests, examples);
     let tree: MemoryTree = repo.iter().collect();
     let context = LinkContext::of_tree(&tree);
-    Workplan::load_with(&tree, &source, &context).check()
+    without_sync_findings(Workplan::load_with(&tree, &source, &context).check())
 }
 
 #[test]
@@ -364,7 +364,7 @@ fn a_library_that_runs_no_documentation_tests_has_no_doctest_examples() {
     let repo = bound("[demo::real]", CASE, "[demo::real]");
     let tree: MemoryTree = repo.iter().collect();
     let context = LinkContext::of_tree(&tree);
-    let found = Workplan::load_with(&tree, &source, &context).check();
+    let found = without_sync_findings(Workplan::load_with(&tree, &source, &context).check());
     let (kind, message) = only(&found);
     assert_eq!(kind, "binding-wrong-role");
     assert!(

@@ -14,7 +14,7 @@ use raf_workplan::Finding;
 use support::cases::all_cases;
 
 /// The kinds that name a rule of this crate.
-const OWN_KINDS: [&str; 26] = [
+const OWN_KINDS: [&str; 32] = [
     "wrong-directory",
     "nested-directory",
     "stray-markdown",
@@ -41,6 +41,12 @@ const OWN_KINDS: [&str; 26] = [
     "binding-ambiguous",
     "binding-wrong-role",
     "binding-macro-generated",
+    "index-missing",
+    "generated-stale",
+    "generated-unknown-kind",
+    "generated-misplaced",
+    "index-hand-written",
+    "mixed-line-endings",
 ];
 
 #[test]
@@ -65,8 +71,9 @@ fn every_rule_and_every_reader_error_has_its_own_kind() {
         want.insert(format!("okf-{}", tag.name()));
     }
     for tag in ErrorKind::ALL {
-        // A page that does not begin with a frontmatter fence is a stray file.
-        if tag.name() != "missing-fence" {
+        // A page that does not begin with a frontmatter fence is a stray file,
+        // and text in the generated index is a hand-written index.
+        if tag.name() != "missing-fence" && tag.name() != "index-text" {
             want.insert(format!("okf-parse-{}", tag.name()));
         }
     }
@@ -74,7 +81,7 @@ fn every_rule_and_every_reader_error_has_its_own_kind() {
     assert_eq!(have, want);
     assert_eq!(
         Finding::KINDS.len(),
-        Rule::ALL.len() + ErrorKind::ALL.len() + OWN_KINDS.len() - 1
+        Rule::ALL.len() + ErrorKind::ALL.len() + OWN_KINDS.len() - 2
     );
 }
 

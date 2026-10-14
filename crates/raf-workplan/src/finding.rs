@@ -49,6 +49,12 @@ kinds! {
     BINDING_AMBIGUOUS = "binding-ambiguous";
     BINDING_WRONG_ROLE = "binding-wrong-role";
     BINDING_MACRO_GENERATED = "binding-macro-generated";
+    INDEX_MISSING = "index-missing";
+    GENERATED_STALE = "generated-stale";
+    GENERATED_UNKNOWN_KIND = "generated-unknown-kind";
+    GENERATED_MISPLACED = "generated-misplaced";
+    INDEX_HAND_WRITTEN = "index-hand-written";
+    MIXED_LINE_ENDINGS = "mixed-line-endings";
     OKF_MISSING_KEY = "okf-missing-key";
     OKF_UNKNOWN_KEY = "okf-unknown-key";
     OKF_RESOURCE_KEY = "okf-resource-key";
@@ -124,7 +130,6 @@ kinds! {
     OKF_PARSE_UNCLOSED_GENERATED = "okf-parse-unclosed-generated";
     OKF_PARSE_LINK_PART_TOO_LONG = "okf-parse-link-part-too-long";
     OKF_PARSE_INDEX_HEADER = "okf-parse-index-header";
-    OKF_PARSE_INDEX_TEXT = "okf-parse-index-text";
     OKF_PARSE_INDEX_MARKER = "okf-parse-index-marker";
     OKF_PARSE_INDEX_EMPTY = "okf-parse-index-empty";
 }
@@ -157,8 +162,9 @@ impl Finding {
     ///   by `raf_okf::Rule::ALL`.
     /// * `okf-parse-<error>`: one kind for each way a document fails to read,
     ///   named by `raf_okf::ErrorKind::ALL`. A text that does not begin with a
-    ///   frontmatter fence is `stray-markdown` instead, and an index that does
-    ///   not read is `okf-parse-index-*`.
+    ///   frontmatter fence is `stray-markdown` instead, an index with text
+    ///   outside its blocks is `index-hand-written`, and any other index that
+    ///   does not read is `okf-parse-index-*`.
     /// * `wrong-directory`, `nested-directory` and `stray-markdown`: the
     ///   rules of the flat document directories.
     /// * `unreadable-file` and `unreadable-directory`: a file or a directory
@@ -194,6 +200,19 @@ impl Finding {
     ///   a `#[test]` function, `examples` an example target or a documented
     ///   item of a library whose documentation tests run), or that does not
     ///   resolve because a macro invocation in the parent module generates it.
+    /// * `index-missing`: a repository with capability documents has no
+    ///   `docs/capabilities/index.md`; sync creates it.
+    /// * `generated-stale`: a generated block differs from what sync writes;
+    ///   the message names the file and the kind.
+    /// * `generated-unknown-kind` and `generated-misplaced`: a block of a kind
+    ///   `raf-workplan` does not own, or of an owned kind in a document that
+    ///   does not take it (`verification-matrix` and `relationships` belong in
+    ///   a section of a capability document, `catalogue` in
+    ///   `docs/capabilities/index.md`).
+    /// * `index-hand-written`: text in `docs/capabilities/index.md` outside a
+    ///   generated block, other than its SPDX comment.
+    /// * `mixed-line-endings`: the body of a document mixes CRLF and LF line
+    ///   endings, so sync refuses to rewrite it.
     pub const KINDS: &'static [&'static str] = ALL_KINDS;
 
     pub(crate) fn new(
@@ -539,7 +558,7 @@ fn error_entry(tag: ErrorTag) -> (&'static str, &'static str) {
             "keep only SPDX tags with a value in the header comment, before the first block",
         ),
         ErrorTag::IndexText => (
-            kind::OKF_PARSE_INDEX_TEXT,
+            kind::INDEX_HAND_WRITTEN,
             "remove the text outside the generated blocks; the index is generated",
         ),
         ErrorTag::IndexMarker => (

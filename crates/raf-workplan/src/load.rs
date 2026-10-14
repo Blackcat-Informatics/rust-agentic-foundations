@@ -11,6 +11,7 @@ use raf_source::{EntryKind, RelPath, Tree, TreeError, Workspace};
 
 use crate::finding::kind;
 use crate::links::{self, LinkContext};
+use crate::model::IndexSlot;
 use crate::{Finding, Loaded, Workplan, plain, refs};
 
 /// The most bytes a document read may hold: one more than the profile accepts,
@@ -138,8 +139,11 @@ fn read_file(
         Ok(text) => text,
         Err(error) => {
             plan.note_present(dir_type, path);
-            plan.findings
-                .push(unreadable(kind::UNREADABLE_FILE, path, "file", &error));
+            let finding = unreadable(kind::UNREADABLE_FILE, path, "file", &error);
+            if is_capability_index(path) {
+                plan.index = IndexSlot::Invalid(finding.clone());
+            }
+            plan.findings.push(finding);
             return;
         }
     };
@@ -150,8 +154,15 @@ fn read_file(
         // rule shared by Markdown files judges.
         if is_capability_index(path) {
             match Index::parse(&text) {
-                Ok(index) => links::check_body(path, index.body(), links, &mut plan.findings),
-                Err(error) => plan.findings.push(Finding::from_parse_error(path, &error)),
+                Ok(index) => {
+                    links::check_body(path, index.body(), links, &mut plan.findings);
+                    plan.index = IndexSlot::Valid(index);
+                }
+                Err(error) => {
+                    let finding = Finding::from_parse_error(path, &error);
+                    plan.index = IndexSlot::Invalid(finding.clone());
+                    plan.findings.push(finding);
+                }
             }
         } else {
             plain::rules(path, &text, links, &mut plan.findings);
@@ -196,11 +207,15 @@ fn read_file(
             let path = path.to_string();
             match typed {
                 RafDocument::Capability(value) => {
-                    plan.capabilities.push(Loaded::new(path, value, body));
+                    plan.capabilities
+                        .push(Loaded::new(path, value, body, &text));
                 }
-                RafDocument::Change(value) => plan.changes.push(Loaded::new(path, value, body)),
+                RafDocument::Change(value) => {
+                    plan.changes.push(Loaded::new(path, value, body, &text));
+                }
                 RafDocument::Architecture(value) => {
-                    plan.architecture.push(Loaded::new(path, value, body));
+                    plan.architecture
+                        .push(Loaded::new(path, value, body, &text));
                 }
             }
         }

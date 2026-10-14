@@ -23,6 +23,9 @@
 
 REUSE ?= uvx reuse@6.2.0
 MSRV_RUN ?= rust-validate 1.98.1
+# The SPDX text of the index that `docs-sync` creates when it is missing.
+DOCS_COPYRIGHT ?= 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+DOCS_LICENCE ?= CC-BY-4.0
 # Tree that `fmt` and `reuse` read (the hook points it at a snapshot of the index).
 ROOT ?= .
 # The pinned cargo-fuzz that CI installs; keep local and CI versions in step.
@@ -42,7 +45,7 @@ FUZZ_RSS_LIMIT_MB ?= 2048
 FUZZ_MALLOC_LIMIT_MB ?= 512
 CROSS_TARGETS ?= x86_64-apple-darwin x86_64-unknown-freebsd x86_64-pc-windows-gnu
 
-.PHONY: help fmt clippy test test-release doc deny reuse msrv fuzz cross-check licenses issue-refs check hooks
+.PHONY: help fmt clippy test test-release doc deny reuse msrv fuzz cross-check licenses issue-refs docs-sync check hooks
 
 help: ## List the targets.
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-12s %s\n", $$1, $$2}'
@@ -110,6 +113,9 @@ licenses: ## Verify the Mulan text digests and the zh-Hans source fingerprint.
 
 issue-refs: ## Fail on issue/PR tokens and process wording in tracked files.
 	cargo test --locked --test repo_gates
+
+docs-sync: ## Rewrite the generated documentation blocks and create the capability index.
+	cargo run --locked -p raf-workplan --example docs_sync -- '$(ROOT)' --copyright '$(DOCS_COPYRIGHT)' --licence '$(DOCS_LICENCE)'
 
 check: ## Run every gate, stopping at the first failure.
 	$(MAKE) fmt

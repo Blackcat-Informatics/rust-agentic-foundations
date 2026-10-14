@@ -123,6 +123,9 @@ make check   # fmt, clippy, test, test-release, doc, deny, reuse, msrv, fuzz, cr
 make hooks   # point core.hooksPath at .githooks for this clone
 ```
 
+- **`make docs-sync` rewrites the generated documentation blocks** and creates
+  `docs/capabilities/index.md` when it is missing. It is not part of `make check`:
+  it is the repair for the stale-block finding of `Workplan::check`.
 - **Run `make check` before claiming work is done.** It stops at the first failure.
 - **Install the hooks with `make hooks`.** The pre-commit hook runs fmt and reuse
   on a checkout of the staged index, and the `repo_gates` and `docs_contract`

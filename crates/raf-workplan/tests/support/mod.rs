@@ -11,6 +11,7 @@
 )]
 
 pub(crate) mod cases;
+pub(crate) mod synced;
 
 use std::collections::BTreeMap;
 
@@ -63,7 +64,16 @@ pub use unit::helper as unit_helper;
 /// function and a plain one, an example with a documented helper, and an
 /// example the manifest marks `doctest = true`.
 pub(crate) fn demo_workspace() -> Workspace {
-    let tree = MemoryTree::from([
+    let tree: MemoryTree = demo_files().into_iter().collect();
+    match Workspace::load(&tree, &["."]) {
+        Ok(workspace) => workspace,
+        Err(error) => panic!("the demo workspace loads: {error}"),
+    }
+}
+
+/// The files of the demo workspace, by path.
+pub(crate) fn demo_files() -> Vec<(&'static str, &'static str)> {
+    vec![
         (
             "Cargo.toml",
             "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n\n\
@@ -82,11 +92,7 @@ pub(crate) fn demo_workspace() -> Workspace {
             "examples/flagged.rs",
             "fn main() {}\n/// A documented helper.\npub fn flagged_helper() {}\n",
         ),
-    ]);
-    match Workspace::load(&tree, &["."]) {
-        Ok(workspace) => workspace,
-        Err(error) => panic!("the demo workspace loads: {error}"),
-    }
+    ]
 }
 
 /// Load `repo` through a memory tree and return every finding.
@@ -101,7 +107,22 @@ pub(crate) fn check_with_symlinks(repo: &Repo, symlinks: &[&str]) -> Vec<Finding
     let workspace = demo_workspace();
     let context =
         LinkContext::of_tree(&tree).with_symlinks(symlinks.iter().map(|path| path_of(path)));
-    Workplan::load_with(&tree, &workspace, &context).check()
+    without_sync_findings(Workplan::load_with(&tree, &workspace, &context).check())
+}
+
+/// The kinds that only say the generated content has not been synced.
+const SYNC_KINDS: [&str; 2] = ["index-missing", "generated-stale"];
+
+/// `findings` without the two kinds that say the repository has not been
+/// synced. The shared fixtures carry no capability index and are changed one
+/// document at a time, so these findings would repeat in every case; the
+/// generated-block rules are tested on synced repositories in `generated.rs`
+/// and `sync.rs`.
+pub(crate) fn without_sync_findings(findings: Vec<Finding>) -> Vec<Finding> {
+    findings
+        .into_iter()
+        .filter(|finding| !SYNC_KINDS.contains(&finding.kind))
+        .collect()
 }
 
 /// The path `text` as a tree path.

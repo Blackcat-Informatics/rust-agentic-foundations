@@ -131,6 +131,23 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   the capability, and for an `implementing` capability its `Gap`s: a binding
   list that is empty, or an entry that does not resolve. `Roadmap::planned` is a
   view over the `designed` and `considered` groups, not a fifth state.
+- **`raf-workplan` generated blocks:** `Workplan::sync` computes the whole new
+  text of every stale or missing file as a `SyncReport`, writing nothing, and
+  `Workplan::write` puts a report on a disk through a temporary file and a
+  rename, refusing any target that is not an existing regular file or the new
+  `docs/capabilities/index.md`. Three kinds of block are generated:
+  `verification-matrix` (one row per `tests` and `examples` binding, sorted by
+  path, with the sections that name it), `relationships` (depends on, depended
+  on by, changed by) and `catalogue` (a table per state in the order delivered,
+  implementing, designed, considered, with the gaps of an implementing
+  capability). `check` judges staleness with the same renderers, so a clean
+  `check` is a sync with nothing to write. New finding kinds: `index-missing`,
+  `generated-stale`, `generated-unknown-kind`, `generated-misplaced`,
+  `index-hand-written` (which replaces `okf-parse-index-text`) and
+  `mixed-line-endings`. A block is written in the line ending of the body it
+  sits in; a body that mixes CRLF and LF is refused. Table cell text is escaped
+  by one fixed rule. The `docs_sync` example and `make docs-sync` run a sync,
+  with `--check` for a read-only comparison.
 - **Document contract:** `tests/docs_contract.rs` runs in `cargo test` and
   enforces the OKF profile on every capability, change and architecture
   document: closed key sets, values, the seven sections, markers, links,

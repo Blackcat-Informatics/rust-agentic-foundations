@@ -13,7 +13,10 @@ use raf_workplan::{Loaded, Workplan};
 use support::fixtures::{
     ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, capability, change_record, mutated, valid,
 };
-use support::{Repo, assert_cases, assert_clean, assert_hit, assert_kind, check, key, section};
+use support::{
+    Repo, assert_cases, assert_clean, assert_hit, assert_kind, check, key, section,
+    without_sync_findings,
+};
 
 #[test]
 fn accepts_valid_fixture() {
@@ -22,7 +25,7 @@ fn accepts_valid_fixture() {
     let workspace = support::demo_workspace();
     let plan = Workplan::load(&tree, &workspace);
     assert_clean(plan.findings());
-    assert_clean(&plan.check());
+    assert_clean(&without_sync_findings(plan.check()));
     assert_eq!(plan.capabilities().len(), 3);
     assert_eq!(plan.changes().len(), 1);
     assert_eq!(plan.architecture().len(), 1);
@@ -330,7 +333,7 @@ fn a_tree_that_cannot_be_built_is_a_finding_for_each_directory() {
     // Two keys that name one path make every operation of the tree fail.
     let tree = MemoryTree::from([("docs/a.md", "x"), ("docs//a.md", "y")]);
     let workspace = support::demo_workspace();
-    let findings = Workplan::load(&tree, &workspace).check();
+    let findings = without_sync_findings(Workplan::load(&tree, &workspace).check());
     let files: Vec<&str> = findings.iter().map(|f| f.file.as_str()).collect();
     assert_eq!(
         files,

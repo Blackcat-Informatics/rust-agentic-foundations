@@ -1111,8 +1111,9 @@ fn substantiated(body: &Body, path: &str) -> Vec<CapabilitySection> {
     }
 }
 
-/// The text of a section with its fenced code blocks and PROPOSED blocks
-/// blanked out, line breaks kept.
+/// The text of a section with its fenced code blocks, PROPOSED blocks and
+/// generated blocks blanked out, line breaks kept. A generated block is
+/// derived from this very text, so it must not count as prose.
 fn prose_of(body: &Body, section: &raf_okf::Section) -> Option<String> {
     let text = body.section_text(section)?;
     let start = section.content().bytes.start;
@@ -1124,6 +1125,11 @@ fn prose_of(body: &Body, section: &raf_okf::Section) -> Option<String> {
             body.proposed_blocks()
                 .iter()
                 .map(raf_okf::ProposedBlock::span),
+        )
+        .chain(
+            body.generated_blocks()
+                .iter()
+                .map(raf_okf::GeneratedBlock::outer),
         )
         .map(|span| {
             (

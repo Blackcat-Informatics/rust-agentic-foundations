@@ -10,6 +10,7 @@ use raf_okf::{ErrorTag, Location, MAX_TEXT_BYTES, MAX_YAML_DEPTH, Rule, RuleTag}
 use raf_workplan::Finding;
 
 use super::fixtures::{ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, bound, mutate, valid};
+use super::synced::{self, check_all};
 use super::{Repo, check_with_symlinks, key, line_of, section};
 
 /// A repository in which one file breaks one rule.
@@ -28,6 +29,9 @@ pub(crate) struct Case {
     pub(crate) also: Vec<&'static str>,
     /// The paths of the repository that are tracked symlinks.
     pub(crate) symlinks: Vec<&'static str>,
+    /// Whether the case keeps the findings that only say the repository is not
+    /// synced (see `without_sync_findings`).
+    pub(crate) unfiltered: bool,
 }
 
 impl Case {
@@ -40,7 +44,14 @@ impl Case {
             at,
             also: Vec::new(),
             symlinks: Vec::new(),
+            unfiltered: false,
         }
+    }
+
+    /// A case in a synced repository, judged with every finding kept.
+    fn unfiltered(mut self) -> Self {
+        self.unfiltered = true;
+        self
     }
 
     /// The paths of the repository that are tracked symlinks.
@@ -56,7 +67,11 @@ impl Case {
 
     /// Run the case and return every finding.
     pub(crate) fn run(&self) -> Vec<Finding> {
-        check_with_symlinks(&self.repo, &self.symlinks)
+        if self.unfiltered {
+            check_all(&self.repo)
+        } else {
+            check_with_symlinks(&self.repo, &self.symlinks)
+        }
     }
 
     /// Check the findings: the wanted kind is at the wanted place in the
@@ -383,7 +398,13 @@ pub(crate) fn parse_case(tag: ErrorTag) -> Case {
             "<!--\nnot a tag\n-->\n<!-- raf:generated:a -->\n<!-- raf:generated:end -->\n",
             2,
         ),
-        ErrorTag::IndexText => index("hand-written text\n", 1),
+        ErrorTag::IndexText => {
+            // Text in the index is `index-hand-written`; the case is named for
+            // the reader's error it comes from.
+            let mut case = index("hand-written text\n", 1);
+            case.kind = "index-hand-written".to_string();
+            case
+        }
         ErrorTag::IndexMarker => index("<!-- raf:generated:Bad -->\n", 1),
         ErrorTag::IndexEmpty => index("\n", 1),
     }
@@ -868,5 +889,123 @@ pub(crate) fn all_cases() -> Vec<Case> {
     cases.extend(state_cases());
     cases.extend(link_cases());
     cases.extend(binding_cases());
+    cases.extend(generated_cases());
+    cases
+}
+
+/// The cases for the generated blocks: a synced repository with one break
+/// each, judged with every finding kept.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one block per generated-block kind, each a repository with one break"
+)]
+pub(crate) fn generated_cases() -> Vec<Case> {
+    let base = synced::base();
+    let broken = |path: &str, from: &str, to: &str| {
+        let mut repo = base.clone();
+        let text = repo.get_mut(path).expect("the fixture holds the file");
+        assert!(text.contains(from), "{path} has no `{from}`");
+        *text = text.replacen(from, to, 1);
+        repo
+    };
+    let at = |repo: &Repo, path: &str, needle: &str| Location::Line(line_of(&repo[path], needle));
+    let mut cases = Vec::new();
+
+    let mut repo = base.clone();
+    repo.remove(synced::INDEX);
+    cases.push(
+        Case::new(
+            "index-missing-with-capabilities",
+            repo,
+            "index-missing",
+            synced::INDEX,
+            Location::Document,
+        )
+        .unfiltered(),
+    );
+
+    let repo = broken(
+        synced::GAMMA,
+        "| Depended on by | [alpha](./alpha.md) |",
+        "| Depended on by | [alphx](./alpha.md) |",
+    );
+    let line = at(&repo, synced::GAMMA, "raf:generated:relationships");
+    cases.push(
+        Case::new(
+            "generated-stale-edited-relationship-row",
+            repo,
+            "generated-stale",
+            synced::GAMMA,
+            line,
+        )
+        .unfiltered(),
+    );
+
+    let repo = broken(
+        synced::BETA,
+        "Text for Purpose of beta.\n",
+        "Text for Purpose of beta.\n\n<!-- raf:generated:nope -->\n<!-- raf:generated:end -->\n",
+    );
+    let line = at(&repo, synced::BETA, "raf:generated:nope");
+    cases.push(
+        Case::new(
+            "generated-unknown-kind-in-a-section",
+            repo,
+            "generated-unknown-kind",
+            synced::BETA,
+            line,
+        )
+        .unfiltered(),
+    );
+
+    let repo = broken(
+        synced::BETA,
+        "Text for Purpose of beta.\n",
+        "Text for Purpose of beta.\n\n<!-- raf:generated:catalogue -->\n<!-- raf:generated:end -->\n",
+    );
+    let line = at(&repo, synced::BETA, "raf:generated:catalogue");
+    cases.push(
+        Case::new(
+            "generated-misplaced-catalogue-in-a-capability",
+            repo,
+            "generated-misplaced",
+            synced::BETA,
+            line,
+        )
+        .unfiltered(),
+    );
+
+    let repo = broken(
+        synced::ALPHA,
+        "Text for Purpose of alpha.\n",
+        "Text for Purpose of alpha.\nCRLF line here\r\n",
+    );
+    let line = at(&repo, synced::ALPHA, "CRLF line here");
+    cases.push(
+        Case::new(
+            "mixed-line-endings-in-a-body-with-blocks",
+            repo,
+            "mixed-line-endings",
+            synced::ALPHA,
+            line,
+        )
+        .unfiltered(),
+    );
+
+    let mut repo = base;
+    repo.get_mut(synced::INDEX)
+        .expect("the fixture holds the index")
+        .push_str("\nHand written.\n");
+    let line = at(&repo, synced::INDEX, "Hand written.");
+    cases.push(
+        Case::new(
+            "index-hand-written-after-the-catalogue",
+            repo,
+            "index-hand-written",
+            synced::INDEX,
+            line,
+        )
+        .unfiltered(),
+    );
     cases
 }

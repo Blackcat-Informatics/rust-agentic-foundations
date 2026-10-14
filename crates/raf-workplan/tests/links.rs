@@ -15,7 +15,10 @@ use raf_source::{
 };
 use raf_workplan::{Finding, LinkContext, Workplan};
 use support::fixtures::{OVERVIEW, mutate, valid};
-use support::{assert_clean, check, demo_workspace, line_of, path_of, plain_check, with_file};
+use support::{
+    assert_clean, check, demo_workspace, line_of, path_of, plain_check, with_file,
+    without_sync_findings,
+};
 
 const README: &str = "README.md";
 
@@ -277,8 +280,9 @@ fn a_document_is_judged_against_the_supplied_tracked_set() {
         .map(|path| path_of(path))
         .collect();
     let workspace = demo_workspace();
-    let findings =
-        Workplan::load_with(&tree, &workspace, &LinkContext::new(&tree, tracked)).check();
+    let findings = without_sync_findings(
+        Workplan::load_with(&tree, &workspace, &LinkContext::new(&tree, tracked)).check(),
+    );
     assert_eq!(findings.len(), 1, "{findings:#?}");
     assert_eq!(findings[0].kind, "link-broken");
     assert_eq!(findings[0].file, OVERVIEW);
@@ -323,7 +327,7 @@ fn a_directory_the_walk_cannot_list_is_reported_and_not_skipped() {
     *overview = overview.replace("Body text.", "Body text. See [readme](../../README.md).");
     let tree = Flaky(repo.iter().collect());
     let workspace: Workspace = demo_workspace();
-    let findings = Workplan::load(&tree, &workspace).check();
+    let findings = without_sync_findings(Workplan::load(&tree, &workspace).check());
     assert_eq!(findings.len(), 1, "{findings:#?}");
     assert_eq!(findings[0].kind, "unreadable-directory");
     assert_eq!(findings[0].file, "locked");
@@ -335,7 +339,9 @@ fn the_tree_is_walked_only_when_a_relative_link_needs_it() {
     // walk could not list is never reached.
     let tree = Flaky(valid().iter().collect());
     let workspace = demo_workspace();
-    assert_clean(&Workplan::load(&tree, &workspace).check());
+    assert_clean(&without_sync_findings(
+        Workplan::load(&tree, &workspace).check(),
+    ));
 }
 
 #[test]
