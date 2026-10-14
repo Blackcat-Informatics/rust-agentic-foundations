@@ -276,8 +276,10 @@ fn entry(loaded: &Loaded<Capability>, graph: &Graph) -> RoadmapEntry {
     }
 }
 
-/// The empty lists and the unresolved entries of a capability's bindings.
-fn gaps(id: &str, graph: &Graph) -> Vec<Gap> {
+/// The empty lists and the unresolved entries of a capability's bindings,
+/// whatever its state: the roadmap keeps them for an implementing capability,
+/// and `reconcile` reads them for a delivered one too.
+pub(crate) fn gaps(id: &str, graph: &Graph) -> Vec<Gap> {
     let mut gaps = Vec::new();
     for list in [BindingKind::Code, BindingKind::Test, BindingKind::Example] {
         let mut entries = graph

@@ -11,7 +11,7 @@ use raf_source::Workspace;
 use crate::Finding;
 use crate::bindings;
 use crate::generated;
-use crate::graph::{self, Graph};
+use crate::graph::{self, BindingKind, Graph};
 use crate::links::LinkContext;
 use crate::load;
 use crate::roadmap::Roadmap;
@@ -94,6 +94,9 @@ pub struct Workplan<'s> {
     /// The PROPOSED blocks of capability documents that failed validation:
     /// file, change slug and line.
     pub(crate) unvalidated_blocks: Vec<(String, String, usize)>,
+    /// The capability documents that did not load only because a delivered
+    /// capability binds nothing in a list it must bind: file and lists.
+    pub(crate) unbound: Vec<(String, Vec<BindingKind>)>,
     pub(crate) index: IndexSlot,
     graph: Graph,
     source: &'s Workspace,
@@ -142,6 +145,7 @@ impl<'s> Workplan<'s> {
             findings: Vec::new(),
             present: BTreeSet::new(),
             unvalidated_blocks: Vec::new(),
+            unbound: Vec::new(),
             index: IndexSlot::Absent,
             graph: Graph::default(),
             source,

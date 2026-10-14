@@ -61,6 +61,21 @@
 //! bindings, the capabilities that depend on them and the sections that link
 //! to the affected sections, in a fixed order and without writing anything.
 //!
+//! [`Workplan::reconcile`] returns the [`obligation::Reconciled`] list of a
+//! change: what the documentation still owes it, each [`obligation::Obligation`]
+//! with a kind, the capability or record and the section or item it is about,
+//! a file and line, and the typed [`obligation::Needed`] evidence that settles
+//! it. It is derived from values the model already holds (the PROPOSED blocks
+//! of the graph, the items of the record, the gaps of the roadmap, the stale
+//! generated blocks of a sync) and from a fixed list of forward-looking
+//! phrases ([`obligation::tense::PHRASES`]) read in the prose of `implementing`
+//! and `delivered` capabilities. The list is sorted by subject, section, kind,
+//! line and evidence text; `contract_effect: none` suppresses
+//! `section-untouched` for `contract`, `usage` and `examples` and nothing else.
+//! The two kinds that need a process, `section-untouched` and
+//! `example-failing`, are in the closed set of [`obligation::ObligationKind`]
+//! and are not raised from the documents.
+//!
 //! # Processes
 //!
 //! [`exec`] is the one place a `cargo` or `git` process is started. A process is
@@ -162,6 +177,7 @@ mod links;
 mod load;
 mod lookup;
 mod model;
+pub mod obligation;
 pub mod plain;
 mod preview;
 pub mod refs;

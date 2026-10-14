@@ -92,7 +92,7 @@ impl Ord for SectionId {
 }
 
 /// The place of a section in the order a capability holds them.
-fn position(section: CapabilitySection) -> usize {
+pub(crate) fn position(section: CapabilitySection) -> usize {
     CapabilitySection::ALL
         .iter()
         .position(|candidate| *candidate == section)
@@ -222,6 +222,13 @@ pub enum BindingKind {
 }
 
 impl BindingKind {
+    /// The list a key of `bindings` names.
+    pub(crate) fn from_key(key: &str) -> Option<Self> {
+        [Self::Code, Self::Test, Self::Example]
+            .into_iter()
+            .find(|list| list.key() == key)
+    }
+
     /// The key of the list in `bindings`: `code`, `tests` or `examples`.
     #[must_use]
     pub fn key(self) -> &'static str {

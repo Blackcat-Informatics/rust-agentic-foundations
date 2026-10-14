@@ -216,6 +216,45 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   nothing, and an unknown slug and a record that did not load are told apart as
   `ChangeLookupError`. `SectionId` now has a `Display` (`cap:<slug>#<section>`) and
   `BindingKind::key` names the list of a binding, replacing two private copies.
+- **`raf-workplan` obligations:** `Workplan::reconcile` returns the `Reconciled` list of
+  a change, what the documentation still owes it, from the loaded documents alone. An
+  `Obligation` has a closed `ObligationKind` (`unresolved-proposal`,
+  `item-without-outcome`, `binding-missing`, `section-untouched`, `example-failing`,
+  `generated-stale`, `tense-mismatch`, with `ALL`, `name` and a check that `ALL` lists
+  every kind), a `Subject` (a capability, the change record or the capability index), a
+  `Part` (a section, an item counted from 1, or the document), a `Place` (file and
+  line) and a typed `Needed` evidence whose `Display` is the evidence column of the
+  reconcile contract followed by the one thing it is about, such as `(bindings.tests is
+  empty)`. Each is derived from a value the model holds: the PROPOSED blocks of the
+  graph for the change (the line of the marker) and the blocks of capability documents
+  that did not validate, which the load keeps (a block stays owed wherever it stands),
+  the items of the record (a `moved`
+  outcome that names no change record, or the record itself, is owed too), the roadmap
+  gaps of each listed `implementing` or `delivered` capability (a `delivered` one owes
+  `code` and `tests` only) with the bindings that resolve to an item their list does
+  not take, and the stale and missing generated blocks of a sync in the listed
+  capabilities and the index. A `delivered` capability whose only fault is an empty
+  `code` or `tests` list is refused by the profile and does not load; reconcile reads
+  the empty list as the binding it owes. Any other listed capability that did not load
+  is `ReconcileError::CapabilityNotLoaded`, with the findings of its document, and an
+  unknown change and a record that did not load are `ReconcileError::Change`.
+  `tense-mismatch` reads the prose of a listed `implementing` or `delivered` capability
+  against `obligation::tense::PHRASES` (`will`, `is planned`, `are planned`,
+  `proposed`, `to be implemented`, `in the future`, `going to`, `not yet`) outside
+  fenced code, code spans, HTML comments, PROPOSED blocks, generated blocks and link
+  destinations; words match whole (`goodwill`, `William` and `willing` do not), a phrase
+  may wrap over one line break, the marker name `PROPOSED` in capitals is not wording (`WILL` is), and a
+  delivered capability with a PROPOSED block owes the same kind. The scan is linear in
+  the size of the text. The list is sorted by subject, section (the document, then the seven sections in
+  document order, then items), kind, line and then
+  evidence text and has no repeats, so two blocks in one section print in document
+  order and equal documents print equal text, whatever the load order; `Display` prints
+  one line each (`cap:x  contract  unresolved-proposal  line 31: ...`) and nothing for
+  an empty list. `contract_effect: none` suppresses `section-untouched` for the
+  `contract`, `usage` and `examples` sections and nothing else (`obligation::suppressed`).
+  `section-untouched` and `example-failing` need `git` and `cargo`; they are in the
+  closed set, with their evidence, and `reconcile` does not raise them from the
+  documents.
 - **Workplan capabilities delivered:** the workplan document model and the
   generated documentation blocks are `delivered`, bound to the `raf-workplan` code,
   tests and examples that realise them, with their verification matrices,
