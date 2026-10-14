@@ -15,13 +15,14 @@ publish = false
 [dev-dependencies]
 raf-okf = { path = "crates/raf-okf", version = "0.1.0" }
 raf-source = { path = "crates/raf-source", version = "0.1.0" }
+raf-workplan = { path = "crates/raf-workplan", version = "0.1.0" }
 
 [lints]
 workspace = true
 
 [workspace]
 resolver = "3"
-members = ["crates/raf-okf", "crates/raf-source"]
+members = ["crates/raf-okf", "crates/raf-source", "crates/raf-workplan"]
 exclude = ["fuzz"]
 
 [workspace.package]

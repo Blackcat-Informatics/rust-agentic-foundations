@@ -30,12 +30,13 @@ and pull requests are welcome.
   input fails with a message that says how to fix it. Do not add silent fallbacks,
   best-effort parsing or skip-on-missing-tool behavior.
 - **Dogfood gates.** RAF is the first user of its own tools. The root package's
-  test suite carries the repository's own gates: today a document-contract test
-  for the capability documents and the repository gates (licence digests,
-  issue-reference scan, version agreement), all in Rust. Once `raf-census` and
-  `raf-workplan` exist, their census and workplan gates join it. A change that
-  makes a gate fail on RAF itself does not merge, and gates are never relaxed to
-  get a change through.
+  test suite carries the repository's own gates: a document-contract test that
+  runs the `raf-workplan` checks over the capability, change and architecture
+  documents, and the repository gates (licence digests, issue-reference scan,
+  version agreement), all in Rust. The census gate joins them when `raf-census`
+  is built. A change that makes a gate fail on RAF itself does not merge, and
+  gates are never relaxed to get a change through. `make docs-sync` rewrites the
+  generated documentation blocks that the workplan checks find stale.
 - **The workplan completion gate.** A change is complete only when the capability
   documents state the delivered contract: no proposed block remains, every item has an
   outcome (`implemented`, `dropped`, or `moved` to another tracked change), the

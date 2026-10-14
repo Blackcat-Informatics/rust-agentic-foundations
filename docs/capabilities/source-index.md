@@ -1486,18 +1486,18 @@ duplicates.
   `tests/common/a.rs` reached from `tests/zz.rs`. `super::super` from such a child
   reaches the crate root, and `demo::a::in_b` and `demo::a::b::in_a` are `NotFound`
   beside `demo::a::b::in_b`. In this repository `raf_okf::body::blocks::FenceBlock`
-  resolves and `raf_okf::body::FenceBlock` is `NotFound`, and the document-contract
-  test rejects a binding to the same misplaced shape. `raf_source::syn` and
+  resolves and `raf_okf::body::FenceBlock` is `NotFound`, and the `raf-workplan`
+  binding fixtures reject a binding to the same misplaced shape. `raf_source::syn` and
   `raf_source::syn::File`, through `pub use syn;`, are `NotFound` beside
   `raf_source::DiskTree`, which resolves.
 - Path-prefix fixtures: `items_under("demo::a")` beside the modules `demo::ab` and
   `demo::a1` returns `demo::a` and its descendants only, an empty prefix returns every
   item, and a file that the targets of two packages reach has the package of the first
   target in target order, which is the first by manifest path and not by name.
-- Binding fixtures in the document-contract test: a `tests` binding that names an
-  item that is not a function marked `#[test]` is a violation, and so is a `code`
-  binding that names test code or an item of a non-shipping target. The repository's
-  own bindings satisfy both rules.
+- Binding fixtures in `raf-workplan`: a `tests` binding that names an item that is
+  not a function marked `#[test]` is a violation, and so is a `code` binding that
+  names test code or an item of a non-shipping target. The repository's own bindings
+  satisfy both rules.
 - `#[path]` fixtures: a redirect inside the root resolves; `..` out of the root and
   an absolute path outside it both fail naming the module and the attribute, and a
   recording tree shows that the outside path is never read.

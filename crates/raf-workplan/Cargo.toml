@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+[package]
+name = "raf-workplan"
+description = "Loads capability, change and architecture documents into a typed model and reports findings."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
+raf-okf = { path = "../raf-okf", version = "0.1.0" }
+raf-source = { path = "../raf-source", version = "0.1.0" }
+
+[lints]
+workspace = true

@@ -16,6 +16,95 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   writes documents back deterministically so a parsed document renders to its own
   bytes. Input is bounded in size and nesting, anchors and aliases are refused, and
   the crate reads no file.
+- **`raf-workplan`:** loads a repository's capability, change and architecture
+  documents through a `raf-source` `Tree` into typed values with their bodies,
+  validating each with `raf-okf`. `Workplan::load` never fails and never panics:
+  every problem is a `Finding` with a stable kind, a file, a location, a message
+  and a fix. `Finding::KINDS` lists every kind, with one `okf-<rule>` kind for each
+  rule of the profile, one `okf-parse-<error>` kind for each way a document fails
+  to read, and the kinds of the flat document directories (`wrong-directory`,
+  `nested-directory`, `stray-markdown`) and of unreadable input
+  (`unreadable-file`, `unreadable-directory`). A file the tree refuses is reported
+  by name and never skipped. The load also builds one `Graph` of the documents and
+  the source they bind to: capabilities, their seven sections, changes, PROPOSED
+  blocks, and the symbols, tests and examples the bindings resolve to, joined by
+  binding, `depends`, `affects`, `changes` and section-granular link edges. The
+  queries `code_of`, `capabilities_of`, `tests_for`, `sections_of` and
+  `linking_sections` return typed, sorted values. The rules between documents are
+  the kinds `depends-missing`, `changes-missing`, `moved-missing` and
+  `depends-cycle`. The rules of PROPOSED blocks and states are the kinds
+  `proposed-missing-change`, `proposed-change-not-listing`,
+  `proposed-section-not-affected`, `state-considered-no-proposal`,
+  `state-designed-proposal`, `state-delivered-open-record`,
+  `state-delivered-proposal` and `no-open-record`. Links are judged against a
+  caller-supplied `LinkContext` of tracked paths and tracked symlinks (or the
+  files of the tree) as `link-broken`, `anchor-broken`, `link-outside` and
+  `link-symlink`, over inline, reference, image and HTML `href` and `src`
+  links, with anchors by GitHub rules. `plain::check` applies the same rules to
+  tracked Markdown outside the document directories. `refs` holds the one
+  pattern set for issue and pull request numbers and process wording, which
+  `check` reports as `issue-reference` and the repository gates call.
+  Each entry of `bindings` is resolved through the source index once, when the
+  graph is built, and the result is kept: `Graph::bindings_of` returns the
+  bindings of a capability with their sites or their resolve error, and
+  `Binding::example_kind` says whether a bound example is an example target
+  crate root or a documentation test item (`ExampleKind`). `check` reports the
+  kinds `binding-unresolved`, `binding-ambiguous`, `binding-wrong-role` and
+  `binding-macro-generated`. The roles are: `code` is a shipping item, `tests` is
+  a `#[test]` function, `examples` is an example target's crate root or a
+  documented item of a library whose documentation tests run; a binding that
+  resolves to several definitions fits only when each one does, and the role of
+  a re-exported item is judged on its definition. `binding-macro-generated` is
+  reported when the path does not resolve and an item-level macro invocation of
+  its parent module holds the name, so the symbol may be generated, which the
+  index cannot see.
+  `Gate::workspace(dir)` is the dev-dependency entry point: it loads the
+  documents and the source workspace (roots `["."]`, or `source_roots`) of a
+  checkout on disk and runs `check`; `assert_clean` panics listing every finding
+  as `kind file:line message (fix)`. Links are judged against the paths
+  `git ls-files` lists inside a git work tree, or against a list given to
+  `tracked_paths`; a path that is a symlink on disk is a tracked symlink. A
+  `git` that cannot run, fails, is told by `GIT_DIR` or `GIT_WORK_TREE` about
+  a repository it cannot use, or cannot list the index is a `GateError`. The one
+  fallback is taken when `git` itself answers that the directory is not inside a
+  git work tree (a copy of the files such as a commit hook's snapshot): every
+  file of the directory then stands for a tracked path, which makes the rule
+  that a link to an untracked file is broken weaker.
+  A missing `docs/capabilities`, or one with no capability document, is an error
+  (`GateError`, `try_check`) and not a clean verdict; a missing `work/changes` is
+  an empty set of changes. The repository's own document-contract test now loads
+  its tracked files through `raf-workplan` and keeps only the repository's policy:
+  the capability inventory (now with the generated `docs/capabilities/index.md`),
+  tracked symlinks, Markdown-only document directories, no frontmatter on a page
+  outside the document directories, and the equality of the Usage and Examples
+  blocks with the crate doctests. `docs/capabilities/index.md`
+  is created by `make docs-sync`.
+- **`raf-workplan` preview:** `Workplan::preview(change)` returns, for each
+  capability a change record lists (sorted by id), the whole document as it reads
+  once that change is reconciled, as `Preview { capability, path, text }`. The
+  slug is taken with or without the `change:` prefix. Each PROPOSED block of the
+  change is replaced by its content: the marker line goes, and so does the quote
+  marker (`>` and one space after it, if there is one) of each following line,
+  after the block's own indentation, which stays; a tab after `>` is kept as
+  written. The blocks of other changes and
+  all text outside blocks are kept byte for byte, each line keeps its own line
+  ending, and a listed capability with no block of the change is returned
+  unchanged. The result is a pure function of the loaded documents and writes
+  nothing. A `PreviewError` names an unknown slug (with the open changes), a
+  change record or a listed capability that did not load (with its findings), a
+  listed capability with no document, a line whose quote prefix cannot be removed
+  unambiguously (with file and line, including a quote that goes on into a fenced
+  code block, which ends a block in the document model), and a reconciled text
+  that does not read back. No finding kind is added.
+- **Workplan capabilities delivered:** the workplan document model and the
+  generated documentation blocks are `delivered`, bound to the `raf-workplan` code,
+  tests and examples that realise them, with their verification matrices,
+  relationship tables and the catalogue generated by `make docs-sync`.
+- **`raf-okf` rule and error tags:** `Rule::ALL` and `ErrorKind::ALL` list the
+  payload-free `RuleTag` and `ErrorTag` of every variant, with `Rule::kind`,
+  `ErrorKind::tag` and a kebab-case `name`, so a caller can name and map every rule
+  and every reader error. Both tag enums are exhaustive, and an in-crate test keeps
+  each list equal to the variants it names. The change is additive.
 - **`raf-source`:** indexes Rust source for other tools. A `Tree` trait with disk
   and memory backends gives every path confinement to the workspace root; package
   and target discovery finds library, binary, test, bench, example and build
@@ -76,6 +165,31 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   assessment, current rationale, command line), plus two architecture pages: the
   normal form and the RAF profile of OKF, which defines the seven body
   sections.
+- **`raf-workplan` roadmap:** `Workplan::status` returns one `Roadmap`, computed
+  from the graph: every capability grouped by state in the order `delivered`,
+  `implementing`, `designed`, `considered`, each group sorted by slug. An entry
+  carries the id, slug, title, description, state, document path, the link
+  target beside `docs/capabilities/index.md`, the ids of the changes that list
+  the capability, and for an `implementing` capability its `Gap`s: a binding
+  list that is empty, or an entry that does not resolve. `Roadmap::planned` is a
+  view over the `designed` and `considered` groups, not a fifth state.
+- **`raf-workplan` generated blocks:** `Workplan::sync` computes the whole new
+  text of every stale or missing file as a `SyncReport`, writing nothing, and
+  `Workplan::write` puts a report on a disk through a temporary file and a
+  rename, refusing any target that is not an existing regular file or the new
+  `docs/capabilities/index.md`. Three kinds of block are generated:
+  `verification-matrix` (one row per `tests` and `examples` binding, sorted by
+  path, with the sections that name it), `relationships` (depends on, depended
+  on by, changed by) and `catalogue` (a table per state in the order delivered,
+  implementing, designed, considered, with the gaps of an implementing
+  capability). `check` judges staleness with the same renderers, so a clean
+  `check` is a sync with nothing to write. New finding kinds: `index-missing`,
+  `generated-stale`, `generated-unknown-kind`, `generated-misplaced`,
+  `index-hand-written` (which replaces `okf-parse-index-text`) and
+  `mixed-line-endings`. A block is written in the line ending of the body it
+  sits in; a body that mixes CRLF and LF is refused. Table cell text is escaped
+  by one fixed rule. The `docs_sync` example and `make docs-sync` run a sync,
+  with `--check` for a read-only comparison.
 - **Document contract:** `tests/docs_contract.rs` runs in `cargo test` and
   enforces the OKF profile on every capability, change and architecture
   document: closed key sets, values, the seven sections, markers, links,
