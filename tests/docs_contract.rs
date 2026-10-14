@@ -200,7 +200,6 @@ impl Found {
                     match &item.outcome {
                         Some(Outcome::Moved(slug)) => moved.push(slug.clone()),
                         Some(Outcome::Implemented | Outcome::Dropped) | None => {}
-                        Some(other) => panic!("unmodelled outcome {other:?}"),
                     }
                 }
                 self.changes.push(ChangeFacts {
@@ -437,7 +436,6 @@ fn check_links(
                 path: relative,
                 anchor,
             }) => check_relative(repo, bodies, &site, &relative, anchor.as_deref(), out),
-            Ok(other) => out.push(site.report(format!("unmodelled link target {other:?}"))),
         }
     }
 }

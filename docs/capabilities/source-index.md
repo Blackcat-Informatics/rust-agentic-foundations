@@ -44,6 +44,8 @@ bindings:
     - raf_source::test_crate::discovery_targets::two_packages_with_one_name_are_an_error_naming_both_manifests
     - raf_source::test_crate::discovery_targets::an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads
     - raf_source::test_crate::discovery_targets::a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads
+    - raf_source::test_crate::discovery_targets::harness_required_features_test_and_doctest_are_read_from_each_target_table
+    - raf_source::test_crate::discovery_targets::a_test_setting_of_the_wrong_type_is_a_manifest_error_naming_its_key
     - raf_source::test_crate::module_tree::a_path_attribute_in_a_mod_rs_file_is_relative_to_that_files_directory
     - raf_source::test_crate::module_tree::every_cfg_attr_path_alternative_is_followed_carrying_its_predicate
     - raf_source::test_crate::module_tree::a_module_cycle_is_an_error_naming_both_files
@@ -157,6 +159,7 @@ bindings:
     - raf_source::test_crate::source_text::crlf_line_endings_give_the_same_lines_and_spans_as_lf
     - raf_source::test_crate::source_text::a_byte_order_mark_leaves_the_lines_of_the_text_where_they_are
     - raf_source::test_crate::source_text::a_byte_order_mark_on_the_first_line_starts_the_span_of_its_item_after_the_mark
+    - raf_source::test_crate::source_text::a_one_line_item_has_the_half_open_lines_n_to_n_plus_one
     - raf_source::test_crate::source_text::a_syntax_error_in_a_crlf_file_or_after_a_byte_order_mark_names_its_own_line
     - raf_source::test_crate::source_text::a_budget_refusal_in_a_crlf_file_names_the_same_line_as_in_an_lf_file
     - raf_source::test_crate::source_text::a_module_file_that_is_not_utf8_is_refused_on_disk_naming_the_file
@@ -718,7 +721,8 @@ The crate sets no time bound.
 
 **Package discovery.** `Workspace::load(tree, roots)` takes explicit roots; the
 crate has no default roots, each caller names its own (`"."` is the tree root), and an
-empty list is a `NoRoots` error.
+empty list is a `NoRoots` error. `Workspace::load` returns the first error, in the
+order discovery, targets, module walk, index; it does not collect errors.
 Discovery reads each root as a directory. A directory with a `Cargo.toml` that has a
 `[package]` table is a package. The walk descends, on a stack of its own and at most
 128 directories below the root, through every directory that is not
@@ -740,8 +744,14 @@ key. Packages are sorted by manifest path.
 
 For each package the crate derives the targets, in this order: the library, the
 binaries, the tests, the benches, the examples and the build script. A target has the
-package name, its Cargo name, its kind, its root file, a shipping flag and a crate
-path. The library is `[lib]` or `src/lib.rs`, named by `[lib] name` or the package
+package name, its Cargo name, its kind, its root file, a shipping flag, a crate path
+and the test settings of its table: `harness`, `required-features`, `test` and
+`doctest`. A setting the table leaves out, or a target without a table, takes cargo's
+default: `harness` true, no required features, `test` true for the library, the
+binaries and the tests and false for benches and examples, and `doctest` true for the
+library only. The build script has no table and is never tested, so its `harness`,
+`test` and `doctest` are false. A setting of the wrong type is a `Manifest` error that
+names its key, such as `bin.harness`. The library is `[lib]` or `src/lib.rs`, named by `[lib] name` or the package
 name. Binaries are the `[[bin]]` tables, `src/main.rs`, `src/bin/*.rs` and
 `src/bin/*/main.rs`; tests, benches and examples are their tables plus `tests/*.rs`,
 `tests/*/main.rs` and the same under `benches/` and `examples/`. `autobins`,
@@ -797,7 +807,9 @@ sorts first, and recorded under every path it was reached by; a `dir/..` pair is
 collapsed only when `dir` is a real directory, so a spelling is one the disk can
 follow, and one file has one spelling in the index. The walk stops at the first
 error. `Workspace::targets` yields the targets, and `Workspace::files` yields each
-source file once with its text, its facts and the module paths it was reached by. The
+source file once with its text and the module paths it was reached by. The facts of a
+file stay inside the crate, and a caller reads them through the items of the index
+(`Workspace::items_in`, `Workspace::item_at` and the other accessors). The
 facts of a file are read on the parse thread and owned: items with their name line,
 span, body span, attributes, visibility, documentation, test role and, for a struct, its
 field shape; `mod` declarations with their raw `path` and `cfg_attr` attributes; `use`
@@ -826,10 +838,13 @@ struct, enum, union, trait, type alias, constant, static, module, `macro_rules!`
 macro, `extern crate` item, item of an `extern` block, method of an inherent or trait
 `impl` block, default and required method of a trait, and associated constant or type.
 An item has an `id`, its full `path`, its `kind`, its `namespace`, its `file`, the line
-of its name, its `span` and `body` in lines and bytes, its `visibility`, `documented`,
+of its name, its `span` and `body` (a `SpanFact`) in lines and bytes, its `visibility`, `documented`,
 `doc_hidden`, `test` role, `target` and, for an impl member, the written `self_type`
 and `trait_path` and the `self_key` that says how its self type placed it (`Local`,
-`Trait` or `Unresolved`). The module path in an item's `path` is the chain of `mod`
+`Trait` or `Unresolved`). Line ranges are 1-based and half-open: the `lines` of a
+`SpanFact` run from its first line to the line after its last, as in `raf_okf::Span`,
+so an item on line `n` alone has the lines `n..n+1`, and its bytes run from
+`start_byte` to `end_byte`, the offset just past its end. The module path in an item's `path` is the chain of `mod`
 declarations that reached its file, whatever the order of the file names. The name
 spaces are type, value and macro. A function, constant or static is a value; a
 module, trait, enum, union, alias and `extern crate` item is a type; a unit or tuple
@@ -1283,6 +1298,13 @@ names the `X` of `p-two`, and a name that is no package of the workspace is
 macro generates is not indexed, and the documentation of the capabilities that rely on
 the index says so.
 
+**API surface.** The data structs a caller reads, `Package`, `Target`, `SourceFile`,
+`Reach`, `Entry` and `SpanFact`, are `#[non_exhaustive]` like `Item`, so a later field
+is not a breaking change: a pattern over one names the fields it reads and ends in
+`..`, and a `Tree` backend outside the crate builds an `Entry` with `Entry::new`. The
+per-file facts the index is built from are not public. `LoadOptions` is `Clone` and
+not `Copy`, so a later option that is not `Copy` is not a breaking change.
+
 ## Usage
 
 Load a workspace from a real directory and ask where a path is defined. The block
@@ -1360,6 +1382,10 @@ assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
   `char::escape_debug`, which also doubles a backslash, so it is safe to print to a
   terminal; the fields of the error keep the raw text.
 - The index is built once per `Workspace::load`; callers reload to see changed files.
+- Loading is serial; requiring `Tree: Sync` for a parallel load would be a breaking
+  change to `Workspace::load`.
+- `raf_source::syn` is re-exported so consumers use the syn version that produced the
+  facts; a syn major bump is a breaking change of raf-source.
 - Output order is sorted by path, so two loads of the same tree give equal results.
 
 ## Explanation
@@ -1384,7 +1410,17 @@ duplicates.
 - A `MemoryTree` fixture per target kind (library, binary, test, bench, example and
   build script) with default and with explicit paths, asserting the kind, the Cargo
   name, the shipping flag, the crate path and that each target's root module is
-  recorded under its crate path.
+  recorded under its crate path. A manifest whose tables set `harness`,
+  `required-features`, `test` (`test = false` among them) and `doctest` away from
+  cargo's defaults, beside targets of each kind without a table, which take the
+  defaults; a setting of the wrong type in each kind of table is a `Manifest` error
+  naming its key.
+- A `compile_fail` doctest on each of `Package`, `Target`, `SourceFile`, `Reach`,
+  `Entry` and `SpanFact` destructures it with every field and no `..` and must fail
+  with E0638, the error of a pattern over a non-exhaustive struct. The pattern for
+  `SourceFile` omits its crate-private `facts` field, so it is refused for that field
+  too, and only the seal makes it E0638. A `required-features` key on the library is a
+  manifest error, as cargo refuses it there.
 - Discovery fixtures: a virtual manifest contributes nothing; a manifest with a
   trailing comment and single-quoted values is honoured; no roots is an error; a
   package nested below a package without `[workspace]` is not found beside a root
@@ -1972,4 +2008,6 @@ duplicates.
   loads. CRLF line endings, with and without a byte-order mark, give the lines and byte
   spans of the LF text; a byte-order mark on the first line leaves its span starting
   after the mark's bytes; a syntax error and a budget refusal name the same line in LF
-  and CRLF text and after a mark.
+  and CRLF text and after a mark. A one-line item on line `n` has the lines
+  `n..n+1`, one over three lines ends before the line after its last, and a crate root
+  spans every line of its file.

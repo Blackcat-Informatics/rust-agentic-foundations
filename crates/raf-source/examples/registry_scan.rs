@@ -63,7 +63,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use raf_source::{DiskTree, Item, ModBody, SymbolKind, Workspace};
+use raf_source::{DiskTree, Item, SymbolKind, Workspace, syn};
 
 /// The prefix of the one line a child prints.
 const RESULT: &str = "result: ";
@@ -438,23 +438,18 @@ fn module_paths(ws: &Workspace) -> BTreeSet<(String, usize, String)> {
 }
 
 /// True when the `macro_rules!` macro `item` is marked `#[macro_export]`:
-/// its fact, in its file at the offset where its span starts, says so.
+/// its text, which its span takes from its first attribute, parses as a macro
+/// item with that attribute.
 fn is_exported_macro(ws: &Workspace, item: &Item) -> bool {
-    let Some(file) = ws.file(&item.file) else {
-        return false;
-    };
-    let mut bodies: Vec<&ModBody> = vec![&file.facts.body];
-    while let Some(body) = bodies.pop() {
-        if let Some(fact) = body
-            .items
-            .iter()
-            .find(|fact| fact.span.start_byte == item.span.start_byte)
-        {
-            return fact.macro_export;
-        }
-        bodies.extend(body.mods.iter().filter_map(|module| module.inline.as_ref()));
-    }
-    false
+    ws.source(&item.file)
+        .and_then(|text| text.get(item.span.start_byte..item.span.end_byte))
+        .and_then(|written| syn::parse_str::<syn::ItemMacro>(written).ok())
+        .is_some_and(|parsed| {
+            parsed
+                .attrs
+                .iter()
+                .any(|attr| attr.path().is_ident("macro_export"))
+        })
 }
 
 /// The misplaced items of a loaded crate, as `path in file`, sorted.

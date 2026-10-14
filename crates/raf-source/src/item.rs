@@ -302,9 +302,11 @@ pub struct Item {
     pub body: Option<SpanFact>,
     /// The declared visibility.
     pub visibility: Vis,
-    /// True when the item has non-blank documentation (see
-    /// [`ItemFact::documented`](crate::ItemFact::documented)); for a module
-    /// that has its own file, the file's inner documentation counts.
+    /// True when the item has non-blank documentation: an unconditional
+    /// `#[doc]` attribute or doc comment that holds text, or
+    /// `#[doc = include_str!(..)]`, where `#[doc(hidden)]` alone does not
+    /// count; for a module that has its own file, the file's inner
+    /// documentation counts.
     pub documented: bool,
     /// True when the item has `#[doc(hidden)]`.
     pub doc_hidden: bool,

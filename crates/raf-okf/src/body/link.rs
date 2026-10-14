@@ -65,8 +65,11 @@ impl SplitLink {
 }
 
 /// What a link target names.
+///
+/// The three forms are every place a target can lead, so the enum is
+/// exhaustive: a consumer matches every variant, and a new one is a breaking
+/// change.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum LinkTarget {
     /// A target with a scheme (`https:`, `mailto:`) or a network path (`//`).
     External(String),

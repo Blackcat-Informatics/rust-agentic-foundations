@@ -904,14 +904,10 @@ fn a_file_reached_by_targets_of_two_packages_belongs_to_the_first_target_in_targ
 }
 
 #[test]
-fn an_unnamed_const_is_in_the_facts_and_not_in_the_index() {
+fn an_unnamed_const_is_not_in_the_index_beside_a_named_one() {
     let ws = lib("const _: () = ();\npub const NAMED: u8 = 1;\n");
     assert!(ws.items().all(|i| i.name != "_"));
     assert!(ws.resolve_in("demo::NAMED", Namespace::Value).is_ok());
-    let file = ws
-        .file(&RelPath::new("src/lib.rs").expect("path"))
-        .expect("file");
-    assert!(file.facts.body.items.iter().any(|i| i.name == "_"));
 }
 
 #[test]
@@ -1016,8 +1012,8 @@ fn items_on_one_long_line_of_wide_characters_get_exact_byte_offsets_in_linear_ti
     for (index, start) in starts.iter().enumerate().step_by(997) {
         let found = item(&ws, &format!("demo::é{index}"), Namespace::Value);
         assert_eq!(found.span.start_byte, *start, "é{index}");
-        assert_eq!(found.span.start_line, 1);
-        let body = found.body.expect("a function body");
+        assert_eq!(found.span.lines, 1..2);
+        let body = found.body.clone().expect("a function body");
         assert_eq!(
             body.end_byte,
             start + format!("pub fn é{index}() {{}}").len()

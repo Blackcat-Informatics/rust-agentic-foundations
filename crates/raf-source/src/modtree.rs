@@ -56,7 +56,17 @@ impl TargetId {
 }
 
 /// One way a file was reached.
+///
+/// The struct is `#[non_exhaustive]`: a later field is not a breaking change,
+/// so a pattern names the fields it reads and ends in `..`.
+///
+/// ```compile_fail,E0638
+/// # fn names(reach: &raf_source::Reach) {
+/// let raf_source::Reach { target, module_path, test, predicate } = reach;
+/// # }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Reach {
     /// The target whose module tree holds the file.
     pub target: TargetId,

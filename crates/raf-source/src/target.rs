@@ -5,7 +5,7 @@
 //! script of a package, with the crate path each one is indexed under.
 
 use crate::error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
-use crate::manifest::{Build, Manifest, PackageDecl, TargetDecl};
+use crate::manifest::{Build, Manifest, PackageDecl, TargetDecl, TargetSettings};
 use crate::modtree::tidy;
 use crate::path::RelPath;
 use crate::tree::{EntryKind, Tree};
@@ -39,7 +39,17 @@ impl TargetKind {
 }
 
 /// A package found under a root.
+///
+/// The struct is `#[non_exhaustive]`: a later field is not a breaking change,
+/// so a pattern names the fields it reads and ends in `..`.
+///
+/// ```compile_fail,E0638
+/// # fn names(package: &raf_source::Package) {
+/// let raf_source::Package { name, manifest, dir } = package;
+/// # }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Package {
     /// The name in `[package]`.
     pub name: String,
@@ -50,7 +60,30 @@ pub struct Package {
 }
 
 /// One target of a package.
+///
+/// The test settings (`harness`, `required_features`, `test` and `doctest`)
+/// are read from the target table, `[lib]` or `[[bin]]` and the others, and
+/// take cargo's default when the table leaves them out or the target has no
+/// table. The build script has no table and is never tested: its `harness`,
+/// `test` and `doctest` are false and it requires no feature.
+///
+/// The struct is `#[non_exhaustive]`: a later field is not a breaking change,
+/// so a pattern names the fields it reads and ends in `..`.
+///
+/// ```compile_fail,E0638
+/// # fn names(target: &raf_source::Target) {
+/// let raf_source::Target {
+///     package, name, kind, crate_path, root, shipping,
+///     harness, required_features, test, doctest,
+/// } = target;
+/// # }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "harness, test and doctest are Cargo's boolean target keys, kept one to one"
+)]
 pub struct Target {
     /// The package name.
     pub package: String,
@@ -68,6 +101,21 @@ pub struct Target {
     pub root: RelPath,
     /// True for the library, the binaries and the build script.
     pub shipping: bool,
+    /// `harness`: true when `cargo test` builds the target with the libtest
+    /// harness, which is cargo's default for every target table.
+    pub harness: bool,
+    /// `required-features`: the features the target needs before cargo builds
+    /// it, in manifest order; empty by default.
+    pub required_features: Vec<String>,
+    /// `test`: true when `cargo test` tests the target by default. Cargo's
+    /// default is true for the library, the binaries and the tests and false
+    /// for benches and examples.
+    pub test: bool,
+    /// `doctest`: true when `cargo test` runs the documentation tests of the
+    /// target. Cargo's default is true for the library and false for every
+    /// other target. The value is reported as the manifest writes it; cargo
+    /// honours the key only for the library.
+    pub doctest: bool,
 }
 
 /// A target together with what led to its root file.
@@ -163,7 +211,11 @@ impl Context<'_> {
         crate_path: String,
         root: RelPath,
         origin: Origin,
+        settings: Option<&TargetSettings>,
     ) -> Derived {
+        let defaults = TargetSettings::default();
+        let settings = settings.unwrap_or(&defaults);
+        let tested = kind != TargetKind::BuildScript;
         Derived {
             target: Target {
                 package: self.package.name.clone(),
@@ -172,6 +224,13 @@ impl Context<'_> {
                 crate_path,
                 root,
                 shipping: kind.is_shipping(),
+                harness: settings.harness.unwrap_or(tested),
+                required_features: settings.required_features.clone(),
+                test: settings.test.unwrap_or(matches!(
+                    kind,
+                    TargetKind::Lib | TargetKind::Bin | TargetKind::Test
+                )),
+                doctest: settings.doctest.unwrap_or(kind == TargetKind::Lib),
             },
             origin,
         }
@@ -226,7 +285,8 @@ impl Context<'_> {
                 .and_then(|lib| lib.name.clone())
                 .unwrap_or_else(|| self.package.name.clone());
             let crate_path = ident(&name);
-            out.push(self.derive(&name, TargetKind::Lib, crate_path, root, origin));
+            let settings = explicit.map(|lib| &lib.settings);
+            out.push(self.derive(&name, TargetKind::Lib, crate_path, root, origin, settings));
             Ok(())
         } else if explicit.is_some() {
             Err(self.missing(root, &origin))
@@ -261,7 +321,14 @@ impl Context<'_> {
                 (origin, root)
             };
             let crate_path = format!("{}::bin_crate::{}", ident(package), ident(&name));
-            out.push(self.derive(&name, TargetKind::Bin, crate_path, root, origin));
+            out.push(self.derive(
+                &name,
+                TargetKind::Bin,
+                crate_path,
+                root,
+                origin,
+                Some(&declared.settings),
+            ));
         }
         if !self.package.auto("bin") {
             return Ok(());
@@ -288,7 +355,7 @@ impl Context<'_> {
             .any(|d| d.target.kind == kind && (d.target.name == name || d.target.root == root));
         if !taken {
             let crate_path = self.crate_path(kind, name);
-            out.push(self.derive(name, kind, crate_path, root, Origin::Discovery));
+            out.push(self.derive(name, kind, crate_path, root, Origin::Discovery, None));
         }
     }
 
@@ -364,7 +431,14 @@ impl Context<'_> {
                 (origin, root)
             };
             let crate_path = self.crate_path(kind, &name);
-            out.push(self.derive(&name, kind, crate_path, root, origin));
+            out.push(self.derive(
+                &name,
+                kind,
+                crate_path,
+                root,
+                origin,
+                Some(&target.settings),
+            ));
         }
         if auto {
             self.infer_from(directory, kind, out)?;
@@ -387,6 +461,7 @@ impl Context<'_> {
                 crate_path,
                 root,
                 origin,
+                None,
             ));
             Ok(())
         } else if matches!(self.package.build, Build::Path(_)) {

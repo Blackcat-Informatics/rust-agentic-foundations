@@ -602,16 +602,31 @@ fn the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone() {
          fn bare() {}\n\
          #[cfg(test)] mod tests { fn inside() {} #[test] fn inner_test() {} }\n",
     )]);
-    let file = ws
-        .file(&RelPath::new("src/lib.rs").expect("path"))
-        .expect("loaded");
-    let roles: Vec<(&str, TestRole)> = file
-        .facts
-        .body
-        .items
-        .iter()
-        .map(|item| (item.name.as_str(), item.test))
-        .collect();
+    let file = RelPath::new("src/lib.rs").expect("path");
+    let role = |name: &str| {
+        let found: Vec<TestRole> = ws
+            .items_in(&file)
+            .filter(|item| &*item.name == name)
+            .map(|item| item.test)
+            .collect();
+        assert_eq!(found.len(), 1, "one item named {name}");
+        found[0]
+    };
+    let roles: Vec<(&str, TestRole)> = [
+        "all_test",
+        "any_test",
+        "any_mixed",
+        "not_test",
+        "plain_cfg",
+        "marked",
+        "bare",
+        "tests",
+        "inside",
+        "inner_test",
+    ]
+    .into_iter()
+    .map(|name| (name, role(name)))
+    .collect();
     assert_eq!(
         roles,
         [
@@ -622,21 +637,9 @@ fn the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone() {
             ("plain_cfg", TestRole::None),
             ("marked", TestRole::TestFn),
             ("bare", TestRole::None),
-        ]
-    );
-    let tests = &file.facts.body.mods[0];
-    assert_eq!(tests.test, TestRole::CfgTest);
-    let inner = tests.inline.as_ref().expect("inline");
-    let inner_roles: Vec<_> = inner
-        .items
-        .iter()
-        .map(|i| (i.name.as_str(), i.test))
-        .collect();
-    assert_eq!(
-        inner_roles,
-        [
+            ("tests", TestRole::CfgTest),
             ("inside", TestRole::CfgTest),
-            ("inner_test", TestRole::TestFn)
+            ("inner_test", TestRole::TestFn),
         ]
     );
 }
@@ -659,63 +662,6 @@ fn an_unparseable_cfg_is_an_error_naming_file_and_line_beside_a_parseable_one() 
         assert_eq!(error.line, Some(2), "{bad}");
     }
     assert!(load(&[("src/lib.rs", "#[cfg(all(unix, not(test)))] fn fine() {}")]).is_ok());
-}
-
-#[test]
-fn facts_carry_names_lines_documentation_visibility_and_macro_export() {
-    let ws = ok(&[(
-        "src/lib.rs",
-        "/// Documented.\npub fn documented() {}\n\n#[doc(hidden)]\npub fn hidden() {}\n\n///\nfn blank() {}\n\n#[macro_export]\nmacro_rules! shout { () => {} }\n\npub(crate) struct S { x: u8 }\nextern crate alloc as heap;\n",
-    )]);
-    let file = ws
-        .file(&RelPath::new("src/lib.rs").expect("path"))
-        .expect("loaded");
-    let items = &file.facts.body.items;
-    assert_eq!(items[0].name, "documented");
-    assert!(items[0].documented && !items[0].doc_hidden);
-    assert_eq!(items[0].name_line, 2);
-    assert!(!items[1].documented && items[1].doc_hidden);
-    assert!(!items[2].documented);
-    assert!(items[3].macro_export);
-    assert_eq!(
-        items[4].vis,
-        raf_source::Vis::Restricted("crate".to_owned())
-    );
-    assert!(items[4].body.is_some());
-    assert_eq!(items[5].name, "heap");
-    assert_eq!(items[5].renamed_from.as_deref(), Some("alloc"));
-    let span = items[0].span;
-    assert_eq!(
-        &file.text[span.start_byte..span.end_byte],
-        "/// Documented.\npub fn documented() {}"
-    );
-}
-
-#[test]
-fn use_trees_and_impl_headers_are_recorded_as_written() {
-    let ws = ok(&[(
-        "src/lib.rs",
-        "use ::std::{fmt, io::{self, Read as R}};\nuse crate::a::*;\nstruct Holder<T>(T);\nimpl<T> Holder<T> { fn get(&self) {} }\nimpl Trait for a::b::Thing { fn run(&self) {} }\ntrait Trait {}\n",
-    )]);
-    let file = ws
-        .file(&RelPath::new("src/lib.rs").expect("path"))
-        .expect("loaded");
-    assert_eq!(file.facts.body.uses.len(), 2);
-    assert!(file.facts.body.uses[0].leading_colon);
-    assert_eq!(file.facts.body.impls.len(), 2);
-    let inherent = &file.facts.body.impls[0];
-    assert_eq!(
-        inherent.self_path.as_deref(),
-        Some(&["Holder".to_owned()][..])
-    );
-    assert!(inherent.trait_path.is_none());
-    assert_eq!(inherent.items[0].name, "get");
-    let by_trait = &file.facts.body.impls[1];
-    assert_eq!(by_trait.trait_path.as_deref(), Some("Trait"));
-    assert_eq!(
-        by_trait.self_path.as_deref(),
-        Some(&["a".to_owned(), "b".to_owned(), "Thing".to_owned()][..])
-    );
 }
 
 #[test]
@@ -900,71 +846,6 @@ fn a_malformed_cfg_path_or_test_attribute_is_an_error_naming_its_line() {
         );
         assert_eq!(error.line, Some(2), "{bad}");
     }
-}
-
-#[test]
-fn facts_record_struct_shapes_unnamed_consts_leading_colons_and_documentation_forms() {
-    let ws = ok(&[
-        (
-            "src/lib.rs",
-            "//! The crate.
-             pub struct Unit;
-pub struct Tuple(u8);
-pub struct Named { x: u8 }
-             const _: () = ();
-             #[doc = include_str!(\"lib.rs\")]
-pub fn guide() {}
-             impl Foo for ::other::Thing {}
-impl Foo for local::Thing {}
-             mod documented;
-trait Foo {}
-",
-        ),
-        (
-            "src/documented.rs",
-            "//! Inner docs.
-",
-        ),
-    ]);
-    let lib = ws
-        .file(&RelPath::new("src/lib.rs").expect("path"))
-        .expect("loaded");
-    assert!(lib.facts.documented);
-    let shapes: Vec<_> = lib
-        .facts
-        .body
-        .items
-        .iter()
-        .map(|i| (i.name.as_str(), i.shape))
-        .collect();
-    assert_eq!(
-        shapes[..3],
-        [
-            ("Unit", Some(raf_source::FieldShape::Unit)),
-            ("Tuple", Some(raf_source::FieldShape::Tuple)),
-            ("Named", Some(raf_source::FieldShape::Named)),
-        ]
-    );
-    let unnamed = &lib.facts.body.items[3];
-    assert_eq!(
-        (unnamed.name.as_str(), unnamed.kind),
-        ("_", raf_source::ItemKind::UnnamedConst)
-    );
-    assert!(lib.facts.body.items[4].documented);
-    assert!(lib.facts.body.impls[0].self_leading_colon);
-    assert!(!lib.facts.body.impls[1].self_leading_colon);
-    let inner = ws
-        .file(&RelPath::new("src/documented.rs").expect("path"))
-        .expect("loaded");
-    assert!(inner.facts.documented);
-    let bare = ok(&[("src/lib.rs", "pub fn plain() {}")]);
-    assert!(
-        !bare
-            .file(&RelPath::new("src/lib.rs").expect("path"))
-            .expect("loaded")
-            .facts
-            .documented
-    );
 }
 
 /// `levels` nested inline modules, each with two `cfg_attr` path alternatives.

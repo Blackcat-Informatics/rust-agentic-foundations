@@ -762,3 +762,148 @@ fn a_first_party_module_named_like_the_test_namespace_loads_beside_a_test_target
         .expect("loaded");
     assert_eq!(root.reached[0].module_path, "demo::test_crate::it");
 }
+
+/// The test settings of each target: harness, required features, test and
+/// doctest.
+fn settings(ws: &Workspace) -> Vec<(String, TargetKind, bool, Vec<String>, bool, bool)> {
+    ws.targets()
+        .map(|t| {
+            (
+                t.name.clone(),
+                t.kind,
+                t.harness,
+                t.required_features.clone(),
+                t.test,
+                t.doctest,
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn harness_required_features_test_and_doctest_are_read_from_each_target_table() {
+    let manifest = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n\
+                    [lib]\nharness = false\ntest = false\ndoctest = false\n\
+                    [[bin]]\nname = \"x\"\nrequired-features = [\"cli\"]\ntest = false\n\
+                    [[test]]\nname = \"it\"\nharness = false\ntest = false\n\
+                    [[bench]]\nname = \"b\"\nharness = false\ntest = true\n\
+                    [[example]]\nname = \"e\"\nrequired-features = [\"a\", \"b\"]\ndoctest = true\n";
+    let ws = load(
+        &[
+            ("Cargo.toml", manifest),
+            ("src/lib.rs", ""),
+            ("src/main.rs", ""),
+            ("src/bin/x.rs", ""),
+            ("tests/it.rs", ""),
+            ("tests/plain.rs", ""),
+            ("benches/b.rs", ""),
+            ("benches/plain.rs", ""),
+            ("examples/e.rs", ""),
+            ("examples/plain.rs", ""),
+            ("build.rs", ""),
+        ],
+        &["."],
+    )
+    .expect("loads");
+    let features = |names: &[&str]| names.iter().map(|&n| n.to_owned()).collect::<Vec<_>>();
+    let row = |name: &str, kind, harness, required: &[&str], test, doctest| {
+        (
+            name.to_owned(),
+            kind,
+            harness,
+            features(required),
+            test,
+            doctest,
+        )
+    };
+    assert_eq!(
+        settings(&ws),
+        [
+            // Each table sets keys away from cargo's defaults.
+            row("demo", TargetKind::Lib, false, &[], false, false),
+            row("x", TargetKind::Bin, true, &["cli"], false, false),
+            // A target with no table takes cargo's defaults for its kind.
+            row("demo", TargetKind::Bin, true, &[], true, false),
+            row("it", TargetKind::Test, false, &[], false, false),
+            row("plain", TargetKind::Test, true, &[], true, false),
+            row("b", TargetKind::Bench, false, &[], true, false),
+            row("plain", TargetKind::Bench, true, &[], false, false),
+            row("e", TargetKind::Example, true, &["a", "b"], false, true),
+            row("plain", TargetKind::Example, true, &[], false, false),
+            row(
+                "build-script-build",
+                TargetKind::BuildScript,
+                false,
+                &[],
+                false,
+                false
+            ),
+        ]
+    );
+    // A package with no tables at all: the library is tested and doctested.
+    let plain = load(&[("Cargo.toml", DEMO), ("src/lib.rs", "")], &["."]).expect("loads");
+    assert_eq!(
+        settings(&plain),
+        [row("demo", TargetKind::Lib, true, &[], true, true)]
+    );
+}
+
+#[test]
+fn a_test_setting_of_the_wrong_type_is_a_manifest_error_naming_its_key() {
+    for (table, key, value) in [
+        ("lib", "harness", "\"no\""),
+        ("lib", "doctest", "1"),
+        ("bin", "test", "\"yes\""),
+        ("test", "required-features", "\"cli\""),
+        ("example", "required-features", "[1]"),
+    ] {
+        let header = if table == "lib" {
+            "[lib]".to_owned()
+        } else {
+            format!("[[{table}]]\nname = \"t\"")
+        };
+        let manifest = format!("{DEMO}{header}\n{key} = {value}\n");
+        let error =
+            load(&[("Cargo.toml", &manifest), ("src/lib.rs", "")], &["."]).expect_err(&manifest);
+        assert!(
+            matches!(error.kind, LoadErrorKind::Manifest { .. }),
+            "{manifest}: {error}"
+        );
+        assert!(
+            error.to_string().contains(&format!("{table}.{key}")),
+            "{manifest}: {error}"
+        );
+    }
+}
+
+#[test]
+fn required_features_on_the_library_is_a_manifest_error_beside_a_binary_that_names_them() {
+    let refused = format!("{DEMO}[lib]\nrequired-features = [\"cli\"]\n");
+    let error = load(&[("Cargo.toml", &refused), ("src/lib.rs", "")], &["."])
+        .expect_err("cargo refuses required-features on a library");
+    assert!(
+        matches!(error.kind, LoadErrorKind::Manifest { .. }),
+        "{error}"
+    );
+    assert!(
+        error.to_string().contains("lib.required-features"),
+        "{error}"
+    );
+    let allowed = format!(
+        "{DEMO}[[bin]]\nname = \"t\"\npath = \"src/main.rs\"\nrequired-features = [\"cli\"]\n"
+    );
+    let ws = load(
+        &[
+            ("Cargo.toml", &allowed),
+            ("src/lib.rs", ""),
+            ("src/main.rs", "fn main() {}"),
+        ],
+        &["."],
+    )
+    .expect("a binary may name required features");
+    assert!(
+        ws.targets()
+            .any(|target| target.required_features == ["cli"]),
+        "the binary keeps its required features"
+    );
+}

@@ -15,7 +15,10 @@ pub const DEFAULT_MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
 /// [`Budget::FactBytes`] and [`Budget::GlobBytes`]. A load that passes one is refused with
 /// [`LoadErrorKind::Budget`](crate::LoadErrorKind::Budget), naming the budget,
 /// the limit that applied and the file.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// The options are `Clone` and not `Copy`, so a later option that is not
+/// `Copy`, such as a per-file hook, is not a breaking change.
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct LoadOptions {
     /// The most bytes one file may hold. A larger file is refused with

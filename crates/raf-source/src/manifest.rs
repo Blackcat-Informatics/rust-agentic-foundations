@@ -100,11 +100,26 @@ pub(crate) struct WorkspaceDependency {
     pub(crate) package: Option<String>,
 }
 
+/// The test settings of a target table, each `None` (or empty) when the
+/// table leaves it to cargo's default.
+#[derive(Debug, Default)]
+pub(crate) struct TargetSettings {
+    /// `harness`.
+    pub(crate) harness: Option<bool>,
+    /// `required-features`.
+    pub(crate) required_features: Vec<String>,
+    /// `test`.
+    pub(crate) test: Option<bool>,
+    /// `doctest`.
+    pub(crate) doctest: Option<bool>,
+}
+
 /// A `[lib]` table.
 #[derive(Debug, Default)]
 pub(crate) struct LibDecl {
     pub(crate) name: Option<String>,
     pub(crate) path: Option<String>,
+    pub(crate) settings: TargetSettings,
 }
 
 /// One `[[bin]]`, `[[test]]`, `[[bench]]` or `[[example]]` table.
@@ -112,6 +127,7 @@ pub(crate) struct LibDecl {
 pub(crate) struct TargetDecl {
     pub(crate) name: Option<String>,
     pub(crate) path: Option<String>,
+    pub(crate) settings: TargetSettings,
 }
 
 /// The `[package]` table.
@@ -174,6 +190,50 @@ fn flag(table: &Table, section: &str, key: &str) -> Result<bool, ManifestError> 
         Some(Value::Boolean(value)) => Ok(*value),
         Some(_) => Err(at_key(&format!("{section}.{key}"), "must be a boolean")),
     }
+}
+
+fn optional_flag(table: &Table, section: &str, key: &str) -> Result<Option<bool>, ManifestError> {
+    match table.get(key) {
+        None => Ok(None),
+        Some(Value::Boolean(value)) => Ok(Some(*value)),
+        Some(_) => Err(at_key(&format!("{section}.{key}"), "must be a boolean")),
+    }
+}
+
+/// The test settings of the target table `table` of `section`.
+fn settings(table: &Table, section: &str) -> Result<TargetSettings, ManifestError> {
+    if section == "lib" && table.contains_key("required-features") {
+        // Cargo refuses the key for a library.
+        return Err(at_key(
+            "lib.required-features",
+            "is not allowed for a library target",
+        ));
+    }
+    let required_features = match table.get("required-features") {
+        None => Vec::new(),
+        Some(Value::Array(features)) => features
+            .iter()
+            .map(|feature| match feature {
+                Value::String(name) => Ok(name.clone()),
+                _ => Err(at_key(
+                    &format!("{section}.required-features"),
+                    "must be an array of strings",
+                )),
+            })
+            .collect::<Result<_, _>>()?,
+        Some(_) => {
+            return Err(at_key(
+                &format!("{section}.required-features"),
+                "must be an array of strings",
+            ));
+        }
+    };
+    Ok(TargetSettings {
+        harness: optional_flag(table, section, "harness")?,
+        required_features,
+        test: optional_flag(table, section, "test")?,
+        doctest: optional_flag(table, section, "doctest")?,
+    })
 }
 
 fn table_of<'a>(value: &'a Value, key: &str) -> Result<&'a Table, ManifestError> {
@@ -261,6 +321,7 @@ fn declarations(root: &Table, section: &str) -> Result<Vec<TargetDecl>, Manifest
             Ok(TargetDecl {
                 name: string(table, section, "name")?,
                 path: string(table, section, "path")?,
+                settings: settings(table, section)?,
             })
         })
         .collect()
@@ -403,6 +464,7 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
             Some(LibDecl {
                 name: string(table, "lib", "name")?,
                 path: string(table, "lib", "path")?,
+                settings: settings(table, "lib")?,
             })
         }
     };

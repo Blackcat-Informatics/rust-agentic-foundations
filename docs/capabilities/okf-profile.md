@@ -141,7 +141,9 @@ section or the line instead. The rules are:
   entries are parsed into a capability id and one of the seven sections, and name a
   capability listed in `changes`; `contract_effect` is `none` or `changes`; `items`
   entries are parsed into a non-empty claim and an optional outcome
-  (`implemented`, `dropped` or `moved:change:<slug>`);
+  (`implemented`, `dropped` or `moved:change:<slug>`). `Outcome` and `LinkTarget`
+  are exhaustive enums, because the profile closes both sets: a consumer matches
+  every variant with no fallback arm, and a new variant is a breaking change;
 - `tags` is a list of non-empty strings with no duplicate, and `timestamp` is an RFC
   3339 date and time;
 - a Capability body holds the seven sections in order, none empty; a Change body holds
@@ -164,7 +166,9 @@ re-scanning text. `Document::parse` builds the body of a document through
 `Body::parse`, which also reads Markdown that has no frontmatter, such as a README: a
 leading `---` fence closed by a later `---` line is skipped, and otherwise the whole
 text is the body. Every span the model returns carries both line numbers and byte
-offsets, in the coordinates of the whole text. The model holds:
+offsets, in the coordinates of the whole text. Line ranges are 1-based and half-open,
+as are byte ranges, so a span on line `n` alone has the lines `n..n+1`. The model
+holds:
 
 - headings of levels 1 to 6 outside fenced code, each with its GitHub anchor (repeats
   numbered `-1`, `-2`), and a check whether an anchor exists;

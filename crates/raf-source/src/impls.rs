@@ -1305,7 +1305,7 @@ impl Index {
             self_type: shared_type,
             file: decl.file.clone(),
             line: fact.line,
-            span: fact.span,
+            span: fact.span.clone(),
             target: decl.target,
             test: combine(fact.test, decl.reach_test),
             members,

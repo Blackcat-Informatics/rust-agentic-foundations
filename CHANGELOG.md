@@ -28,6 +28,16 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   and keeps as facts are budgeted, with limits a caller can set; the walks keep
   stacks of their own; parsing runs on a dedicated stack; and committed fuzz
   targets cover the parser and a whole load of a workspace built in memory.
+- **Public API of `raf-source` and `raf-okf`:** the data structs a caller reads
+  (`Package`, `Target`, `SourceFile`, `Reach`, `Entry`, `SpanFact`, beside `Item`)
+  are `#[non_exhaustive]`, so a later field is not a breaking change, and a `Tree`
+  backend builds a listing entry with `Entry::new`. `Target` carries the test
+  settings of its manifest table (`harness`, `required_features`, `test`,
+  `doctest`) with cargo's defaults. `SpanFact` gives its lines as a 1-based
+  half-open `lines` range, as `raf_okf::Span` does. The per-file facts the index
+  is built from stay inside the crate; callers read items through the `Workspace`
+  accessors. `LoadOptions` is `Clone` and not `Copy`. `raf_okf::Outcome` and
+  `raf_okf::LinkTarget` are exhaustive, since the profile closes both sets.
 - **Workspace scaffold:** a Cargo workspace on edition 2024 with a floating
   nightly development toolchain and a minimum supported Rust version of 1.98.1,
   shared workspace lints (missing documentation, unreachable `pub` and unsafe

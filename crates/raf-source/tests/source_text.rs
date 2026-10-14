@@ -43,8 +43,8 @@ fn body(nl: &str) -> String {
 
 fn check_lines(ws: &Workspace) {
     let (a, b) = (item(ws, "demo::a"), item(ws, "demo::b"));
-    assert_eq!((a.name_line, a.span.start_line, a.span.end_line), (2, 2, 2));
-    assert_eq!((b.name_line, b.span.start_line, b.span.end_line), (4, 4, 5));
+    assert_eq!((a.name_line, a.span.lines.clone()), (2, 2..3));
+    assert_eq!((b.name_line, b.span.lines.clone()), (4, 4..6));
     assert_eq!(covered(ws, a), "pub fn a() {}");
     assert!(covered(ws, b).starts_with("pub fn b() {") && covered(ws, b).ends_with('}'));
 }
@@ -69,12 +69,12 @@ fn a_byte_order_mark_leaves_the_lines_of_the_text_where_they_are() {
 fn a_byte_order_mark_on_the_first_line_starts_the_span_of_its_item_after_the_mark() {
     let ws = load(&format!("{BOM}pub fn first() {{}} pub fn second() {{}}\n")).expect("loads");
     let first = item(&ws, "demo::first");
-    assert_eq!(first.span.start_line, 1);
+    assert_eq!(first.span.lines, 1..2);
     assert_eq!(first.span.start_byte, BOM.len());
     assert_eq!(covered(&ws, first), "pub fn first() {}");
     // A second item on the same line checks the column arithmetic after the mark.
     let second = item(&ws, "demo::second");
-    assert_eq!(second.span.start_line, 1);
+    assert_eq!(second.span.lines, 1..2);
     assert_eq!(
         second.span.start_byte,
         BOM.len() + "pub fn first() {} ".len()
@@ -83,6 +83,19 @@ fn a_byte_order_mark_on_the_first_line_starts_the_span_of_its_item_after_the_mar
     let at = ws.item_at(&first.file, BOM.len());
     assert_eq!(at.len(), 1);
     assert_eq!(at[0].name.as_ref(), "first");
+}
+
+#[test]
+fn a_one_line_item_has_the_half_open_lines_n_to_n_plus_one() {
+    let ws = load("// one\npub fn one() {}\npub struct S {\n    x: u8,\n}\n").expect("loads");
+    let one = item(&ws, "demo::one");
+    assert_eq!((one.name_line, one.span.lines.clone()), (2, 2..3));
+    let body = one.body.as_ref().expect("a function body");
+    assert_eq!(body.lines, 2..3);
+    // An item over three lines ends before the line after its last.
+    assert_eq!(item(&ws, "demo::S").span.lines, 3..6);
+    // The crate root spans the whole file, its five lines.
+    assert_eq!(item(&ws, "demo").span.lines, 1..6);
 }
 
 #[test]

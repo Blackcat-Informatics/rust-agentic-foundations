@@ -53,31 +53,16 @@ fn directories_are_inferred_and_listings_are_sorted_with_their_kinds() {
     assert_eq!(
         tree.list(&RelPath::root()).expect("list"),
         [
-            Entry {
-                name: "Cargo.toml".into(),
-                kind: EntryKind::File
-            },
-            Entry {
-                name: "src".into(),
-                kind: EntryKind::Dir
-            },
+            Entry::new("Cargo.toml", EntryKind::File),
+            Entry::new("src", EntryKind::Dir),
         ]
     );
     assert_eq!(
         tree.list(&path("src")).expect("list"),
         [
-            Entry {
-                name: "a".into(),
-                kind: EntryKind::Dir
-            },
-            Entry {
-                name: "lib.rs".into(),
-                kind: EntryKind::File
-            },
-            Entry {
-                name: "z.rs".into(),
-                kind: EntryKind::File
-            },
+            Entry::new("a", EntryKind::Dir),
+            Entry::new("lib.rs", EntryKind::File),
+            Entry::new("z.rs", EntryKind::File),
         ]
     );
 }

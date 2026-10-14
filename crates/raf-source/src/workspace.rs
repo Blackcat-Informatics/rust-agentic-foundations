@@ -25,7 +25,20 @@ use crate::target::{Context, Package, Target, check_crate_paths, derive_targets}
 use crate::tree::Tree;
 
 /// A source file of the workspace, parsed once.
+///
+/// The facts the index is built from stay inside the crate; the items of a
+/// file are read through [`Workspace::items_in`] and the other accessors.
+///
+/// The struct is `#[non_exhaustive]`: a later field is not a breaking change,
+/// so a pattern names the fields it reads and ends in `..`.
+///
+/// ```compile_fail,E0638
+/// # fn names(file: &raf_source::SourceFile) {
+/// let raf_source::SourceFile { path, package, shipping, test, text, reached } = file;
+/// # }
+/// ```
 #[derive(Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SourceFile {
     /// The path, relative to the tree root.
     pub path: RelPath,
@@ -39,7 +52,7 @@ pub struct SourceFile {
     /// The exact text that was parsed.
     pub text: String,
     /// The facts read from it.
-    pub facts: FileFacts,
+    pub(crate) facts: FileFacts,
     /// Every way a module tree reaches the file, in the order the walk
     /// found them.
     pub reached: Vec<Reach>,
@@ -97,9 +110,10 @@ impl Workspace {
     /// Load the packages under `roots`.
     ///
     /// Discovery finds every package, then each package's targets are derived
-    /// and each target's module tree is followed. The walk stops at the first
-    /// error, which names the file, the line when there is one, and the
-    /// module, attribute or manifest key that led to it.
+    /// and each target's module tree is followed. The load returns the first
+    /// error, in the order discovery, targets, module walk, index, and does not
+    /// collect errors; the error names the file, the line when there is one,
+    /// and the module, attribute or manifest key that led to it.
     ///
     /// # Errors
     ///

@@ -12,6 +12,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::mem::size_of;
+use std::ops::Range;
 
 use quote::ToTokens as _;
 use syn::spanned::Spanned as _;
@@ -21,12 +22,24 @@ use crate::cfg::{CfgExpr, parse_list};
 use crate::meter::FactAllowance;
 
 /// A region of the file in lines and bytes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Line ranges are 1-based and half-open, as in `raf_okf::Span`: an item on
+/// line `n` alone has the lines `n..n + 1`.
+///
+/// The struct is `#[non_exhaustive]`: a later field is not a breaking change,
+/// so a pattern names the fields it reads and ends in `..`.
+///
+/// ```compile_fail,E0638
+/// # fn names(span: &raf_source::SpanFact) {
+/// let raf_source::SpanFact { lines, start_byte, end_byte } = span;
+/// # }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SpanFact {
-    /// The 1-based first line.
-    pub start_line: usize,
-    /// The 1-based last line.
-    pub end_line: usize,
+    /// The lines the region covers: from its first line to the line after
+    /// its last.
+    pub lines: Range<usize>,
     /// The byte offset of the start.
     pub start_byte: usize,
     /// The byte offset just past the end.
@@ -61,8 +74,7 @@ pub enum Vis {
 
 /// What a named item is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum ItemKind {
+pub(crate) enum ItemKind {
     /// A function or a method.
     Fn,
     /// A struct.
@@ -97,11 +109,11 @@ pub enum ItemKind {
 /// A plain path as written: its segments without raw-identifier prefixes and
 /// whether it starts with `::`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PathFact {
+pub(crate) struct PathFact {
     /// The segments, generic arguments left out.
-    pub segments: Vec<String>,
+    pub(crate) segments: Vec<String>,
     /// True when the path starts with `::`.
-    pub leading_colon: bool,
+    pub(crate) leading_colon: bool,
 }
 
 /// How a struct declares its fields. A unit or tuple struct also defines a
@@ -119,103 +131,103 @@ pub enum FieldShape {
 
 /// An attribute as written: its path and the tokens after it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AttrFact {
+pub(crate) struct AttrFact {
     /// The attribute path, such as `derive` or `cfg`.
-    pub path: String,
+    pub(crate) path: String,
     /// The rest of the attribute, such as `(Debug)` or `= "text"`; empty when
     /// there is none.
-    pub args: String,
+    pub(crate) args: String,
 }
 
 /// A named item.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ItemFact {
+pub(crate) struct ItemFact {
     /// The name without a raw-identifier prefix. For `extern crate x as y`
     /// this is `y`.
-    pub name: String,
+    pub(crate) name: String,
     /// The original crate name of `extern crate x as y`.
-    pub renamed_from: Option<String>,
+    pub(crate) renamed_from: Option<String>,
     /// What the item is.
-    pub kind: ItemKind,
+    pub(crate) kind: ItemKind,
     /// The 1-based line of the name.
-    pub name_line: usize,
+    pub(crate) name_line: usize,
     /// The whole item, attributes included.
-    pub span: SpanFact,
+    pub(crate) span: SpanFact,
     /// The braced body, or the function block, when there is one.
-    pub body: Option<SpanFact>,
+    pub(crate) body: Option<SpanFact>,
     /// The declared visibility.
-    pub vis: Vis,
+    pub(crate) vis: Vis,
     /// Every attribute, in order.
-    pub attrs: Vec<AttrFact>,
+    pub(crate) attrs: Vec<AttrFact>,
     /// True when an unconditional `#[doc]` attribute (or a doc comment) holds
     /// text, or is `#[doc = include_str!(..)]`. `#[doc(hidden)]` alone does
     /// not count.
-    pub documented: bool,
+    pub(crate) documented: bool,
     /// True when the item has `#[doc(hidden)]`.
-    pub doc_hidden: bool,
+    pub(crate) doc_hidden: bool,
     /// The test role.
-    pub test: TestRole,
+    pub(crate) test: TestRole,
     /// True when the item has `#[macro_export]`.
-    pub macro_export: bool,
+    pub(crate) macro_export: bool,
     /// The items of a trait, in order.
-    pub members: Vec<ItemFact>,
+    pub(crate) members: Vec<ItemFact>,
     /// The field shape of a struct; `None` for every other kind.
-    pub shape: Option<FieldShape>,
+    pub(crate) shape: Option<FieldShape>,
     /// The aliased path of `type A = path::B;` when the right side is a plain
     /// path; `None` for every other item.
-    pub alias: Option<PathFact>,
+    pub(crate) alias: Option<PathFact>,
 }
 
 /// The `path` attributes of a module declaration.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct PathAttrs {
+pub(crate) struct PathAttrs {
     /// Every `#[path = "..."]` that applies unconditionally.
-    pub unconditional: Vec<String>,
+    pub(crate) unconditional: Vec<String>,
     /// Every `path` set by `#[cfg_attr(predicate, path = "...")]`.
-    pub conditional: Vec<ConditionalPath>,
+    pub(crate) conditional: Vec<ConditionalPath>,
 }
 
 /// A `path` that applies when a predicate holds.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConditionalPath {
+pub(crate) struct ConditionalPath {
     /// The `cfg_attr` predicate, as written.
-    pub predicate: String,
+    pub(crate) predicate: String,
     /// True when the predicate holds only in a test build.
-    pub implies_test: bool,
+    pub(crate) implies_test: bool,
     /// The path value.
-    pub path: String,
+    pub(crate) path: String,
 }
 
 /// A module declaration: `mod name;` or `mod name { .. }`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModFact {
+pub(crate) struct ModFact {
     /// The name without a raw-identifier prefix.
-    pub name: String,
+    pub(crate) name: String,
     /// The 1-based line of the name.
-    pub name_line: usize,
+    pub(crate) name_line: usize,
     /// The whole declaration, attributes included.
-    pub span: SpanFact,
+    pub(crate) span: SpanFact,
     /// The braced body of an inline module.
-    pub body_span: Option<SpanFact>,
+    pub(crate) body_span: Option<SpanFact>,
     /// The declared visibility.
-    pub vis: Vis,
+    pub(crate) vis: Vis,
     /// Every attribute, in order.
-    pub attrs: Vec<AttrFact>,
+    pub(crate) attrs: Vec<AttrFact>,
     /// True when the module is documented.
-    pub documented: bool,
+    pub(crate) documented: bool,
     /// True when the module has `#[doc(hidden)]`.
-    pub doc_hidden: bool,
+    pub(crate) doc_hidden: bool,
     /// The test role of the module itself.
-    pub test: TestRole,
+    pub(crate) test: TestRole,
     /// The `path` attributes.
-    pub paths: PathAttrs,
+    pub(crate) paths: PathAttrs,
     /// The contents of an inline module; `None` for `mod name;`.
-    pub inline: Option<ModBody>,
+    pub(crate) inline: Option<ModBody>,
 }
 
 /// One `use` tree, owned.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum UseTree {
+pub(crate) enum UseTree {
     /// `name::rest`.
     Path {
         /// The segment.
@@ -240,76 +252,76 @@ pub enum UseTree {
 
 /// A `use` declaration.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UseFact {
+pub(crate) struct UseFact {
     /// The 1-based line of the `use` keyword.
-    pub line: usize,
+    pub(crate) line: usize,
     /// The whole declaration.
-    pub span: SpanFact,
+    pub(crate) span: SpanFact,
     /// The declared visibility (a re-export when not inherited).
-    pub vis: Vis,
+    pub(crate) vis: Vis,
     /// True for `use ::name`.
-    pub leading_colon: bool,
+    pub(crate) leading_colon: bool,
     /// The tree.
-    pub tree: UseTree,
+    pub(crate) tree: UseTree,
     /// The test role.
-    pub test: TestRole,
+    pub(crate) test: TestRole,
 }
 
 /// An `impl` block header and its items.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ImplFact {
+pub(crate) struct ImplFact {
     /// The 1-based line of the `impl` keyword.
-    pub line: usize,
+    pub(crate) line: usize,
     /// The whole block.
-    pub span: SpanFact,
+    pub(crate) span: SpanFact,
     /// The braced body.
-    pub body: SpanFact,
+    pub(crate) body: SpanFact,
     /// The trait path as written, for a trait impl.
-    pub trait_path: Option<String>,
+    pub(crate) trait_path: Option<String>,
     /// The segments of the trait path, for a trait impl.
-    pub trait_segments: Option<PathFact>,
+    pub(crate) trait_segments: Option<PathFact>,
     /// The self type as written.
-    pub self_type: String,
+    pub(crate) self_type: String,
     /// The segments of the path the self type is written with: a plain path,
     /// or the first trait of a trait object (`dyn Tr + Send` gives `Tr`),
     /// inside any parentheses. `None` for every other type.
-    pub self_path: Option<Vec<String>>,
+    pub(crate) self_path: Option<Vec<String>>,
     /// True when that path starts with `::`, so it names an external crate
     /// and not a local item.
-    pub self_leading_colon: bool,
+    pub(crate) self_leading_colon: bool,
     /// The names of the generic type and const parameters of the block.
-    pub generics: Vec<String>,
+    pub(crate) generics: Vec<String>,
     /// The associated items.
-    pub items: Vec<ItemFact>,
+    pub(crate) items: Vec<ItemFact>,
     /// The test role.
-    pub test: TestRole,
+    pub(crate) test: TestRole,
 }
 
 /// The contents of a module, in source order within each list.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ModBody {
+pub(crate) struct ModBody {
     /// Named items other than modules, `use` declarations and impls.
-    pub items: Vec<ItemFact>,
+    pub(crate) items: Vec<ItemFact>,
     /// Module declarations.
-    pub mods: Vec<ModFact>,
+    pub(crate) mods: Vec<ModFact>,
     /// `use` declarations.
-    pub uses: Vec<UseFact>,
+    pub(crate) uses: Vec<UseFact>,
     /// `impl` blocks.
-    pub impls: Vec<ImplFact>,
+    pub(crate) impls: Vec<ImplFact>,
 }
 
 /// The facts of one file.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct FileFacts {
+pub(crate) struct FileFacts {
     /// The file's own module.
-    pub body: ModBody,
+    pub(crate) body: ModBody,
     /// True when the file starts with documentation (`//!` or `#![doc = ..]`),
     /// which documents the module that the file is.
-    pub documented: bool,
+    pub(crate) documented: bool,
     /// True when the file has `#![doc(hidden)]`.
-    pub doc_hidden: bool,
+    pub(crate) doc_hidden: bool,
     /// The inner attributes of the file, in order.
-    pub attrs: Vec<AttrFact>,
+    pub(crate) attrs: Vec<AttrFact>,
 }
 
 /// Why the facts of a file could not be read.
@@ -429,8 +441,7 @@ impl<'t> Positions<'t> {
     fn span(&self, span: proc_macro2::Span) -> Found<SpanFact> {
         let (start, end) = (span.start(), span.end());
         Ok(SpanFact {
-            start_line: start.line,
-            end_line: end.line,
+            lines: start.line..end.line + 1,
             start_byte: self.byte(start.line, start.column)?,
             end_byte: self.byte(end.line, end.column)?,
         })
@@ -1416,6 +1427,7 @@ pub(crate) fn extract(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::RelPath;
 
     #[test]
     fn a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines() {
@@ -1453,5 +1465,129 @@ mod tests {
             positions.byte(9, 0),
             Err(ExtractError::Position { line: 9 })
         ));
+    }
+
+    const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
+
+    /// The workspace of the package `demo` with `files` beside its manifest.
+    fn loaded(files: &[(&str, &str)]) -> crate::Workspace {
+        let mut all = vec![("Cargo.toml", DEMO)];
+        all.extend_from_slice(files);
+        let tree: crate::MemoryTree = all.into_iter().collect();
+        crate::Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"))
+    }
+
+    #[test]
+    fn facts_carry_names_lines_documentation_visibility_and_macro_export() {
+        let ws = loaded(&[(
+            "src/lib.rs",
+            "/// Documented.\npub fn documented() {}\n\n#[doc(hidden)]\npub fn hidden() {}\n\n///\nfn blank() {}\n\n#[macro_export]\nmacro_rules! shout { () => {} }\n\npub(crate) struct S { x: u8 }\nextern crate alloc as heap;\n",
+        )]);
+        let file = ws
+            .file(&RelPath::new("src/lib.rs").expect("path"))
+            .expect("loaded");
+        let items = &file.facts.body.items;
+        assert_eq!(items[0].name, "documented");
+        assert!(items[0].documented && !items[0].doc_hidden);
+        assert_eq!(items[0].name_line, 2);
+        assert!(!items[1].documented && items[1].doc_hidden);
+        assert!(!items[2].documented);
+        assert!(items[3].macro_export);
+        assert_eq!(items[4].vis, Vis::Restricted("crate".to_owned()));
+        assert!(items[4].body.is_some());
+        assert_eq!(items[5].name, "heap");
+        assert_eq!(items[5].renamed_from.as_deref(), Some("alloc"));
+        let span = &items[0].span;
+        assert_eq!(
+            &file.text[span.start_byte..span.end_byte],
+            "/// Documented.\npub fn documented() {}"
+        );
+    }
+
+    #[test]
+    fn use_trees_and_impl_headers_are_recorded_as_written() {
+        let ws = loaded(&[(
+            "src/lib.rs",
+            "use ::std::{fmt, io::{self, Read as R}};\nuse crate::a::*;\nstruct Holder<T>(T);\nimpl<T> Holder<T> { fn get(&self) {} }\nimpl Trait for a::b::Thing { fn run(&self) {} }\ntrait Trait {}\n",
+        )]);
+        let file = ws
+            .file(&RelPath::new("src/lib.rs").expect("path"))
+            .expect("loaded");
+        assert_eq!(file.facts.body.uses.len(), 2);
+        assert!(file.facts.body.uses[0].leading_colon);
+        assert_eq!(file.facts.body.impls.len(), 2);
+        let inherent = &file.facts.body.impls[0];
+        assert_eq!(
+            inherent.self_path.as_deref(),
+            Some(&["Holder".to_owned()][..])
+        );
+        assert!(inherent.trait_path.is_none());
+        assert_eq!(inherent.items[0].name, "get");
+        let by_trait = &file.facts.body.impls[1];
+        assert_eq!(by_trait.trait_path.as_deref(), Some("Trait"));
+        assert_eq!(
+            by_trait.self_path.as_deref(),
+            Some(&["a".to_owned(), "b".to_owned(), "Thing".to_owned()][..])
+        );
+    }
+
+    #[test]
+    fn facts_record_struct_shapes_unnamed_consts_leading_colons_and_documentation_forms() {
+        let ws = loaded(&[
+            (
+                "src/lib.rs",
+                "//! The crate.\n\
+                 pub struct Unit;\n\
+                 pub struct Tuple(u8);\n\
+                 pub struct Named { x: u8 }\n\
+                 const _: () = ();\n\
+                 #[doc = include_str!(\"lib.rs\")]\n\
+                 pub fn guide() {}\n\
+                 impl Foo for ::other::Thing {}\n\
+                 impl Foo for local::Thing {}\n\
+                 mod documented;\n\
+                 trait Foo {}\n",
+            ),
+            ("src/documented.rs", "//! Inner docs.\n"),
+        ]);
+        let lib = ws
+            .file(&RelPath::new("src/lib.rs").expect("path"))
+            .expect("loaded");
+        assert!(lib.facts.documented);
+        let shapes: Vec<_> = lib
+            .facts
+            .body
+            .items
+            .iter()
+            .map(|i| (i.name.as_str(), i.shape))
+            .collect();
+        assert_eq!(
+            shapes[..3],
+            [
+                ("Unit", Some(FieldShape::Unit)),
+                ("Tuple", Some(FieldShape::Tuple)),
+                ("Named", Some(FieldShape::Named)),
+            ]
+        );
+        let unnamed = &lib.facts.body.items[3];
+        assert_eq!(
+            (unnamed.name.as_str(), unnamed.kind),
+            ("_", ItemKind::UnnamedConst)
+        );
+        assert!(lib.facts.body.items[4].documented);
+        assert!(lib.facts.body.impls[0].self_leading_colon);
+        assert!(!lib.facts.body.impls[1].self_leading_colon);
+        let inner = ws
+            .file(&RelPath::new("src/documented.rs").expect("path"))
+            .expect("loaded");
+        assert!(inner.facts.documented);
+        let bare = loaded(&[("src/lib.rs", "pub fn plain() {}")]);
+        assert!(
+            !bare
+                .file(&RelPath::new("src/lib.rs").expect("path"))
+                .expect("loaded")
+                .facts
+                .documented
+        );
     }
 }

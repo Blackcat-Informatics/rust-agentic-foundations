@@ -133,8 +133,10 @@ pub struct Affects {
 }
 
 /// How an item of a change ended.
+///
+/// The profile closes the set, so the enum is exhaustive: a consumer matches
+/// every variant, and a new one is a breaking change.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum Outcome {
     /// The item was built.
     Implemented,

@@ -70,7 +70,7 @@ fn add(total: &Cell<usize>, amount: usize, limit: usize) -> Result<(), ()> {
 impl Meter {
     pub(crate) fn new(options: &LoadOptions) -> Self {
         Self {
-            options: *options,
+            options: options.clone(),
             total_bytes: Cell::new(0),
             item_bytes: Cell::new(0),
             fact_bytes: Cell::new(0),

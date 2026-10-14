@@ -99,7 +99,18 @@ pub enum Opened {
 }
 
 /// One entry of a directory listing.
+///
+/// The struct is `#[non_exhaustive]`: a later field is not a breaking change,
+/// so a pattern names the fields it reads and ends in `..`, and a [`Tree`]
+/// backend outside the crate builds an entry with [`Entry::new`].
+///
+/// ```compile_fail,E0638
+/// # fn names(entry: &raf_source::Entry) {
+/// let raf_source::Entry { name, kind } = entry;
+/// # }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[non_exhaustive]
 pub struct Entry {
     /// The entry name: one segment, without a directory part.
     pub name: String,
@@ -107,9 +118,29 @@ pub struct Entry {
     pub kind: EntryKind,
 }
 
+impl Entry {
+    /// An entry named `name` of kind `kind`.
+    ///
+    /// ```rust
+    /// use raf_source::{Entry, EntryKind};
+    ///
+    /// let entry = Entry::new("lib.rs", EntryKind::File);
+    /// assert_eq!((entry.name.as_str(), entry.kind), ("lib.rs", EntryKind::File));
+    /// ```
+    #[must_use]
+    pub fn new(name: impl Into<String>, kind: EntryKind) -> Self {
+        Self {
+            name: name.into(),
+            kind,
+        }
+    }
+}
+
 /// A read-only tree of UTF-8 text files below one root.
 ///
-/// The trait is object-safe and has no `Send` or `Sync` bound. Paths are
+/// The trait is object-safe and has no `Send` or `Sync` bound: loading is
+/// serial, and requiring `Tree: Sync` for a parallel load would be a breaking
+/// change to [`Workspace::load`](crate::Workspace::load). Paths are
 /// [`RelPath`] values, so no call can name a place above the root by text. A
 /// backend may still refuse a path that its contents lead out of.
 pub trait Tree {

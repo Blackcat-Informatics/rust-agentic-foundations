@@ -131,10 +131,7 @@ mod workspace;
 
 pub use budget::{Budget, PARSE_BYTES_PER_TOKEN, RECURSION_UNIT_BYTES};
 pub use error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
-pub use facts::{
-    AttrFact, ConditionalPath, FieldShape, FileFacts, ImplFact, ItemFact, ItemKind, ModBody,
-    ModFact, PathAttrs, SpanFact, TestRole, UseFact, UseTree, Vis,
-};
+pub use facts::{FieldShape, SpanFact, TestRole, Vis};
 pub use item::{
     Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl,
 };
@@ -144,6 +141,8 @@ pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};
 pub use parse::{PARSE_STACK_BYTES, parse_source};
 pub use path::{PathError, RelPath};
 pub use resolve::{Resolution, ResolveError};
+/// The `syn` that produced the facts, re-exported so a consumer parses with the
+/// same version; a `syn` major bump is a breaking change of this crate.
 pub use syn;
 pub use target::{Package, Target, TargetKind};
 pub use tree::{DiskTree, Entry, EntryKind, FileId, MemoryTree, Opened, Tree};
