@@ -166,15 +166,25 @@ fn a_disk_chain_of_directories_is_refused_typed_on_a_two_mib_thread() {
     use support::Scratch;
 
     let scratch = Scratch::new();
-    // 2100 levels. No path to the deep end fits in one system call, so a chain
-    // of 1100 is moved to the bottom of a chain of 1000, each path short enough.
-    scratch.file(&format!("lower/{}x.txt", chain(1100)), "");
-    scratch.dir(&format!("root/{}", chain(999)));
-    std::fs::rename(
-        scratch.path("lower/a"),
-        scratch.path(&format!("root/{}a", chain(999))),
-    )
-    .expect("move the lower chain");
+    // 2100 levels. No path to the deep end fits in one system call, and macOS
+    // allows only 1024 bytes in one, so the chain is built from the bottom up:
+    // each segment of 300 levels is made under a short top-level name and the
+    // chain built so far is moved to its bottom, so every path stays short.
+    let segment = 300;
+    scratch.file(&format!("part0/{}x.txt", chain(segment)), "");
+    for part in 1..7 {
+        let outer = if part == 6 {
+            "root".to_owned()
+        } else {
+            format!("part{part}")
+        };
+        scratch.dir(&format!("{outer}/{}", chain(segment)));
+        std::fs::rename(
+            scratch.path(&format!("part{}", part - 1)),
+            scratch.path(&format!("{outer}/{}inner", chain(segment))),
+        )
+        .expect("move the chain built so far to the bottom of the next segment");
+    }
     let tree = DiskTree::new(scratch.path("root")).expect("tree");
     let error = load(&tree, &["."], 2 << 20).expect_err("too deep");
     assert!(depth_refusal(&error), "{error}");
