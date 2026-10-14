@@ -268,11 +268,11 @@ fn a_virtual_manifest_contributes_nothing_but_its_children_are_found() {
 }
 
 #[test]
-fn there_are_no_default_roots() {
-    let ws = load(&[("Cargo.toml", DEMO), ("src/lib.rs", "")], &[]).expect("loads");
-    assert_eq!(ws.packages().len(), 0);
-    assert_eq!(ws.targets().count(), 0);
-    assert_eq!(ws.files().count(), 0);
+fn an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads() {
+    let files = [("Cargo.toml", DEMO), ("src/lib.rs", "")];
+    let error = load(&files, &[]).expect_err("no roots is an error");
+    assert!(matches!(error.kind, LoadErrorKind::NoRoots), "{error}");
+    assert_eq!(load(&files, &["."]).expect("loads").packages().len(), 1);
 }
 
 #[test]

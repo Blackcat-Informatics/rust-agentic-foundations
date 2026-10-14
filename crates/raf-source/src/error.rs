@@ -249,6 +249,8 @@ pub enum LoadErrorKind {
     Target(Box<TargetProblem>),
     /// A directory entry that discovery would have entered is a symlink.
     DirSymlink,
+    /// The load was given no roots, so there is nothing to discover.
+    NoRoots,
     /// A `mod name;` names no file.
     UnresolvedMod {
         /// The module name, without a raw-identifier prefix.
@@ -389,6 +391,7 @@ impl fmt::Display for LoadErrorKind {
             Self::Manifest { message } => write!(f, "invalid manifest: {message}"),
             Self::Target(problem) => write!(f, "{problem}"),
             Self::DirSymlink => f.write_str("a symlinked directory is not followed"),
+            Self::NoRoots => f.write_str("no roots were given; name at least one, such as `.`"),
             Self::UnresolvedMod { module } => {
                 write!(f, "module `{module}` has no file")
             }

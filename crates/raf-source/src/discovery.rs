@@ -14,15 +14,17 @@ use std::collections::BTreeMap;
 #[cfg(doc)]
 use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
-use crate::manifest::{self, Manifest};
+use crate::manifest::{self, Manifest, PackageDecl};
 use crate::meter::Meter;
 use crate::path::RelPath;
 use crate::target::Package;
 use crate::tree::{EntryKind, Tree};
 
-/// A package with its parsed manifest.
+/// A package with its parsed manifest. `declared` is the manifest's `[package]`
+/// table, moved out of `manifest` (whose `package` is `None` here).
 pub(crate) struct Found {
     pub(crate) package: Package,
+    pub(crate) declared: PackageDecl,
     pub(crate) manifest: Manifest,
 }
 
@@ -102,7 +104,7 @@ impl Walk<'_> {
         self.meter
             .read(&path, &text)
             .map_err(|error| error.reached_by(&origin))?;
-        let parsed = manifest::parse(&text).map_err(|problem| {
+        let mut parsed = manifest::parse(&text).map_err(|problem| {
             let origin = problem
                 .key
                 .map_or(Origin::Discovery, |key| Origin::ManifestKey { key });
@@ -116,7 +118,7 @@ impl Walk<'_> {
             .reached_by(&origin)
         })?;
         let descend = parsed.package.is_none() || parsed.has_workspace;
-        if let Some(package) = &parsed.package {
+        if let Some(package) = parsed.package.take() {
             match self.names.get(&package.name) {
                 Some(other) if *other != path => {
                     return Err(LoadError::new(
@@ -142,6 +144,7 @@ impl Walk<'_> {
                     manifest: path.clone(),
                     dir: dir.clone(),
                 },
+                declared: package,
                 manifest: parsed,
             };
             // The same manifest reached from two overlapping roots is one package.

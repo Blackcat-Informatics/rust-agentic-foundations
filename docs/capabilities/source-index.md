@@ -42,6 +42,7 @@ bindings:
     - raf_source::test_crate::workspace_containment::discovery_classifies_a_symlink_by_what_it_resolves_to
     - raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag
     - raf_source::test_crate::discovery_targets::two_packages_with_one_name_are_an_error_naming_both_manifests
+    - raf_source::test_crate::discovery_targets::an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads
     - raf_source::test_crate::discovery_targets::a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads
     - raf_source::test_crate::module_tree::a_path_attribute_in_a_mod_rs_file_is_relative_to_that_files_directory
     - raf_source::test_crate::module_tree::every_cfg_attr_path_alternative_is_followed_carrying_its_predicate
@@ -639,7 +640,8 @@ and not a crash. Every refusal the pre-scan makes is a typed error and not a pan
 The crate sets no time bound.
 
 **Package discovery.** `Workspace::load(tree, roots)` takes explicit roots; the
-crate has no default roots, and each caller names its own (`"."` is the tree root).
+crate has no default roots, each caller names its own (`"."` is the tree root), and an
+empty list is a `NoRoots` error.
 Discovery reads each root as a directory. A directory with a `Cargo.toml` that has a
 `[package]` table is a package. The walk descends, on a stack of its own and at most
 128 directories below the root, through every directory that is not
@@ -1238,7 +1240,7 @@ duplicates.
   name, the shipping flag, the crate path and that each target's root module is
   recorded under its crate path.
 - Discovery fixtures: a virtual manifest contributes nothing; a manifest with a
-  trailing comment and single-quoted values is honoured; no roots find nothing; a
+  trailing comment and single-quoted values is honoured; no roots is an error; a
   package nested below a package without `[workspace]` is not found beside a root
   package with `[workspace]` and a member below it; `target` and dot-directories are
   skipped beside a sibling; roots exclude what they do not name; the `auto*` flags and

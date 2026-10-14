@@ -83,7 +83,8 @@ impl Workspace {
     /// Load the packages under `roots` with the default [`LoadOptions`].
     ///
     /// A root is a directory path relative to the tree root; `"."` is the tree
-    /// root itself. There are no default roots: each caller names its own.
+    /// root itself. There are no default roots: each caller names its own, and
+    /// an empty list is a [`LoadErrorKind::NoRoots`] error.
     ///
     /// # Errors
     ///
@@ -102,16 +103,23 @@ impl Workspace {
     ///
     /// # Errors
     ///
-    /// Returns a [`LoadError`] for a root that is missing or not a directory, a
-    /// manifest that cannot be read, a target problem, an unresolved or
-    /// ambiguous `mod`, a path that leaves the tree, a module cycle, a file
-    /// over `max_file_bytes`, a load over a [`Budget`](crate::Budget) (the
+    /// Returns a [`LoadError`] for an empty `roots` list, a root that is missing or
+    /// not a directory, a manifest that cannot be read, a target problem, an
+    /// unresolved or ambiguous `mod`, a path that leaves the tree, a module cycle,
+    /// a file over `max_file_bytes`, a load over a [`Budget`](crate::Budget) (the
     /// byte budgets as `options` sets them), or a syntax error.
     pub fn load_with(
         tree: &dyn Tree,
         roots: &[&str],
         options: &LoadOptions,
     ) -> Result<Self, LoadError> {
+        if roots.is_empty() {
+            return Err(LoadError::new(
+                &RelPath::root(),
+                None,
+                LoadErrorKind::NoRoots,
+            ));
+        }
         let mut root_paths = Vec::new();
         for root in roots {
             let path = RelPath::new(root).map_err(|error| {
@@ -137,15 +145,12 @@ impl Workspace {
         let mut packages = Vec::new();
         let mut derived = Vec::new();
         for entry in found {
-            let Some(declared) = &entry.manifest.package else {
-                continue;
-            };
             let context = Context {
                 tree,
                 manifest_path: &entry.package.manifest,
                 dir: &entry.package.dir,
                 manifest: &entry.manifest,
-                package: declared,
+                package: &entry.declared,
             };
             for target in derive_targets(&context)? {
                 derived.push((&entry.package.manifest, target));
@@ -159,7 +164,7 @@ impl Workspace {
                         dirs: &dirs,
                     },
                     &entry.package,
-                    declared,
+                    &entry.declared,
                     &entry.manifest,
                     &mut caches,
                 )?,
