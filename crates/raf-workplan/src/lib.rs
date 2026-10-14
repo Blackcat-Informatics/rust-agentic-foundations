@@ -48,6 +48,19 @@
 //! [`Workplan::change`] finds the change record a slug names, and says whether
 //! the slug is unknown or its record did not load ([`ChangeLookupError`]).
 //!
+//! [`lifecycle`] opens and reads a change. [`Workplan::new_change`] writes the
+//! record `work/changes/<slug>.md` of a new change, exclusively and as the only
+//! file it writes, validates the slug with the profile's slug pattern, checks
+//! that every listed capability is loaded and every `affects` entry names a
+//! listed capability and one of the seven sections, reads the record back
+//! through the loader, and returns a [`lifecycle::NewChange`]: the PROPOSED
+//! block template to place and, for each listed capability, whether to set
+//! `state: implementing` in the same commit (`delivered` and `designed`) or
+//! nothing (`considered` and `implementing`). [`Workplan::impact`] returns one
+//! [`lifecycle::Impact`]: the capabilities and sections of a change, their
+//! bindings, the capabilities that depend on them and the sections that link
+//! to the affected sections, in a fixed order and without writing anything.
+//!
 //! # Processes
 //!
 //! [`exec`] is the one place a `cargo` or `git` process is started. A process is
@@ -144,6 +157,7 @@ mod gate;
 mod generated;
 pub mod git;
 mod graph;
+pub mod lifecycle;
 mod links;
 mod load;
 mod lookup;

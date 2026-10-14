@@ -99,7 +99,7 @@ fn run(
             continue;
         };
         let at = Location::Key("bindings".to_string());
-        let list = list_name(binding.kind());
+        let list = binding.kind().key();
         let who = format!(
             "{} {list} binding `{}`",
             binding.capability(),
@@ -129,14 +129,6 @@ fn run(
         }
     }
     (findings, macros.lexes)
-}
-
-fn list_name(kind: BindingKind) -> &'static str {
-    match kind {
-        BindingKind::Code => "code",
-        BindingKind::Test => "tests",
-        BindingKind::Example => "examples",
-    }
 }
 
 fn role_fix(kind: BindingKind) -> &'static str {

@@ -55,27 +55,14 @@ impl Gap {
     }
 }
 
-/// The key of the `bindings` list.
-fn list_key(list: BindingKind) -> &'static str {
-    match list {
-        BindingKind::Code => "code",
-        BindingKind::Test => "tests",
-        BindingKind::Example => "examples",
-    }
-}
-
 impl fmt::Display for Gap {
     /// The gap as a phrase for a row: "bindings.tests is empty" or
     /// "bindings.code `a::b` does not resolve".
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyList(list) => write!(f, "bindings.{} is empty", list_key(*list)),
+            Self::EmptyList(list) => write!(f, "bindings.{} is empty", list.key()),
             Self::Unresolved { list, binding } => {
-                write!(
-                    f,
-                    "bindings.{} `{binding}` does not resolve",
-                    list_key(*list)
-                )
+                write!(f, "bindings.{} `{binding}` does not resolve", list.key())
             }
         }
     }

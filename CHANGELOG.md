@@ -183,6 +183,39 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `BoundOutcome::{Passed, Failed, Unresolved}` and the wall time) with a `Display`;
   nothing is written. The fixtures run the real `cargo` against crates generated into a
   scratch directory on every platform.
+- **`raf-workplan` change lifecycle, first steps:** the `lifecycle` module opens and
+  reads a change. `Workplan::new_change` takes a `NewChangeRequest` (a slug, one or
+  more `cap:<name>` capabilities, any number of `cap:<name>#<section>` `affects`
+  entries) and writes `work/changes/<slug>.md`, the only file it writes, with the
+  `raf-okf` writer: the id `change:<slug>`, the capabilities in `changes`,
+  `contract_effect: changes`, an empty `items` list, a title and description for the
+  author to replace and a non-empty `## Summary`. The slug must be a lowercase
+  kebab-case slug (`raf_okf::is_kebab`, now public, the one pattern of the profile),
+  so `Upper`, `-rf`, `--since=x`, an empty slug, a path separator and `..` are refused
+  before anything is written; each capability must be a loaded capability; every
+  `affects` entry must name a listed capability and one of the seven sections; with
+  none given the record affects the `contract` section of each listed capability. A
+  capability or `affects` entry given twice is listed once. The file is created with
+  `create_new`, so an existing file or link is a typed `Exists` error and is never
+  overwritten, `work/changes` is created when it is missing and refused when a file or
+  link stands in its place, and the record is read back through the loader: one that
+  has a finding (a slug that reads as a tracker reference) is removed again and
+  reported as `Invalid`. `NewChangeError` is `#[non_exhaustive]` and tells a bad slug,
+  an existing file, an unknown capability, a capability that did not load, a bad
+  `affects` entry and a write failure apart. The `NewChange` result carries the path,
+  the PROPOSED block template (`> [!PROPOSED change:<slug>]` and a placeholder line),
+  one `CapabilityGuidance` per listed capability (`delivered` or `designed`: set
+  `state: implementing` in the same commit, since a PROPOSED block is a finding in
+  both; `considered` and `implementing`: nothing) and whether the new record makes a
+  generated block stale (the relationship tables name the changes that list a
+  capability), and its `Display` is the text a command prints. `Workplan::impact`
+  returns one `Impact` value for a change slug: the capabilities in `changes`, the
+  sections in `affects`, the bindings of those capabilities with what the source index
+  made of each, the capabilities that depend on them and the sections that link to the
+  affected sections, each list sorted and without repeats, with a `Display`; it writes
+  nothing, and an unknown slug and a record that did not load are told apart as
+  `ChangeLookupError`. `SectionId` now has a `Display` (`cap:<slug>#<section>`) and
+  `BindingKind::key` names the list of a binding, replacing two private copies.
 - **Workplan capabilities delivered:** the workplan document model and the
   generated documentation blocks are `delivered`, bound to the `raf-workplan` code,
   tests and examples that realise them, with their verification matrices,

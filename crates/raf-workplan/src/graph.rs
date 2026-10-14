@@ -24,6 +24,7 @@
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
 
 use raf_okf::{
     Architecture, Body, Capability, CapabilitySection, Change, LinkTarget, Location, Outcome,
@@ -39,6 +40,13 @@ use crate::{Finding, Loaded};
 pub struct SectionId {
     capability: String,
     section: CapabilitySection,
+}
+
+impl fmt::Display for SectionId {
+    /// `cap:<slug>#<section>`, the form of an `affects` entry.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}#{}", self.capability, self.section.slug())
+    }
 }
 
 impl SectionId {
@@ -211,6 +219,18 @@ pub enum BindingKind {
     Test,
     /// `bindings.examples`.
     Example,
+}
+
+impl BindingKind {
+    /// The key of the list in `bindings`: `code`, `tests` or `examples`.
+    #[must_use]
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Code => "code",
+            Self::Test => "tests",
+            Self::Example => "examples",
+        }
+    }
 }
 
 /// A binding edge: an entry of a capability's `bindings`, and what the source
