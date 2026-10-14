@@ -1192,19 +1192,24 @@ impl Index {
                     }
                 }
             } else {
-                // A place of its own module is read without the glob.
+                // A place of its own module is read without the glob. The
+                // first segment read under the name of a crate of the extern
+                // prelude waits on no glob of the module, as for a named
+                // import (see [`Index::places_read_in`]): two globs of
+                // dependencies do not wait on each other.
                 let places: BTreeSet<Place> = reads
                     .into_iter()
                     .map(|source| {
                         let own = source.module == decl.module;
                         let except = own.then_some(position);
                         let viewer = (!own).then_some(decl.module);
+                        let head = own && self.prelude_head(position, &source.name);
                         (
                             source.module,
                             source.name,
                             slot(source.ns),
                             except,
-                            false,
+                            head,
                             viewer,
                         )
                     })
@@ -1316,15 +1321,58 @@ impl Index {
         reads
             .into_iter()
             .map(|source| {
-                let head = !decl.leading_colon
-                    && source.module == decl.module
-                    && segs.first() == Some(&source.name)
-                    && !matches!(source.name.as_str(), "crate" | "self" | "super")
-                    && self.edition(decl.module) != 2015
-                    && self.in_use_prelude(decl.module, &source.name, decl.test);
+                let head =
+                    source.module == decl.module && self.prelude_head(position, &source.name);
                 (source.module, source.name, slot(source.ns), head)
             })
             .collect()
+    }
+
+    /// True when the path of the glob import at `position` resolves, or
+    /// names nothing only at its first segment, read in the module where the
+    /// path starts.
+    fn held_at_head(&self, position: usize) -> bool {
+        let decl = &self.uses[position];
+        let UseKind::Glob { segs } = &decl.kind else {
+            return false;
+        };
+        let Some(head) = segs.first() else {
+            return false;
+        };
+        let sources = match self.glob_targets(position) {
+            Ok(_) => return true,
+            Err(Fail::Missing(sources)) => sources,
+            Err(_) => return false,
+        };
+        let heads = Heads::Use {
+            test: decl.test,
+            own: Some(position),
+        };
+        let start = if self.crate_relative(decl.module, head, decl.leading_colon, heads) {
+            self.modules[decl.module].root
+        } else {
+            decl.module
+        };
+        !decl.leading_colon
+            && !matches!(head.as_str(), "crate" | "self" | "super")
+            && !sources.is_empty()
+            && sources
+                .iter()
+                .all(|source| source.module == start && source.name == *head)
+    }
+
+    /// True when `name`, read in the module of the import at `position`, is
+    /// the first segment of its path under the name of a crate of the extern
+    /// prelude, which a glob of the module that is not settled does not hold
+    /// back (see [`Index::unbound_use_head`]).
+    fn prelude_head(&self, position: usize, name: &str) -> bool {
+        let decl = &self.uses[position];
+        let (UseKind::Named { segs, .. } | UseKind::Glob { segs }) = &decl.kind;
+        !decl.leading_colon
+            && segs.first().is_some_and(|first| first == name)
+            && !matches!(name, "crate" | "self" | "super")
+            && self.edition(decl.module) != 2015
+            && self.in_use_prelude(decl.module, name, decl.test)
     }
 
     /// True when the place a path read waits on an import undecided there
@@ -1412,7 +1460,12 @@ impl Index {
             let resolved = globs
                 .iter()
                 .all(|position| self.glob_targets(*position).is_ok());
-            if !imports.is_empty() || (looped && !resolved) {
+            // Globs whose paths are each held at their first segment, which
+            // only the globs of the module could bring in, wait on nothing
+            // but one another: none can resolve before another does, so none
+            // resolves, and each is settled bringing in nothing.
+            let at_heads = globs.iter().all(|position| self.held_at_head(*position));
+            if !imports.is_empty() || (looped && !resolved && !at_heads) {
                 return Decided::Cyclic;
             }
             acts.extend(globs.into_iter().map(Act::CloseGlob));

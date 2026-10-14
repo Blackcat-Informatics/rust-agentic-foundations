@@ -4,7 +4,7 @@
 //! The text of an error a load returns carries no raw control character, even
 //! when the input chose the characters.
 
-use raf_source::{MemoryTree, Workspace};
+use raf_source::{MemoryTree, ResolveError, Workspace};
 
 #[test]
 fn a_path_attribute_with_terminal_escapes_is_shown_escaped() {
@@ -45,4 +45,32 @@ fn a_manifest_with_control_characters_in_a_value_is_shown_escaped() {
         .to_string();
     assert!(!text.chars().any(char::is_control), "{text:?}");
     assert!(text.contains(r"a\u{1b}[2Jb"), "{text}");
+}
+
+#[test]
+fn a_resolved_path_or_package_with_control_characters_is_shown_escaped() {
+    let tree: MemoryTree = [
+        (
+            "p/Cargo.toml",
+            "[package]\nname = \"p\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+        ),
+        ("p/src/lib.rs", "pub fn f() {}\n"),
+    ]
+    .into_iter()
+    .collect();
+    let ws = Workspace::load(&tree, &["p"]).unwrap_or_else(|e| panic!("{e}"));
+    let path = "p::\u{1b}]0;pwned\u{7}\u{202e}f";
+    let invalid = ws.resolve(path);
+    assert_eq!(invalid, Err(ResolveError::Invalid(path.to_owned())));
+    let unknown = ws.resolve_in_package(path, "p::f");
+    assert_eq!(unknown, Err(ResolveError::UnknownPackage(path.to_owned())));
+    for error in [invalid, unknown] {
+        let text = error.expect_err("refused").to_string();
+        assert!(
+            !text.chars().any(|c| c.is_control() || c == '\u{202e}'),
+            "{text:?}"
+        );
+        assert!(text.contains(r"p::\u{1b}]0;pwned\u{7}\u{202e}f"), "{text}");
+    }
+    assert!(ws.resolve("p::f").is_ok());
 }

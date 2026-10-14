@@ -340,8 +340,11 @@ impl Workspace {
     /// cannot see, [`ResolveError::Ambiguous`] when it names several symbols
     /// or starts with a crate path that targets of several packages share
     /// (see [`Workspace::resolve_in_package`]), [`ResolveError::Cyclic`] when
-    /// the imports on the way form a cycle and [`ResolveError::Invalid`] when
-    /// the text is not a path.
+    /// the imports on the way form a cycle,
+    /// [`ResolveError::UnresolvedGlob`] when a lookup on the way reads a glob
+    /// whose path names nothing past its first segment, and
+    /// [`ResolveError::Invalid`] when the text is not a path, a path keyword
+    /// among its segments included.
     pub fn resolve(&self, path: &str) -> Result<Resolution, ResolveError> {
         self.index.resolve(path, None, None)
     }

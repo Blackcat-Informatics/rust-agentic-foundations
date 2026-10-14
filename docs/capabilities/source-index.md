@@ -193,6 +193,16 @@ bindings:
     - raf_source::error::tests::every_user_derived_field_of_every_display_is_escaped
     - raf_source::test_crate::error_text::a_path_attribute_with_terminal_escapes_is_shown_escaped
     - raf_source::test_crate::error_text::a_manifest_with_control_characters_in_a_value_is_shown_escaped
+    - raf_source::test_crate::error_text::a_resolved_path_or_package_with_control_characters_is_shown_escaped
+    - raf_source::resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped
+    - raf_source::test_crate::resolve_paths::a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path
+    - raf_source::test_crate::resolve_paths::a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it
+    - raf_source::test_crate::resolve_paths::a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found
+    - raf_source::test_crate::resolve_paths::a_path_of_fifty_thousand_segments_resolves_in_linear_time
+    - raf_source::test_crate::resolve_paths::globs_of_dependencies_in_one_module_leave_a_missing_name_not_found
+    - raf_source::test_crate::resolve_paths::a_cycle_of_globs_stays_cyclic_beside_globs_that_resolve
+    - raf_source::test_crate::resolve_paths::a_cycle_is_reported_before_a_glob_that_names_nothing
+    - raf_source::test_crate::resolve_paths::a_name_found_through_a_glob_beside_a_glob_that_names_nothing_fails
     - raf_source::test_crate::manifest_caps::exclude_at_the_cap_loads_and_one_over_is_refused
     - raf_source::test_crate::manifest_caps::members_at_the_cap_loads_and_one_over_is_refused
     - raf_source::test_crate::manifest_caps::the_duplicate_pattern_probe_is_refused_at_once
@@ -1186,7 +1196,13 @@ and no glob or crate answers for it: `mod a { pub use crate::b::X; pub use
 crate::c::*; }` beside `mod b { pub use crate::a::X; pub use crate::d::*; }` gives
 `Cyclic` for `demo::a::X` and `demo::b::X`, as does a cycle with two globs of one
 module or a renamed import that has bound nothing, where rustc cannot determine the
-imports. A path through a name that an import bound in one name space while a cycle
+imports. Globs are not such a cycle when the path of each is held only at its
+first segment, read where the path starts, which only the globs of that module could
+bring in: none can resolve before another does, so each is settled bringing in
+nothing, and a missing name of the module is `NotFound` (`pub use std::io::*;` beside
+`pub use std::fmt::*;`, or `serde::*` beside `tokio::*`). The first segment of a glob's
+path that names a crate of the extern prelude waits on no glob of its module, as for a
+named import, so `std::io::*` beside a glob of a local module does not wait on it. A path through a name that an import bound in one name space while a cycle
 leaves it undecided in another resolves `Cyclic` in every name space: such a cycle,
 read with only what each import can access, is one that rustc does not break either, so
 it refuses the crate, failing an import of the cycle (E0432), and when the cycle runs
@@ -1205,7 +1221,14 @@ glob decides `via_glob`.
 `resolve(path)` takes a canonical path such as `demo::inner::go` (a segment may be
 written as a raw identifier: `r#match` and `match` are the same name) and tries the type,
 value and macro name spaces in that order; `resolve_in(path, namespace)` takes one. A
-path may end at a method: `demo::Thing::new`. The result is a `Resolution`: the
+path may end at a method: `demo::Thing::new`. A canonical path starts at a crate path
+and names each item by its name, so a segment that is a path keyword, `crate`, `self`,
+`super` or `Self`, in any position and also written as a raw identifier, makes the text
+`Invalid`: `demo::crate::a::x`, `demo::self::a::x` and `demo::super::x` are `Invalid`
+beside `demo::a::x`. Each segment is read once and the crate path is found by
+prefixes that grow a segment at a time, so the cost of a path is linear in its length:
+in a release build a path of 50,000 segments is answered in milliseconds (under 100
+ms; a debug build is several times slower). The result is a `Resolution`: the
 canonical `path` of the definition, the `namespace`, the `sites` (non-empty, sorted by
 path, file and position), `via_glob` (true when a glob import carried the path to the
 symbol), and the `chain` of locations the lookup passed through from the requested path to the
@@ -1219,7 +1242,30 @@ path through a crate name that stands for several libraries, or a path through a
 whose first segment is ambiguous, `Cyclic` when the imports on the way depend on each
 other or wait on imports that do (an import never depends on itself), `UnresolvedSelf` when the
 workspace defines nothing at the path and the path goes through the self path of an
-inherent impl the index cannot see, and `Invalid` when the text is not a path. A symbol
+inherent impl the index cannot see, `UnresolvedGlob` when a lookup on the way reads a
+glob import whose path names nothing in the workspace past its first segment, and
+`Invalid` when the text is not a path. Such a glob (`use self::missing::*;`, `use
+crate::a::gone::*;`, or the glob of a module that a macro generates) does not fail the
+load, which brings in nothing through it, but what it would bring in is not known, so
+every lookup that reads it fails, naming the path asked for, the glob's written path and
+the module that declares it: a lookup of a name that the module defines or imports
+explicitly in the name space looked up does not read the module's globs, and one that
+reads a glob that resolves reads the globs of the modules it globs in turn, so a sibling
+path that reads none of them resolves, while a name that a glob that resolves brings in
+beside such a glob fails, as the broken glob could make it ambiguous. Which globs
+name nothing is worked out once for the index, by the first lookup that needs it, so a
+workspace without such a glob pays nothing more for a lookup. A name space whose lookup reads the glob fails
+though another name space has the name (the glob could bring in a type of that name), and a path through an
+import whose own path reads it fails the same way. A glob whose first segment names
+nothing in the workspace is a dependency the index cannot look into, and a lookup that
+reads it stays `NotFound`; so does one that reads a glob whose path names nothing only
+where an import binds the name or a glob of that kind could bring it in (`use
+std::io::*;` beside `use self::missing::*;` could bring in `missing`). When a path
+fails for more than one reason, `Cyclic` comes first, then `Ambiguous`, then
+`UnresolvedGlob`, then `NotFound`: a path that reads a glob that names nothing and a
+cycle of imports is `Cyclic`. Each
+message shows the path, the package and the glob's path with every control character
+and bidirectional override escaped as `char::escape_debug` writes it. A symbol
 is one path and kind in one target's crate: the items of two targets at one path are
 two symbols and `Ambiguous`, whatever the order of their files, while the members of
 trait impls on types that are not local share their trait's key across crates. The
@@ -1675,6 +1721,40 @@ duplicates.
   library that cannot name itself, raw identifiers in both spellings, a chain of 5000 re-exports
   declared in either order, `demo::nope`, `pub use serde::Serialize` and a function that
   a macro generates, each `NotFound` beside a positive resolution.
+- Dependency-glob fixtures: `pub use std::io::*;` beside `pub use serde::*;`, beside
+  `pub use std::fmt::*;`, `serde::*` beside `tokio::*`, the first two at the crate
+  root and the second in edition 2015, each leave a missing name of the module and of
+  a module that globs it `NotFound` in every name space, beside the module's own item,
+  which resolves through both modules; `std::io::*` beside `self::missing::*` is
+  `NotFound`, and beside `crate::other::missing::*` of a local module without the name
+  is `UnresolvedGlob`; a cycle of globs whose path goes through a name the other glob
+  would bring in stays `Cyclic` beside two globs that glob each other and resolve.
+- Order of the failures: a glob of a missing module beside a glob of a module whose
+  name a cycle of imports binds is `Cyclic`, and beside two globs that bring in two
+  structs `X` is `Ambiguous`; a name found through a glob that resolves beside a glob
+  of a missing module, a path through such a name, `self::m::missing::*` of an empty
+  local module and `crate::missing::*` at the root are each `UnresolvedGlob`.
+- Canonical-path fixtures: `demo::crate::a::x`, `demo::super::x`, `demo::self::a::x`,
+  `demo::a::Self`, `demo::r#crate::a::x` and a leading `crate`, `self`, `super` or
+  `Self`, each `Invalid` in every name space beside `demo::a::x` and the names
+  `crates`, `selfish` and `Selves`, which resolve; a missing path of 50,000 segments
+  that is `NotFound` and one of 50,000 segments through a module that imports itself
+  that resolves, together in under a second in a debug build and under 100 ms in a
+  release build.
+- Missing-glob fixtures: a module with `pub use self::missing::*;`, a module that globs
+  it, `crate::a::gone::*`, `super::a::inner::nothing::*` and an import of a name the
+  missing glob would bring in load, and each lookup that reads one of those globs is
+  `UnresolvedGlob` naming the glob and its module, a lookup in the value name space of a
+  function there resolving while the lookup in all name spaces fails, beside the
+  module's own items and a sibling, which resolve; globs of `std::io`, of `serde`, of
+  `::unknown::m`, of a module below a glob of `std::collections`, of a module below
+  an import of a dependency module and a module that globs those leave a missing name
+  `NotFound`.
+- Resolve error text: every `ResolveError` variant, with an escape sequence, a
+  bidirectional override and a line break in each field it shows, displays no control
+  character and shows each field escaped, and a path and a package name with an escape
+  sequence and a bidirectional override, which `resolve` and `resolve_in_package`
+  refuse, are shown escaped.
 - Extern-alias fixtures: `pub use serde;`, `pub use std;`, `pub use serde::{self,
   Serialize};`, `pub use std::{self as s2};`, and `std` imported at the root, in a module
   and renamed, each in editions 2018, 2021 and 2024 with every path through them, and

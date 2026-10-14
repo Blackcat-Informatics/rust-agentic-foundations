@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt;
 
+use crate::error::Esc;
 use crate::index::{Index, UseKind};
 use crate::item::{ItemId, Namespace, SymbolKind};
 use crate::modtree::TargetId;
@@ -73,6 +74,39 @@ pub(crate) enum Fail {
     /// the glob brings in and the crate roots of the workspace that the crate
     /// name stands for.
     Ambiguous(Vec<ItemId>),
+}
+
+/// The globs of the settled tables whose paths resolve, with the modules
+/// they glob, and those that a lookup reading them fails for (see
+/// [`ResolveError::UnresolvedGlob`]).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct GlobFacts {
+    reach: BTreeMap<usize, BTreeSet<usize>>,
+    broken: BTreeSet<usize>,
+}
+
+/// What the walks of a canonical path from its crate roots found: the items
+/// they reach, the places they found unbound and the places they read.
+#[derive(Default)]
+struct Walks {
+    found: BTreeMap<ItemId, Hit>,
+    missing: Vec<Source>,
+    reads: Vec<Source>,
+}
+
+/// What the path of a glob import names in the settled tables.
+enum GlobPath {
+    /// The modules it globs.
+    Resolves(BTreeSet<usize>),
+    /// Nothing, as rustc refuses it: a path through a name that stands for
+    /// several crates, an ambiguous first segment, or `super` above the root.
+    Nothing,
+    /// What the index cannot see: a first segment that names nothing in the
+    /// workspace, as a dependency, or a path that goes on in a crate outside
+    /// it.
+    Unknown,
+    /// Nothing past its first segment: the places where it names nothing.
+    Misses(Vec<Source>),
 }
 
 /// What the first segment of a path may name besides the items in scope.
@@ -155,22 +189,48 @@ pub enum ResolveError {
     /// The package named to qualify the path is not a package of the
     /// workspace.
     UnknownPackage(String),
+    /// A lookup on the way of the path reads the names a glob import brings
+    /// in, and the glob's path names nothing in the workspace past its first
+    /// segment (`use self::missing::*;`, `use crate::a::gone::*;`). rustc
+    /// refuses such a glob, so what the lookup would find is not known. The
+    /// load does not fail for it: a module that a macro generates is globbed
+    /// this way. A glob whose first segment names nothing in the workspace,
+    /// as a dependency does, is not one: the index cannot look into it.
+    UnresolvedGlob {
+        /// The path that was resolved.
+        path: String,
+        /// The written path of the glob, without its `::*`.
+        glob: String,
+        /// The path of the module that declares the glob.
+        module: String,
+    },
 }
 
 impl fmt::Display for ResolveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NotFound(path) => write!(f, "`{path}` names nothing in the workspace"),
+            Self::NotFound(path) => write!(f, "`{}` names nothing in the workspace", Esc(path)),
             Self::Ambiguous(ids) => write!(f, "the path names {} different symbols", ids.len()),
-            Self::Cyclic(path) => write!(f, "`{path}` goes through imports that form a cycle"),
-            Self::Invalid(text) => write!(f, "`{text}` is not a path"),
+            Self::Cyclic(path) => {
+                write!(f, "`{}` goes through imports that form a cycle", Esc(path))
+            }
+            Self::Invalid(text) => write!(f, "`{}` is not a path", Esc(text)),
             Self::UnresolvedSelf(path) => write!(
                 f,
-                "`{path}` goes through the self type of an inherent impl that the index cannot see"
+                "`{}` goes through the self type of an inherent impl that the index cannot see",
+                Esc(path)
             ),
             Self::UnknownPackage(package) => {
-                write!(f, "`{package}` is not a package of the workspace")
+                write!(f, "`{}` is not a package of the workspace", Esc(package))
             }
+            Self::UnresolvedGlob { path, glob, module } => write!(
+                f,
+                "`{}` reads the glob `{}::*` of module `{}`, whose path names nothing in the \
+                 workspace",
+                Esc(path),
+                Esc(glob),
+                Esc(module)
+            ),
         }
     }
 }
@@ -719,12 +779,16 @@ impl Index {
     /// The walks of the path of the named import at `position`, in every name
     /// space, read as a `use` path that does not consult its own binding: the
     /// other imports it waits on (unresolved ones in `resolved_mode`, else
-    /// unsettled ones), which bind a name the walks looked up, and the items
-    /// of an ambiguous first segment.
-    fn import_walks(&self, position: usize, resolved_mode: bool) -> (Vec<usize>, Vec<ItemId>) {
+    /// unsettled ones), which bind a name the walks looked up, the items of
+    /// an ambiguous first segment, and the places the walks read.
+    fn import_walks(
+        &self,
+        position: usize,
+        resolved_mode: bool,
+    ) -> (Vec<usize>, Vec<ItemId>, Vec<Source>) {
         let decl = &self.uses[position];
         let UseKind::Named { segs, .. } = &decl.kind else {
-            return (Vec::new(), Vec::new());
+            return (Vec::new(), Vec::new(), Vec::new());
         };
         let mut reads = Vec::new();
         let mut ambiguous = BTreeSet::new();
@@ -744,7 +808,7 @@ impl Index {
             }
         }
         let mut blockers = BTreeSet::new();
-        for (module, name) in places(reads) {
+        for (module, name) in places(reads.clone()) {
             // The path never reads the imports of the name it binds.
             if !self.binds_name(position, module, &name) {
                 blockers.extend(self.unresolved_uses(module, &name, resolved_mode));
@@ -755,6 +819,7 @@ impl Index {
         (
             blockers.into_iter().collect(),
             ambiguous.into_iter().collect(),
+            reads,
         )
     }
 
@@ -786,8 +851,10 @@ impl Index {
     /// else
     /// `Ambiguous` naming the items of every ambiguous first segment among
     /// the unresolved imports that bind them, or that those wait on; else
-    /// `NotFound`.
-    fn unbound(&self, missing: &[Source], text: &str) -> ResolveError {
+    /// `UnresolvedGlob` when a lookup of the walk, at `reads`, or of the paths
+    /// of those imports reads a glob whose path names nothing past its first
+    /// segment; else `NotFound`.
+    fn unbound(&self, missing: &[Source], reads: &[Source], text: &str) -> ResolveError {
         let cyclic = missing.iter().any(|source| self.waits_on_cycle(source));
         if cyclic {
             return ResolveError::Cyclic(text.to_owned());
@@ -800,19 +867,185 @@ impl Index {
             work.extend(self.unresolved_uses(source.module, &source.name, true));
         }
         let mut ambiguous: BTreeSet<ItemId> = BTreeSet::new();
+        let mut through: Vec<Source> = reads.to_vec();
         while let Some(position) = work.pop() {
             if !seen.insert(position) {
                 continue;
             }
-            let (following, items) = self.import_walks(position, true);
+            let (following, items, reads) = self.import_walks(position, true);
             ambiguous.extend(items);
             work.extend(following);
+            through.extend(reads);
         }
-        if ambiguous.is_empty() {
-            ResolveError::NotFound(text.to_owned())
+        if !ambiguous.is_empty() {
+            return ResolveError::Ambiguous(self.sorted(ambiguous));
+        }
+        match self.unresolved_glob_read(&through) {
+            Some(glob) => self.glob_error(glob, text),
+            None => ResolveError::NotFound(text.to_owned()),
+        }
+    }
+
+    /// The error of a path `text` whose lookups read the glob import at
+    /// `position`, whose path names nothing past its first segment.
+    fn glob_error(&self, position: usize, text: &str) -> ResolveError {
+        let decl = &self.uses[position];
+        let (UseKind::Glob { segs } | UseKind::Named { segs, .. }) = &decl.kind;
+        ResolveError::UnresolvedGlob {
+            path: text.to_owned(),
+            glob: format!(
+                "{}{}",
+                if decl.leading_colon { "::" } else { "" },
+                segs.join("::")
+            ),
+            module: self.modules[decl.module].path.to_string(),
+        }
+    }
+
+    /// True when a lookup of `name` in `ns` in `module` finds an explicit
+    /// binding there, or an explicit import keeps the name from the globs
+    /// (see [`Index::blocked`]): the globs of the module are not read.
+    fn binds_explicitly(&self, module: usize, ns: Namespace, name: &str) -> bool {
+        self.scopes[module]
+            .get(name)
+            .is_some_and(|entry| !entry.defs[slot(ns)].is_empty())
+            || self.blocked(module, name, ns, None)
+    }
+
+    /// The glob imports that a lookup of `name` in `ns` in `module` reads:
+    /// those of the module when nothing explicit binds the name there, and,
+    /// through each glob whose path resolves (`reach`), those of the modules
+    /// it globs in turn, each module once.
+    fn globs_read(
+        &self,
+        reach: &BTreeMap<usize, BTreeSet<usize>>,
+        module: usize,
+        ns: Namespace,
+        name: &str,
+    ) -> BTreeSet<usize> {
+        let mut seen = BTreeSet::from([module]);
+        let mut work = vec![module];
+        let mut out = BTreeSet::new();
+        while let Some(at) = work.pop() {
+            if self.binds_explicitly(at, ns, name) {
+                continue;
+            }
+            for glob in self.globs_of(at) {
+                out.insert(*glob);
+                for target in reach.get(glob).into_iter().flatten() {
+                    if seen.insert(*target) {
+                        work.push(*target);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// What the path of the glob import at `position` names in the settled
+    /// tables.
+    fn glob_path(&self, position: usize) -> GlobPath {
+        let decl = &self.uses[position];
+        let UseKind::Glob { segs } = &decl.kind else {
+            return GlobPath::Nothing;
+        };
+        let sources = match self.glob_targets(position) {
+            Ok(targets) => return GlobPath::Resolves(targets),
+            Err(Fail::Missing(sources)) => sources,
+            Err(Fail::SuperAboveRoot | Fail::SeveralCrates { .. } | Fail::Ambiguous(_)) => {
+                return GlobPath::Nothing;
+            }
+        };
+        let head = self.walk(
+            decl.module,
+            &segs[..1],
+            decl.leading_colon,
+            Namespace::Type,
+            Heads::Use {
+                test: decl.test,
+                own: Some(position),
+            },
+        );
+        // A first segment that names nothing in the workspace, or a path
+        // that goes on in a crate outside it, is a dependency.
+        if head.is_err() || sources.is_empty() {
+            GlobPath::Unknown
         } else {
-            ResolveError::Ambiguous(self.sorted(ambiguous))
+            GlobPath::Misses(sources)
         }
+    }
+
+    /// The globs of the settled tables whose paths resolve, and those whose
+    /// paths name nothing past their first segment, computed once for the
+    /// index (see [`ResolveError::UnresolvedGlob`]).
+    ///
+    /// A glob whose path misses is not reported when what its path could
+    /// have reached is not known to be missing: a place where the path
+    /// names nothing that an import binds, which may be an import the index
+    /// cannot see through, or that reads a glob whose path is unknown, a
+    /// dependency glob or one that is not reported in turn.
+    fn glob_facts(&self) -> &GlobFacts {
+        self.glob_facts.get_or_init(|| {
+            let mut reach: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
+            let mut misses: BTreeMap<usize, Vec<Source>> = BTreeMap::new();
+            let mut unknown: Vec<usize> = Vec::new();
+            for &glob in &self.glob_imports {
+                match self.glob_path(glob) {
+                    GlobPath::Resolves(targets) => {
+                        reach.insert(glob, targets);
+                    }
+                    GlobPath::Misses(sources) => {
+                        misses.insert(glob, sources);
+                    }
+                    GlobPath::Unknown => unknown.push(glob),
+                    GlobPath::Nothing => {}
+                }
+            }
+            // Which missing globs each glob would make unknown: those that
+            // miss at a place that reads it.
+            let mut readers: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+            for (glob, sources) in &misses {
+                for source in sources {
+                    if !self.imports_of(source.module, &source.name).is_empty() {
+                        unknown.push(*glob);
+                    }
+                    for other in self.globs_read(&reach, source.module, source.ns, &source.name) {
+                        if other != *glob {
+                            readers.entry(other).or_default().push(*glob);
+                        }
+                    }
+                }
+            }
+            let mut opaque: BTreeSet<usize> = BTreeSet::new();
+            while let Some(glob) = unknown.pop() {
+                if opaque.insert(glob) {
+                    unknown.extend(readers.get(&glob).into_iter().flatten().copied());
+                }
+            }
+            let broken = misses
+                .into_keys()
+                .filter(|glob| !opaque.contains(glob))
+                .collect();
+            GlobFacts { reach, broken }
+        })
+    }
+
+    /// The first of the glob imports a walk read, at the places `reads`,
+    /// whose path names nothing in the workspace past its first segment.
+    fn unresolved_glob_read(&self, reads: &[Source]) -> Option<usize> {
+        let facts = self.glob_facts();
+        if facts.broken.is_empty() {
+            return None;
+        }
+        let places: BTreeSet<(usize, Namespace, &str)> = reads
+            .iter()
+            .map(|source| (source.module, source.ns, source.name.as_str()))
+            .collect();
+        places
+            .into_iter()
+            .flat_map(|(module, ns, name)| self.globs_read(&facts.reach, module, ns, name))
+            .filter(|glob| facts.broken.contains(glob))
+            .min()
     }
 
     fn origin_of(&self, source: &Source, id: ItemId) -> Option<crate::settle::Origin> {
@@ -857,6 +1090,46 @@ impl Index {
         &self.targets[self.modules[module].target.index()].package
     }
 
+    /// Walk `rest`, the segments of a canonical path `text` after the crate
+    /// path of `root`, in `ns`, adding to `walks` what it reaches, the places
+    /// it found unbound and the places it read.
+    fn walk_from_root(
+        &self,
+        root: usize,
+        rest: &[String],
+        ns: Namespace,
+        text: &str,
+        walks: &mut Walks,
+    ) -> Result<(), ResolveError> {
+        let start = walks.reads.len();
+        let walk = self.walk_noting(root, rest, false, ns, Heads::Local, Some(&mut walks.reads));
+        if walk.is_ok()
+            && walks.reads[start..]
+                .iter()
+                .any(|source| self.bound_by_undecided(source))
+        {
+            return Err(ResolveError::Cyclic(text.to_owned()));
+        }
+        match walk {
+            Ok(walked) => {
+                for (id, hit) in walked.items {
+                    merge(&mut walks.found, id, hit);
+                }
+            }
+            Err(Fail::Missing(sources)) => walks.missing.extend(sources),
+            Err(Fail::SeveralCrates { roots: ids, .. } | Fail::Ambiguous(ids)) => {
+                return Err(ResolveError::Ambiguous(ids));
+            }
+            // A canonical path holds no `super` (see [`Index::resolve`]), so
+            // no walk of one climbs above a crate root; if one did, the path
+            // is not a path.
+            Err(Fail::SuperAboveRoot) => {
+                return Err(ResolveError::Invalid(text.to_owned()));
+            }
+        }
+        Ok(())
+    }
+
     /// Resolve a canonical path in one name space, among the crates of
     /// `package` when one is given.
     fn resolve_in(
@@ -866,10 +1139,15 @@ impl Index {
         text: &str,
         package: Option<&str>,
     ) -> Result<Resolution, ResolveError> {
-        let mut found: BTreeMap<ItemId, Hit> = BTreeMap::new();
-        let mut missing: Vec<Source> = Vec::new();
-        for taken in 1..=segs.len() {
-            let prefix = segs[..taken].join("::");
+        let mut walks = Walks::default();
+        // The prefix grows by one segment a step, so the prefixes of a path
+        // cost its length, not its length squared.
+        let mut prefix = String::with_capacity(text.len());
+        for (taken, seg) in (1..=segs.len()).zip(segs) {
+            if taken > 1 {
+                prefix.push_str("::");
+            }
+            prefix.push_str(seg);
             let Some(roots) = self.crate_roots.get(&prefix) else {
                 continue;
             };
@@ -892,37 +1170,14 @@ impl Index {
             }
             for root in roots {
                 if taken < segs.len() {
-                    let mut reads = Vec::new();
-                    let walk = self.walk_noting(
-                        root,
-                        &segs[taken..],
-                        false,
-                        ns,
-                        Heads::Local,
-                        Some(&mut reads),
-                    );
-                    if walk.is_ok() && reads.iter().any(|source| self.bound_by_undecided(source)) {
-                        return Err(ResolveError::Cyclic(text.to_owned()));
-                    }
-                    match walk {
-                        Ok(walked) => {
-                            for (id, hit) in walked.items {
-                                merge(&mut found, id, hit);
-                            }
-                        }
-                        Err(Fail::Missing(sources)) => missing.extend(sources),
-                        Err(Fail::SeveralCrates { roots: ids, .. } | Fail::Ambiguous(ids)) => {
-                            return Err(ResolveError::Ambiguous(ids));
-                        }
-                        Err(Fail::SuperAboveRoot) => {}
-                    }
+                    self.walk_from_root(root, &segs[taken..], ns, text, &mut walks)?;
                 } else if ns == Namespace::Type
                     && let Some(item) = self.root_items.get(&root)
                 {
                     // A path that is exactly a crate path names the crate
                     // root, a module.
                     merge(
-                        &mut found,
+                        &mut walks.found,
                         *item,
                         Hit {
                             via_glob: false,
@@ -932,6 +1187,11 @@ impl Index {
                 }
             }
         }
+        let Walks {
+            mut found,
+            missing,
+            reads,
+        } = walks;
         let from_keys = found.is_empty();
         if let (true, Some(ids)) = (from_keys, self.foreign.get(text)) {
             for id in ids {
@@ -950,7 +1210,7 @@ impl Index {
             }
         }
         if found.is_empty() {
-            return Err(self.unbound(&missing, text));
+            return Err(self.unbound(&missing, &reads, text));
         }
         // One symbol is one path and kind in one crate. Items of two targets
         // at one path are two symbols, whatever order they were found in; the
@@ -964,6 +1224,11 @@ impl Index {
         }
         if groups.len() > 1 {
             return Err(ResolveError::Ambiguous(self.sorted(found.keys().copied())));
+        }
+        // A lookup on the way that read a glob whose path names nothing past
+        // its first segment may have missed what the glob would bring in.
+        if let Some(glob) = self.unresolved_glob_read(&reads) {
+            return Err(self.glob_error(glob, text));
         }
         let sites = self.sorted(found.keys().copied());
         let first = sites[0];
@@ -980,8 +1245,13 @@ impl Index {
     /// True when a proper prefix of `segs` is the self path of an inherent
     /// impl that the index cannot see, of `package` when one is given.
     fn through_unresolved(&self, segs: &[String], package: Option<&str>) -> bool {
-        (1..segs.len()).any(|taken| {
-            let prefix = segs[..taken].join("::");
+        // The prefix grows by one segment a step, as in [`Index::resolve_in`].
+        let mut prefix = String::new();
+        segs.iter().take(segs.len().saturating_sub(1)).any(|seg| {
+            if !prefix.is_empty() {
+                prefix.push_str("::");
+            }
+            prefix.push_str(seg);
             let start = self
                 .unresolved
                 .partition_point(|block| block.path.as_str() < prefix.as_str());
@@ -1007,9 +1277,16 @@ impl Index {
         {
             return Err(ResolveError::UnknownPackage(name.to_owned()));
         }
+        // Each segment is read once. A canonical path starts at a crate root
+        // and names items by their names, so a path keyword is no segment of
+        // one: `demo::crate::a::x` and `demo::super::x` are not canonical
+        // paths, and neither is `r#crate`, which is no raw identifier.
         let segs: Vec<String> = path.split("::").map(|s| strip_raw(s).to_owned()).collect();
-        let valid =
-            |s: &String| !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || c == '_');
+        let valid = |s: &String| {
+            !s.is_empty()
+                && !matches!(s.as_str(), "crate" | "self" | "super" | "Self")
+                && s.chars().all(|c| c.is_alphanumeric() || c == '_')
+        };
         if !segs.iter().all(valid) {
             return Err(ResolveError::Invalid(path.to_owned()));
         }
@@ -1026,5 +1303,66 @@ impl Index {
             return Err(ResolveError::UnresolvedSelf(text));
         }
         Err(ResolveError::NotFound(text))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ResolveError;
+    use crate::item::ItemId;
+
+    /// An escape sequence, a bidirectional override and a line break.
+    const HOSTILE: &str = "a\u{1b}[2J\u{202e}\r\nb";
+
+    /// Every variant, built so that a new one cannot be left out: the match
+    /// names each.
+    fn every_variant() -> Vec<ResolveError> {
+        let hostile = || HOSTILE.to_owned();
+        let all = vec![
+            ResolveError::NotFound(hostile()),
+            ResolveError::Ambiguous(vec![ItemId(0), ItemId(1)]),
+            ResolveError::Cyclic(hostile()),
+            ResolveError::Invalid(hostile()),
+            ResolveError::UnresolvedSelf(hostile()),
+            ResolveError::UnknownPackage(hostile()),
+            ResolveError::UnresolvedGlob {
+                path: hostile(),
+                glob: hostile(),
+                module: hostile(),
+            },
+        ];
+        for error in &all {
+            match error {
+                ResolveError::NotFound(_)
+                | ResolveError::Ambiguous(_)
+                | ResolveError::Cyclic(_)
+                | ResolveError::Invalid(_)
+                | ResolveError::UnresolvedSelf(_)
+                | ResolveError::UnknownPackage(_)
+                | ResolveError::UnresolvedGlob { .. } => {}
+            }
+        }
+        all
+    }
+
+    #[test]
+    fn every_user_derived_field_of_every_resolve_error_is_escaped() {
+        for error in every_variant() {
+            let text = error.to_string();
+            assert!(
+                !text.chars().any(|c| c.is_control() || c == '\u{202e}'),
+                "a control character got through: {text:?}"
+            );
+            let fields = match &error {
+                ResolveError::Ambiguous(_) => 0,
+                ResolveError::UnresolvedGlob { .. } => 3,
+                _ => 1,
+            };
+            assert_eq!(
+                text.matches(r"a\u{1b}[2J\u{202e}\r\nb").count(),
+                fields,
+                "{text}"
+            );
+        }
     }
 }

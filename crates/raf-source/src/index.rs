@@ -350,6 +350,9 @@ pub(crate) struct Index {
     /// The modules the path of each glob import reached when the glob was
     /// last tried, by position; empty for a named import.
     pub(crate) glob_reach: Vec<BTreeSet<usize>>,
+    /// What the globs of the settled tables reach and which of them name
+    /// nothing, computed by the first `resolve` that needs it.
+    pub(crate) glob_facts: std::sync::OnceLock<crate::resolve::GlobFacts>,
     /// What the glob imports of each module bring in (see
     /// [`crate::glob_scope`]).
     pub(crate) globs: GlobTables,
@@ -914,6 +917,7 @@ impl Index {
             use_empty: Vec::new(),
             glob_closed: Vec::new(),
             glob_reach: Vec::new(),
+            glob_facts: std::sync::OnceLock::new(),
             globs: GlobTables::default(),
             import_reach: ImportReach::default(),
             extern_names: BTreeMap::new(),
