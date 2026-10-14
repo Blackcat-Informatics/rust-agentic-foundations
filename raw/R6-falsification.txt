@@ -1,0 +1,313 @@
+# R6 falsification: behaviour-change fixtures on e472918
+
+Base: git archive e472918 into /tmp/r6probe/base, with a scratch example (crates/raf-source/examples/falsify.rs, not committed) that runs the same texts through the base parse_source in a child process. Limit used for the texts: 1927 (the R6 Budget::Recursion limit).
+Every R6 over-limit fixture must be REFUSED by 'parser recursion'; on the base each one is PARSED (or ABORTs), so each R6 assertion fails there.
+
+## 1. prescan_budgets over-limit texts (wrapped(at+1, content) for every counted token, reset/continuation fixtures, chains, macro/arm fixtures)
+== base e472918, debug: behaviour-change fixtures (over-limit texts; a passing R6 test needs REFUSED parser recursion)
+over[]	PARSED
+over[!x]	PARSED
+over[-x]	PARSED
+over[*x]	PARSED
+over[&x]	PARSED
+over[&&x]	PARSED
+over[a | b]	PARSED
+over[a || b]	PARSED
+over[a < b]	PARSED
+over[a > b]	PARSED
+over[a + b]	PARSED
+over[a / b]	PARSED
+over[a % b]	PARSED
+over[a ^ b]	PARSED
+over[a = b]	PARSED
+over[x?]	PARSED
+over[x.a]	PARSED
+over[x.await]	PARSED
+over[a..b]	PARSED
+over[a..=b]	PARSED
+over[a += b]	PARSED
+over[a -= b]	PARSED
+over[a *= b]	PARSED
+over[a /= b]	PARSED
+over[a %= b]	PARSED
+over[a ^= b]	PARSED
+over[a &= b]	PARSED
+over[a |= b]	PARSED
+over[a <<= b]	PARSED
+over[a >>= b]	PARSED
+over[a == b]	PARSED
+over[a != b]	PARSED
+over[a <= b]	PARSED
+over[a >= b]	PARSED
+over[a << b]	PARSED
+over[a >> b]	PARSED
+over[a && b]	PARSED
+over[|| -> u8 { 0 }]	PARSED
+over[let a @ b = 0;]	PARSED
+over[extern "C" { fn g(a: u8, ...); }]	PARSED
+over[x.0.1]	PARSED
+over[x as u8]	PARSED
+over[async {}]	PARSED
+over[become g()]	PARSED
+over[let box a = 0;]	PARSED
+over[break x]	PARSED
+over[const || 0]	PARSED
+over[type T = dyn A;]	PARSED
+over[type T = fn();]	PARSED
+over[for x in y {}]	PARSED
+over[if a {}]	PARSED
+over[type T = impl A;]	PARSED
+over[let a = 0;]	PARSED
+over[loop {}]	PARSED
+over[match a {}]	PARSED
+over[move || 0]	PARSED
+over[let mut a = 0;]	PARSED
+over[let ref a = 0;]	PARSED
+over[return x]	PARSED
+over[static X: u8 = 0;]	PARSED
+over[try {}]	PARSED
+over[unsafe {}]	PARSED
+over[while a {}]	PARSED
+over[yield x]	PARSED
+over['a: {}]	PARSED
+over[use a::b;]	PARSED
+over[use a::b::c;]	PARSED
+over[use a::{b::c, d};]	PARSED
+over[g(x)]	PARSED
+over[x[0]]	PARSED
+over[{}]	PARSED
+over[#[a] fn g() {}]	PARSED
+over[#![a] fn g() {}]	PARSED
+over[a::b::c]	PARSED
+over[type T = A<u8, & & & u8>;]	PARSED
+over[|a, b| !x]	PARSED
+over[if a {} else if a {} else if a {} else if a {} else if a {} else {}]	PARSED
+over[for S { a } in return 0 {}]	PARSED
+over[return return S {} as u8 as u8]	PARSED
+over[m!(!x !x !x)]	PARSED
+over[m![a, [b]]]	PARSED
+over[macro_rules! r { () => { !x } }]	PARSED
+over[if !(x) {}]	PARSED
+over[return !(x)]	PARSED
+over[match a { b | c | d => 0 }]	PARSED
+over[match f(x) { a | b => 0 }]	PARSED
+over[match a { b if c | d | e => 0 }]	PARSED
+over[match unsafe { a } { b | c => 0 }]	PARSED
+budget_recursion_over	PARSED
+arm_over	PARSED
+tuple_over	PARSED
+statements_over_a	PARSED
+statements_over_b	PARSED
+for_chain_over	PARSED
+generic_chain_over	ABORT (signal: 6 (SIGABRT) (core dumped))
+compare_chain_over	PARSED
+guard_over	PARSED
+scrutinee_block_over	PARSED
+== base e472918, release: behaviour-change fixtures (over-limit texts; a passing R6 test needs REFUSED parser recursion)
+over[]	PARSED
+over[!x]	PARSED
+over[-x]	PARSED
+over[*x]	PARSED
+over[&x]	PARSED
+over[&&x]	PARSED
+over[a | b]	PARSED
+over[a || b]	PARSED
+over[a < b]	PARSED
+over[a > b]	PARSED
+over[a + b]	PARSED
+over[a / b]	PARSED
+over[a % b]	PARSED
+over[a ^ b]	PARSED
+over[a = b]	PARSED
+over[x?]	PARSED
+over[x.a]	PARSED
+over[x.await]	PARSED
+over[a..b]	PARSED
+over[a..=b]	PARSED
+over[a += b]	PARSED
+over[a -= b]	PARSED
+over[a *= b]	PARSED
+over[a /= b]	PARSED
+over[a %= b]	PARSED
+over[a ^= b]	PARSED
+over[a &= b]	PARSED
+over[a |= b]	PARSED
+over[a <<= b]	PARSED
+over[a >>= b]	PARSED
+over[a == b]	PARSED
+over[a != b]	PARSED
+over[a <= b]	PARSED
+over[a >= b]	PARSED
+over[a << b]	PARSED
+over[a >> b]	PARSED
+over[a && b]	PARSED
+over[|| -> u8 { 0 }]	PARSED
+over[let a @ b = 0;]	PARSED
+over[extern "C" { fn g(a: u8, ...); }]	PARSED
+over[x.0.1]	PARSED
+over[x as u8]	PARSED
+over[async {}]	PARSED
+over[become g()]	PARSED
+over[let box a = 0;]	PARSED
+over[break x]	PARSED
+over[const || 0]	PARSED
+over[type T = dyn A;]	PARSED
+over[type T = fn();]	PARSED
+over[for x in y {}]	PARSED
+over[if a {}]	PARSED
+over[type T = impl A;]	PARSED
+over[let a = 0;]	PARSED
+over[loop {}]	PARSED
+over[match a {}]	PARSED
+over[move || 0]	PARSED
+over[let mut a = 0;]	PARSED
+over[let ref a = 0;]	PARSED
+over[return x]	PARSED
+over[static X: u8 = 0;]	PARSED
+over[try {}]	PARSED
+over[unsafe {}]	PARSED
+over[while a {}]	PARSED
+over[yield x]	PARSED
+over['a: {}]	PARSED
+over[use a::b;]	PARSED
+over[use a::b::c;]	PARSED
+over[use a::{b::c, d};]	PARSED
+over[g(x)]	PARSED
+over[x[0]]	PARSED
+over[{}]	PARSED
+over[#[a] fn g() {}]	PARSED
+over[#![a] fn g() {}]	PARSED
+over[a::b::c]	PARSED
+over[type T = A<u8, & & & u8>;]	PARSED
+over[|a, b| !x]	PARSED
+over[if a {} else if a {} else if a {} else if a {} else if a {} else {}]	PARSED
+over[for S { a } in return 0 {}]	PARSED
+over[return return S {} as u8 as u8]	PARSED
+over[m!(!x !x !x)]	PARSED
+over[m![a, [b]]]	PARSED
+over[macro_rules! r { () => { !x } }]	PARSED
+over[if !(x) {}]	PARSED
+over[return !(x)]	PARSED
+over[match a { b | c | d => 0 }]	PARSED
+over[match f(x) { a | b => 0 }]	PARSED
+over[match a { b if c | d | e => 0 }]	PARSED
+over[match unsafe { a } { b | c => 0 }]	PARSED
+budget_recursion_over	PARSED
+arm_over	PARSED
+tuple_over	PARSED
+statements_over_a	PARSED
+statements_over_b	PARSED
+for_chain_over	PARSED
+generic_chain_over	PARSED
+compare_chain_over	PARSED
+guard_over	PARSED
+scrutinee_block_over	PARSED
+
+Count PARSED on base: 195 of 196; none REFUSED.
+
+## 2. Committed overflow shapes and the recursion corpus pair on base (overflow_harness / corpus_replay require Refused; R6 harness also rejects Aborted)
+== base e472918, debug: committed overflow shapes and the recursion pair (R6 requires Refused)
+composite_bang_paren	ABORT (exit 134)
+composite_bars_paren	ABORT (exit 134)
+composite_double_ref_paren	ABORT (exit 134)
+composite_generic_ref	ABORT (exit 134)
+composite_ref_paren	ABORT (exit 134)
+uncounted_assignment	ABORT (exit 134)
+uncounted_fn_pointer	ABORT (exit 134)
+uncounted_move_closure	REFUSED closure bar chain
+uncounted_ptr_const	ABORT (exit 134)
+uncounted_ref_mut	ABORT (exit 134)
+uncounted_return	ABORT (exit 134)
+chain_add	PARSED
+chain_add_assign	ABORT (exit 134)
+chain_async_closure	ABORT (exit 134)
+chain_async_move_closure	ABORT (exit 134)
+chain_await	PARSED
+chain_become	ABORT (exit 134)
+chain_box_pattern	PARSED
+chain_break	ABORT (exit 134)
+chain_call	PARSED
+chain_cast	PARSED
+chain_const_closure	ABORT (exit 134)
+chain_extern_fn_pointer	ABORT (exit 134)
+chain_field	PARSED
+chain_for_fn_pointer	ABORT (exit 134)
+chain_impl_fn_return	ABORT (exit 134)
+chain_index	PARSED
+chain_method	PARSED
+chain_mul	PARSED
+chain_ptr_mut	ABORT (exit 134)
+chain_raw_ref	ABORT (exit 134)
+chain_return_closure	ABORT (exit 134)
+chain_try	PARSED
+chain_unsafe_fn_pointer	ABORT (exit 134)
+chain_yield	ABORT (exit 134)
+budget_recursion_at	PARSED
+budget_recursion_over	PARSED
+== base e472918, release: committed overflow shapes and the recursion pair (R6 requires Refused)
+composite_bang_paren	PARSED
+composite_bars_paren	PARSED
+composite_double_ref_paren	ABORT (exit 134)
+composite_generic_ref	PARSED
+composite_ref_paren	ABORT (exit 134)
+uncounted_assignment	PARSED
+uncounted_fn_pointer	ABORT (exit 134)
+uncounted_move_closure	REFUSED closure bar chain
+uncounted_ptr_const	PARSED
+uncounted_ref_mut	PARSED
+uncounted_return	ABORT (exit 134)
+chain_add	PARSED
+chain_add_assign	PARSED
+chain_async_closure	ABORT (exit 134)
+chain_async_move_closure	ABORT (exit 134)
+chain_await	PARSED
+chain_become	ABORT (exit 134)
+chain_box_pattern	PARSED
+chain_break	ABORT (exit 134)
+chain_call	PARSED
+chain_cast	PARSED
+chain_const_closure	ABORT (exit 134)
+chain_extern_fn_pointer	ABORT (exit 134)
+chain_field	PARSED
+chain_for_fn_pointer	ABORT (exit 134)
+chain_impl_fn_return	ABORT (exit 134)
+chain_index	PARSED
+chain_method	PARSED
+chain_mul	PARSED
+chain_ptr_mut	PARSED
+chain_raw_ref	PARSED
+chain_return_closure	ABORT (exit 134)
+chain_try	PARSED
+chain_unsafe_fn_pointer	ABORT (exit 134)
+chain_yield	ABORT (exit 134)
+budget_recursion_at	PARSED
+budget_recursion_over	PARSED
+
+Only uncounted_move_closure is refused on base (closure bar chain), as on R6: not a behaviour change. Every other line fails the R6 assertion.
+
+## 3. S-11 box pattern (prescan_budgets::the_eighty_kilobyte_box_pattern_is_refused_in_under_a_second requires Refused in < 1 s)
+base debug:   PARSED in 66.59s
+base release: PARSED in 14.85s
+
+## 4. use path on the caller's thread (R3 note): index::flatten recurses once per segment, 1024 bytes a frame in debug (gdb: frame 1 sp 0x7ffff77ff290, frame 2 sp 0x7ffff77ff690).
+base debug, 2 MiB thread: use path of 1927 segments LOADED; 2100 segments: fatal runtime error: stack overflow; 4000 segments: Aborted (exit 134).
+R6 with the unweighted '::' (one unit) at the limit 2048 aborted the 2 MiB thread in debug (gdb backtrace: raf_source::index::flatten at index.rs:419 repeated).
+R6 final: '::' in a use declaration counts 16, so a use tree is at most 1927/16 = 120 separators deep (or 107 nested groups); walk_stack::a_use_tree_at_the_recursion_limit_loads_resolves_and_drops_on_a_five_hundred_twelve_kib_thread loads both at the limit on 512 KiB in debug and release and refuses one more.
+On base that test does not compile (no Budget::Recursion); its refusal half has no base counterpart (base admits any use path).
+
+## 5. API-dependent fixtures
+load_budgets::usage_reports_what_a_load_spent (max_recursion == 4), budget::tests and the_recursion_limit_is_half_the_parse_stack... reference Usage::max_recursion, Budget::Recursion and RECURSION_UNIT_BYTES, which do not exist on e472918: they fail to compile there.
+
+## 6. overflow_harness::the_judge_rejects_a_wrong_index_a_misnamed_refusal_an_abort_and_a_stray_failure
+On e472918 support/child.rs::problem returns None for Outcome::Aborted (abort accepted); the R6 assertion problem(&abort, ..).is_some() fails there.
+
+## 7. Mutation rule (at-limit fixtures and counter rules), each reverted after the run
+M1 DOUBLED_UNITS = 1                         -> every_operator_..., a_construct_that_continues_... FAIL
+M2 drop "mod" from COUNTED_KEYWORDS          -> every_counted_keyword_... FAIL
+M3 every `,` resets                          -> a_construct_that_continues_past_a_comma_... FAIL
+M4 no match-arm detection                    -> a_macro_call_counts_only_its_groups_and_a_match_pattern_... FAIL
+M5 no macro token trees                      -> a_macro_call_counts_only_its_groups_... FAIL
+M6 every identifier after `}` resets         -> a_construct_that_continues_past_a_comma_or_a_closing_brace_... FAIL
+M7 `where` commas reset                      -> a_construct_that_continues_... FAIL
+M8 USE_SEPARATOR_UNITS = 1                   -> a_label_a_use_path_separator_and_each_delimiter_... FAIL
+M9 a dotted number counts nothing            -> every_operator_counts_one_for_each_of_its_characters_... FAIL

@@ -1,0 +1,69 @@
+diff --git deny.toml deny.toml
+index bf574a6..0132cbe 100644
+--- deny.toml
++++ deny.toml
+@@ -21,8 +21,9 @@ unused-allowed-license = "allow"
+ # under the Unicode terms (`Unicode-3.0`) in addition to MIT or Apache-2.0.
+ # The terms permit use and redistribution of the data as compiled in, and no
+ # other crate in the graph needs them, so the exception is scoped to this crate.
++# It is pinned to the audited version, so a new release is re-reviewed.
+ [[licenses.exceptions]]
+-crate = "unicode-ident"
++crate = "unicode-ident@=1.0.27"
+ allow = ["Unicode-3.0"]
+ 
+ [bans]
+diff --git fuzz/deny.toml fuzz/deny.toml
+index 55ef655..0463653 100644
+--- fuzz/deny.toml
++++ fuzz/deny.toml
+@@ -21,15 +21,16 @@ unused-allowed-license = "allow"
+ # under the Unicode terms (`Unicode-3.0`) in addition to MIT or Apache-2.0.
+ # The terms permit use and redistribution of the data as compiled in, and no
+ # other crate in the graph needs them, so the exception is scoped to this crate.
++# It is pinned to the audited version, so a new release is re-reviewed.
+ [[licenses.exceptions]]
+-crate = "unicode-ident"
++crate = "unicode-ident@=1.0.27"
+ allow = ["Unicode-3.0"]
+ 
+ # `libfuzzer-sys` bundles LLVM's libFuzzer, which is under the NCSA licence in
+ # addition to MIT or Apache-2.0. The harness is not shipped and no other crate
+ # in its graph needs the terms, so the exception is scoped to this crate.
+ [[licenses.exceptions]]
+-crate = "libfuzzer-sys"
++crate = "libfuzzer-sys@=0.4.13"
+ allow = ["NCSA"]
+ 
+ [bans]
+diff --git tests/repo_gates.rs tests/repo_gates.rs
+index 6d38660..c4c66df 100644
+--- tests/repo_gates.rs
++++ tests/repo_gates.rs
+@@ -398,7 +398,7 @@ fn deny_tables(deny: &str) -> Vec<Vec<String>> {
+ /// The crate-scoped exception the fuzz configuration adds to the root one.
+ const FUZZ_EXCEPTION: [&str; 3] = [
+     "[[licenses.exceptions]]",
+-    "crate = \"libfuzzer-sys\"",
++    "crate = \"libfuzzer-sys@=0.4.13\"",
+     "allow = [\"NCSA\"]",
+ ];
+ 
+@@ -934,7 +934,7 @@ const DENY_ROOT: &str = "# note\n[licenses]\nallow = [\"MIT\"]\n\n[[licenses.exc
+ fn fuzz_deny() -> String {
+     DENY_ROOT.replace(
+         "\n[bans]",
+-        "\n# why\n[[licenses.exceptions]]\ncrate = \"libfuzzer-sys\"\nallow = [\"NCSA\"]\n\n[bans]",
++        "\n# why\n[[licenses.exceptions]]\ncrate = \"libfuzzer-sys@=0.4.13\"\nallow = [\"NCSA\"]\n\n[bans]",
+     )
+ }
+ 
+@@ -960,7 +960,7 @@ fn deny_rejects_a_missing_or_widened_or_repeated_exception() {
+     assert!(deny_problem(DENY_ROOT, &other_crate).is_some());
+     let twice = fuzz_deny().replace(
+         "\n[bans]",
+-        "\n[[licenses.exceptions]]\ncrate = \"libfuzzer-sys\"\nallow = [\"NCSA\"]\n\n[bans]",
++        "\n[[licenses.exceptions]]\ncrate = \"libfuzzer-sys@=0.4.13\"\nallow = [\"NCSA\"]\n\n[bans]",
+     );
+     assert!(deny_problem(DENY_ROOT, &twice).is_some());
+ }

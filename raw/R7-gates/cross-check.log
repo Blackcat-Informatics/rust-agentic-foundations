@@ -1,0 +1,8 @@
+### cross-check: make cross-check
+    Checking raf-source v0.1.0 (/tmp/raf-par/p1-r6r7/crates/raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.53s
+    Checking raf-source v0.1.0 (/tmp/raf-par/p1-r6r7/crates/raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.16s
+    Checking raf-source v0.1.0 (/tmp/raf-par/p1-r6r7/crates/raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.55s
+### exit 0

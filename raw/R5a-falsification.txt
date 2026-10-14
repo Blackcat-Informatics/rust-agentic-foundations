@@ -1,0 +1,303 @@
+# R5a falsification. Old code: d1c4a7f (git archive into /tmp/r5a-old), with this item's final
+# use_resolution.rs, trait_keys.rs and this_repository.rs copied in; each test run alone
+# (cargo test -p raf-source --locked [--release] --test <file> -- --exact <name>).
+# Every behaviour-change fixture fails on d1c4a7f; the two that pass are noted below.
+
+== use_resolution::a_single_segment_import_of_a_dependency_is_an_external_alias_and_never_its_own_cycle
+thread 'a_single_segment_import_of_a_dependency_is_an_external_alias_and_never_its_own_cycle' (2392900) panicked at crates/raf-source/tests/use_resolution.rs:982:17:
+assertion `left == right` failed: 2018: pub use serde;: demo::serde
+  left: Err(Cyclic("demo::serde"))
+ right: Err(NotFound("demo::serde"))
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 34 filtered out; finished in 0.00s
+exit=101
+== use_resolution::a_single_segment_import_of_a_workspace_library_binds_its_crate_root
+thread 'a_single_segment_import_of_a_workspace_library_binds_its_crate_root' (2393102) panicked at crates/raf-source/tests/use_resolution.rs:26:29:
+p_two::p_one::X: `p_two::p_one::X` names nothing in the workspace
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 34 filtered out; finished in 0.00s
+exit=101
+== use_resolution::a_use_path_of_edition_2015_starts_at_the_crate_root
+thread 'a_use_path_of_edition_2015_starts_at_the_crate_root' (2393306) panicked at crates/raf-source/tests/use_resolution.rs:26:29:
+demo::user::go: `demo::user::go` goes through imports that form a cycle
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 34 filtered out; finished in 0.00s
+exit=101
+== use_resolution::a_use_head_from_a_glob_that_is_also_an_extern_prelude_crate_is_ambiguous
+thread 'a_use_head_from_a_glob_that_is_also_an_extern_prelude_crate_is_ambiguous' (2393420) panicked at crates/raf-source/tests/use_resolution.rs:1112:22:
+demo::globbed::S: Ok(Resolution { path: "demo::local::serde::Serialize", namespace: Type, sites: [ItemId(3)], via_glob: true, chain: ["demo::globbed::S", "demo::local::serde::Serialize"] })
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 34 filtered out; finished in 0.00s
+exit=101
+== use_resolution::extern_crate_renames_and_leading_colon_paths_reach_the_library_from_other_targets
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 34 filtered out; finished in 0.00s
+exit=0
+== trait_keys::a_trait_through_a_single_segment_import_of_a_crate_is_keyed_at_the_crate
+thread 'a_trait_through_a_single_segment_import_of_a_crate_is_keyed_at_the_crate' (2394117) panicked at crates/raf-source/tests/trait_keys.rs:988:33:
+2018: src/lib.rs:3: the trait `std::fmt::Display` of an impl cannot be named by an absolute path
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 37 filtered out; finished in 0.00s
+exit=101
+== trait_keys::a_glob_through_a_re_exported_crate_is_keyed_under_the_crate
+thread 'a_glob_through_a_re_exported_crate_is_keyed_under_the_crate' (2394261) panicked at crates/raf-source/tests/trait_keys.rs:1051:25:
+src/lib.rs:2: the trait `serde::prelude::*` of an impl cannot be named by an absolute path
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 37 filtered out; finished in 0.00s
+exit=101
+== trait_keys::a_use_path_of_edition_2015_is_followed_from_the_crate_root
+thread 'a_use_path_of_edition_2015_is_followed_from_the_crate_root' (2394415) panicked at crates/raf-source/tests/trait_keys.rs:1066:25:
+src/lib.rs:5: the trait `serde::Deserializer` of an impl cannot be named by an absolute path
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 37 filtered out; finished in 0.00s
+exit=101
+== trait_keys::a_trait_through_an_ambiguous_use_head_keys_every_reading
+thread 'a_trait_through_an_ambiguous_use_head_keys_every_reading' (2394567) panicked at crates/raf-source/tests/trait_keys.rs:1123:10:
+by its written path: NotFound("Serialize::m")
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 37 filtered out; finished in 0.00s
+exit=101
+== trait_keys::a_trait_found_through_twenty_thousand_chained_globs_is_keyed_on_a_two_mib_thread
+thread '<unknown>' (2394710) has overflowed its stack
+fatal runtime error: stack overflow, aborting
+  process didn't exit successfully: `trait_keys-6378dc98e708d649 --exact a_trait_found_through_twenty_thousand_chained_globs_is_keyed_on_a_two_mib_thread --quiet` (signal: 6, SIGABRT: process abort signal)
+exit=101
+== trait_keys::twenty_thousand_chained_local_aliases_load_on_a_two_mib_thread
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 0.54s
+exit=0
+== trait_keys::a_trait_found_through_twenty_thousand_chained_globs_is_keyed_on_a_two_mib_thread
+thread '<unknown>' (2398095) has overflowed its stack
+fatal runtime error: stack overflow, aborting
+  process didn't exit successfully: `trait_keys-8a2b0820cace6e64 --exact a_trait_found_through_twenty_thousand_chained_globs_is_keyed_on_a_two_mib_thread --quiet` (signal: 6, SIGABRT: process abort signal)
+exit=101
+== trait_keys::twenty_thousand_chained_local_aliases_load_on_a_two_mib_thread
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 0.07s
+exit=0
+== this_repository::a_dependency_re_exported_by_its_crate_name_is_not_found_and_not_a_cycle
+thread 'a_dependency_re_exported_by_its_crate_name_is_not_found_and_not_a_cycle' (2398508) panicked at crates/raf-source/tests/this_repository.rs:61:9:
+assertion `left == right` failed: raf_source::syn
+  left: Err(Cyclic("raf_source::syn"))
+ right: Err(NotFound("raf_source::syn"))
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.57s
+exit=101
+
+# Notes
+# - extern_crate_renames_and_leading_colon_paths_reach_the_library_from_other_targets is an existing
+#   fixture whose manifest had no edition (2015), where its `use ::demo::..` and plain `use demo::..`
+#   forms are refused by rustc (E0432, probe below). It is now written in edition 2021 with the same
+#   assertions; the 2015 reading is asserted by a_use_path_of_edition_2015_starts_at_the_crate_root.
+#   It passes on both codes by design: it is not a behaviour fixture.
+# - twenty_thousand_chained_local_aliases_load_on_a_two_mib_thread (the plan's CA-F7 shape) passes on
+#   d1c4a7f: settle binds the chain on its work queue and the trait key is found by a walk, so the
+#   old recursive search is never reached. It is covered by the mutation rule:
+#   mutation 'drain the settle queue by recursion' (settle.rs Index::drain: 'while let' -> 'if let'
+#   plus a recursive self.drain(pending, meter)? after the wakes), run once and reverted:
+#   == mutation (drain by recursion) 
+#   thread '<unknown>' (2122317) has overflowed its stack
+#   fatal runtime error: stack overflow, aborting
+#     process didn't exit successfully: `trait_keys-6378dc98e708d649 --exact twenty_thousand_chained_local_aliases_load_on_a_two_mib_thread --quiet` (signal: 6, SIGABRT: process abort signal)
+#   == mutation (drain by recursion) --release
+#   thread '<unknown>' (2127829) has overflowed its stack
+#   fatal runtime error: stack overflow, aborting
+#     process didn't exit successfully: `trait_keys-8a2b0820cace6e64 --exact twenty_thousand_chained_local_aliases_load_on_a_two_mib_thread --quiet` (signal: 6, SIGABRT: process abort signal)
+#   The stack-safety of the trait-key search itself is falsified by
+#   a_trait_found_through_twenty_thousand_chained_globs_is_keyed_on_a_two_mib_thread (stack overflow
+#   abort on d1c4a7f in debug and release, above).
+
+# rustc probes behind the edition and ambiguity rules (rustc --edition N, --extern a=liba.rlib):
+#   2015 'use a::f;' with no 'extern crate a'            -> E0432 unresolved import
+#   2015 'extern crate a as d; use ::a::f as g;'          -> E0432; 2018 -> compiles
+#   2015 'mod x { use std; .. impl std::fmt::Display }'   -> compiles; 'use core;' -> E0432
+#   2015 'impl ::a::T for S' with no 'extern crate a'     -> E0433 (crate-root relative)
+#   2018 'mod a {..} use a::f;' (local item + extern a)   -> compiles (the item shadows the crate)
+#   2018 'use m::a; use a::f;' (import + extern a)        -> compiles
+#   2018 'use m::*; use a::f;' (glob a + extern a)        -> E0659 ambiguous; also for 'use a;' and 'use a::*'
+#   2018 glob brings in 'mod std' + 'use std::fmt;'       -> E0659
+#   2018 glob brings in the same crate (m: 'pub use a;')  -> compiles
+#   2018 glob brings in only a value 'fn a'               -> compiles
+#   2018 'pub use a; mod x { use crate::a::T; impl T .. }' -> compiles
+
+# Review round (REQUIRED-1 and advisories 1, 3a, 3b, 3c, 4, 6): the new fixtures, each run alone on d1c4a7f
+# with the final test files copied in. Every one fails there.
+
+== use_resolution::a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order 
+thread 'a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order' (2964089) panicked at crates/raf-source/tests/use_resolution.rs:1217:28:
+assertion `left == right` failed: pub mod k { pub mod shared { pub fn x() {} pub trait T { fn m(&self); } } }
+pub use shared::x;
+use k::*;
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 37 filtered out; finished in 0.01s
+exit=101
+== use_resolution::a_glob_that_brings_in_an_import_of_another_crate_collides_with_the_crate 
+thread 'a_glob_that_brings_in_an_import_of_another_crate_collides_with_the_crate' (2964156) panicked at crates/raf-source/tests/use_resolution.rs:1316:5:
+assertion `left == right` failed
+  left: Err(["NotFound(\"demo::user::Serialize\")"])
+ right: Err(["demo::m"])
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 37 filtered out; finished in 0.00s
+exit=101
+== use_resolution::a_no_std_crate_does_not_name_std_without_an_extern_crate_item 
+thread 'a_no_std_crate_does_not_name_std_without_an_extern_crate_item' (2964231) panicked at crates/raf-source/tests/use_resolution.rs:1342:9:
+assertion `left == right` failed: 
+  left: Ok("demo::k::std::fmt")
+ right: Err(["demo::k::std"])
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 37 filtered out; finished in 0.00s
+exit=101
+== use_resolution::resolution_does_not_depend_on_the_order_of_the_declarations 
+thread 'resolution_does_not_depend_on_the_order_of_the_declarations' (2964290) panicked at crates/raf-source/tests/use_resolution.rs:1217:28:
+assertion `left == right` failed: pub mod k { pub mod shared { pub fn x() {} pub trait T { fn m(&self); } } }
+pub use shared::x;
+use k::*;
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 37 filtered out; finished in 1.80s
+exit=101
+== trait_keys::an_import_met_again_through_a_glob_adds_nothing_and_a_pure_cycle_is_refused 
+thread 'an_import_met_again_through_a_glob_adds_nothing_and_a_pure_cycle_is_refused' (2966464) panicked at crates/raf-source/tests/trait_keys.rs:1203:25:
+src/lib.rs:4: the trait `Serialize` of an impl cannot be named by an absolute path
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 42 filtered out; finished in 0.00s
+exit=101
+== trait_keys::a_trait_through_a_head_a_glob_brings_in_from_another_crate_keys_both 
+thread 'a_trait_through_a_head_a_glob_brings_in_from_another_crate_keys_both' (2966974) panicked at crates/raf-source/tests/trait_keys.rs:1232:10:
+by its written path: NotFound("Serialize::m")
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 42 filtered out; finished in 0.00s
+exit=101
+== trait_keys::a_use_path_of_edition_2015_names_a_dependency_only_through_extern_crate 
+thread 'a_use_path_of_edition_2015_names_a_dependency_only_through_extern_crate' (2967086) panicked at crates/raf-source/tests/trait_keys.rs:1253:14:
+no `serde` at the crate root: Workspace { .. } (the 2015 load succeeded with key Canonical("serde::Serialize"), where rustc refuses the import)
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 42 filtered out; finished in 0.00s
+exit=101
+== trait_keys::a_trait_name_that_two_globs_bind_keys_each_trait 
+thread 'a_trait_name_that_two_globs_bind_keys_each_trait' (2967177) panicked at crates/raf-source/tests/trait_keys.rs:1297:5:
+assertion `left == right` failed
+  left: Canonical("demo::a::T")
+ right: Unresolved { written: "T", candidates: ["demo::a::T", "demo::b::T"] }
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 42 filtered out; finished in 0.00s
+exit=101
+== trait_keys::the_completion_audit_shape_of_a_crate_alias_and_twenty_thousand_imports_loads_on_a_two_mib_thread 
+thread '<unknown>' (2967269) has overflowed its stack
+fatal runtime error: stack overflow, aborting
+  process didn't exit successfully: `trait_keys-6378dc98e708d649 --exact the_completion_audit_shape_of_a_crate_alias_and_twenty_thousand_imports_loads_on_a_two_mib_thread --quiet` (signal: 6, SIGABRT: process abort signal)
+exit=101
+== trait_keys::the_completion_audit_shape_of_a_crate_alias_and_twenty_thousand_imports_loads_on_a_two_mib_thread --release
+thread '<unknown>' (3004079) has overflowed its stack
+fatal runtime error: stack overflow, aborting
+  process didn't exit successfully: `trait_keys-8a2b0820cace6e64 --exact the_completion_audit_shape_of_a_crate_alias_and_twenty_thousand_imports_loads_on_a_two_mib_thread --quiet` (signal: 6, SIGABRT: process abort signal)
+exit=101
+
+# REQUIRED-1 against the earlier R5a behaviour, as a mutation run once and reverted: the crates of
+# the extern prelude open from the start (index.rs Index::empty: crates_open: true), so a use head
+# does not wait for the module's globs. Both order fixtures fail on the order that reads the crate first:
+#   == mutation (crates open from the start: no wait on globs) use_resolution::a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order
+#   thread 'a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order' (3005588) panicked at crates/raf-source/tests/use_resolution.rs:1217:28:
+#   assertion `left == right` failed: pub mod k { pub mod shared { pub fn x() {} pub trait T { fn m(&self); } } }
+#   pub use shared::x;
+#   use k::*;
+#   use shared::T;
+#   impl T for String { fn m(&self) {} }
+#   --
+#   test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 37 filtered out; finished in 0.00s
+#   
+#   == mutation (crates open from the start: no wait on globs) use_resolution::resolution_does_not_depend_on_the_order_of_the_declarations
+#   thread 'resolution_does_not_depend_on_the_order_of_the_declarations' (3005648) panicked at crates/raf-source/tests/use_resolution.rs:1217:28:
+#   assertion `left == right` failed: pub mod k { pub mod shared { pub fn x() {} pub trait T { fn m(&self); } } }
+#   pub use shared::x;
+#   use k::*;
+#   use shared::T;
+#   impl T for String { fn m(&self) {} }
+#   --
+#   test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 37 filtered out; finished in 1.80s
+#   
+# Advisory 4: the first-wins over a module's extern crate items in the trait-key search is
+# replaced by every item's crate. A module's own extern crate item is answered by its scope before
+# that branch runs; the branch is reached only through a glob of a module whose extern crate item the
+# glob does not bring in, so it has no fixture of its own. The walk first-wins is
+# falsified by a_trait_name_that_two_globs_bind_keys_each_trait above.
+
+# Round three: settle until no import's first segment is newly ambiguous against the settled tables.
+# Fixture a_glob_whose_own_path_starts_at_a_crate_is_ambiguous_with_a_crate_in_every_order on d1c4a7f:
+#   thread 'a_glob_whose_own_path_starts_at_a_crate_is_ambiguous_with_a_crate_in_every_order' (3126259) panicked at crates/raf-source/tests/use_resolution.rs:1228:28:
+#   assertion `left == right` failed: 
+#   use shared::inner as inn;
+#   pub use other::x;
+#   use inn::*;
+#   --
+# Mutation, run once and reverted: settle_agreed returns after the first settle (no agreement pass).
+#   == mutation (no agreement pass: settle_agreed returns after the first settle)
+#   -- use_resolution::a_glob_whose_own_path_starts_at_a_crate_is_ambiguous_with_a_crate_in_every_order
+#   thread 'a_glob_whose_own_path_starts_at_a_crate_is_ambiguous_with_a_crate_in_every_order' (3123424) panicked at crates/raf-source/tests/use_resolution.rs:1416:5:
+#   assertion `left == right` failed
+#     left: Ok("other::x")
+#    right: Err(["other", "shared::inner::other"])
+#   --
+#   test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 38 filtered out; finished in 0.03s
+#   -- use_resolution::a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order
+#   test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 38 filtered out; finished in 0.02s
+#   
+#   -- use_resolution::resolution_does_not_depend_on_the_order_of_the_declarations
+#   test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 38 filtered out; finished in 2.47s
+#   
+# The neighbour 'a glob that brings in pub use serde::serde' (an item of the crate under its name,
+# as quote::quote in jni-macros, windows-implement, deno_ops and five more registry crates) under the
+# round-two rule (every glob-carried import outside the index collides), run once and reverted:
+#   thread 'a_glob_that_brings_in_an_import_of_another_crate_collides_with_the_crate' (3271577) panicked at crates/raf-source/tests/use_resolution.rs:31:5:
+#   demo::parent::tests::Serialize: Err(Ambiguous([ItemId(4)]))
+#   
+#   --
+#   test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 38 filtered out; finished in 0.00s
+
+# Round four (REQUIRED-2: an explicit import shadows a crate in every order; ADVISORY-8).
+# On d1c4a7f with the final test files copied in:
+#   == use_resolution::an_explicit_import_shadows_a_workspace_library_in_every_declaration_order
+#   thread 'an_explicit_import_shadows_a_workspace_library_in_every_declaration_order' (3467956) panicked at crates/raf-source/tests/use_resolution.rs:1228:28:
+#   assertion `left == right` failed: 
+#   pub use other::x;
+#   use other::T;
+#   impl T for String { fn m(&self) {} }
+#   --
+#   == use_resolution::a_crate_read_before_the_explicit_import_of_its_name_binds_is_read_again_in_every_order
+#   thread 'a_crate_read_before_the_explicit_import_of_its_name_binds_is_read_again_in_every_order' (3468046) panicked at crates/raf-source/tests/use_resolution.rs:1505:5:
+#   assertion `left == right` failed
+#     left: Ok("other::inner::other")
+#    right: Err(["NotFound(\"demo::other\")"])
+#   --
+#   test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 40 filtered out; finished in 0.01s
+#   == trait_keys::a_trait_that_several_unknown_globs_could_give_is_refused_naming_one_glob_in_every_order
+#   thread 'a_trait_that_several_unknown_globs_could_give_is_refused_naming_one_glob_in_every_order' (3468173) panicked at crates/raf-source/tests/trait_keys.rs:1342:9:
+#   use inn::inner::*;
+#   use sh::*;
+#   impl T for Vec<u8> { fn m(&self) {} }: src/lib.rs:2: the trait `sh::*` of an impl cannot be named by an absolute path
+#   --
+#   test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 43 filtered out; finished in 0.00s
+# Mutations on the shadowing fixture, each run once and reverted:
+#   == mutation A: no wait on an unsettled explicit import (agreement check kept)
+#   test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 39 filtered out; finished in 0.08s
+#   
+#   == mutation B: no check of crate reads against the settled tables (wait kept)
+#   test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 39 filtered out; finished in 0.08s
+#   
+#   == mutation C: neither
+#   thread 'an_explicit_import_shadows_a_workspace_library_in_every_declaration_order' (3446396) panicked at crates/raf-source/tests/use_resolution.rs:1228:28:
+#   assertion `left == right` failed: 
+#   pub use other::x;
+#   use other::T;
+#   impl T for String { fn m(&self) {} }
+#   pub use shared::inner::other;
+#   pub mod later { pub use crate::x as y; }
+#   
+#   --
+# (each half alone fixes that shape; without both it fails).
+# Mutations on the late-binding fixture (rustc: E0432 on k::other):
+#   == mutation A: no wait on an unsettled explicit import
+#   test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 40 filtered out; finished in 0.01s
+#   
+#   == mutation B: no check of crate reads against the settled tables
+#   thread 'a_crate_read_before_the_explicit_import_of_its_name_binds_is_read_again_in_every_order' (3451644) panicked at crates/raf-source/tests/use_resolution.rs:1504:5:
+#   assertion `left == right` failed
+#     left: Ok("other::inner::other")
+#    right: Err(["NotFound(\"demo::other\")"])
+#   --
+#   test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 40 filtered out; finished in 0.01s
+# Mutation on the deterministic-glob fixture:
+#   == mutation: the error names the last failed glob instead of the first
+#   thread 'a_trait_that_several_unknown_globs_could_give_is_refused_naming_one_glob_in_every_order' (3465808) panicked at crates/raf-source/tests/trait_keys.rs:1342:9:
+#   use sh::*;
+#   use inn::inner::*;
+#   --

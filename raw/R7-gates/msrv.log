@@ -1,0 +1,8 @@
+### msrv: make msrv
+rust-validate 1.98.1 cargo check --workspace --all-targets --locked
+    Checking raf-source v0.1.0 (/tmp/raf-par/p1-r6r7/crates/raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.55s
+rust-validate 1.98.1 cargo check --manifest-path './fuzz/Cargo.toml' --all-targets --locked
+    Checking raf-source-fuzz v0.0.0 (/tmp/raf-par/p1-r6r7/fuzz)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.22s
+### exit 0

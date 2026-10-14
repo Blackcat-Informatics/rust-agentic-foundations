@@ -1,0 +1,185 @@
+R5d falsification: the new fixtures run on a git archive of 44e18b7 (/tmp/raf-r5d-base) with the patched test files copied in.
+The base has no UnresolvedGlob variant, so the copy of resolve_paths.rs there builds the expected error as Invalid("UnresolvedGlob <path> <glob> <module>") so that it compiles; the assertion still expects a typed error that is not NotFound.
+The resolve.rs unit test is appended to the base resolve.rs without the UnresolvedGlob variant.
+
+== cargo test -p raf-source --test resolve_paths (debug, base 44e18b7)
+test a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path ... FAILED
+test a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found ... ok
+test a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it ... FAILED
+test a_path_of_fifty_thousand_segments_resolves_in_linear_time has been running for over 60 seconds
+test a_path_of_fifty_thousand_segments_resolves_in_linear_time ... FAILED
+thread 'a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path' (3630469) panicked at crates/raf-source/tests/resolve_paths.rs:48:9:
+assertion `left == right` failed: demo::crate::a::x
+  left: Ok(Resolution { path: "demo::a::x", namespace: Value, sites: [ItemId(2)], via_glob: false, chain: ["demo::a::x"] })
+ right: Err(Invalid("demo::crate::a::x"))
+thread 'a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it' (3630467) panicked at crates/raf-source/tests/resolve_paths.rs:97:9:
+assertion `left == right` failed: demo::a::gone
+  left: Err(NotFound("demo::a::gone"))
+ right: Err(Invalid("UnresolvedGlob demo::a::gone self::missing demo::a"))
+thread 'a_path_of_fifty_thousand_segments_resolves_in_linear_time' (3630470) panicked at crates/raf-source/tests/resolve_paths.rs:160:5:
+took 628.326268742s
+test result: FAILED. 1 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 628.33s
+
+== cargo test -p raf-source --test error_text (debug, base 44e18b7)
+test a_manifest_with_control_characters_in_a_value_is_shown_escaped ... ok
+test a_path_attribute_with_terminal_escapes_is_shown_escaped ... ok
+test a_resolved_path_or_package_with_control_characters_is_shown_escaped ... FAILED
+
+failures:
+
+thread 'a_resolved_path_or_package_with_control_characters_is_shown_escaped' (3629275) panicked at crates/raf-source/tests/error_text.rs:69:9:
+"`p::\u{1b}]0;pwned\u{7}\u{202e}f` is not a path"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-source --test error_text`
+
+== cargo test -p raf-source --lib -- resolve::tests (debug, base 44e18b7)
+test resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped ... FAILED
+
+failures:
+thread 'resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped' (3629523) panicked at crates/raf-source/src/resolve.rs:1061:13:
+a control character got through: "`a\u{1b}[2J\u{202e}\r\nb` names nothing in the workspace"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 51 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-source --lib`
+
+== Mutation rule: a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found covers behaviour already correct on 44e18b7 (it passes there, above).
+Each named mutation was applied to the patched resolve.rs, the test run, and the file restored (cmp identical).
+== M1: glob_path never answers Unknown (a dependency glob is reported as missing)
+test a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path ... ok
+test a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found ... FAILED
+test a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it ... ok
+test a_path_of_fifty_thousand_segments_resolves_in_linear_time ... ok
+assertion `left == right` failed: demo::a::gone
+  left: Err(UnresolvedGlob { path: "demo::a::gone", glob: "std::io", module: "demo::a" })
+ right: Err(NotFound("demo::a::gone"))
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+== M2: a miss where an import binds the name is not treated as unknown
+test a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found ... FAILED
+test a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path ... ok
+test a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it ... ok
+test a_path_of_fifty_thousand_segments_resolves_in_linear_time ... ok
+assertion `left == right` failed: demo::g::x
+  left: Err(UnresolvedGlob { path: "demo::g::x", glob: "crate::f::de", module: "demo::g" })
+ right: Err(NotFound("demo::g::x"))
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+== M3: unknown does not spread through the places a missing glob path reads
+test a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found ... FAILED
+test a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path ... ok
+test a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it ... ok
+test a_path_of_fifty_thousand_segments_resolves_in_linear_time ... ok
+assertion `left == right` failed: demo::e::x
+  left: Err(UnresolvedGlob { path: "demo::e::x", glob: "crate::d::hash_map", module: "demo::e" })
+ right: Err(NotFound("demo::e::x"))
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+== P-F9 probe, release build, MemoryTree crate 'pub mod m { pub use crate::m; pub fn end() {} }'
+-- base 44e18b7:
+segments=1000 missing(err=true) 5.472501ms deep(ok=true) 3.162588ms
+segments=10000 missing(err=true) 583.506952ms deep(ok=true) 281.907297ms
+segments=50000 missing(err=true) 13.456820097s deep(ok=true) 5.413840051s
+-- patched:
+segments=1000 missing(err=true) 291.842µs deep(ok=true) 481.636µs
+segments=10000 missing(err=true) 866.005µs deep(ok=true) 3.874088ms
+segments=50000 missing(err=true) 4.414942ms deep(ok=true) 19.771605ms
+
+== Resolve dump sanity (release): every item path of the loaded tree, resolve() and resolve_in() in each of the three name spaces, base binary vs patched binary
+-- input 44e18b7 tree (git archive): 12768 lines base, 12768 lines patched; diff lines: 0
+-- input patched worktree: 12852 lines base, 12852 lines patched; diff lines: 0
+-- Ok answers: base 6392, patched 6392 (44e18b7 tree)
+
+==== R5d review follow-up: worktree rebased onto d145545 + raw/R5c-current.patch, R5d applied 3-way (no conflict), then the review fixes.
+== Fixtures on the R5c state without R5d (git archive d145545 + R5c-current.patch, /tmp/r5d-r5cbase; UnresolvedGlob stubbed as Invalid there; the 50k probe skipped)
+test a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path ... FAILED
+test globs_of_dependencies_in_one_module_leave_a_missing_name_not_found ... FAILED
+test a_name_found_through_a_glob_beside_a_glob_that_names_nothing_fails ... FAILED
+test a_cycle_of_globs_stays_cyclic_beside_globs_that_resolve ... ok
+test a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it ... FAILED
+test a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found ... ok
+test a_cycle_is_reported_before_a_glob_that_names_nothing ... ok
+assertion `left == right` failed: demo::crate::a::x
+  left: Ok(Resolution { path: "demo::a::x", namespace: Value, sites: [ItemId(2)], via_glob: false, chain: ["demo::a::x"] })
+ right: Err(Invalid("demo::crate::a::x"))
+assertion `left == right` failed: 2021 pub mod a { pub use std::io::*; pub use serde::*; pub struct Here; }
+  left: [Err(Cyclic("demo::a::gone")), Err(Cyclic("demo::a::gone")), Err(Cyclic("demo::a::gone")), Err(Cyclic("demo::a::gone"))]
+ right: [Err(NotFound("demo::a::gone")), Err(NotFound("demo::a::gone")), Err(NotFound("demo::a::gone")), Err(NotFound("demo::a::gone"))]
+assertion `left == right` failed: demo::a::C
+  left: [Ok("demo::c::C"), Ok("demo::c::C"), Err(NotFound("demo::a::C")), Ok("demo::c::C")]
+ right: [Err(Invalid("UnresolvedGlob demo::a::C self::missing demo::a")), Err(Invalid("UnresolvedGlob demo::a::C self::missing demo::a")), Err(Invalid("UnresolvedGlob demo::a::C self::missing demo::a")), Err(Invalid("UnresolvedGlob demo::a::C self::missing demo::a"))]
+assertion `left == right` failed: demo::a::gone
+  left: Err(NotFound("demo::a::gone"))
+ right: Err(Invalid("UnresolvedGlob demo::a::gone self::missing demo::a"))
+test result: FAILED. 3 passed; 4 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+== Mutation rule for the fixtures already correct on the R5c state (each applied to the patched tree, run, file restored, cmp identical)
+== M4: every glob counts as held at its first segment
+test a_name_found_through_a_glob_beside_a_glob_that_names_nothing_fails ... ok
+test a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found ... ok
+test a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path ... ok
+test a_cycle_of_globs_stays_cyclic_beside_globs_that_resolve ... FAILED
+test a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it ... ok
+test a_cycle_is_reported_before_a_glob_that_names_nothing ... ok
+test globs_of_dependencies_in_one_module_leave_a_missing_name_not_found ... ok
+  left: [Err(UnresolvedGlob { path: "demo::a::gone", glob: "crate::b::x", module: "demo::a" }), Err(UnresolvedGlob { path: "demo::a::gone", glob: "crate::b::x", module: "demo::a" }), Err(UnresolvedGlob { path: "demo::a::gone", glob: "crate::b::x", module: "demo::a" }), Err(UnresolvedGlob { path: "demo::a::gone", glob: "crate::b::x", module: "demo::a" })]
+ right: [Err(Cyclic("demo::a::gone")), Err(Cyclic("demo::a::gone")), Err(Cyclic("demo::a::gone")), Err(Cyclic("demo::a::gone"))]
+test result: FAILED. 6 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.01s
+error: test failed, to rerun pass `-p raf-source --test resolve_paths`
+== M7: the first segment of a glob's path naming an extern-prelude crate waits on the globs of its module
+test a_cycle_of_globs_stays_cyclic_beside_globs_that_resolve ... ok
+test a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path ... ok
+test a_name_found_through_a_glob_beside_a_glob_that_names_nothing_fails ... ok
+test a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found ... ok
+test a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it ... ok
+test a_cycle_is_reported_before_a_glob_that_names_nothing ... ok
+test globs_of_dependencies_in_one_module_leave_a_missing_name_not_found ... FAILED
+  left: [Err(Cyclic("demo::a::gone")), Err(Cyclic("demo::a::gone")), Err(Cyclic("demo::a::gone")), Err(Cyclic("demo::a::gone"))]
+ right: [Err(NotFound("demo::a::gone")), Err(NotFound("demo::a::gone")), Err(NotFound("demo::a::gone")), Err(NotFound("demo::a::gone"))]
+test result: FAILED. 6 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.01s
+error: test failed, to rerun pass `-p raf-source --test resolve_paths`
+== M5: a walk that misses reports the glob before the cycle check of unbound (the order before the fix)
+test a_cycle_of_globs_stays_cyclic_beside_globs_that_resolve ... FAILED
+test a_name_found_through_a_glob_beside_a_glob_that_names_nothing_fails ... ok
+test a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found ... ok
+test a_cycle_is_reported_before_a_glob_that_names_nothing ... FAILED
+test a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path ... ok
+test a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it ... ok
+test globs_of_dependencies_in_one_module_leave_a_missing_name_not_found ... ok
+  left: [Err(UnresolvedGlob { path: "demo::a::gone", glob: "crate::b::x", module: "demo::a" }), Err(UnresolvedGlob { path: "demo::a::gone", glob: "crate::b::x", module: "demo::a" }), Err(UnresolvedGlob { path: "demo::a::gone", glob: "crate::b::x", module: "demo::a" }), Err(UnresolvedGlob { path: "demo::a::gone", glob: "crate::b::x", module: "demo::a" })]
+ right: [Err(Cyclic("demo::a::gone")), Err(Cyclic("demo::a::gone")), Err(Cyclic("demo::a::gone")), Err(Cyclic("demo::a::gone"))]
+  left: [Err(UnresolvedGlob { path: "demo::a::gone", glob: "self::missing", module: "demo::a" }), Err(UnresolvedGlob { path: "demo::a::gone", glob: "self::missing", module: "demo::a" }), Err(UnresolvedGlob { path: "demo::a::gone", glob: "self::missing", module: "demo::a" }), Err(UnresolvedGlob { path: "demo::a::gone", glob: "self::missing", module: "demo::a" })]
+ right: [Err(Cyclic("demo::a::gone")), Err(Cyclic("demo::a::gone")), Err(Cyclic("demo::a::gone")), Err(Cyclic("demo::a::gone"))]
+test result: FAILED. 5 passed; 2 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.01s
+error: test failed, to rerun pass `-p raf-source --test resolve_paths`
+== M6: the glob check comes before the check for two symbols
+test a_name_found_through_a_glob_beside_a_glob_that_names_nothing_fails ... ok
+test a_cycle_of_globs_stays_cyclic_beside_globs_that_resolve ... ok
+test a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it ... ok
+test a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found ... ok
+test a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path ... ok
+test a_cycle_is_reported_before_a_glob_that_names_nothing ... FAILED
+test globs_of_dependencies_in_one_module_leave_a_missing_name_not_found ... ok
+test result: FAILED. 6 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.01s
+error: test failed, to rerun pass `-p raf-source --test resolve_paths`
+
+== rustc-oracle fuzzer (/tmp/r5b-review/fuzz_rc.py), probe-r5d vs probe-r5c, same seeds
+seed 7, 3000 programs: r5d {'clean': 1357, 'errors': 1643, 'WRONG-OK': 1}; r5c identical; programs whose answers differ: 0
+seed 8, 3000 programs, PRIV=1: r5d {'clean': 1386, 'errors': 1614, 'OK-FOR-REJECTED-IMPORT': 32, 'WRONG-OK': 16}; r5c identical; programs whose answers differ: 0
+== order fuzzer (/tmp/r5b-review/order.py), 6 orders each
+local seed 11, 3000 programs: r5d order-dependent 0, panics 0
+ws seed 12, 3000 programs: r5d order-dependent 0, panics 0; r5c order-dependent 0, panics 0
+
+== Glob-dense resolve cost, release: 80 modules that each glob all the others (6320 globs), 80 resolves of names found through globs
+44e18b7: dense n=80 load 1.261866536s 80 glob-found resolves 477.536µs missing(err=true) 108.844271ms
+patched: dense n=80 load 467.734635ms 80 glob-found resolves 3.446399ms missing(err=true) 24.929µs
+(the first resolve computes which globs name nothing once for the index; the earlier R5d patch took 234 ms for the same 80 resolves per the review)
+== P-F9 probe, release, patched:
+segments=1000 missing(err=true) 75.857µs deep(ok=true) 262.693µs
+segments=10000 missing(err=true) 596.833µs deep(ok=true) 3.112728ms
+segments=50000 missing(err=true) 2.908625ms deep(ok=true) 14.358719ms
+
+== Resolve dump sanity, release, 44e18b7 binary vs patched binary: 44e18b7 tree diff lines 0; patched worktree diff lines 0 (13136 lines)
+== Gates (patched worktree): cargo test -p raf-source --locked EXIT 0 (30 binaries ok); --release EXIT 0; workspace clippy -D warnings clean; docs_contract 139 + repo_gates 57 passed; make reuse compliant; cargo fmt --check clean

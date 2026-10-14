@@ -1,0 +1,5 @@
+ Documenting rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source)
+ Documenting raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/crates/raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.74s
+   Generated /opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/doc/raf_okf/index.html and 2 other files
+exit 0

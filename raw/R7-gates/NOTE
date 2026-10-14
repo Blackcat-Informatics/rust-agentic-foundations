@@ -1,0 +1,1 @@
+repo_gates::issue_refs_tracked_files_are_clean fails in the unstaged worktree only (the index still lists fuzz/corpus/parse_source/*); on e472918 + R6.patch + R7.patch staged, docs_contract 139/139 and repo_gates 55/55 pass. clippy.log is the re-run after the shapes.rs clippy fix.

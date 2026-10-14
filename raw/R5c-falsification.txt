@@ -1,0 +1,181 @@
+R5c falsification against 44e18b7 (tree before the glob tables), 2026-10-13 22:40:28 MDT
+Host shared, load average ~20-25 on 32 cores; timings inflated.
+
+## 1. The R5c tests on 44e18b7 (git archive 44e18b7 + current tests/use_resolution.rs and tests/load_budgets.rs, release)
+== 44e18b7 + R5c tests: use_resolution (new tests)
+test a_cycle_left_to_a_glob_reads_all_that_the_glob_brings_in_once_its_round_is_decided ... FAILED
+test imports_that_read_a_name_through_a_glob_agree_with_the_glob_on_an_ambiguous_re_export ... FAILED
+thread 'a_cycle_left_to_a_glob_reads_all_that_the_glob_brings_in_once_its_round_is_decided' (3535828) panicked at crates/raf-source/tests/use_resolution.rs:3044:13:
+  left: "demo::m58::Y"
+ right: "ambiguous [\"demo::m33::Y\", \"demo::m58::Y\"]"
+thread 'imports_that_read_a_name_through_a_glob_agree_with_the_glob_on_an_ambiguous_re_export' (3535829) panicked at crates/raf-source/tests/use_resolution.rs:3095:13:
+  left: "demo::m28::Y"
+ right: "ambiguous [\"demo::m0::Y\", \"demo::m28::Y\"]"
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 72 filtered out; finished in 0.00s
+error: test failed, to rerun pass `-p raf-source --test use_resolution`
+== 44e18b7 + R5c tests: load_budgets
+      4 error[E0599]: no variant, associated function, or constant named `GlobBytes` found for enum `raf_source::Budget` in the current scope
+      3 error[E0609]: no field `glob_bytes` on type `Usage`
+      4 error[E0609]: no field `max_glob_bytes` on type `LoadOptions`
+
+## 2. Probes, 44e18b7 code (ulimit -v 8 GiB, timeout 120 s) vs the R5c worktree
+44e18b7:
+  P-F5 glob chain L=4000          load=2.97s   hwm=30MB   Ok
+  P-F7 prelude 150 x 1500         load=744.92ms hwm=306MB Ok
+  S-3 resolve_cost globs n=2000   load=61.02s  hwm=7261MB Ok (no budget counts the scope tables; item_bytes=9940280)
+  glob fan 3000 fns x 3000 globs  load=24.99s  hwm=8040MB Ok (no budget counts the scope tables)
+  web-sys-0.3.106 (8 GiB cap)     memory allocation of 128 bytes failed, rc=134 (registry-scan-R5b: ERR memory)
+R5c worktree (three runs each where shown):
+  P-F5 glob chain L=4000          load=80-88ms  hwm=29MB  glob_bytes=8414139 Ok
+  P-F7 prelude 150 x 1500         load=27-28ms  hwm=14MB  glob_bytes=1225215 Ok
+  S-3 resolve_cost globs n=2000   load=3.2-3.7s hwm=415-416MB ERR Budget GlobBytes (536870912) at src/lib.rs:1661
+  glob fan 3000 fns x 3000 globs  load=58-59ms  hwm=23MB  glob_bytes=3474621 Ok
+  web-sys-0.3.106 (8 GiB cap)     load=7.5-8.5s hwm=141-142MB item_bytes=141091674 glob_bytes=21156354 Ok
+
+## 3. Mutations of the R5c code, each on a fresh copy, against tests/load_budgets.rs
+== mutation share
+test the_default_budgets_are_the_stated_limits ... ok
+test usage_reports_what_a_load_spent ... ok
+test a_doc_comment_counts_as_the_tokens_of_its_attribute_and_other_comments_count_nothing ... ok
+test glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused ... ok
+test the_bytes_read_at_the_total_budget_load_and_one_byte_less_is_refused_naming_the_file ... ok
+test index_records_at_the_item_budget_load_and_one_byte_less_is_refused ... ok
+test the_fact_budget_counts_over_every_file_of_the_load ... ok
+test a_file_reached_by_many_module_paths_is_charged_once_per_path_and_refused_over_the_item_budget ... ok
+test a_long_extern_crate_name_in_a_file_reached_many_times_is_held_and_charged_once ... ok
+test a_long_module_name_is_charged_in_every_item_path_and_refused_over_the_item_budget ... ok
+test modules_that_glob_one_another_are_refused_over_the_glob_budget_naming_a_glob ... ok
+test a_long_alias_path_in_a_file_reached_many_times_is_held_and_charged_once ... ok
+test a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps ... ok
+test nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep ... ok
+test a_chain_of_globs_is_charged_what_each_link_brings_in ... ok
+test each_large_fact_payload_is_charged_and_refused_at_its_line_once_over_the_fact_budget ... ok
+test each_costly_shape_at_the_token_limit_loads_and_one_more_token_is_refused ... ok
+test a_file_at_the_token_limit_parses_and_one_more_token_is_refused_naming_its_line ... ok
+test a_module_that_many_modules_glob_is_kept_once_for_all_of_them ... FAILED
+test glob_tables_of_a_generated_binding_crate_are_charged_what_they_keep ... ok
+test result: FAILED. 19 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.07s
+error: test failed, to rerun pass `-p raf-source --test load_budgets`
+== mutation refuse
+test the_default_budgets_are_the_stated_limits ... ok
+test a_doc_comment_counts_as_the_tokens_of_its_attribute_and_other_comments_count_nothing ... ok
+test the_bytes_read_at_the_total_budget_load_and_one_byte_less_is_refused_naming_the_file ... ok
+test usage_reports_what_a_load_spent ... ok
+test glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused ... FAILED
+test index_records_at_the_item_budget_load_and_one_byte_less_is_refused ... ok
+test the_fact_budget_counts_over_every_file_of_the_load ... ok
+test a_file_reached_by_many_module_paths_is_charged_once_per_path_and_refused_over_the_item_budget ... ok
+test a_long_extern_crate_name_in_a_file_reached_many_times_is_held_and_charged_once ... ok
+test a_long_module_name_is_charged_in_every_item_path_and_refused_over_the_item_budget ... ok
+test a_long_alias_path_in_a_file_reached_many_times_is_held_and_charged_once ... ok
+test a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps ... ok
+test a_module_that_many_modules_glob_is_kept_once_for_all_of_them ... ok
+test nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep ... ok
+test a_chain_of_globs_is_charged_what_each_link_brings_in ... ok
+test glob_tables_of_a_generated_binding_crate_are_charged_what_they_keep ... ok
+test modules_that_glob_one_another_are_refused_over_the_glob_budget_naming_a_glob ... FAILED
+test each_large_fact_payload_is_charged_and_refused_at_its_line_once_over_the_fact_budget ... ok
+test each_costly_shape_at_the_token_limit_loads_and_one_more_token_is_refused ... ok
+test a_file_at_the_token_limit_parses_and_one_more_token_is_refused_naming_its_line ... ok
+test result: FAILED. 18 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.57s
+error: test failed, to rerun pass `-p raf-source --test load_budgets`
+MUTDONE
+(the first 'charge' mutation did not compile; corrected run below)
+== mutation charge (names and items added to a view are not charged)
+test the_default_budgets_are_the_stated_limits ... ok
+test usage_reports_what_a_load_spent ... ok
+test the_bytes_read_at_the_total_budget_load_and_one_byte_less_is_refused_naming_the_file ... ok
+test glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused ... ok
+test index_records_at_the_item_budget_load_and_one_byte_less_is_refused ... ok
+test a_doc_comment_counts_as_the_tokens_of_its_attribute_and_other_comments_count_nothing ... ok
+test the_fact_budget_counts_over_every_file_of_the_load ... ok
+test a_file_reached_by_many_module_paths_is_charged_once_per_path_and_refused_over_the_item_budget ... ok
+test a_long_extern_crate_name_in_a_file_reached_many_times_is_held_and_charged_once ... ok
+test a_module_that_many_modules_glob_is_kept_once_for_all_of_them ... ok
+test a_long_module_name_is_charged_in_every_item_path_and_refused_over_the_item_budget ... ok
+test a_long_alias_path_in_a_file_reached_many_times_is_held_and_charged_once ... ok
+test a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps ... ok
+test nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep ... ok
+test glob_tables_of_a_generated_binding_crate_are_charged_what_they_keep ... ok
+test a_chain_of_globs_is_charged_what_each_link_brings_in ... ok
+test modules_that_glob_one_another_are_refused_over_the_glob_budget_naming_a_glob ... FAILED
+test each_costly_shape_at_the_token_limit_loads_and_one_more_token_is_refused ... ok
+test each_large_fact_payload_is_charged_and_refused_at_its_line_once_over_the_fact_budget ... ok
+test a_file_at_the_token_limit_parses_and_one_more_token_is_refused_naming_its_line ... ok
+test result: FAILED. 19 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.43s
+error: test failed, to rerun pass `-p raf-source --test load_budgets`
+FALS2DONE
+
+## 4. Counting allocator, current code: glob tables held <= glob_bytes charged (release)
+fan: 1000 names x 400 globs                    index=    1712001 item+glob=    3515630 ok=true | peak=    2771493
+fan: 1000 names x 400 globs                    globs=     342870 glob_bytes=     939621 ok=true ratio=2.74
+prelude: 150 names x 1500 modules              index=    4382797 item+glob=    7820994 ok=true | peak=    6536397
+prelude: 150 names x 1500 modules              globs=     560318 glob_bytes=    1225215 ok=true ratio=2.19
+chain of 4000 globs                            index=    8815529 item+glob=   20004570 ok=true | peak=   14778821
+chain of 4000 globs                            globs=    3864208 glob_bytes=    8414139 ok=true ratio=2.18
+chain of 600 globs, each adding a name         index=   29403701 item+glob=   44517026 ok=true | peak=   30223245
+chain of 600 globs, each adding a name         globs=   27762172 glob_bytes=   41921040 ok=true ratio=1.51
+300 globs of the root and back (S-3)           index=   28795002 item+glob=   43347185 ok=true | peak=   30177011
+300 globs of the root and back (S-3)           globs=   27866660 glob_bytes=   41883196 ok=true ratio=1.50
+web-sys shape: 600 children                    index=   17925905 item+glob=   38819608 ok=true | peak=   23530007
+web-sys shape: 600 children                    globs=    5994796 glob_bytes=   14381030 ok=true ratio=2.40
+TEST generated_bindings(200)                   index=    6495633 item+glob=   12956808 ok=true | peak=    8456519
+TEST generated_bindings(200)                   globs=    1943812 glob_bytes=    4797830 ok=true ratio=2.47
+dense glob network of 1000 modules             index=    9058096 item+glob=   20348733 ok=true | peak=   14459548
+dense glob network of 1000 modules             globs=    1877642 glob_bytes=    3664470 ok=true ratio=1.95
+chain of files declaring the next twice        kept/unit=1511 charged/unit=3632 glob=0
+nested inline modules, one name each           kept/unit=1443 charged/unit=2380 glob=0
+
+## 5. Review REQUIRED 1 (repeated globs of one module): fix re-checked, 2026-10-13 23:40:30 MDT
+Fix: make_view gathers each distinct view once and charges the gather (an upper bound computed
+from the views, before any of it is allocated); a glob whose module already reads the same view
+through a glob of the same visibility passes nothing on (neither active nor passive reader).
+
+New fixture repeated_globs_of_one_module_are_charged_once_for_what_it_holds on the pre-fix
+glob_scope.rs (/tmp/r5crev/new copy), release:
+  test repeated_globs_of_one_module_are_charged_once_for_what_it_holds ... FAILED
+  64391 bytes for each more glob of two thousand names (false)
+On the fixed code: ok (debug and release).
+
+Reviewer's dup shape, counting allocator (heap peak during the load vs everything charged):
+  dup n=20000 r=500: load=259.34ms OK item=33432505 glob=32562745 charged_all=71420331 heap_peak=36608239 peak<=charged=true hwm=50MB Ok("p::a::S0")
+  dupu n=20000 r=500: load=252.53ms OK item=33432505 glob=20196319 charged_all=59053905 heap_peak=35129318 peak<=charged=true hwm=49MB Ok("p::a::S0")
+  dup n=20000 r=1500: load=272.87ms OK item=34015505 glob=33136745 charged_all=72868331 heap_peak=37426863 peak<=charged=true hwm=49MB Ok("p::a::S0")
+  dup n=40000 r=1500: load=522.92ms OK item=67155505 glob=65416745 charged_all=143588331 heap_peak=73692527 peak<=charged=true hwm=91MB Ok("p::a::S0")
+  dupu n=40000 r=1500: load=507.43ms OK item=67155505 glob=40396319 charged_all=118567905 heap_peak=70636198 peak<=charged=true hwm=89MB Ok("p::a::S0")
+  under ulimit -v 3 GiB:
+  dup n=60000 r=3000: load=864.99ms OK item=101170005 glob=98557745 charged_all=216480331 heap_peak=105210919 peak<=charged=true hwm=131MB Ok("p::a::S0")
+  dup n=60000 r=3000: load=272.83ms ERR src/t.rs:1: exceeds the budget for bytes of glob tables (10485760) heap_peak=67115867 hwm=86MB
+  dupu n=60000 r=3000: load=264.87ms ERR src/t.rs:1: exceeds the budget for bytes of glob tables (10485760) heap_peak=67115795 hwm=88MB
+  d145545 (reviewer): dup 40000x1500 OK 271 s 152 MiB; pre-fix R5c: ERR GlobBytes 40.4 s hwm 1270 MiB; dup 60000x3000 at 3 GiB: abort rc=134
+
+Counting allocator, glob-heavy shapes on the fixed code:
+fan: 1000 names x 400 globs                    index=    1744929 item+glob=    3670903 ok=true | peak=    2771493
+fan: 1000 names x 400 globs                    globs=     375798 glob_bytes=    1094894 ok=true ratio=2.91
+prelude: 150 names x 1500 modules              index=    4507093 item+glob=    8095982 ok=true | peak=    6536397
+prelude: 150 names x 1500 modules              globs=     684614 glob_bytes=    1500203 ok=true ratio=2.19
+chain of 4000 globs                            index=    9146841 item+glob=   20737058 ok=true | peak=   14778821
+chain of 4000 globs                            globs=    4195520 glob_bytes=    9146627 ok=true ratio=2.18
+chain of 600 globs, each adding a name         index=   29452973 item+glob=   44627314 ok=true | peak=   30272469
+chain of 600 globs, each adding a name         globs=   27811444 glob_bytes=   42031328 ok=true ratio=1.51
+300 globs of the root and back (S-3)           index=   28844274 item+glob=   43682765 ok=true | peak=   30226235
+300 globs of the root and back (S-3)           globs=   27915932 glob_bytes=   42218776 ok=true ratio=1.51
+web-sys shape: 600 children                    index=   18025257 item+glob=   48765730 ok=true | peak=   23629311
+web-sys shape: 600 children                    globs=    6094148 glob_bytes=   24327152 ok=true ratio=3.99
+TEST generated_bindings(200)                   index=    6528561 item+glob=   16270130 ok=true | peak=    8489399
+TEST generated_bindings(200)                   globs=    1976740 glob_bytes=    8111152 ok=true ratio=4.10
+dense glob network of 1000 modules             index=    9206304 item+glob=   20677340 ok=true | peak=   14607708
+dense glob network of 1000 modules             globs=    2025850 glob_bytes=    3993077 ok=true ratio=1.97
+chain of files declaring the next twice        kept/unit=1511 charged/unit=3632 glob=0
+nested inline modules, one name each           kept/unit=1443 charged/unit=2380 glob=0
+(Note: the section 4 run above used a binary built from a 22:03 snapshot; the figures in this section are from the fixed code, 23:32 snapshot.)
+
+Reduced fuzz on the fixed code (identical to the pre-fix R5c and to R5b on the same seeds):
+  r5cfix 141 1000 {'clean': 472, 'errors': 528, 'WRONG-ERR': 1, 'OK-FOR-REJECTED-IMPORT': 2}
+  r5cfix 142 1000 {'clean': 465, 'errors': 535, 'WRONG-OK': 4, 'OK-FOR-REJECTED-IMPORT': 6}
+  r5cfix 171 1000 {'clean': 452, 'errors': 548}
+  r5cfix 172 1000 {'clean': 448, 'errors': 552}
+  local r5cfix 51 1000 programs x 12 orders: order-dependent 0 panics 0
+  ws r5cfix 51 1000 programs x 12 orders: order-dependent 0 panics 0
+  net r5cfix 51 1000 programs x 12 orders: order-dependent 0 panics 0
+Registry scan re-run on the fixed code: same outcome for every crate as before the fix (1204 OK, 0 budget refusals); only glob= figures change, largest glob=33208517 (web-sys).

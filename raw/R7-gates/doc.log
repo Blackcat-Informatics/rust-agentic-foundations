@@ -1,0 +1,6 @@
+### doc: env RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked
+ Documenting rust-agentic-foundations v0.1.0 (/tmp/raf-par/p1-r6r7)
+ Documenting raf-source v0.1.0 (/tmp/raf-par/p1-r6r7/crates/raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.75s
+   Generated /opt/.cargo/target/p1-r6r7-d7af2d18/doc/raf_okf/index.html and 2 other files
+### exit 0

@@ -1,0 +1,542 @@
+diff --git crates/raf-source/tests/load_cap.rs crates/raf-source/tests/load_cap.rs
+new file mode 100644
+index 0000000..926ed77
+--- /dev/null
++++ crates/raf-source/tests/load_cap.rs
+@@ -0,0 +1,146 @@
++// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++//! The byte cap on a file, judged through `Workspace::load` rather than a bare
++//! read: a module file of exactly the default cap loads, one byte more is
++//! refused naming the file and the limit, and a cap lowered in the options
++//! applies to a file the module walk reaches. The files are padded with
++//! comments, so they are valid Rust that costs the parser almost nothing.
++
++use raf_source::{
++    DEFAULT_MAX_FILE_BYTES, LoadError, LoadErrorKind, LoadOptions, MemoryTree, Tree, TreeError,
++    Workspace,
++};
++
++const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
++
++/// `head` followed by comment lines, `len` bytes in all.
++fn padded_to(head: &str, len: usize) -> String {
++    let mut text = String::with_capacity(len);
++    text.push_str(head);
++    while text.len() + 80 < len {
++        text.push_str("//");
++        text.push_str(&"x".repeat(77));
++        text.push('\n');
++    }
++    // The rest is one comment line of the exact remaining length, without
++    // its final newline when only one byte is left.
++    let rest = len - text.len();
++    match rest {
++        0 => {}
++        1 => text.push('\n'),
++        _ => {
++            text.push_str("//");
++            text.push_str(&"y".repeat(rest - 3));
++            text.push('\n');
++        }
++    }
++    assert_eq!(text.len(), len);
++    text
++}
++
++fn cap() -> usize {
++    usize::try_from(DEFAULT_MAX_FILE_BYTES).expect("the cap fits")
++}
++
++fn load(files: &[(&str, &str)], options: &LoadOptions) -> Result<Workspace, LoadError> {
++    let mut all = vec![("Cargo.toml", DEMO)];
++    all.extend_from_slice(files);
++    let tree: MemoryTree = all.into_iter().collect();
++    Workspace::load_with(&tree, &["."], options)
++}
++
++fn too_large(error: &LoadError) -> Option<u64> {
++    match &error.kind {
++        LoadErrorKind::Tree(inner) => match **inner {
++            TreeError::TooLarge { limit, .. } => Some(limit),
++            _ => None,
++        },
++        _ => None,
++    }
++}
++
++#[test]
++fn a_library_root_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it() {
++    let at = padded_to("pub fn at_cap() {}\n", cap());
++    let ws = load(&[("src/lib.rs", &at)], &LoadOptions::default()).expect("at the cap");
++    assert!(ws.resolve("demo::at_cap").is_ok());
++
++    let over = padded_to("pub fn over_cap() {}\n", cap() + 1);
++    let error = load(&[("src/lib.rs", &over)], &LoadOptions::default()).expect_err("one over");
++    assert_eq!(too_large(&error), Some(DEFAULT_MAX_FILE_BYTES), "{error}");
++    assert_eq!(error.file.as_str(), "src/lib.rs");
++    assert!(error.to_string().contains("src/lib.rs"), "{error}");
++}
++
++#[test]
++fn a_module_file_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it() {
++    let lib = "pub mod child;\n";
++    let at = padded_to("pub fn at_cap() {}\n", cap());
++    let ws = load(
++        &[("src/lib.rs", lib), ("src/child.rs", &at)],
++        &LoadOptions::default(),
++    )
++    .expect("at the cap");
++    assert!(ws.resolve("demo::child::at_cap").is_ok());
++
++    let over = padded_to("pub fn over_cap() {}\n", cap() + 1);
++    let error = load(
++        &[("src/lib.rs", lib), ("src/child.rs", &over)],
++        &LoadOptions::default(),
++    )
++    .expect_err("one over");
++    assert_eq!(too_large(&error), Some(DEFAULT_MAX_FILE_BYTES), "{error}");
++    assert_eq!(
++        error.file.as_str(),
++        "src/lib.rs",
++        "the declaring file: {error}"
++    );
++    assert_eq!(error.line, Some(1), "{error}");
++    assert!(error.to_string().contains("src/child.rs"), "{error}");
++}
++
++#[test]
++fn a_lowered_cap_applies_to_a_child_file_and_spares_a_root_within_it() {
++    let lib = "pub mod child;\n";
++    let child = padded_to("pub fn small() {}\n", 1000);
++    let mut options = LoadOptions::default();
++    options.max_file_bytes = 1000;
++    let ws = load(&[("src/lib.rs", lib), ("src/child.rs", &child)], &options)
++        .expect("the child is exactly the lowered cap");
++    assert!(ws.resolve("demo::child::small").is_ok());
++
++    let child = padded_to("pub fn small() {}\n", 1001);
++    let error = load(&[("src/lib.rs", lib), ("src/child.rs", &child)], &options)
++        .expect_err("one over the lowered cap");
++    assert_eq!(too_large(&error), Some(1000), "{error}");
++    assert_eq!(
++        error.file.as_str(),
++        "src/lib.rs",
++        "the declaring file: {error}"
++    );
++    assert_eq!(error.line, Some(1), "{error}");
++    assert!(error.to_string().contains("src/child.rs"), "{error}");
++}
++
++#[test]
++fn a_cap_larger_than_the_default_admits_a_file_the_default_refuses() {
++    let big = padded_to("pub fn big() {}\n", cap() + 1);
++    let mut options = LoadOptions::default();
++    options.max_file_bytes = DEFAULT_MAX_FILE_BYTES + 1;
++    let ws = load(&[("src/lib.rs", &big)], &options).expect("within the raised cap");
++    assert!(ws.resolve("demo::big").is_ok());
++}
++
++#[test]
++fn the_memory_tree_used_here_reads_the_padded_file_at_its_exact_size() {
++    let text = padded_to("", cap());
++    let tree: MemoryTree = [("a.rs", text.as_str())].into_iter().collect();
++    let read = tree
++        .read(
++            &raf_source::RelPath::new("a.rs").expect("path"),
++            DEFAULT_MAX_FILE_BYTES,
++        )
++        .expect("reads");
++    assert_eq!(read.len(), cap());
++}
+diff --git crates/raf-source/tests/source_text.rs crates/raf-source/tests/source_text.rs
+new file mode 100644
+index 0000000..0554bc3
+--- /dev/null
++++ crates/raf-source/tests/source_text.rs
+@@ -0,0 +1,142 @@
++// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++//! The text of a module file as `Workspace::load` meets it: a file that is not
++//! UTF-8 is refused naming it, and a byte-order mark or CRLF line endings leave
++//! every line number and byte span exactly where they are in the text.
++
++mod support;
++
++use std::fs;
++
++use raf_source::{
++    Budget, DiskTree, Item, LoadError, LoadErrorKind, LoadOptions, MemoryTree, RelPath, Tree,
++    TreeError, Workspace,
++};
++
++const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
++const BOM: &str = "\u{feff}";
++
++fn load(lib: &str) -> Result<Workspace, LoadError> {
++    let tree: MemoryTree = [("Cargo.toml", DEMO), ("src/lib.rs", lib)]
++        .into_iter()
++        .collect();
++    Workspace::load(&tree, &["."])
++}
++
++fn item<'w>(ws: &'w Workspace, path: &str) -> &'w Item {
++    let resolved = ws.resolve(path).unwrap_or_else(|error| panic!("{error}"));
++    ws.item(resolved.sites[0]).expect("the item")
++}
++
++/// The text a span covers in the file the workspace holds.
++fn covered<'w>(ws: &'w Workspace, item: &Item) -> &'w str {
++    let text = ws.source(&item.file).expect("the file's text");
++    &text[item.span.start_byte..item.span.end_byte]
++}
++
++/// `a` on line 2, `b` on lines 4 to 5, whatever the line endings, with a
++/// non-ASCII character before `b` to move bytes from columns.
++fn body(nl: &str) -> String {
++    format!("// caf\u{e9}{nl}pub fn a() {{}}{nl}{nl}pub fn b() {{{nl}}}{nl}")
++}
++
++fn check_lines(ws: &Workspace) {
++    let (a, b) = (item(ws, "demo::a"), item(ws, "demo::b"));
++    assert_eq!((a.name_line, a.span.start_line, a.span.end_line), (2, 2, 2));
++    assert_eq!((b.name_line, b.span.start_line, b.span.end_line), (4, 4, 5));
++    assert_eq!(covered(ws, a), "pub fn a() {}");
++    assert!(covered(ws, b).starts_with("pub fn b() {") && covered(ws, b).ends_with('}'));
++}
++
++#[test]
++fn crlf_line_endings_give_the_same_lines_and_spans_as_lf() {
++    for newline in ["\n", "\r\n"] {
++        let ws = load(&body(newline)).expect("loads");
++        check_lines(&ws);
++    }
++}
++
++#[test]
++fn a_byte_order_mark_leaves_the_lines_of_the_text_where_they_are() {
++    for newline in ["\n", "\r\n"] {
++        let ws = load(&format!("{BOM}{}", body(newline))).expect("loads with a BOM");
++        check_lines(&ws);
++    }
++}
++
++#[test]
++fn a_syntax_error_in_a_crlf_file_or_after_a_byte_order_mark_names_its_own_line() {
++    for text in [
++        "fn ok() {}\n\nfn 1 {}\n",
++        "fn ok() {}\r\n\r\nfn 1 {}\r\n",
++        &format!("{BOM}fn ok() {{}}\n\nfn 1 {{}}\n"),
++        &format!("{BOM}fn ok() {{}}\r\n\r\nfn 1 {{}}\r\n"),
++    ] {
++        let error = load(text).expect_err("syntax error");
++        assert_eq!(error.line, Some(3), "{text:?}: {error}");
++        assert!(
++            matches!(error.kind, LoadErrorKind::Syntax { .. }),
++            "{error}"
++        );
++        assert_eq!(error.file.as_str(), "src/lib.rs");
++    }
++}
++
++#[test]
++fn a_budget_refusal_in_a_crlf_file_names_the_same_line_as_in_an_lf_file() {
++    // The delimiter budget is refused at the 129th open parenthesis, on line 4.
++    let nested = format!("{}{}", "(".repeat(129), ")".repeat(129));
++    for nl in ["\n", "\r\n"] {
++        let text = format!("fn a() {{}}{nl}{nl}{nl}const C: () = {nested};{nl}");
++        let error = load(&text).expect_err("over the budget");
++        assert!(
++            matches!(
++                error.kind,
++                LoadErrorKind::Budget {
++                    budget: Budget::Delimiters,
++                    ..
++                }
++            ),
++            "{error}"
++        );
++        assert_eq!(error.line, Some(4), "{nl:?}: {error}");
++    }
++}
++
++#[test]
++fn a_module_file_that_is_not_utf8_is_refused_on_disk_naming_the_file() {
++    let scratch = support::Scratch::new();
++    scratch.dir("root/src");
++    scratch.file("root/Cargo.toml", DEMO);
++    scratch.file("root/src/lib.rs", "pub mod child;\n");
++    // A lone continuation byte is not UTF-8, in a comment that would parse.
++    let mut bytes = b"// caf".to_vec();
++    bytes.extend_from_slice(&[0xe9, b'\n']);
++    bytes.extend_from_slice(b"pub fn f() {}\n");
++    fs::write(scratch.path("root/src/child.rs"), &bytes).expect("write");
++
++    let tree = DiskTree::new(scratch.path("root")).expect("tree");
++    let direct = tree
++        .read(&RelPath::new("src/child.rs").expect("path"), 1 << 20)
++        .expect_err("not UTF-8");
++    assert!(matches!(direct, TreeError::NotUtf8 { .. }), "{direct:?}");
++
++    let error = Workspace::load_with(&tree, &["."], &LoadOptions::default()).expect_err("refused");
++    assert!(
++        matches!(&error.kind, LoadErrorKind::Tree(inner) if matches!(**inner, TreeError::NotUtf8 { .. })),
++        "{error}"
++    );
++    assert!(error.to_string().contains("src/child.rs"), "{error}");
++    assert_eq!(error.line, Some(1), "the line of `mod child;`: {error}");
++
++    // The neighbour: the same file in UTF-8 loads.
++    fs::write(
++        scratch.path("root/src/child.rs"),
++        "// caf\u{e9}\npub fn f() {}\n",
++    )
++    .expect("write");
++    let tree = DiskTree::new(scratch.path("root")).expect("tree");
++    let ws = Workspace::load(&tree, &["."]).expect("UTF-8 loads");
++    assert_eq!(item(&ws, "demo::child::f").name_line, 2);
++}
+diff --git crates/raf-source/tests/spawn_limit.rs crates/raf-source/tests/spawn_limit.rs
+new file mode 100644
+index 0000000..3162168
+--- /dev/null
++++ crates/raf-source/tests/spawn_limit.rs
+@@ -0,0 +1,109 @@
++// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++//! A parse thread that cannot start is a typed `Spawn` error naming the file.
++//!
++//! The test binary runs itself in a child process whose address space is
++//! limited (`ulimit -v`, set by `sh` before it executes the binary), so the
++//! operating system refuses the parse thread its stack. A child without a limit
++//! loads the workspace, as the control; children under limits far below the
++//! stack of the parse thread must end in the typed refusal.
++
++#![cfg(target_os = "linux")]
++
++use std::env;
++use std::process::{Command, Stdio};
++
++use raf_source::{LoadErrorKind, MemoryTree, Workspace};
++
++/// Set in a child; its value is the mode the child runs.
++const MODE: &str = "RAF_SOURCE_SPAWN_MODE";
++/// Marks the one result line of a child.
++const MARK: &str = "RAF_SPAWN ";
++/// The test a child runs.
++const TEST: &str = "child_main";
++
++const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
++
++/// In a child: load a one-file workspace and print what became of it.
++#[test]
++fn child_main() {
++    if env::var_os(MODE).is_none() {
++        return;
++    }
++    let tree: MemoryTree = [("Cargo.toml", DEMO), ("src/lib.rs", "pub fn f() {}\n")]
++        .into_iter()
++        .collect();
++    match Workspace::load(&tree, &["."]) {
++        Ok(_) => println!("{MARK}loaded"),
++        Err(error) => match &error.kind {
++            LoadErrorKind::Spawn(_) => println!("{MARK}spawn {} | {error}", error.file),
++            _ => println!("{MARK}other {error}"),
++        },
++    }
++}
++
++/// Run `child_main` as a child, under `limit_kib` of address space when given,
++/// and return its result line, or `None` when the child printed none (the
++/// system could not even start it under the limit).
++fn run(limit_kib: Option<u64>) -> (Option<String>, String) {
++    let executable = env::current_exe().expect("the test binary has a path");
++    // `ulimit -v` applies to the shell and what it executes; the limit is the
++    // first argument, the program and its arguments follow.
++    let output = Command::new("sh")
++        .args([
++            "-c",
++            "ulimit -v \"$1\" && shift && exec \"$@\"",
++            "sh",
++            &limit_kib.map_or_else(|| "unlimited".to_owned(), |kib| kib.to_string()),
++        ])
++        .arg(executable)
++        .args(["--exact", TEST, "--nocapture", "--test-threads=1"])
++        .env(MODE, "1")
++        .env_remove("RUST_MIN_STACK")
++        .stdin(Stdio::null())
++        .output()
++        .expect("start the child");
++    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
++    let line = stdout
++        .lines()
++        .find_map(|line| line.split_once(MARK))
++        .map(|(_, rest)| rest.to_owned());
++    let detail = format!(
++        "status {:?}; stdout: {stdout}; stderr: {}",
++        output.status,
++        String::from_utf8_lossy(&output.stderr)
++    );
++    (line, detail)
++}
++
++#[test]
++fn a_parse_thread_the_system_refuses_a_stack_is_a_spawn_error_naming_the_file() {
++    // The control: without a limit the same load succeeds.
++    let (free, detail) = run(None);
++    let free = free.unwrap_or_else(|| panic!("the unlimited child gave no result: {detail}"));
++    assert!(free.starts_with("loaded"), "{free}");
++
++    // Under a limit well below what the parse stack needs, the child either
++    // cannot start at all or ends in the typed refusal; it must never load.
++    // The address space a child maps at start varies with the limit it runs
++    // under, so a few limits are tried and at least one must reach the load.
++    let mib = 1024;
++    let mut refused = 0;
++    for limit in (16..=48).step_by(8).map(|steps| steps * mib) {
++        let (line, detail) = run(Some(limit));
++        let Some(line) = line else { continue };
++        let (file, message) = line
++            .strip_prefix("spawn ")
++            .and_then(|rest| rest.split_once(" | "))
++            .unwrap_or_else(|| panic!("limit {limit} KiB: not a spawn refusal: {line}"));
++        assert_eq!(file, "src/lib.rs", "{detail}");
++        assert!(message.contains("src/lib.rs"), "{message}");
++        assert!(
++            message.contains("cannot start the parse thread"),
++            "{message}"
++        );
++        refused += 1;
++    }
++    assert!(refused > 0, "no limit let the child reach the load");
++}
+diff --git docs/capabilities/source-index.md docs/capabilities/source-index.md
+index ae78807..2904deb 100644
+--- docs/capabilities/source-index.md
++++ docs/capabilities/source-index.md
+@@ -95,6 +95,16 @@ bindings:
+     - raf_source::test_crate::corpus_replay::every_corpus_file_ends_in_exactly_one_allowed_outcome_with_its_recorded_symbols
+     - raf_source::test_crate::read_cap::disk_tree_enforces_the_cap_at_eight_mib
+     - raf_source::test_crate::read_cap::the_default_cap_is_eight_mib
++    - raf_source::test_crate::load_cap::a_library_root_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it
++    - raf_source::test_crate::load_cap::a_module_file_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it
++    - raf_source::test_crate::load_cap::a_lowered_cap_applies_to_a_child_file_and_spares_a_root_within_it
++    - raf_source::test_crate::load_cap::a_cap_larger_than_the_default_admits_a_file_the_default_refuses
++    - raf_source::test_crate::spawn_limit::a_parse_thread_the_system_refuses_a_stack_is_a_spawn_error_naming_the_file
++    - raf_source::test_crate::source_text::crlf_line_endings_give_the_same_lines_and_spans_as_lf
++    - raf_source::test_crate::source_text::a_byte_order_mark_leaves_the_lines_of_the_text_where_they_are
++    - raf_source::test_crate::source_text::a_syntax_error_in_a_crlf_file_or_after_a_byte_order_mark_names_its_own_line
++    - raf_source::test_crate::source_text::a_budget_refusal_in_a_crlf_file_names_the_same_line_as_in_an_lf_file
++    - raf_source::test_crate::source_text::a_module_file_that_is_not_utf8_is_refused_on_disk_naming_the_file
+     - raf_source::test_crate::index_disk::disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions
+     - raf_source::test_crate::tree_error::every_variant_names_its_path_in_display_and_in_path
+     - raf_source::test_crate::fs_confinement::only_the_disk_backend_names_the_file_system_module
+@@ -1344,3 +1354,15 @@ duplicates.
+   - a chain that ends outside the root, a symlinked `Cargo.toml` and a symlinked
+     target file that lead outside, and every discovery classification of a symlink
+     (file, directory, FIFO, outside file, outside directory, dangling, loop).
++- Load-level cap and text fixtures: through `Workspace::load`, a library root and a
++  module file of exactly 8 MiB (padded with comments) load and one byte more is refused
++  with the cap as its limit, naming the file (the declaring file and the line of its
++  `mod`, with the module file in the message); a `max_file_bytes` lowered to 1000 admits
++  a child file of 1000 bytes and refuses one of 1001; a raised cap admits a file the
++  default refuses. A child process under an address-space limit (`ulimit -v`) that
++  cannot give the parse thread its stack ends in a `Spawn` error naming the file,
++  beside the same child without a limit, which loads. A module file that is not UTF-8
++  is refused naming it and the line of its `mod`, beside the same text in UTF-8, which
++  loads. CRLF line endings, with and without a byte-order mark, give the lines and byte
++  spans of the LF text; a syntax error and a budget refusal name the same line in LF
++  and CRLF text and after a mark.
+diff --git tests/docs_contract.rs tests/docs_contract.rs
+index 0a6adc7..c9909bc 100644
+--- tests/docs_contract.rs
++++ tests/docs_contract.rs
+@@ -1567,7 +1567,8 @@ fn rejects_acceptance_label() {
+ 
+ #[test]
+ fn rejects_resource_key() {
+-    // `resource` is not in any closed key set, so the unknown-key path rejects it.
++    // `resource` is rejected by its own rule, which names the keys of the type,
++    // and not by the unknown-key rule.
+     let violations = mutated(
+         "docs/architecture/overview.md",
+         "title: Overview",
+diff --git tests/repo_gates.rs tests/repo_gates.rs
+index 4793823..6d38660 100644
+--- tests/repo_gates.rs
++++ tests/repo_gates.rs
+@@ -310,6 +310,29 @@ fn lint_tables_problem(root: &str, fuzz: &str) -> Option<String> {
+     }
+ }
+ 
++/// The level of lint `name` in the `[workspace.lints.rust]` table, as written
++/// between its quotes, or `None` when the table does not set it as a string.
++fn rust_lint_level(manifest: &str, name: &str) -> Option<String> {
++    let mut in_table = false;
++    for line in manifest.lines().map(str::trim) {
++        if line.starts_with('[') {
++            in_table = line == "[workspace.lints.rust]";
++        } else if in_table {
++            let Some((key, value)) = line.split_once('=') else {
++                continue;
++            };
++            if key.trim() == name {
++                return value
++                    .trim()
++                    .strip_prefix('"')
++                    .and_then(|rest| rest.strip_suffix('"'))
++                    .map(str::to_string);
++            }
++        }
++    }
++    None
++}
++
+ /// The quoted entries of the `members` array of a workspace manifest.
+ fn workspace_members(manifest: &str) -> Vec<String> {
+     let mut in_workspace = false;
+@@ -792,6 +815,18 @@ fn lints_fuzz_workspace_tables_equal_the_root_tables() {
+     assert_eq!(problem, None);
+ }
+ 
++#[test]
++fn lints_the_root_denies_missing_docs_unsafe_code_and_unreachable_pub() {
++    let manifest = read_text(&gate_root(), "Cargo.toml");
++    for lint in ["missing_docs", "unsafe_code", "unreachable_pub"] {
++        assert_eq!(
++            rust_lint_level(&manifest, lint).as_deref(),
++            Some("deny"),
++            "[workspace.lints.rust] must set {lint} = \"deny\""
++        );
++    }
++}
++
+ #[test]
+ fn lints_every_workspace_manifest_inherits_the_workspace_lints() {
+     let root = gate_root();
+@@ -823,6 +858,22 @@ fn deny_fuzz_configuration_is_the_root_configuration_plus_one_exception() {
+ 
+ const LINT_ROOT: &str = "[workspace]\nmembers = [\"a\"]\n\n[workspace.lints.rust]\n# why\nmissing_docs = \"deny\"\n\n[workspace.lints.clippy]\nall = \"warn\"\n";
+ 
++#[test]
++fn lints_reads_the_level_of_a_lint_and_sees_a_weakened_one() {
++    assert_eq!(
++        rust_lint_level(LINT_ROOT, "missing_docs").as_deref(),
++        Some("deny")
++    );
++    let weakened = LINT_ROOT.replace("missing_docs = \"deny\"", "missing_docs = \"warn\"");
++    assert_eq!(
++        rust_lint_level(&weakened, "missing_docs").as_deref(),
++        Some("warn")
++    );
++    // A lint of another table, or one that is not set, has no level here.
++    assert_eq!(rust_lint_level(LINT_ROOT, "all"), None);
++    assert_eq!(rust_lint_level(LINT_ROOT, "unsafe_code"), None);
++}
++
+ #[test]
+ fn lints_accepts_equal_tables_whatever_the_comments() {
+     let fuzz = "[package]\nname = \"f\"\n\n[workspace.lints.rust]\nmissing_docs = \"deny\"\n# other note\n\n[workspace.lints.clippy]\nall = \"warn\"\n";

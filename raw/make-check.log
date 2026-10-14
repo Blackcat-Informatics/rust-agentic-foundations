@@ -1,0 +1,2165 @@
+make fmt
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+cargo fmt --all --check --manifest-path './Cargo.toml'
+cargo fmt --check --manifest-path './fuzz/Cargo.toml'
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+make clippy
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+cargo clippy --workspace --all-targets --locked -- -D warnings
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/crates/raf-source)
+    Checking rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.27s
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+make test
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+cargo test --workspace --locked
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/crates/raf-source)
+   Compiling rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.23s
+     Running unittests src/lib.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/5ace130c5ad46cfb/out/raf_okf-5ace130c5ad46cfb)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/alloc_bound.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/18f09ba9d6a617fb/out/alloc_bound-18f09ba9d6a617fb)
+
+running 1 test
+test refused_documents_stay_within_eight_times_their_size ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/body_robustness.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/34aa4f7cb3907536/out/body_robustness-34aa4f7cb3907536)
+
+running 1 test
+test random_token_soup_never_panics_and_parsed_spans_lie_in_the_text ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.38s
+
+     Running tests/body_structure.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/3e81cedb8a015926/out/body_structure-3e81cedb8a015926)
+
+running 19 tests
+test a_section_that_ends_the_body_without_a_final_newline_reaches_the_end ... ok
+test a_fence_closes_only_on_the_same_character_with_at_least_the_same_length ... ok
+test a_three_space_heading_is_a_section_and_a_four_space_heading_is_not ... ok
+test a_thematic_break_is_not_a_run_of_list_markers ... ok
+test code_spans_of_any_backtick_length_hide_their_content ... ok
+test headings_inside_fences_and_comments_are_not_headings ... ok
+test indented_code_is_ordinary_text_so_links_and_markers_in_it_count ... ok
+test headings_of_every_level_carry_github_anchors_with_repeats_numbered ... ok
+test markdown_without_frontmatter_is_the_whole_body ... ok
+test fences_are_recognised_indented_up_to_three_spaces_and_inside_quotes_and_lists ... ok
+test a_document_built_with_a_malformed_body_reports_the_line_in_the_rendered_text ... ok
+test only_atx_headings_are_headings_and_setext_headings_are_not ... ok
+test section_text_is_the_content_of_the_section ... ok
+test sections_carry_heading_slug_and_content_up_to_the_next_second_level_heading ... ok
+test spans_are_in_whole_text_coordinates_when_frontmatter_precedes_the_body ... ok
+test prose_lines_skip_fences_and_comments_and_remove_code_spans ... ok
+test block_nesting_of_sixty_four_levels_parses_and_sixty_five_is_refused ... ok
+test a_body_of_exactly_one_mebibyte_parses_and_one_more_byte_is_refused ... ok
+test a_hundred_thousand_quote_markers_are_refused_on_a_small_stack ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/index.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/df5b0dd0d91b30ea/out/index-df5b0dd0d91b30ea)
+
+running 9 tests
+test a_header_with_unknown_tags_or_in_the_wrong_place_is_refused ... ok
+test an_empty_header_tag_is_refused ... ok
+test an_index_with_no_block_or_an_unclosed_block_is_refused ... ok
+test only_the_capability_index_path_is_the_index ... ok
+test indented_and_mid_line_markers_are_refused ... ok
+test a_generated_only_index_is_accepted_with_either_header_form ... ok
+test prose_outside_the_blocks_is_refused_with_its_line ... ok
+test document_parse_of_index_text_fails_at_line_one ... ok
+test an_index_of_exactly_one_mebibyte_parses_and_one_more_byte_is_refused ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/links.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/66541d8c914774ab/out/links-66541d8c914774ab)
+
+running 20 tests
+test a_link_split_across_lines_is_recorded_and_not_read ... ok
+test a_split_link_does_not_hide_a_link_after_it ... ok
+test a_space_between_the_text_and_the_parenthesis_is_not_a_link ... ok
+test an_escaped_closing_parenthesis_belongs_to_the_destination ... ok
+test an_attribute_value_that_starts_on_the_next_line_is_read ... ok
+test a_link_split_across_lines_inside_a_block_quote_is_recorded ... ok
+test an_html_tag_split_across_lines_yields_its_attributes_with_their_lines ... ok
+test every_link_form_is_read_with_its_target_anchor_and_line ... ok
+test links_inside_html_comments_are_not_links ... ok
+test html_attributes_are_read_with_spacing_case_and_unquoted_values ... ok
+test links_inside_code_spans_of_any_length_and_fences_are_not_links ... ok
+test nested_brackets_images_in_links_and_stray_brackets_are_read ... ok
+test only_ascii_space_and_controls_end_a_destination_not_unicode_space ... ok
+test reference_definitions_take_angle_targets_and_skip_footnotes ... ok
+test tag_state_does_not_survive_a_blank_line_or_a_fence ... ok
+test split_links_are_not_recorded_in_fences_code_spans_or_for_one_line_links ... ok
+test targets_that_leave_the_root_or_are_empty_or_absolute_are_refused ... ok
+test the_tag_scan_spares_prose_autolinks_and_closed_tags ... ok
+test targets_resolve_against_the_document_path ... ok
+test a_destination_or_title_of_exactly_4096_bytes_is_read_and_one_more_is_refused ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/markers.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/6a93f507c6cbc8cb/out/markers-6a93f507c6cbc8cb)
+
+running 8 tests
+test document_parse_builds_its_body_through_the_body_model ... ok
+test marker_errors_in_a_document_carry_whole_text_lines ... ok
+test a_proposed_block_reports_slug_spans_content_and_section ... ok
+test generated_blocks_report_kind_outer_and_content_spans ... ok
+test markers_inside_a_fence_produce_no_blocks ... ok
+test each_generated_marker_error_names_its_line ... ok
+test two_markers_in_a_row_make_two_blocks ... ok
+test every_misspelling_of_the_proposed_marker_is_refused_with_its_line ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/no_io_in_source.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/6f4ae11df781f78f/out/no_io_in_source-6f4ae11df781f78f)
+
+running 3 tests
+test the_scanner_leaves_neighbouring_paths_alone ... ok
+test the_scanner_finds_every_spelling_of_a_forbidden_module ... ok
+test the_crate_sources_name_neither_the_file_system_nor_the_process_module ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/placeholder_lines.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/56f13abea0a687b1/out/placeholder_lines-56f13abea0a687b1)
+
+running 2 tests
+test does_not_read_code_or_comments ... ok
+test reports_each_token_in_prose_with_its_line ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/profile.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/9edbda21042e06b4/out/profile-9edbda21042e06b4)
+
+running 34 tests
+test a_missing_type_key_is_the_only_violation ... ok
+test a_delivered_capability_with_code_and_tests_is_typed_with_its_bindings ... ok
+test a_placeholder_token_in_a_code_span_of_a_frontmatter_value_is_spared ... ok
+test a_split_link_is_reported_at_its_line_and_a_one_line_link_is_not ... ok
+test a_document_with_three_faults_returns_three_violations ... ok
+test an_architecture_body_is_not_empty ... ok
+test an_unknown_key_is_reported_at_that_key ... ok
+test an_unknown_type_is_one_violation_at_the_type_key ... ok
+test an_invalid_changes_entry_does_not_cascade_into_the_affects_entries ... ok
+test a_change_needs_a_non_empty_summary ... ok
+test a_violation_displays_the_file_the_place_and_the_rule ... ok
+test a_document_must_sit_directly_in_the_directory_of_its_type ... ok
+test future_tense_prose_is_not_a_violation ... ok
+test a_proposed_block_is_valid_only_inside_a_section_of_a_capability ... ok
+test contract_effect_is_none_or_changes ... ok
+test changes_is_a_non_empty_list_of_cap_ids ... ok
+test placeholder_scan_spares_code_longer_words_and_dotted_prose ... ok
+test a_capability_holds_the_seven_sections_in_order ... ok
+test the_three_outcomes_are_typed ... ok
+test placeholder_tokens_in_frontmatter_values_are_reported_at_the_key ... ok
+test valid_documents_of_each_type_validate_to_typed_values ... ok
+test a_state_is_one_of_the_four ... ok
+test a_title_and_a_description_are_non_empty_strings ... ok
+test placeholder_tokens_in_prose_are_reported_at_their_line ... ok
+test affects_entries_have_the_form_a_section_of_the_seven_and_a_capability_in_changes ... ok
+test the_key_resource_has_its_own_rule_on_every_type ... ok
+test items_need_a_claim_known_keys_and_a_known_outcome ... ok
+test depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist ... ok
+test tags_are_non_empty_unique_strings_and_a_timestamp_is_rfc_3339 ... ok
+test bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list ... ok
+test bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests ... ok
+test every_required_key_of_every_type_is_reported_when_missing ... ok
+test a_section_is_empty_when_only_comments_and_generated_blocks_remain ... ok
+test an_id_needs_the_prefix_of_its_type_a_kebab_slug_and_the_file_name ... ok
+
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/refusals.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/cfb12ed9403c4daf/out/refusals-cfb12ed9403c4daf)
+
+running 26 tests
+test a_billion_laughs_document_is_refused_at_the_first_anchor ... ok
+test a_document_without_a_fence_on_line_one_is_refused ... ok
+test an_unclosed_fence_is_refused_at_the_opening_fence ... ok
+test a_flow_mapping_value_is_refused_naming_the_key ... ok
+test a_colon_space_inside_a_flow_list_is_refused ... ok
+test a_frontmatter_that_is_not_a_block_mapping_is_refused ... ok
+test a_duplicate_key_is_refused_at_every_level ... ok
+test an_unterminated_quote_and_text_after_a_quote_are_refused ... ok
+test block_scalars_are_refused_naming_the_header ... ok
+test anchors_aliases_tags_and_merge_keys_are_refused_naming_the_token ... ok
+test block_indicators_inside_an_items_entry_are_refused ... ok
+test items_keep_their_maps_and_scalars ... ok
+test line_endings_must_agree_within_the_frontmatter ... ok
+test flow_list_shape_errors_are_refused ... ok
+test layout_errors_are_refused_with_their_position ... ok
+test numbers_booleans_and_null_are_read_as_strings ... ok
+test plain_scalars_with_a_colon_space_or_an_indicator_are_refused ... ok
+test text_that_the_reader_refuses_is_never_plain_ok ... ok
+test stray_and_over_indented_lines_after_a_flow_value_are_refused ... ok
+test trailing_comments_are_not_part_of_the_value ... ok
+test unterminated_quotes_are_refused_in_flow_list_item_and_nested_item_positions ... ok
+test unknown_escapes_are_refused_and_every_known_escape_is_read ... ok
+test nesting_over_thirty_two_levels_is_refused_before_descent ... ok
+test text_that_plain_ok_accepts_is_read_back_plain_in_every_position ... ok
+test a_hundred_thousand_levels_return_an_error_on_a_small_stack ... ok
+test a_text_of_exactly_one_mebibyte_parses_and_one_more_byte_is_refused ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/render.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/f8c39a63e0c02bc3/out/render-f8c39a63e0c02bc3)
+
+running 20 tests
+test a_parsed_empty_value_renders_as_an_empty_value ... ok
+test a_document_of_an_unknown_type_keeps_input_order ... ok
+test a_built_document_with_sorted_tags_equals_what_it_reads_back_as ... ok
+test constructors_refuse_what_the_reader_would_not_read_back ... ok
+test comments_attach_to_the_next_key_and_trailing_comments_stay_on_their_line ... ok
+test a_change_document_built_from_constructors_renders_and_reads_back_equal ... ok
+test flow_lists_are_written_in_one_spacing ... ok
+test equality_compares_keys_as_a_map_with_comments_and_body_bytes ... ok
+test every_escape_round_trips_and_other_control_characters_are_refused ... ok
+test crlf_documents_and_a_missing_final_newline_render_byte_identically ... ok
+test a_parsed_document_equals_its_rendering_read_back ... ok
+test constructors_choose_a_style_the_reader_reads_back ... ok
+test keys_outside_the_table_follow_in_input_order ... ok
+test the_body_span_locates_the_body_in_the_text ... ok
+test the_body_span_uses_the_coordinates_of_the_text_the_document_came_from ... ok
+test tags_render_sorted_and_stay_sorted ... ok
+test keys_out_of_order_render_in_table_order_and_then_stay_put ... ok
+test unsorted_tags_render_sorted_and_the_document_equals_its_rendering_read_back ... ok
+test every_tracked_document_renders_to_its_own_bytes ... ok
+test constructed_nesting_and_size_are_bounded_like_the_reader ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/repo_markdown.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/69f2152fbf8eb06e/out/repo_markdown-69f2152fbf8eb06e)
+
+running 1 test
+test no_tracked_markdown_file_holds_a_split_link_or_a_malformed_block ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/schema.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/2d8482e7e2a33234/out/schema-2d8482e7e2a33234)
+
+running 5 tests
+test a_type_is_found_by_its_exact_name_only ... ok
+test each_type_lists_its_keys_in_the_order_of_the_architecture_page ... ok
+test malformed_and_out_of_range_timestamps_are_refused ... ok
+test tags_and_timestamp_are_optional_and_every_other_key_is_required ... ok
+test valid_timestamps_are_accepted ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/splice.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/997ec2af7b85b960/out/splice-997ec2af7b85b960)
+
+running 12 tests
+test a_document_whose_closing_fence_has_no_line_ending_gains_one_for_a_body ... ok
+test a_document_delegates_and_renders_the_edit_with_its_frontmatter ... ok
+test a_malformed_result_is_refused_and_the_body_is_unchanged ... ok
+test a_document_edit_with_a_malformed_result_is_refused_and_the_document_is_unchanged ... ok
+test an_empty_edit_list_leaves_the_body_equal ... ok
+test a_second_call_uses_spans_read_from_the_rebuilt_model ... ok
+test spans_outside_the_body_or_inside_a_character_are_refused ... ok
+test edits_given_out_of_order_apply_in_one_pass ... ok
+test two_generated_blocks_change_only_their_byte_ranges ... ok
+test overlapping_spans_are_refused_and_the_body_is_unchanged ... ok
+test the_catalogue_of_an_index_is_replaced_through_the_index ... ok
+test a_document_edit_over_one_mebibyte_is_refused_and_the_document_is_unchanged ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/usage_docs.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-okf/52aa598ab776d5f6/out/usage_docs-52aa598ab776d5f6)
+
+running 1 test
+test the_examples_block_validates_between_fences_and_resource_is_rejected ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/4901b7eeb493990c/out/raf_source-4901b7eeb493990c)
+
+running 14 tests
+test budget::tests::the_table_is_indexed_by_each_budgets_position ... ok
+test tree::disk::tests::a_missing_descriptor_link_is_an_io_failure_and_never_absence ... ok
+test error::tests::a_spawn_error_displays_the_file_and_carries_its_cause ... ok
+test tree::disk::tests::linux_verifier_reads_the_real_descriptor_of_an_open_file ... ok
+test tree::disk::tests::linux_verifier_refuses_a_handle_link_that_leads_outside_and_accepts_one_inside ... ok
+test tree::disk::tests::portable_verifier_refuses_a_non_regular_handle_and_an_outside_path_beside_an_accepted_one ... ok
+test tree::disk::tests::portable_directory_verifier_refuses_a_file_and_an_outside_path_beside_an_accepted_one ... ok
+test tree::disk::tests::swap::the_same_listing_without_a_swap_returns_the_entries ... ok
+test tree::disk::tests::unix_verifier_refuses_differing_identities_and_accepts_equal_ones ... ok
+test tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_before_a_listing_is_refused ... ok
+test index::tests::a_target_whose_root_file_is_missing_is_a_typed_internal_error ... ok
+test workspace::tests::a_test_function_whose_path_leaves_its_crate_path_is_a_typed_error ... ok
+test tree::disk::tests::swap::the_same_read_without_a_swap_is_accepted ... ok
+test tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_after_the_check_is_refused ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/corpus_replay.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/168b37cb9bd4492f/out/corpus_replay-168b37cb9bd4492f)
+
+running 9 tests
+test child_main ... ok
+test write_corpus ... ignored, writes the committed corpus files from the shape table
+test the_shape_table_matches_the_expected_names ... ok
+test a_recorded_list_that_differs_from_the_real_index_fails_the_replay ... ok
+test corpus_files_hold_exactly_the_text_of_their_shapes ... ok
+test every_named_shape_has_a_corpus_file_and_no_file_is_unrecorded ... ok
+test evasion_shapes_are_refused_naming_their_budget_beside_their_at_budget_neighbours ... ok
+test files_at_a_budget_exit_zero_and_files_over_it_are_refused_naming_file_and_budget ... ok
+test every_corpus_file_ends_in_exactly_one_allowed_outcome_with_its_recorded_symbols ... ok
+
+test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 2.01s
+
+     Running tests/discovery_targets.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/29565a74954ee2c6/out/discovery_targets-29565a74954ee2c6)
+
+running 25 tests
+test a_manifest_that_is_not_toml_or_has_neither_table_is_a_typed_error ... ok
+test a_target_table_without_a_name_is_an_error_naming_the_key ... ok
+test there_are_no_default_roots ... ok
+test two_targets_sharing_one_root_are_an_error_naming_the_second ... ok
+test a_manifest_with_a_trailing_comment_and_single_quoted_values_is_honoured ... ok
+test target_and_hidden_directories_are_skipped_beside_a_discovered_sibling ... ok
+test a_virtual_manifest_contributes_nothing_but_its_children_are_found ... ok
+test a_target_path_that_leaves_the_tree_is_refused_and_a_path_that_stays_is_accepted ... ok
+test a_library_and_a_binary_with_one_name_resolve_under_their_own_crate_paths ... ok
+test an_explicit_target_file_that_is_missing_is_an_error_naming_the_manifest_key ... ok
+test a_missing_root_is_an_error_beside_an_existing_one ... ok
+test two_packages_with_one_name_are_an_error_naming_both_manifests ... ok
+test a_package_nested_below_a_package_without_a_workspace_is_not_discovered ... ok
+test two_packages_whose_libraries_share_a_crate_name_are_an_error_naming_both_manifests ... ok
+test a_shared_test_helper_directory_is_reached_by_two_targets_and_listed_once ... ok
+test a_first_party_module_named_like_the_test_namespace_loads_beside_a_test_target ... ok
+test only_the_named_roots_are_searched ... ok
+test the_root_module_of_every_target_is_recorded_under_its_crate_path ... ok
+test each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour ... ok
+test targets_are_sorted_and_two_loads_are_equal ... ok
+test deeply_nested_inline_tables_are_a_typed_error_on_the_callers_stack_and_a_shallow_one_loads ... ok
+test autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found ... ok
+test each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag ... ok
+test two_targets_with_one_crate_path_are_an_error_naming_both_beside_distinct_names ... ok
+test a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests/disk_tree_containment.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/b6e74bca64b42ca4/out/disk_tree_containment-b6e74bca64b42ca4)
+
+running 13 tests
+test a_missing_root_is_an_error_beside_an_existing_one ... ok
+test a_directory_named_as_a_file_is_refused ... ok
+test a_non_utf8_entry_name_fails_the_listing_beside_a_listing_without_one ... ok
+test a_file_that_is_missing_is_not_found_and_one_that_leaves_the_root_is_outside_root ... ok
+test a_symlinked_root_is_followed_to_its_target_and_containment_is_judged_there ... ok
+test a_directory_symlink_loop_ends_with_an_error_and_is_listed_but_never_entered ... ok
+test a_file_that_is_not_utf8_is_refused_beside_one_that_is ... ok
+test listings_are_sorted_by_name ... ok
+test a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted ... ok
+test a_symlink_to_a_symlink_that_leaves_the_root_is_refused_beside_a_chain_that_stays ... ok
+test a_fifo_named_as_a_file_is_refused_without_blocking_beside_a_regular_file ... ok
+test a_parent_segment_after_an_outside_directory_symlink_is_resolved_on_disk_and_refused ... ok
+test entry_kinds_cover_file_directory_symlink_other_and_absent ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/disk_tree_root.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/197010b69655b4b0/out/disk_tree_root-197010b69655b4b0)
+
+running 2 tests
+test a_root_that_is_missing_is_not_found_on_every_platform ... ok
+test disk_and_memory_trees_agree_on_regular_files ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/fs_confinement.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/adae21120d879b8c/out/fs_confinement-adae21120d879b8c)
+
+running 4 tests
+test only_files_of_the_disk_backend_are_exempt ... ok
+test the_scanner_leaves_neighbouring_paths_alone ... ok
+test the_scanner_finds_every_spelling_of_the_file_system_module ... ok
+test only_the_disk_backend_names_the_file_system_module ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/index_disk.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/48df89ac2fd37e2c/out/index_disk-48df89ac2fd37e2c)
+
+running 1 test
+test disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/memory_tree.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/1bf5e3f7cb0ddce3/out/memory_tree-1bf5e3f7cb0ddce3)
+
+running 10 tests
+test a_directory_is_not_readable_as_a_file_and_a_file_is_not_listable ... ok
+test a_key_that_is_both_a_file_and_a_directory_is_refused ... ok
+test collecting_pairs_builds_the_same_tree_as_the_array_conversion ... ok
+test a_tree_built_infallibly_from_a_bad_key_reports_the_error_from_every_call ... ok
+test a_file_reads_back_and_a_missing_file_is_not_found ... ok
+test a_parent_segment_is_applied_to_the_trees_own_directories ... ok
+test directories_are_inferred_and_listings_are_sorted_with_their_kinds ... ok
+test duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_keys ... ok
+test keys_that_leave_the_root_are_refused_with_outside_root_beside_a_valid_key ... ok
+test entry_reports_file_dir_and_absence_without_an_error ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/module_tree.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/9a7c173ad4c49eaa/out/module_tree-9a7c173ad4c49eaa)
+
+running 33 tests
+test a_cfg_attr_test_path_is_tagged_test_and_nothing_is_dropped ... ok
+test facts_carry_names_lines_documentation_visibility_and_macro_export ... ok
+test a_path_attribute_in_a_mod_rs_file_is_relative_to_that_files_directory ... ok
+test a_file_reached_twice_without_a_cycle_is_parsed_once_and_recorded_under_each_path ... ok
+test a_flat_file_and_a_directory_module_are_both_followed_beside_each_other ... ok
+test a_path_attribute_on_an_inline_module_replaces_its_directory_component ... ok
+test a_nested_cfg_attr_path_is_flattened_with_the_combined_predicate ... ok
+test the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone ... ok
+test an_inline_module_inside_a_non_mod_file_nests_below_the_files_own_directory ... ok
+test a_module_cycle_is_an_error_naming_both_files ... ok
+test a_non_mod_file_keeps_its_children_in_a_directory_of_its_own_name ... ok
+test one_file_spelled_two_ways_is_one_file_recorded_under_both_module_paths ... ok
+test a_cfg_test_module_tags_every_item_reached_only_through_it ... ok
+test a_path_attribute_in_a_non_mod_file_is_relative_to_the_files_directory_not_its_module_directory ... ok
+test every_cfg_attr_path_alternative_is_followed_carrying_its_predicate ... ok
+test an_unresolved_mod_names_the_declaring_file_and_line ... ok
+test facts_record_struct_shapes_unnamed_consts_leading_colons_and_documentation_forms ... ok
+test inline_modules_add_directory_components_for_their_file_children ... ok
+test a_file_named_by_a_path_attribute_is_a_mod_rs_file_for_its_children ... ok
+test a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_reading_it ... ok
+test a_module_with_both_name_rs_and_name_mod_rs_is_an_error_naming_both_files ... ok
+test use_trees_and_impl_headers_are_recorded_as_written ... ok
+test a_path_attribute_inside_an_inline_module_is_relative_to_the_module_directory ... ok
+test the_default_file_is_also_followed_beside_cfg_attr_alternatives_when_it_exists ... ok
+test a_malformed_cfg_path_or_test_attribute_is_an_error_naming_its_line ... ok
+test a_path_attribute_on_an_inline_module_in_a_non_mod_file_replaces_its_directory_component ... ok
+test a_raw_identifier_module_reads_the_plain_file_name ... ok
+test two_unconditional_path_attributes_are_an_error_beside_one ... ok
+test an_unparseable_cfg_is_an_error_naming_file_and_line_beside_a_parseable_one ... ok
+test module_depth_of_exactly_the_budget_loads_and_one_more_is_refused ... ok
+test module_nesting_beyond_the_depth_budget_is_refused_and_the_budget_itself_loads ... ok
+test inline_modules_with_path_alternatives_are_bounded_by_the_module_path_budget ... ok
+test a_chain_of_files_that_each_declare_the_next_twice_is_refused_quickly_beside_a_small_diamond ... ok
+
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.01s
+
+     Running tests/overflow_harness.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/8ec0609d814be10a/out/overflow_harness-8ec0609d814be10a)
+
+running 13 tests
+test child_main ... ok
+test the_classifier_accepts_only_a_signal_a_stack_overflow_status_or_the_runtime_message_as_an_abort ... ok
+test the_judge_rejects_a_wrong_index_a_misnamed_refusal_and_a_stray_failure ... ok
+test the_parse_thread_is_named_after_the_file_and_has_the_stated_stack ... ok
+test a_panic_in_the_visitor_is_raised_again_with_its_payload ... ok
+test a_child_that_exits_three_without_a_result_line_is_a_failure ... ok
+test a_child_that_panics_is_a_failure_and_not_an_abort ... ok
+test a_child_with_an_unknown_selector_is_a_failure ... ok
+test a_shape_just_inside_its_budgets_exits_zero_with_the_exact_symbols ... ok
+test deep_but_admitted_source_parses_on_the_dedicated_stack_not_the_callers ... ok
+test the_same_chain_at_a_safe_depth_exits_zero_beside_the_overflowing_one ... ok
+test a_deliberate_overflow_aborts_and_the_runtime_names_the_parse_thread ... ok
+test composites_and_uncounted_shapes_end_in_exactly_one_allowed_outcome ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.96s
+
+     Running tests/prescan_budgets.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/f0c6d783fb1372e4/out/prescan_budgets-f0c6d783fb1372e4)
+
+running 16 tests
+test a_comment_or_string_that_looks_like_the_end_of_another_does_not_hide_real_tokens ... ok
+test a_lifetime_is_not_the_start_of_a_character_literal ... ok
+test the_refusal_names_the_line_where_the_count_went_over ... ok
+test a_syntax_error_reports_its_own_line_and_column_beside_a_parsing_neighbour ... ok
+test four_thousand_bangs_are_refused_beside_two_hundred_fifty_six ... ok
+test closure_heads_with_parameters_chain_like_empty_ones ... ok
+test delimiter_nesting_is_refused_at_one_hundred_twenty_nine_beside_one_hundred_twenty_eight ... ok
+test five_hundred_nested_generics_are_refused_beside_sixty_four ... ok
+test ten_thousand_closure_bars_are_refused_beside_one_hundred_twenty_eight ... ok
+test a_lifetime_between_reference_marks_does_not_end_the_run ... ok
+test twenty_thousand_else_if_links_are_refused_beside_two_hundred_fifty_six ... ok
+test a_block_as_the_condition_of_each_else_if_still_counts_the_chain ... ok
+test tokens_inside_strings_raw_strings_and_comments_count_for_nothing ... ok
+test twenty_thousand_reference_marks_are_refused ... ok
+test separate_if_chains_in_one_block_do_not_add_up_beside_the_one_long_chain ... ok
+test neighbouring_valid_shapes_just_below_each_budget_parse ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/read_cap.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/665071f59aec283c/out/read_cap-665071f59aec283c)
+
+running 4 tests
+test the_default_cap_is_eight_mib ... ok
+test a_zero_cap_refuses_any_content_and_accepts_an_empty_file ... ok
+test memory_tree_enforces_the_cap_at_eight_mib ... ok
+test disk_tree_enforces_the_cap_at_eight_mib ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/relpath.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/57cdb059d253aef7/out/relpath-57cdb059d253aef7)
+
+running 8 tests
+test a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside ... ok
+test a_parent_segment_below_the_root_is_kept_for_the_disk_to_resolve ... ok
+test an_absolute_input_is_refused_beside_its_relative_form ... ok
+test display_names_the_root_as_a_dot ... ok
+test backslash_nul_and_drive_letter_inputs_are_refused_beside_plain_names ... ok
+test dot_and_empty_segments_are_dropped ... ok
+test join_extends_a_path_and_checks_the_climb_against_the_whole ... ok
+test parent_and_file_name_are_lexical ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/symbol_index.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/64cca6c138f9fac1/out/symbol_index-64cca6c138f9fac1)
+
+running 18 tests
+test files_items_in_and_item_at_answer_by_position ... ok
+test an_unnamed_const_is_in_the_facts_and_not_in_the_index ... ok
+test cfg_twins_are_one_symbol_with_two_sorted_sites ... ok
+test documentation_counts_text_and_include_str_but_not_hidden_or_blank_comments ... ok
+test unit_and_tuple_structs_are_also_values_and_named_structs_are_not ... ok
+test test_functions_carry_the_package_target_and_crate_relative_name ... ok
+test shipping_is_the_target_and_not_a_test_role ... ok
+test an_item_the_index_does_not_model_is_a_typed_error_naming_file_and_line ... ok
+test items_that_share_a_source_item_are_grouped_by_its_identity ... ok
+test test_roles_follow_the_module_tree_and_the_item ... ok
+test every_kind_is_indexed_with_its_kind_line_file_and_visibility ... ok
+test impl_members_are_recorded_under_the_type_or_under_the_trait_by_the_shape_of_the_impl ... ok
+test a_method_in_another_file_than_its_type_is_recorded_under_the_type ... ok
+test a_module_a_function_and_a_macro_of_one_name_coexist_and_each_selects_by_namespace ... ok
+test a_module_in_its_own_file_is_documented_by_the_inner_docs_of_that_file ... ok
+test a_first_party_test_crate_module_beside_a_test_target_makes_the_shared_path_ambiguous ... ok
+test two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order ... ok
+test an_inherent_impl_on_a_type_that_does_not_resolve_is_an_error_naming_file_and_line ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/target_roots.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/578a137073fbaaa5/out/target_roots-578a137073fbaaa5)
+
+running 4 tests
+test every_target_kind_resolves_at_its_crate_path_as_a_module_item_of_its_root_file ... ok
+test a_first_party_module_at_a_binary_crate_path_is_ambiguous_beside_a_binary_that_is_not ... ok
+test the_namespace_segments_are_not_items_and_a_first_party_module_of_that_name_collides ... ok
+test this_repository_resolves_a_test_crate_root_and_a_library_root ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running tests/this_repository.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/5e1ddbc3d3bb5a1a/out/this_repository-5e1ddbc3d3bb5a1a)
+
+running 1 test
+test this_repository_loads_from_its_root_with_the_crates_directory_as_the_root ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+
+     Running tests/trait_keys.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/0e945d39198676b8/out/trait_keys-0e945d39198676b8)
+
+running 29 tests
+test a_path_dependency_inside_the_workspace_with_no_manifest_is_an_error_naming_the_key ... ok
+test a_pattern_outside_the_supported_syntax_is_a_manifest_error_naming_the_list ... ok
+test a_literal_member_without_a_manifest_is_an_error_and_a_glob_skips_such_a_directory ... ok
+test a_malformed_ancestor_manifest_is_an_error_and_a_missing_one_is_not ... ok
+test a_path_through_a_local_re_export_of_a_dependency_has_one_key_with_the_direct_spelling ... ok
+test a_package_that_is_only_a_path_dependency_of_the_root_package_is_a_member ... ok
+test a_path_dependency_outside_the_workspace_directory_or_excluded_is_not_a_member ... ok
+test an_ancestor_manifest_over_the_size_cap_is_a_typed_error ... ok
+test an_excluded_literal_member_is_ignored_and_not_required_to_exist ... ok
+test matching_a_pattern_takes_time_in_proportion_to_pattern_and_name ... ok
+test a_head_that_is_not_a_known_crate_is_an_error_and_a_declared_dependency_loads ... ok
+test without_a_workspace_above_or_an_edition_in_it_the_inheritance_is_a_manifest_error ... ok
+test an_edition_that_is_not_a_year_is_a_manifest_error_naming_the_key ... ok
+test a_workspace_dependency_whose_path_is_not_a_string_is_an_error_naming_the_key ... ok
+test a_path_dependency_with_an_unusable_path_is_an_error_beside_one_that_is_outside_the_tree ... ok
+test local_traits_still_key_under_their_definition_beside_dependency_ones ... ok
+test the_workspace_root_package_inherits_without_being_listed ... ok
+test a_trait_through_one_dependency_glob_is_keyed_under_that_glob ... ok
+test the_nearest_ancestor_with_a_workspace_table_decides_and_others_are_skipped ... ok
+test several_dependency_globs_leave_the_trait_unresolved_and_the_members_are_still_found ... ok
+test an_inherited_edition_comes_from_the_workspace_and_a_missing_one_is_a_manifest_error ... ok
+test a_glob_of_something_that_is_no_crate_or_module_is_an_error_beside_a_declared_one ... ok
+test the_workspace_manifest_is_found_above_the_roots_and_adds_no_package ... ok
+test the_same_trait_through_a_glob_and_through_a_named_import_can_have_two_keys ... ok
+test an_empty_pattern_segment_is_a_pattern_error_beside_a_plain_pattern ... ok
+test path_dependencies_of_members_are_members_transitively_in_every_dependency_table ... ok
+test inheriting_requires_membership_by_the_members_and_exclude_lists ... ok
+test dependency_tables_are_honoured_by_target_kind_and_renames_use_the_name_in_code ... ok
+test each_prelude_trait_loads_in_the_edition_that_has_it_and_is_refused_in_the_one_before ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/tree_error.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/19b3c869464d900e/out/tree_error-19b3c869464d900e)
+
+running 3 tests
+test an_unconstructible_path_converts_to_outside_root_naming_the_input ... ok
+test every_variant_names_its_path_in_display_and_in_path ... ok
+test only_io_has_a_source_and_only_not_found_is_absence ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/use_resolution.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/e127ac0253ba908c/out/use_resolution-e127ac0253ba908c)
+
+running 26 tests
+test a_glob_resolves_with_via_glob_and_the_direct_path_does_not ... ok
+test a_three_hop_chain_resolves_and_lists_each_hop ... ok
+test a_cfg_twin_module_is_one_symbol_and_its_contents_merge ... ok
+test an_invalid_path_is_an_invalid_error_beside_a_valid_one ... ok
+test a_rename_a_nested_group_and_a_plain_use_each_resolve_to_the_definition ... ok
+test a_mutual_super_glob_resolves_a_real_item_in_both_directions ... ok
+test raw_identifiers_resolve_under_both_spellings ... ok
+test an_import_that_can_never_resolve_still_shadows_nothing_it_cannot_bind ... ok
+test missing_names_dependency_items_and_macro_generated_items_are_not_found ... ok
+test crate_self_and_super_paths_resolve_from_the_module_they_are_written_in ... ok
+test explicit_imports_shadow_globs_for_the_modules_that_glob_the_importer ... ok
+test definitions_and_explicit_imports_shadow_globs ... ok
+test the_same_symbol_reached_through_a_type_alias_chain_and_a_method_path_resolves ... ok
+test a_route_without_a_glob_decides_via_glob_for_an_item_reached_both_ways ... ok
+test a_cycle_of_imports_is_cyclic_beside_a_chain_that_ends ... ok
+test trait_impls_on_foreign_types_are_keyed_by_the_canonical_trait_path_in_every_spelling ... ok
+test two_globs_that_bring_in_different_items_are_ambiguous_beside_two_that_bring_in_one ... ok
+test cfg_attr_alternatives_index_every_file_under_the_one_module_path ... ok
+test a_name_is_not_read_from_a_glob_while_an_explicit_import_of_it_is_unsettled ... ok
+test use_with_only_self_is_an_error_and_use_path_self_imports_the_module ... ok
+test super_above_the_crate_root_is_an_error_naming_file_and_line ... ok
+test extern_crate_renames_and_leading_colon_paths_reach_the_library_from_other_targets ... ok
+test a_trait_path_that_cannot_be_made_absolute_is_a_typed_error ... ok
+test globs_import_only_the_names_the_importer_can_name ... ok
+test a_long_chain_of_re_exports_resolves_in_either_order_without_a_cap ... ok
+test resolution_does_not_depend_on_the_order_of_the_declarations ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.82s
+
+     Running tests/workspace_containment.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/raf-source/8b1fd81cd37c3b89/out/workspace_containment-8b1fd81cd37c3b89)
+
+running 12 tests
+test a_missing_explicit_target_file_is_a_target_error_on_disk_too ... ok
+test a_target_file_that_is_a_symlink_to_outside_is_refused_naming_the_key ... ok
+test a_target_root_that_is_a_fifo_is_refused_without_blocking ... ok
+test a_symlinked_manifest_to_outside_is_refused_beside_one_to_a_file_inside ... ok
+test a_fifo_named_as_a_module_file_is_refused_without_blocking ... ok
+test a_directory_symlink_loop_ends_with_an_error_and_a_plain_directory_symlink_is_refused ... ok
+test disk_and_memory_trees_give_the_same_workspace_for_regular_files ... ok
+test a_link_to_a_symlink_that_points_outside_is_refused_naming_the_module ... ok
+test a_symlinked_module_file_to_outside_is_refused_naming_the_module_beside_an_in_root_link ... ok
+test a_manifest_target_path_that_leaves_the_root_is_refused_naming_the_key ... ok
+test a_path_attribute_through_an_outside_directory_symlink_with_a_parent_segment_is_refused ... ok
+test discovery_classifies_a_symlink_by_what_it_resolves_to ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/rust-agentic-foundations/f20b5b471a05574e/out/rust_agentic_foundations-f20b5b471a05574e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/docs_contract.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/rust-agentic-foundations/d753f1e36c574b8e/out/docs_contract-d753f1e36c574b8e)
+
+running 137 tests
+test fixture_builder_is_self_consistent ... ok
+test inventory_table_has_the_documented_shape ... ok
+test doctest_comparison_fixtures ... ok
+test issue_token_scan_spares_hex_colours ... ok
+test inventory_rejects_a_missing_capability ... ok
+test inventory_rejects_a_missing_change_record ... ok
+test inventory_rejects_a_document_the_table_does_not_list ... ok
+test inventory_rejects_a_state_change ... ok
+test inventory_rejects_a_missing_architecture_document ... ok
+test inventory_rejects_an_id_change ... ok
+test refuses_a_file_swapped_in_after_inspection ... ok
+test refuses_non_regular_files_instead_of_blocking ... ok
+test accepts_a_generated_capability_index ... ok
+test accepts_resolving_reference_and_attribute_links ... ok
+test accepts_valid_fixture ... ok
+test accepts_one_line_links_and_links_in_fences_beside_the_split_rule ... ok
+test accepts_optional_tags_and_timestamp ... ok
+test accepts_moved_outcome ... ok
+test does_not_read_attributes_that_only_end_in_href_or_src ... ok
+test placeholder_scan_spares_code_and_longer_words ... ok
+test a_binding_to_a_missing_path_is_reported_with_its_capability ... ok
+test a_binding_to_a_macro_generated_function_is_not_found ... ok
+test rejects_a_tracked_symlink_that_nothing_links_to ... ok
+test rejects_a_link_split_across_lines_in_a_profile_document ... ok
+test inventory_accepts_a_matching_tree ... ok
+test bindings_that_name_real_symbols_resolve ... ok
+test placeholder_scan_spares_longer_words_and_dotted_prose ... ok
+test every_unresolved_binding_of_every_list_is_reported ... ok
+test rejects_a_link_whose_target_cannot_be_read_for_its_anchor ... ok
+test rejects_acceptance_label ... ok
+test accepts_a_generated_index_with_an_spdx_header ... ok
+test rejects_affects_slug_not_in_changes ... ok
+test rejects_affects_with_bad_section ... ok
+test reads_placeholders_in_plain_markdown_outside_code ... ok
+test reads_attributes_with_spaces_around_the_equals_sign ... ok
+test rejects_bad_contract_effect ... ok
+test rejects_absolute_and_empty_link_targets_beside_relative_ones ... ok
+test comments_hide_text_but_not_the_text_beside_them ... ok
+test rejects_bad_type ... ok
+test reads_a_proposed_block_in_plain_markdown_as_outside_a_capability ... ok
+test rejects_an_index_whose_marker_is_only_in_a_code_span ... ok
+test reads_an_attribute_value_that_starts_on_the_next_line ... ok
+test rejects_broken_anchor ... ok
+test rejects_bad_outcome ... ok
+test rejects_broken_relative_link ... ok
+test reads_markdown_outside_the_document_directories_with_or_without_frontmatter ... ok
+test rejects_bad_state ... ok
+test rejects_an_index_with_prose_outside_the_blocks ... ok
+test a_block_that_differs_by_one_line_is_reported ... ok
+test rejects_change_without_summary ... ok
+test accepts_quoted_and_block_forms ... ok
+test rejects_considered_without_proposed_block ... ok
+test rejects_dangling_depends ... ok
+test rejects_bad_depends_shapes ... ok
+test does_not_read_links_or_placeholders_inside_html_comments ... ok
+test rejects_an_empty_link_target ... ok
+test rejects_an_index_header_tag_without_a_value ... ok
+test rejects_change_naming_unknown_capability ... ok
+test rejects_capability_without_frontmatter ... ok
+test rejects_bad_affects_shapes ... ok
+test rejects_delivered_with_open_change_record ... ok
+test rejects_delivered_with_proposed_block ... ok
+test rejects_depends_two_cycle ... ok
+test rejects_designed_with_proposed_block ... ok
+test rejects_bad_changes_list ... ok
+test rejects_broken_href_and_src_attributes ... ok
+test rejects_broken_link_outside_the_document_directories ... ok
+test rejects_broken_reference_definition ... ok
+test rejects_an_index_header_with_unknown_tags_or_in_the_wrong_place ... ok
+test rejects_duplicate_tag ... ok
+test rejects_hand_written_capability_index ... ok
+test rejects_an_index_with_a_mid_line_marker ... ok
+test rejects_link_leaving_the_repository ... ok
+test rejects_duplicate_section ... ok
+test anchors_follow_github_rules ... ok
+test rejects_id_filename_mismatch ... ok
+test rejects_empty_section ... ok
+test rejects_delivered_without_code_or_test_binding ... ok
+test accepts_comments_after_scalars ... ok
+test rejects_link_to_a_tracked_symlink ... ok
+test rejects_missing_required_key ... ok
+test rejects_malformed_proposed_marker ... ok
+test rejects_an_index_with_an_indented_marker ... ok
+test rejects_missing_section ... ok
+test rejects_missing_type_key ... ok
+test rejects_moved_outcome_naming_a_missing_change ... ok
+test rejects_non_scalar_contract_effect ... ok
+test rejects_open_capability_without_change_record ... ok
+test rejects_proposed_change_that_does_not_list_the_capability ... ok
+test rejects_bad_id_prefix_or_slug ... ok
+test rejects_lowercase_proposed_marker ... ok
+test rejects_proposed_block_outside_a_section ... ok
+test rejects_proposed_marker_in_architecture ... ok
+test rejects_issue_number_token ... ok
+test rejects_broken_unquoted_attribute_values ... ok
+test rejects_proposed_marker_without_space ... ok
+test rejects_proposed_marker_in_change ... ok
+test rejects_empty_or_non_scalar_title ... ok
+test rejects_proposed_section_missing_from_affects ... ok
+test rejects_orphan_proposed_marker ... ok
+test rejects_bindings_before_delivery ... ok
+test rejects_non_scalar_state_and_scalar_bindings ... ok
+test rejects_block_scalar_indicator_value ... ok
+test rejects_scalar_tags ... ok
+test rejects_type_in_the_wrong_directory ... ok
+test rejects_process_wording ... ok
+test rejects_unclosed_frontmatter_in_plain_markdown ... ok
+test rejects_nested_documents ... ok
+test rejects_resource_key ... ok
+test rejects_unclosed_generated_block ... ok
+test rejects_unclosed_frontmatter ... ok
+test rejects_broken_attributes_in_tags_split_across_lines ... ok
+test rejects_unknown_key ... ok
+test rejects_unparseable_frontmatter ... ok
+test rejects_wrong_bindings_keys ... ok
+test rejects_bad_scalars_in_every_value_position ... ok
+test tag_scan_spares_prose_autolinks_and_closed_tags ... ok
+test rejects_generated_marker_errors ... ok
+test rejects_unquoted_colon_space ... ok
+test rejects_self_and_three_node_dependency_cycles ... ok
+test rejects_sections_out_of_order ... ok
+test rejects_proposed_marker_with_extra_spacing_or_nesting ... ok
+test rejects_non_markdown_file_in_a_document_directory ... ok
+test tag_state_does_not_survive_a_blank_line_or_a_fence ... ok
+test rejects_unterminated_quote ... ok
+test rejects_leading_indicator_character ... ok
+test reports_marker_errors_of_plain_markdown_once ... ok
+test rejects_sections_left_empty_by_comments ... ok
+test rejects_typed_document_outside_its_directory ... ok
+test rejects_placeholder_tokens ... ok
+test usage_and_examples_blocks_are_the_crate_doctests ... ok
+test rejects_frontmatter_shape_errors ... ok
+test rejects_a_link_split_across_lines_in_any_tracked_markdown_file ... ok
+test rejects_item_shape_errors ... ok
+test rejects_placeholder_spellings ... ok
+test repository_documents_satisfy_the_profile ... ok
+test repository_bindings_resolve_in_the_source_index ... ok
+
+test result: ok. 137 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+     Running tests/repo_gates.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/rust-agentic-foundations/4c27c602a5df2f15/out/repo_gates-4c27c602a5df2f15)
+
+running 55 tests
+test citation_accepts_matching_versions ... ok
+test citation_rejects_a_manifest_bump_without_a_matching_citation ... ok
+test citation_rejects_a_version_bump_without_a_matching_manifest ... ok
+test citation_rejects_a_missing_version ... ok
+test deny_accepts_the_root_configuration_plus_the_one_exception ... ok
+test citation_version_matches_the_workspace ... ok
+test deny_fuzz_configuration_is_the_root_configuration_plus_one_exception ... ok
+test issue_refs_flags_a_token_in_a_latin_1_file ... ok
+test deny_rejects_a_shared_section_that_differs ... ok
+test deny_rejects_a_dropped_root_exception ... ok
+test deny_rejects_a_missing_or_widened_or_repeated_exception ... ok
+test issue_refs_rejects_a_change_number ... ok
+test issue_refs_rejects_a_colon_prefixed_number ... ok
+test issue_refs_rejects_a_github_style_number ... ok
+test issue_refs_rejects_a_hash_number_after_a_space ... ok
+test issue_refs_rejects_a_hash_number_after_a_word_character ... ok
+test issue_refs_rejects_a_parenthesised_hash_number ... ok
+test issue_refs_rejects_a_plan_possessive ... ok
+test issue_refs_rejects_a_pull_url ... ok
+test issue_refs_rejects_a_pull_request_label ... ok
+test issue_refs_rejects_a_task_number ... ok
+test issue_refs_rejects_an_acceptance_label ... ok
+test issue_refs_rejects_an_all_digit_css_colour ... ok
+test issue_refs_rejects_an_issue_url ... ok
+test issue_refs_rejects_per_the_plan ... ok
+test issue_refs_rejects_the_word_issue_with_a_number ... ok
+test issue_refs_rejects_the_words_pull_request_with_a_number ... ok
+test issue_refs_rejects_this_branch ... ok
+test issue_refs_rejects_this_issue ... ok
+test issue_refs_reports_every_hit_as_file_and_line ... ok
+test issue_refs_skips_a_nul_containing_file_holding_a_token ... ok
+test issue_refs_spares_a_hex_colour_with_letters ... ok
+test issue_refs_spares_a_quoted_three_digit_colour ... ok
+test issue_refs_spares_a_six_digit_colour ... ok
+test issue_refs_scans_text_files_and_skips_binary_ones ... ok
+test issue_refs_spares_an_xml_character_reference ... ok
+test issue_refs_spares_near_miss_prose ... ok
+test issue_refs_treats_only_a_nul_byte_as_binary ... ok
+test licenses_accepts_a_matching_fingerprint ... ok
+test licenses_accepts_bytes_that_hash_to_the_pin ... ok
+test licenses_rejects_a_fingerprint_mismatch ... ok
+test licenses_rejects_a_record_without_a_fingerprint_line ... ok
+test licenses_rejects_an_altered_mulan_text ... ok
+test licenses_sha256_matches_known_vectors ... ok
+test lints_accepts_equal_tables_whatever_the_comments ... ok
+test lints_reads_single_and_multi_line_member_lists ... ok
+test lints_every_workspace_manifest_inherits_the_workspace_lints ... ok
+test lints_fuzz_workspace_tables_equal_the_root_tables ... ok
+test lints_rejects_a_member_manifest_that_does_not_inherit ... ok
+test licenses_zh_hans_matches_the_recorded_fingerprint ... ok
+test lints_rejects_a_weakened_level_in_the_fuzz_tables ... ok
+test lints_rejects_a_root_without_lint_tables ... ok
+test lints_rejects_an_added_or_removed_lint_in_the_fuzz_tables ... ok
+test licenses_mulan_texts_match_the_pinned_digest ... ok
+test issue_refs_tracked_files_are_clean ... ok
+
+test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+   Doc-tests raf_okf
+
+running 1 test
+test crates/raf-okf/src/lib.rs - (line 31) ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+all doctests ran in 0.10s; merged doctests compilation took 0.10s
+   Doc-tests raf_source
+
+running 5 tests
+test crates/raf-source/src/lib.rs - (line 11) - compile ... ok
+test crates/raf-source/src/lib.rs - (line 46) ... ok
+test crates/raf-source/src/lib.rs - (line 65) ... ok
+test crates/raf-source/src/lib.rs - (line 28) ... ok
+test crates/raf-source/src/lib.rs - (line 84) ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+all doctests ran in 0.17s; merged doctests compilation took 0.17s
+   Doc-tests rust_agentic_foundations
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+make test-release
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+cargo test -p raf-source --release --locked
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/crates/raf-source)
+    Finished `release` profile [optimized] target(s) in 31.23s
+     Running unittests src/lib.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/b29cfa7abe51131f/out/raf_source-b29cfa7abe51131f)
+
+running 14 tests
+test budget::tests::the_table_is_indexed_by_each_budgets_position ... ok
+test error::tests::a_spawn_error_displays_the_file_and_carries_its_cause ... ok
+test tree::disk::tests::a_missing_descriptor_link_is_an_io_failure_and_never_absence ... ok
+test tree::disk::tests::linux_verifier_reads_the_real_descriptor_of_an_open_file ... ok
+test tree::disk::tests::portable_directory_verifier_refuses_a_file_and_an_outside_path_beside_an_accepted_one ... ok
+test tree::disk::tests::portable_verifier_refuses_a_non_regular_handle_and_an_outside_path_beside_an_accepted_one ... ok
+test tree::disk::tests::linux_verifier_refuses_a_handle_link_that_leads_outside_and_accepts_one_inside ... ok
+test tree::disk::tests::unix_verifier_refuses_differing_identities_and_accepts_equal_ones ... ok
+test tree::disk::tests::swap::the_same_listing_without_a_swap_returns_the_entries ... ok
+test tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_before_a_listing_is_refused ... ok
+test index::tests::a_target_whose_root_file_is_missing_is_a_typed_internal_error ... ok
+test workspace::tests::a_test_function_whose_path_leaves_its_crate_path_is_a_typed_error ... ok
+test tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_after_the_check_is_refused ... ok
+test tree::disk::tests::swap::the_same_read_without_a_swap_is_accepted ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/corpus_replay.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/ac0bd37fa349970e/out/corpus_replay-ac0bd37fa349970e)
+
+running 9 tests
+test child_main ... ok
+test write_corpus ... ignored, writes the committed corpus files from the shape table
+test a_recorded_list_that_differs_from_the_real_index_fails_the_replay ... ok
+test the_shape_table_matches_the_expected_names ... ok
+test corpus_files_hold_exactly_the_text_of_their_shapes ... ok
+test evasion_shapes_are_refused_naming_their_budget_beside_their_at_budget_neighbours ... ok
+test every_named_shape_has_a_corpus_file_and_no_file_is_unrecorded ... ok
+test files_at_a_budget_exit_zero_and_files_over_it_are_refused_naming_file_and_budget ... ok
+test every_corpus_file_ends_in_exactly_one_allowed_outcome_with_its_recorded_symbols ... ok
+
+test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.15s
+
+     Running tests/discovery_targets.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/c378a7f44301c084/out/discovery_targets-c378a7f44301c084)
+
+running 25 tests
+test a_manifest_that_is_not_toml_or_has_neither_table_is_a_typed_error ... ok
+test a_library_and_a_binary_with_one_name_resolve_under_their_own_crate_paths ... ok
+test a_missing_root_is_an_error_beside_an_existing_one ... ok
+test a_target_table_without_a_name_is_an_error_naming_the_key ... ok
+test a_manifest_with_a_trailing_comment_and_single_quoted_values_is_honoured ... ok
+test a_target_path_that_leaves_the_tree_is_refused_and_a_path_that_stays_is_accepted ... ok
+test an_explicit_target_file_that_is_missing_is_an_error_naming_the_manifest_key ... ok
+test a_virtual_manifest_contributes_nothing_but_its_children_are_found ... ok
+test target_and_hidden_directories_are_skipped_beside_a_discovered_sibling ... ok
+test a_first_party_module_named_like_the_test_namespace_loads_beside_a_test_target ... ok
+test there_are_no_default_roots ... ok
+test a_package_nested_below_a_package_without_a_workspace_is_not_discovered ... ok
+test a_shared_test_helper_directory_is_reached_by_two_targets_and_listed_once ... ok
+test two_targets_sharing_one_root_are_an_error_naming_the_second ... ok
+test only_the_named_roots_are_searched ... ok
+test each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour ... ok
+test targets_are_sorted_and_two_loads_are_equal ... ok
+test two_packages_with_one_name_are_an_error_naming_both_manifests ... ok
+test deeply_nested_inline_tables_are_a_typed_error_on_the_callers_stack_and_a_shallow_one_loads ... ok
+test two_packages_whose_libraries_share_a_crate_name_are_an_error_naming_both_manifests ... ok
+test the_root_module_of_every_target_is_recorded_under_its_crate_path ... ok
+test autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found ... ok
+test each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag ... ok
+test two_targets_with_one_crate_path_are_an_error_naming_both_beside_distinct_names ... ok
+test a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/disk_tree_containment.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/cebb429a171900a4/out/disk_tree_containment-cebb429a171900a4)
+
+running 13 tests
+test a_missing_root_is_an_error_beside_an_existing_one ... ok
+test a_directory_named_as_a_file_is_refused ... ok
+test a_directory_symlink_loop_ends_with_an_error_and_is_listed_but_never_entered ... ok
+test a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted ... ok
+test a_symlink_to_a_symlink_that_leaves_the_root_is_refused_beside_a_chain_that_stays ... ok
+test a_symlinked_root_is_followed_to_its_target_and_containment_is_judged_there ... ok
+test listings_are_sorted_by_name ... ok
+test a_file_that_is_missing_is_not_found_and_one_that_leaves_the_root_is_outside_root ... ok
+test a_file_that_is_not_utf8_is_refused_beside_one_that_is ... ok
+test a_non_utf8_entry_name_fails_the_listing_beside_a_listing_without_one ... ok
+test entry_kinds_cover_file_directory_symlink_other_and_absent ... ok
+test a_parent_segment_after_an_outside_directory_symlink_is_resolved_on_disk_and_refused ... ok
+test a_fifo_named_as_a_file_is_refused_without_blocking_beside_a_regular_file ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/disk_tree_root.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/3fb49bf235c97e08/out/disk_tree_root-3fb49bf235c97e08)
+
+running 2 tests
+test a_root_that_is_missing_is_not_found_on_every_platform ... ok
+test disk_and_memory_trees_agree_on_regular_files ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/fs_confinement.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/7487fb049c4ac89d/out/fs_confinement-7487fb049c4ac89d)
+
+running 4 tests
+test only_files_of_the_disk_backend_are_exempt ... ok
+test the_scanner_finds_every_spelling_of_the_file_system_module ... ok
+test the_scanner_leaves_neighbouring_paths_alone ... ok
+test only_the_disk_backend_names_the_file_system_module ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/index_disk.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/4c11bd8b4a42b564/out/index_disk-4c11bd8b4a42b564)
+
+running 1 test
+test disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/memory_tree.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/0feac4704e7dc828/out/memory_tree-0feac4704e7dc828)
+
+running 10 tests
+test a_directory_is_not_readable_as_a_file_and_a_file_is_not_listable ... ok
+test a_file_reads_back_and_a_missing_file_is_not_found ... ok
+test a_key_that_is_both_a_file_and_a_directory_is_refused ... ok
+test a_tree_built_infallibly_from_a_bad_key_reports_the_error_from_every_call ... ok
+test a_parent_segment_is_applied_to_the_trees_own_directories ... ok
+test collecting_pairs_builds_the_same_tree_as_the_array_conversion ... ok
+test directories_are_inferred_and_listings_are_sorted_with_their_kinds ... ok
+test duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_keys ... ok
+test entry_reports_file_dir_and_absence_without_an_error ... ok
+test keys_that_leave_the_root_are_refused_with_outside_root_beside_a_valid_key ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/module_tree.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/68801564be77016b/out/module_tree-68801564be77016b)
+
+running 33 tests
+test a_file_reached_twice_without_a_cycle_is_parsed_once_and_recorded_under_each_path ... ok
+test the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone ... ok
+test a_cfg_attr_test_path_is_tagged_test_and_nothing_is_dropped ... ok
+test facts_carry_names_lines_documentation_visibility_and_macro_export ... ok
+test a_path_attribute_in_a_mod_rs_file_is_relative_to_that_files_directory ... ok
+test a_module_cycle_is_an_error_naming_both_files ... ok
+test one_file_spelled_two_ways_is_one_file_recorded_under_both_module_paths ... ok
+test use_trees_and_impl_headers_are_recorded_as_written ... ok
+test an_inline_module_inside_a_non_mod_file_nests_below_the_files_own_directory ... ok
+test an_unresolved_mod_names_the_declaring_file_and_line ... ok
+test a_path_attribute_on_an_inline_module_replaces_its_directory_component ... ok
+test a_flat_file_and_a_directory_module_are_both_followed_beside_each_other ... ok
+test a_non_mod_file_keeps_its_children_in_a_directory_of_its_own_name ... ok
+test inline_modules_add_directory_components_for_their_file_children ... ok
+test a_path_attribute_in_a_non_mod_file_is_relative_to_the_files_directory_not_its_module_directory ... ok
+test two_unconditional_path_attributes_are_an_error_beside_one ... ok
+test a_nested_cfg_attr_path_is_flattened_with_the_combined_predicate ... ok
+test facts_record_struct_shapes_unnamed_consts_leading_colons_and_documentation_forms ... ok
+test every_cfg_attr_path_alternative_is_followed_carrying_its_predicate ... ok
+test a_file_named_by_a_path_attribute_is_a_mod_rs_file_for_its_children ... ok
+test the_default_file_is_also_followed_beside_cfg_attr_alternatives_when_it_exists ... ok
+test a_module_with_both_name_rs_and_name_mod_rs_is_an_error_naming_both_files ... ok
+test a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_reading_it ... ok
+test a_cfg_test_module_tags_every_item_reached_only_through_it ... ok
+test a_path_attribute_on_an_inline_module_in_a_non_mod_file_replaces_its_directory_component ... ok
+test a_path_attribute_inside_an_inline_module_is_relative_to_the_module_directory ... ok
+test a_raw_identifier_module_reads_the_plain_file_name ... ok
+test a_malformed_cfg_path_or_test_attribute_is_an_error_naming_its_line ... ok
+test an_unparseable_cfg_is_an_error_naming_file_and_line_beside_a_parseable_one ... ok
+test module_nesting_beyond_the_depth_budget_is_refused_and_the_budget_itself_loads ... ok
+test module_depth_of_exactly_the_budget_loads_and_one_more_is_refused ... ok
+test inline_modules_with_path_alternatives_are_bounded_by_the_module_path_budget ... ok
+test a_chain_of_files_that_each_declare_the_next_twice_is_refused_quickly_beside_a_small_diamond ... ok
+
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.91s
+
+     Running tests/overflow_harness.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/bd01ef93406833c2/out/overflow_harness-bd01ef93406833c2)
+
+running 13 tests
+test child_main ... ok
+test the_judge_rejects_a_wrong_index_a_misnamed_refusal_and_a_stray_failure ... ok
+test the_classifier_accepts_only_a_signal_a_stack_overflow_status_or_the_runtime_message_as_an_abort ... ok
+test the_parse_thread_is_named_after_the_file_and_has_the_stated_stack ... ok
+test a_panic_in_the_visitor_is_raised_again_with_its_payload ... ok
+test a_child_that_panics_is_a_failure_and_not_an_abort ... ok
+test a_child_that_exits_three_without_a_result_line_is_a_failure ... ok
+test deep_but_admitted_source_parses_on_the_dedicated_stack_not_the_callers ... ok
+test a_child_with_an_unknown_selector_is_a_failure ... ok
+test the_same_chain_at_a_safe_depth_exits_zero_beside_the_overflowing_one ... ok
+test a_shape_just_inside_its_budgets_exits_zero_with_the_exact_symbols ... ok
+test a_deliberate_overflow_aborts_and_the_runtime_names_the_parse_thread ... ok
+test composites_and_uncounted_shapes_end_in_exactly_one_allowed_outcome ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.99s
+
+     Running tests/prescan_budgets.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/9682a9bf727b97c7/out/prescan_budgets-9682a9bf727b97c7)
+
+running 16 tests
+test a_comment_or_string_that_looks_like_the_end_of_another_does_not_hide_real_tokens ... ok
+test a_lifetime_is_not_the_start_of_a_character_literal ... ok
+test five_hundred_nested_generics_are_refused_beside_sixty_four ... ok
+test the_refusal_names_the_line_where_the_count_went_over ... ok
+test delimiter_nesting_is_refused_at_one_hundred_twenty_nine_beside_one_hundred_twenty_eight ... ok
+test four_thousand_bangs_are_refused_beside_two_hundred_fifty_six ... ok
+test closure_heads_with_parameters_chain_like_empty_ones ... ok
+test ten_thousand_closure_bars_are_refused_beside_one_hundred_twenty_eight ... ok
+test a_syntax_error_reports_its_own_line_and_column_beside_a_parsing_neighbour ... ok
+test a_lifetime_between_reference_marks_does_not_end_the_run ... ok
+test twenty_thousand_else_if_links_are_refused_beside_two_hundred_fifty_six ... ok
+test twenty_thousand_reference_marks_are_refused ... ok
+test a_block_as_the_condition_of_each_else_if_still_counts_the_chain ... ok
+test tokens_inside_strings_raw_strings_and_comments_count_for_nothing ... ok
+test separate_if_chains_in_one_block_do_not_add_up_beside_the_one_long_chain ... ok
+test neighbouring_valid_shapes_just_below_each_budget_parse ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/read_cap.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/6159ba19d5a03f0e/out/read_cap-6159ba19d5a03f0e)
+
+running 4 tests
+test a_zero_cap_refuses_any_content_and_accepts_an_empty_file ... ok
+test the_default_cap_is_eight_mib ... ok
+test memory_tree_enforces_the_cap_at_eight_mib ... ok
+test disk_tree_enforces_the_cap_at_eight_mib ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/relpath.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/d854b2df2ea9b99e/out/relpath-d854b2df2ea9b99e)
+
+running 8 tests
+test a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside ... ok
+test a_parent_segment_below_the_root_is_kept_for_the_disk_to_resolve ... ok
+test backslash_nul_and_drive_letter_inputs_are_refused_beside_plain_names ... ok
+test an_absolute_input_is_refused_beside_its_relative_form ... ok
+test display_names_the_root_as_a_dot ... ok
+test dot_and_empty_segments_are_dropped ... ok
+test join_extends_a_path_and_checks_the_climb_against_the_whole ... ok
+test parent_and_file_name_are_lexical ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/symbol_index.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/a30d98a6404ade10/out/symbol_index-a30d98a6404ade10)
+
+running 18 tests
+test an_item_the_index_does_not_model_is_a_typed_error_naming_file_and_line ... ok
+test an_unnamed_const_is_in_the_facts_and_not_in_the_index ... ok
+test a_module_a_function_and_a_macro_of_one_name_coexist_and_each_selects_by_namespace ... ok
+test impl_members_are_recorded_under_the_type_or_under_the_trait_by_the_shape_of_the_impl ... ok
+test cfg_twins_are_one_symbol_with_two_sorted_sites ... ok
+test unit_and_tuple_structs_are_also_values_and_named_structs_are_not ... ok
+test every_kind_is_indexed_with_its_kind_line_file_and_visibility ... ok
+test documentation_counts_text_and_include_str_but_not_hidden_or_blank_comments ... ok
+test files_items_in_and_item_at_answer_by_position ... ok
+test test_roles_follow_the_module_tree_and_the_item ... ok
+test shipping_is_the_target_and_not_a_test_role ... ok
+test a_method_in_another_file_than_its_type_is_recorded_under_the_type ... ok
+test a_module_in_its_own_file_is_documented_by_the_inner_docs_of_that_file ... ok
+test test_functions_carry_the_package_target_and_crate_relative_name ... ok
+test a_first_party_test_crate_module_beside_a_test_target_makes_the_shared_path_ambiguous ... ok
+test items_that_share_a_source_item_are_grouped_by_its_identity ... ok
+test an_inherent_impl_on_a_type_that_does_not_resolve_is_an_error_naming_file_and_line ... ok
+test two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/target_roots.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/c0f9d789ebc627d5/out/target_roots-c0f9d789ebc627d5)
+
+running 4 tests
+test every_target_kind_resolves_at_its_crate_path_as_a_module_item_of_its_root_file ... ok
+test a_first_party_module_at_a_binary_crate_path_is_ambiguous_beside_a_binary_that_is_not ... ok
+test the_namespace_segments_are_not_items_and_a_first_party_module_of_that_name_collides ... ok
+test this_repository_resolves_a_test_crate_root_and_a_library_root ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/this_repository.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/6f8b17353ffdd872/out/this_repository-6f8b17353ffdd872)
+
+running 1 test
+test this_repository_loads_from_its_root_with_the_crates_directory_as_the_root ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/trait_keys.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/4ffac8c3fa79cef2/out/trait_keys-4ffac8c3fa79cef2)
+
+running 29 tests
+test a_path_dependency_inside_the_workspace_with_no_manifest_is_an_error_naming_the_key ... ok
+test a_literal_member_without_a_manifest_is_an_error_and_a_glob_skips_such_a_directory ... ok
+test a_pattern_outside_the_supported_syntax_is_a_manifest_error_naming_the_list ... ok
+test a_malformed_ancestor_manifest_is_an_error_and_a_missing_one_is_not ... ok
+test a_workspace_dependency_whose_path_is_not_a_string_is_an_error_naming_the_key ... ok
+test a_path_dependency_outside_the_workspace_directory_or_excluded_is_not_a_member ... ok
+test a_head_that_is_not_a_known_crate_is_an_error_and_a_declared_dependency_loads ... ok
+test a_path_through_a_local_re_export_of_a_dependency_has_one_key_with_the_direct_spelling ... ok
+test an_ancestor_manifest_over_the_size_cap_is_a_typed_error ... ok
+test an_excluded_literal_member_is_ignored_and_not_required_to_exist ... ok
+test an_edition_that_is_not_a_year_is_a_manifest_error_naming_the_key ... ok
+test a_package_that_is_only_a_path_dependency_of_the_root_package_is_a_member ... ok
+test a_trait_through_one_dependency_glob_is_keyed_under_that_glob ... ok
+test a_path_dependency_with_an_unusable_path_is_an_error_beside_one_that_is_outside_the_tree ... ok
+test a_glob_of_something_that_is_no_crate_or_module_is_an_error_beside_a_declared_one ... ok
+test local_traits_still_key_under_their_definition_beside_dependency_ones ... ok
+test an_inherited_edition_comes_from_the_workspace_and_a_missing_one_is_a_manifest_error ... ok
+test matching_a_pattern_takes_time_in_proportion_to_pattern_and_name ... ok
+test an_empty_pattern_segment_is_a_pattern_error_beside_a_plain_pattern ... ok
+test without_a_workspace_above_or_an_edition_in_it_the_inheritance_is_a_manifest_error ... ok
+test the_nearest_ancestor_with_a_workspace_table_decides_and_others_are_skipped ... ok
+test the_same_trait_through_a_glob_and_through_a_named_import_can_have_two_keys ... ok
+test several_dependency_globs_leave_the_trait_unresolved_and_the_members_are_still_found ... ok
+test the_workspace_root_package_inherits_without_being_listed ... ok
+test the_workspace_manifest_is_found_above_the_roots_and_adds_no_package ... ok
+test inheriting_requires_membership_by_the_members_and_exclude_lists ... ok
+test path_dependencies_of_members_are_members_transitively_in_every_dependency_table ... ok
+test dependency_tables_are_honoured_by_target_kind_and_renames_use_the_name_in_code ... ok
+test each_prelude_trait_loads_in_the_edition_that_has_it_and_is_refused_in_the_one_before ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/tree_error.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/a22613b869e35abe/out/tree_error-a22613b869e35abe)
+
+running 3 tests
+test an_unconstructible_path_converts_to_outside_root_naming_the_input ... ok
+test every_variant_names_its_path_in_display_and_in_path ... ok
+test only_io_has_a_source_and_only_not_found_is_absence ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/use_resolution.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/72a72859442d77ef/out/use_resolution-72a72859442d77ef)
+
+running 26 tests
+test a_cfg_twin_module_is_one_symbol_and_its_contents_merge ... ok
+test a_glob_resolves_with_via_glob_and_the_direct_path_does_not ... ok
+test a_mutual_super_glob_resolves_a_real_item_in_both_directions ... ok
+test a_rename_a_nested_group_and_a_plain_use_each_resolve_to_the_definition ... ok
+test an_import_that_can_never_resolve_still_shadows_nothing_it_cannot_bind ... ok
+test a_three_hop_chain_resolves_and_lists_each_hop ... ok
+test an_invalid_path_is_an_invalid_error_beside_a_valid_one ... ok
+test a_cycle_of_imports_is_cyclic_beside_a_chain_that_ends ... ok
+test crate_self_and_super_paths_resolve_from_the_module_they_are_written_in ... ok
+test a_name_is_not_read_from_a_glob_while_an_explicit_import_of_it_is_unsettled ... ok
+test explicit_imports_shadow_globs_for_the_modules_that_glob_the_importer ... ok
+test definitions_and_explicit_imports_shadow_globs ... ok
+test a_route_without_a_glob_decides_via_glob_for_an_item_reached_both_ways ... ok
+test cfg_attr_alternatives_index_every_file_under_the_one_module_path ... ok
+test raw_identifiers_resolve_under_both_spellings ... ok
+test missing_names_dependency_items_and_macro_generated_items_are_not_found ... ok
+test trait_impls_on_foreign_types_are_keyed_by_the_canonical_trait_path_in_every_spelling ... ok
+test the_same_symbol_reached_through_a_type_alias_chain_and_a_method_path_resolves ... ok
+test a_trait_path_that_cannot_be_made_absolute_is_a_typed_error ... ok
+test globs_import_only_the_names_the_importer_can_name ... ok
+test super_above_the_crate_root_is_an_error_naming_file_and_line ... ok
+test two_globs_that_bring_in_different_items_are_ambiguous_beside_two_that_bring_in_one ... ok
+test extern_crate_renames_and_leading_colon_paths_reach_the_library_from_other_targets ... ok
+test use_with_only_self_is_an_error_and_use_path_self_imports_the_module ... ok
+test a_long_chain_of_re_exports_resolves_in_either_order_without_a_cap ... ok
+test resolution_does_not_depend_on_the_order_of_the_declarations ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests/workspace_containment.rs (/opt/.cargo/af/9f8b9a4b0c17e0/release/build/raf-source/f4abb969d55e1994/out/workspace_containment-f4abb969d55e1994)
+
+running 12 tests
+test a_missing_explicit_target_file_is_a_target_error_on_disk_too ... ok
+test a_target_file_that_is_a_symlink_to_outside_is_refused_naming_the_key ... ok
+test disk_and_memory_trees_give_the_same_workspace_for_regular_files ... ok
+test a_target_root_that_is_a_fifo_is_refused_without_blocking ... ok
+test a_symlinked_manifest_to_outside_is_refused_beside_one_to_a_file_inside ... ok
+test a_fifo_named_as_a_module_file_is_refused_without_blocking ... ok
+test a_symlinked_module_file_to_outside_is_refused_naming_the_module_beside_an_in_root_link ... ok
+test a_link_to_a_symlink_that_points_outside_is_refused_naming_the_module ... ok
+test a_path_attribute_through_an_outside_directory_symlink_with_a_parent_segment_is_refused ... ok
+test a_directory_symlink_loop_ends_with_an_error_and_a_plain_directory_symlink_is_refused ... ok
+test a_manifest_target_path_that_leaves_the_root_is_refused_naming_the_key ... ok
+test discovery_classifies_a_symlink_by_what_it_resolves_to ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests raf_source
+
+running 5 tests
+test crates/raf-source/src/lib.rs - (line 11) - compile ... ok
+test crates/raf-source/src/lib.rs - (line 46) ... ok
+test crates/raf-source/src/lib.rs - (line 65) ... ok
+test crates/raf-source/src/lib.rs - (line 28) ... ok
+test crates/raf-source/src/lib.rs - (line 84) ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+all doctests ran in 1.00s; merged doctests compilation took 1.00s
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+make doc
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked
+ Documenting raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/crates/raf-okf)
+ Documenting rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source)
+ Documenting raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/crates/raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.51s
+   Generated /opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/doc/raf_okf/index.html and 2 other files
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+make deny
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+cargo deny --offline --workspace check
+advisories ok, bans ok, licenses ok, sources ok
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+make reuse
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+uvx reuse@6.2.0 --root '.' lint
+# SUMMARY
+
+* Bad licenses: 0
+* Deprecated licenses: 0
+* Licenses without file extension: 0
+* Missing licenses: 0
+* Unused licenses: 0
+* Used licenses: Apache-2.0, CC-BY-4.0, MIT, MulanPSL-2.0
+* Read errors: 0
+* Invalid SPDX License Expressions: 0
+* Files with copyright information: 201 / 201
+* Files with license information: 201 / 201
+
+Congratulations! Your project is compliant with version 3.3 of the REUSE Specification :-)
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+make msrv
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+rust-validate 1.98.1 cargo check --workspace --all-targets --locked
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/crates/raf-okf)
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/crates/raf-source)
+    Checking rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.86s
+rust-validate 1.98.1 cargo check --manifest-path './fuzz/Cargo.toml' --all-targets --locked
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/crates/raf-source)
+    Checking raf-source-fuzz v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/fuzz)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.61s
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+make fuzz
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+cargo fmt --check --manifest-path './fuzz/Cargo.toml'
+cargo clippy --manifest-path './fuzz/Cargo.toml' --locked -- -D warnings
+warning: binary `parse_source` should have a kebab-case name
+   |
+ 1 | /opt/.cargo/target/fuzz-e24d93a4/.../parse_source
+   |                                      ^^^^^^^^^^^^
+   |
+   = note: `cargo::non_kebab_case_bins` is set to `warn` by default
+help: to change the binary name to `parse-source`, convert `bin.name`
+  --> Cargo.toml:28:8
+   |
+28 - name = "parse_source"
+28 + name = "parse-source"
+   |
+warning: `raf-source-fuzz` (manifest) generated 1 warning
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/crates/raf-source)
+    Checking raf-source-fuzz v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/fuzz)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.95s
+cd './fuzz' && cargo deny --offline check
+advisories ok, bans ok, licenses ok, sources ok
+warning: binary `parse_source` should have a kebab-case name
+   |
+ 1 | /opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/.../parse_source
+   |                                                                    ^^^^^^^^^^^^
+   |
+   = note: `cargo::non_kebab_case_bins` is set to `warn` by default
+help: to change the binary name to `parse-source`, convert `bin.name`
+  --> Cargo.toml:28:8
+   |
+28 - name = "parse_source"
+28 + name = "parse-source"
+   |
+warning: `raf-source-fuzz` (manifest) generated 1 warning
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/crates/raf-source)
+   Compiling raf-source-fuzz v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/fuzz)
+    Finished `release` profile [optimized + debuginfo] target(s) in 22.93s
+warning: binary `parse_source` should have a kebab-case name
+   |
+ 1 | /opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/.../parse_source
+   |                                                                    ^^^^^^^^^^^^
+   |
+   = note: `cargo::non_kebab_case_bins` is set to `warn` by default
+help: to change the binary name to `parse-source`, convert `bin.name`
+  --> Cargo.toml:28:8
+   |
+28 - name = "parse_source"
+28 + name = "parse-source"
+   |
+warning: `raf-source-fuzz` (manifest) generated 1 warning
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.05s
+     Running `/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source -artifact_prefix=/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/fuzz/artifacts/parse_source/ -runs=5000 -seed=1 -max_len=4096 /tmp/tmp.m5DmgG3lUS fuzz/corpus/parse_source`
+INFO: Running with entropic power schedule (0xFF, 100).
+INFO: Seed: 1
+INFO: Loaded 1 modules   (41353 inline 8-bit counters): 41353 [0x558151b13203, 0x558151b1d38c), 
+INFO: Loaded 1 PC tables (41353 PCs): 41353 [0x558151b1d390,0x558151bbec20), 
+INFO:        0 files found in /tmp/tmp.m5DmgG3lUS
+INFO:       30 files found in fuzz/corpus/parse_source
+INFO: seed corpus: files: 30 min: 205b max: 360026b total: 1828381b rss: 48Mb
+#31	INITED cov: 2365 ft: 4945 corp: 25/65Kb exec/s: 0 rss: 85Mb
+#32	NEW    cov: 2375 ft: 5110 corp: 26/68Kb lim: 4096 exec/s: 0 rss: 85Mb L: 2718/4096 MS: 1 EraseBytes-
+#33	NEW    cov: 2376 ft: 5112 corp: 27/72Kb lim: 4096 exec/s: 0 rss: 85Mb L: 4096/4096 MS: 1 ChangeByte-
+#34	NEW    cov: 2387 ft: 5273 corp: 28/72Kb lim: 4096 exec/s: 0 rss: 85Mb L: 409/4096 MS: 1 CrossOver-
+#35	NEW    cov: 2388 ft: 5275 corp: 29/76Kb lim: 4096 exec/s: 0 rss: 85Mb L: 4096/4096 MS: 1 ChangeByte-
+	NEW_FUNC[1/1]: 0x5581518dbd30  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x2bbd30) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#36	NEW    cov: 2398 ft: 5327 corp: 30/79Kb lim: 4096 exec/s: 0 rss: 85Mb L: 2814/4096 MS: 1 CrossOver-
+	NEW_FUNC[1/9]: 0x558151954c20  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x334c20) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/9]: 0x558151964b40  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x344b40) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#38	NEW    cov: 2516 ft: 5754 corp: 31/83Kb lim: 4096 exec/s: 0 rss: 85Mb L: 4096/4096 MS: 2 ChangeBit-ChangeBit-
+#39	NEW    cov: 2516 ft: 5801 corp: 32/83Kb lim: 4096 exec/s: 0 rss: 85Mb L: 274/4096 MS: 1 ChangeBinInt-
+#40	NEW    cov: 2519 ft: 5824 corp: 33/84Kb lim: 4096 exec/s: 0 rss: 85Mb L: 200/4096 MS: 1 EraseBytes-
+#42	NEW    cov: 2519 ft: 5830 corp: 34/87Kb lim: 4096 exec/s: 0 rss: 85Mb L: 3047/4096 MS: 2 ChangeASCIIInt-CrossOver-
+#43	NEW    cov: 2525 ft: 5864 corp: 35/87Kb lim: 4096 exec/s: 0 rss: 85Mb L: 426/4096 MS: 1 InsertRepeatedBytes-
+#46	NEW    cov: 2526 ft: 5866 corp: 36/91Kb lim: 4096 exec/s: 0 rss: 85Mb L: 4096/4096 MS: 3 ChangeBinInt-CopyPart-ChangeBit-
+#48	NEW    cov: 2526 ft: 5880 corp: 37/95Kb lim: 4096 exec/s: 0 rss: 85Mb L: 4096/4096 MS: 2 CopyPart-ChangeBit-
+	NEW_FUNC[1/2]: 0x558151957450  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x337450) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/2]: 0x558151981d40  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x361d40) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#55	NEW    cov: 2538 ft: 5918 corp: 38/95Kb lim: 4096 exec/s: 0 rss: 85Mb L: 179/4096 MS: 2 InsertRepeatedBytes-EraseBytes-
+#63	NEW    cov: 2540 ft: 5936 corp: 39/99Kb lim: 4096 exec/s: 0 rss: 85Mb L: 3800/4096 MS: 3 EraseBytes-CopyPart-CrossOver-
+	NEW_FUNC[1/2]: 0x558151962460  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x342460) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/2]: 0x558151a11290  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x3f1290) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#74	NEW    cov: 2587 ft: 6333 corp: 40/103Kb lim: 4096 exec/s: 0 rss: 85Mb L: 4096/4096 MS: 1 CopyPart-
+#84	NEW    cov: 2590 ft: 6361 corp: 41/103Kb lim: 4096 exec/s: 0 rss: 85Mb L: 33/4096 MS: 5 ShuffleBytes-CopyPart-CopyPart-ChangeByte-CrossOver-
+#90	NEW    cov: 2590 ft: 6368 corp: 42/107Kb lim: 4096 exec/s: 0 rss: 85Mb L: 4096/4096 MS: 1 CrossOver-
+	NEW_FUNC[1/2]: 0x5581519f4bd0  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x3d4bd0) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/2]: 0x558151a80310  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x460310) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#91	NEW    cov: 2613 ft: 6394 corp: 43/107Kb lim: 4096 exec/s: 0 rss: 85Mb L: 265/4096 MS: 1 EraseBytes-
+#92	NEW    cov: 2614 ft: 6402 corp: 44/111Kb lim: 4096 exec/s: 0 rss: 85Mb L: 4096/4096 MS: 1 ChangeByte-
+#94	NEW    cov: 2614 ft: 6403 corp: 45/113Kb lim: 4096 exec/s: 0 rss: 85Mb L: 1364/4096 MS: 2 CopyPart-EraseBytes-
+#102	NEW    cov: 2614 ft: 6410 corp: 46/113Kb lim: 4096 exec/s: 0 rss: 85Mb L: 239/4096 MS: 3 ChangeASCIIInt-ChangeBinInt-EraseBytes-
+#103	NEW    cov: 2617 ft: 6447 corp: 47/117Kb lim: 4096 exec/s: 0 rss: 85Mb L: 3914/4096 MS: 1 CrossOver-
+#104	NEW    cov: 2617 ft: 6459 corp: 48/121Kb lim: 4096 exec/s: 0 rss: 85Mb L: 4096/4096 MS: 1 CopyPart-
+#105	NEW    cov: 2617 ft: 6467 corp: 49/125Kb lim: 4096 exec/s: 0 rss: 85Mb L: 4096/4096 MS: 1 CrossOver-
+#111	NEW    cov: 2625 ft: 6527 corp: 50/129Kb lim: 4096 exec/s: 0 rss: 85Mb L: 4096/4096 MS: 1 ChangeBit-
+	NEW_FUNC[1/4]: 0x5581519391f0  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x3191f0) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/4]: 0x55815193a560  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x31a560) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#117	NEW    cov: 2694 ft: 6674 corp: 51/129Kb lim: 4096 exec/s: 0 rss: 85Mb L: 409/4096 MS: 1 ChangeByte-
+#119	NEW    cov: 2696 ft: 6677 corp: 52/132Kb lim: 4096 exec/s: 0 rss: 85Mb L: 3371/4096 MS: 2 ShuffleBytes-EraseBytes-
+#120	NEW    cov: 2697 ft: 6678 corp: 53/136Kb lim: 4096 exec/s: 0 rss: 85Mb L: 4096/4096 MS: 1 CrossOver-
+#121	NEW    cov: 2697 ft: 6681 corp: 54/137Kb lim: 4096 exec/s: 0 rss: 85Mb L: 274/4096 MS: 1 ChangeBinInt-
+#122	NEW    cov: 2697 ft: 6689 corp: 55/141Kb lim: 4096 exec/s: 0 rss: 85Mb L: 4096/4096 MS: 1 CopyPart-
+#144	NEW    cov: 2697 ft: 6696 corp: 56/141Kb lim: 4096 exec/s: 0 rss: 85Mb L: 278/4096 MS: 2 ChangeASCIIInt-CMP- DE: "\001\000\000;"-
+#150	NEW    cov: 2700 ft: 6699 corp: 57/141Kb lim: 4096 exec/s: 0 rss: 85Mb L: 406/4096 MS: 1 ChangeByte-
+#151	NEW    cov: 2700 ft: 6700 corp: 58/141Kb lim: 4096 exec/s: 0 rss: 85Mb L: 278/4096 MS: 1 CMP- DE: "fn "-
+#152	NEW    cov: 2701 ft: 6703 corp: 59/142Kb lim: 4096 exec/s: 0 rss: 85Mb L: 205/4096 MS: 1 CopyPart-
+#153	NEW    cov: 2701 ft: 6712 corp: 60/142Kb lim: 4096 exec/s: 0 rss: 85Mb L: 406/4096 MS: 1 ChangeBinInt-
+#156	NEW    cov: 2701 ft: 6714 corp: 61/145Kb lim: 4096 exec/s: 0 rss: 85Mb L: 2963/4096 MS: 3 ChangeBit-ChangeBit-EraseBytes-
+#157	NEW    cov: 2702 ft: 6717 corp: 62/145Kb lim: 4096 exec/s: 0 rss: 85Mb L: 243/4096 MS: 1 CopyPart-
+#163	NEW    cov: 2709 ft: 6725 corp: 63/149Kb lim: 4096 exec/s: 0 rss: 85Mb L: 4096/4096 MS: 1 ChangeByte-
+#168	NEW    cov: 2709 ft: 6728 corp: 64/152Kb lim: 4096 exec/s: 0 rss: 85Mb L: 2718/4096 MS: 5 ChangeByte-ShuffleBytes-CopyPart-ChangeBinInt-ShuffleBytes-
+#169	NEW    cov: 2709 ft: 6754 corp: 65/152Kb lim: 4096 exec/s: 0 rss: 85Mb L: 426/4096 MS: 1 PersAutoDict- DE: "\001\000\000;"-
+	NEW_FUNC[1/3]: 0x558151947de0  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x327de0) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/3]: 0x558151a0f2c0  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x3ef2c0) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#170	NEW    cov: 2747 ft: 6839 corp: 66/154Kb lim: 4096 exec/s: 0 rss: 85Mb L: 1938/4096 MS: 1 CrossOver-
+#174	NEW    cov: 2747 ft: 6844 corp: 67/155Kb lim: 4096 exec/s: 0 rss: 85Mb L: 1262/4096 MS: 4 ShuffleBytes-ChangeBinInt-CrossOver-EraseBytes-
+#175	NEW    cov: 2747 ft: 6845 corp: 68/157Kb lim: 4096 exec/s: 0 rss: 85Mb L: 1690/4096 MS: 1 EraseBytes-
+#176	NEW    cov: 2747 ft: 6852 corp: 69/161Kb lim: 4096 exec/s: 0 rss: 85Mb L: 4096/4096 MS: 1 ChangeBit-
+#177	NEW    cov: 2755 ft: 6945 corp: 70/161Kb lim: 4096 exec/s: 0 rss: 85Mb L: 183/4096 MS: 1 EraseBytes-
+	NEW_FUNC[1/2]: 0x558151958c30  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x338c30) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/2]: 0x55815196af20  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x34af20) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#179	NEW    cov: 2778 ft: 7012 corp: 71/162Kb lim: 4096 exec/s: 0 rss: 86Mb L: 277/4096 MS: 2 ShuffleBytes-PersAutoDict- DE: "fn "-
+#181	NEW    cov: 2778 ft: 7015 corp: 72/164Kb lim: 4096 exec/s: 0 rss: 86Mb L: 2467/4096 MS: 2 ShuffleBytes-EraseBytes-
+	NEW_FUNC[1/1]: 0x5581519ee370  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x3ce370) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#182	NEW    cov: 2791 ft: 7032 corp: 73/164Kb lim: 4096 exec/s: 0 rss: 86Mb L: 280/4096 MS: 1 ChangeBit-
+#183	NEW    cov: 2791 ft: 7035 corp: 74/165Kb lim: 4096 exec/s: 0 rss: 86Mb L: 410/4096 MS: 1 InsertByte-
+#184	NEW    cov: 2792 ft: 7036 corp: 75/169Kb lim: 4096 exec/s: 0 rss: 86Mb L: 4096/4096 MS: 1 ChangeByte-
+#199	NEW    cov: 2793 ft: 7040 corp: 76/172Kb lim: 4096 exec/s: 0 rss: 86Mb L: 3996/4096 MS: 5 CopyPart-ChangeBit-ShuffleBytes-ChangeBit-PersAutoDict- DE: "\001\000\000;"-
+#206	NEW    cov: 2793 ft: 7042 corp: 77/173Kb lim: 4096 exec/s: 0 rss: 86Mb L: 247/4096 MS: 2 ShuffleBytes-PersAutoDict- DE: "\001\000\000;"-
+#207	NEW    cov: 2793 ft: 7058 corp: 78/174Kb lim: 4096 exec/s: 0 rss: 86Mb L: 1041/4096 MS: 1 CopyPart-
+#209	NEW    cov: 2793 ft: 7099 corp: 79/176Kb lim: 4096 exec/s: 0 rss: 86Mb L: 2160/4096 MS: 2 ChangeBinInt-EraseBytes-
+#210	NEW    cov: 2793 ft: 7102 corp: 80/180Kb lim: 4096 exec/s: 0 rss: 86Mb L: 4096/4096 MS: 1 ShuffleBytes-
+#217	NEW    cov: 2793 ft: 7106 corp: 81/183Kb lim: 4096 exec/s: 0 rss: 86Mb L: 3356/4096 MS: 2 PersAutoDict-CMP- DE: "\001\000\000;"-"!t"-
+#220	NEW    cov: 2800 ft: 7130 corp: 82/185Kb lim: 4096 exec/s: 0 rss: 86Mb L: 2407/4096 MS: 3 ChangeBit-CopyPart-CrossOver-
+#224	NEW    cov: 2800 ft: 7134 corp: 83/189Kb lim: 4096 exec/s: 0 rss: 87Mb L: 4096/4096 MS: 4 CMP-CopyPart-ShuffleBytes-CrossOver- DE: "{ !"-
+#236	NEW    cov: 2800 ft: 7137 corp: 84/193Kb lim: 4096 exec/s: 0 rss: 87Mb L: 4096/4096 MS: 2 ShuffleBytes-CrossOver-
+#242	NEW    cov: 2800 ft: 7143 corp: 85/197Kb lim: 4096 exec/s: 0 rss: 87Mb L: 4096/4096 MS: 1 CrossOver-
+	NEW_FUNC[1/1]: 0x558151a751e0  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x4551e0) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#244	NEW    cov: 2816 ft: 7208 corp: 86/198Kb lim: 4096 exec/s: 0 rss: 90Mb L: 354/4096 MS: 2 ChangeByte-CrossOver-
+#248	NEW    cov: 2816 ft: 7210 corp: 87/200Kb lim: 4096 exec/s: 0 rss: 90Mb L: 2505/4096 MS: 4 EraseBytes-ShuffleBytes-ShuffleBytes-ChangeBit-
+#249	NEW    cov: 2816 ft: 7458 corp: 88/204Kb lim: 4096 exec/s: 0 rss: 91Mb L: 3555/4096 MS: 1 CopyPart-
+#251	NEW    cov: 2816 ft: 7460 corp: 89/207Kb lim: 4096 exec/s: 0 rss: 91Mb L: 3374/4096 MS: 2 ShuffleBytes-PersAutoDict- DE: "fn "-
+#252	NEW    cov: 2816 ft: 7462 corp: 90/207Kb lim: 4096 exec/s: 0 rss: 92Mb L: 406/4096 MS: 1 ChangeByte-
+#253	REDUCE cov: 2816 ft: 7462 corp: 90/207Kb lim: 4096 exec/s: 0 rss: 92Mb L: 2252/4096 MS: 1 EraseBytes-
+#257	NEW    cov: 2818 ft: 7487 corp: 91/211Kb lim: 4096 exec/s: 0 rss: 92Mb L: 4096/4096 MS: 4 ChangeBinInt-ChangeByte-CrossOver-CopyPart-
+#259	NEW    cov: 2818 ft: 7491 corp: 92/214Kb lim: 4096 exec/s: 0 rss: 92Mb L: 3102/4096 MS: 2 ChangeByte-CrossOver-
+#270	NEW    cov: 2818 ft: 7621 corp: 93/214Kb lim: 4096 exec/s: 0 rss: 93Mb L: 255/4096 MS: 1 EraseBytes-
+#277	NEW    cov: 2821 ft: 7631 corp: 94/216Kb lim: 4096 exec/s: 0 rss: 93Mb L: 2321/4096 MS: 2 ShuffleBytes-CrossOver-
+#279	NEW    cov: 2821 ft: 7635 corp: 95/217Kb lim: 4096 exec/s: 0 rss: 93Mb L: 532/4096 MS: 2 ShuffleBytes-InsertRepeatedBytes-
+#280	NEW    cov: 2821 ft: 7647 corp: 96/217Kb lim: 4096 exec/s: 0 rss: 94Mb L: 271/4096 MS: 1 EraseBytes-
+#282	NEW    cov: 2821 ft: 7649 corp: 97/219Kb lim: 4096 exec/s: 0 rss: 94Mb L: 1622/4096 MS: 2 EraseBytes-CopyPart-
+#284	NEW    cov: 2821 ft: 7650 corp: 98/219Kb lim: 4096 exec/s: 0 rss: 94Mb L: 258/4096 MS: 2 ChangeBinInt-PersAutoDict- DE: "{ !"-
+#287	NEW    cov: 2822 ft: 7651 corp: 99/220Kb lim: 4096 exec/s: 0 rss: 94Mb L: 1262/4096 MS: 3 ShuffleBytes-ChangeBit-ChangeByte-
+#298	NEW    cov: 2822 ft: 7659 corp: 100/220Kb lim: 4096 exec/s: 0 rss: 94Mb L: 239/4096 MS: 1 CrossOver-
+#302	REDUCE cov: 2822 ft: 7659 corp: 100/219Kb lim: 4096 exec/s: 0 rss: 94Mb L: 3067/4096 MS: 4 PersAutoDict-CrossOver-CrossOver-EraseBytes- DE: "\001\000\000;"-
+#303	NEW    cov: 2823 ft: 7660 corp: 101/220Kb lim: 4096 exec/s: 0 rss: 94Mb L: 503/4096 MS: 1 CopyPart-
+#306	NEW    cov: 2823 ft: 7678 corp: 102/224Kb lim: 4096 exec/s: 0 rss: 94Mb L: 4096/4096 MS: 3 PersAutoDict-ShuffleBytes-ChangeBit- DE: "\001\000\000;"-
+#307	REDUCE cov: 2823 ft: 7678 corp: 102/224Kb lim: 4096 exec/s: 0 rss: 94Mb L: 257/4096 MS: 1 EraseBytes-
+#313	NEW    cov: 2824 ft: 7745 corp: 103/224Kb lim: 4096 exec/s: 0 rss: 97Mb L: 459/4096 MS: 1 CrossOver-
+#314	NEW    cov: 2824 ft: 7746 corp: 104/227Kb lim: 4096 exec/s: 0 rss: 97Mb L: 2615/4096 MS: 1 EraseBytes-
+#315	NEW    cov: 2825 ft: 7747 corp: 105/227Kb lim: 4096 exec/s: 0 rss: 97Mb L: 274/4096 MS: 1 ChangeBinInt-
+#316	NEW    cov: 2825 ft: 7755 corp: 106/228Kb lim: 4096 exec/s: 0 rss: 97Mb L: 531/4096 MS: 1 CrossOver-
+#323	NEW    cov: 2843 ft: 7802 corp: 107/230Kb lim: 4096 exec/s: 0 rss: 97Mb L: 2473/4096 MS: 2 CMP-CMP- DE: "v\000\000\000"-"/*"-
+#325	NEW    cov: 2843 ft: 7822 corp: 108/230Kb lim: 4096 exec/s: 0 rss: 97Mb L: 280/4096 MS: 2 ChangeByte-PersAutoDict- DE: "\001\000\000;"-
+#326	NEW    cov: 2843 ft: 7823 corp: 109/234Kb lim: 4096 exec/s: 0 rss: 97Mb L: 4096/4096 MS: 1 CopyPart-
+#332	NEW    cov: 2843 ft: 7824 corp: 110/235Kb lim: 4096 exec/s: 0 rss: 97Mb L: 274/4096 MS: 1 ChangeByte-
+#333	NEW    cov: 2843 ft: 7825 corp: 111/235Kb lim: 4096 exec/s: 0 rss: 97Mb L: 274/4096 MS: 1 CrossOver-
+#346	NEW    cov: 2843 ft: 7827 corp: 112/235Kb lim: 4096 exec/s: 0 rss: 100Mb L: 428/4096 MS: 3 InsertByte-ChangeASCIIInt-InsertByte-
+	NEW_FUNC[1/1]: 0x558151944e90  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x324e90) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#347	NEW    cov: 2868 ft: 7860 corp: 113/236Kb lim: 4096 exec/s: 0 rss: 101Mb L: 409/4096 MS: 1 ChangeBit-
+#348	NEW    cov: 2868 ft: 7861 corp: 114/240Kb lim: 4096 exec/s: 0 rss: 101Mb L: 4096/4096 MS: 1 CopyPart-
+#349	NEW    cov: 2868 ft: 7866 corp: 115/240Kb lim: 4096 exec/s: 0 rss: 101Mb L: 133/4096 MS: 1 EraseBytes-
+#365	NEW    cov: 2868 ft: 7867 corp: 116/240Kb lim: 4096 exec/s: 0 rss: 101Mb L: 436/4096 MS: 1 InsertRepeatedBytes-
+#367	NEW    cov: 2868 ft: 7869 corp: 117/244Kb lim: 4096 exec/s: 0 rss: 101Mb L: 4096/4096 MS: 2 ChangeBit-CrossOver-
+#375	NEW    cov: 2868 ft: 7870 corp: 118/244Kb lim: 4096 exec/s: 0 rss: 101Mb L: 218/4096 MS: 3 ChangeByte-EraseBytes-PersAutoDict- DE: "fn "-
+#378	NEW    cov: 2868 ft: 7871 corp: 119/245Kb lim: 4096 exec/s: 0 rss: 101Mb L: 374/4096 MS: 3 ChangeByte-ChangeBit-EraseBytes-
+#379	NEW    cov: 2868 ft: 7880 corp: 120/249Kb lim: 4096 exec/s: 0 rss: 101Mb L: 4096/4096 MS: 1 CrossOver-
+	NEW_FUNC[1/2]: 0x558151962a60  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x342a60) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/2]: 0x558151991fe0  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x371fe0) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#381	NEW    cov: 2882 ft: 7943 corp: 121/249Kb lim: 4096 exec/s: 0 rss: 103Mb L: 274/4096 MS: 2 ChangeByte-ChangeBinInt-
+#388	NEW    cov: 2882 ft: 7944 corp: 122/251Kb lim: 4096 exec/s: 0 rss: 103Mb L: 2158/4096 MS: 2 EraseBytes-PersAutoDict- DE: "{ !"-
+#391	NEW    cov: 2882 ft: 7949 corp: 123/255Kb lim: 4096 exec/s: 0 rss: 103Mb L: 4096/4096 MS: 3 ChangeBinInt-PersAutoDict-CrossOver- DE: "{ !"-
+#402	REDUCE cov: 2882 ft: 7950 corp: 124/258Kb lim: 4096 exec/s: 0 rss: 103Mb L: 3054/4096 MS: 1 EraseBytes-
+#403	NEW    cov: 2882 ft: 7982 corp: 125/259Kb lim: 4096 exec/s: 0 rss: 104Mb L: 407/4096 MS: 1 InsertByte-
+#404	REDUCE cov: 2882 ft: 7982 corp: 125/258Kb lim: 4096 exec/s: 0 rss: 104Mb L: 3573/4096 MS: 1 EraseBytes-
+#405	NEW    cov: 2883 ft: 7990 corp: 126/262Kb lim: 4096 exec/s: 0 rss: 104Mb L: 3986/4096 MS: 1 CrossOver-
+#409	NEW    cov: 2884 ft: 7991 corp: 127/266Kb lim: 4096 exec/s: 0 rss: 104Mb L: 4096/4096 MS: 4 ShuffleBytes-ChangeBinInt-CMP-CopyPart- DE: "\000\000\000)"-
+#416	NEW    cov: 2884 ft: 7992 corp: 128/266Kb lim: 4096 exec/s: 0 rss: 106Mb L: 271/4096 MS: 2 CopyPart-ChangeBit-
+#422	NEW    cov: 2884 ft: 7994 corp: 129/270Kb lim: 4096 exec/s: 0 rss: 106Mb L: 4096/4096 MS: 1 CrossOver-
+#423	NEW    cov: 2884 ft: 8005 corp: 130/270Kb lim: 4096 exec/s: 0 rss: 106Mb L: 20/4096 MS: 1 EraseBytes-
+	NEW_FUNC[1/1]: 0x558151982f00  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x362f00) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#429	NEW    cov: 2894 ft: 8031 corp: 131/274Kb lim: 4096 exec/s: 0 rss: 107Mb L: 3354/4096 MS: 1 CopyPart-
+#430	NEW    cov: 2894 ft: 8319 corp: 132/276Kb lim: 4096 exec/s: 0 rss: 107Mb L: 2196/4096 MS: 1 EraseBytes-
+	NEW_FUNC[1/11]: 0x55815195a250  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x33a250) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/11]: 0x558151966720  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x346720) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#431	NEW    cov: 2965 ft: 8417 corp: 133/277Kb lim: 4096 exec/s: 0 rss: 109Mb L: 956/4096 MS: 1 EraseBytes-
+	NEW_FUNC[1/1]: 0x5581518dff90  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x2bff90) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#437	NEW    cov: 2977 ft: 8435 corp: 134/277Kb lim: 4096 exec/s: 0 rss: 109Mb L: 374/4096 MS: 1 PersAutoDict- DE: "/*"-
+#438	NEW    cov: 2978 ft: 8436 corp: 135/277Kb lim: 4096 exec/s: 0 rss: 109Mb L: 282/4096 MS: 1 CMP- DE: "\001("-
+#439	NEW    cov: 2979 ft: 8437 corp: 136/281Kb lim: 4096 exec/s: 0 rss: 109Mb L: 3800/4096 MS: 1 ChangeByte-
+#441	REDUCE cov: 2979 ft: 8437 corp: 136/281Kb lim: 4096 exec/s: 0 rss: 109Mb L: 239/4096 MS: 2 ChangeByte-EraseBytes-
+#445	NEW    cov: 2980 ft: 8438 corp: 137/282Kb lim: 4096 exec/s: 0 rss: 109Mb L: 618/4096 MS: 4 ChangeBit-CrossOver-CopyPart-ShuffleBytes-
+#447	REDUCE cov: 2980 ft: 8439 corp: 138/285Kb lim: 4096 exec/s: 0 rss: 109Mb L: 3633/4096 MS: 2 InsertRepeatedBytes-CrossOver-
+#453	NEW    cov: 2981 ft: 8444 corp: 139/289Kb lim: 4096 exec/s: 0 rss: 111Mb L: 4037/4096 MS: 1 CrossOver-
+#457	NEW    cov: 2981 ft: 8450 corp: 140/289Kb lim: 4096 exec/s: 0 rss: 111Mb L: 425/4096 MS: 4 CrossOver-EraseBytes-EraseBytes-EraseBytes-
+#460	NEW    cov: 2981 ft: 8455 corp: 141/292Kb lim: 4096 exec/s: 0 rss: 111Mb L: 2321/4096 MS: 3 ChangeBinInt-ChangeByte-ChangeByte-
+	NEW_FUNC[1/1]: 0x55815196c300  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x34c300) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#466	NEW    cov: 2998 ft: 8476 corp: 142/296Kb lim: 4096 exec/s: 0 rss: 113Mb L: 4096/4096 MS: 1 ChangeBit-
+#467	NEW    cov: 2998 ft: 8477 corp: 143/297Kb lim: 4096 exec/s: 0 rss: 113Mb L: 1358/4096 MS: 1 InsertRepeatedBytes-
+#475	NEW    cov: 2998 ft: 8479 corp: 144/301Kb lim: 4096 exec/s: 0 rss: 113Mb L: 4096/4096 MS: 3 CopyPart-ChangeByte-CrossOver-
+#494	NEW    cov: 2998 ft: 8483 corp: 145/301Kb lim: 4096 exec/s: 0 rss: 113Mb L: 311/4096 MS: 4 ChangeBit-InsertByte-CrossOver-CrossOver-
+#501	NEW    cov: 2998 ft: 8486 corp: 146/304Kb lim: 4096 exec/s: 0 rss: 113Mb L: 2959/4096 MS: 2 InsertRepeatedBytes-CopyPart-
+#502	NEW    cov: 2998 ft: 8488 corp: 147/305Kb lim: 4096 exec/s: 0 rss: 113Mb L: 361/4096 MS: 1 InsertRepeatedBytes-
+#503	NEW    cov: 2998 ft: 8490 corp: 148/305Kb lim: 4096 exec/s: 0 rss: 113Mb L: 410/4096 MS: 1 InsertByte-
+#505	NEW    cov: 2998 ft: 8491 corp: 149/305Kb lim: 4096 exec/s: 0 rss: 113Mb L: 12/4096 MS: 2 InsertByte-EraseBytes-
+#512	NEW    cov: 2999 ft: 8494 corp: 150/305Kb lim: 4096 exec/s: 0 rss: 113Mb L: 406/4096 MS: 2 ChangeBit-CMP- DE: "G\000\000\000\000\000\000\000"-
+#518	NEW    cov: 3000 ft: 8495 corp: 151/306Kb lim: 4096 exec/s: 0 rss: 113Mb L: 243/4096 MS: 1 ChangeByte-
+#532	REDUCE cov: 3000 ft: 8495 corp: 151/306Kb lim: 4096 exec/s: 0 rss: 113Mb L: 377/4096 MS: 4 ChangeASCIIInt-ChangeASCIIInt-ChangeASCIIInt-EraseBytes-
+#534	NEW    cov: 3000 ft: 8496 corp: 152/309Kb lim: 4096 exec/s: 0 rss: 113Mb L: 3080/4096 MS: 2 ChangeASCIIInt-CrossOver-
+#540	NEW    cov: 3000 ft: 8497 corp: 153/312Kb lim: 4096 exec/s: 0 rss: 115Mb L: 3538/4096 MS: 1 CrossOver-
+#545	NEW    cov: 3000 ft: 8499 corp: 154/315Kb lim: 4096 exec/s: 0 rss: 115Mb L: 2507/4096 MS: 5 ChangeByte-ChangeByte-InsertByte-ChangeByte-InsertByte-
+#552	NEW    cov: 3000 ft: 8503 corp: 155/319Kb lim: 4096 exec/s: 0 rss: 115Mb L: 4096/4096 MS: 2 CopyPart-CrossOver-
+	NEW_FUNC[1/1]: 0x558151947540  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x327540) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#555	NEW    cov: 3012 ft: 8547 corp: 156/319Kb lim: 4096 exec/s: 0 rss: 117Mb L: 274/4096 MS: 3 ShuffleBytes-CrossOver-ChangeByte-
+#556	NEW    cov: 3012 ft: 8567 corp: 157/321Kb lim: 4096 exec/s: 0 rss: 118Mb L: 2763/4096 MS: 1 EraseBytes-
+#564	NEW    cov: 3012 ft: 8577 corp: 158/322Kb lim: 4096 exec/s: 0 rss: 118Mb L: 675/4096 MS: 3 PersAutoDict-InsertByte-CopyPart- DE: "v\000\000\000"-
+#565	NEW    cov: 3012 ft: 8596 corp: 159/325Kb lim: 4096 exec/s: 0 rss: 118Mb L: 2992/4096 MS: 1 CrossOver-
+#566	REDUCE cov: 3012 ft: 8600 corp: 160/325Kb lim: 4096 exec/s: 0 rss: 118Mb L: 337/4096 MS: 1 EraseBytes-
+#569	NEW    cov: 3012 ft: 8606 corp: 161/328Kb lim: 4096 exec/s: 0 rss: 119Mb L: 2589/4096 MS: 3 CopyPart-CrossOver-CrossOver-
+#575	REDUCE cov: 3012 ft: 8606 corp: 161/328Kb lim: 4096 exec/s: 0 rss: 119Mb L: 240/4096 MS: 1 EraseBytes-
+#577	NEW    cov: 3013 ft: 8607 corp: 162/331Kb lim: 4096 exec/s: 0 rss: 119Mb L: 3073/4096 MS: 2 EraseBytes-InsertByte-
+	NEW_FUNC[1/3]: 0x558151969dd0  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x349dd0) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/3]: 0x5581519b3760  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x393760) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#579	NEW    cov: 3058 ft: 8656 corp: 163/331Kb lim: 4096 exec/s: 0 rss: 120Mb L: 266/4096 MS: 2 ShuffleBytes-InsertByte-
+#582	REDUCE cov: 3061 ft: 8670 corp: 164/333Kb lim: 4096 exec/s: 0 rss: 120Mb L: 2280/4096 MS: 3 ChangeBinInt-PersAutoDict-InsertRepeatedBytes- DE: "fn "-
+#603	REDUCE cov: 3061 ft: 8694 corp: 165/336Kb lim: 4096 exec/s: 0 rss: 120Mb L: 2252/4096 MS: 1 PersAutoDict- DE: "\001("-
+#609	NEW    cov: 3062 ft: 8710 corp: 166/340Kb lim: 4096 exec/s: 0 rss: 121Mb L: 4096/4096 MS: 1 CrossOver-
+#611	NEW    cov: 3062 ft: 8714 corp: 167/340Kb lim: 4096 exec/s: 0 rss: 121Mb L: 282/4096 MS: 2 CMP-ChangeBit- DE: "#!"-
+#621	NEW    cov: 3062 ft: 8715 corp: 168/342Kb lim: 4096 exec/s: 0 rss: 121Mb L: 1819/4096 MS: 5 InsertByte-ChangeBinInt-CrossOver-ChangeBinInt-ShuffleBytes-
+#623	NEW    cov: 3062 ft: 8717 corp: 169/342Kb lim: 4096 exec/s: 0 rss: 121Mb L: 200/4096 MS: 2 ShuffleBytes-ChangeBit-
+#625	NEW    cov: 3062 ft: 8718 corp: 170/346Kb lim: 4096 exec/s: 0 rss: 121Mb L: 4096/4096 MS: 2 ChangeByte-CopyPart-
+#631	NEW    cov: 3062 ft: 8721 corp: 171/350Kb lim: 4096 exec/s: 0 rss: 121Mb L: 4096/4096 MS: 1 CopyPart-
+#634	NEW    cov: 3062 ft: 8723 corp: 172/354Kb lim: 4096 exec/s: 0 rss: 121Mb L: 4096/4096 MS: 3 CopyPart-CMP-CopyPart- DE: "nc"-
+	NEW_FUNC[1/2]: 0x558151944630  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x324630) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/2]: 0x5581519452e0  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x3252e0) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#635	NEW    cov: 3093 ft: 8812 corp: 173/357Kb lim: 4096 exec/s: 0 rss: 124Mb L: 3398/4096 MS: 1 CrossOver-
+#636	NEW    cov: 3093 ft: 8817 corp: 174/360Kb lim: 4096 exec/s: 0 rss: 124Mb L: 2763/4096 MS: 1 CMP- DE: "/\000\000\000"-
+#639	NEW    cov: 3093 ft: 8818 corp: 175/360Kb lim: 4096 exec/s: 0 rss: 124Mb L: 281/4096 MS: 3 CopyPart-CrossOver-CrossOver-
+#649	NEW    cov: 3093 ft: 8821 corp: 176/362Kb lim: 4096 exec/s: 0 rss: 124Mb L: 2214/4096 MS: 5 ChangeByte-EraseBytes-ChangeByte-CopyPart-CrossOver-
+#661	NEW    cov: 3093 ft: 8828 corp: 177/366Kb lim: 4096 exec/s: 0 rss: 125Mb L: 3527/4096 MS: 2 InsertByte-CopyPart-
+#677	NEW    cov: 3093 ft: 8838 corp: 178/366Kb lim: 4096 exec/s: 0 rss: 125Mb L: 33/4096 MS: 1 PersAutoDict- DE: "/*"-
+#684	NEW    cov: 3093 ft: 8841 corp: 179/368Kb lim: 4096 exec/s: 0 rss: 128Mb L: 2226/4096 MS: 2 InsertRepeatedBytes-ShuffleBytes-
+#695	REDUCE cov: 3093 ft: 8841 corp: 179/366Kb lim: 4096 exec/s: 0 rss: 128Mb L: 2241/4096 MS: 1 EraseBytes-
+#696	NEW    cov: 3093 ft: 8843 corp: 180/367Kb lim: 4096 exec/s: 0 rss: 128Mb L: 752/4096 MS: 1 CopyPart-
+#710	NEW    cov: 3094 ft: 8845 corp: 181/369Kb lim: 4096 exec/s: 0 rss: 128Mb L: 2474/4096 MS: 4 ChangeBinInt-ChangeByte-ChangeBit-InsertByte-
+	NEW_FUNC[1/1]: 0x558151947130  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x327130) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#711	NEW    cov: 3103 ft: 8868 corp: 182/370Kb lim: 4096 exec/s: 0 rss: 129Mb L: 499/4096 MS: 1 InsertRepeatedBytes-
+#722	NEW    cov: 3103 ft: 8869 corp: 183/372Kb lim: 4096 exec/s: 0 rss: 129Mb L: 2473/4096 MS: 1 CrossOver-
+#723	NEW    cov: 3103 ft: 8871 corp: 184/372Kb lim: 4096 exec/s: 0 rss: 129Mb L: 281/4096 MS: 1 PersAutoDict- DE: "\000\000\000)"-
+#727	NEW    cov: 3103 ft: 8872 corp: 185/375Kb lim: 4096 exec/s: 0 rss: 129Mb L: 2409/4096 MS: 4 ShuffleBytes-ChangeByte-ShuffleBytes-EraseBytes-
+#736	NEW    cov: 3103 ft: 8877 corp: 186/378Kb lim: 4096 exec/s: 0 rss: 129Mb L: 3704/4096 MS: 4 CopyPart-ChangeBinInt-ChangeBinInt-EraseBytes-
+#738	NEW    cov: 3103 ft: 8881 corp: 187/381Kb lim: 4096 exec/s: 0 rss: 129Mb L: 2525/4096 MS: 2 ShuffleBytes-CrossOver-
+#749	NEW    cov: 3105 ft: 8981 corp: 188/381Kb lim: 4096 exec/s: 0 rss: 130Mb L: 347/4096 MS: 1 EraseBytes-
+	NEW_FUNC[1/4]: 0x558151942a90  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x322a90) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/4]: 0x558151990860  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x370860) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#750	NEW    cov: 3142 ft: 9118 corp: 189/382Kb lim: 4096 exec/s: 0 rss: 131Mb L: 406/4096 MS: 1 CopyPart-
+#753	NEW    cov: 3157 ft: 9142 corp: 190/386Kb lim: 4096 exec/s: 0 rss: 134Mb L: 4096/4096 MS: 3 ChangeBinInt-ChangeBinInt-CMP- DE: "b'"-
+#756	NEW    cov: 3157 ft: 9144 corp: 191/388Kb lim: 4096 exec/s: 0 rss: 134Mb L: 2763/4096 MS: 3 CMP-ChangeByte-ChangeBit- DE: "\000\000\000\001"-
+#765	NEW    cov: 3157 ft: 9145 corp: 192/391Kb lim: 4096 exec/s: 0 rss: 134Mb L: 2764/4096 MS: 4 ChangeBinInt-InsertByte-ChangeBit-CopyPart-
+#766	NEW    cov: 3157 ft: 9146 corp: 193/395Kb lim: 4096 exec/s: 0 rss: 134Mb L: 4096/4096 MS: 1 CopyPart-
+#767	NEW    cov: 3157 ft: 9160 corp: 194/395Kb lim: 4096 exec/s: 0 rss: 134Mb L: 227/4096 MS: 1 EraseBytes-
+#769	NEW    cov: 3157 ft: 9171 corp: 195/396Kb lim: 4096 exec/s: 0 rss: 134Mb L: 1041/4096 MS: 2 ChangeASCIIInt-ChangeByte-
+#770	NEW    cov: 3158 ft: 9172 corp: 196/400Kb lim: 4096 exec/s: 0 rss: 134Mb L: 4096/4096 MS: 1 CrossOver-
+#781	REDUCE cov: 3158 ft: 9172 corp: 196/400Kb lim: 4096 exec/s: 0 rss: 134Mb L: 233/4096 MS: 1 EraseBytes-
+#788	REDUCE cov: 3158 ft: 9172 corp: 196/400Kb lim: 4096 exec/s: 0 rss: 134Mb L: 291/4096 MS: 2 CMP-EraseBytes- DE: "\377\010"-
+#793	REDUCE cov: 3163 ft: 9179 corp: 197/400Kb lim: 4096 exec/s: 0 rss: 134Mb L: 307/4096 MS: 5 InsertRepeatedBytes-ShuffleBytes-ChangeByte-ShuffleBytes-CMP- DE: "0b"-
+#805	NEW    cov: 3163 ft: 9182 corp: 198/401Kb lim: 4096 exec/s: 0 rss: 136Mb L: 443/4096 MS: 2 ShuffleBytes-CopyPart-
+#807	REDUCE cov: 3163 ft: 9182 corp: 198/400Kb lim: 4096 exec/s: 0 rss: 136Mb L: 1810/4096 MS: 2 ChangeByte-EraseBytes-
+#811	NEW    cov: 3163 ft: 9184 corp: 199/404Kb lim: 4096 exec/s: 0 rss: 136Mb L: 3374/4096 MS: 4 PersAutoDict-CMP-ChangeBit-ChangeByte- DE: "nc"-"r#"-
+#817	NEW    cov: 3163 ft: 9186 corp: 200/405Kb lim: 4096 exec/s: 0 rss: 136Mb L: 1362/4096 MS: 1 PersAutoDict- DE: "\000\000\000\001"-
+#818	NEW    cov: 3164 ft: 9189 corp: 201/409Kb lim: 4096 exec/s: 0 rss: 136Mb L: 4096/4096 MS: 1 PersAutoDict- DE: "0b"-
+#825	REDUCE cov: 3164 ft: 9189 corp: 201/409Kb lim: 4096 exec/s: 0 rss: 136Mb L: 435/4096 MS: 2 ShuffleBytes-EraseBytes-
+#837	NEW    cov: 3165 ft: 9190 corp: 202/412Kb lim: 4096 exec/s: 0 rss: 136Mb L: 2858/4096 MS: 2 EraseBytes-ChangeByte-
+#853	REDUCE cov: 3165 ft: 9190 corp: 202/410Kb lim: 4096 exec/s: 0 rss: 136Mb L: 2572/4096 MS: 1 EraseBytes-
+#869	NEW    cov: 3168 ft: 9341 corp: 203/411Kb lim: 4096 exec/s: 0 rss: 139Mb L: 407/4096 MS: 1 InsertByte-
+#875	NEW    cov: 3168 ft: 9343 corp: 204/415Kb lim: 4096 exec/s: 0 rss: 139Mb L: 4096/4096 MS: 1 CMP- DE: "\001\000\000\000\000\000\000\000"-
+#877	NEW    cov: 3168 ft: 9355 corp: 205/416Kb lim: 4096 exec/s: 0 rss: 140Mb L: 956/4096 MS: 2 ChangeASCIIInt-ChangeBinInt-
+#879	NEW    cov: 3168 ft: 9361 corp: 206/416Kb lim: 4096 exec/s: 0 rss: 140Mb L: 708/4096 MS: 2 CrossOver-CopyPart-
+#885	NEW    cov: 3168 ft: 9364 corp: 207/416Kb lim: 4096 exec/s: 0 rss: 140Mb L: 227/4096 MS: 1 CopyPart-
+#887	NEW    cov: 3168 ft: 9376 corp: 208/419Kb lim: 4096 exec/s: 0 rss: 140Mb L: 2586/4096 MS: 2 CMP-EraseBytes- DE: "true"-
+#888	REDUCE cov: 3168 ft: 9376 corp: 208/418Kb lim: 4096 exec/s: 0 rss: 140Mb L: 1601/4096 MS: 1 EraseBytes-
+#892	NEW    cov: 3168 ft: 9378 corp: 209/420Kb lim: 4096 exec/s: 0 rss: 140Mb L: 1270/4096 MS: 4 CMP-PersAutoDict-PersAutoDict-CopyPart- DE: "%\000\000\000\000\000\000\000"-"#!"-"0b"-
+#899	NEW    cov: 3169 ft: 9385 corp: 210/420Kb lim: 4096 exec/s: 0 rss: 141Mb L: 344/4096 MS: 2 EraseBytes-PersAutoDict- DE: "b'"-
+#908	NEW    cov: 3169 ft: 9393 corp: 211/422Kb lim: 4096 exec/s: 0 rss: 141Mb L: 1879/4096 MS: 4 ShuffleBytes-InsertRepeatedBytes-ShuffleBytes-CrossOver-
+#917	NEW    cov: 3169 ft: 9395 corp: 212/425Kb lim: 4096 exec/s: 0 rss: 141Mb L: 3510/4096 MS: 4 ChangeBinInt-ChangeBit-ChangeASCIIInt-CopyPart-
+#920	NEW    cov: 3169 ft: 9396 corp: 213/425Kb lim: 4096 exec/s: 0 rss: 141Mb L: 279/4096 MS: 3 ChangeBit-InsertByte-CrossOver-
+#934	NEW    cov: 3169 ft: 9403 corp: 214/429Kb lim: 4096 exec/s: 0 rss: 143Mb L: 3527/4096 MS: 4 ShuffleBytes-ShuffleBytes-ShuffleBytes-CopyPart-
+#935	NEW    cov: 3169 ft: 9405 corp: 215/429Kb lim: 4096 exec/s: 0 rss: 143Mb L: 291/4096 MS: 1 InsertRepeatedBytes-
+#938	NEW    cov: 3169 ft: 9406 corp: 216/431Kb lim: 4096 exec/s: 0 rss: 143Mb L: 2167/4096 MS: 3 CrossOver-InsertByte-ChangeBit-
+	NEW_FUNC[1/3]: 0x5581519597a0  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x3397a0) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/3]: 0x558151aa76e0  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x4876e0) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#944	NEW    cov: 3192 ft: 9469 corp: 217/435Kb lim: 4096 exec/s: 0 rss: 146Mb L: 4096/4096 MS: 1 ShuffleBytes-
+#951	NEW    cov: 3193 ft: 9472 corp: 218/438Kb lim: 4096 exec/s: 0 rss: 146Mb L: 2718/4096 MS: 2 PersAutoDict-CMP- DE: "\001\000\000\000\000\000\000\000"-"/*"-
+#958	NEW    cov: 3193 ft: 9474 corp: 219/441Kb lim: 4096 exec/s: 0 rss: 146Mb L: 3302/4096 MS: 2 EraseBytes-ChangeBit-
+#959	NEW    cov: 3194 ft: 9475 corp: 220/441Kb lim: 4096 exec/s: 0 rss: 146Mb L: 12/4096 MS: 1 ChangeByte-
+#970	NEW    cov: 3194 ft: 9476 corp: 221/442Kb lim: 4096 exec/s: 0 rss: 146Mb L: 752/4096 MS: 1 CrossOver-
+#971	NEW    cov: 3194 ft: 9483 corp: 222/445Kb lim: 4096 exec/s: 0 rss: 148Mb L: 3632/4096 MS: 1 CopyPart-
+#979	NEW    cov: 3194 ft: 9491 corp: 223/448Kb lim: 4096 exec/s: 0 rss: 148Mb L: 2987/4096 MS: 3 ShuffleBytes-InsertRepeatedBytes-EraseBytes-
+#981	NEW    cov: 3194 ft: 9492 corp: 224/449Kb lim: 4096 exec/s: 0 rss: 148Mb L: 802/4096 MS: 2 ChangeASCIIInt-CopyPart-
+#999	NEW    cov: 3202 ft: 9500 corp: 225/453Kb lim: 4096 exec/s: 999 rss: 148Mb L: 4096/4096 MS: 3 ShuffleBytes-CrossOver-PersAutoDict- DE: "r#"-
+#1011	NEW    cov: 3202 ft: 9501 corp: 226/456Kb lim: 4096 exec/s: 1011 rss: 155Mb L: 2746/4096 MS: 2 EraseBytes-ChangeByte-
+#1017	NEW    cov: 3202 ft: 9506 corp: 227/456Kb lim: 4096 exec/s: 1017 rss: 155Mb L: 74/4096 MS: 1 EraseBytes-
+#1030	NEW    cov: 3202 ft: 9507 corp: 228/460Kb lim: 4096 exec/s: 1030 rss: 155Mb L: 4096/4096 MS: 3 ShuffleBytes-ShuffleBytes-ChangeBit-
+#1038	NEW    cov: 3202 ft: 9515 corp: 229/464Kb lim: 4096 exec/s: 1038 rss: 155Mb L: 4096/4096 MS: 3 ChangeBit-ChangeASCIIInt-CopyPart-
+#1045	NEW    cov: 3202 ft: 9516 corp: 230/468Kb lim: 4096 exec/s: 1045 rss: 155Mb L: 4096/4096 MS: 2 CopyPart-CopyPart-
+#1062	REDUCE cov: 3202 ft: 9517 corp: 231/468Kb lim: 4096 exec/s: 1062 rss: 155Mb L: 257/4096 MS: 2 CMP-CopyPart- DE: "\001\000\000\000\000\000\000\000"-
+#1063	NEW    cov: 3202 ft: 9518 corp: 232/470Kb lim: 4096 exec/s: 1063 rss: 155Mb L: 2056/4096 MS: 1 EraseBytes-
+#1066	NEW    cov: 3202 ft: 9536 corp: 233/474Kb lim: 4096 exec/s: 1066 rss: 155Mb L: 4050/4096 MS: 3 ChangeByte-CopyPart-CrossOver-
+#1072	NEW    cov: 3208 ft: 9542 corp: 234/475Kb lim: 4096 exec/s: 1072 rss: 155Mb L: 429/4096 MS: 1 CMP- DE: "cr#"-
+#1074	NEW    cov: 3209 ft: 9586 corp: 235/477Kb lim: 4096 exec/s: 1074 rss: 159Mb L: 2774/4096 MS: 2 ChangeBinInt-EraseBytes-
+#1079	NEW    cov: 3209 ft: 9588 corp: 236/479Kb lim: 4096 exec/s: 1079 rss: 159Mb L: 1517/4096 MS: 5 ChangeASCIIInt-ChangeASCIIInt-ChangeBit-PersAutoDict-CrossOver- DE: "#!"-
+#1081	NEW    cov: 3209 ft: 9592 corp: 237/483Kb lim: 4096 exec/s: 1081 rss: 159Mb L: 4096/4096 MS: 2 CopyPart-CrossOver-
+#1097	NEW    cov: 3209 ft: 9595 corp: 238/483Kb lim: 4096 exec/s: 1097 rss: 159Mb L: 271/4096 MS: 1 ChangeBit-
+#1099	NEW    cov: 3209 ft: 9596 corp: 239/485Kb lim: 4096 exec/s: 1099 rss: 159Mb L: 2088/4096 MS: 2 InsertRepeatedBytes-ShuffleBytes-
+#1106	NEW    cov: 3209 ft: 9598 corp: 240/489Kb lim: 4096 exec/s: 1106 rss: 159Mb L: 4007/4096 MS: 2 CopyPart-EraseBytes-
+	NEW_FUNC[1/1]: 0x5581519a9130  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x389130) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#1117	NEW    cov: 3218 ft: 9607 corp: 241/489Kb lim: 4096 exec/s: 1117 rss: 164Mb L: 206/4096 MS: 1 InsertByte-
+#1119	NEW    cov: 3218 ft: 9608 corp: 242/489Kb lim: 4096 exec/s: 1119 rss: 164Mb L: 202/4096 MS: 2 CMP-EraseBytes- DE: "\000\000\000\000\000\000\000\003"-
+#1130	NEW    cov: 3219 ft: 9609 corp: 243/492Kb lim: 4096 exec/s: 1130 rss: 164Mb L: 2591/4096 MS: 1 PersAutoDict- DE: "b'"-
+#1137	NEW    cov: 3219 ft: 9625 corp: 244/493Kb lim: 4096 exec/s: 1137 rss: 164Mb L: 1155/4096 MS: 2 ChangeByte-EraseBytes-
+#1148	NEW    cov: 3219 ft: 9627 corp: 245/497Kb lim: 4096 exec/s: 1148 rss: 164Mb L: 4096/4096 MS: 1 CopyPart-
+#1155	NEW    cov: 3219 ft: 9645 corp: 246/497Kb lim: 4096 exec/s: 1155 rss: 164Mb L: 281/4096 MS: 2 ShuffleBytes-ChangeByte-
+#1156	NEW    cov: 3219 ft: 9646 corp: 247/500Kb lim: 4096 exec/s: 1156 rss: 164Mb L: 2763/4096 MS: 1 ShuffleBytes-
+#1158	NEW    cov: 3219 ft: 9649 corp: 248/504Kb lim: 4096 exec/s: 1158 rss: 164Mb L: 3917/4096 MS: 2 CrossOver-ChangeByte-
+#1159	NEW    cov: 3220 ft: 9650 corp: 249/504Kb lim: 4096 exec/s: 1159 rss: 166Mb L: 410/4096 MS: 1 CopyPart-
+#1162	NEW    cov: 3221 ft: 9652 corp: 250/505Kb lim: 4096 exec/s: 1162 rss: 166Mb L: 547/4096 MS: 3 CopyPart-ChangeByte-CMP- DE: "\000\000\000#"-
+#1163	NEW    cov: 3221 ft: 9653 corp: 251/509Kb lim: 4096 exec/s: 1163 rss: 166Mb L: 4096/4096 MS: 1 ChangeBinInt-
+#1169	NEW    cov: 3221 ft: 9656 corp: 252/510Kb lim: 4096 exec/s: 1169 rss: 166Mb L: 1114/4096 MS: 1 CrossOver-
+#1174	REDUCE cov: 3221 ft: 9656 corp: 252/510Kb lim: 4096 exec/s: 1174 rss: 166Mb L: 289/4096 MS: 5 CMP-InsertByte-CrossOver-ChangeASCIIInt-EraseBytes- DE: "\032!"-
+#1182	NEW    cov: 3221 ft: 9664 corp: 253/512Kb lim: 4096 exec/s: 1182 rss: 166Mb L: 2617/4096 MS: 3 ChangeBinInt-CrossOver-EraseBytes-
+#1188	NEW    cov: 3222 ft: 9665 corp: 254/514Kb lim: 4096 exec/s: 1188 rss: 166Mb L: 1362/4096 MS: 1 CMP- DE: "\010\000"-
+#1197	NEW    cov: 3222 ft: 9666 corp: 255/514Kb lim: 4096 exec/s: 1197 rss: 166Mb L: 129/4096 MS: 4 EraseBytes-InsertRepeatedBytes-PersAutoDict-CrossOver- DE: "\000\000\000)"-
+#1200	NEW    cov: 3222 ft: 9667 corp: 256/516Kb lim: 4096 exec/s: 1200 rss: 166Mb L: 2179/4096 MS: 3 CMP-InsertByte-CrossOver- DE: "\253\252\252\252\252\252\252\002"-
+#1201	NEW    cov: 3222 ft: 9670 corp: 257/518Kb lim: 4096 exec/s: 1201 rss: 166Mb L: 2000/4096 MS: 1 CrossOver-
+#1220	NEW    cov: 3227 ft: 9680 corp: 258/521Kb lim: 4096 exec/s: 1220 rss: 166Mb L: 3550/4096 MS: 4 ChangeBit-InsertByte-ChangeBinInt-CMP- DE: "(/*ERROR*/)"-
+#1222	NEW    cov: 3227 ft: 9688 corp: 259/523Kb lim: 4096 exec/s: 1222 rss: 166Mb L: 1543/4096 MS: 2 ShuffleBytes-EraseBytes-
+	NEW_FUNC[1/8]: 0x558151936970  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x316970) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/8]: 0x558151936cf0  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x316cf0) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#1239	NEW    cov: 3270 ft: 9757 corp: 260/524Kb lim: 4096 exec/s: 1239 rss: 169Mb L: 1415/4096 MS: 2 CrossOver-PersAutoDict- DE: "cr#"-
+#1245	NEW    cov: 3270 ft: 9759 corp: 261/528Kb lim: 4096 exec/s: 1245 rss: 169Mb L: 4096/4096 MS: 1 ChangeByte-
+#1246	NEW    cov: 3270 ft: 9761 corp: 262/531Kb lim: 4096 exec/s: 1246 rss: 173Mb L: 2660/4096 MS: 1 EraseBytes-
+#1255	REDUCE cov: 3270 ft: 9761 corp: 262/529Kb lim: 4096 exec/s: 1255 rss: 173Mb L: 2224/4096 MS: 4 CopyPart-CrossOver-ShuffleBytes-EraseBytes-
+#1264	NEW    cov: 3272 ft: 9763 corp: 263/531Kb lim: 4096 exec/s: 1264 rss: 173Mb L: 2115/4096 MS: 4 ChangeBinInt-ChangeByte-EraseBytes-CopyPart-
+#1267	NEW    cov: 3272 ft: 9765 corp: 264/531Kb lim: 4096 exec/s: 1267 rss: 173Mb L: 132/4096 MS: 3 CopyPart-ChangeBit-InsertRepeatedBytes-
+#1272	NEW    cov: 3272 ft: 9772 corp: 265/533Kb lim: 4096 exec/s: 1272 rss: 173Mb L: 2181/4096 MS: 5 ChangeBit-ChangeBit-CMP-CrossOver-EraseBytes- DE: "\200\000\000\000\000\000\000\010"-
+#1284	NEW    cov: 3272 ft: 9776 corp: 266/536Kb lim: 4096 exec/s: 1284 rss: 174Mb L: 2267/4096 MS: 2 ShuffleBytes-InsertRepeatedBytes-
+#1300	NEW    cov: 3280 ft: 9784 corp: 267/536Kb lim: 4096 exec/s: 1300 rss: 175Mb L: 265/4096 MS: 1 CopyPart-
+#1306	REDUCE cov: 3280 ft: 9784 corp: 267/534Kb lim: 4096 exec/s: 1306 rss: 175Mb L: 1905/4096 MS: 1 EraseBytes-
+#1317	NEW    cov: 3280 ft: 9785 corp: 268/535Kb lim: 4096 exec/s: 1317 rss: 175Mb L: 1042/4096 MS: 1 InsertByte-
+#1319	NEW    cov: 3280 ft: 9792 corp: 269/539Kb lim: 4096 exec/s: 1319 rss: 175Mb L: 3595/4096 MS: 2 ChangeBinInt-CopyPart-
+	NEW_FUNC[1/1]: 0x558151949500  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x329500) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#1322	NEW    cov: 3293 ft: 9807 corp: 270/543Kb lim: 4096 exec/s: 1322 rss: 178Mb L: 4096/4096 MS: 3 ChangeByte-ChangeBit-CopyPart-
+#1329	NEW    cov: 3295 ft: 9809 corp: 271/543Kb lim: 4096 exec/s: 1329 rss: 178Mb L: 661/4096 MS: 2 CMP-EraseBytes- DE: "\260\317\016\272\246&\000\000"-
+#1331	NEW    cov: 3295 ft: 9811 corp: 272/543Kb lim: 4096 exec/s: 1331 rss: 178Mb L: 318/4096 MS: 2 ChangeByte-CopyPart-
+#1365	REDUCE cov: 3295 ft: 9812 corp: 273/546Kb lim: 4096 exec/s: 1365 rss: 178Mb L: 2457/4096 MS: 4 CrossOver-InsertByte-ChangeBit-ChangeByte-
+#1366	REDUCE cov: 3295 ft: 9812 corp: 273/546Kb lim: 4096 exec/s: 1366 rss: 178Mb L: 565/4096 MS: 1 EraseBytes-
+#1372	NEW    cov: 3301 ft: 9823 corp: 274/546Kb lim: 4096 exec/s: 1372 rss: 178Mb L: 279/4096 MS: 1 CMP- DE: "/**"-
+#1393	REDUCE cov: 3301 ft: 9823 corp: 274/546Kb lim: 4096 exec/s: 1393 rss: 179Mb L: 3984/4096 MS: 1 EraseBytes-
+#1396	NEW    cov: 3302 ft: 9824 corp: 275/550Kb lim: 4096 exec/s: 1396 rss: 179Mb L: 4096/4096 MS: 3 ShuffleBytes-ShuffleBytes-ChangeBinInt-
+#1398	NEW    cov: 3302 ft: 9826 corp: 276/554Kb lim: 4096 exec/s: 1398 rss: 179Mb L: 4096/4096 MS: 2 PersAutoDict-ShuffleBytes- DE: "v\000\000\000"-
+#1399	REDUCE cov: 3302 ft: 9826 corp: 276/553Kb lim: 4096 exec/s: 1399 rss: 179Mb L: 1729/4096 MS: 1 EraseBytes-
+#1400	NEW    cov: 3303 ft: 9827 corp: 277/554Kb lim: 4096 exec/s: 1400 rss: 179Mb L: 735/4096 MS: 1 CrossOver-
+#1401	REDUCE cov: 3303 ft: 9827 corp: 277/552Kb lim: 4096 exec/s: 1401 rss: 180Mb L: 2560/4096 MS: 1 EraseBytes-
+#1411	REDUCE cov: 3303 ft: 9827 corp: 277/552Kb lim: 4096 exec/s: 1411 rss: 183Mb L: 853/4096 MS: 5 ChangeBit-CopyPart-PersAutoDict-ChangeBit-EraseBytes- DE: "nc"-
+#1423	REDUCE cov: 3303 ft: 9827 corp: 277/551Kb lim: 4096 exec/s: 1423 rss: 184Mb L: 3658/4096 MS: 2 PersAutoDict-EraseBytes- DE: "G\000\000\000\000\000\000\000"-
+#1424	REDUCE cov: 3303 ft: 9827 corp: 277/549Kb lim: 4096 exec/s: 1424 rss: 184Mb L: 2161/4096 MS: 1 EraseBytes-
+#1429	NEW    cov: 3303 ft: 9848 corp: 278/552Kb lim: 4096 exec/s: 1429 rss: 184Mb L: 2678/4096 MS: 5 ChangeByte-ChangeBit-CrossOver-ShuffleBytes-EraseBytes-
+#1430	NEW    cov: 3303 ft: 9878 corp: 279/552Kb lim: 4096 exec/s: 1430 rss: 184Mb L: 454/4096 MS: 1 CopyPart-
+#1432	NEW    cov: 3303 ft: 9881 corp: 280/553Kb lim: 4096 exec/s: 1432 rss: 184Mb L: 292/4096 MS: 2 PersAutoDict-EraseBytes- DE: "b'"-
+#1439	NEW    cov: 3304 ft: 9882 corp: 281/553Kb lim: 4096 exec/s: 1439 rss: 184Mb L: 459/4096 MS: 2 ChangeBinInt-ChangeByte-
+#1440	NEW    cov: 3304 ft: 9886 corp: 282/553Kb lim: 4096 exec/s: 1440 rss: 184Mb L: 299/4096 MS: 1 EraseBytes-
+#1445	NEW    cov: 3304 ft: 9887 corp: 283/556Kb lim: 4096 exec/s: 1445 rss: 184Mb L: 2916/4096 MS: 5 CopyPart-CrossOver-ChangeByte-CrossOver-EraseBytes-
+#1446	NEW    cov: 3304 ft: 9888 corp: 284/556Kb lim: 4096 exec/s: 1446 rss: 185Mb L: 220/4096 MS: 1 CopyPart-
+#1455	REDUCE cov: 3304 ft: 9888 corp: 284/555Kb lim: 4096 exec/s: 1455 rss: 185Mb L: 2186/4096 MS: 4 ChangeByte-ShuffleBytes-CopyPart-EraseBytes-
+#1460	REDUCE cov: 3304 ft: 9888 corp: 284/555Kb lim: 4096 exec/s: 1460 rss: 185Mb L: 4075/4096 MS: 5 ShuffleBytes-CrossOver-ChangeByte-ShuffleBytes-EraseBytes-
+#1470	NEW    cov: 3304 ft: 9889 corp: 285/557Kb lim: 4096 exec/s: 1470 rss: 185Mb L: 2292/4096 MS: 5 PersAutoDict-InsertRepeatedBytes-PersAutoDict-CopyPart-EraseBytes- DE: "\253\252\252\252\252\252\252\002"-"\001\000\000\000\000\000\000\000"-
+#1471	NEW    cov: 3304 ft: 9890 corp: 286/561Kb lim: 4096 exec/s: 1471 rss: 185Mb L: 4096/4096 MS: 1 CopyPart-
+#1487	REDUCE cov: 3305 ft: 9891 corp: 287/565Kb lim: 4096 exec/s: 1487 rss: 186Mb L: 4075/4096 MS: 1 ChangeBit-
+#1493	REDUCE cov: 3305 ft: 9891 corp: 287/565Kb lim: 4096 exec/s: 1493 rss: 186Mb L: 418/4096 MS: 1 EraseBytes-
+#1495	REDUCE cov: 3305 ft: 9903 corp: 288/565Kb lim: 4096 exec/s: 1495 rss: 186Mb L: 498/4096 MS: 2 CopyPart-CrossOver-
+#1508	NEW    cov: 3305 ft: 9922 corp: 289/565Kb lim: 4096 exec/s: 1508 rss: 186Mb L: 194/4096 MS: 3 PersAutoDict-ChangeByte-CrossOver- DE: "fn "-
+#1513	NEW    cov: 3306 ft: 9923 corp: 290/566Kb lim: 4096 exec/s: 1513 rss: 186Mb L: 281/4096 MS: 5 PersAutoDict-ChangeByte-CopyPart-PersAutoDict-InsertByte- DE: "/\000\000\000"-"true"-
+#1537	REDUCE cov: 3306 ft: 9923 corp: 290/562Kb lim: 4096 exec/s: 1537 rss: 186Mb L: 85/4096 MS: 4 ChangeBinInt-ChangeBit-PersAutoDict-CrossOver- DE: "(/*ERROR*/)"-
+#1549	NEW    cov: 3319 ft: 9968 corp: 291/566Kb lim: 4096 exec/s: 1549 rss: 189Mb L: 4096/4096 MS: 2 ChangeBit-CMP- DE: "(/*ERROR*/)"-
+#1570	NEW    cov: 3321 ft: 9974 corp: 292/566Kb lim: 4096 exec/s: 1570 rss: 189Mb L: 376/4096 MS: 1 PersAutoDict- DE: "/*"-
+#1578	NEW    cov: 3322 ft: 9981 corp: 293/567Kb lim: 4096 exec/s: 1578 rss: 190Mb L: 355/4096 MS: 3 ChangeByte-InsertRepeatedBytes-CrossOver-
+#1594	NEW    cov: 3322 ft: 9982 corp: 294/567Kb lim: 4096 exec/s: 1594 rss: 190Mb L: 326/4096 MS: 1 CopyPart-
+#1596	REDUCE cov: 3328 ft: 9990 corp: 295/569Kb lim: 4096 exec/s: 1596 rss: 190Mb L: 2561/4096 MS: 2 InsertByte-PersAutoDict- DE: "cr#"-
+#1599	REDUCE cov: 3328 ft: 9991 corp: 296/571Kb lim: 4096 exec/s: 1599 rss: 190Mb L: 2041/4096 MS: 3 CopyPart-InsertByte-CrossOver-
+#1605	NEW    cov: 3328 ft: 9994 corp: 297/571Kb lim: 4096 exec/s: 1605 rss: 190Mb L: 132/4096 MS: 1 ChangeBinInt-
+#1607	NEW    cov: 3328 ft: 10003 corp: 298/572Kb lim: 4096 exec/s: 1607 rss: 190Mb L: 147/4096 MS: 2 ShuffleBytes-EraseBytes-
+#1608	REDUCE cov: 3328 ft: 10003 corp: 298/572Kb lim: 4096 exec/s: 1608 rss: 190Mb L: 247/4096 MS: 1 EraseBytes-
+#1638	REDUCE cov: 3328 ft: 10004 corp: 299/575Kb lim: 4096 exec/s: 1638 rss: 191Mb L: 3196/4096 MS: 5 PersAutoDict-ChangeBit-CopyPart-ChangeByte-PersAutoDict- DE: "nc"-"/*"-
+#1644	NEW    cov: 3329 ft: 10010 corp: 300/576Kb lim: 4096 exec/s: 1644 rss: 191Mb L: 1711/4096 MS: 1 EraseBytes-
+#1651	NEW    cov: 3332 ft: 10101 corp: 301/579Kb lim: 4096 exec/s: 1651 rss: 194Mb L: 2718/4096 MS: 2 ShuffleBytes-ShuffleBytes-
+#1662	NEW    cov: 3332 ft: 10156 corp: 302/579Kb lim: 4096 exec/s: 1662 rss: 195Mb L: 220/4096 MS: 1 ShuffleBytes-
+	NEW_FUNC[1/1]: 0x55815194e880  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x32e880) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#1683	NEW    cov: 3340 ft: 10322 corp: 303/583Kb lim: 4096 exec/s: 1683 rss: 197Mb L: 3984/4096 MS: 1 CrossOver-
+#1686	NEW    cov: 3340 ft: 10327 corp: 304/583Kb lim: 4096 exec/s: 1686 rss: 197Mb L: 165/4096 MS: 3 InsertRepeatedBytes-EraseBytes-CMP- DE: "/**"-
+#1687	REDUCE cov: 3340 ft: 10327 corp: 304/583Kb lim: 4096 exec/s: 1687 rss: 197Mb L: 785/4096 MS: 1 EraseBytes-
+#1703	NEW    cov: 3340 ft: 10334 corp: 305/586Kb lim: 4096 exec/s: 1703 rss: 197Mb L: 3538/4096 MS: 1 CopyPart-
+#1710	NEW    cov: 3340 ft: 10335 corp: 306/589Kb lim: 4096 exec/s: 1710 rss: 197Mb L: 2436/4096 MS: 2 ChangeBit-CrossOver-
+#1746	REDUCE cov: 3340 ft: 10335 corp: 306/588Kb lim: 4096 exec/s: 1746 rss: 202Mb L: 1739/4096 MS: 1 CrossOver-
+#1761	NEW    cov: 3340 ft: 10339 corp: 307/589Kb lim: 4096 exec/s: 1761 rss: 202Mb L: 1139/4096 MS: 5 CMP-ChangeByte-InsertByte-ChangeByte-CrossOver- DE: "\000\000\000\000"-
+#1767	NEW    cov: 3340 ft: 10375 corp: 308/589Kb lim: 4096 exec/s: 1767 rss: 204Mb L: 525/4096 MS: 1 InsertRepeatedBytes-
+#1768	NEW    cov: 3340 ft: 10377 corp: 309/593Kb lim: 4096 exec/s: 1768 rss: 204Mb L: 3673/4096 MS: 1 EraseBytes-
+#1779	NEW    cov: 3340 ft: 10379 corp: 310/593Kb lim: 4096 exec/s: 1779 rss: 204Mb L: 20/4096 MS: 1 PersAutoDict- DE: "\000\000\000\000\000\000\000\003"-
+#1785	NEW    cov: 3340 ft: 10382 corp: 311/596Kb lim: 4096 exec/s: 1785 rss: 204Mb L: 2939/4096 MS: 1 EraseBytes-
+#1796	NEW    cov: 3341 ft: 10406 corp: 312/598Kb lim: 4096 exec/s: 1796 rss: 206Mb L: 2660/4096 MS: 1 CopyPart-
+#1802	REDUCE cov: 3341 ft: 10406 corp: 312/597Kb lim: 4096 exec/s: 1802 rss: 206Mb L: 2388/4096 MS: 1 EraseBytes-
+#1806	NEW    cov: 3341 ft: 10407 corp: 313/598Kb lim: 4096 exec/s: 1806 rss: 206Mb L: 125/4096 MS: 4 InsertByte-InsertRepeatedBytes-ChangeByte-EraseBytes-
+#1813	NEW    cov: 3341 ft: 10412 corp: 314/602Kb lim: 4096 exec/s: 1813 rss: 207Mb L: 4067/4096 MS: 2 CrossOver-ChangeBit-
+#1822	REDUCE cov: 3341 ft: 10412 corp: 314/601Kb lim: 4096 exec/s: 1822 rss: 207Mb L: 489/4096 MS: 4 ChangeBit-PersAutoDict-InsertRepeatedBytes-CrossOver- DE: "\000\000\000\000\000\000\000\003"-
+#1833	NEW    cov: 3341 ft: 10441 corp: 315/601Kb lim: 4096 exec/s: 1833 rss: 207Mb L: 278/4096 MS: 1 CopyPart-
+#1836	NEW    cov: 3341 ft: 10447 corp: 316/601Kb lim: 4096 exec/s: 1836 rss: 207Mb L: 243/4096 MS: 3 ChangeBit-ChangeByte-CMP- DE: "/**"-
+#1837	NEW    cov: 3341 ft: 10451 corp: 317/605Kb lim: 4096 exec/s: 1837 rss: 209Mb L: 3633/4096 MS: 1 InsertByte-
+#1840	NEW    cov: 3344 ft: 10455 corp: 318/608Kb lim: 4096 exec/s: 1840 rss: 209Mb L: 3154/4096 MS: 3 CMP-InsertByte-CrossOver- DE: "\000\000\000\000\000\000\005s"-
+#1843	NEW    cov: 3346 ft: 10457 corp: 319/609Kb lim: 4096 exec/s: 1843 rss: 209Mb L: 1141/4096 MS: 3 ChangeByte-InsertByte-InsertByte-
+#1846	REDUCE cov: 3346 ft: 10457 corp: 319/609Kb lim: 4096 exec/s: 1846 rss: 209Mb L: 216/4096 MS: 3 CrossOver-ChangeBit-EraseBytes-
+#1860	NEW    cov: 3346 ft: 10461 corp: 320/610Kb lim: 4096 exec/s: 1860 rss: 210Mb L: 1564/4096 MS: 4 InsertByte-CopyPart-InsertByte-CopyPart-
+#1866	NEW    cov: 3347 ft: 10553 corp: 321/611Kb lim: 4096 exec/s: 1866 rss: 210Mb L: 220/4096 MS: 1 ChangeByte-
+#1872	REDUCE cov: 3347 ft: 10553 corp: 321/610Kb lim: 4096 exec/s: 1872 rss: 210Mb L: 2140/4096 MS: 1 EraseBytes-
+#1873	NEW    cov: 3347 ft: 10554 corp: 322/611Kb lim: 4096 exec/s: 1873 rss: 210Mb L: 675/4096 MS: 1 ChangeBinInt-
+#1901	REDUCE cov: 3350 ft: 10592 corp: 323/611Kb lim: 4096 exec/s: 1901 rss: 213Mb L: 484/4096 MS: 3 CopyPart-InsertByte-CopyPart-
+#1902	NEW    cov: 3350 ft: 10594 corp: 324/612Kb lim: 4096 exec/s: 1902 rss: 213Mb L: 273/4096 MS: 1 InsertRepeatedBytes-
+#1943	NEW    cov: 3350 ft: 10697 corp: 325/614Kb lim: 4096 exec/s: 1943 rss: 216Mb L: 2196/4096 MS: 1 ChangeByte-
+#1950	NEW    cov: 3350 ft: 10698 corp: 326/614Kb lim: 4096 exec/s: 1950 rss: 216Mb L: 268/4096 MS: 2 PersAutoDict-InsertByte- DE: "/*"-
+#1960	NEW    cov: 3350 ft: 10701 corp: 327/615Kb lim: 4096 exec/s: 1960 rss: 216Mb L: 785/4096 MS: 5 ChangeBit-CMP-CrossOver-ChangeBit-CrossOver- DE: "\006\000"-
+	NEW_FUNC[1/3]: 0x558151938af0  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x318af0) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/3]: 0x558151939760  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x319760) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#1977	NEW    cov: 3366 ft: 10725 corp: 328/615Kb lim: 4096 exec/s: 1977 rss: 218Mb L: 414/4096 MS: 2 PersAutoDict-InsertByte- DE: "fn "-
+#1984	NEW    cov: 3366 ft: 10726 corp: 329/616Kb lim: 4096 exec/s: 1984 rss: 218Mb L: 782/4096 MS: 2 EraseBytes-CMP- DE: "\001\000"-
+#1990	NEW    cov: 3366 ft: 10727 corp: 330/620Kb lim: 4096 exec/s: 1990 rss: 218Mb L: 4096/4096 MS: 1 CrossOver-
+#1993	NEW    cov: 3366 ft: 10728 corp: 331/624Kb lim: 4096 exec/s: 1993 rss: 218Mb L: 4096/4096 MS: 3 ChangeBinInt-ShuffleBytes-CopyPart-
+#2003	REDUCE cov: 3366 ft: 10728 corp: 331/624Kb lim: 4096 exec/s: 2003 rss: 218Mb L: 322/4096 MS: 5 CrossOver-CopyPart-ChangeBinInt-ChangeASCIIInt-EraseBytes-
+#2014	NEW    cov: 3366 ft: 10730 corp: 332/625Kb lim: 4096 exec/s: 2014 rss: 218Mb L: 1041/4096 MS: 1 PersAutoDict- DE: "/*"-
+#2041	NEW    cov: 3366 ft: 10732 corp: 333/628Kb lim: 4096 exec/s: 2041 rss: 218Mb L: 3158/4096 MS: 2 ChangeASCIIInt-PersAutoDict- DE: "v\000\000\000"-
+#2042	NEW    cov: 3366 ft: 10733 corp: 334/628Kb lim: 4096 exec/s: 2042 rss: 218Mb L: 273/4096 MS: 1 CrossOver-
+#2051	REDUCE cov: 3366 ft: 10734 corp: 335/632Kb lim: 4096 exec/s: 2051 rss: 218Mb L: 4088/4096 MS: 4 CopyPart-CopyPart-PersAutoDict-CopyPart- DE: "#!"-
+#2084	NEW    cov: 3366 ft: 10736 corp: 336/636Kb lim: 4096 exec/s: 2084 rss: 219Mb L: 4070/4096 MS: 3 InsertByte-PersAutoDict-CopyPart- DE: "#!"-
+#2085	REDUCE cov: 3366 ft: 10736 corp: 336/636Kb lim: 4096 exec/s: 2085 rss: 219Mb L: 188/4096 MS: 1 EraseBytes-
+#2087	REDUCE cov: 3366 ft: 10737 corp: 337/637Kb lim: 4096 exec/s: 2087 rss: 219Mb L: 323/4096 MS: 2 InsertByte-CrossOver-
+#2088	NEW    cov: 3366 ft: 10738 corp: 338/641Kb lim: 4096 exec/s: 2088 rss: 219Mb L: 4096/4096 MS: 1 CrossOver-
+#2098	NEW    cov: 3366 ft: 10740 corp: 339/641Kb lim: 4096 exec/s: 2098 rss: 219Mb L: 713/4096 MS: 5 ChangeASCIIInt-ChangeByte-CrossOver-CrossOver-CopyPart-
+#2139	NEW    cov: 3366 ft: 10741 corp: 340/643Kb lim: 4096 exec/s: 2139 rss: 222Mb L: 1251/4096 MS: 1 CrossOver-
+#2140	NEW    cov: 3366 ft: 10742 corp: 341/643Kb lim: 4096 exec/s: 2140 rss: 222Mb L: 441/4096 MS: 1 CopyPart-
+#2144	NEW    cov: 3366 ft: 10744 corp: 342/643Kb lim: 4096 exec/s: 2144 rss: 222Mb L: 179/4096 MS: 4 PersAutoDict-ShuffleBytes-ShuffleBytes-EraseBytes- DE: "true"-
+#2146	NEW    cov: 3366 ft: 10746 corp: 343/646Kb lim: 4096 exec/s: 2146 rss: 224Mb L: 3298/4096 MS: 2 CMP-CrossOver- DE: "else"-
+#2160	REDUCE cov: 3366 ft: 10750 corp: 344/648Kb lim: 4096 exec/s: 2160 rss: 226Mb L: 1791/4096 MS: 4 CrossOver-InsertRepeatedBytes-ChangeByte-CMP- DE: "\000\003"-
+#2176	NEW    cov: 3366 ft: 10751 corp: 345/650Kb lim: 4096 exec/s: 2176 rss: 228Mb L: 2097/4096 MS: 1 EraseBytes-
+#2192	REDUCE cov: 3366 ft: 10751 corp: 345/648Kb lim: 4096 exec/s: 2192 rss: 228Mb L: 575/4096 MS: 1 CrossOver-
+#2213	NEW    cov: 3366 ft: 10752 corp: 346/650Kb lim: 4096 exec/s: 2213 rss: 228Mb L: 1867/4096 MS: 1 EraseBytes-
+#2216	NEW    cov: 3366 ft: 10754 corp: 347/654Kb lim: 4096 exec/s: 2216 rss: 228Mb L: 3698/4096 MS: 3 PersAutoDict-CrossOver-CrossOver- DE: "0b"-
+#2222	REDUCE cov: 3366 ft: 10754 corp: 347/653Kb lim: 4096 exec/s: 2222 rss: 228Mb L: 990/4096 MS: 1 EraseBytes-
+#2231	REDUCE cov: 3366 ft: 10754 corp: 347/652Kb lim: 4096 exec/s: 2231 rss: 229Mb L: 3130/4096 MS: 4 PersAutoDict-CopyPart-EraseBytes-ShuffleBytes- DE: "nc"-
+#2247	NEW    cov: 3366 ft: 10758 corp: 348/656Kb lim: 4096 exec/s: 2247 rss: 232Mb L: 4096/4096 MS: 1 ChangeBit-
+#2258	NEW    cov: 3366 ft: 10759 corp: 349/659Kb lim: 4096 exec/s: 2258 rss: 236Mb L: 2660/4096 MS: 1 ChangeBit-
+#2268	NEW    cov: 3366 ft: 10761 corp: 350/663Kb lim: 4096 exec/s: 2268 rss: 236Mb L: 4096/4096 MS: 5 CopyPart-PersAutoDict-ChangeByte-ShuffleBytes-CopyPart- DE: "0b"-
+#2343	NEW    cov: 3366 ft: 10762 corp: 351/663Kb lim: 4096 exec/s: 2343 rss: 236Mb L: 75/4096 MS: 5 InsertRepeatedBytes-ChangeASCIIInt-InsertRepeatedBytes-CrossOver-InsertRepeatedBytes-
+#2348	NEW    cov: 3369 ft: 10765 corp: 352/666Kb lim: 4096 exec/s: 2348 rss: 236Mb L: 3316/4096 MS: 5 CopyPart-ChangeBit-CrossOver-PersAutoDict-ChangeBit- DE: "true"-
+#2349	NEW    cov: 3369 ft: 10768 corp: 353/666Kb lim: 4096 exec/s: 2349 rss: 236Mb L: 12/4096 MS: 1 CMP- DE: "/*"-
+#2387	NEW    cov: 3369 ft: 10769 corp: 354/668Kb lim: 4096 exec/s: 2387 rss: 236Mb L: 2336/4096 MS: 3 ChangeASCIIInt-CrossOver-PersAutoDict- DE: "%\000\000\000\000\000\000\000"-
+#2393	NEW    cov: 3369 ft: 10772 corp: 355/672Kb lim: 4096 exec/s: 2393 rss: 238Mb L: 4096/4096 MS: 1 ShuffleBytes-
+#2425	NEW    cov: 3369 ft: 10773 corp: 356/674Kb lim: 4096 exec/s: 2425 rss: 238Mb L: 1775/4096 MS: 2 CrossOver-InsertRepeatedBytes-
+#2430	REDUCE cov: 3369 ft: 10773 corp: 356/673Kb lim: 4096 exec/s: 2430 rss: 238Mb L: 1492/4096 MS: 5 ChangeBinInt-ChangeBit-EraseBytes-CMP-ChangeBinInt- DE: "0\000\000\000\000\000\000\000"-
+#2432	NEW    cov: 3369 ft: 10797 corp: 357/677Kb lim: 4096 exec/s: 2432 rss: 238Mb L: 4096/4096 MS: 2 ShuffleBytes-ChangeByte-
+#2434	NEW    cov: 3369 ft: 10798 corp: 358/677Kb lim: 4096 exec/s: 2434 rss: 238Mb L: 156/4096 MS: 2 InsertByte-EraseBytes-
+#2436	NEW    cov: 3373 ft: 10803 corp: 359/678Kb lim: 4096 exec/s: 2436 rss: 240Mb L: 718/4096 MS: 2 CrossOver-EraseBytes-
+#2441	REDUCE cov: 3373 ft: 10803 corp: 359/677Kb lim: 4096 exec/s: 2441 rss: 240Mb L: 634/4096 MS: 5 CMP-InsertByte-ChangeASCIIInt-CMP-EraseBytes- DE: "\000\000\000\000\000\000\0022"-"\377\377\377\377\377\377\377\377"-
+#2453	REDUCE cov: 3373 ft: 10803 corp: 359/677Kb lim: 4096 exec/s: 2453 rss: 240Mb L: 164/4096 MS: 2 ChangeASCIIInt-EraseBytes-
+#2455	NEW    cov: 3373 ft: 10807 corp: 360/677Kb lim: 4096 exec/s: 2455 rss: 240Mb L: 398/4096 MS: 2 CMP-CopyPart- DE: "r#"-
+#2471	NEW    cov: 3373 ft: 10808 corp: 361/679Kb lim: 4096 exec/s: 2471 rss: 240Mb L: 1711/4096 MS: 1 CrossOver-
+#2472	REDUCE cov: 3373 ft: 10808 corp: 361/678Kb lim: 4096 exec/s: 2472 rss: 241Mb L: 1712/4096 MS: 1 EraseBytes-
+#2474	REDUCE cov: 3373 ft: 10808 corp: 361/678Kb lim: 4096 exec/s: 2474 rss: 241Mb L: 147/4096 MS: 2 CopyPart-EraseBytes-
+#2505	REDUCE cov: 3373 ft: 10808 corp: 361/678Kb lim: 4096 exec/s: 2505 rss: 241Mb L: 2164/4096 MS: 1 EraseBytes-
+#2540	NEW    cov: 3373 ft: 10809 corp: 362/678Kb lim: 4096 exec/s: 2540 rss: 242Mb L: 283/4096 MS: 5 ChangeASCIIInt-EraseBytes-ChangeBit-EraseBytes-CopyPart-
+#2542	NEW    cov: 3373 ft: 10810 corp: 363/680Kb lim: 4096 exec/s: 2542 rss: 243Mb L: 2160/4096 MS: 2 ChangeBit-CMP- DE: "0b"-
+#2546	REDUCE cov: 3373 ft: 10810 corp: 363/680Kb lim: 4096 exec/s: 2546 rss: 243Mb L: 1032/4096 MS: 4 InsertByte-ChangeBinInt-InsertByte-EraseBytes-
+#2589	REDUCE cov: 3373 ft: 10818 corp: 364/680Kb lim: 4096 exec/s: 2589 rss: 245Mb L: 211/4096 MS: 3 InsertRepeatedBytes-ChangeBit-EraseBytes-
+#2593	REDUCE cov: 3373 ft: 10858 corp: 365/682Kb lim: 4096 exec/s: 2593 rss: 248Mb L: 1186/4096 MS: 4 ChangeBinInt-InsertByte-ChangeBinInt-EraseBytes-
+#2599	NEW    cov: 3379 ft: 10864 corp: 366/685Kb lim: 4096 exec/s: 2599 rss: 248Mb L: 3354/4096 MS: 1 CMP- DE: "br#"-
+#2606	NEW    cov: 3379 ft: 10867 corp: 367/685Kb lim: 4096 exec/s: 2606 rss: 248Mb L: 345/4096 MS: 2 EraseBytes-CMP- DE: "/*"-
+#2607	NEW    cov: 3379 ft: 10868 corp: 368/686Kb lim: 4096 exec/s: 2607 rss: 248Mb L: 299/4096 MS: 1 CrossOver-
+#2627	NEW    cov: 3379 ft: 10869 corp: 369/686Kb lim: 4096 exec/s: 2627 rss: 248Mb L: 404/4096 MS: 5 EraseBytes-ChangeASCIIInt-ChangeByte-ChangeByte-ChangeBit-
+#2633	REDUCE cov: 3379 ft: 10869 corp: 369/686Kb lim: 4096 exec/s: 2633 rss: 250Mb L: 741/4096 MS: 1 EraseBytes-
+#2652	NEW    cov: 3380 ft: 10870 corp: 370/688Kb lim: 4096 exec/s: 2652 rss: 251Mb L: 2207/4096 MS: 4 ChangeBit-CopyPart-ChangeBit-CrossOver-
+#2688	REDUCE cov: 3380 ft: 10870 corp: 370/688Kb lim: 4096 exec/s: 2688 rss: 251Mb L: 3262/4096 MS: 1 EraseBytes-
+#2689	NEW    cov: 3381 ft: 10871 corp: 371/692Kb lim: 4096 exec/s: 2689 rss: 251Mb L: 4096/4096 MS: 1 ChangeBinInt-
+#2696	NEW    cov: 3382 ft: 10872 corp: 372/692Kb lim: 4096 exec/s: 2696 rss: 251Mb L: 406/4096 MS: 2 ChangeASCIIInt-ChangeByte-
+#2717	REDUCE cov: 3382 ft: 10872 corp: 372/691Kb lim: 4096 exec/s: 2717 rss: 252Mb L: 3232/4096 MS: 1 EraseBytes-
+#2764	NEW    cov: 3382 ft: 10874 corp: 373/695Kb lim: 4096 exec/s: 2764 rss: 256Mb L: 4096/4096 MS: 2 ShuffleBytes-CMP- DE: "/*"-
+#2772	NEW    cov: 3382 ft: 10876 corp: 374/699Kb lim: 4096 exec/s: 2772 rss: 256Mb L: 4095/4096 MS: 3 ShuffleBytes-CrossOver-InsertRepeatedBytes-
+#2778	NEW    cov: 3382 ft: 10885 corp: 375/702Kb lim: 4096 exec/s: 2778 rss: 256Mb L: 3129/4096 MS: 1 CrossOver-
+#2784	NEW    cov: 3394 ft: 10897 corp: 376/702Kb lim: 4096 exec/s: 2784 rss: 256Mb L: 185/4096 MS: 1 CMP- DE: "c\""-
+#2785	NEW    cov: 3394 ft: 10901 corp: 377/703Kb lim: 4096 exec/s: 2785 rss: 256Mb L: 428/4096 MS: 1 PersAutoDict- DE: "c\""-
+#2798	NEW    cov: 3394 ft: 10908 corp: 378/704Kb lim: 4096 exec/s: 1399 rss: 256Mb L: 1462/4096 MS: 3 EraseBytes-PersAutoDict-CrossOver- DE: "v\000\000\000"-
+#2814	REDUCE cov: 3394 ft: 10908 corp: 378/704Kb lim: 4096 exec/s: 1407 rss: 256Mb L: 153/4096 MS: 1 EraseBytes-
+#2834	REDUCE cov: 3394 ft: 10909 corp: 379/708Kb lim: 4096 exec/s: 1417 rss: 258Mb L: 3663/4096 MS: 5 CopyPart-InsertByte-ChangeBinInt-InsertByte-CrossOver-
+#2872	NEW    cov: 3394 ft: 10916 corp: 380/712Kb lim: 4096 exec/s: 1436 rss: 262Mb L: 4094/4096 MS: 3 CopyPart-EraseBytes-CopyPart-
+#2896	REDUCE cov: 3394 ft: 10916 corp: 380/711Kb lim: 4096 exec/s: 1448 rss: 262Mb L: 242/4096 MS: 4 ShuffleBytes-ChangeBit-ChangeBit-EraseBytes-
+#2897	NEW    cov: 3394 ft: 10917 corp: 381/712Kb lim: 4096 exec/s: 1448 rss: 262Mb L: 847/4096 MS: 1 CrossOver-
+#2926	NEW    cov: 3394 ft: 10919 corp: 382/713Kb lim: 4096 exec/s: 1463 rss: 263Mb L: 284/4096 MS: 4 ChangeASCIIInt-CrossOver-InsertByte-CMP- DE: "/*"-
+#2930	REDUCE cov: 3394 ft: 10919 corp: 382/711Kb lim: 4096 exec/s: 1465 rss: 263Mb L: 172/4096 MS: 4 ChangeBit-InsertRepeatedBytes-CopyPart-CrossOver-
+#2936	REDUCE cov: 3394 ft: 10920 corp: 383/712Kb lim: 4096 exec/s: 1468 rss: 263Mb L: 1492/4096 MS: 1 ChangeByte-
+#2938	NEW    cov: 3395 ft: 10937 corp: 384/712Kb lim: 4096 exec/s: 1469 rss: 264Mb L: 272/4096 MS: 2 ChangeBinInt-InsertByte-
+#2959	NEW    cov: 3396 ft: 10938 corp: 385/713Kb lim: 4096 exec/s: 1479 rss: 265Mb L: 406/4096 MS: 1 ChangeByte-
+#2989	REDUCE cov: 3396 ft: 10938 corp: 385/713Kb lim: 4096 exec/s: 1494 rss: 265Mb L: 1965/4096 MS: 5 ChangeASCIIInt-InsertByte-ChangeBinInt-CMP-EraseBytes- DE: "4\000"-
+#2990	NEW    cov: 3396 ft: 10939 corp: 386/713Kb lim: 4096 exec/s: 1495 rss: 265Mb L: 526/4096 MS: 1 CrossOver-
+#3003	NEW    cov: 3398 ft: 11013 corp: 387/717Kb lim: 4096 exec/s: 1501 rss: 269Mb L: 3992/4096 MS: 3 ChangeByte-ChangeBit-CopyPart-
+#3020	NEW    cov: 3398 ft: 11016 corp: 388/720Kb lim: 4096 exec/s: 1510 rss: 274Mb L: 3363/4096 MS: 2 InsertRepeatedBytes-PersAutoDict- DE: "/*"-
+#3021	REDUCE cov: 3398 ft: 11016 corp: 388/720Kb lim: 4096 exec/s: 1510 rss: 275Mb L: 398/4096 MS: 1 EraseBytes-
+#3039	REDUCE cov: 3398 ft: 11017 corp: 389/721Kb lim: 4096 exec/s: 1519 rss: 275Mb L: 488/4096 MS: 3 CopyPart-CMP-InsertRepeatedBytes- DE: "\001\000\000c"-
+#3040	REDUCE cov: 3398 ft: 11017 corp: 389/719Kb lim: 4096 exec/s: 1520 rss: 275Mb L: 2151/4096 MS: 1 EraseBytes-
+#3061	NEW    cov: 3398 ft: 11023 corp: 390/720Kb lim: 4096 exec/s: 1530 rss: 277Mb L: 275/4096 MS: 1 InsertByte-
+#3063	NEW    cov: 3402 ft: 11028 corp: 391/720Kb lim: 4096 exec/s: 1531 rss: 277Mb L: 144/4096 MS: 2 CMP-ChangeBinInt- DE: "(/*ERROR*/)"-
+#3064	NEW    cov: 3406 ft: 11075 corp: 392/723Kb lim: 4096 exec/s: 1532 rss: 279Mb L: 3398/4096 MS: 1 ChangeBit-
+#3080	REDUCE cov: 3406 ft: 11078 corp: 393/724Kb lim: 4096 exec/s: 1540 rss: 279Mb L: 586/4096 MS: 1 PersAutoDict- DE: "(/*ERROR*/)"-
+#3091	NEW    cov: 3406 ft: 11080 corp: 394/727Kb lim: 4096 exec/s: 1545 rss: 279Mb L: 3129/4096 MS: 1 CMP- DE: "/**"-
+#3101	NEW    cov: 3406 ft: 11081 corp: 395/727Kb lim: 4096 exec/s: 1550 rss: 279Mb L: 150/4096 MS: 5 EraseBytes-ChangeASCIIInt-CMP-CopyPart-CopyPart- DE: "\001\000\000\000\000\000\000\000"-
+#3129	NEW    cov: 3428 ft: 11125 corp: 396/729Kb lim: 4096 exec/s: 1564 rss: 281Mb L: 1728/4096 MS: 3 ShuffleBytes-ChangeBit-EraseBytes-
+#3150	REDUCE cov: 3428 ft: 11125 corp: 396/728Kb lim: 4096 exec/s: 1575 rss: 281Mb L: 1122/4096 MS: 1 EraseBytes-
+#3159	REDUCE cov: 3428 ft: 11128 corp: 397/731Kb lim: 4096 exec/s: 1579 rss: 281Mb L: 2747/4096 MS: 4 CopyPart-ChangeBit-CrossOver-EraseBytes-
+#3166	REDUCE cov: 3428 ft: 11128 corp: 397/731Kb lim: 4096 exec/s: 1583 rss: 282Mb L: 193/4096 MS: 2 ChangeBinInt-EraseBytes-
+#3177	NEW    cov: 3428 ft: 11133 corp: 398/732Kb lim: 4096 exec/s: 1588 rss: 282Mb L: 1251/4096 MS: 1 PersAutoDict- DE: "c\""-
+#3210	NEW    cov: 3428 ft: 11138 corp: 399/734Kb lim: 4096 exec/s: 1605 rss: 282Mb L: 2082/4096 MS: 3 InsertByte-PersAutoDict-EraseBytes- DE: "v\000\000\000"-
+#3217	NEW    cov: 3429 ft: 11139 corp: 400/736Kb lim: 4096 exec/s: 1608 rss: 282Mb L: 1722/4096 MS: 2 ChangeBit-PersAutoDict- DE: "(/*ERROR*/)"-
+#3235	NEW    cov: 3429 ft: 11140 corp: 401/739Kb lim: 4096 exec/s: 1617 rss: 282Mb L: 3130/4096 MS: 3 ChangeBit-ChangeBit-InsertByte-
+#3245	NEW    cov: 3437 ft: 11157 corp: 402/741Kb lim: 4096 exec/s: 1622 rss: 285Mb L: 1901/4096 MS: 5 CrossOver-ChangeBinInt-ChangeByte-ShuffleBytes-CrossOver-
+#3246	REDUCE cov: 3437 ft: 11157 corp: 402/741Kb lim: 4096 exec/s: 1623 rss: 285Mb L: 1542/4096 MS: 1 EraseBytes-
+#3247	NEW    cov: 3437 ft: 11161 corp: 403/743Kb lim: 4096 exec/s: 1623 rss: 285Mb L: 2168/4096 MS: 1 CopyPart-
+#3248	NEW    cov: 3437 ft: 11162 corp: 404/743Kb lim: 4096 exec/s: 1624 rss: 285Mb L: 272/4096 MS: 1 ChangeByte-
+#3314	REDUCE cov: 3437 ft: 11162 corp: 404/743Kb lim: 4096 exec/s: 1657 rss: 287Mb L: 357/4096 MS: 1 EraseBytes-
+#3316	NEW    cov: 3438 ft: 11206 corp: 405/743Kb lim: 4096 exec/s: 1658 rss: 289Mb L: 183/4096 MS: 2 ShuffleBytes-ChangeBit-
+#3317	NEW    cov: 3438 ft: 11211 corp: 406/745Kb lim: 4096 exec/s: 1658 rss: 289Mb L: 1737/4096 MS: 1 InsertRepeatedBytes-
+#3341	NEW    cov: 3438 ft: 11217 corp: 407/745Kb lim: 4096 exec/s: 1670 rss: 289Mb L: 335/4096 MS: 4 CopyPart-ChangeASCIIInt-ChangeBit-InsertRepeatedBytes-
+#3353	NEW    cov: 3438 ft: 11220 corp: 408/746Kb lim: 4096 exec/s: 1676 rss: 289Mb L: 692/4096 MS: 2 CrossOver-CrossOver-
+#3366	NEW    cov: 3438 ft: 11224 corp: 409/750Kb lim: 4096 exec/s: 1683 rss: 289Mb L: 4034/4096 MS: 3 InsertByte-ChangeASCIIInt-CopyPart-
+#3367	NEW    cov: 3439 ft: 11230 corp: 410/750Kb lim: 4096 exec/s: 1683 rss: 289Mb L: 12/4096 MS: 1 ShuffleBytes-
+#3368	REDUCE cov: 3439 ft: 11230 corp: 410/750Kb lim: 4096 exec/s: 1684 rss: 289Mb L: 152/4096 MS: 1 EraseBytes-
+#3379	REDUCE cov: 3439 ft: 11230 corp: 410/749Kb lim: 4096 exec/s: 1689 rss: 290Mb L: 3884/4096 MS: 1 CrossOver-
+#3401	REDUCE cov: 3439 ft: 11230 corp: 410/748Kb lim: 4096 exec/s: 1700 rss: 291Mb L: 2907/4096 MS: 2 ChangeByte-EraseBytes-
+#3412	REDUCE cov: 3439 ft: 11230 corp: 410/748Kb lim: 4096 exec/s: 1706 rss: 292Mb L: 111/4096 MS: 1 EraseBytes-
+#3432	NEW    cov: 3439 ft: 11231 corp: 411/750Kb lim: 4096 exec/s: 1716 rss: 293Mb L: 1931/4096 MS: 5 CopyPart-ChangeBinInt-ChangeByte-EraseBytes-CopyPart-
+#3446	REDUCE cov: 3439 ft: 11231 corp: 411/749Kb lim: 4096 exec/s: 1723 rss: 296Mb L: 2122/4096 MS: 4 CMP-InsertRepeatedBytes-CopyPart-CrossOver- DE: "\000\000\000>"-
+#3458	REDUCE cov: 3440 ft: 11234 corp: 412/749Kb lim: 4096 exec/s: 1729 rss: 296Mb L: 44/4096 MS: 2 CopyPart-CrossOver-
+#3461	REDUCE cov: 3440 ft: 11234 corp: 412/748Kb lim: 4096 exec/s: 1730 rss: 296Mb L: 3555/4096 MS: 3 CrossOver-CrossOver-EraseBytes-
+#3472	NEW    cov: 3441 ft: 11237 corp: 413/751Kb lim: 4096 exec/s: 1736 rss: 296Mb L: 2935/4096 MS: 1 InsertRepeatedBytes-
+#3478	NEW    cov: 3446 ft: 11285 corp: 414/752Kb lim: 4096 exec/s: 1739 rss: 297Mb L: 372/4096 MS: 1 CrossOver-
+#3479	NEW    cov: 3446 ft: 11295 corp: 415/752Kb lim: 4096 exec/s: 1739 rss: 297Mb L: 265/4096 MS: 1 ChangeBinInt-
+#3495	REDUCE cov: 3448 ft: 11297 corp: 416/752Kb lim: 4096 exec/s: 1747 rss: 297Mb L: 565/4096 MS: 1 PersAutoDict- DE: "nc"-
+#3523	NEW    cov: 3448 ft: 11298 corp: 417/754Kb lim: 4096 exec/s: 1761 rss: 298Mb L: 1738/4096 MS: 3 ChangeBinInt-InsertByte-CMP- DE: "b'"-
+#3531	NEW    cov: 3448 ft: 11309 corp: 418/755Kb lim: 4096 exec/s: 1765 rss: 298Mb L: 935/4096 MS: 3 PersAutoDict-CrossOver-CopyPart- DE: "br#"-
+#3535	REDUCE cov: 3448 ft: 11309 corp: 418/754Kb lim: 4096 exec/s: 1767 rss: 298Mb L: 2333/4096 MS: 4 CopyPart-InsertByte-CopyPart-EraseBytes-
+#3541	NEW    cov: 3448 ft: 11332 corp: 419/757Kb lim: 4096 exec/s: 1770 rss: 299Mb L: 2904/4096 MS: 1 EraseBytes-
+#3582	REDUCE cov: 3449 ft: 11333 corp: 420/758Kb lim: 4096 exec/s: 1791 rss: 299Mb L: 565/4096 MS: 1 CMP- DE: "r#"-
+#3596	REDUCE cov: 3449 ft: 11333 corp: 420/758Kb lim: 4096 exec/s: 1798 rss: 299Mb L: 49/4096 MS: 4 CopyPart-ChangeBinInt-ChangeBit-EraseBytes-
+#3603	NEW    cov: 3461 ft: 11398 corp: 421/758Kb lim: 4096 exec/s: 1801 rss: 300Mb L: 157/4096 MS: 2 EraseBytes-ChangeByte-
+#3609	NEW    cov: 3461 ft: 11399 corp: 422/761Kb lim: 4096 exec/s: 1804 rss: 300Mb L: 2937/4096 MS: 1 CMP- DE: "/\000"-
+#3630	NEW    cov: 3462 ft: 11402 corp: 423/761Kb lim: 4096 exec/s: 1815 rss: 300Mb L: 34/4096 MS: 1 InsertByte-
+#3658	NEW    cov: 3462 ft: 11496 corp: 424/761Kb lim: 4096 exec/s: 1829 rss: 302Mb L: 274/4096 MS: 3 PersAutoDict-CopyPart-EraseBytes- DE: "0\000\000\000\000\000\000\000"-
+#3675	NEW    cov: 3463 ft: 11497 corp: 425/761Kb lim: 4096 exec/s: 1837 rss: 303Mb L: 265/4096 MS: 2 ChangeASCIIInt-EraseBytes-
+#3680	NEW    cov: 3463 ft: 11498 corp: 426/764Kb lim: 4096 exec/s: 1840 rss: 303Mb L: 3363/4096 MS: 5 CopyPart-PersAutoDict-InsertRepeatedBytes-CrossOver-CopyPart- DE: "/*"-
+#3684	REDUCE cov: 3463 ft: 11498 corp: 426/763Kb lim: 4096 exec/s: 1842 rss: 303Mb L: 2110/4096 MS: 4 ChangeBit-CopyPart-CopyPart-CrossOver-
+#3685	NEW    cov: 3468 ft: 11668 corp: 427/763Kb lim: 4096 exec/s: 1842 rss: 303Mb L: 643/4096 MS: 1 EraseBytes-
+#3731	REDUCE cov: 3468 ft: 11668 corp: 427/763Kb lim: 4096 exec/s: 1865 rss: 303Mb L: 87/4096 MS: 1 EraseBytes-
+#3758	REDUCE cov: 3468 ft: 11668 corp: 427/763Kb lim: 4096 exec/s: 1879 rss: 303Mb L: 485/4096 MS: 2 InsertByte-EraseBytes-
+#3760	NEW    cov: 3469 ft: 11669 corp: 428/765Kb lim: 4096 exec/s: 1880 rss: 303Mb L: 2198/4096 MS: 2 PersAutoDict-PersAutoDict- DE: "0b"-"c\""-
+#3783	REDUCE cov: 3469 ft: 11670 corp: 429/766Kb lim: 4096 exec/s: 1891 rss: 305Mb L: 462/4096 MS: 3 InsertRepeatedBytes-CrossOver-CopyPart-
+#3801	REDUCE cov: 3469 ft: 11670 corp: 429/765Kb lim: 4096 exec/s: 1900 rss: 306Mb L: 1914/4096 MS: 3 PersAutoDict-ChangeByte-CrossOver- DE: "/\000"-
+#3842	NEW    cov: 3469 ft: 11671 corp: 430/766Kb lim: 4096 exec/s: 1921 rss: 306Mb L: 345/4096 MS: 1 ShuffleBytes-
+#3844	REDUCE cov: 3469 ft: 11671 corp: 430/765Kb lim: 4096 exec/s: 1922 rss: 306Mb L: 1565/4096 MS: 2 ChangeBit-EraseBytes-
+#3857	NEW    cov: 3469 ft: 11677 corp: 431/768Kb lim: 4096 exec/s: 1928 rss: 309Mb L: 3716/4096 MS: 3 PersAutoDict-CMP-CopyPart- DE: "\000\000\000#"-"(/*ERROR*/)"-
+#3865	NEW    cov: 3469 ft: 11680 corp: 432/769Kb lim: 4096 exec/s: 1932 rss: 309Mb L: 532/4096 MS: 3 ChangeASCIIInt-ShuffleBytes-CopyPart-
+#3908	NEW    cov: 3473 ft: 11684 corp: 433/769Kb lim: 4096 exec/s: 1954 rss: 310Mb L: 281/4096 MS: 3 ChangeBinInt-CMP-ChangeBinInt- DE: "effffff\006"-
+#3914	REDUCE cov: 3473 ft: 11684 corp: 433/768Kb lim: 4096 exec/s: 1957 rss: 310Mb L: 1073/4096 MS: 1 EraseBytes-
+#3920	NEW    cov: 3473 ft: 11685 corp: 434/772Kb lim: 4096 exec/s: 1960 rss: 310Mb L: 4096/4096 MS: 1 ChangeBit-
+#3921	REDUCE cov: 3473 ft: 11685 corp: 434/771Kb lim: 4096 exec/s: 1960 rss: 310Mb L: 3283/4096 MS: 1 EraseBytes-
+#3922	REDUCE cov: 3473 ft: 11685 corp: 434/771Kb lim: 4096 exec/s: 1961 rss: 310Mb L: 1852/4096 MS: 1 EraseBytes-
+#3933	NEW    cov: 3473 ft: 11687 corp: 435/771Kb lim: 4096 exec/s: 1966 rss: 312Mb L: 265/4096 MS: 1 CopyPart-
+#3942	REDUCE cov: 3473 ft: 11687 corp: 435/771Kb lim: 4096 exec/s: 1971 rss: 312Mb L: 43/4096 MS: 4 CopyPart-CrossOver-PersAutoDict-CrossOver- DE: "\000\000\000\000\000\000\0022"-
+#3943	NEW    cov: 3473 ft: 11707 corp: 436/771Kb lim: 4096 exec/s: 1971 rss: 312Mb L: 147/4096 MS: 1 EraseBytes-
+#3950	REDUCE cov: 3473 ft: 11707 corp: 436/771Kb lim: 4096 exec/s: 1975 rss: 312Mb L: 209/4096 MS: 2 CMP-EraseBytes- DE: "\010\003\000\000\000\000\000\000"-
+	NEW_FUNC[1/3]: 0x55815196c020  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x34c020) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+	NEW_FUNC[2/3]: 0x558151981ba0  (/opt/.cargo/target/2-shared-crates-raf-okf-raf-source-a03245d6/x86_64-unknown-linux-gnu/release/parse_source+0x361ba0) (BuildId: 8cb44ca36fa925bd617c96ae3e0c9aabb1751e46)
+#3981	NEW    cov: 3487 ft: 11740 corp: 437/771Kb lim: 4096 exec/s: 1990 rss: 316Mb L: 183/4096 MS: 1 ChangeBit-
+#4007	REDUCE cov: 3488 ft: 11741 corp: 438/771Kb lim: 4096 exec/s: 2003 rss: 316Mb L: 45/4096 MS: 1 PersAutoDict- DE: "b'"-
+#4009	REDUCE cov: 3488 ft: 11741 corp: 438/771Kb lim: 4096 exec/s: 2004 rss: 316Mb L: 949/4096 MS: 2 InsertByte-EraseBytes-
+#4018	NEW    cov: 3488 ft: 11742 corp: 439/774Kb lim: 4096 exec/s: 2009 rss: 316Mb L: 2574/4096 MS: 4 ChangeByte-CrossOver-PersAutoDict-InsertRepeatedBytes- DE: "\000\000\000\000\000\000\000\003"-
+#4024	REDUCE cov: 3488 ft: 11742 corp: 439/774Kb lim: 4096 exec/s: 2012 rss: 319Mb L: 103/4096 MS: 1 EraseBytes-
+#4027	REDUCE cov: 3488 ft: 11742 corp: 439/774Kb lim: 4096 exec/s: 2013 rss: 319Mb L: 260/4096 MS: 3 PersAutoDict-ShuffleBytes-EraseBytes- DE: "\001\000"-
+#4043	REDUCE cov: 3488 ft: 11742 corp: 439/774Kb lim: 4096 exec/s: 2021 rss: 324Mb L: 2141/4096 MS: 1 CrossOver-
+#4045	NEW    cov: 3490 ft: 11754 corp: 440/775Kb lim: 4096 exec/s: 2022 rss: 324Mb L: 1669/4096 MS: 2 ChangeASCIIInt-CrossOver-
+#4057	REDUCE cov: 3490 ft: 11755 corp: 441/776Kb lim: 4096 exec/s: 2028 rss: 324Mb L: 327/4096 MS: 2 ChangeByte-EraseBytes-
+#4068	NEW    cov: 3490 ft: 11757 corp: 442/776Kb lim: 4096 exec/s: 2034 rss: 324Mb L: 428/4096 MS: 1 ChangeByte-
+#4074	REDUCE cov: 3490 ft: 11757 corp: 442/776Kb lim: 4096 exec/s: 2037 rss: 324Mb L: 2496/4096 MS: 1 EraseBytes-
+#4096	pulse  cov: 3490 ft: 11757 corp: 442/776Kb lim: 4096 exec/s: 2048 rss: 324Mb
+#4101	REDUCE cov: 3490 ft: 11759 corp: 443/778Kb lim: 4096 exec/s: 2050 rss: 324Mb L: 1942/4096 MS: 2 EraseBytes-CrossOver-
+#4143	REDUCE cov: 3490 ft: 11759 corp: 443/777Kb lim: 4096 exec/s: 2071 rss: 326Mb L: 2347/4096 MS: 2 ChangeBit-EraseBytes-
+#4145	NEW    cov: 3490 ft: 11760 corp: 444/780Kb lim: 4096 exec/s: 2072 rss: 326Mb L: 3664/4096 MS: 2 InsertByte-CopyPart-
+#4146	NEW    cov: 3490 ft: 11763 corp: 445/780Kb lim: 4096 exec/s: 2073 rss: 326Mb L: 212/4096 MS: 1 EraseBytes-
+#4165	REDUCE cov: 3490 ft: 11763 corp: 445/780Kb lim: 4096 exec/s: 2082 rss: 326Mb L: 370/4096 MS: 4 CopyPart-InsertByte-ChangeByte-EraseBytes-
+#4187	NEW    cov: 3490 ft: 11765 corp: 446/780Kb lim: 4096 exec/s: 2093 rss: 329Mb L: 63/4096 MS: 2 ShuffleBytes-CrossOver-
+#4199	NEW    cov: 3490 ft: 11768 corp: 447/784Kb lim: 4096 exec/s: 2099 rss: 331Mb L: 3958/4096 MS: 2 CopyPart-InsertRepeatedBytes-
+#4215	NEW    cov: 3493 ft: 11771 corp: 448/786Kb lim: 4096 exec/s: 2107 rss: 331Mb L: 1492/4096 MS: 1 PersAutoDict- DE: "/**"-
+#4234	NEW    cov: 3493 ft: 11772 corp: 449/787Kb lim: 4096 exec/s: 2117 rss: 331Mb L: 1032/4096 MS: 4 CopyPart-CrossOver-EraseBytes-CrossOver-
+#4236	REDUCE cov: 3497 ft: 11776 corp: 450/787Kb lim: 4096 exec/s: 2118 rss: 332Mb L: 741/4096 MS: 2 ShuffleBytes-ShuffleBytes-
+#4269	REDUCE cov: 3497 ft: 11776 corp: 450/787Kb lim: 4096 exec/s: 2134 rss: 334Mb L: 3659/4096 MS: 3 ChangeBit-ChangeBit-EraseBytes-
+#4270	NEW    cov: 3501 ft: 11794 corp: 451/787Kb lim: 4096 exec/s: 2135 rss: 336Mb L: 206/4096 MS: 1 PersAutoDict- DE: "0b"-
+#4271	REDUCE cov: 3501 ft: 11794 corp: 451/786Kb lim: 4096 exec/s: 2135 rss: 336Mb L: 2719/4096 MS: 1 CrossOver-
+#4288	NEW    cov: 3501 ft: 11797 corp: 452/789Kb lim: 4096 exec/s: 2144 rss: 339Mb L: 3455/4096 MS: 2 ChangeByte-CopyPart-
+#4299	REDUCE cov: 3501 ft: 11797 corp: 452/789Kb lim: 4096 exec/s: 2149 rss: 339Mb L: 667/4096 MS: 1 EraseBytes-
+#4311	NEW    cov: 3501 ft: 11798 corp: 453/790Kb lim: 4096 exec/s: 2155 rss: 339Mb L: 643/4096 MS: 2 PersAutoDict-CrossOver- DE: "!t"-
+#4316	NEW    cov: 3501 ft: 11799 corp: 454/792Kb lim: 4096 exec/s: 2158 rss: 339Mb L: 2521/4096 MS: 5 InsertRepeatedBytes-ChangeByte-ChangeBit-CrossOver-CopyPart-
+#4317	NEW    cov: 3501 ft: 11900 corp: 455/795Kb lim: 4096 exec/s: 2158 rss: 340Mb L: 2904/4096 MS: 1 CrossOver-
+#4334	NEW    cov: 3501 ft: 11906 corp: 456/797Kb lim: 4096 exec/s: 2167 rss: 341Mb L: 2180/4096 MS: 2 InsertByte-InsertRepeatedBytes-
+#4342	NEW    cov: 3501 ft: 11907 corp: 457/800Kb lim: 4096 exec/s: 2171 rss: 342Mb L: 2867/4096 MS: 3 EraseBytes-ChangeBit-InsertRepeatedBytes-
+#4349	NEW    cov: 3501 ft: 11908 corp: 458/803Kb lim: 4096 exec/s: 2174 rss: 342Mb L: 3094/4096 MS: 2 CrossOver-CopyPart-
+#4380	REDUCE cov: 3501 ft: 11908 corp: 458/802Kb lim: 4096 exec/s: 2190 rss: 344Mb L: 1591/4096 MS: 1 EraseBytes-
+#4381	NEW    cov: 3506 ft: 11913 corp: 459/806Kb lim: 4096 exec/s: 2190 rss: 344Mb L: 4070/4096 MS: 1 ChangeBit-
+#4392	NEW    cov: 3506 ft: 11933 corp: 460/806Kb lim: 4096 exec/s: 2196 rss: 345Mb L: 183/4096 MS: 1 ShuffleBytes-
+#4398	NEW    cov: 3506 ft: 11934 corp: 461/809Kb lim: 4096 exec/s: 2199 rss: 345Mb L: 2934/4096 MS: 1 CrossOver-
+#4411	REDUCE cov: 3506 ft: 11934 corp: 461/808Kb lim: 4096 exec/s: 2205 rss: 345Mb L: 1776/4096 MS: 3 ChangeBit-InsertByte-EraseBytes-
+#4415	REDUCE cov: 3506 ft: 11934 corp: 461/808Kb lim: 4096 exec/s: 2207 rss: 345Mb L: 157/4096 MS: 4 PersAutoDict-ShuffleBytes-ChangeBit-EraseBytes- DE: "\001\000\000\000\000\000\000\000"-
+#4436	NEW    cov: 3506 ft: 11935 corp: 462/809Kb lim: 4096 exec/s: 2218 rss: 345Mb L: 1462/4096 MS: 1 CrossOver-
+#4444	REDUCE cov: 3506 ft: 11935 corp: 462/808Kb lim: 4096 exec/s: 2222 rss: 347Mb L: 2203/4096 MS: 3 CrossOver-InsertByte-EraseBytes-
+#4465	NEW    cov: 3507 ft: 11936 corp: 463/812Kb lim: 4096 exec/s: 2232 rss: 349Mb L: 3367/4096 MS: 1 ShuffleBytes-
+#4526	REDUCE cov: 3507 ft: 11936 corp: 463/812Kb lim: 4096 exec/s: 2263 rss: 351Mb L: 785/4096 MS: 1 EraseBytes-
+#4539	NEW    cov: 3507 ft: 11939 corp: 464/815Kb lim: 4096 exec/s: 2269 rss: 351Mb L: 3229/4096 MS: 3 CMP-InsertRepeatedBytes-CrossOver- DE: "r#"-
+#4560	REDUCE cov: 3507 ft: 11940 corp: 465/815Kb lim: 4096 exec/s: 2280 rss: 351Mb L: 103/4096 MS: 1 CopyPart-
+#4571	REDUCE cov: 3507 ft: 11940 corp: 465/815Kb lim: 4096 exec/s: 2285 rss: 351Mb L: 84/4096 MS: 1 EraseBytes-
+#4578	NEW    cov: 3507 ft: 11942 corp: 466/819Kb lim: 4096 exec/s: 2289 rss: 351Mb L: 4096/4096 MS: 2 ChangeBit-CopyPart-
+#4606	NEW    cov: 3508 ft: 11945 corp: 467/821Kb lim: 4096 exec/s: 2303 rss: 355Mb L: 2071/4096 MS: 3 ChangeBit-CrossOver-CMP- DE: "/**"-
+#4612	REDUCE cov: 3508 ft: 11945 corp: 467/819Kb lim: 4096 exec/s: 2306 rss: 356Mb L: 2477/4096 MS: 1 EraseBytes-
+#4644	REDUCE cov: 3508 ft: 11945 corp: 467/819Kb lim: 4096 exec/s: 2322 rss: 357Mb L: 74/4096 MS: 2 CrossOver-EraseBytes-
+#4657	NEW    cov: 3508 ft: 11946 corp: 468/820Kb lim: 4096 exec/s: 2328 rss: 357Mb L: 1141/4096 MS: 3 InsertByte-ChangeBinInt-CrossOver-
+#4663	NEW    cov: 3510 ft: 11948 corp: 469/821Kb lim: 4096 exec/s: 2331 rss: 358Mb L: 407/4096 MS: 1 ChangeBit-
+#4711	NEW    cov: 3510 ft: 11949 corp: 470/824Kb lim: 4096 exec/s: 2355 rss: 360Mb L: 3410/4096 MS: 3 PersAutoDict-CrossOver-CopyPart- DE: "\200\000\000\000\000\000\000\010"-
+#4718	NEW    cov: 3513 ft: 11952 corp: 471/826Kb lim: 4096 exec/s: 2359 rss: 360Mb L: 2004/4096 MS: 2 InsertRepeatedBytes-CopyPart-
+#4729	NEW    cov: 3513 ft: 11953 corp: 472/826Kb lim: 4096 exec/s: 2364 rss: 362Mb L: 328/4096 MS: 1 EraseBytes-
+#4749	REDUCE cov: 3513 ft: 11953 corp: 472/825Kb lim: 4096 exec/s: 2374 rss: 366Mb L: 2843/4096 MS: 5 ChangeByte-ShuffleBytes-ChangeBit-ShuffleBytes-EraseBytes-
+#4771	NEW    cov: 3514 ft: 11954 corp: 473/828Kb lim: 4096 exec/s: 2385 rss: 367Mb L: 2720/4096 MS: 2 ChangeBit-CMP- DE: "b'"-
+#4772	REDUCE cov: 3514 ft: 11954 corp: 473/828Kb lim: 4096 exec/s: 2386 rss: 367Mb L: 4045/4096 MS: 1 EraseBytes-
+#4782	NEW    cov: 3514 ft: 11984 corp: 474/832Kb lim: 4096 exec/s: 2391 rss: 367Mb L: 3819/4096 MS: 5 CopyPart-PersAutoDict-CrossOver-ShuffleBytes-CrossOver- DE: "\000\000\000>"-
+#4783	NEW    cov: 3514 ft: 11986 corp: 475/833Kb lim: 4096 exec/s: 2391 rss: 367Mb L: 1932/4096 MS: 1 EraseBytes-
+#4791	NEW    cov: 3514 ft: 11987 corp: 476/836Kb lim: 4096 exec/s: 2395 rss: 367Mb L: 2687/4096 MS: 3 ChangeASCIIInt-PersAutoDict-CopyPart- DE: "v\000\000\000"-
+#4812	REDUCE cov: 3514 ft: 11987 corp: 476/836Kb lim: 4096 exec/s: 2406 rss: 369Mb L: 1502/4096 MS: 1 CrossOver-
+#4820	REDUCE cov: 3514 ft: 11987 corp: 476/836Kb lim: 4096 exec/s: 2410 rss: 370Mb L: 263/4096 MS: 3 ChangeByte-InsertByte-EraseBytes-
+#4831	NEW    cov: 3514 ft: 11989 corp: 477/839Kb lim: 4096 exec/s: 2415 rss: 370Mb L: 3820/4096 MS: 1 InsertByte-
+#4888	REDUCE cov: 3514 ft: 11994 corp: 478/840Kb lim: 4096 exec/s: 1629 rss: 372Mb L: 574/4096 MS: 2 ChangeASCIIInt-CopyPart-
+#4924	NEW    cov: 3514 ft: 11995 corp: 479/841Kb lim: 4096 exec/s: 1641 rss: 375Mb L: 1514/4096 MS: 1 CrossOver-
+#4965	NEW    cov: 3516 ft: 12005 corp: 480/842Kb lim: 4096 exec/s: 1655 rss: 377Mb L: 499/4096 MS: 1 ChangeBit-
+#4989	REDUCE cov: 3516 ft: 12005 corp: 480/841Kb lim: 4096 exec/s: 1663 rss: 377Mb L: 2174/4096 MS: 4 ChangeByte-ChangeBinInt-ChangeBinInt-EraseBytes-
+#4992	REDUCE cov: 3516 ft: 12005 corp: 480/841Kb lim: 4096 exec/s: 1664 rss: 377Mb L: 883/4096 MS: 3 CrossOver-InsertRepeatedBytes-EraseBytes-
+#4999	NEW    cov: 3516 ft: 12012 corp: 481/845Kb lim: 4096 exec/s: 1666 rss: 379Mb L: 4038/4096 MS: 2 InsertByte-CopyPart-
+#5000	DONE   cov: 3516 ft: 12012 corp: 481/845Kb lim: 4096 exec/s: 1666 rss: 379Mb
+###### Recommended dictionary. ######
+"\001\000\000;" # Uses: 16
+"fn " # Uses: 25
+"!t" # Uses: 11
+"{ !" # Uses: 19
+"v\000\000\000" # Uses: 12
+"/*" # Uses: 12
+"\000\000\000)" # Uses: 14
+"\001(" # Uses: 10
+"G\000\000\000\000\000\000\000" # Uses: 9
+"#!" # Uses: 16
+"nc" # Uses: 16
+"/\000\000\000" # Uses: 9
+"b'" # Uses: 11
+"\000\000\000\001" # Uses: 6
+"\377\010" # Uses: 6
+"0b" # Uses: 13
+"r#" # Uses: 6
+"\001\000\000\000\000\000\000\000" # Uses: 17
+"true" # Uses: 6
+"%\000\000\000\000\000\000\000" # Uses: 8
+"cr#" # Uses: 10
+"\000\000\000\000\000\000\000\003" # Uses: 5
+"\000\000\000#" # Uses: 7
+"\032!" # Uses: 7
+"\010\000" # Uses: 8
+"\253\252\252\252\252\252\252\002" # Uses: 12
+"(/*ERROR*/)" # Uses: 10
+"\200\000\000\000\000\000\000\010" # Uses: 6
+"\260\317\016\272\246&\000\000" # Uses: 12
+"/**" # Uses: 4
+"\000\000\000\000" # Uses: 4
+"\000\000\000\000\000\000\005s" # Uses: 8
+"\006\000" # Uses: 9
+"\001\000" # Uses: 8
+"else" # Uses: 5
+"\000\003" # Uses: 7
+"0\000\000\000\000\000\000\000" # Uses: 6
+"\000\000\000\000\000\000\0022" # Uses: 7
+"\377\377\377\377\377\377\377\377" # Uses: 6
+"br#" # Uses: 7
+"c\"" # Uses: 7
+"4\000" # Uses: 2
+"\001\000\000c" # Uses: 4
+"\000\000\000>" # Uses: 1
+"/\000" # Uses: 3
+"effffff\006" # Uses: 2
+"\010\003\000\000\000\000\000\000" # Uses: 1
+###### End of recommended dictionary. ######
+Done 5000 runs in 3 second(s)
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+make cross-check
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/crates/raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.93s
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/crates/raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.85s
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+make licenses
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+cargo test --locked --test repo_gates
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running tests/repo_gates.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/rust-agentic-foundations/4c27c602a5df2f15/out/repo_gates-4c27c602a5df2f15)
+
+running 55 tests
+test citation_accepts_matching_versions ... ok
+test citation_rejects_a_manifest_bump_without_a_matching_citation ... ok
+test citation_rejects_a_missing_version ... ok
+test citation_rejects_a_version_bump_without_a_matching_manifest ... ok
+test deny_accepts_the_root_configuration_plus_the_one_exception ... ok
+test citation_version_matches_the_workspace ... ok
+test deny_rejects_a_dropped_root_exception ... ok
+test deny_rejects_a_missing_or_widened_or_repeated_exception ... ok
+test deny_rejects_a_shared_section_that_differs ... ok
+test deny_fuzz_configuration_is_the_root_configuration_plus_one_exception ... ok
+test issue_refs_flags_a_token_in_a_latin_1_file ... ok
+test issue_refs_rejects_a_colon_prefixed_number ... ok
+test issue_refs_rejects_a_hash_number_after_a_space ... ok
+test issue_refs_rejects_a_change_number ... ok
+test issue_refs_rejects_a_github_style_number ... ok
+test issue_refs_rejects_a_hash_number_after_a_word_character ... ok
+test issue_refs_rejects_a_parenthesised_hash_number ... ok
+test issue_refs_rejects_a_plan_possessive ... ok
+test issue_refs_rejects_a_pull_url ... ok
+test issue_refs_rejects_a_pull_request_label ... ok
+test issue_refs_rejects_a_task_number ... ok
+test issue_refs_rejects_an_all_digit_css_colour ... ok
+test issue_refs_rejects_an_acceptance_label ... ok
+test issue_refs_rejects_an_issue_url ... ok
+test issue_refs_rejects_per_the_plan ... ok
+test issue_refs_rejects_the_word_issue_with_a_number ... ok
+test issue_refs_rejects_the_words_pull_request_with_a_number ... ok
+test issue_refs_rejects_this_branch ... ok
+test issue_refs_rejects_this_issue ... ok
+test issue_refs_skips_a_nul_containing_file_holding_a_token ... ok
+test issue_refs_reports_every_hit_as_file_and_line ... ok
+test issue_refs_spares_a_hex_colour_with_letters ... ok
+test issue_refs_scans_text_files_and_skips_binary_ones ... ok
+test issue_refs_spares_a_quoted_three_digit_colour ... ok
+test issue_refs_spares_a_six_digit_colour ... ok
+test issue_refs_spares_an_xml_character_reference ... ok
+test issue_refs_spares_near_miss_prose ... ok
+test issue_refs_treats_only_a_nul_byte_as_binary ... ok
+test licenses_accepts_a_matching_fingerprint ... ok
+test licenses_accepts_bytes_that_hash_to_the_pin ... ok
+test licenses_rejects_a_fingerprint_mismatch ... ok
+test licenses_rejects_a_record_without_a_fingerprint_line ... ok
+test licenses_rejects_an_altered_mulan_text ... ok
+test licenses_sha256_matches_known_vectors ... ok
+test lints_accepts_equal_tables_whatever_the_comments ... ok
+test lints_reads_single_and_multi_line_member_lists ... ok
+test lints_fuzz_workspace_tables_equal_the_root_tables ... ok
+test lints_every_workspace_manifest_inherits_the_workspace_lints ... ok
+test lints_rejects_a_member_manifest_that_does_not_inherit ... ok
+test licenses_zh_hans_matches_the_recorded_fingerprint ... ok
+test lints_rejects_a_root_without_lint_tables ... ok
+test lints_rejects_a_weakened_level_in_the_fuzz_tables ... ok
+test lints_rejects_an_added_or_removed_lint_in_the_fuzz_tables ... ok
+test licenses_mulan_texts_match_the_pinned_digest ... ok
+test issue_refs_tracked_files_are_clean ... ok
+
+test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+make issue-refs
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+cargo test --locked --test repo_gates
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running tests/repo_gates.rs (/opt/.cargo/af/9f8b9a4b0c17e0/debug/build/rust-agentic-foundations/4c27c602a5df2f15/out/repo_gates-4c27c602a5df2f15)
+
+running 55 tests
+test citation_accepts_matching_versions ... ok
+test citation_rejects_a_missing_version ... ok
+test citation_rejects_a_manifest_bump_without_a_matching_citation ... ok
+test citation_rejects_a_version_bump_without_a_matching_manifest ... ok
+test citation_version_matches_the_workspace ... ok
+test deny_accepts_the_root_configuration_plus_the_one_exception ... ok
+test deny_rejects_a_dropped_root_exception ... ok
+test deny_fuzz_configuration_is_the_root_configuration_plus_one_exception ... ok
+test deny_rejects_a_missing_or_widened_or_repeated_exception ... ok
+test deny_rejects_a_shared_section_that_differs ... ok
+test issue_refs_flags_a_token_in_a_latin_1_file ... ok
+test issue_refs_rejects_a_colon_prefixed_number ... ok
+test issue_refs_rejects_a_change_number ... ok
+test issue_refs_rejects_a_github_style_number ... ok
+test issue_refs_rejects_a_hash_number_after_a_space ... ok
+test issue_refs_rejects_a_hash_number_after_a_word_character ... ok
+test issue_refs_rejects_a_parenthesised_hash_number ... ok
+test issue_refs_rejects_a_plan_possessive ... ok
+test issue_refs_rejects_a_pull_request_label ... ok
+test issue_refs_rejects_a_pull_url ... ok
+test issue_refs_rejects_a_task_number ... ok
+test issue_refs_rejects_an_all_digit_css_colour ... ok
+test issue_refs_rejects_an_acceptance_label ... ok
+test issue_refs_rejects_an_issue_url ... ok
+test issue_refs_rejects_per_the_plan ... ok
+test issue_refs_rejects_the_word_issue_with_a_number ... ok
+test issue_refs_rejects_the_words_pull_request_with_a_number ... ok
+test issue_refs_rejects_this_branch ... ok
+test issue_refs_rejects_this_issue ... ok
+test issue_refs_skips_a_nul_containing_file_holding_a_token ... ok
+test issue_refs_reports_every_hit_as_file_and_line ... ok
+test issue_refs_spares_a_hex_colour_with_letters ... ok
+test issue_refs_spares_a_quoted_three_digit_colour ... ok
+test issue_refs_scans_text_files_and_skips_binary_ones ... ok
+test issue_refs_spares_a_six_digit_colour ... ok
+test issue_refs_spares_an_xml_character_reference ... ok
+test issue_refs_spares_near_miss_prose ... ok
+test issue_refs_treats_only_a_nul_byte_as_binary ... ok
+test licenses_accepts_a_matching_fingerprint ... ok
+test licenses_accepts_bytes_that_hash_to_the_pin ... ok
+test licenses_rejects_a_fingerprint_mismatch ... ok
+test licenses_rejects_a_record_without_a_fingerprint_line ... ok
+test licenses_rejects_an_altered_mulan_text ... ok
+test licenses_sha256_matches_known_vectors ... ok
+test lints_accepts_equal_tables_whatever_the_comments ... ok
+test lints_fuzz_workspace_tables_equal_the_root_tables ... ok
+test lints_reads_single_and_multi_line_member_lists ... ok
+test lints_every_workspace_manifest_inherits_the_workspace_lints ... ok
+test lints_rejects_a_member_manifest_that_does_not_inherit ... ok
+test licenses_zh_hans_matches_the_recorded_fingerprint ... ok
+test lints_rejects_a_weakened_level_in_the_fuzz_tables ... ok
+test lints_rejects_a_root_without_lint_tables ... ok
+test lints_rejects_an_added_or_removed_lint_in_the_fuzz_tables ... ok
+test licenses_mulan_texts_match_the_pinned_digest ... ok
+test issue_refs_tracked_files_are_clean ... ok
+
+test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source'
+
+real	1m26.510s
+user	9m7.926s
+sys	0m21.106s
+EXIT=0

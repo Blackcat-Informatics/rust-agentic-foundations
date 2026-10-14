@@ -1,0 +1,58 @@
+# R6 shape-family coverage (committed: tests/support/shapes.rs families(), overflow_harness::every_shape_family_loads_at_its_largest_admitted_size_and_one_size_more_is_refused)
+#
+# Each family is loaded through Workspace::load (parse, fact reading and drop on the 64 MiB parse thread) in a child process.
+# at = largest size the budgets admit; it LOADS with its index in debug and in release (harness passes in both profiles, no Aborted).
+# at+1 is REFUSED, naming the budget given. Recursion limit 1927.
+# exhaustion = with every budget disabled (scratch probe), the size at which the same load first overflows the 64 MiB parse thread,
+# and the counter score of that file; 'none<=N' = no overflow up to size N. headroom = exhaustion score / 1927 for recursion-bound
+# families, exhaustion size / at for delimiter-bound ones.
+#
+family	at	score_at	refused_one_over_by	debug_exhaustion(size,score)	release_exhaustion(size,score)	debug_headroom	release_headroom
+closures_with_parameters	91	1917	parser recursion	351,7377	912,19158	3.83x	9.94x
+tuples	101	1925	parser recursion	413,7853	1001,19025	4.08x	9.87x
+arrays	101	1925	parser recursion	410,7796	1001,19025	4.05x	9.87x
+struct_literals	101	1925	parser recursion	402,7644	979,18607	3.97x	9.66x
+statement_blocks	101	1925	parser recursion	379,7207	957,18189	3.74x	9.44x
+match_arms	96	1926	parser recursion	389,7786	966,19326	4.04x	10.03x
+call_arguments	101	1925	parser recursion	410,7796	995,18911	4.05x	9.81x
+if_let_else_if	76	1906	parser recursion	373,9331	941,23531	4.84x	12.21x
+labelled_blocks	96	1926	parser recursion	374,7486	948,18966	3.88x	9.84x
+async_blocks	91	1917	parser recursion	380,7986	954,20040	4.14x	10.40x
+macro_call_groups	126	132	delimiter nesting	none<=8064,8070	none<=8064,8070	64.00x+	64.00x+
+macro_rules_bodies	126	129	delimiter nesting	none<=8064,8067	none<=8064,8067	64.00x+	64.00x+
+attribute_arguments	126	255	delimiter nesting	none<=8064,16131	none<=8064,16131	64.00x+	64.00x+
+deep_pattern_alternatives	126	1771	delimiter nesting	2265,31717	2350,32907	17.98x	18.65x
+where_bounds	46	1894	parser recursion	120,4928	1165,47773	2.56x	24.79x
+impl_trait_arguments	101	1922	parser recursion	230,4373	2293,43570	2.27x	22.61x
+nested_for_lifetimes	83	1910	parser recursion	232,5337	2370,54511	2.77x	28.29x
+generic_types	58	1915	parser recursion	129,4258	1298,42835	2.21x	22.23x
+turbofish	58	1925	parser recursion	129,4268	1298,42845	2.21x	22.23x
+reference_pointer_chains	384	1924	parser recursion	1068,5344	11298,56494	2.77x	29.32x
+fn_pointer_chains	481	1925	parser recursion	1862,7449	13560,54241	3.87x	28.15x
+dyn_fn_chains	62	1923	parser recursion	144,4465	1384,42905	2.32x	22.27x
+tuple_and_array_types	56	1905	parser recursion	127,4319	1354,46037	2.24x	23.89x
+cast_chains	1921	1927	parser recursion	113489,113495	107816,107822	58.90x	55.95x
+unary_chains	320	1926	parser recursion	3006,18042	10045,60276	9.36x	31.28x
+try_chains	1921	1927	parser recursion	none<=122944,122950	120107,120113	63.80x+	62.33x
+range_chains	640	1926	parser recursion	6841,20529	17256,51774	10.65x	26.87x
+method_chains	960	1927	parser recursion	none<=61440,122887	none<=61440,122887	63.77x+	63.77x+
+raw_strings	960	1926	parser recursion	4149,8304	12595,25196	4.31x	13.08x
+chars_and_lifetimes	639	1926	parser recursion	4137,12420	12590,37779	6.45x	19.61x
+nested_block_comments	1921	1927	parser recursion	7593,7599	18170,18176	3.94x	9.43x
+raw_identifiers	640	1926	parser recursion	4144,12438	12570,37716	6.45x	19.57x
+crlf_lines	1923	1927	parser recursion	7601,7605	18189,18193	3.95x	9.44x
+inline_modules	128	384	delimiter nesting	1821,5463	none<=8192,24576	14.23x	64.00x+
+fns_in_blocks	128	514	delimiter nesting	1671,6686	none<=8192,32770	13.05x	64.00x+
+impls_in_fns	42	462	delimiter nesting	617,6787	none<=2688,29568	14.69x	64.00x+
+doc_comments	101	1925	parser recursion	379,7207	957,18189	3.74x	9.44x
+doc_comment_items	128	384	delimiter nesting	1821,5463	none<=4000 (sizes 2000 and 4000 parsed and read, then refused by module nesting in the walk)	14.23x	31.25x+
+shebang	100	1911	parser recursion	413,7858	1003,19068	4.08x	9.89x
+#
+# Result: every family loads at its admitted limit without exhausting the 64 MiB parse thread in either profile.
+# Lowest debug headroom: generic_types / turbofish (overflow at score 4258, 2.21x the limit), tuple_and_array_types (4319, 2.24x),
+# impl_trait_arguments (4373, 2.27x), dyn_fn_chains (4465, 2.32x); every recursion-bound family keeps the factor of at least 2
+# the limit is derived with. Lowest release headroom: nested_block_comments / crlf_lines (score 18176, 9.4x).
+# No family loads at a score <= 1927 and exhausts the stack.
+
+# Added: doc_comments (nested blocks whose statements carry `///` and `/** */` doc comments), doc_comment_items (nested
+# modules, each with a 40-line `///` run and an inner `//!`), shebang (a `#!` line before nested tuples). 39 families in all.

@@ -1,0 +1,33 @@
+**R3 fixed: file identity, iterative traversal and work budgets** (commit cd7d4fb, pushed)
+
+- **Gaps:**
+  - **S-2 (High):** files were keyed by how the path is spelled, so in-root symlinks gave 2^k parses. A 1.3 KB tree took 24 s and 2 GB, and a larger one was OOM-killed.
+  - **S-4:** discovery recursed on the caller's stack, and deep directories aborted.
+  - **P-F4:** the module-path budget did not bound cost. 120 KB of source produced 3.1 GB.
+  - **P-F8 / P-F10:** cubic discovery, and a recursive module walk.
+- **Identity:** a file's identity is its device and inode on Unix, its canonical path elsewhere, or its normalised key in memory. `Tree::read_unseen` gets the identity and the text from **one** verified open; strace confirms one open per file. A file reached under several spellings is parsed once.
+- **Budgets:** each is typed and refused naming the budget and the file or line.
+  - Total bytes: 256 MiB.
+  - Item bytes: 512 MiB.
+  - Fact bytes: 256 MiB, charged on the parse thread.
+  - Directory depth: 128.
+  - Tokens per file: 2,000,000, the owner's decision "(1) - default to 2M". It is configurable, and the one-file parse peak is ≤ limit × 1,664 B, about 3.1 GiB at the default. The Contract recommends 320,000 tokens for hosts that need under 512 MiB.
+- **How the charges hold:** every charge is an **upper bound by construction**, derived in `cost.rs` from how `Vec`, `BTreeMap` and hash tables allocate.
+  - Three review rounds tried to beat the meters: per-arrival copies, one-name scopes, nested inline modules, many tiny files, targets, impls and spellings.
+  - The last round's held/charged ratios are 0.30–0.92 across all of them, and a load with every budget at its limit keeps about 716 MiB, within the stated 1 GiB.
+- **Honest limit:** the scope tables that `use` declarations and globs build have **no budget yet**. The Contract and SECURITY.md say so plainly, with the measured case of 166 KB of source taking 7.3 GiB. R5c adds that budget.
+- **Iterative traversal:** discovery, member expansion, the module walk and index building no longer recurse.
+  - 20,000 directory levels run on a 2 MiB thread, and 128 nested modules on a 512 KiB thread.
+  - Line-position offsets are now computed in linear time.
+- **Security probes re-run:**
+  - Symlink amplification: 24 s / 2 GB before, `ModuleCycle` in 1–3 ms now.
+  - The 2,100-level disk chain and the 20,000-level memory chain end typed in milliseconds.
+  - The 8 MiB `a<b; ` file (2.6 GB before) is refused by the pre-scan in 4–25 ms.
+- **Registry scan at defaults:**
+  - 1,021 of 1,177 crates load, with 0 misplaced items and **0 budget refusals**.
+  - The largest item charge is 64% of its limit (`linux-raw-sys`).
+  - chrono-tz (1.5M tokens) loads.
+  - web-sys stops at the per-child memory cap in the unbudgeted glob tables.
+- **Behaviour preserved:** the reviewer found output identical to the old code on this repository and on 161 registry crates (items, file reaches, every resolution).
+- **Gates:** raf-source tests 294+ in debug and release, workspace clippy, rustdoc, docs_contract 139, repo_gates 55, `make msrv`, `make cross-check`, `make reuse`, and the hook.
+- **Review:** `tasks/R3-review.md`, VERDICT: PASS after three rechecks.

@@ -1,0 +1,15 @@
+fn_where_nested	ok_n=1663	abort_n=1670	units_at_abort=8350	units_ok=8315	units_per_rep=5.00	bytes_per_unit=8037	ABORT PARSE
+impl_where_nested	ok_n=614	abort_n=616	units_at_abort=8624	units_ok=8596	units_per_rep=14.00	bytes_per_unit=7782	ABORT PARSE
+mod_inline	ok_n=1817	abort_n=1825	units_at_abort=5475	units_ok=5451	units_per_rep=3.00	bytes_per_unit=12257	ABORT PARSE
+trait_nested	ok_n=1071	abort_n=1074	units_at_abort=6444	units_ok=6426	units_per_rep=6.00	bytes_per_unit=10414	ABORT PARSE
+fn_nested	ok_n=1663	abort_n=1670	units_at_abort=6680	units_ok=6652	units_per_rep=4.00	bytes_per_unit=10046	ABORT PARSE
+impl_nested	ok_n=614	abort_n=616	units_at_abort=6776	units_ok=6754	units_per_rep=11.00	bytes_per_unit=9904	ABORT PARSE
+where_bound	ok_n=1352	abort_n=1356	units_at_abort=4073	units_ok=4061	units_per_rep=3.00	bytes_per_unit=16477	ABORT PARSE
+impl_self_ref	ok_n=2125	abort_n=2132	units_at_abort=4268	units_ok=4254	units_per_rep=2.00	bytes_per_unit=15724	ABORT PARSE
+impl_self_generic	ok_n=1352	abort_n=1356	units_at_abort=4072	units_ok=4060	units_per_rep=3.00	bytes_per_unit=16481	ABORT PARSE
+impl_dyn_self	ok_n=1352	abort_n=1356	units_at_abort=4073	units_ok=4061	units_per_rep=3.00	bytes_per_unit=16477	ABORT PARSE
+impl_trait_generic	ok_n=1352	abort_n=1356	units_at_abort=4072	units_ok=4060	units_per_rep=3.00	bytes_per_unit=16481	ABORT PARSE
+DONE
+cfg_attr	no_abort_at_n=4000	units=8003	bytes_per_unit<8385	OK 8003
+DONE
+pbox	no_abort_at_n=30000	units=30006	bytes_per_unit<2237	OK 30006

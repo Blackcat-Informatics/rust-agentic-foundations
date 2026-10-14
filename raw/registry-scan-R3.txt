@@ -1,0 +1,1194 @@
+accessory@2.1.1 | OK items=50 files=5 misplaced=0 total=37305 item=135370 fact=66613 tokens=3293 depth=0
+addr2line@0.27.1 | OK items=200 files=8 misplaced=0 total=117859 item=423772 fact=108463 tokens=4074 depth=0
+adler2@2.0.1 | OK items=31 files=3 misplaced=0 total=18345 item=76913 fact=24696 tokens=1817 depth=0
+aead@0.6.1 | OK items=75 files=3 misplaced=0 total=30756 item=156887 fact=50412 tokens=3284 depth=0
+aes@0.9.3 | OK items=126 files=16 misplaced=0 total=90395 item=306212 fact=79887 tokens=3516 depth=0
+aes-gcm@0.11.1 | OK items=41 files=5 misplaced=0 total=369797 item=124713 fact=40372 tokens=21913 depth=0
+aes-gcm-siv@0.11.1 | OK items=39 files=5 misplaced=0 total=43788 item=111793 fact=27144 tokens=2110 depth=0
+ahash@0.8.12 | ERR Target :: Cargo.toml: the root tests/bench.rs already belongs to the target `bench` (reached by manifest key `bench.path`)
+aho-corasick@1.1.5 | OK items=1029 files=31 misplaced=0 total=765110 item=1744341 fact=992615 tokens=16720 depth=0
+alloc-no-stdlib@2.0.4 | OK items=76 files=10 misplaced=0 total=40667 item=199973 fact=35908 tokens=2953 depth=0
+alloc-stdlib@0.2.4 | OK items=63 files=6 misplaced=0 total=24505 item=156509 fact=31544 tokens=3567 depth=0
+allocator-api2@0.2.21 | OK items=394 files=17 misplaced=0 total=278797 item=697403 fact=513823 tokens=19600 depth=0
+android_system_properties@0.1.6 | OK items=14 files=2 misplaced=0 total=9717 item=43679 fact=13840 tokens=1470 depth=0
+anes@0.1.6 | OK items=171 files=28 misplaced=0 total=97353 item=432893 fact=98485 tokens=3479 depth=0
+anndists@0.1.5 | OK items=97 files=6 misplaced=0 total=70074 item=200329 fact=50286 tokens=8711 depth=0
+anstream@1.0.0 | OK items=216 files=13 misplaced=0 total=87674 item=398152 fact=144419 tokens=3247 depth=0
+anstyle@1.0.14 | OK items=167 files=7 misplaced=0 total=53257 item=262524 fact=91442 tokens=4729 depth=0
+anstyle-parse@1.0.0 | OK items=88 files=7 misplaced=0 total=67921 item=187136 fact=46119 tokens=8267 depth=0
+anstyle-query@1.1.5 | OK items=25 files=3 misplaced=0 total=12111 item=63712 fact=14508 tokens=824 depth=0
+anstyle-wincon@3.0.11 | OK items=59 files=6 misplaced=0 total=26001 item=129186 fact=29018 tokens=1837 depth=0
+anyhow@1.0.104 | OK items=372 files=29 misplaced=0 total=194306 item=810138 fact=248060 tokens=24265 depth=0
+anymap2@0.13.0 | OK items=120 files=4 misplaced=0 total=40223 item=218843 fact=68286 tokens=3960 depth=0
+appendlist@1.4.0 | OK items=38 files=1 misplaced=0 total=17809 item=72548 fact=29208 tokens=3189 depth=0
+approx@0.5.1 | OK items=282 files=10 misplaced=0 total=85470 item=496839 fact=124053 tokens=2949 depth=0
+aquamarine@0.6.0 | OK items=46 files=3 misplaced=0 total=25522 item=111941 fact=29503 tokens=3425 depth=0
+ar_archive_writer@0.5.3 | OK items=158 files=13 misplaced=0 total=143230 item=404671 fact=64256 tokens=6533 depth=0
+arbitrary@1.4.2 | OK items=344 files=54 misplaced=0 total=124258 item=852526 fact=245639 tokens=7040 depth=0
+arc-swap@1.9.2 | OK items=389 files=27 misplaced=0 total=219494 item=839504 fact=374931 tokens=8873 depth=0
+archery@1.2.3 | OK items=164 files=11 misplaced=0 total=71044 item=338402 fact=118540 tokens=3047 depth=0
+argon2@0.6.0 | OK items=188 files=10 misplaced=0 total=105931 item=378116 fact=126196 tokens=4972 depth=0
+arrayref@0.3.9 | OK items=34 files=4 misplaced=0 total=19058 item=77484 fact=22157 tokens=4058 depth=0
+arrayvec@0.7.8 | OK items=318 files=12 misplaced=0 total=101204 item=545765 fact=188945 tokens=9176 depth=0
+as_variant@1.3.0 | OK items=4 files=1 misplaced=0 total=6359 item=21540 fact=12218 tokens=1210 depth=0
+ascii@1.1.0 | OK items=404 files=10 misplaced=0 total=139014 item=664194 fact=253406 tokens=11745 depth=0
+ascii-canvas@4.0.0 | ERR InherentImplSelf :: src/lib.rs:34: the self type `dyn AsciiView + 'a` of an inherent impl is not a local struct, enum or union
+askama@0.16.1 | OK items=444 files=18 misplaced=0 total=168739 item=887014 fact=314295 tokens=6333 depth=0
+askama_derive@0.16.1 | OK items=538 files=20 misplaced=0 total=455630 item=1127124 fact=261768 tokens=13553 depth=0
+askama_macros@0.16.1 | OK items=1 files=1 misplaced=0 total=2069 item=16394 fact=443 tokens=92 depth=0
+askama_parser@0.16.1 | OK items=369 files=8 misplaced=0 total=257882 item=764197 fact=166219 tokens=14341 depth=0
+asn1-rs@0.7.2 | OK items=1046 files=80 misplaced=0 total=398716 item=2084462 fact=636506 tokens=5649 depth=0
+asn1-rs-derive@0.6.0 | OK items=36 files=6 misplaced=0 total=30384 item=107958 fact=18670 tokens=3751 depth=0
+asn1-rs-impl@0.2.0 | OK items=10 files=2 misplaced=0 total=5163 item=38427 fact=3623 tokens=756 depth=0
+assert_cmd@2.2.2 | OK items=217 files=11 misplaced=0 total=87751 item=389915 fact=196900 tokens=7283 depth=0
+assign@1.1.1 | OK items=8 files=1 misplaced=0 total=5787 item=27368 fact=11014 tokens=1145 depth=0
+async-channel@2.5.0 | ERR InherentImplSelf :: src/lib.rs:616: the self type `Receiver < T >` of an inherent impl is not a local struct, enum or union
+async-compression@0.4.50 | OK items=1074 files=71 misplaced=0 total=199352 item=2683640 fact=178749 tokens=3615 depth=0
+async-once-cell@0.5.4 | OK items=91 files=1 misplaced=0 total=57434 item=161895 fact=69378 tokens=9229 depth=0
+async-stream@0.3.6 | ERR InherentImplSelf :: src/async_stream.rs:20: the self type `AsyncStream < T , U >` of an inherent impl is not a local struct, enum or union
+async-stream-impl@0.3.6 | OK items=15 files=1 misplaced=0 total=11668 item=42957 fact=7306 tokens=2159 depth=0
+async-trait@0.1.92 | OK items=459 files=11 misplaced=0 total=82266 item=981218 fact=206508 tokens=8228 depth=0
+async-tungstenite@0.32.1 | ERR InherentImplSelf :: src/tokio.rs:485: the self type `TokioAdapter < T >` of an inherent impl is not a local struct, enum or union
+atomic-waker@1.1.2 | OK items=20 files=3 misplaced=0 total=23122 item=65603 fact=26276 tokens=1577 depth=0
+autocfg@1.5.1 | OK items=124 files=15 misplaced=0 total=45585 item=275562 fact=67331 tokens=3827 depth=0
+automod@1.0.17 | OK items=15 files=3 misplaced=0 total=7789 item=57661 fact=14182 tokens=1201 depth=0
+aws-lc-rs@1.18.1 | ERR InherentImplSelf :: src/aead.rs:565: the self type `OpeningKeyPreparedNonce < '_ , N >` of an inherent impl is not a local struct, enum or union
+aws-lc-sys@0.45.0 | OK items=450 files=24 misplaced=0 total=341833 item=913367 fact=214963 tokens=10638 depth=0
+axum@0.8.9 | ERR InherentImplSelf :: src/handler/future.rs:31: the self type `LayeredFuture < S >` of an inherent impl is not a local struct, enum or union
+axum-core@0.5.6 | ERR InherentImplSelf :: src/extract/rejection.rs:17: the self type `FailedToBufferBody` of an inherent impl is not a local struct, enum or union
+az@1.3.0 | OK items=184 files=7 misplaced=0 total=190203 item=414771 fact=112935 tokens=15731 depth=0
+backon@1.6.0 | OK items=227 files=15 misplaced=0 total=101226 item=516549 fact=196475 tokens=3771 depth=0
+backtrace@0.3.76 | OK items=274 files=20 misplaced=0 total=131153 item=545846 fact=155797 tokens=5006 depth=0
+backtrace-ext@0.2.1 | OK items=69 files=3 misplaced=0 total=28001 item=127683 fact=34255 tokens=2679 depth=0
+base16ct@0.2.0 | OK items=57 files=8 misplaced=0 total=19284 item=146259 fact=32077 tokens=1017 depth=0
+base64@0.23.1 | OK items=572 files=26 misplaced=0 total=333295 item=1202035 fact=368504 tokens=13008 depth=0
+base64-simd@0.8.0 | OK items=136 files=11 misplaced=0 total=55536 item=332390 fact=81359 tokens=2599 depth=0
+base64ct@1.8.3 | OK items=266 files=23 misplaced=0 total=96028 item=596299 fact=133159 tokens=4150 depth=0
+basic-toml@0.1.10 | OK items=395 files=17 misplaced=0 total=163051 item=635725 fact=136410 tokens=11866 depth=0
+biblatex@0.10.0 | OK items=321 files=9 misplaced=0 total=199780 item=582980 fact=151497 tokens=8585 depth=0
+bincode@1.3.3 | ERR UnsupportedItem :: src/config/int.rs:99: unsupported item: serde_if_integer128 ! { fn u128_size (v : u128) -> u64 ; fn (reached by `mod int;`)
+bincode-next@3.1.1 | ERR InherentImplSelf :: src/error.rs:311: the self type `DecodeError` of an inherent impl is not a local struct, enum or union
+bindgen@0.72.1 | ERR InherentImplSelf :: lib.rs:131: the self type `CodegenConfig` of an inherent impl is not a local struct, enum or union
+bit-set@0.9.1 | OK items=130 files=2 misplaced=0 total=56255 item=214454 fact=84874 tokens=12017 depth=0
+bit-vec@0.9.1 | OK items=227 files=2 misplaced=0 total=116044 item=350612 fact=161151 tokens=25806 depth=0
+bitfield@0.19.5 | ERR InherentImplSelf :: tests/lib.rs:99: the self type `FooBar` of an inherent impl is not a local struct, enum or union
+bitfield-macros@0.19.5 | OK items=34 files=1 misplaced=0 total=26997 item=76697 fact=24452 tokens=4904 depth=0
+bitflags@2.13.2 | OK items=329 files=51 misplaced=0 total=175310 item=765366 fact=176213 tokens=4119 depth=0
+bitmaps@3.2.1 | OK items=138 files=3 misplaced=0 total=69206 item=216515 fact=70458 tokens=12175 depth=0
+bitvec@1.1.1 | ERR InherentImplSelf :: src/slice/iter.rs:2553: the self type `ChunksExactMutNoAlias < 'a , T , O >` of an inherent impl is not a local struct, enum or union
+blake2@0.10.6 | ERR InherentImplSelf :: src/simd/simdty.rs:66: the self type `Simd4 < T >` of an inherent impl is not a local struct, enum or union
+blake3@1.8.7 | OK items=553 files=20 misplaced=0 total=329571 item=996549 fact=300666 tokens=10350 depth=0
+block-buffer@0.12.1 | OK items=93 files=4 misplaced=0 total=40074 item=176772 fact=53878 tokens=4177 depth=0
+block-padding@0.4.2 | OK items=35 files=1 misplaced=0 total=14330 item=68832 fact=26566 tokens=2868 depth=0
+blowfish@0.9.1 | OK items=27 files=4 misplaced=0 total=22220 item=72291 fact=15370 tokens=2137 depth=0
+boon@0.6.1 | OK items=338 files=13 misplaced=0 total=194111 item=635204 fact=151383 tokens=7762 depth=0
+borrow-or-share@0.2.4 | OK items=16 files=1 misplaced=0 total=10619 item=45229 fact=23023 tokens=2119 depth=0
+boxed_error@0.2.3 | OK items=5 files=2 misplaced=0 total=7237 item=32208 fact=4204 tokens=963 depth=0
+brotli@8.0.4 | OK items=2029 files=69 misplaced=0 total=4522263 item=4078008 fact=882179 tokens=566642 depth=0
+brotli-decompressor@5.0.3 | OK items=692 files=24 misplaced=0 total=2017774 item=1292193 fact=272171 tokens=245755 depth=0
+bs58@0.5.1 | OK items=119 files=11 misplaced=0 total=77856 item=238891 fact=95794 tokens=4325 depth=0
+bstr@1.13.0 | OK items=614 files=35 misplaced=0 total=384802 item=1224354 fact=697999 tokens=24675 depth=0
+btls@0.5.6 | ERR InherentImplSelf :: src/aead.rs:171: the self type `AeadCtx` of an inherent impl is not a local struct, enum or union
+btls-sys@0.5.6 | OK items=52 files=4 misplaced=0 total=45447 item=133349 fact=26916 tokens=4705 depth=0
+buffered-reader@1.4.1 | OK items=378 files=14 misplaced=0 total=140395 item=597725 fact=226282 tokens=9953 depth=0
+bumpalo@3.20.3 | OK items=506 files=10 misplaced=0 total=357066 item=788781 fact=643624 tokens=17926 depth=0
+by_address@1.2.1 | OK items=42 files=1 misplaced=0 total=11466 item=84940 fact=31078 tokens=2520 depth=0
+bytecount@0.6.9 | OK items=86 files=11 misplaced=0 total=44032 item=220615 fact=42921 tokens=1520 depth=0
+bytemuck@1.25.2 | OK items=259 files=24 misplaced=0 total=188944 item=563241 fact=288510 tokens=6407 depth=0
+bytemuck_derive@1.11.0 | OK items=163 files=4 misplaced=0 total=93890 item=308096 fact=100926 tokens=11094 depth=0
+byteorder@1.5.0 | OK items=229 files=3 misplaced=0 total=168676 item=322887 fact=277471 tokens=21956 depth=0
+byteorder-lite@0.1.0 | OK items=243 files=2 misplaced=0 total=141316 item=331861 fact=249377 tokens=21987 depth=0
+bytes@1.12.1 | OK items=798 files=31 misplaced=0 total=372604 item=1372979 fact=668444 tokens=17910 depth=0
+bytesize@2.7.0 | OK items=177 files=7 misplaced=0 total=51506 item=311197 fact=85554 tokens=4437 depth=0
+byteview@0.10.2 | OK items=168 files=4 misplaced=0 total=51112 item=289022 fact=83611 tokens=8070 depth=0
+bzip2@0.6.1 | OK items=154 files=5 misplaced=0 total=51940 item=286434 fact=96391 tokens=2889 depth=0
+bzip2-sys@0.1.13+1.0.8 | OK items=25 files=2 misplaced=0 total=5128 item=59382 fact=7384 tokens=544 depth=0
+calendrical_calculations@0.2.4 | OK items=388 files=14 misplaced=0 total=276390 item=710517 fact=229676 tokens=23154 depth=0
+camellia@0.1.0 | ERR InherentImplSelf :: src/camellia.rs:119: the self type `Camellia128` of an inherent impl is not a local struct, enum or union
+camino@1.2.4 | OK items=295 files=6 misplaced=0 total=142927 item=460166 fact=294156 tokens=22587 depth=0
+cap@0.1.2 | OK items=28 files=1 misplaced=0 total=14400 item=59575 fact=15513 tokens=3311 depth=0
+capacity_builder@0.5.0 | OK items=165 files=5 misplaced=0 total=32838 item=282136 fact=70627 tokens=5042 depth=0
+capacity_builder_macros@0.3.0 | OK items=2 files=1 misplaced=0 total=1975 item=20303 fact=1402 tokens=246 depth=0
+capnp@0.27.2 | OK items=3542 files=55 misplaced=0 total=1254300 item=5396021 fact=1595027 tokens=168888 depth=0
+capnp-futures@0.27.0 | OK items=83 files=5 misplaced=0 total=63658 item=195865 fact=48474 tokens=5516 depth=0
+capnp-rpc@0.27.0 | OK items=1942 files=14 misplaced=0 total=655196 item=2823578 fact=874865 tokens=105494 depth=0
+capnpc@0.27.0 | OK items=110 files=6 misplaced=0 total=172234 item=220173 fact=54201 tokens=20577 depth=0
+cargo-config2@0.1.45 | OK items=803 files=26 misplaced=0 total=401691 item=1413223 fact=462350 tokens=14146 depth=0
+caseless@0.2.2 | OK items=25 files=2 misplaced=0 total=70627 item=58328 fact=8313 tokens=18727 depth=0
+cast@0.3.0 | OK items=29 files=2 misplaced=0 total=25931 item=71680 fact=19673 tokens=3236 depth=0
+cast5@0.11.1 | OK items=30 files=5 misplaced=0 total=43955 item=92889 fact=18330 tokens=4211 depth=0
+castaway@0.2.4 | OK items=43 files=4 misplaced=0 total=34616 item=117493 fact=63903 tokens=3572 depth=0
+cbc@0.2.1 | OK items=41 files=6 misplaced=0 total=19162 item=127469 fact=37900 tokens=1181 depth=0
+cc@1.8.0 | OK items=467 files=21 misplaced=0 total=438833 item=919268 fact=345538 tokens=33430 depth=0
+cexpr@0.6.0 | OK items=105 files=5 misplaced=0 total=49100 item=223583 fact=63195 tokens=5163 depth=0
+cfb-mode@0.8.2 | OK items=65 files=5 misplaced=0 total=23588 item=156006 fact=47669 tokens=2069 depth=0
+cfg-if@1.0.5 | OK items=10 files=2 misplaced=0 total=8161 item=34265 fact=6243 tokens=1227 depth=0
+cfg_aliases@0.2.2 | OK items=4 files=2 misplaced=0 total=15132 item=25488 fact=15525 tokens=2068 depth=0
+chacha20@0.10.2 | OK items=143 files=10 misplaced=0 total=67528 item=357435 fact=78957 tokens=3632 depth=0
+chacha20poly1305@0.11.0 | OK items=44 files=3 misplaced=0 total=23818 item=124532 fact=41369 tokens=2095 depth=0
+charabia@0.9.9 | OK items=429 files=35 misplaced=0 total=247162 item=1086008 fact=264507 tokens=3878 depth=0
+chaser-oxide@0.2.4 | ERR InherentImplSelf :: src/handler/commandfuture.rs:37: the self type `CommandFuture < T >` of an inherent impl is not a local struct, enum or union
+chinese-number@0.7.8 | OK items=258 files=16 misplaced=0 total=145767 item=495963 fact=133656 tokens=3842 depth=0
+chinese-variant@1.1.6 | OK items=4 files=1 misplaced=0 total=2296 item=22037 fact=2414 tokens=173 depth=0
+choice@0.0.2 | OK items=16 files=1 misplaced=0 total=16792 item=43155 fact=22920 tokens=4225 depth=0
+chromiumoxide_cdp@0.9.1 | ERR InherentImplSelf :: src/cdp.rs:98: the self type `dyn SealedEvent` of an inherent impl is not a local struct, enum or union
+chromiumoxide_pdl@0.9.1 | OK items=143 files=12 misplaced=0 total=106188 item=322714 fact=74423 tokens=7773 depth=0
+chromiumoxide_types@0.9.1 | OK items=47 files=1 misplaced=0 total=10211 item=90719 fact=24747 tokens=1840 depth=0
+chrono@0.4.45 | OK items=1808 files=44 misplaced=0 total=1323526 item=3531422 fact=1586812 tokens=21704 depth=0
+chrono-tz@0.10.4 | OK items=750 files=11 misplaced=0 total=7338322 item=1285431 fact=246702 tokens=1505567 depth=0
+chunked_transfer@1.5.0 | OK items=44 files=4 misplaced=0 total=15795 item=103991 fact=23141 tokens=1653 depth=0
+ciborium@0.2.2 | OK items=506 files=20 misplaced=0 total=177886 item=809198 fact=291207 tokens=10303 depth=0
+ciborium-io@0.2.2 | OK items=39 files=1 misplaced=0 total=7884 item=67172 fact=16590 tokens=1916 depth=0
+ciborium-ll@0.2.2 | OK items=69 files=5 misplaced=0 total=39510 item=140306 fact=49939 tokens=3620 depth=0
+cipher@0.5.2 | OK items=271 files=17 misplaced=0 total=94751 item=582097 fact=168606 tokens=3034 depth=0
+citationberg@0.5.0 | OK items=315 files=4 misplaced=0 total=199688 item=515127 fact=162452 tokens=23776 depth=0
+clang-sys@1.9.1 | OK items=175 files=10 misplaced=0 total=180951 item=345631 fact=69244 tokens=16879 depth=0
+clap@4.6.7 | OK items=268 files=85 misplaced=0 total=164908 item=801391 fact=254517 tokens=3907 depth=0
+clap_builder@4.6.7 | OK items=1668 files=57 misplaced=0 total=949388 item=2840601 fact=1531310 tokens=32223 depth=0
+clap_complete@4.6.11 | OK items=269 files=22 misplaced=0 total=178208 item=604285 fact=190104 tokens=4773 depth=0
+clap_derive@4.6.7 | OK items=187 files=16 misplaced=0 total=165992 item=444465 fact=90222 tokens=10775 depth=0
+clap_lex@1.1.1 | OK items=63 files=2 misplaced=0 total=29943 item=104982 fact=53463 tokens=3463 depth=0
+cmac@0.7.2 | OK items=18 files=3 misplaced=0 total=10628 item=72220 fact=19522 tokens=1604 depth=0
+cmake@0.1.58 | OK items=57 files=1 misplaced=0 total=48408 item=96904 fact=32912 tokens=7849 depth=0
+cmov@0.5.4 | OK items=155 files=11 misplaced=0 total=74614 item=304214 fact=77743 tokens=3563 depth=0
+cms@0.3.0-pre.1 | OK items=303 files=28 misplaced=0 total=218580 item=882378 fact=281695 tokens=7229 depth=0
+cobs@0.3.0 | OK items=78 files=4 misplaced=0 total=37756 item=147522 fact=45196 tokens=2491 depth=0
+codex@0.1.1 | OK items=26 files=2 misplaced=0 total=10012 item=60717 fact=10651 tokens=1680 depth=0
+color_quant@1.1.0 | OK items=29 files=2 misplaced=0 total=18080 item=60478 fact=13320 tokens=3141 depth=0
+colorchoice@1.0.5 | OK items=15 files=1 misplaced=0 total=6928 item=39465 fact=6472 tokens=649 depth=0
+colored@3.1.1 | OK items=308 files=13 misplaced=0 total=92144 item=551143 fact=147108 tokens=5776 depth=0
+colorsys@0.6.7 | OK items=424 files=43 misplaced=0 total=81167 item=1003967 fact=224258 tokens=1441 depth=0
+combine@4.6.8 | ERR UnresolvedTrait :: src/stream/mod.rs:17: the trait `crate::error::ParseResult::*` of an impl cannot be named by an absolute path
+comemo@0.4.0 | OK items=195 files=10 misplaced=0 total=53449 item=396894 fact=113110 tokens=3246 depth=0
+comemo-macros@0.4.0 | OK items=25 files=3 misplaced=0 total=25384 item=62939 fact=21815 tokens=3024 depth=0
+comfy-table@7.2.2 | OK items=340 files=50 misplaced=0 total=253007 item=845880 fact=239533 tokens=5141 depth=0
+compact_str@0.9.1 | OK items=650 files=29 misplaced=0 total=321789 item=1274695 fact=463600 tokens=16496 depth=0
+compare@0.0.6 | OK items=69 files=1 misplaced=0 total=19079 item=109529 fact=52845 tokens=4965 depth=0
+compression-codecs@0.4.45 | OK items=406 files=47 misplaced=0 total=124254 item=968473 fact=228503 tokens=3049 depth=0
+compression-core@0.4.33 | OK items=53 files=4 misplaced=0 total=15124 item=106552 fact=27193 tokens=2526 depth=0
+concurrent-queue@2.5.0 | OK items=178 files=10 misplaced=0 total=91199 item=373442 fact=115672 tokens=4355 depth=0
+console@0.16.4 | OK items=368 files=10 misplaced=0 total=126474 item=664711 fact=186480 tokens=7905 depth=0
+const-oid@0.10.2 | OK items=1729 files=13 misplaced=0 total=337135 item=2740517 fact=491855 tokens=45453 depth=0
+const-random@0.1.18 | OK items=8 files=2 misplaced=0 total=3963 item=31877 fact=2576 tokens=380 depth=0
+const-random-macro@0.1.16 | OK items=22 files=2 misplaced=0 total=5679 item=56200 fact=10772 tokens=681 depth=0
+const_panic@0.2.17 | ERR InherentImplSelf :: src/slice_stuff.rs:145: the self type `Slice < 's >` of an inherent impl is not a local struct, enum or union
+constant_time_eq@0.4.2 | OK items=145 files=13 misplaced=0 total=68072 item=333466 fact=89833 tokens=1705 depth=0
+content_inspector@0.2.4 | OK items=28 files=2 misplaced=0 total=7872 item=67201 fact=14843 tokens=1065 depth=0
+cooked-waker@5.0.0 | OK items=67 files=2 misplaced=0 total=19079 item=120094 fact=49439 tokens=3444 depth=0
+cookie@0.18.2 | OK items=290 files=14 misplaced=0 total=180243 item=549503 fact=341271 tokens=12741 depth=0
+cookie_store@0.22.1 | OK items=238 files=10 misplaced=0 total=146424 item=509524 fact=128527 tokens=10843 depth=0
+core-foundation@0.10.1 | ERR InherentImplSelf :: src/attributed_string.rs:26: the self type `CFAttributedString` of an inherent impl is not a local struct, enum or union
+core-foundation-sys@0.8.7 | OK items=1819 files=40 misplaced=0 total=221416 item=3337596 fact=573352 tokens=3036 depth=0
+core_detect@1.0.0 | OK items=41 files=7 misplaced=0 total=42113 item=103866 fact=31509 tokens=1351 depth=0
+core_maths@0.1.1 | OK items=114 files=1 misplaced=0 total=31941 item=138277 fact=86004 tokens=6652 depth=0
+cpp_demangle@0.4.5 | ERR InherentImplSelf :: src/ast.rs:2509: the self type `PrefixHandle` of an inherent impl is not a local struct, enum or union
+cpu-time@1.0.0 | OK items=39 files=4 misplaced=0 total=13007 item=102144 fact=30310 tokens=1016 depth=0
+cpubits@0.1.1 | OK items=11 files=1 misplaced=0 total=15896 item=33390 fact=16721 tokens=2567 depth=0
+cpufeatures@0.3.1 | OK items=49 files=8 misplaced=0 total=23241 item=111431 fact=22080 tokens=1223 depth=0
+cranelift-assembler-x64@0.133.1 | ERR UnsupportedItem :: src/features.rs:75: unsupported item: for_each_feature ! (add_func) ; (reached by `mod features;`)
+cranelift-assembler-x64-meta@0.133.1 | OK items=329 files=46 misplaced=0 total=273622 item=1038028 fact=230777 tokens=8189 depth=0
+cranelift-bforest@0.133.1 | OK items=267 files=6 misplaced=0 total=141719 item=469229 fact=137287 tokens=12576 depth=0
+cranelift-bitset@0.133.1 | OK items=73 files=4 misplaced=0 total=37753 item=137136 fact=84544 tokens=3837 depth=0
+cranelift-codegen@0.133.1 | ERR UnresolvedTrait :: src/ir/builder.rs:105: the trait `InstBuilder` of an impl cannot be named by an absolute path
+cranelift-codegen-meta@0.133.1 | OK items=394 files=31 misplaced=0 total=447616 item=812745 fact=201296 tokens=14637 depth=0
+cranelift-codegen-shared@0.133.1 | OK items=11 files=3 misplaced=0 total=2603 item=40439 fact=4618 tokens=117 depth=0
+cranelift-control@0.133.1 | OK items=20 files=3 misplaced=0 total=9800 item=51320 fact=17099 tokens=846 depth=0
+cranelift-entity@0.133.1 | OK items=337 files=10 misplaced=0 total=117195 item=586640 fact=195347 tokens=7348 depth=0
+cranelift-frontend@0.133.1 | OK items=238 files=6 misplaced=0 total=275681 item=460222 fact=165572 tokens=16264 depth=0
+cranelift-isle@0.133.1 | ERR InherentImplSelf :: src/sema.rs:202: the self type `TypeId` of an inherent impl is not a local struct, enum or union
+cranelift-native@0.133.1 | OK items=13 files=2 misplaced=0 total=13592 item=46212 fact=9682 tokens=1312 depth=0
+cranelift-srcgen@0.133.1 | OK items=50 files=2 misplaced=0 total=19103 item=99327 fact=24141 tokens=3279 depth=0
+crc32fast@1.5.2 | OK items=76 files=8 misplaced=0 total=79373 item=158494 fact=31316 tokens=8257 depth=0
+criterion@0.5.1 | OK items=774 files=69 misplaced=0 total=437010 item=1833462 fact=491391 tokens=8882 depth=0
+criterion-plot@0.5.0 | OK items=251 files=14 misplaced=0 total=78443 item=590047 fact=172864 tokens=6598 depth=0
+crossbeam@0.8.5 | OK items=9 files=2 misplaced=0 total=5761 item=39273 fact=8961 tokens=489 depth=0
+crossbeam-channel@0.5.17 | OK items=1052 files=34 misplaced=0 total=543599 item=1947997 fact=611531 tokens=15117 depth=0
+crossbeam-deque@0.8.8 | OK items=125 files=7 misplaced=0 total=113568 item=251937 fact=112006 tokens=12547 depth=0
+crossbeam-epoch@0.9.21 | OK items=340 files=18 misplaced=0 total=173481 item=689416 fact=317003 tokens=11369 depth=0
+crossbeam-queue@0.3.14 | OK items=92 files=5 misplaced=0 total=61873 item=184877 fact=65287 tokens=4348 depth=0
+crossbeam-skiplist@0.1.3 | OK items=345 files=12 misplaced=0 total=192846 item=559019 fact=226679 tokens=12332 depth=0
+crossbeam-utils@0.8.23 | OK items=268 files=22 misplaced=0 total=168565 item=594253 fact=268305 tokens=7382 depth=0
+crossterm@0.29.0 | ERR UnsupportedItem :: src/style/stylize.rs:105: unsupported item: stylize_method ! (reset Attribute :: Reset) ; (reached by `mod stylize;`)
+crossterm_winapi@0.9.1 | OK items=142 files=17 misplaced=0 total=51572 item=401517 fact=108701 tokens=1866 depth=0
+crunchy@0.2.4 | OK items=4 files=2 misplaced=0 total=9035 item=26355 fact=4647 tokens=415 depth=0
+crypto-bigint@0.5.5 | OK items=1339 files=87 misplaced=0 total=366073 item=2776848 fact=745632 tokens=5991 depth=0
+crypto-common@0.2.2 | OK items=94 files=3 misplaced=0 total=24337 item=182558 fact=52815 tokens=2493 depth=0
+cssparser@0.37.0 | OK items=360 files=13 misplaced=0 total=224605 item=685922 fact=203362 tokens=9625 depth=0
+cssparser-macros@0.7.0 | OK items=6 files=1 misplaced=0 total=6040 item=24969 fact=2756 tokens=1146 depth=0
+csv@1.4.0 | OK items=904 files=49 misplaced=0 total=447307 item=1640594 fact=705620 tokens=17104 depth=0
+csv-core@0.1.13 | OK items=175 files=4 misplaced=0 total=113870 item=302859 fact=103729 tokens=12030 depth=0
+ctr@0.10.1 | OK items=151 files=13 misplaced=0 total=37010 item=314411 fact=75560 tokens=1414 depth=0
+ctutils@0.4.3 | OK items=343 files=13 misplaced=0 total=107257 item=681714 fact=216142 tokens=7131 depth=0
+curl@0.4.51 | OK items=935 files=26 misplaced=0 total=398451 item=1441588 fact=639490 tokens=25699 depth=0
+curl-sys@0.4.91+curl-8.22.0 | OK items=769 files=2 misplaced=0 total=80509 item=1179267 fact=206702 tokens=8466 depth=0
+curve25519-dalek@5.0.0 | ERR InherentImplSelf :: src/scalar.rs:1173: the self type `UnpackedScalar` of an inherent impl is not a local struct, enum or union
+curve25519-dalek-derive@0.1.1 | OK items=48 files=2 misplaced=0 total=21801 item=99971 fact=18248 tokens=3507 depth=0
+cx448@0.1.1 | ERR UnresolvedTrait :: src/lib.rs:122: the trait `FieldBytesEncoding` of an impl cannot be named by an absolute path
+daachorse@3.0.3 | OK items=387 files=19 misplaced=0 total=234258 item=764659 fact=329151 tokens=9052 depth=0
+darling@0.20.11 | OK items=286 files=42 misplaced=0 total=94010 item=718777 fact=153812 tokens=1732 depth=0
+darling_core@0.20.11 | OK items=863 files=68 misplaced=0 total=311497 item=1972794 fact=546944 tokens=9106 depth=0
+darling_macro@0.20.11 | OK items=8 files=1 misplaced=0 total=2607 item=29148 fact=3447 tokens=308 depth=0
+dary_heap@0.3.9 | OK items=139 files=1 misplaced=0 total=74527 item=215287 fact=156855 tokens=14407 depth=0
+dashmap@6.2.1 | OK items=436 files=21 misplaced=0 total=127049 item=802608 fact=265256 tokens=10334 depth=0
+data-encoding@2.11.1 | OK items=139 files=1 misplaced=0 total=129215 item=220127 fact=135433 tokens=35327 depth=0
+data-url@0.3.2 | OK items=64 files=4 misplaced=0 total=34070 item=129369 fact=31241 tokens=2174 depth=0
+datatest-stable@0.3.3 | OK items=136 files=6 misplaced=0 total=60664 item=272577 fact=87717 tokens=2889 depth=0
+date_header@1.0.5 | OK items=22 files=2 misplaced=0 total=22769 item=55425 fact=9723 tokens=3939 depth=0
+dbl@0.3.2 | OK items=14 files=1 misplaced=0 total=5724 item=36386 fact=7426 tokens=1404 depth=0
+deadpool@0.13.1 | OK items=305 files=28 misplaced=0 total=108031 item=713837 fact=181063 tokens=3420 depth=0
+deadpool-runtime@0.3.1 | OK items=10 files=1 misplaced=0 total=7422 item=34023 fact=7373 tokens=1200 depth=0
+deadpool-sync@0.2.0 | OK items=27 files=3 misplaced=0 total=9180 item=74646 fact=18027 tokens=1349 depth=0
+debugid@0.8.0 | OK items=92 files=4 misplaced=0 total=30062 item=171560 fact=51638 tokens=3331 depth=0
+decancer@3.3.3 | ERR InherentImplSelf :: src/bidi/class.rs:34: the self type `Class` of an inherent impl is not a local struct, enum or union
+defmt@1.1.1 | OK items=253 files=33 misplaced=0 total=100299 item=558960 fact=144701 tokens=4239 depth=0
+defmt-macros@1.1.1 | OK items=182 files=37 misplaced=0 total=87364 item=557394 fact=106877 tokens=2411 depth=0
+defmt-parser@1.0.0 | OK items=35 files=4 misplaced=0 total=29780 item=85848 fact=27950 tokens=2453 depth=0
+delegate-display@3.0.1 | OK items=50 files=7 misplaced=0 total=30969 item=145966 fact=53282 tokens=2447 depth=0
+deno_core@0.406.0 | ERR InherentImplSelf :: io/resource.rs:217: the self type `dyn Resource` of an inherent impl is not a local struct, enum or union
+deno_error@0.7.1 | OK items=102 files=3 misplaced=0 total=34371 item=158298 fact=54285 tokens=5123 depth=0
+deno_error_macro@0.7.1 | OK items=18 files=1 misplaced=0 total=20599 item=53068 fact=11225 tokens=4320 depth=0
+deno_ops@0.282.0 | OK items=327 files=22 misplaced=0 total=284800 item=850600 fact=227364 tokens=16952 depth=0
+deno_path_util@0.6.4 | OK items=55 files=3 misplaced=0 total=42507 item=129259 fact=32974 tokens=5969 depth=0
+deno_unsync@0.4.4 | OK items=177 files=16 misplaced=0 total=56001 item=418372 fact=105852 tokens=1953 depth=0
+der@0.8.2 | OK items=1510 files=62 misplaced=0 total=500471 item=3401258 fact=941254 tokens=7220 depth=0
+der-parser@10.0.0 | OK items=503 files=30 misplaced=0 total=282991 item=999419 fact=456970 tokens=7088 depth=0
+der_derive@0.8.0 | OK items=148 files=12 misplaced=0 total=117616 item=395390 fact=116300 tokens=3521 depth=0
+deranged@0.5.8 | OK items=34 files=3 misplaced=0 total=118409 item=96107 fact=28220 tokens=13840 depth=0
+derivative@2.2.0 | OK items=714 files=84 misplaced=0 total=211228 item=1420731 fact=254578 tokens=5688 depth=0
+derive_arbitrary@1.4.2 | OK items=28 files=4 misplaced=0 total=27362 item=86276 fact=12760 tokens=3067 depth=0
+derive_builder@0.20.2 | ERR InherentImplSelf :: tests/build_fn.rs:26: the self type `LoremBuilder` of an inherent impl is not a local struct, enum or union
+derive_builder_core@0.20.2 | OK items=199 files=13 misplaced=0 total=127128 item=441004 fact=123753 tokens=5617 depth=0
+derive_builder_macro@0.20.2 | OK items=5 files=1 misplaced=0 total=2286 item=23815 fact=2098 tokens=120 depth=0
+derive_more@2.1.1 | OK items=2526 files=53 misplaced=0 total=735237 item=4742222 fact=1039416 tokens=22219 depth=0
+derive_more-impl@2.1.1 | OK items=540 files=35 misplaced=0 total=416903 item=1283274 fact=359615 tokens=20061 depth=0
+des@0.9.0 | OK items=88 files=9 misplaced=0 total=29650 item=205891 fact=55585 tokens=2348 depth=0
+diff@0.1.13 | OK items=28 files=4 misplaced=0 total=17206 item=68619 fact=8170 tokens=1978 depth=0
+difflib@0.4.0 | OK items=57 files=6 misplaced=0 total=37972 item=131370 fact=21546 tokens=2438 depth=0
+digest@0.11.3 | OK items=230 files=16 misplaced=0 total=97393 item=480638 fact=135935 tokens=5413 depth=0
+diplomat@0.15.0 | OK items=43 files=3 misplaced=0 total=50880 item=97106 fact=19223 tokens=7672 depth=0
+diplomat-runtime@0.15.1 | OK items=94 files=7 misplaced=0 total=36815 item=213723 fact=72012 tokens=1785 depth=0
+diplomat_core@0.15.0 | OK items=820 files=32 misplaced=0 total=567897 item=1777340 fact=503108 tokens=13850 depth=0
+directories@6.0.0 | OK items=75 files=6 misplaced=0 total=46309 item=156067 fact=68118 tokens=3459 depth=0
+dirs@6.0.0 | OK items=108 files=5 misplaced=0 total=24465 item=191260 fact=55188 tokens=2045 depth=0
+dirs-sys@0.5.0 | OK items=45 files=2 misplaced=0 total=16843 item=136830 fact=25993 tokens=1882 depth=0
+displaydoc@0.2.7 | OK items=62 files=9 misplaced=0 total=43065 item=167067 fact=46545 tokens=2598 depth=0
+doctest-file@1.1.1 | OK items=47 files=8 misplaced=0 total=20074 item=124604 fact=23057 tokens=1373 depth=0
+document-features@0.2.12 | OK items=42 files=2 misplaced=0 total=33075 item=91205 fact=22569 tokens=4075 depth=0
+dom_query@0.16.0 | OK items=928 files=45 misplaced=0 total=338704 item=1801911 fact=446272 tokens=6129 depth=0
+dom_smoothie@0.9.0 | OK items=328 files=19 misplaced=0 total=145220 item=674521 fact=127016 tokens=7548 depth=0
+downcast-rs@1.2.1 | OK items=25 files=3 misplaced=0 total=27686 item=60277 fact=23862 tokens=5971 depth=0
+dsa@0.6.3 | OK items=121 files=17 misplaced=0 total=52238 item=377146 fact=89028 tokens=1573 depth=0
+dtoa@1.0.11 | OK items=50 files=5 misplaced=0 total=43025 item=109736 fact=30889 tokens=1998 depth=0
+dtoa-short@0.3.5 | OK items=12 files=1 misplaced=0 total=7054 item=35265 fact=4871 tokens=1159 depth=0
+dunce@1.0.5 | OK items=18 files=1 misplaced=0 total=12461 item=46269 fact=12211 tokens=2535 depth=0
+dyn-clone@1.0.20 | OK items=41 files=6 misplaced=0 total=15444 item=110860 fact=28088 tokens=1394 depth=0
+eax@0.5.0 | OK items=49 files=4 misplaced=0 total=28744 item=124985 fact=56784 tokens=2875 depth=0
+ecb@0.1.2 | OK items=35 files=4 misplaced=0 total=11983 item=94169 fact=29575 tokens=783 depth=0
+ecdsa@0.16.9 | OK items=236 files=9 misplaced=0 total=104093 item=506476 fact=178285 tokens=4619 depth=0
+ecow@0.2.6 | OK items=248 files=7 misplaced=0 total=89058 item=411248 fact=145323 tokens=6708 depth=0
+ed25519@3.0.0 | OK items=92 files=5 misplaced=0 total=36138 item=193123 fact=77086 tokens=3126 depth=0
+ed25519-dalek@3.0.0 | OK items=269 files=16 misplaced=0 total=178472 item=580008 fact=269453 tokens=6197 depth=0
+ego-tree@0.11.0 | OK items=274 files=14 misplaced=0 total=96034 item=473950 fact=128615 tokens=7572 depth=0
+either@1.19.0 | OK items=166 files=5 misplaced=0 total=70165 item=257812 fact=140964 tokens=12541 depth=0
+either-or-both@0.3.1 | OK items=674 files=17 misplaced=0 total=390671 item=1079324 fact=795142 tokens=23413 depth=0
+elliptic-curve@0.13.8 | OK items=635 files=31 misplaced=0 total=232865 item=1332628 fact=410326 tokens=4493 depth=0
+email_address@0.2.9 | OK items=162 files=1 misplaced=0 total=59306 item=263017 fact=77419 tokens=8115 depth=0
+embedded-io@0.7.1 | OK items=106 files=7 misplaced=0 total=35401 item=205976 fact=71517 tokens=4611 depth=0
+ena@0.14.4 | ERR UnresolvedTrait :: src/snapshot_vec.rs:22: the trait `self::UndoLog::*` of an impl cannot be named by an absolute path
+encode_unicode@1.0.0 | ERR InherentImplSelf :: src/errors.rs:101: the self type `CodepointError` of an inherent impl is not a local struct, enum or union
+encoding_rs@0.8.42 | OK items=981 files=23 misplaced=0 total=3476859 item=1578179 fact=667067 tokens=796638 depth=0
+enum-as-inner@0.6.1 | OK items=80 files=7 misplaced=0 total=25317 item=175224 fact=35021 tokens=2699 depth=0
+enum-iterator@2.3.0 | OK items=138 files=2 misplaced=0 total=34415 item=228739 fact=77498 tokens=6865 depth=0
+enum-iterator-derive@1.5.0 | OK items=45 files=1 misplaced=0 total=22371 item=98322 fact=18212 tokens=4923 depth=0
+enum-ordinalize@4.4.1 | OK items=10 files=2 misplaced=0 total=10829 item=33734 fact=14753 tokens=396 depth=0
+enum-ordinalize-derive@4.4.1 | OK items=40 files=5 misplaced=0 total=43338 item=113455 fact=24435 tokens=4174 depth=0
+enum_dispatch@0.3.13 | OK items=424 files=34 misplaced=0 total=96445 item=848386 fact=202719 tokens=3248 depth=0
+enumflags2@0.7.12 | OK items=109 files=5 misplaced=0 total=48238 item=212880 fact=105516 tokens=6429 depth=0
+enumflags2_derive@0.7.12 | OK items=17 files=1 misplaced=0 total=12372 item=47951 fact=6952 tokens=2443 depth=0
+env_filter@2.0.0 | OK items=98 files=6 misplaced=0 total=46463 item=219130 fact=55404 tokens=4705 depth=0
+env_logger@0.11.11 | OK items=225 files=16 misplaced=0 total=103925 item=450301 fact=175484 tokens=6197 depth=0
+eoka@0.5.14 | OK items=1018 files=47 misplaced=0 total=653894 item=1988808 fact=500848 tokens=11596 depth=0
+equivalent@1.0.2 | OK items=7 files=1 misplaced=0 total=4350 item=27080 fact=9826 tokens=738 depth=0
+errno@0.3.14 | OK items=39 files=6 misplaced=0 total=14912 item=103159 fact=23769 tokens=922 depth=0
+esaxx-rs@0.1.10 | OK items=50 files=7 misplaced=0 total=36988 item=131969 fact=25479 tokens=5033 depth=0
+escape8259@0.5.3 | OK items=23 files=1 misplaced=0 total=11143 item=52395 fact=12244 tokens=1952 depth=0
+euclid@0.22.14 | OK items=1727 files=22 misplaced=0 total=544818 item=2847495 fact=1137236 tokens=19581 depth=0
+event-listener@5.4.2 | ERR InherentImplSelf :: src/lib.rs:1502: the self type `StackSlot < 'ev , T >` of an inherent impl is not a local struct, enum or union
+event-listener-strategy@0.5.4 | ERR InherentImplSelf :: src/lib.rs:334: the self type `FutureWrapper < F >` of an inherent impl is not a local struct, enum or union
+eyeball@0.8.8 | OK items=198 files=13 misplaced=0 total=67604 item=376325 fact=136068 tokens=3896 depth=0
+eyeball-im@0.8.0 | OK items=164 files=12 misplaced=0 total=66132 item=348621 fact=97641 tokens=3552 depth=0
+fallible-iterator@0.3.0 | OK items=349 files=2 misplaced=0 total=86668 item=483508 fact=151361 tokens=18955 depth=0
+fallible-streaming-iterator@0.1.9 | OK items=121 files=1 misplaced=0 total=21986 item=173164 fact=50026 tokens=5308 depth=0
+fancy-regex@0.18.0 | OK items=874 files=21 misplaced=0 total=615262 item=1621955 fact=419797 tokens=24746 depth=0
+fancy_constructor@2.1.1 | OK items=45 files=9 misplaced=0 total=23228 item=154524 fact=51901 tokens=2170 depth=0
+fast-srgb8@1.0.0 | OK items=30 files=2 misplaced=0 total=23572 item=67631 fact=24528 tokens=3290 depth=0
+fastrand@2.5.0 | OK items=114 files=5 misplaced=0 total=42393 item=197294 fact=58331 tokens=3926 depth=0
+fdeflate@0.3.7 | OK items=92 files=6 misplaced=0 total=90386 item=212729 fact=49414 tokens=8081 depth=0
+ff@0.13.1 | OK items=71 files=4 misplaced=0 total=32853 item=144782 fact=56842 tokens=3084 depth=0
+fiat-crypto@0.3.0 | OK items=1120 files=33 misplaced=0 total=4681444 item=1805594 fact=1155572 tokens=132177 depth=0
+filetime@0.2.29 | OK items=37 files=1 misplaced=0 total=28108 item=80927 fact=28369 tokens=5580 depth=0
+find-msvc-tools@0.1.14 | OK items=233 files=11 misplaced=0 total=98852 item=505522 fact=106045 tokens=9512 depth=0
+fixedbitset@0.5.7 | OK items=318 files=10 misplaced=0 total=113521 item=532384 fact=177215 tokens=11201 depth=0
+fjall@3.1.12 | OK items=681 files=64 misplaced=0 total=394015 item=1650553 fact=545258 tokens=6630 depth=0
+flagset@0.4.7 | OK items=54 files=1 misplaced=0 total=37437 item=88509 fact=90994 tokens=8393 depth=0
+flate2@1.1.10 | OK items=764 files=49 misplaced=0 total=294840 item=1595183 fact=544460 tokens=5900 depth=0
+float-cmp@0.10.0 | OK items=129 files=6 misplaced=0 total=41162 item=227780 fact=71926 tokens=2369 depth=0
+float_eq@1.0.1 | OK items=395 files=10 misplaced=0 total=187394 item=565335 fact=215684 tokens=13258 depth=0
+fluent-uri@0.4.1 | ERR UnsupportedItem :: src/component.rs:61: unsupported item: # [ref_cast_custom] # [inline] pub (crate) const fn new_vali (reached by `mod component;`)
+flume@0.12.0 | OK items=624 files=28 misplaced=0 total=381303 item=1067017 fact=266441 tokens=14886 depth=0
+fnv@1.0.7 | OK items=15 files=1 misplaced=0 total=20065 item=45126 fact=12308 tokens=3133 depth=0
+foldhash@0.2.0 | OK items=112 files=5 misplaced=0 total=40213 item=222190 fact=67405 tokens=2487 depth=0
+font-types@0.11.3 | ERR InherentImplSelf :: src/fixed.rs:296: the self type `Fixed` of an inherent impl is not a local struct, enum or union
+fontconfig-parser@0.5.8 | OK items=116 files=22 misplaced=0 total=56159 item=295573 fact=59797 tokens=2483 depth=0
+fontdb@0.21.0 | OK items=77 files=3 misplaced=0 total=51321 item=129974 fact=44365 tokens=9193 depth=0
+foreign-types@0.5.0 | OK items=9 files=2 misplaced=0 total=8781 item=43993 fact=23586 tokens=1731 depth=0
+foreign-types-macros@0.2.3 | OK items=30 files=3 misplaced=0 total=12869 item=81555 fact=12268 tokens=1778 depth=0
+foreign-types-shared@0.3.1 | OK items=13 files=1 misplaced=0 total=3476 item=34745 fact=8177 tokens=561 depth=0
+form_urlencoded@1.2.2 | OK items=47 files=1 misplaced=0 total=14767 item=84474 fact=22034 tokens=2517 depth=0
+fraction@0.15.4 | OK items=758 files=54 misplaced=0 total=630796 item=1718308 fact=540760 tokens=26907 depth=0
+fs2@0.4.3 | OK items=92 files=3 misplaced=0 total=36241 item=186001 fact=51855 tokens=3427 depth=0
+fs_extra@1.3.0 | OK items=248 files=7 misplaced=0 total=427503 item=432093 fact=158930 tokens=41138 depth=0
+fsevent-sys@4.1.0 | OK items=128 files=3 misplaced=0 total=15525 item=237630 fact=37913 tokens=1461 depth=0
+fslock@0.2.1 | OK items=137 files=9 misplaced=0 total=50255 item=313137 fact=98513 tokens=2778 depth=0
+fst@0.4.7 | OK items=717 files=22 misplaced=0 total=292243 item=1231354 fact=510928 tokens=8622 depth=0
+funty@2.0.0 | OK items=203 files=1 misplaced=0 total=55557 item=282332 fact=115047 tokens=11858 depth=0
+futf@0.1.5 | OK items=28 files=2 misplaced=0 total=20438 item=68223 fact=11332 tokens=2039 depth=0
+futures@0.3.34 | OK items=440 files=59 misplaced=0 total=286404 item=1191880 fact=266128 tokens=25033 depth=0
+futures-channel@0.3.34 | OK items=265 files=12 misplaced=0 total=127061 item=491468 fact=162393 tokens=7723 depth=0
+futures-core@0.3.34 | OK items=71 files=7 misplaced=0 total=32822 item=162787 fact=61878 tokens=1656 depth=0
+futures-executor@0.3.34 | OK items=117 files=7 misplaced=0 total=51774 item=264278 fact=90280 tokens=3107 depth=0
+futures-io@0.3.34 | OK items=32 files=1 misplaced=0 total=22113 item=69405 fact=35875 tokens=3715 depth=0
+futures-lite@2.6.1 | ERR InherentImplSelf :: src/future.rs:494: the self type `Fuse < Fut >` of an inherent impl is not a local struct, enum or union
+futures-macro@0.3.34 | OK items=26 files=5 misplaced=0 total=26152 item=87492 fact=15323 tokens=1695 depth=0
+futures-sink@0.3.34 | OK items=35 files=1 misplaced=0 total=10427 item=60574 fact=21103 tokens=2020 depth=0
+futures-task@0.3.34 | OK items=112 files=7 misplaced=0 total=26843 item=227964 fact=73605 tokens=2923 depth=0
+futures-timer@3.0.4 | OK items=122 files=12 misplaced=0 total=49017 item=298952 fact=84796 tokens=2796 depth=0
+futures-util@0.3.34 | ERR InherentImplSelf :: src/future/future/flatten.rs:20: the self type `Flatten < Fut1 , Fut2 >` of an inherent impl is not a local struct, enum or union
+fxhash@0.2.1 | ERR Syntax :: lib.rs:55: syntax error at column 33: expected `:` (reached by manifest key `lib.path`)
+generic-array@1.4.5 | OK items=415 files=23 misplaced=0 total=170470 item=835281 fact=324848 tokens=9636 depth=0
+getopts@0.2.24 | OK items=122 files=3 misplaced=0 total=80804 item=210424 fact=77781 tokens=9249 depth=0
+getrandom@0.4.3 | OK items=72 files=10 misplaced=0 total=40909 item=173889 fact=46533 tokens=1431 depth=0
+ghash@0.6.0 | OK items=26 files=3 misplaced=0 total=6214 item=72710 fact=13987 tokens=763 depth=0
+gif@0.14.2 | OK items=203 files=9 misplaced=0 total=114766 item=419037 fact=131097 tokens=5780 depth=0
+gimli@0.34.0 | ERR InherentImplSelf :: src/constants.rs:926: the self type `DwLang` of an inherent impl is not a local struct, enum or union
+gjson@0.8.1 | OK items=186 files=9 misplaced=0 total=111772 item=334691 fact=68593 tokens=7493 depth=0
+glob@0.3.4 | OK items=70 files=2 misplaced=0 total=70252 item=139596 fact=49998 tokens=9180 depth=0
+globset@0.4.18 | OK items=235 files=6 misplaced=0 total=109454 item=416654 fact=118543 tokens=11985 depth=0
+gloo-timers@0.3.0 | OK items=42 files=5 misplaced=0 total=19553 item=118615 fact=42073 tokens=1314 depth=0
+gloo-utils@0.2.0 | OK items=44 files=5 misplaced=0 total=13119 item=107106 fact=29666 tokens=723 depth=0
+graphql-parser@0.4.1 | OK items=404 files=21 misplaced=0 total=135100 item=840555 fact=188727 tokens=4559 depth=0
+group@0.13.0 | OK items=98 files=5 misplaced=0 total=41337 item=204142 fact=66516 tokens=3130 depth=0
+growable-bloom-filter@2.1.1 | OK items=80 files=2 misplaced=0 total=34331 item=149292 fact=54620 tokens=5339 depth=0
+gungraun@0.19.4 | OK items=235 files=14 misplaced=0 total=317747 item=488981 fact=522737 tokens=14925 depth=0
+gungraun-macros@0.9.1 | OK items=169 files=7 misplaced=0 total=123491 item=341511 fact=139658 tokens=5834 depth=0
+gungraun-runner@0.19.4 | OK items=1423 files=54 misplaced=0 total=974794 item=3181900 fact=1028189 tokens=19935 depth=0
+gzip-header@1.1.0 | OK items=67 files=2 misplaced=0 total=25169 item=123152 fact=38177 tokens=3752 depth=0
+h2@0.4.19 | OK items=1419 files=56 misplaced=0 total=775460 item=2681351 fact=865897 tokens=10882 depth=0
+h3o@0.10.0 | OK items=1472 files=214 misplaced=0 total=771736 item=3886912 fact=885289 tokens=12808 depth=0
+h3o-bit@0.1.2 | OK items=22 files=2 misplaced=0 total=9980 item=51444 fact=12751 tokens=1113 depth=0
+half@2.7.1 | OK items=841 files=14 misplaced=0 total=273809 item=1225696 fact=463263 tokens=14638 depth=0
+hashbrown@0.17.1 | OK items=1327 files=35 misplaced=0 total=808706 item=2226800 fact=1425433 tokens=47161 depth=0
+hashlink@0.10.0 | OK items=469 files=9 misplaced=0 total=136981 item=732967 fact=226036 tokens=15811 depth=0
+hayagriva@0.8.1 | ERR InherentImplSelf :: src/lib.rs:557: the self type `Entry` of an inherent impl is not a local struct, enum or union
+heck@0.5.0 | OK items=79 files=9 misplaced=0 total=28298 item=247662 fact=62555 tokens=1174 depth=0
+hermit-abi@0.5.2 | OK items=370 files=2 misplaced=0 total=42330 item=564011 fact=138358 tokens=5765 depth=0
+hex@0.4.3 | OK items=67 files=6 misplaced=0 total=24381 item=150919 fact=42310 tokens=3527 depth=0
+hkdf@0.12.4 | OK items=63 files=5 misplaced=0 total=29743 item=145159 fact=39940 tokens=2542 depth=0
+hmac@0.13.0 | ERR UnresolvedTrait :: src/lib.rs:41: the trait `AlgorithmName` of an impl cannot be named by an absolute path
+hnsw_rs@0.3.4 | OK items=290 files=19 misplaced=0 total=274616 item=592633 fact=170705 tokens=11747 depth=0
+home@0.5.12 | OK items=29 files=3 misplaced=0 total=13068 item=79223 fact=28057 tokens=927 depth=0
+hostname-validator@1.1.1 | OK items=5 files=1 misplaced=0 total=3194 item=23442 fact=3624 tokens=426 depth=0
+htmd@0.2.2 | OK items=215 files=28 misplaced=0 total=80381 item=616722 fact=89567 tokens=1759 depth=0
+html-escape@0.2.14 | OK items=60 files=16 misplaced=0 total=131066 item=186032 fact=38646 tokens=12789 depth=0
+html5ever@0.39.0 | OK items=424 files=22 misplaced=0 total=331960 item=856591 fact=198581 tokens=15307 depth=0
+http@1.5.0 | ERR UnresolvedTrait :: src/method.rs:19: the trait `self::Inner::*` of an impl cannot be named by an absolute path
+http-body@1.1.0 | OK items=74 files=4 misplaced=0 total=18244 item=127314 fact=35742 tokens=1461 depth=0
+http-body-util@0.1.5 | ERR InherentImplSelf :: src/combinators/inspect_err.rs:22: the self type `InspectErr < B , F >` of an inherent impl is not a local struct, enum or union
+http2@0.5.19 | OK items=1453 files=59 misplaced=0 total=862853 item=2797462 fact=896344 tokens=35118 depth=0
+httparse@1.10.1 | OK items=258 files=12 misplaced=0 total=260028 item=476490 fact=120010 tokens=26054 depth=0
+httpdate@1.0.3 | OK items=39 files=3 misplaced=0 total=19175 item=97923 fact=21645 tokens=3030 depth=0
+humantime@2.4.0 | OK items=126 files=6 misplaced=0 total=62256 item=275086 fact=71038 tokens=6396 depth=0
+humantime-serde@1.1.1 | OK items=33 files=2 misplaced=0 total=12395 item=77680 fact=23902 tokens=2586 depth=0
+hybrid-array@0.4.15 | OK items=522 files=10 misplaced=0 total=111563 item=884373 fact=227033 tokens=10255 depth=0
+hyper@1.12.0 | ERR InherentImplSelf :: src/common/either.rs:23: the self type `Either < F1 , F2 >` of an inherent impl is not a local struct, enum or union
+hyper-rustls@0.27.10 | OK items=96 files=5 misplaced=0 total=40936 item=219863 fact=70623 tokens=2921 depth=0
+hyper-util@0.1.21 | ERR InherentImplSelf :: src/rt/tokio.rs:140: the self type `TokioIo < T >` of an inherent impl is not a local struct, enum or union
+hypher@0.1.7 | OK items=65 files=2 misplaced=0 total=36628 item=121382 fact=34000 tokens=3890 depth=0
+iana-time-zone@0.1.65 | OK items=192 files=20 misplaced=0 total=116524 item=382714 fact=85006 tokens=11851 depth=0
+iana-time-zone-haiku@0.1.2 | OK items=8 files=2 misplaced=0 total=4068 item=33014 fact=5600 tokens=458 depth=0
+icu_calendar@2.2.1 | ERR InherentImplSelf :: src/any_calendar.rs:428: the self type `AnyCalendar` of an inherent impl is not a local struct, enum or union
+icu_calendar_data@2.2.0 | OK items=3 files=2 misplaced=0 total=2605 item=22593 fact=988 tokens=83 depth=0
+icu_collections@2.3.0 | OK items=501 files=25 misplaced=0 total=415384 item=966444 fact=328221 tokens=35331 depth=0
+icu_locale@2.2.0 | OK items=132 files=11 misplaced=0 total=130217 item=296669 fact=128824 tokens=3528 depth=0
+icu_locale_core@2.3.0 | ERR InherentImplSelf :: src/extensions/unicode/subdivision.rs:49: the self type `SubdivisionSuffix` of an inherent impl is not a local struct, enum or union
+icu_locale_data@2.2.0 | OK items=3 files=2 misplaced=0 total=2597 item=22579 fact=986 tokens=83 depth=0
+icu_locale_fallback@2.3.0 | OK items=38 files=3 misplaced=0 total=41184 item=93876 fact=34532 tokens=2998 depth=0
+icu_locale_fallback_data@2.3.0 | OK items=3 files=2 misplaced=0 total=2648 item=22642 fact=995 tokens=83 depth=0
+icu_locid@1.5.0 | ERR InherentImplSelf :: src/extensions/other/subtag.rs:32: the self type `Subtag` of an inherent impl is not a local struct, enum or union
+icu_locid_transform@1.5.0 | OK items=164 files=15 misplaced=0 total=140642 item=376613 fact=148969 tokens=4874 depth=0
+icu_locid_transform_data@1.5.1 | OK items=3 files=2 misplaced=0 total=2215 item=22642 fact=1008 tokens=83 depth=0
+icu_normalizer@2.3.0 | OK items=345 files=14 misplaced=0 total=314310 item=706356 fact=184880 tokens=16088 depth=0
+icu_normalizer_data@2.3.0 | OK items=3 files=2 misplaced=0 total=2628 item=22607 fact=990 tokens=83 depth=0
+icu_properties@2.3.0 | OK items=1694 files=16 misplaced=0 total=577734 item=2383509 fact=744560 tokens=37009 depth=0
+icu_properties_data@2.3.0 | OK items=3 files=2 misplaced=0 total=2628 item=22607 fact=990 tokens=83 depth=0
+icu_provider@2.3.1 | OK items=411 files=19 misplaced=0 total=202977 item=834217 fact=358086 tokens=7829 depth=0
+icu_provider_adapters@1.5.0 | OK items=107 files=12 misplaced=0 total=62753 item=228111 fact=122580 tokens=2162 depth=0
+icu_provider_blob@1.5.0 | ERR InherentImplSelf :: src/blob_schema.rs:279: the self type `Index32U8` of an inherent impl is not a local struct, enum or union
+icu_provider_macros@1.5.0 | OK items=19 files=2 misplaced=0 total=22989 item=58313 fact=16554 tokens=2310 depth=0
+icu_segmenter@2.3.0 | OK items=873 files=34 misplaced=0 total=492047 item=1553553 fact=440215 tokens=9123 depth=0
+icu_segmenter_data@2.3.0 | OK items=3 files=2 misplaced=0 total=2624 item=22600 fact=989 tokens=83 depth=0
+id-set@0.2.2 | OK items=208 files=4 misplaced=0 total=48648 item=306289 fact=94597 tokens=6683 depth=0
+idea@0.5.1 | OK items=25 files=5 misplaced=0 total=9703 item=77128 fact=13884 tokens=1784 depth=0
+ident_case@1.0.1 | OK items=10 files=1 misplaced=0 total=7066 item=32237 fact=6242 tokens=1072 depth=0
+idna@1.1.0 | OK items=180 files=11 misplaced=0 total=145772 item=350553 fact=116920 tokens=9105 depth=0
+idna_adapter@1.2.2 | OK items=35 files=1 misplaced=0 total=12239 item=68524 fact=18113 tokens=1860 depth=0
+if_chain@1.0.3 | OK items=10 files=1 misplaced=0 total=9040 item=30418 fact=14483 tokens=2338 depth=0
+ignore@0.4.28 | OK items=436 files=11 misplaced=0 total=262020 item=759979 fact=255881 tokens=16774 depth=0
+image@0.25.10 | OK items=2293 files=77 misplaced=0 total=1305118 item=4637719 fact=1385802 tokens=17419 depth=0
+image-webp@0.2.4 | OK items=422 files=13 misplaced=0 total=297427 item=734413 fact=169212 tokens=25082 depth=0
+imagesize@0.13.0 | OK items=103 files=26 misplaced=0 total=56067 item=378647 fact=68479 tokens=1809 depth=0
+imbl@6.1.0 | OK items=1304 files=34 misplaced=0 total=598410 item=2144560 fact=917408 tokens=22141 depth=0
+imbl-sized-chunks@0.1.3 | OK items=513 files=16 misplaced=0 total=166203 item=864628 fact=330392 tokens=9128 depth=0
+impartial-ord@2.0.0 | OK items=2 files=1 misplaced=0 total=3558 item=20245 fact=4155 tokens=440 depth=0
+include_dir@0.7.4 | OK items=48 files=7 misplaced=0 total=16529 item=122950 fact=32891 tokens=711 depth=0
+include_dir_macros@0.7.4 | OK items=26 files=1 misplaced=0 total=10371 item=61369 fact=11222 tokens=2162 depth=0
+indexmap@2.14.2 | OK items=1252 files=33 misplaced=0 total=479294 item=2128688 fact=816633 tokens=12563 depth=0
+indicatif@0.17.11 | OK items=591 files=34 misplaced=0 total=298997 item=1202341 fact=331420 tokens=7255 depth=0
+inotify@0.11.5 | ERR InherentImplSelf :: src/events.rs:331: the self type `EventMask` of an inherent impl is not a local struct, enum or union
+inotify-sys@0.1.8 | OK items=36 files=2 misplaced=0 total=30115 item=73329 fact=60249 tokens=4183 depth=0
+inout@0.2.2 | OK items=73 files=6 misplaced=0 total=29627 item=158819 fact=54393 tokens=2105 depth=0
+insta@1.48.0 | OK items=900 files=33 misplaced=0 total=486140 item=1649491 fact=468349 tokens=12478 depth=0
+instant-distance@0.6.1 | OK items=113 files=5 misplaced=0 total=38820 item=228965 fact=57040 tokens=5027 depth=0
+interprocess@2.4.4 | ERR UnsupportedItem :: src/os/windows/security_descriptor/ext.rs:147: unsupported item: indirect_methods ! { "DACL" dacl acl GetSecurityDescriptorDa (reached by `mod ext;`)
+interval-heap@0.0.5 | OK items=67 files=1 misplaced=0 total=22224 item=112717 fact=38303 tokens=4826 depth=0
+inventory@0.3.24 | OK items=32 files=4 misplaced=0 total=20889 item=85769 fact=38323 tokens=3479 depth=0
+io-lifetimes@1.0.11 | ERR UnresolvedTrait :: src/impls_async_std.rs:21: the trait `FilelikeViewType` of an impl cannot be named by an absolute path
+io-uring@0.7.15 | OK items=371 files=12 misplaced=0 total=226513 item=652981 fact=255828 tokens=13729 depth=0
+ipnet@2.12.2 | OK items=257 files=8 misplaced=0 total=131881 item=472488 fact=225420 tokens=12901 depth=0
+irg-kvariants@0.1.1 | OK items=12 files=2 misplaced=0 total=6663 item=41132 fact=4999 tokens=659 depth=0
+is-terminal@0.4.17 | OK items=29 files=1 misplaced=0 total=11809 item=62808 fact=20674 tokens=2130 depth=0
+is_ci@1.2.0 | OK items=9 files=2 misplaced=0 total=3580 item=34525 fact=3974 tokens=490 depth=0
+is_terminal_polyfill@1.70.2 | OK items=6 files=1 misplaced=0 total=5497 item=25032 fact=3270 tokens=294 depth=0
+isahc@1.8.3 | OK items=833 files=74 misplaced=0 total=424328 item=1857465 fact=639949 tokens=8234 depth=0
+itertools@0.14.0 | ERR UnresolvedTrait :: src/either_or_both.rs:3: the trait `crate::EitherOrBoth::*` of an impl cannot be named by an absolute path
+itoa@1.0.18 | OK items=32 files=4 misplaced=0 total=21738 item=80124 fact=19381 tokens=2960 depth=0
+ixdtf@0.6.5 | OK items=218 files=13 misplaced=0 total=147235 item=517489 fact=173296 tokens=7080 depth=0
+jiff@0.2.37 | ERR UnresolvedMod :: tests/lib.rs:7: module `init` has no file (reached by `mod init;`)
+jiff-core@0.1.1 | OK items=888 files=20 misplaced=0 total=563701 item=1442058 fact=589933 tokens=23393 depth=0
+jni@0.22.4 | ERR InherentImplSelf :: src/objects/jstack_trace_element.rs:22: the self type `JStackTraceElement < 'local >` of an inherent impl is not a local struct, enum or union
+jni-macros@0.22.4 | OK items=227 files=9 misplaced=0 total=312727 item=466581 fact=134694 tokens=21566 depth=0
+jni-sys@0.4.1 | OK items=74 files=1 misplaced=0 total=42699 item=135167 fact=23982 tokens=8376 depth=0
+jni-sys-macros@0.4.1 | OK items=9 files=1 misplaced=0 total=8011 item=34649 fact=5290 tokens=1251 depth=0
+jobserver@0.1.35 | OK items=161 files=10 misplaced=0 total=83122 item=343902 fact=109228 tokens=4294 depth=0
+js-sys@0.3.106 | ERR InherentImplSelf :: src/lib.rs:10746: the self type `RelativeTimeFormatOptions` of an inherent impl is not a local struct, enum or union
+js_int@0.2.2 | OK items=139 files=7 misplaced=0 total=54919 item=273618 fact=109649 tokens=4480 depth=0
+js_option@0.2.0 | OK items=22 files=2 misplaced=0 total=8095 item=51691 fact=15668 tokens=1221 depth=0
+jsonschema@0.46.10 | OK items=2202 files=79 misplaced=0 total=1413365 item=4604726 fact=1481164 tokens=26609 depth=0
+jsonschema-regex@0.46.10 | OK items=14 files=1 misplaced=0 total=9804 item=43377 fact=9361 tokens=1503 depth=0
+jsonwebtoken@9.3.1 | OK items=243 files=22 misplaced=0 total=122147 item=622651 fact=153869 tokens=6065 depth=0
+kamadak-exif@0.6.1 | OK items=442 files=19 misplaced=0 total=252120 item=858614 fact=216187 tokens=11753 depth=0
+kdl@4.7.1 | OK items=309 files=14 misplaced=0 total=128268 item=557476 fact=158773 tokens=9173 depth=0
+keccak@0.2.2 | OK items=83 files=10 misplaced=0 total=29354 item=198774 fact=45253 tokens=1990 depth=0
+kem@0.3.0 | OK items=34 files=1 misplaced=0 total=11546 item=71554 fact=24892 tokens=1737 depth=0
+konst@0.4.3 | OK items=1082 files=86 misplaced=0 total=640346 item=2193466 fact=971486 tokens=10530 depth=0
+kqueue@1.2.0 | OK items=126 files=16 misplaced=0 total=71425 item=329528 fact=74010 tokens=5499 depth=0
+kqueue-sys@1.1.2 | ERR InherentImplSelf :: src/constants/darwin.rs:49: the self type `EventFlag` of an inherent impl is not a local struct, enum or union
+kurbo@0.13.1 | OK items=1404 files=46 misplaced=0 total=660500 item=2644748 fact=853114 tokens=17592 depth=0
+lalrpop@0.23.1 | OK items=3118 files=113 misplaced=0 total=1824646 item=5718619 fact=1407013 tokens=334550 depth=0
+lalrpop-util@0.23.1 | OK items=85 files=4 misplaced=0 total=42451 item=157941 fact=49890 tokens=3791 depth=0
+language-tags@0.3.2 | OK items=126 files=5 misplaced=0 total=509648 item=226364 fact=70729 tokens=143885 depth=0
+lazy_static@1.5.1 | OK items=52 files=7 misplaced=0 total=15487 item=124306 fact=25786 tokens=1065 depth=0
+leb128fmt@0.1.0 | OK items=53 files=1 misplaced=0 total=55516 item=97018 fact=66545 tokens=9675 depth=0
+lev_distance@0.1.1 | OK items=10 files=1 misplaced=0 total=9457 item=31935 fact=7166 tokens=1698 depth=0
+libbz2-rs-sys@0.2.5 | OK items=265 files=10 misplaced=0 total=229492 item=598895 fact=168657 tokens=12826 depth=0
+libc@0.2.190 | OK items=128 files=15 misplaced=0 total=113203 item=264918 fact=86766 tokens=9534 depth=0
+libduckdb-sys@1.10504.0 | OK items=103 files=7 misplaced=0 total=70130 item=247876 fact=50348 tokens=4097 depth=0
+libfuzzer-sys@0.4.13 | OK items=16 files=2 misplaced=0 total=31398 item=43597 fact=42579 tokens=4584 depth=0
+libloading@0.9.0 | OK items=276 files=16 misplaced=0 total=128068 item=553573 fact=230641 tokens=3505 depth=0
+libm@0.2.16 | OK items=1426 files=122 misplaced=0 total=558067 item=2981350 fact=570730 tokens=7460 depth=0
+libnghttp2-sys@0.1.13+1.68.1 | OK items=371 files=3 misplaced=0 total=244131 item=605449 fact=301047 tokens=13513 depth=0
+librocksdb-sys@0.19.0+11.8.1 | OK items=57 files=4 misplaced=0 total=69934 item=121541 fact=20588 tokens=8202 depth=0
+libsqlite3-sys@0.35.0 | OK items=67 files=3 misplaced=0 total=53393 item=149773 fact=29930 tokens=5037 depth=0
+libtest-mimic@0.8.2 | OK items=137 files=10 misplaced=0 total=75520 item=320763 fact=69699 tokens=3537 depth=0
+libz-sys@1.1.29 | OK items=146 files=4 misplaced=0 total=43010 item=249057 fact=48316 tokens=2937 depth=0
+linked-hash-map@0.5.6 | ERR UnresolvedMod :: src/lib.rs:40: module `tests` has no file (reached by `mod tests;`)
+linux-raw-sys@0.12.1 | OK items=230311 files=462 misplaced=0 total=16893229 item=343462685 fact=64930286 tokens=34095 depth=0
+lipsum@0.9.1 | OK items=62 files=5 misplaced=0 total=26757 item=123486 fact=49396 tokens=4315 depth=0
+litemap@0.8.3 | ERR InherentImplSelf :: src/map.rs:42: the self type `LiteMap < K , V >` of an inherent impl is not a local struct, enum or union
+litrs@1.0.0 | OK items=305 files=23 misplaced=0 total=184320 item=658663 fact=190901 tokens=3088 depth=0
+llama-cpp-4@0.7.0 | OK items=1644 files=56 misplaced=0 total=903609 item=3054703 fact=1275095 tokens=16414 depth=0
+llama-cpp-sys-4@0.7.0 | OK items=79 files=4 misplaced=0 total=138130 item=156530 fact=39735 tokens=15169 depth=0
+lock_api@0.4.14 | OK items=393 files=4 misplaced=0 total=192124 item=557490 fact=363345 tokens=19026 depth=0
+log@0.4.34 | OK items=499 files=12 misplaced=0 total=195084 item=836347 fact=335935 tokens=13106 depth=0
+log-mdc@0.1.0 | OK items=13 files=1 misplaced=0 total=5641 item=37428 fact=11700 tokens=1374 depth=0
+log4rs@1.4.0 | OK items=683 files=39 misplaced=0 total=279810 item=1538027 fact=442887 tokens=8058 depth=0
+lru@0.18.1 | OK items=160 files=1 misplaced=0 total=104404 item=248031 fact=139465 tokens=23776 depth=0
+lru-slab@0.1.3 | OK items=56 files=1 misplaced=0 total=15007 item=96504 fact=24108 tokens=3482 depth=0
+lsm-tree@3.1.10 | ERR InherentImplSelf :: src/range.rs:98: the self type `TreeIter` of an inherent impl is not a local struct, enum or union
+lsp-server@0.7.9 | OK items=97 files=7 misplaced=0 total=49735 item=261853 fact=69935 tokens=2827 depth=0
+lsp-types@0.97.0 | OK items=1070 files=38 misplaced=0 total=365698 item=2040465 fact=577047 tokens=15913 depth=0
+lz4-sys@1.11.1+lz4-1.10.0 | OK items=66 files=3 misplaced=0 total=27717 item=134052 fact=26400 tokens=1417 depth=0
+lz4_flex@0.13.1 | OK items=295 files=13 misplaced=0 total=169857 item=566697 fact=180046 tokens=7416 depth=0
+mac@0.1.1 | OK items=23 files=8 misplaced=0 total=11126 item=71688 fact=26873 tokens=644 depth=0
+macro_rules_attribute@0.2.3 | ERR UnsupportedItem :: src/lib.rs:565: unsupported item: pub use { :: pastey :: paste , } ; (reached by manifest key `lib.path`)
+macro_rules_attribute-proc_macro@0.2.3 | ERR UnsupportedItem :: mod.rs:4: unsupported item: use { :: core :: { ops :: Not as _ , iter :: FromIterator as (reached by manifest key `lib.path`)
+macroific@3.1.0 | OK items=4 files=2 misplaced=0 total=9626 item=32361 fact=21971 tokens=1402 depth=0
+macroific_attr_parse@3.1.0 | OK items=90 files=8 misplaced=0 total=36975 item=223729 fact=74466 tokens=2356 depth=0
+macroific_core@3.1.0 | OK items=85 files=7 misplaced=0 total=32010 item=190529 fact=78571 tokens=2375 depth=0
+macroific_macro@3.1.0 | OK items=68 files=8 misplaced=0 total=24317 item=189762 fact=43435 tokens=1378 depth=0
+maplit@1.0.2 | OK items=13 files=2 misplaced=0 total=11461 item=37129 fact=15299 tokens=2370 depth=0
+markup5ever@0.39.0 | OK items=104 files=6 misplaced=0 total=43838 item=223782 fact=82051 tokens=2503 depth=0
+markup5ever_rcdom@0.5.3-unofficial | OK items=59 files=5 misplaced=0 total=24073 item=145442 fact=32682 tokens=2966 depth=0
+match_token@0.1.0 | OK items=15 files=1 misplaced=0 total=14044 item=43043 fact=12677 tokens=2196 depth=0
+matchers@0.2.0 | OK items=56 files=1 misplaced=0 total=19742 item=102524 fact=36588 tokens=3657 depth=0
+matchit@0.8.4 | OK items=156 files=11 misplaced=0 total=119041 item=318749 fact=81067 tokens=5626 depth=0
+matrix-pickle@0.2.3 | OK items=34 files=4 misplaced=0 total=13096 item=82884 fact=17869 tokens=874 depth=0
+matrix-pickle-derive@0.2.3 | OK items=5 files=1 misplaced=0 total=10045 item=32121 fact=4298 tokens=1572 depth=0
+matrix-sdk@0.18.0 | ERR InherentImplSelf :: src/event_cache/caches/room/pagination.rs:71: the self type `PaginationStatusSubscriber` of an inherent impl is not a local struct, enum or union
+matrix-sdk-base@0.18.0 | ERR InherentImplSelf :: src/room/members.rs:458: the self type `RoomMemberships` of an inherent impl is not a local struct, enum or union
+matrix-sdk-common@0.18.0 | OK items=701 files=24 misplaced=0 total=588977 item=1445301 fact=447921 tokens=25532 depth=0
+matrix-sdk-crypto@0.18.0 | OK items=3183 files=98 misplaced=0 total=2532745 item=7793197 fact=2351853 tokens=18389 depth=0
+matrix-sdk-indexeddb@0.18.0 | OK items=1028 files=52 misplaced=0 total=611757 item=2373999 fact=660071 tokens=13960 depth=0
+matrix-sdk-sqlite@0.18.0 | OK items=600 files=8 misplaced=0 total=391416 item=1190712 fact=296102 tokens=19657 depth=0
+matrix-sdk-store-encryption@0.18.0 | OK items=61 files=1 misplaced=0 total=37710 item=121680 fact=54917 tokens=6520 depth=0
+matrix_indexed_db_futures@0.7.0 | ERR UnsupportedItem :: src/query_source.rs:74: unsupported item: iffeat ! { # [cfg (feature = "cursors")] # [doc = " Open a c (reached by `mod query_source;`)
+matrix_indexed_db_futures_macros_internal@1.0.0 | OK items=77 files=12 misplaced=0 total=36990 item=224496 fact=48781 tokens=1303 depth=0
+mbox@0.7.1 | OK items=192 files=5 misplaced=0 total=59731 item=352951 fact=129129 tokens=7343 depth=0
+md-5@0.10.6 | OK items=23 files=5 misplaced=0 total=7142 item=78721 fact=16356 tokens=869 depth=0
+memchr@2.8.3 | OK items=898 files=45 misplaced=0 total=568829 item=1503687 fact=797145 tokens=7616 depth=0
+memfd@0.6.5 | OK items=53 files=7 misplaced=0 total=20250 item=129804 fact=30970 tokens=1515 depth=0
+memmap2@0.9.11 | OK items=259 files=6 misplaced=0 total=134928 item=436623 fact=185188 tokens=14975 depth=0
+memo-map@0.3.3 | OK items=51 files=1 misplaced=0 total=18164 item=92882 fact=33877 tokens=4168 depth=0
+memoffset@0.9.0 | OK items=53 files=5 misplaced=0 total=32844 item=110213 fact=40389 tokens=2273 depth=0
+memsec@0.7.0 | OK items=62 files=5 misplaced=0 total=16475 item=147183 fact=28328 tokens=1766 depth=0
+micromap@0.3.0 | OK items=618 files=38 misplaced=0 total=226192 item=1177196 fact=431893 tokens=10379 depth=0
+miette@7.6.0 | ERR InherentImplSelf :: src/eyreish/mod.rs:111: the self type `dyn ReportHandler` of an inherent impl is not a local struct, enum or union
+miette-derive@7.6.0 | OK items=94 files=14 misplaced=0 total=74993 item=320560 fact=63177 tokens=2365 depth=0
+mime@0.3.17 | OK items=102 files=5 misplaced=0 total=43531 item=193410 fact=50592 tokens=5912 depth=0
+mime2ext@0.1.54 | OK items=21 files=1 misplaced=0 total=8453 item=47305 fact=7935 tokens=1226 depth=0
+minicov@0.3.9 | OK items=37 files=2 misplaced=0 total=14197 item=78132 fact=27288 tokens=2214 depth=0
+minijinja@2.21.0 | ERR UnsupportedItem :: src/value/object.rs:650: unsupported item: impl_object_helpers ! (& Arc < Self >) ; (reached by `mod object;`)
+minimal-lexical@0.2.1 | OK items=410 files=31 misplaced=0 total=288967 item=813285 fact=215588 tokens=6134 depth=0
+miniz_oxide@0.9.1 | OK items=363 files=14 misplaced=0 total=273005 item=721718 fact=206774 tokens=19178 depth=0
+mio@1.2.4 | OK items=128 files=14 misplaced=0 total=101735 item=313701 fact=184945 tokens=5006 depth=0
+ml-dsa@0.1.1 | OK items=452 files=15 misplaced=0 total=136540 item=921395 fact=218576 tokens=4631 depth=0
+ml-kem@0.3.2 | ERR UnsupportedItem :: src/pkcs8.rs:32: unsupported item: # [cfg (feature = "alloc")] use { :: kem :: KeyExport , :: p (reached by `mod pkcs8;`)
+mmap-rs@0.7.0 | OK items=245 files=13 misplaced=0 total=116677 item=465901 fact=125377 tokens=6224 depth=0
+mock_instant@0.6.1 | OK items=29 files=4 misplaced=0 total=26475 item=81004 fact=15894 tokens=2890 depth=0
+module-lattice@0.2.3 | OK items=212 files=7 misplaced=0 total=59653 item=424931 fact=102949 tokens=4462 depth=0
+monostate@0.1.18 | OK items=261 files=15 misplaced=0 total=55878 item=469298 fact=160036 tokens=4143 depth=0
+monostate-impl@0.1.18 | OK items=11 files=1 misplaced=0 total=8776 item=38010 fact=5268 tokens=1523 depth=0
+moxcms@0.8.1 | OK items=1937 files=114 misplaced=0 total=1510604 item=4554849 fact=1098233 tokens=11601 depth=0
+multer@3.1.0 | OK items=124 files=16 misplaced=0 total=87849 item=316790 fact=111403 tokens=3075 depth=0
+multi-stash@0.2.0 | OK items=83 files=4 misplaced=0 total=27791 item=155332 fact=48779 tokens=2679 depth=0
+multiversion_no_op@1.0.0 | OK items=2 files=1 misplaced=0 total=2602 item=18863 fact=2330 tokens=159 depth=0
+mutate_once@0.1.2 | OK items=34 files=2 misplaced=0 total=13403 item=73335 fact=22919 tokens=1985 depth=0
+names@0.14.0 | OK items=27 files=4 misplaced=0 total=8564 item=75159 fact=18148 tokens=1051 depth=0
+new_debug_unreachable@1.0.6 | OK items=7 files=3 misplaced=0 total=2288 item=35232 fact=3755 tokens=195 depth=0
+nix@0.30.1 | ERR InherentImplSelf :: src/sys/signal.rs:203: the self type `Signal` of an inherent impl is not a local struct, enum or union
+nohash-hasher@0.2.0 | OK items=49 files=1 misplaced=0 total=12850 item=92364 fact=30799 tokens=2803 depth=0
+nom@8.0.0 | OK items=1416 files=44 misplaced=0 total=690241 item=2749079 fact=1139686 tokens=15719 depth=0
+nom_locate@4.2.0 | OK items=144 files=5 misplaced=0 total=59144 item=295450 fact=95144 tokens=5360 depth=0
+normalize-line-endings@0.3.0 | OK items=7 files=1 misplaced=0 total=3203 item=27382 fact=4341 tokens=392 depth=0
+notify@8.2.0 | OK items=247 files=9 misplaced=0 total=149347 item=537557 fact=161965 tokens=5008 depth=0
+notify-types@2.1.0 | ERR InherentImplSelf :: src/event.rs:351: the self type `EventKindMask` of an inherent impl is not a local struct, enum or union
+nu-ansi-term@0.50.3 | OK items=213 files=19 misplaced=0 total=105623 item=443631 fact=158111 tokens=4822 depth=0
+num@0.4.3 | OK items=7 files=1 misplaced=0 total=5338 item=49398 fact=11337 tokens=615 depth=0
+num-bigint@0.4.8 | OK items=1222 files=44 misplaced=0 total=485615 item=2134999 fact=588293 tokens=19154 depth=0
+num-bigint-dig@0.8.6 | OK items=1133 files=34 misplaced=0 total=503161 item=1994175 fact=563080 tokens=21379 depth=0
+num-cmp@0.1.0 | OK items=40 files=2 misplaced=0 total=41306 item=79177 fact=16597 tokens=5195 depth=0
+num-complex@0.4.6 | OK items=361 files=5 misplaced=0 total=120913 item=579185 fact=169559 tokens=22644 depth=0
+num-conv@0.2.2 | OK items=31 files=1 misplaced=0 total=11978 item=61349 fact=20859 tokens=2082 depth=0
+num-derive@0.4.2 | OK items=79 files=14 misplaced=0 total=44030 item=187655 fact=40093 tokens=7452 depth=0
+num-integer@0.1.47 | OK items=115 files=8 misplaced=0 total=93099 item=237618 fact=77734 tokens=10235 depth=0
+num-iter@0.1.46 | OK items=49 files=1 misplaced=0 total=21873 item=94641 fact=25040 tokens=5394 depth=0
+num-rational@0.4.2 | OK items=228 files=2 misplaced=0 total=110651 item=399437 fact=106356 tokens=24067 depth=0
+num-traits@0.2.19 | OK items=536 files=21 misplaced=0 total=246568 item=949501 fact=443316 tokens=16583 depth=0
+num_cpus@1.17.0 | OK items=74 files=3 misplaced=0 total=33040 item=150409 fact=35576 tokens=3488 depth=0
+number_prefix@0.4.0 | OK items=52 files=3 misplaced=0 total=23007 item=108748 fact=41572 tokens=3354 depth=0
+numerals@0.1.4 | OK items=32 files=3 misplaced=0 total=11931 item=73555 fact=24385 tokens=1898 depth=0
+oauth2@5.0.0 | OK items=471 files=26 misplaced=0 total=352411 item=1282827 fact=419773 tokens=6840 depth=0
+oauth2-reqwest@0.1.0-alpha.3 | OK items=12 files=1 misplaced=0 total=8732 item=41117 fact=16742 tokens=1464 depth=0
+object@0.39.1 | ERR InherentImplSelf :: src/write/util.rs:45: the self type `dyn WritableBuffer + 'a` of an inherent impl is not a local struct, enum or union
+ocb3@0.1.0 | OK items=55 files=3 misplaced=0 total=28965 item=136299 fact=33106 tokens=4200 depth=0
+oid@0.2.1 | OK items=80 files=2 misplaced=0 total=29765 item=148539 fact=36966 tokens=5183 depth=0
+oid-registry@0.8.1 | OK items=27 files=4 misplaced=0 total=15544 item=73436 fact=27346 tokens=1928 depth=0
+once_cell@1.21.4 | OK items=282 files=18 misplaced=0 total=121063 item=546665 fact=216037 tokens=9375 depth=0
+once_cell_polyfill@1.70.2 | OK items=12 files=2 misplaced=0 total=4997 item=35112 fact=4187 tokens=265 depth=0
+onig@6.5.3 | OK items=283 files=22 misplaced=0 total=121338 item=555207 fact=192212 tokens=6413 depth=0
+onig_sys@69.9.3 | OK items=521 files=4 misplaced=0 total=61296 item=827198 fact=147404 tokens=10840 depth=0
+oorandom@11.1.5 | OK items=33 files=1 misplaced=0 total=21951 item=62352 fact=18701 tokens=3208 depth=0
+opaque-debug@0.3.1 | OK items=11 files=2 misplaced=0 total=4364 item=34718 fact=6192 tokens=603 depth=0
+openssl-macros@0.1.1 | OK items=2 files=1 misplaced=0 total=1592 item=20673 fact=1566 tokens=178 depth=0
+openssl-probe@0.2.1 | OK items=27 files=2 misplaced=0 total=9423 item=58912 fact=13149 tokens=1224 depth=0
+openssl-sys@0.9.117 | OK items=2922 files=73 misplaced=0 total=358474 item=4871725 fact=888277 tokens=8290 depth=0
+option-ext@0.2.0 | ERR UnresolvedTrait :: src/impl.rs:3: the trait `OptionExt` of an impl cannot be named by an absolute path
+ordered-float@5.5.0 | OK items=565 files=4 misplaced=0 total=144073 item=894933 fact=254186 tokens=23351 depth=0
+os_pipe@1.2.3 | OK items=66 files=6 misplaced=0 total=27973 item=145374 fact=55250 tokens=2981 depth=0
+outref@0.5.2 | OK items=25 files=1 misplaced=0 total=9160 item=54022 fact=20727 tokens=1938 depth=0
+owo-colors@4.4.0 | ERR UnsupportedItem :: src/lib.rs:304: unsupported item: color_methods ! { # [doc = " Change the foreground color to (reached by manifest key `lib.path`)
+oxilangtag@0.1.6 | OK items=100 files=3 misplaced=0 total=51564 item=176532 fact=60201 tokens=5887 depth=0
+p12-keystore@0.3.2 | OK items=193 files=12 misplaced=0 total=95290 item=457262 fact=99002 tokens=5919 depth=0
+p256@0.13.2 | ERR UnresolvedTrait :: src/lib.rs:148: the trait `FieldBytesEncoding` of an impl cannot be named by an absolute path
+p384@0.13.1 | ERR UnresolvedTrait :: src/lib.rs:101: the trait `FieldBytesEncoding` of an impl cannot be named by an absolute path
+p521@0.13.3 | ERR UnresolvedTrait :: src/lib.rs:99: the trait `FieldBytesEncoding` of an impl cannot be named by an absolute path
+palette@0.7.6 | ERR InherentImplSelf :: src/ok_utils.rs:357: the self type `OklabHue < T >` of an inherent impl is not a local struct, enum or union
+palette_derive@0.7.6 | OK items=91 files=13 misplaced=0 total=65280 item=287927 fact=50458 tokens=3214 depth=0
+parking@2.2.1 | OK items=40 files=3 misplaced=0 total=18565 item=90306 fact=33958 tokens=2421 depth=0
+parking_lot@0.12.5 | OK items=308 files=15 misplaced=0 total=170440 item=647692 fact=200977 tokens=7198 depth=0
+parking_lot_core@0.9.12 | OK items=122 files=7 misplaced=0 total=83540 item=277309 fact=79288 tokens=9103 depth=0
+password-hash@0.5.0 | OK items=272 files=13 misplaced=0 total=85296 item=540551 fact=164309 tokens=3108 depth=0
+paste@1.0.15 | OK items=112 files=10 misplaced=0 total=46490 item=277271 fact=55868 tokens=3216 depth=0
+pastey@0.2.3 | OK items=144 files=5 misplaced=0 total=65220 item=290527 fact=89965 tokens=5225 depth=0
+patch-apply@0.8.3 | OK items=81 files=8 misplaced=0 total=46047 item=207336 fact=49204 tokens=3846 depth=0
+pbkdf2@0.13.0 | OK items=96 files=7 misplaced=0 total=43315 item=216957 fact=73395 tokens=2544 depth=0
+pcsc@2.9.0 | ERR InherentImplSelf :: src/lib.rs:146: the self type `State` of an inherent impl is not a local struct, enum or union
+pcsc-sys@1.3.0 | OK items=212 files=2 misplaced=0 total=20566 item=337474 fact=62127 tokens=3039 depth=0
+pdf-writer@0.12.1 | OK items=1265 files=29 misplaced=0 total=448968 item=2223445 fact=713315 tokens=10506 depth=0
+pem@4.0.0 | OK items=106 files=4 misplaced=0 total=51134 item=200956 fact=64111 tokens=5734 depth=0
+pem-rfc7468@1.0.0 | OK items=102 files=7 misplaced=0 total=41797 item=227569 fact=66592 tokens=2120 depth=0
+percent-encoding@2.3.2 | OK items=63 files=2 misplaced=0 total=22919 item=119082 fact=35832 tokens=2897 depth=0
+petgraph@0.8.3 | ERR UnresolvedTrait :: src/visit/filter.rs:95: the trait `IntoNeighbors` of an impl cannot be named by an absolute path
+phf@0.13.1 | OK items=132 files=5 misplaced=0 total=30985 item=226075 fact=87720 tokens=2419 depth=0
+phf_codegen@0.13.1 | OK items=32 files=1 misplaced=0 total=14241 item=66077 fact=28352 tokens=3063 depth=0
+phf_generator@0.13.1 | OK items=21 files=3 misplaced=0 total=8095 item=63261 fact=8848 tokens=962 depth=0
+phf_macros@0.13.1 | OK items=30 files=1 misplaced=0 total=24844 item=71402 fact=14677 tokens=4977 depth=0
+phf_shared@0.13.1 | OK items=43 files=1 misplaced=0 total=14416 item=79261 fact=26724 tokens=3396 depth=0
+picky-asn1@0.10.1 | OK items=244 files=6 misplaced=0 total=70653 item=402462 fact=135539 tokens=5530 depth=0
+picky-asn1-der@0.5.7 | OK items=228 files=17 misplaced=0 total=76279 item=491849 fact=116068 tokens=6334 depth=0
+picky-asn1-x509@0.15.5 | OK items=643 files=40 misplaced=0 total=505804 item=1511636 fact=451686 tokens=15202 depth=0
+pico-args@0.5.0 | OK items=121 files=4 misplaced=0 total=45874 item=203390 fact=58685 tokens=5078 depth=0
+pin-project@1.1.13 | OK items=151 files=23 misplaced=0 total=88456 item=369196 fact=70689 tokens=5345 depth=0
+pin-project-internal@1.1.13 | OK items=87 files=8 misplaced=0 total=100268 item=238647 fact=92374 tokens=6034 depth=0
+pin-project-lite@0.2.17 | OK items=77 files=7 misplaced=0 total=82649 item=170991 fact=53391 tokens=9652 depth=0
+pkcs1@0.7.5 | OK items=175 files=12 misplaced=0 total=65468 item=383945 fact=105744 tokens=2434 depth=0
+pkcs12@0.2.0-pre.0 | OK items=66 files=13 misplaced=0 total=65634 item=213771 fact=57937 tokens=1528 depth=0
+pkcs5@0.8.1 | OK items=228 files=10 misplaced=0 total=89027 item=431245 fact=142474 tokens=4128 depth=0
+pkcs8@0.11.0 | OK items=164 files=9 misplaced=0 total=63534 item=361677 fact=120466 tokens=3190 depth=0
+pkg-config@0.3.34 | OK items=87 files=2 misplaced=0 total=54205 item=150861 fact=45783 tokens=7348 depth=0
+plist@1.10.0 | OK items=760 files=20 misplaced=0 total=266256 item=1346418 fact=362190 tokens=6590 depth=0
+plotters@0.3.7 | OK items=1413 files=105 misplaced=0 total=656164 item=3134677 fact=878161 tokens=9869 depth=0
+plotters-backend@0.3.7 | OK items=81 files=9 misplaced=0 total=52380 item=200009 fact=50722 tokens=3070 depth=0
+plotters-svg@0.3.7 | OK items=39 files=2 misplaced=0 total=26249 item=92000 fact=17655 tokens=5526 depth=0
+png@0.18.1 | ERR InherentImplSelf :: src/common.rs:909: the self type `Transformations` of an inherent impl is not a local struct, enum or union
+polling@3.11.0 | OK items=150 files=17 misplaced=0 total=94199 item=382362 fact=150502 tokens=6524 depth=0
+poly1305@0.8.0 | OK items=124 files=9 misplaced=0 total=122007 item=266240 fact=72914 tokens=8388 depth=0
+polycool@0.4.0 | OK items=121 files=11 misplaced=0 total=48586 item=244507 fact=62944 tokens=3095 depth=0
+polyval@0.7.3 | OK items=66 files=8 misplaced=0 total=24939 item=173933 fact=43471 tokens=1488 depth=0
+portable-atomic@1.14.0 | ERR InherentImplSelf :: src/imp/x86.rs:139: the self type `AtomicI64` of an inherent impl is not a local struct, enum or union
+postcard@1.1.3 | OK items=504 files=17 misplaced=0 total=177247 item=955739 fact=307999 tokens=6877 depth=0
+potential_utf@0.1.6 | OK items=75 files=4 misplaced=0 total=29404 item=147611 fact=50913 tokens=2315 depth=0
+powerfmt@0.2.1 | OK items=119 files=5 misplaced=0 total=43445 item=207687 fact=83625 tokens=4755 depth=0
+ppv-lite86@0.2.21 | ERR InherentImplSelf :: src/soft.rs:15: the self type `x2 < W , G >` of an inherent impl is not a local struct, enum or union
+precomputed-hash@0.1.1 | OK items=5 files=1 misplaced=0 total=1455 item=22333 fact=2100 tokens=109 depth=0
+predicates@3.1.4 | OK items=279 files=25 misplaced=0 total=113510 item=615215 fact=242700 tokens=3121 depth=0
+predicates-core@1.0.10 | OK items=47 files=3 misplaced=0 total=11364 item=91763 fact=23722 tokens=1653 depth=0
+predicates-tree@1.0.13 | OK items=14 files=2 misplaced=0 total=5750 item=43862 fact=6338 tokens=517 depth=0
+pretty_assertions@1.4.1 | OK items=106 files=5 misplaced=0 total=43454 item=211558 fact=67552 tokens=3118 depth=0
+prettyplease@0.2.37 | OK items=409 files=25 misplaced=0 total=315598 item=902428 fact=211946 tokens=12875 depth=0
+primeorder@0.13.6 | OK items=175 files=6 misplaced=0 total=72019 item=316232 fact=101814 tokens=4634 depth=0
+proc-macro-crate@3.5.0 | OK items=25 files=2 misplaced=0 total=20201 item=66186 fact=15484 tokens=2534 depth=0
+proc-macro-error-attr2@2.0.0 | OK items=23 files=3 misplaced=0 total=8926 item=77256 fact=11990 tokens=644 depth=0
+proc-macro-error-attr3@3.1.1 | OK items=23 files=3 misplaced=0 total=8979 item=77256 fact=11990 tokens=644 depth=0
+proc-macro-error2@2.0.1 | OK items=96 files=10 misplaced=0 total=48603 item=215184 fact=87917 tokens=3375 depth=0
+proc-macro-error3@3.1.1 | OK items=98 files=10 misplaced=0 total=47803 item=217875 fact=89825 tokens=3453 depth=0
+proc-macro2@1.0.107 | OK items=645 files=22 misplaced=0 total=239808 item=1106544 fact=327142 tokens=9445 depth=0
+proptest@1.11.0 | ERR UnresolvedTrait :: src/test_runner/failure_persistence/file.rs:22: the trait `self::FileFailurePersistence::*` of an impl cannot be named by an absolute path
+prost@0.14.4 | OK items=221 files=10 misplaced=0 total=95197 item=444502 fact=119793 tokens=8683 depth=0
+prost-derive@0.14.4 | OK items=119 files=7 misplaced=0 total=93844 item=275511 fact=60487 tokens=7365 depth=0
+psm@0.1.32 | OK items=44 files=10 misplaced=0 total=33954 item=110229 fact=31370 tokens=2625 depth=0
+pulldown-cmark@0.13.4 | ERR InherentImplSelf :: src/lib.rs:739: the self type `Options` of an inherent impl is not a local struct, enum or union
+pulldown-cmark-escape@0.11.0 | OK items=44 files=1 misplaced=0 total=17479 item=89003 fact=21633 tokens=3026 depth=0
+pulley-interpreter@46.0.1 | ERR InherentImplSelf :: src/opcode.rs:35: the self type `Opcode` of an inherent impl is not a local struct, enum or union
+pulley-macros@46.0.1 | OK items=11 files=2 misplaced=0 total=3873 item=42540 fact=6187 tokens=599 depth=0
+purrdf@3.0.1 | OK items=403 files=17 misplaced=0 total=375775 item=973193 fact=361118 tokens=18341 depth=0
+purrdf-cdt@3.0.1 | OK items=498 files=20 misplaced=0 total=438000 item=1151865 fact=510396 tokens=10350 depth=0
+purrdf-columnar@3.0.1 | OK items=360 files=14 misplaced=0 total=214989 item=725021 fact=169186 tokens=13119 depth=0
+purrdf-core@3.0.1 | OK items=7078 files=185 misplaced=0 total=5635504 item=14316466 fact=5047610 tokens=37441 depth=0
+purrdf-datalog@3.0.1 | OK items=1327 files=19 misplaced=0 total=1108828 item=2295032 fact=1103402 tokens=32994 depth=0
+purrdf-deflate@3.0.1 | ERR InherentImplSelf :: src/backend.rs:55: the self type `Backend` of an inherent impl is not a local struct, enum or union
+purrdf-ed25519@3.0.1 | OK items=220 files=12 misplaced=0 total=110148 item=442343 fact=116608 tokens=3812 depth=0
+purrdf-entail@3.0.1 | OK items=3239 files=74 misplaced=0 total=3780713 item=7091649 fact=3510476 tokens=47824 depth=0
+purrdf-events@3.0.1 | OK items=51 files=1 misplaced=0 total=39859 item=89482 fact=67628 tokens=6032 depth=0
+purrdf-geo@3.0.1 | OK items=1350 files=30 misplaced=0 total=1139839 item=2745164 fact=1098351 tokens=19440 depth=0
+purrdf-gts@3.0.1 | OK items=1487 files=56 misplaced=0 total=1061159 item=3031708 fact=881254 tokens=17551 depth=0
+purrdf-hash@3.0.1 | ERR InherentImplSelf :: src/arch/blake3_sse2.rs:114: the self type `V` of an inherent impl is not a local struct, enum or union
+purrdf-hnsw@3.0.1 | OK items=992 files=34 misplaced=0 total=737761 item=2205583 fact=712937 tokens=13772 depth=0
+purrdf-iri@3.0.1 | OK items=1002 files=24 misplaced=0 total=1126661 item=1763252 fact=710517 tokens=148378 depth=0
+purrdf-json@3.0.1 | OK items=152 files=12 misplaced=0 total=86416 item=376410 fact=71085 tokens=5020 depth=0
+purrdf-lex@3.0.1 | OK items=1638 files=54 misplaced=0 total=1605746 item=3051254 fact=1078557 tokens=173748 depth=0
+purrdf-markdown@3.0.1 | OK items=479 files=15 misplaced=0 total=537651 item=945135 fact=471630 tokens=40903 depth=0
+purrdf-rdf@3.0.1 | ERR UnresolvedMod :: benches/projections.rs:34: module `projection_configs` has no file (reached by the `path` attribute of module `projection_configs`)
+purrdf-retrieval@3.0.1 | OK items=3034 files=57 misplaced=0 total=3451073 item=6772665 fact=2848689 tokens=45537 depth=0
+purrdf-shapes@3.0.1 | OK items=7920 files=196 misplaced=0 total=7620478 item=15684270 fact=5872226 tokens=48839 depth=0
+purrdf-shex@3.0.1 | OK items=795 files=35 misplaced=0 total=621595 item=1700683 fact=574122 tokens=10755 depth=0
+purrdf-slice@3.0.1 | OK items=536 files=25 misplaced=0 total=467372 item=1137794 fact=389623 tokens=10420 depth=0
+purrdf-sparql-algebra@3.0.1 | OK items=1659 files=42 misplaced=0 total=1503875 item=3250010 fact=1178754 tokens=54182 depth=0
+purrdf-sparql-eval@3.0.1 | OK items=9235 files=173 misplaced=0 total=8344967 item=18288018 fact=6847339 tokens=77320 depth=0
+purrdf-sparql-results@3.0.1 | OK items=443 files=17 misplaced=0 total=384076 item=953743 fact=347315 tokens=11449 depth=0
+purrdf-stack@3.0.1 | OK items=75 files=3 misplaced=0 total=79687 item=153305 fact=85198 tokens=8264 depth=0
+purrdf-text@3.0.1 | OK items=842 files=31 misplaced=0 total=984767 item=1822430 fact=771777 tokens=122861 depth=0
+purrdf-validate@3.0.1 | OK items=796 files=27 misplaced=0 total=876853 item=1700250 fact=853349 tokens=49667 depth=0
+purrdf-xsd@3.0.1 | ERR InherentImplSelf :: src/ieee/mod.rs:306: the self type `Binary64 < '_ >` of an inherent impl is not a local struct, enum or union
+pxfm@0.1.30 | OK items=2051 files=259 misplaced=0 total=3805751 item=5857805 fact=1234056 tokens=12312 depth=0
+pyo3@0.29.0 | ERR InherentImplSelf :: src/impl_/pyclass/probes.rs:34: the self type `IsPyT < Py < T > >` of an inherent impl is not a local struct, enum or union
+pyo3-build-config@0.29.0 | OK items=261 files=3 misplaced=0 total=174286 item=453804 fact=132598 tokens=23100 depth=0
+pyo3-ffi@0.29.0 | OK items=990 files=106 misplaced=0 total=415691 item=2261183 fact=522735 tokens=6009 depth=0
+pyo3-macros@0.29.0 | OK items=15 files=1 misplaced=0 total=13297 item=46157 fact=16574 tokens=1611 depth=0
+pyo3-macros-backend@0.29.0 | OK items=617 files=19 misplaced=0 total=463813 item=1361375 fact=292712 tokens=22634 depth=0
+qcms@0.3.0 | OK items=391 files=11 misplaced=0 total=273437 item=816737 fact=154086 tokens=12948 depth=0
+quick-error@2.0.1 | OK items=29 files=2 misplaced=0 total=46976 item=74071 fact=37051 tokens=12062 depth=0
+quick-xml@0.41.0 | OK items=1645 files=36 misplaced=0 total=1350449 item=3065853 fact=1544155 tokens=34461 depth=0
+quick_cache@0.6.24 | OK items=430 files=16 misplaced=0 total=250601 item=783290 fact=252214 tokens=13550 depth=0
+quinn@0.11.12 | ERR InherentImplSelf :: src/runtime.rs:115: the self type `UdpPollHelper < MakeFut , Fut >` of an inherent impl is not a local struct, enum or union
+quinn-proto@0.11.19 | ERR InherentImplSelf :: src/transport_parameters.rs:144: the self type `TransportParameters` of an inherent impl is not a local struct, enum or union
+quinn-udp@0.5.16 | OK items=194 files=10 misplaced=0 total=99687 item=429250 fact=99933 tokens=7816 depth=0
+quote@1.0.47 | OK items=222 files=10 misplaced=0 total=99349 item=421417 fact=137888 tokens=10297 depth=0
+r-efi@6.0.0 | OK items=1758 files=58 misplaced=0 total=268161 item=2814471 fact=594533 tokens=6952 depth=0
+radium@0.7.0 | OK items=71 files=4 misplaced=0 total=43784 item=125517 fact=59364 tokens=5884 depth=0
+rand@0.10.3 | OK items=518 files=29 misplaced=0 total=358533 item=1133194 fact=470179 tokens=6481 depth=0
+rand_chacha@0.9.0 | OK items=56 files=3 misplaced=0 total=39169 item=124766 fact=31734 tokens=4582 depth=0
+rand_core@0.10.1 | OK items=113 files=9 misplaced=0 total=46531 item=226115 fact=97122 tokens=2084 depth=0
+rand_pcg@0.10.2 | OK items=87 files=8 misplaced=0 total=38623 item=195267 fact=61135 tokens=1675 depth=0
+rand_xorshift@0.4.0 | OK items=16 files=2 misplaced=0 total=9270 item=47869 fact=10401 tokens=1036 depth=0
+rand_xoshiro@0.7.0 | OK items=218 files=18 misplaced=0 total=81366 item=474465 fact=159294 tokens=2170 depth=0
+rapidhash@4.5.1 | OK items=342 files=36 misplaced=0 total=231699 item=826415 fact=290681 tokens=3807 depth=0
+rayon@1.12.0 | ERR UnsupportedItem :: src/iter/mod.rs:3481: unsupported item: private_decl ! { } (reached by `mod iter;`)
+rayon-cond@0.4.0 | OK items=80 files=1 misplaced=0 total=25353 item=117661 fact=28621 tokens=6366 depth=0
+rayon-core@1.13.0 | ERR UnsupportedItem :: src/registry.rs:70: unsupported item: private_decl ! { } (reached by `mod registry;`)
+rc2@0.9.0 | OK items=30 files=4 misplaced=0 total=12865 item=83082 fact=17576 tokens=2359 depth=0
+rcgen@0.14.10 | OK items=393 files=14 misplaced=0 total=189189 item=829636 fact=263946 tokens=9711 depth=0
+read-fonts@0.39.2 | ERR InherentImplSelf :: src/lib.rs:307: the self type `TableDirectory < '_ >` of an inherent impl is not a local struct, enum or union
+readlock@0.1.11 | OK items=62 files=4 misplaced=0 total=17924 item=130893 fact=41403 tokens=2376 depth=0
+readlock-tokio@0.1.6 | OK items=68 files=4 misplaced=0 total=18293 item=140323 fact=45465 tokens=2523 depth=0
+recursive@0.1.1 | OK items=19 files=2 misplaced=0 total=5935 item=51484 fact=12434 tokens=566 depth=0
+recursive-proc-macro-impl@0.1.1 | OK items=2 files=1 misplaced=0 total=2308 item=21616 fact=1598 tokens=283 depth=0
+redb@4.1.0 | OK items=1767 files=49 misplaced=0 total=927295 item=3371088 fact=785468 tokens=22368 depth=0
+redox_syscall@0.5.18 | ERR InherentImplSelf :: src/data.rs:300: the self type `GrantFlags` of an inherent impl is not a local struct, enum or union
+reed-solomon-erasure@6.0.0 | OK items=289 files=11 misplaced=0 total=189192 item=506353 fact=138100 tokens=16387 depth=0
+ref-cast@1.0.27 | ERR UnsupportedItem :: tests/test_custom.rs:12: unsupported item: # [ref_cast_custom] pub fn new (s : & str) -> & Custom ; (reached by manifest key `test.path`)
+ref-cast-impl@1.0.27 | OK items=19 files=1 misplaced=0 total=19024 item=57600 fact=16512 tokens=3429 depth=0
+referencing@0.46.10 | OK items=450 files=32 misplaced=0 total=252078 item=1055966 fact=246608 tokens=13890 depth=0
+regalloc2@0.15.1 | ERR InherentImplSelf :: src/ion/data_structures.rs:398: the self type `LiveRanges` of an inherent impl is not a local struct, enum or union
+regex@1.13.1 | ERR UnresolvedMod :: tests/lib.rs:3: module `fuzz` has no file (reached by `mod fuzz;`)
+regex-automata@0.4.18 | ERR UnresolvedMod :: tests/lib.rs:21: module `fuzz` has no file (reached by `mod fuzz;`)
+regex-syntax@0.8.11 | OK items=1627 files=34 misplaced=0 total=1659877 item=2523915 fact=904898 tokens=72764 depth=0
+reqwest@0.13.5 | OK items=87 files=4 misplaced=0 total=45498 item=168842 fact=66102 tokens=3614 depth=0
+resb@0.1.2 | OK items=276 files=11 misplaced=0 total=150022 item=513162 fact=144390 tokens=7257 depth=0
+resvg@0.43.0 | OK items=229 files=22 misplaced=0 total=149236 item=466594 fact=92915 tokens=8981 depth=0
+rfc6979@0.4.0 | OK items=22 files=3 misplaced=0 total=9412 item=65175 fact=13837 tokens=1211 depth=0
+rgb@0.8.53 | OK items=223 files=24 misplaced=0 total=79262 item=545717 fact=164435 tokens=3514 depth=0
+ring@0.17.14 | ERR InherentImplSelf :: src/digest.rs:158: the self type `FinishError` of an inherent impl is not a local struct, enum or union
+ripemd@0.1.3 | ERR UnresolvedTrait :: src/lib.rs:166: the trait `AssociatedOid` of an impl cannot be named by an absolute path
+rmp@0.8.15 | ERR UnsupportedItem :: src/decode/mod.rs:117: unsupported item: read_byteorder_utils ! (read_data_u16 => u16 , read_data_u32 (reached by `mod decode;`)
+rmp-serde@1.3.1 | ERR UnresolvedTrait :: src/decode.rs:473: the trait `de::Deserializer` of an impl cannot be named by an absolute path
+rocksdb@0.25.0 | OK items=1970 files=52 misplaced=0 total=816940 item=3676847 fact=994215 tokens=29140 depth=0
+roxmltree@0.20.0 | OK items=345 files=10 misplaced=0 total=177128 item=561154 fact=181473 tokens=11477 depth=0
+rphonetic@3.0.6 | OK items=716 files=21 misplaced=0 total=447359 item=1349989 fact=369996 tokens=24806 depth=0
+rsa@0.9.10 | OK items=457 files=37 misplaced=0 total=242376 item=1181492 fact=350482 tokens=5241 depth=0
+ruma@0.16.0 | OK items=3 files=1 misplaced=0 total=19643 item=33468 fact=20323 tokens=1500 depth=0
+ruma-client-api@0.24.0 | OK items=2108 files=252 misplaced=0 total=937230 item=5637891 fact=1511047 tokens=7399 depth=0
+ruma-common@0.19.0 | ERR InherentImplSelf :: src/identifiers/base64_public_key.rs:17: the self type `OwnedBase64PublicKey` of an inherent impl is not a local struct, enum or union
+ruma-events@0.34.0 | ERR InherentImplSelf :: src/enums.rs:413: the self type `AnyMessageLikeEventContent` of an inherent impl is not a local struct, enum or union
+ruma-html@0.8.0 | OK items=209 files=12 misplaced=0 total=137233 item=411378 fact=124195 tokens=4720 depth=0
+ruma-identifiers-validation@0.12.1 | OK items=53 files=16 misplaced=0 total=18733 item=186445 fact=29886 tokens=824 depth=0
+ruma-macros@0.19.0 | OK items=472 files=41 misplaced=0 total=360038 item=1133507 fact=346665 tokens=5232 depth=0
+rusqlite@0.37.0 | OK items=1387 files=60 misplaced=0 total=707979 item=2848115 fact=961368 tokens=14818 depth=0
+rust-stemmers@1.2.0 | OK items=630 files=24 misplaced=0 total=730601 item=1041475 fact=185772 tokens=24284 depth=0
+rust_decimal@1.42.1 | OK items=948 files=37 misplaced=0 total=611333 item=1758120 fact=485520 tokens=29337 depth=0
+rustc-demangle@0.1.28 | OK items=159 files=3 misplaced=0 total=87702 item=260148 fact=66106 tokens=8757 depth=0
+rustc-hash@2.1.3 | OK items=61 files=3 misplaced=0 total=24597 item=136045 fact=33606 tokens=3141 depth=0
+rustc-literal-escaper@0.0.8 | OK items=107 files=3 misplaced=0 total=45083 item=183968 fact=47063 tokens=4120 depth=0
+rustc_version@0.4.1 | OK items=52 files=2 misplaced=0 total=26589 item=112802 fact=26315 tokens=2567 depth=0
+rustflags@0.1.7 | OK items=101 files=6 misplaced=0 total=53605 item=232836 fact=50761 tokens=4203 depth=0
+rusticata-macros@4.1.0 | OK items=60 files=6 misplaced=0 total=19539 item=156317 fact=35171 tokens=2490 depth=0
+rustix@1.1.5 | ERR InherentImplSelf :: src/backend/libc/fs/types.rs:193: the self type `Mode` of an inherent impl is not a local struct, enum or union
+rustls@0.23.45 | ERR InherentImplSelf :: src/msgs/enums.rs:22: the self type `HashAlgorithm` of an inherent impl is not a local struct, enum or union
+rustls-native-certs@0.8.4 | OK items=39 files=4 misplaced=0 total=22869 item=104057 fact=30500 tokens=3259 depth=0
+rustls-pemfile@2.2.0 | OK items=51 files=5 misplaced=0 total=26996 item=130441 fact=32418 tokens=1805 depth=0
+rustls-pki-types@1.15.1 | OK items=302 files=5 misplaced=0 total=131791 item=499162 fact=207595 tokens=7967 depth=0
+rustls-platform-verifier@0.7.1 | OK items=162 files=12 misplaced=0 total=117897 item=427270 fact=119064 tokens=4092 depth=0
+rustls-platform-verifier-android@0.1.1 | OK items=1 files=1 misplaced=0 total=7289 item=16451 fact=10282 tokens=525 depth=0
+rustls-webpki@0.103.15 | ERR UnresolvedMod :: src/lib.rs:77: module `test_utils` has no file (reached by `mod test_utils;`)
+rustversion@1.0.23 | OK items=120 files=19 misplaced=0 total=45537 item=345176 fact=74665 tokens=1886 depth=0
+rusty-fork@0.3.1 | OK items=69 files=7 misplaced=0 total=47177 item=164069 fact=63484 tokens=1861 depth=0
+rustybuzz@0.18.0 | OK items=1996 files=74 misplaced=0 total=1214592 item=3800705 fact=778002 tokens=29062 depth=0
+ryu@1.0.23 | OK items=315 files=28 misplaced=0 total=143029 item=740432 fact=107369 tokens=4056 depth=0
+safe_arch@1.2.0 | OK items=283 files=17 misplaced=0 total=94826 item=519775 fact=132942 tokens=13280 depth=0
+salsa20@0.11.0 | OK items=76 files=7 misplaced=0 total=19820 item=193448 fact=40347 tokens=1204 depth=0
+same-file@1.0.6 | OK items=85 files=6 misplaced=0 total=28285 item=174666 fact=59728 tokens=3291 depth=0
+schannel@0.1.29 | OK items=309 files=15 misplaced=0 total=164694 item=622013 fact=168816 tokens=7259 depth=0
+schemars@1.2.2 | ERR UnsupportedItem :: src/schema.rs:410: unsupported item: # [ref_cast_custom] fn ref_cast (value : & Value) -> & Self (reached by `mod schema;`)
+schemars_derive@1.2.2 | OK items=174 files=13 misplaced=0 total=106775 item=399561 fact=78442 tokens=5348 depth=0
+scopeguard@1.2.0 | OK items=38 files=2 misplaced=0 total=18844 item=84599 fact=42775 tokens=3844 depth=0
+scraper@0.27.0 | OK items=266 files=17 misplaced=0 total=69158 item=564413 fact=137176 tokens=2389 depth=0
+scrypt@0.12.0 | OK items=90 files=9 misplaced=0 total=37232 item=211084 fact=56446 tokens=1821 depth=0
+sealed@0.7.0 | OK items=43 files=9 misplaced=0 total=13180 item=128759 fact=28493 tokens=1956 depth=0
+sec1@0.7.3 | OK items=138 files=8 misplaced=0 total=46256 item=295855 fact=88743 tokens=4886 depth=0
+seccompiler@0.5.0 | OK items=169 files=15 misplaced=0 total=165587 item=446255 fact=125980 tokens=4213 depth=0
+security-framework@3.7.0 | ERR InherentImplSelf :: src/access_control.rs:49: the self type `SecAccessControl` of an inherent impl is not a local struct, enum or union
+security-framework-sys@2.17.0 | OK items=827 files=24 misplaced=0 total=90470 item=1463203 fact=268572 tokens=2121 depth=0
+selectors@0.38.0 | ERR InherentImplSelf :: matching.rs:90: the self type `ElementSelectorFlags` of an inherent impl is not a local struct, enum or union
+self_cell@1.3.0 | OK items=41 files=2 misplaced=0 total=46205 item=85312 fact=51254 tokens=5870 depth=0
+semver@1.0.28 | OK items=200 files=15 misplaced=0 total=100325 item=439101 fact=120700 tokens=3302 depth=0
+sequoia-openpgp@2.4.1 | OK items=5324 files=203 misplaced=0 total=5525582 item=10387288 fact=5706758 tokens=51999 depth=0
+serde@1.0.229 | OK items=17 files=5 misplaced=0 total=31950 item=57744 fact=28393 tokens=1944 depth=0
+serde-content@0.1.2 | OK items=475 files=26 misplaced=0 total=163516 item=930309 fact=223698 tokens=6051 depth=0
+serde-value@0.7.0 | OK items=168 files=3 misplaced=0 total=43966 item=256965 fact=60208 tokens=4788 depth=0
+serde-wasm-bindgen@0.6.5 | OK items=286 files=7 misplaced=0 total=77370 item=496402 fact=101964 tokens=5624 depth=0
+serde_bytes@0.11.19 | OK items=158 files=9 misplaced=0 total=40334 item=312754 fact=101682 tokens=1960 depth=0
+serde_core@1.0.229 | OK items=13 files=4 misplaced=0 total=25910 item=47099 fact=19224 tokens=1944 depth=0
+serde_derive@1.0.229 | OK items=400 files=28 misplaced=0 total=312698 item=978113 fact=195614 tokens=12391 depth=0
+serde_derive_internals@0.30.0 | ERR Tree :: lib.rs:52: ../serde_derive/src/internals/mod.rs leads outside the root (reached by the `path` attribute of module `internals` under `serde_build_from_git`)
+serde_html_form@0.4.1 | OK items=390 files=14 misplaced=0 total=75543 item=654894 fact=158458 tokens=3342 depth=0
+serde_json@1.0.154 | OK items=2033 files=53 misplaced=0 total=698815 item=3164436 fact=900386 tokens=17858 depth=0
+serde_json_path@0.7.2 | OK items=223 files=21 misplaced=0 total=96857 item=628114 fact=178170 tokens=3207 depth=0
+serde_json_path_core@0.2.2 | OK items=293 files=13 misplaced=0 total=112622 item=578268 fact=209664 tokens=5296 depth=0
+serde_json_path_macros@0.1.6 | OK items=1 files=1 misplaced=0 total=2564 item=18789 fact=2444 tokens=243 depth=0
+serde_json_path_macros_internal@0.1.2 | OK items=35 files=11 misplaced=0 total=16296 item=145242 fact=23239 tokens=867 depth=0
+serde_path_to_error@0.1.20 | OK items=340 files=7 misplaced=0 total=86846 item=496251 fact=131013 tokens=10692 depth=0
+serde_repr@0.1.21 | OK items=25 files=4 misplaced=0 total=13050 item=78388 fact=14858 tokens=987 depth=0
+serde_spanned@1.1.2 | OK items=36 files=3 misplaced=0 total=16960 item=77714 fact=24473 tokens=1842 depth=0
+serde_urlencoded@0.7.1 | OK items=270 files=9 misplaced=0 total=45309 item=430697 fact=104492 tokens=3635 depth=0
+serde_v8@0.315.0 | OK items=368 files=23 misplaced=0 total=120721 item=754262 fact=183410 tokens=6019 depth=0
+serde_yaml@0.9.34+deprecated | OK items=1202 files=28 misplaced=0 total=383046 item=1907060 fact=568194 tokens=13060 depth=0
+serde_yaml_ng@0.10.0 | OK items=1204 files=28 misplaced=0 total=387384 item=1912853 fact=574775 tokens=13423 depth=0
+serdect@0.2.0 | OK items=81 files=8 misplaced=0 total=34514 item=191949 fact=53736 tokens=1528 depth=0
+servo_arc@0.4.3 | OK items=106 files=1 misplaced=0 total=40607 item=173987 fact=72631 tokens=7539 depth=0
+sfa@1.0.0 | OK items=74 files=13 misplaced=0 total=22996 item=223303 fact=46986 tokens=1761 depth=0
+sha1@0.11.0 | OK items=27 files=6 misplaced=0 total=9087 item=90238 fact=17018 tokens=830 depth=0
+sha1collisiondetection@0.3.4 | OK items=148 files=10 misplaced=0 total=322175 item=294771 fact=75418 tokens=23713 depth=0
+sha2@0.11.0 | OK items=52 files=7 misplaced=0 total=24039 item=134936 fact=30695 tokens=1602 depth=0
+sha3@0.11.0 | ERR UnresolvedTrait :: src/lib.rs:94: the trait `CollisionResistance` of an impl cannot be named by an absolute path
+shake@0.1.0 | OK items=25 files=3 misplaced=0 total=8681 item=69039 fact=16851 tokens=1205 depth=0
+sharded-slab@0.1.7 | OK items=480 files=20 misplaced=0 total=234107 item=880568 fact=372462 tokens=7789 depth=0
+shellexpand@3.1.2 | OK items=165 files=6 misplaced=0 total=54817 item=289625 fact=98268 tokens=4174 depth=0
+shlex@2.0.1 | OK items=58 files=3 misplaced=0 total=49343 item=115566 fact=54436 tokens=2908 depth=0
+sia_reed_solomon@0.3.0 | OK items=120 files=8 misplaced=0 total=67364 item=251175 fact=55054 tokens=4863 depth=0
+signal-hook-registry@1.4.8 | ERR Syntax :: src/lib.rs:140: syntax error at column 17: expected `;` (reached by manifest key `lib.path`)
+signature@3.0.0 | OK items=90 files=7 misplaced=0 total=32259 item=186180 fact=70930 tokens=2315 depth=0
+simd-adler32@0.3.10 | OK items=178 files=10 misplaced=0 total=49094 item=345146 fact=84095 tokens=1965 depth=0
+simd_cesu8@1.2.0 | OK items=56 files=10 misplaced=0 total=60350 item=159882 fact=104533 tokens=3315 depth=0
+simdutf8@0.1.5 | OK items=213 files=15 misplaced=0 total=103075 item=483333 fact=139322 tokens=3683 depth=0
+similar@2.7.0 | OK items=394 files=29 misplaced=0 total=188514 item=800009 fact=271011 tokens=5281 depth=0
+simple_asn1@0.6.4 | OK items=80 files=1 misplaced=0 total=56916 item=143913 fact=36755 tokens=11874 depth=0
+simplecss@0.2.2 | OK items=188 files=11 misplaced=0 total=77009 item=327316 fact=71902 tokens=3814 depth=0
+siphasher@1.0.4 | OK items=181 files=6 misplaced=0 total=53486 item=300632 fact=82334 tokens=3984 depth=0
+skrifa@0.42.1 | OK items=1939 files=82 misplaced=0 total=1283010 item=3990744 fact=1174157 tokens=11531 depth=0
+slab@0.4.12 | OK items=152 files=5 misplaced=0 total=73021 item=258553 fact=124464 tokens=9980 depth=0
+slh-dsa@0.0.3 | OK items=419 files=14 misplaced=0 total=117143 item=823559 fact=225594 tokens=3416 depth=0
+slice-group-by@0.3.1 | OK items=268 files=17 misplaced=0 total=102945 item=587873 fact=161689 tokens=4222 depth=0
+slip39@0.1.1 | OK items=28 files=3 misplaced=0 total=13081 item=81198 fact=15142 tokens=1101 depth=0
+slotmap@1.1.1 | OK items=585 files=10 misplaced=0 total=286160 item=920725 fact=550734 tokens=11824 depth=0
+sluice@0.6.0 | OK items=34 files=5 misplaced=0 total=17185 item=92951 fact=22475 tokens=1426 depth=0
+smallvec@1.16.3 | OK items=284 files=4 misplaced=0 total=128321 item=454228 fact=180646 tokens=18026 depth=0
+snapbox@0.6.24 | OK items=536 files=32 misplaced=0 total=251246 item=976349 fact=294060 tokens=7783 depth=0
+snapbox-macros@0.4.0 | OK items=4 files=1 misplaced=0 total=4132 item=23157 fact=2657 tokens=250 depth=0
+socket2@0.6.5 | OK items=517 files=6 misplaced=0 total=281443 item=905695 fact=408707 tokens=19734 depth=0
+sourcemap@9.3.2 | OK items=383 files=17 misplaced=0 total=181029 item=778517 fact=219826 tokens=11874 depth=0
+spin@0.9.9 | OK items=369 files=12 misplaced=0 total=155213 item=655205 fact=310747 tokens=7155 depth=0
+spki@0.8.1 | OK items=133 files=9 misplaced=0 total=40758 item=318096 fact=90091 tokens=1685 depth=0
+spm_precompiled@0.1.4 | OK items=34 files=2 misplaced=0 total=1879952 item=73037 fact=15602 tokens=475645 depth=0
+sponge-cursor@0.1.0 | OK items=28 files=3 misplaced=0 total=18393 item=63823 fact=13549 tokens=1407 depth=0
+sqlparser@0.62.0 | ERR InherentImplSelf :: src/dialect/mod.rs:1833: the self type `dyn Dialect` of an inherent impl is not a local struct, enum or union
+sssmc39@0.0.3 | OK items=180 files=16 misplaced=0 total=89663 item=409122 fact=95090 tokens=3403 depth=0
+stable_deref_trait@1.2.1 | OK items=5 files=1 misplaced=0 total=10070 item=36504 fact=18695 tokens=843 depth=0
+stacker@0.1.25 | OK items=29 files=5 misplaced=0 total=12784 item=74895 fact=13303 tokens=996 depth=0
+stateright@0.31.0 | OK items=983 files=46 misplaced=0 total=563528 item=2035676 fact=596831 tokens=12425 depth=0
+static_assertions@1.1.0 | OK items=30 files=10 misplaced=0 total=37544 item=89123 fact=77590 tokens=1874 depth=0
+strck@1.0.0 | OK items=89 files=6 misplaced=0 total=32850 item=195922 fact=73202 tokens=3765 depth=0
+streaming-iterator@0.1.9 | OK items=413 files=3 misplaced=0 total=95697 item=593388 fact=197306 tokens=18112 depth=0
+strict-num@0.1.1 | OK items=90 files=1 misplaced=0 total=21519 item=137074 fact=46969 tokens=5046 depth=0
+string-interner@0.18.0 | OK items=312 files=14 misplaced=0 total=94728 item=589573 fact=155338 tokens=3176 depth=0
+string_cache@0.9.0 | OK items=76 files=7 misplaced=0 total=32166 item=166905 fact=54270 tokens=2649 depth=0
+string_cache_codegen@0.6.1 | OK items=13 files=1 misplaced=0 total=14294 item=36249 fact=13751 tokens=2723 depth=0
+stringcase@0.4.0 | OK items=1468 files=25 misplaced=0 total=596316 item=2537343 fact=561769 tokens=10149 depth=0
+strip-ansi-escapes@0.2.1 | OK items=24 files=2 misplaced=0 total=7173 item=60003 fact=14246 tokens=1128 depth=0
+strsim@0.11.1 | OK items=154 files=3 misplaced=0 total=42198 item=269695 fact=63801 tokens=7543 depth=0
+structured-zstd@0.0.49 | OK items=3528 files=184 misplaced=0 total=4003747 item=6729700 fact=2734889 tokens=28973 depth=0
+strum@0.28.0 | OK items=36 files=2 misplaced=0 total=14092 item=74171 fact=31678 tokens=1442 depth=0
+strum_macros@0.28.0 | OK items=126 files=24 misplaced=0 total=142279 item=449325 fact=149798 tokens=6363 depth=0
+subsetter@0.2.6 | OK items=454 files=27 misplaced=0 total=150916 item=946946 fact=232457 tokens=4167 depth=0
+subtle@2.6.1 | OK items=96 files=2 misplaced=0 total=45487 item=163443 fact=77762 tokens=5809 depth=0
+suggest@0.5.1 | OK items=23 files=3 misplaced=0 total=8752 item=65582 fact=12318 tokens=1479 depth=0
+supports-color@3.0.2 | OK items=26 files=2 misplaced=0 total=8939 item=59805 fact=10967 tokens=1674 depth=0
+supports-hyperlinks@3.2.0 | OK items=5 files=1 misplaced=0 total=2910 item=22183 fact=1791 tokens=420 depth=0
+supports-unicode@3.0.0 | OK items=5 files=1 misplaced=0 total=2634 item=22156 fact=1781 tokens=404 depth=0
+svg2pdf@0.12.0 | OK items=165 files=16 misplaced=0 total=103021 item=506200 fact=121553 tokens=3911 depth=0
+svgtypes@0.15.3 | OK items=360 files=21 misplaced=0 total=186996 item=694216 fact=191752 tokens=6939 depth=0
+syn@3.0.9 | ERR InherentImplSelf :: src/attr.rs:185: the self type `Attribute` of an inherent impl is not a local struct, enum or union
+syn-match@0.3.1 | OK items=66 files=2 misplaced=0 total=62122 item=127786 fact=25663 tokens=7339 depth=0
+sync_wrapper@1.0.2 | OK items=21 files=1 misplaced=0 total=9384 item=48270 fact=21800 tokens=1574 depth=0
+synstructure@0.14.0 | OK items=77 files=2 misplaced=0 total=93015 item=142136 fact=160803 tokens=15729 depth=0
+syntect@5.3.0 | OK items=659 files=39 misplaced=0 total=439605 item=1422182 fact=432911 tokens=8201 depth=0
+sys_traits@0.1.28 | OK items=847 files=7 misplaced=0 total=205409 item=1346317 fact=383989 tokens=14810 depth=0
+sys_traits_macros@0.1.0 | OK items=2 files=1 misplaced=0 total=1437 item=20231 fact=1372 tokens=104 depth=0
+sysctl@0.6.0 | OK items=203 files=17 misplaced=0 total=86252 item=414896 fact=110127 tokens=7514 depth=0
+tap@1.0.1 | OK items=65 files=4 misplaced=0 total=30894 item=115738 fact=60537 tokens=2972 depth=0
+tar@0.4.46 | OK items=479 files=15 misplaced=0 total=288187 item=825883 fact=283627 tokens=20214 depth=0
+target-lexicon@0.13.5 | OK items=168 files=7 misplaced=0 total=105492 item=336860 fact=93509 tokens=11094 depth=0
+tempfile@3.27.0 | OK items=264 files=19 misplaced=0 total=146510 item=548732 fact=262695 tokens=7298 depth=0
+temporal_capi@0.2.4 | OK items=444 files=14 misplaced=0 total=121883 item=817158 fact=191175 tokens=5677 depth=0
+temporal_rs@0.2.4 | OK items=1344 files=45 misplaced=0 total=859957 item=2858944 fact=805171 tokens=9320 depth=0
+tendril@0.5.1 | OK items=358 files=11 misplaced=0 total=151368 item=655545 fact=187147 tokens=15935 depth=0
+term@1.2.1 | OK items=165 files=8 misplaced=0 total=106544 item=333220 fact=85762 tokens=5003 depth=0
+termcolor@1.4.1 | OK items=241 files=1 misplaced=0 total=82501 item=335284 fact=125319 tokens=15907 depth=0
+terminal_size@0.4.4 | OK items=15 files=4 misplaced=0 total=10232 item=64913 fact=12404 tokens=888 depth=0
+termtree@0.5.1 | OK items=38 files=4 misplaced=0 total=17089 item=89777 fact=17280 tokens=1475 depth=0
+textwrap@0.16.4 | OK items=271 files=17 misplaced=0 total=165809 item=569222 fact=252568 tokens=4497 depth=0
+thin-vec@0.2.18 | OK items=266 files=1 misplaced=0 total=152693 item=402490 fact=202366 tokens=28967 depth=0
+thiserror@2.0.21 | OK items=196 files=19 misplaced=0 total=61782 item=432101 fact=111420 tokens=2587 depth=0
+thiserror-impl@2.0.21 | OK items=142 files=11 misplaced=0 total=84401 item=362068 fact=75660 tokens=4427 depth=0
+thread-id@5.1.0 | OK items=10 files=1 misplaced=0 total=3878 item=29260 fact=5654 tokens=635 depth=0
+thread_local@1.1.10 | OK items=100 files=3 misplaced=0 total=41801 item=177457 fact=58577 tokens=4951 depth=0
+tiktoken-rs@0.12.0 | OK items=130 files=9 misplaced=0 total=99122 item=295538 fact=90875 tokens=5403 depth=0
+time@0.3.55 | ERR UnsupportedItem :: src/formatting/component_provider.rs:98: unsupported item: unimplemented_methods ! { # [doc = " Obtain the day of the m (reached by `mod component_provider;`)
+time-core@0.1.9 | OK items=28 files=4 misplaced=0 total=21919 item=72626 fact=18178 tokens=2880 depth=0
+time-macros@0.2.32 | OK items=194 files=21 misplaced=0 total=147281 item=499106 fact=101761 tokens=5665 depth=0
+timezone_provider@0.2.4 | OK items=307 files=16 misplaced=0 total=188125 item=684742 fact=172558 tokens=9048 depth=0
+tiny-keccak@2.0.2 | OK items=207 files=23 misplaced=0 total=79029 item=488762 fact=115110 tokens=3274 depth=0
+tiny-skia@0.11.4 | ERR InherentImplSelf :: src/wide/f32x4_t.rs:56: the self type `f32x4` of an inherent impl is not a local struct, enum or union
+tiny-skia-path@0.11.4 | OK items=522 files=13 misplaced=0 total=212853 item=844337 fact=223383 tokens=12447 depth=0
+tiny_http@0.12.0 | OK items=394 files=33 misplaced=0 total=151324 item=880387 fact=234255 tokens=3050 depth=0
+tinystr@0.8.4 | OK items=192 files=16 misplaced=0 total=90710 item=383398 fact=117724 tokens=7636 depth=0
+tinytemplate@1.2.1 | OK items=152 files=7 misplaced=0 total=88987 item=281125 fact=87473 tokens=5021 depth=0
+tinyvec@1.13.3 | OK items=424 files=14 misplaced=0 total=200999 item=665102 fact=337791 tokens=14662 depth=0
+tinyvec_macros@0.1.1 | OK items=2 files=1 misplaced=0 total=1337 item=17869 fact=562 tokens=203 depth=0
+tl@0.7.8 | OK items=393 files=26 misplaced=0 total=139913 item=740506 fact=206320 tokens=5487 depth=0
+tokenizers@0.23.2 | ERR InherentImplSelf :: src/processors/template.rs:456: the self type `TemplateProcessingBuilder` of an inherent impl is not a local struct, enum or union
+tokio@1.53.2 | ERR InherentImplSelf :: src/future/maybe_done.rs:32: the self type `MaybeDone < Fut >` of an inherent impl is not a local struct, enum or union
+tokio-btls@0.5.6 | OK items=29 files=2 misplaced=0 total=12414 item=74778 fact=17580 tokens=2073 depth=0
+tokio-macros@2.7.2 | OK items=50 files=3 misplaced=0 total=50723 item=106571 fact=65802 tokens=5133 depth=0
+tokio-rustls@0.26.6 | OK items=180 files=6 misplaced=0 total=73657 item=353416 fact=111253 tokens=3945 depth=0
+tokio-socks@0.5.3 | OK items=373 files=20 misplaced=0 total=91519 item=877343 fact=140447 tokens=5369 depth=0
+tokio-stream@0.1.19 | ERR InherentImplSelf :: src/stream_ext/all.rs:22: the self type `AllFuture < 'a , St , F >` of an inherent impl is not a local struct, enum or union
+tokio-tungstenite@0.30.0 | OK items=129 files=14 misplaced=0 total=68458 item=386121 fact=98976 tokens=3273 depth=0
+tokio-util@0.7.20 | ERR UnsupportedItem :: src/future.rs:12: unsupported item: cfg_time ! { # [doc = " A wrapper around [`tokio::time::time (reached by `mod future;`)
+toml@1.1.8+spec-1.1.0 | OK items=1027 files=39 misplaced=0 total=288005 item=1638412 fact=472510 tokens=8553 depth=0
+toml_datetime@1.1.2+spec-1.1.0 | OK items=111 files=4 misplaced=0 total=49481 item=189457 fact=58225 tokens=6110 depth=0
+toml_edit@0.25.15+spec-1.1.0 | OK items=1082 files=38 misplaced=0 total=310627 item=1769081 fact=532222 tokens=5953 depth=0
+toml_parser@1.1.5+spec-1.1.0 | OK items=365 files=15 misplaced=0 total=219057 item=645552 fact=189738 tokens=10483 depth=0
+toml_write@0.1.2 | OK items=90 files=5 misplaced=0 total=29810 item=169117 fact=46830 tokens=2160 depth=0
+toml_writer@1.1.3+spec-1.1.0 | OK items=117 files=6 misplaced=0 total=37137 item=212744 fact=65260 tokens=2293 depth=0
+toon-format@0.5.0 | OK items=856 files=69 misplaced=0 total=440525 item=1954369 fact=415892 tokens=11625 depth=0
+tower@0.5.3 | ERR InherentImplSelf :: src/buffer/future.rs:40: the self type `ResponseFuture < T >` of an inherent impl is not a local struct, enum or union
+tower-http@0.6.11 | ERR InherentImplSelf :: src/compression/body.rs:57: the self type `CompressionBody < B >` of an inherent impl is not a local struct, enum or union
+tower-layer@0.3.3 | OK items=61 files=5 misplaced=0 total=19281 item=118994 fact=43912 tokens=3300 depth=0
+tower-service@0.3.3 | OK items=17 files=1 misplaced=0 total=14856 item=37113 fact=34675 tokens=2381 depth=0
+tracing@0.1.44 | ERR InherentImplSelf :: src/instrument.rs:290: the self type `InstrumentedProj < 'a , T >` of an inherent impl is not a local struct, enum or union
+tracing-attributes@0.1.31 | OK items=219 files=16 misplaced=0 total=141142 item=479383 fact=148540 tokens=4373 depth=0
+tracing-core@0.1.36 | ERR InherentImplSelf :: src/subscriber.rs:501: the self type `dyn Subscriber` of an inherent impl is not a local struct, enum or union
+tracing-futures@0.2.5 | ERR Tree :: src/lib.rs:510: ../../tracing/tests/support/mod.rs leads outside the root (reached by the `path` attribute of module `support`)
+tracing-log@0.2.0 | OK items=121 files=6 misplaced=0 total=56872 item=243604 fact=85774 tokens=4151 depth=0
+tracing-subscriber@0.3.23 | OK items=574 files=55 misplaced=0 total=390358 item=1247561 fact=470638 tokens=12596 depth=0
+tree-sitter@0.27.0 | OK items=343 files=6 misplaced=0 total=170953 item=544077 fact=227969 tokens=26836 depth=0
+tree-sitter-javascript@0.25.0 | OK items=13 files=2 misplaced=0 total=4327 item=39245 fact=6332 tokens=379 depth=0
+tree-sitter-language@0.1.9 | OK items=6 files=2 misplaced=0 total=3258 item=27471 fact=2458 tokens=151 depth=0
+tree-sitter-python@0.25.0 | OK items=10 files=2 misplaced=0 total=3844 item=34720 fact=5158 tokens=315 depth=0
+tree-sitter-rust@0.24.2 | OK items=11 files=2 misplaced=0 total=3937 item=36171 fact=5891 tokens=367 depth=0
+tree-sitter-typescript@0.23.2 | OK items=15 files=2 misplaced=0 total=5185 item=42329 fact=7684 tokens=488 depth=0
+try-lock@0.2.5 | OK items=18 files=1 misplaced=0 total=9004 item=46659 fact=19038 tokens=1649 depth=0
+trycmd@0.15.11 | OK items=184 files=9 misplaced=0 total=114612 item=325113 fact=104504 tokens=10091 depth=0
+tss-esapi@8.0.0-alpha.3 | ERR InherentImplSelf :: src/error/return_code.rs:219: the self type `ReturnCodeStructure` of an inherent impl is not a local struct, enum or union
+tss-esapi-sys@0.6.0 | OK items=5 files=2 misplaced=0 total=7682 item=26552 fact=1690 tokens=716 depth=0
+ttf-parser@0.24.1 | OK items=2124 files=80 misplaced=0 total=849523 item=4046578 fact=1030626 tokens=15932 depth=0
+tungstenite@0.30.0 | OK items=500 files=31 misplaced=0 total=211818 item=1171450 fact=302285 tokens=5817 depth=0
+two-face@0.4.5 | OK items=49 files=6 misplaced=0 total=54333 item=125223 fact=58873 tokens=2615 depth=0
+twofish@0.7.1 | OK items=30 files=5 misplaced=0 total=17199 item=89212 fact=16148 tokens=2927 depth=0
+twox-hash@2.1.5 | OK items=474 files=13 misplaced=0 total=143426 item=850762 fact=218383 tokens=4199 depth=0
+typed-arena@2.0.2 | OK items=57 files=3 misplaced=0 total=33925 item=114818 fact=46186 tokens=3896 depth=0
+typed-builder@0.23.2 | ERR InherentImplSelf :: examples/complicate_build.rs:29: the self type `FooBuilder < ((i32 ,) , __y , __z) >` of an inherent impl is not a local struct, enum or union
+typed-builder-macro@0.23.2 | OK items=105 files=6 misplaced=0 total=85714 item=248418 fact=50632 tokens=6064 depth=0
+typenum@1.20.1 | OK items=7457 files=15 misplaced=0 total=1204619 item=11843013 fact=2774783 tokens=211927 depth=0
+typewit@1.15.2 | OK items=353 files=34 misplaced=0 total=304917 item=854821 fact=547993 tokens=7771 depth=0
+typst@0.13.1 | OK items=25 files=1 misplaced=0 total=13359 item=68944 fact=18870 tokens=2042 depth=0
+typst-assets@0.13.1 | OK items=10 files=1 misplaced=0 total=4079 item=31204 fact=6051 tokens=524 depth=0
+typst-eval@0.13.1 | OK items=205 files=13 misplaced=0 total=96177 item=483430 fact=127721 tokens=4959 depth=0
+typst-html@0.13.1 | OK items=22 files=2 misplaced=0 total=18081 item=82479 fact=17803 tokens=2565 depth=0
+typst-layout@0.13.1 | OK items=725 files=46 misplaced=0 total=698503 item=1954976 fact=518000 tokens=9695 depth=0
+typst-library@0.13.1 | ERR UnsupportedItem :: src/foundations/bool.rs:5: unsupported item: # [doc = " A type with two states."] # [doc = ""] # [doc = " (reached by `mod bool;`)
+typst-macros@0.13.1 | OK items=130 files=8 misplaced=0 total=92237 item=307679 fact=91179 tokens=7276 depth=0
+typst-pdf@0.13.1 | OK items=250 files=15 misplaced=0 total=172607 item=705087 fact=187219 tokens=5787 depth=0
+typst-realize@0.13.1 | OK items=54 files=1 misplaced=0 total=48296 item=127050 fact=32440 tokens=8746 depth=0
+typst-svg@0.13.1 | OK items=79 files=5 misplaced=0 total=60223 item=205216 fact=49965 tokens=3938 depth=0
+typst-syntax@0.13.1 | ERR InherentImplSelf :: src/ast.rs:69: the self type `Markup < 'a >` of an inherent impl is not a local struct, enum or union
+typst-timing@0.13.1 | OK items=23 files=1 misplaced=0 total=10193 item=53116 fact=13256 tokens=1834 depth=0
+typst-utils@0.13.1 | OK items=203 files=10 misplaced=0 total=57603 item=396570 fact=122791 tokens=2501 depth=0
+ulid@1.2.1 | OK items=126 files=11 misplaced=0 total=41904 item=290602 fact=91433 tokens=2912 depth=0
+unarray@0.1.4 | OK items=52 files=5 misplaced=0 total=26215 item=138200 fact=50381 tokens=1417 depth=0
+unic-langid@0.9.6 | OK items=9 files=2 misplaced=0 total=7884 item=38077 fact=13558 tokens=942 depth=0
+unic-langid-impl@0.9.6 | OK items=167 files=23 misplaced=0 total=611227 item=402878 fact=101016 tokens=174753 depth=0
+unicase@2.10.0 | OK items=100 files=4 misplaced=0 total=96977 item=199088 fact=58693 tokens=13762 depth=0
+unicode-bidi@0.3.18 | OK items=272 files=11 misplaced=0 total=244315 item=520503 fact=193784 tokens=14892 depth=0
+unicode-bidi-mirroring@0.3.0 | OK items=6 files=1 misplaced=0 total=10622 item=23773 fact=2641 tokens=1813 depth=0
+unicode-ccc@0.3.0 | OK items=4 files=1 misplaced=0 total=14563 item=20879 fact=2110 tokens=2914 depth=0
+unicode-general-category@1.1.0 | OK items=33 files=4 misplaced=0 total=220800 item=92308 fact=16076 tokens=45203 depth=0
+unicode-id-start@1.4.0 | OK items=47 files=8 misplaced=0 total=117503 item=128030 fact=39870 tokens=20985 depth=0
+unicode-ident@1.0.27 | OK items=54 files=9 misplaced=0 total=122821 item=147918 fact=43166 tokens=20957 depth=0
+unicode-linebreak@0.1.4 | OK items=43 files=2 misplaced=0 total=40647 item=93405 fact=24833 tokens=6470 depth=0
+unicode-math-class@0.1.0 | OK items=4 files=1 misplaced=0 total=2580 item=21063 fact=3954 tokens=322 depth=0
+unicode-normalization@0.1.25 | OK items=198 files=13 misplaced=0 total=685698 item=426597 fact=99165 tokens=146148 depth=0
+unicode-normalization-alignments@0.1.12 | OK items=170 files=12 misplaced=0 total=476337 item=360774 fact=77006 tokens=102887 depth=0
+unicode-properties@0.1.4 | OK items=42 files=4 misplaced=0 total=277644 item=103564 fact=23498 tokens=45570 depth=0
+unicode-script@0.5.8 | OK items=518 files=2 misplaced=0 total=239174 item=804138 fact=178653 tokens=47786 depth=0
+unicode-security@0.1.2 | OK items=67 files=7 misplaced=0 total=425818 item=155876 fact=36249 tokens=93731 depth=0
+unicode-segmentation@1.13.3 | OK items=225 files=11 misplaced=0 total=628236 item=430775 fact=139954 tokens=61103 depth=0
+unicode-vo@0.1.0 | OK items=3 files=1 misplaced=0 total=13228 item=19324 fact=1622 tokens=2554 depth=0
+unicode-width@0.2.2 | OK items=177 files=4 misplaced=0 total=1604414 item=286942 fact=87232 tokens=271943 depth=0
+unicode-xid@0.2.6 | OK items=35 files=5 misplaced=0 total=62545 item=91557 fact=16778 tokens=9108 depth=0
+unicode_categories@0.1.1 | OK items=102 files=2 misplaced=0 total=392298 item=151157 fact=37712 tokens=58810 depth=0
+universal-hash@0.6.1 | OK items=16 files=1 misplaced=0 total=7316 item=46387 fact=10962 tokens=963 depth=0
+unsafe-libyaml@0.2.11 | OK items=470 files=20 misplaced=0 total=448626 item=1345627 fact=224181 tokens=17594 depth=0
+unscanny@0.1.0 | OK items=61 files=1 misplaced=0 total=23607 item=102729 fact=33951 tokens=4707 depth=0
+untrusted@0.9.0 | OK items=48 files=5 misplaced=0 total=20016 item=103747 fact=31465 tokens=843 depth=0
+unty-next@0.1.2 | OK items=5 files=1 misplaced=0 total=6517 item=24159 fact=8320 tokens=986 depth=0
+ureq@3.4.2 | OK items=1128 files=42 misplaced=0 total=537975 item=2320861 fact=822431 tokens=9476 depth=0
+ureq-proto@0.6.4 | OK items=639 files=44 misplaced=0 total=344472 item=1364029 fact=376545 tokens=8222 depth=0
+url@2.5.8 | OK items=344 files=9 misplaced=0 total=285770 item=601066 fact=286277 tokens=19680 depth=0
+urlencoding@2.1.3 | OK items=42 files=4 misplaced=0 total=16158 item=100935 fact=22765 tokens=1005 depth=0
+usvg@0.43.0 | OK items=1002 files=30 misplaced=0 total=580386 item=1815337 fact=491868 tokens=11192 depth=0
+utf-8@0.7.6 | ERR UnresolvedMod :: benches/from_utf8_lossy.rs:7: module `data` has no file (reached by the `path` attribute of module `data`)
+utf8-zero@0.8.1 | OK items=43 files=4 misplaced=0 total=27833 item=101275 fact=33646 tokens=1648 depth=0
+utf8_iter@1.0.4 | OK items=40 files=3 misplaced=0 total=24207 item=90294 fact=26404 tokens=2451 depth=0
+utf8parse@0.2.2 | OK items=27 files=3 misplaced=0 total=9221 item=71284 fact=13050 tokens=797 depth=0
+uuid@1.27.0 | OK items=605 files=23 misplaced=0 total=297001 item=1142485 fact=486392 tokens=11125 depth=0
+uuid-simd@0.8.0 | OK items=39 files=7 misplaced=0 total=23695 item=120068 fact=28264 tokens=1281 depth=0
+v8@149.4.0 | ERR Target :: Cargo.toml: the root build.rs already belongs to the target `build` (reached by manifest key `package.build`)
+valuable@0.1.1 | OK items=180 files=17 misplaced=0 total=133168 item=375312 fact=205047 tokens=5074 depth=0
+varint-rs@2.2.1 | OK items=52 files=2 misplaced=0 total=18440 item=87899 fact=37683 tokens=2694 depth=0
+vcpkg@0.2.15 | OK items=61 files=1 misplaced=0 total=74542 item=113405 fact=37864 tokens=10897 depth=0
+version_check@0.9.5 | OK items=69 files=4 misplaced=0 total=43967 item=137148 fact=72201 tokens=3743 depth=0
+visual-hashing@1.0.0 | OK items=75 files=6 misplaced=0 total=37011 item=163249 fact=40260 tokens=2534 depth=0
+vodozemac@0.10.0 | OK items=986 files=40 misplaced=0 total=450367 item=2195483 fact=634045 tokens=10277 depth=0
+vsimd@0.8.0 | ERR InherentImplSelf :: src/vector.rs:120: the self type `V64` of an inherent impl is not a local struct, enum or union
+vte@0.14.1 | OK items=355 files=4 misplaced=0 total=144578 item=532565 fact=151692 tokens=17004 depth=0
+wait-timeout@0.2.1 | OK items=42 files=7 misplaced=0 total=17444 item=113836 fact=24305 tokens=1543 depth=0
+waker-fn@1.2.0 | OK items=8 files=1 misplaced=0 total=2977 item=29292 fact=5596 tokens=426 depth=0
+walkdir@2.5.0 | OK items=167 files=7 misplaced=0 total=101795 item=291777 fact=137827 tokens=8750 depth=0
+want@0.3.2 | OK items=41 files=2 misplaced=0 total=18837 item=85850 fact=28844 tokens=2885 depth=0
+wasi@0.11.1+wasi-snapshot-preview1 | OK items=365 files=2 misplaced=0 total=88209 item=562533 fact=173783 tokens=15997 depth=0
+wasip2@1.0.4+wasi-0.2.12 | OK items=621 files=12 misplaced=0 total=1052923 item=1115469 fact=522193 tokens=72933 depth=0
+wasm-bindgen@0.2.129 | ERR InherentImplSelf :: src/sys.rs:39: the self type `Undefined` of an inherent impl is not a local struct, enum or union
+wasm-bindgen-backend@0.2.87 | OK items=122 files=6 misplaced=0 total=101533 item=251400 fact=68915 tokens=9377 depth=0
+wasm-bindgen-futures@0.4.79 | OK items=18 files=2 misplaced=0 total=11989 item=51660 fact=17184 tokens=1232 depth=0
+wasm-bindgen-macro@0.2.129 | OK items=6 files=1 misplaced=0 total=4686 item=25457 fact=3719 tokens=454 depth=0
+wasm-bindgen-macro-support@0.2.129 | OK items=344 files=8 misplaced=0 total=524457 item=633474 fact=200526 tokens=33853 depth=0
+wasm-bindgen-shared@0.2.129 | OK items=38 files=5 misplaced=0 total=24320 item=90380 fact=20316 tokens=2336 depth=0
+wasm-bindgen-test@0.3.75 | ERR UnresolvedTrait :: src/rt/criterion/stats/univariate/outliers/tukey.rs:46: the trait `self::Label::*` of an impl cannot be named by an absolute path
+wasm-bindgen-test-macro@0.3.75 | OK items=12 files=1 misplaced=0 total=13477 item=34977 fact=4505 tokens=2450 depth=0
+wasm-bindgen-test-shared@0.2.125 | OK items=4 files=1 misplaced=0 total=4222 item=22482 fact=1476 tokens=593 depth=0
+wasm-encoder@0.259.0 | OK items=1733 files=36 misplaced=0 total=576262 item=2669004 fact=808490 tokens=28043 depth=0
+wasm-streams@0.5.0 | OK items=413 files=41 misplaced=0 total=153051 item=965763 fact=263622 tokens=2708 depth=0
+wasm_dep_analyzer@0.4.0 | OK items=61 files=2 misplaced=0 total=32304 item=126965 fact=23141 tokens=4787 depth=0
+wasm_evt_listener@0.1.0 | OK items=30 files=5 misplaced=0 total=17246 item=100944 fact=32229 tokens=1367 depth=0
+wasmi@0.40.0 | OK items=4570 files=253 misplaced=0 total=2095605 item=8887818 fact=2406159 tokens=20949 depth=0
+wasmi_collections@0.40.0 | OK items=407 files=12 misplaced=0 total=81578 item=676317 fact=221431 tokens=5580 depth=0
+wasmi_core@0.40.0 | OK items=354 files=9 misplaced=0 total=114158 item=568606 fact=179877 tokens=10187 depth=0
+wasmi_ir@0.40.0 | ERR InherentImplSelf :: src/enum.rs:139: the self type `Instruction` of an inherent impl is not a local struct, enum or union
+wasmparser@0.259.0 | ERR UnsupportedItem :: src/readers/core/operators.rs:790: unsupported item: crate :: for_each_visit_operator ! (define_visit_operator) ; (reached by `mod operators;`)
+wasmprinter@0.251.0 | OK items=288 files=7 misplaced=0 total=241930 item=453525 fact=104924 tokens=17363 depth=0
+wasmtime@46.0.1 | ERR InherentImplSelf :: src/runtime/code.rs:69: the self type `StoreCodePC` of an inherent impl is not a local struct, enum or union
+wasmtime-environ@46.0.1 | ERR InherentImplSelf :: src/builtin.rs:326: the self type `BuiltinFunctionIndex` of an inherent impl is not a local struct, enum or union
+wasmtime-internal-component-util@46.0.1 | OK items=9 files=1 misplaced=0 total=6645 item=28855 fact=5227 tokens=480 depth=0
+wasmtime-internal-core@46.0.1 | OK items=621 files=29 misplaced=0 total=246523 item=1135481 fact=433893 tokens=12343 depth=0
+wasmtime-internal-cranelift@46.0.1 | OK items=1063 files=43 misplaced=0 total=1177208 item=2181338 fact=606665 tokens=39956 depth=0
+wasmtime-internal-fiber@46.0.1 | OK items=42 files=2 misplaced=0 total=18906 item=89320 fact=23065 tokens=3209 depth=0
+wasmtime-internal-jit-debug@46.0.1 | OK items=45 files=4 misplaced=0 total=22571 item=105865 fact=30767 tokens=1682 depth=0
+wasmtime-internal-jit-icache-coherence@46.0.1 | OK items=3 files=1 misplaced=0 total=6999 item=20453 fact=9599 tokens=752 depth=0
+wasmtime-internal-unwinder@46.0.1 | OK items=43 files=6 misplaced=0 total=45723 item=107795 fact=47174 tokens=3416 depth=0
+wasmtime-internal-versioned-export-macros@46.0.1 | OK items=8 files=1 misplaced=0 total=3601 item=27971 fact=3540 tokens=489 depth=0
+wast@255.0.0 | OK items=251 files=12 misplaced=0 total=181766 item=440948 fact=209775 tokens=10261 depth=0
+wat@1.255.0 | OK items=24 files=1 misplaced=0 total=17914 item=55688 fact=30295 tokens=3276 depth=0
+web-sys@0.3.106 | ERR memory :: signal: 6 (SIGABRT) (core dumped): note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+web-time@1.1.0 | ERR Target :: Cargo.toml: the target file tests/serde.rs does not exist (reached by manifest key `test.path`)
+web_atoms@0.2.6 | OK items=10 files=3 misplaced=0 total=68984 item=41921 fact=4722 tokens=17868 depth=0
+webpki-root-certs@1.0.9 | OK items=7 files=3 misplaced=0 total=531778 item=35300 fact=4739 tokens=1129 depth=0
+webpki-roots@1.0.9 | OK items=14 files=3 misplaced=0 total=419830 item=60718 fact=12204 tokens=3455 depth=0
+weezl@0.1.12 | OK items=288 files=15 misplaced=0 total=134051 item=550111 fact=150573 tokens=9025 depth=0
+whatlang@0.16.4 | ERR Target :: Cargo.toml: the target file benches/example.rs does not exist (reached by manifest key `bench.path`)
+which@8.0.4 | OK items=251 files=9 misplaced=0 total=83605 item=423783 fact=128409 tokens=6304 depth=0
+wide@1.7.1 | ERR InherentImplSelf :: src/f32x16_.rs:1593: the self type `f32x16` of an inherent impl is not a local struct, enum or union
+wildmatch@2.6.1 | OK items=41 files=2 misplaced=0 total=23085 item=87660 fact=29560 tokens=3417 depth=0
+winapi@0.3.9 | OK items=50644 files=405 misplaced=0 total=6918574 item=82484498 fact=14484458 tokens=54106 depth=0
+winapi-i686-pc-windows-gnu@0.4.0 | OK items=3 files=2 misplaced=0 total=2168 item=22656 fact=554 tokens=102 depth=0
+winapi-util@0.1.11 | OK items=102 files=5 misplaced=0 total=34507 item=198946 fact=68929 tokens=2402 depth=0
+winapi-x86_64-pc-windows-gnu@0.4.0 | OK items=3 files=2 misplaced=0 total=2174 item=22670 fact=554 tokens=102 depth=0
+windows-core@0.62.2 | ERR InherentImplSelf :: src/imp/com_bindings.rs:54: the self type `IAgileReference` of an inherent impl is not a local struct, enum or union
+windows-implement@0.60.2 | OK items=43 files=3 misplaced=0 total=40883 item=94885 fact=26650 tokens=3918 depth=0
+windows-interface@0.59.3 | OK items=29 files=1 misplaced=0 total=28046 item=57116 fact=15260 tokens=5401 depth=0
+windows-link@0.2.1 | OK items=4 files=1 misplaced=0 total=2200 item=20408 fact=1710 tokens=299 depth=0
+windows-result@0.4.1 | OK items=122 files=8 misplaced=0 total=27527 item=230188 fact=62150 tokens=2228 depth=0
+windows-strings@0.5.1 | OK items=172 files=13 misplaced=0 total=37815 item=294335 fact=91536 tokens=2504 depth=0
+windows-sys@0.61.2 | OK items=22 files=3 misplaced=0 total=18217 item=56791 fact=7965 tokens=831 depth=0
+windows-targets@0.53.5 | OK items=3 files=1 misplaced=0 total=2978 item=20095 fact=1485 tokens=203 depth=0
+windows_aarch64_gnullvm@0.53.1 | OK items=3 files=2 misplaced=0 total=1376 item=22635 fact=554 tokens=54 depth=0
+windows_aarch64_msvc@0.53.1 | OK items=3 files=2 misplaced=0 total=1370 item=22614 fact=554 tokens=54 depth=0
+windows_i686_gnu@0.53.1 | OK items=3 files=2 misplaced=0 total=1362 item=22586 fact=554 tokens=54 depth=0
+windows_i686_gnullvm@0.53.1 | OK items=3 files=2 misplaced=0 total=1370 item=22614 fact=554 tokens=54 depth=0
+windows_i686_msvc@0.53.1 | OK items=3 files=2 misplaced=0 total=1364 item=22593 fact=554 tokens=54 depth=0
+windows_x86_64_gnu@0.53.1 | OK items=3 files=2 misplaced=0 total=1366 item=22600 fact=554 tokens=54 depth=0
+windows_x86_64_gnullvm@0.53.1 | OK items=3 files=2 misplaced=0 total=1374 item=22628 fact=554 tokens=54 depth=0
+windows_x86_64_msvc@0.53.1 | OK items=3 files=2 misplaced=0 total=1368 item=22607 fact=554 tokens=54 depth=0
+winnow@1.0.4 | OK items=2028 files=100 misplaced=0 total=1192914 item=4189028 fact=1810828 tokens=16100 depth=0
+winreg@0.56.0 | OK items=77 files=14 misplaced=0 total=38093 item=205314 fact=42558 tokens=2303 depth=0
+wit-bindgen@0.57.1 | OK items=453 files=27 misplaced=0 total=216344 item=879465 fact=274569 tokens=6330 depth=0
+wreq@6.0.0-rc.29 | ERR InherentImplSelf :: src/client/layer/timeout/body.rs:70: the self type `TimeoutBody < B >` of an inherent impl is not a local struct, enum or union
+wreq-proto@0.2.5 | ERR InherentImplSelf :: src/proto/http1/dispatch.rs:551: the self type `Client < B >` of an inherent impl is not a local struct, enum or union
+wreq-rt@0.2.2-rc.4 | OK items=43 files=6 misplaced=0 total=11653 item=111621 fact=29362 tokens=750 depth=0
+wreq-util@3.0.0-rc.14 | ERR InherentImplSelf :: src/emulate.rs:190: the self type `Platform` of an inherent impl is not a local struct, enum or union
+write-fonts@0.48.1 | ERR InherentImplSelf :: src/font_builder.rs:36: the self type `TableDirectory` of an inherent impl is not a local struct, enum or union
+writeable@0.6.4 | OK items=207 files=14 misplaced=0 total=110158 item=405877 fact=169693 tokens=4781 depth=0
+wyz@0.5.1 | OK items=176 files=7 misplaced=0 total=52607 item=314342 fact=115016 tokens=3835 depth=0
+x25519-dalek@2.0.1 | OK items=56 files=4 misplaced=0 total=25875 item=118973 fact=42379 tokens=2375 depth=0
+x509-cert@0.3.0 | OK items=535 files=47 misplaced=0 total=352954 item=1447905 fact=451892 tokens=6581 depth=0
+x509-parser@0.18.1 | OK items=692 files=40 misplaced=0 total=307464 item=1407340 fact=450439 tokens=10988 depth=0
+xattr@1.6.1 | OK items=32 files=5 misplaced=0 total=17411 item=88581 fact=21016 tokens=1591 depth=0
+xml5ever@0.22.1 | OK items=223 files=13 misplaced=0 total=124647 item=489185 fact=115328 tokens=10382 depth=0
+xmlparser@0.13.6 | OK items=170 files=16 misplaced=0 total=96966 item=311647 fact=85233 tokens=6287 depth=0
+xmlwriter@0.1.0 | OK items=75 files=2 misplaced=0 total=26338 item=128815 fact=36688 tokens=3250 depth=0
+xmp-writer@0.3.3 | OK items=352 files=3 misplaced=0 total=103395 item=513643 fact=177824 tokens=10716 depth=0
+xxhash-rust@0.8.19 | OK items=272 files=15 misplaced=0 total=122104 item=488685 fact=122884 tokens=13357 depth=0
+yaml-rust@0.4.5 | OK items=264 files=9 misplaced=0 total=141840 item=454777 fact=99924 tokens=12611 depth=0
+yansi@1.0.1 | ERR UnsupportedItem :: src/paint.rs:130: unsupported item: properties ! (signature (& Self) -> Painted <& Self >) ; (reached by `mod paint;`)
+yasna@0.6.0 | OK items=423 files=13 misplaced=0 total=246659 item=763077 fact=328758 tokens=20072 depth=0
+yoke@0.8.3 | OK items=161 files=12 misplaced=0 total=136538 item=320370 fact=245992 tokens=13735 depth=0
+yoke-derive@0.8.4 | OK items=86 files=4 misplaced=0 total=56331 item=195138 fact=42397 tokens=2933 depth=0
+yubikey@0.9.0-rc.0 | ERR InherentImplSelf :: src/mgm.rs:1008: the self type `DeviceFlags` of an inherent impl is not a local struct, enum or union
+zellij-tile@0.45.1 | OK items=321 files=8 misplaced=0 total=167843 item=571353 fact=166792 tokens=21175 depth=0
+zellij-utils@0.45.1 | ERR InherentImplSelf :: src/data.rs:1095: the self type `PermissionType` of an inherent impl is not a local struct, enum or union
+zerocopy@0.8.62 | OK items=1653 files=130 misplaced=0 total=1393558 item=3396466 fact=1362267 tokens=52167 depth=0
+zerocopy-derive@0.8.60 | ERR UnsupportedItem :: tests/include.rs:26: unsupported item: # [allow (unused)] pub use { :: core :: { self , assert_eq , (reached by manifest key `test.path`)
+zerofrom@0.1.8 | OK items=18 files=3 misplaced=0 total=11811 item=54109 fact=14704 tokens=1236 depth=0
+zerofrom-derive@0.1.8 | OK items=37 files=3 misplaced=0 total=21653 item=101337 fact=20742 tokens=1921 depth=0
+zeroize@1.9.1 | OK items=116 files=8 misplaced=0 total=54545 item=248934 fact=96605 tokens=4761 depth=0
+zeroize_derive@1.5.0 | OK items=48 files=1 misplaced=0 total=29192 item=99786 fact=22683 tokens=4371 depth=0
+zerotrie@0.2.5 | OK items=415 files=32 misplaced=0 total=327534 item=890644 fact=348950 tokens=8331 depth=0
+zerovec@0.11.8 | OK items=1195 files=56 misplaced=0 total=593791 item=2236097 fact=900411 tokens=8626 depth=0
+zerovec-derive@0.11.6 | OK items=135 files=12 misplaced=0 total=93521 item=305203 fact=67780 tokens=6011 depth=0
+zip@6.0.0 | OK items=913 files=29 misplaced=0 total=493728 item=1712478 fact=505210 tokens=29665 depth=0
+zlib-rs@0.6.8 | OK items=278 files=19 misplaced=0 total=139349 item=612368 fact=131719 tokens=2752 depth=0
+zmij@1.0.23 | OK items=198 files=9 misplaced=0 total=82488 item=372638 fact=87171 tokens=12749 depth=0
+zoneinfo64@0.3.0 | OK items=93 files=4 misplaced=0 total=77197 item=189854 fact=51590 tokens=6172 depth=0
+zopfli@0.8.3 | OK items=255 files=17 misplaced=0 total=160839 item=549649 fact=151743 tokens=8150 depth=0
+zstd@0.14.2 | OK items=411 files=33 misplaced=0 total=183908 item=844979 fact=254951 tokens=3148 depth=0
+zstd-safe@8.1.0 | OK items=312 files=10 misplaced=0 total=146622 item=542403 fact=192988 tokens=15602 depth=0
+zstd-sys@2.1.1+zstd.1.5.7 | OK items=32 files=3 misplaced=0 total=25908 item=75171 fact=14387 tokens=2941 depth=0
+zune-core@0.5.3 | OK items=255 files=18 misplaced=0 total=105586 item=478523 fact=177767 tokens=3555 depth=0
+zune-jpeg@0.5.15 | OK items=319 files=28 misplaced=0 total=349008 item=747259 fact=243584 tokens=5922 depth=0
+# crates=1177
+# ok=1021
+# ok-with-misplaced=0
+# misplaced-items=0
+# err InherentImplSelf=100
+# err Syntax=2
+# err Target=4
+# err Tree=2
+# err UnresolvedMod=7
+# err UnresolvedTrait=18
+# err UnsupportedItem=22
+# err memory=1
+# largest total=16893229 (linux-raw-sys@0.12.1)
+# largest item=343462685 (linux-raw-sys@0.12.1)
+# largest fact=64930286 (linux-raw-sys@0.12.1)
+# largest tokens=1505567 (chrono-tz@0.10.4)
+# largest depth=0

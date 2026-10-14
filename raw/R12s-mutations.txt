@@ -1,0 +1,41 @@
+R12s mutations (each run once, test failed, reverted). Tests are raf-source integration tests / root tests.
+
+== G5: modtree.rs read-cap call site (now line 440, was 189): max_bytes = u64::MAX (debug and release)
+test a_lowered_cap_applies_to_a_child_file_and_spares_a_root_within_it ... FAILED
+test the_memory_tree_used_here_reads_the_padded_file_at_its_exact_size ... ok
+test a_cap_larger_than_the_default_admits_a_file_the_default_refuses ... ok
+test a_module_file_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it ... FAILED
+test a_library_root_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it ... FAILED
+test result: FAILED. 2 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s
+test a_lowered_cap_applies_to_a_child_file_and_spares_a_root_within_it ... FAILED
+test the_memory_tree_used_here_reads_the_padded_file_at_its_exact_size ... ok
+test a_cap_larger_than_the_default_admits_a_file_the_default_refuses ... ok
+test a_module_file_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it ... FAILED
+test a_library_root_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it ... FAILED
+test result: FAILED. 2 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+== Q-6 mutation: root Cargo.toml missing_docs = "warn"
+test lints_fuzz_workspace_tables_equal_the_root_tables ... FAILED
+test lints_the_root_denies_missing_docs_unsafe_code_and_unreachable_pub ... FAILED
+test result: FAILED. 8 passed; 2 failed; 0 ignored; 0 measured; 47 filtered out; finished in 0.00s
+== Q-7 CR mutation: prescan counts CR as a newline
+test a_budget_refusal_in_a_crlf_file_names_the_same_line_as_in_an_lf_file ... FAILED
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+== Q-7 CR mutation: facts.rs line starts split on CR instead of LF
+test crlf_line_endings_give_the_same_lines_and_spans_as_lf ... FAILED
+test a_byte_order_mark_leaves_lines_and_byte_spans_where_the_text_has_them ... FAILED
+test a_module_file_that_is_not_utf8_is_refused_on_disk_naming_the_file ... FAILED
+test result: FAILED. 2 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+== Q-7 BOM mutation: parse with syn::parse_str (no BOM strip) instead of parse_file
+test a_syntax_error_in_a_crlf_file_or_after_a_byte_order_mark_names_its_own_line ... ok
+test a_byte_order_mark_leaves_lines_and_byte_spans_where_the_text_has_them ... FAILED
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+error: test failed, to rerun pass `-p raf-source --test source_text`
+== Q-7 BOM mutation: facts.rs first-line start not moved past the BOM (the original code)
+test a_byte_order_mark_leaves_lines_and_byte_spans_where_the_text_has_them ... FAILED
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+Notes:
+- The no-BOM-strip mutation (parse_str) leaves the BOM syntax-error line test passing; the BOM first-line span test (R12s-bom-span.patch) is the one that fails. The line tests with a BOM on a later-line item pass either way, as the parser tolerates the mark.
+- The "original facts.rs" BOM run is the test failing on unfixed code: a BOM file's first-line spans are shifted by the mark (start_byte 0, end_byte 19 for `\u{feff}pub fn first() {}`, should be 3..20).
+- Q-6 also failed lints_fuzz_workspace_tables_equal_the_root_tables, as the fuzz tables then differ.

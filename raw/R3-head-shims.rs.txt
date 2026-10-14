@@ -1,0 +1,220 @@
+// The behaviour of each new test, written against the API of the earlier
+// revision: what it can observe there without the new accessors.
+#![allow(missing_docs, unused_qualifications, dropping_copy_types, clippy::all, clippy::pedantic)]
+
+mod support;
+
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+use std::fmt::Write as _;
+use std::thread;
+
+use raf_source::{
+    DiskTree, Entry, EntryKind, LoadError, LoadErrorKind, MemoryTree, Namespace, RelPath, Tree,
+    TreeError, Workspace, parse_source,
+};
+use support::Scratch;
+
+const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
+const TOKENS: usize = 475_000;
+
+fn load_files(files: &[(&str, &str)]) -> Result<Workspace, LoadError> {
+    let mut all = vec![("Cargo.toml", DEMO)];
+    all.extend_from_slice(files);
+    let tree: MemoryTree = all.into_iter().collect();
+    Workspace::load(&tree, &["."])
+}
+
+fn on_stack<T: Send>(bytes: usize, work: impl FnOnce() -> T + Send) -> T {
+    thread::scope(|scope| {
+        thread::Builder::new().stack_size(bytes).spawn_scoped(scope, work).unwrap().join().unwrap()
+    })
+}
+
+fn semis(count: usize) -> String { "; ".repeat(count) }
+fn padded(head: &str, head_tokens: usize, tokens: usize) -> String { format!("{head}{}}}\n", semis(tokens - head_tokens - 1)) }
+fn comparisons(tokens: usize) -> String {
+    let head = format!("fn f() {{ let _ = {}", "a<b; ".repeat((tokens - 13) / 4 + 1));
+    padded(&head, 8 + 4 * ((tokens - 13) / 4 + 1), tokens)
+}
+fn deep_generic_arguments(tokens: usize) -> String {
+    let one = format!("let _: {}u8{}; ", "A<".repeat(64), ">".repeat(64));
+    let per = 3 + 2 * 64 + 1 + 64 + 1;
+    let count = (tokens - 7) / per;
+    padded(&format!("fn f() {{ {}", one.repeat(count)), 5 + per * count, tokens)
+}
+fn attribute_run(tokens: usize) -> String {
+    let count = (tokens - 6) / 4;
+    padded(&format!("{}fn f() {{ ", "#[a] ".repeat(count)), 4 * count + 5, tokens)
+}
+fn statement_lists(tokens: usize) -> String {
+    let big = (1 << 18) + 1;
+    let small = 6 + 1025;
+    let count = (tokens - 6 - big) / small;
+    let mut text = String::new();
+    for index in 0..count { writeln!(text, "fn b{index}() {{ {}}}", semis(1025)).unwrap(); }
+    let rest = tokens - count * small - 6;
+    writeln!(text, "fn a() {{ {}}}", semis(rest)).unwrap();
+    text
+}
+
+#[test]
+fn token_limit_one_over_is_refused() {
+    let file = RelPath::new("src/lib.rs").unwrap();
+    let over = format!("m!{{ {}\n}}\n", "a ".repeat(TOKENS - 3));
+    assert!(parse_source(&file, &over, |_| ()).is_err(), "one token over the limit parsed");
+}
+
+#[test]
+fn costly_shapes_one_over_are_refused() {
+    for (name, shape) in [("comparisons", comparisons as fn(usize) -> String), ("deep", deep_generic_arguments), ("attrs", attribute_run), ("lists", statement_lists)] {
+        assert!(load_files(&[("src/lib.rs", &shape(TOKENS + 1))]).is_err(), "{name}: one token over loaded");
+    }
+}
+
+#[test]
+fn doc_comments_count_as_tokens() {
+    let docs = format!("{}fn f() {{}}\n", "/// a\n".repeat(TOKENS / 6));
+    assert!(load_files(&[("src/lib.rs", &docs)]).is_err(), "doc comments past the limit loaded");
+}
+
+#[test]
+fn item_record_is_at_most_256_bytes() {
+    assert!(size_of::<raf_source::Item>() <= 256, "{}", size_of::<raf_source::Item>());
+}
+
+fn chain(levels: usize) -> String { "a/".repeat(levels) }
+
+#[test]
+fn memory_chain_20000_on_2_mib() {
+    let deep = format!("{}x.txt", chain(20_000));
+    let tree = MemoryTree::try_from_iter([(deep.as_str(), "")]).unwrap();
+    let result = on_stack(2 << 20, || Workspace::load(&tree, &["."]).map(|_| ()).map_err(|e| e.to_string()));
+    assert!(result.is_err(), "a chain of 20000 directories loaded");
+}
+
+#[test]
+fn memory_chain_129_is_refused() {
+    let over = format!("{}x.txt", chain(129));
+    let tree = MemoryTree::try_from_iter([(over.as_str(), "")]).unwrap();
+    assert!(on_stack(2 << 20, || Workspace::load(&tree, &["."]).is_err()), "129 levels loaded");
+}
+
+#[test]
+fn member_pattern_129_is_refused() {
+    let member = chain(129);
+    let pattern = member.trim_end_matches('/');
+    let workspace = format!("[workspace]\nmembers = [\"{pattern}\"]\n[workspace.package]\nedition = \"2021\"\n");
+    let manifest = format!("{member}Cargo.toml");
+    let lib = format!("{member}src/lib.rs");
+    let tree = MemoryTree::try_from_iter([("Cargo.toml", workspace.as_str()), (manifest.as_str(), "[package]\nname = \"deep\"\nversion = \"0.1.0\"\nedition.workspace = true\n"), (lib.as_str(), "pub fn f() {}\n")]).unwrap();
+    assert!(on_stack(512 << 10, || Workspace::load(&tree, &[pattern]).is_err()), "a member pattern of 129 levels expanded");
+}
+
+fn nested_modules(levels: usize, inline: bool) -> MemoryTree {
+    let mut files = vec![("Cargo.toml".to_owned(), DEMO.to_owned())];
+    if inline {
+        files.push(("src/lib.rs".to_owned(), format!("{}pub struct S;{}\n", "pub mod m { ".repeat(levels), " }".repeat(levels))));
+    } else {
+        files.push(("src/lib.rs".to_owned(), "pub mod m;\n".to_owned()));
+        for level in 1..=levels {
+            let text = if level == levels { "pub struct S;\n" } else { "pub mod m;\n" };
+            files.push((format!("src/{}m.rs", "m/".repeat(level - 1)), text.to_owned()));
+        }
+    }
+    files.into_iter().collect()
+}
+
+#[test]
+fn nested_inline_modules_128_on_512_kib() {
+    let tree = nested_modules(128, true);
+    assert!(on_stack(512 << 10, || Workspace::load(&tree, &["."]).is_ok()));
+}
+
+#[test]
+fn nested_file_modules_128_on_512_kib() {
+    let tree = nested_modules(128, false);
+    assert!(on_stack(512 << 10, || Workspace::load(&tree, &["."]).is_ok()));
+}
+
+#[test]
+fn disk_chain_200_is_refused() {
+    let scratch = Scratch::new();
+    scratch.file(&format!("root/{}x.txt", chain(200)), "");
+    let tree = DiskTree::new(scratch.path("root")).unwrap();
+    assert!(on_stack(2 << 20, || Workspace::load(&tree, &["."]).is_err()), "200 levels on disk loaded");
+}
+
+/// Counts reads by the canonical file, the identity the earlier API lacks.
+struct CountingReads { inner: DiskTree, root: std::path::PathBuf, reads: RefCell<BTreeMap<std::path::PathBuf, usize>> }
+impl Tree for CountingReads {
+    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
+        if let Ok(real) = std::fs::canonicalize(self.root.join(path.as_str())) { *self.reads.borrow_mut().entry(real).or_default() += 1; }
+        self.inner.read(path, max_bytes)
+    }
+    fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> { self.inner.list(path) }
+    fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> { self.inner.entry(path) }
+}
+
+fn fixture() -> Scratch {
+    let scratch = Scratch::new();
+    scratch.file("root/Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n");
+    scratch
+}
+
+#[test]
+fn symlink_aliases_k18_read_each_file_once() {
+    const LEVELS: usize = 18;
+    let scratch = fixture();
+    scratch.link("root/src/l", ".");
+    scratch.link("root/src/m", ".");
+    scratch.file("root/src/lib.rs", "#[path = \"x0.rs\"]\npub mod a;\n");
+    for level in 0..LEVELS {
+        let text = if level + 1 == LEVELS { "pub fn f() {}\n".to_owned() } else { let n = level + 1; format!("#[path = \"l/x{n}.rs\"]\npub mod a;\n#[path = \"m/x{n}.rs\"]\npub mod b;\npub fn f() {{}}\n") };
+        scratch.file(&format!("root/src/x{level}.rs"), &text);
+    }
+    let tree = CountingReads { inner: DiskTree::new(scratch.path("root")).unwrap(), root: scratch.path("root"), reads: RefCell::new(BTreeMap::new()) };
+    let _ = Workspace::load(&tree, &["."]);
+    let reads = tree.reads.borrow();
+    let most = reads.values().max().copied().unwrap_or(0);
+    assert_eq!(most, 1, "a file was read {most} times");
+}
+
+#[test]
+fn directory_symlink_spelling_is_one_file() {
+    let scratch = fixture();
+    scratch.link("root/src/z", ".");
+    scratch.file("root/src/lib.rs", "#[path = \"z/b.rs\"]\npub mod first;\n#[path = \"b.rs\"]\npub mod second;\n");
+    scratch.file("root/src/b.rs", "pub fn f() {}\n");
+    let ws = Workspace::load(&DiskTree::new(scratch.path("root")).unwrap(), &["."]).unwrap();
+    let paths: Vec<&str> = ws.files().map(|file| file.path.as_str()).collect();
+    assert_eq!(paths, ["src/b.rs", "src/lib.rs"]);
+}
+
+#[test]
+fn alias_self_reach_is_a_cycle() {
+    let scratch = fixture();
+    scratch.link("root/src/l", ".");
+    scratch.file("root/src/lib.rs", "mod x;\n");
+    scratch.file("root/src/x.rs", "#[path = \"l/x.rs\"]\nmod again;\n");
+    let error = Workspace::load(&DiskTree::new(scratch.path("root")).unwrap(), &["."]).expect_err("an error");
+    assert!(matches!(&error.kind, LoadErrorKind::ModuleCycle { module, .. } if module == "again"), "{error}");
+}
+
+#[test]
+fn memory_two_spellings_are_one_file() {
+    let ws = load_files(&[("src/lib.rs", "#[path = \"z/../b.rs\"]\npub mod first;\n#[path = \"b.rs\"]\npub mod second;\n"), ("src/b.rs", "pub fn f() {}\n")]).unwrap();
+    let paths: Vec<&str> = ws.files().map(|file| file.path.as_str()).collect();
+    assert_eq!(paths, ["src/b.rs", "src/lib.rs"]);
+}
+
+#[test]
+fn long_line_positions_are_linear() {
+    let mut text = String::new();
+    for index in 0..20_000 { write!(text, "pub fn é{index}() {{}} ").unwrap(); }
+    text.push('\n');
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || { drop(sender.send(load_files(&[("src/lib.rs", &text)]).map(|ws| ws.resolve("demo::é0").map(|r| r.namespace)).is_ok())); });
+    let _ = Namespace::Type;
+    assert!(receiver.recv_timeout(std::time::Duration::from_secs(20)).is_ok(), "positions of one long line took over 20 s");
+}

@@ -1,0 +1,29 @@
+{
+  "issue": 2,
+  "repo": "Blackcat-Informatics/rust-agentic-foundations",
+  "forge": "github",
+  "title": "Shared crates: raf-okf + raf-source",
+  "state": "OPEN",
+  "adrs": [],
+  "linked_issues": {
+    "1": "Scaffold workspace, project docs and branding, plus spec-first capability docs",
+    "2": "Shared crates: raf-okf + raf-source",
+    "13": "raf-okf and raf-source: OKF profile reader and Rust source index"
+  },
+  "related": [
+    {
+      "number": 1,
+      "title": "Scaffold workspace, project docs and branding, plus spec-first capability docs",
+      "state": "CLOSED"
+    }
+  ],
+  "defect_classes": {
+    "none": 1
+  },
+  "coverage": [
+    "issue #2 + 13 comment(s) via github",
+    "link crawl: 3 issue(s) within 2 hop(s) of `#N` references",
+    "forge search on ['Shared', 'crates:', 'raf-okf']: 1 other item(s)",
+    "GhpRsq-Defect-Class trailers: 1 distinct class(es) in the last 200 commits"
+  ]
+}

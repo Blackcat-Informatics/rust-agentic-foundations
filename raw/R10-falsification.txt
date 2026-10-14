@@ -1,0 +1,53 @@
+== base e472918 + R10 tests ==
+test error::tests::a_spawn_error_displays_the_file_and_carries_its_cause ... ok
+test error::tests::control_characters_in_a_path_are_escaped ... FAILED
+test error::tests::every_user_derived_field_of_every_display_is_escaped ... FAILED
+test index::tests::a_target_whose_root_file_is_missing_is_a_typed_internal_error ... ok
+test workspace::tests::a_test_function_whose_path_leaves_its_crate_path_is_a_typed_error ... ok
+test index::tests::a_module_file_visited_before_the_declaration_that_names_it_is_an_internal_error ... ok
+test tree::disk::tests::strategy::every_strategy_ends_a_symlink_loop_with_an_error_and_lists_it_without_entering ... ok
+thread 'error::tests::control_characters_in_a_path_are_escaped' (4163410) panicked at crates/raf-source/src/error.rs:504:9:
+thread 'error::tests::every_user_derived_field_of_every_display_is_escaped' (4163411) panicked at crates/raf-source/src/error.rs:504:9:
+test result: FAILED. 5 passed; 2 failed; 0 ignored; 0 measured; 38 filtered out; finished in 0.01s
+error: test failed, to rerun pass `-p raf-source --lib`
+-- manifest_caps
+test exclude_still_removes_literal_wildcard_and_nested_members ... ok
+test exclude_at_the_cap_loads_and_one_over_is_refused ... FAILED
+test members_at_the_cap_loads_and_one_over_is_refused ... FAILED
+test distinct_patterns_at_both_caps_load_at_once ... ok
+test duplicate_patterns_within_the_caps_load_at_once ... FAILED
+test the_duplicate_pattern_probe_is_refused_at_once has been running for over 60 seconds
+-- error_text
+test a_manifest_with_control_characters_in_a_value_is_shown_escaped ... FAILED
+test a_path_attribute_with_terminal_escapes_is_shown_escaped ... FAILED
+thread 'a_manifest_with_control_characters_in_a_value_is_shown_escaped' (49044) panicked at crates/raf-source/tests/error_text.rs:46:5:
+thread 'a_path_attribute_with_terminal_escapes_is_shown_escaped' (49045) panicked at crates/raf-source/tests/error_text.rs:24:5:
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+error: test failed, to rerun pass `-p raf-source --test error_text`
+
+(the_duplicate_pattern_probe_is_refused_at_once on e472918: still running after 60 s, killed by the 400 s timeout; the review measured 117.7 s. Tests that pass on e472918 are the pure-behaviour guards: exclude_still_removes_*, distinct_patterns_at_both_caps_load_at_once at 4095 members.)
+
+== mutation 1: MAX_EXCLUDES 4096 -> 4095 ==
+test exclude_still_removes_literal_wildcard_and_nested_members ... ok
+test exclude_at_the_cap_loads_and_one_over_is_refused ... FAILED
+test duplicate_patterns_within_the_caps_load_at_once ... FAILED
+test distinct_patterns_at_both_caps_load_at_once ... FAILED
+test members_at_the_cap_loads_and_one_over_is_refused ... ok
+test the_duplicate_pattern_probe_is_refused_at_once ... ok
+test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+== mutation 2: MAX_MEMBERS 4096 -> 4097 ==
+test exclude_still_removes_literal_wildcard_and_nested_members ... ok
+test duplicate_patterns_within_the_caps_load_at_once ... ok
+test exclude_at_the_cap_loads_and_one_over_is_refused ... ok
+test members_at_the_cap_loads_and_one_over_is_refused ... FAILED
+test distinct_patterns_at_both_caps_load_at_once ... ok
+test the_duplicate_pattern_probe_is_refused_at_once ... FAILED
+test result: FAILED. 4 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+== mutation 3: Excludes.matches ignores the literal set ==
+test exclude_still_removes_literal_wildcard_and_nested_members ... FAILED
+test duplicate_patterns_within_the_caps_load_at_once ... ok
+test exclude_at_the_cap_loads_and_one_over_is_refused ... ok
+test members_at_the_cap_loads_and_one_over_is_refused ... ok
+test distinct_patterns_at_both_caps_load_at_once ... ok
+test the_duplicate_pattern_probe_is_refused_at_once ... ok
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s

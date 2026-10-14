@@ -1,0 +1,35 @@
+# HEAD 0617985 copy (git archive), new tests as-is:
+load_budgets.rs and walk_stack.rs: do not compile (Usage, Workspace::usage, LoadOptions byte fields and Budget variants are new); memory_tree identity, disk identity and module_tree Recording.identity likewise need Tree::identity.
+# Behavioural variants (crates/raf-source/tests/r3_head_shims.rs in the copy, debug, run one by one):
+== token_limit_one_over_is_refused: thread 'token_limit_one_over_is_refused' (1016584) panicked at crates/raf-source/tests/r3_head_shims.rs:65:5: one token over the limit parsed test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.63s exit=101 
+== costly_shapes_one_over_are_refused: thread 'costly_shapes_one_over_are_refused' (1016760) panicked at crates/raf-source/tests/r3_head_shims.rs:71:9: comparisons: one token over loaded test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 1.82s exit=101 
+== doc_comments_count_as_tokens: thread 'doc_comments_count_as_tokens' (1016971) panicked at crates/raf-source/tests/r3_head_shims.rs:78:5: doc comments past the limit loaded test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.51s exit=101 
+== item_record_is_at_most_256_bytes: thread 'item_record_is_at_most_256_bytes' (1017149) panicked at crates/raf-source/tests/r3_head_shims.rs:83:5: test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.00s exit=101 
+/bin/bash: line 1: 1017160 Aborted                    timeout 600 $B --exact $t 2>&1
+== memory_chain_20000_on_2_mib: fatal runtime error: stack overflow, aborting exit=134 
+== memory_chain_129_is_refused: thread 'memory_chain_129_is_refused' (1017393) panicked at crates/raf-source/tests/r3_head_shims.rs:100:5: 129 levels loaded test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.00s exit=101 
+/bin/bash: line 1: 1017409 Aborted                    timeout 600 $B --exact $t 2>&1
+== member_pattern_129_is_refused: fatal runtime error: stack overflow, aborting exit=134 
+/bin/bash: line 1: 1017453 Aborted                    timeout 600 $B --exact $t 2>&1
+== nested_inline_modules_128_on_512_kib: fatal runtime error: stack overflow, aborting exit=134 
+/bin/bash: line 1: 1017519 Aborted                    timeout 600 $B --exact $t 2>&1
+== nested_file_modules_128_on_512_kib: fatal runtime error: stack overflow, aborting exit=134 
+== disk_chain_200_is_refused: thread 'disk_chain_200_is_refused' (1017617) panicked at crates/raf-source/tests/r3_head_shims.rs:145:5: 200 levels on disk loaded test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.11s exit=101 
+== directory_symlink_spelling_is_one_file: thread 'directory_symlink_spelling_is_one_file' (1017636) panicked at crates/raf-source/tests/r3_head_shims.rs:191:5: assertion `left == right` failed   left: ["src/b.rs", "src/lib.rs", "src/z/b.rs"]  right: ["src/b.rs", "src/lib.rs"] test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.
+== alias_self_reach_is_a_cycle: thread 'alias_self_reach_is_a_cycle' (1017650) panicked at crates/raf-source/tests/r3_head_shims.rs:201:5: test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.01s exit=101 
+== memory_two_spellings_are_one_file: thread 'memory_two_spellings_are_one_file' (1017720) panicked at crates/raf-source/tests/r3_head_shims.rs:208:5: assertion `left == right` failed   left: ["src/b.rs", "src/lib.rs", "src/z/../b.rs"]  right: ["src/b.rs", "src/lib.rs"] test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.00
+== long_line_positions_are_linear: thread 'long_line_positions_are_linear' (1017736) panicked at crates/raf-source/tests/r3_head_shims.rs:219:5: positions of one long line took over 20 s test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 20.02s exit=101 
+== symlink_aliases_k18_read_each_file_once: thread 'symlink_aliases_k18_read_each_file_once' (1020884) panicked at crates/raf-source/tests/r3_head_shims.rs:180:5: assertion `left == right` failed: a file was read 131072 times   left: 131072  right: 1 test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 53.74s exit=101 
+
+# Follow-up after the token-budget decision (default max_file_tokens 2,000,000):
+facts::tests::a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines on 0617985: FAILED (a column past its line is not refused; the old walk ran into the next line).
+settle::tests::a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room on 0617985: does not compile (Bound is a BTreeMap alias there; no offer).
+load_budgets token fixtures now use LoadOptions::max_file_tokens = 100000: do not compile on 0617985 (no such field); r3_head_shims token variants above still show HEAD admits files past any token limit.
+
+# Review fixes:
+load_budgets::a_long_alias_path_in_a_file_reached_many_times_is_held_and_charged_once and ::a_long_extern_crate_name_... on the pre-fix behaviour (per-arrival uncharged copies, /tmp copy): FAILED, charged 0 for 500000 and 0 for 65536.
+
+# Recheck R-4:
+load_budgets::a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps with the previous module and arrival charges (/tmp copy, MODULE_INDEX_BYTES 64, ARRIVAL_INDEX_BYTES 0): FAILED, 19208037 charged for 23696563 kept.
+
+# Recheck 2 R-6: charges are upper bounds by construction (crate::cost). The fixtures for chains and nested inline modules now assert the kept bytes measured on this code (1624 per arrival, 1474 per module); against the previous round's charges they pass, so the falsifiable checks of the bounds are the cost unit tests and the counting-allocator probes in the report.

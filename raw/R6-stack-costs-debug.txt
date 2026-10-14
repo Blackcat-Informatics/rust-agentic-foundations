@@ -1,0 +1,133 @@
+# NOTE: this is the first full debug run. The fn_where_nested (20086 B/unit) and mod_inline (18386 B/unit) figures here predate counting `where` (with its commas kept) and `mod`; R6-stack-costs-debug-rerun.txt, measured with the final counter, is authoritative for those shapes and for impl_where_nested, trait_nested, fn_nested, impl_nested, where_bound, the impl_* self/trait shapes and cfg_attr (fn_where_nested 8037, mod_inline 12257). Every other line was measured with the final counter.
+not	ok_n=18287	abort_n=18345	units_at_abort=18351	units_ok=18293	units_per_rep=1.00	bytes_per_unit=3657	ABORT PARSE
+neg	ok_n=18287	abort_n=18345	units_at_abort=18351	units_ok=18293	units_per_rep=1.00	bytes_per_unit=3657	ABORT PARSE
+deref	ok_n=18287	abort_n=18345	units_at_abort=18351	units_ok=18293	units_per_rep=1.00	bytes_per_unit=3657	ABORT PARSE
+ref	ok_n=27192	abort_n=27309	units_at_abort=54624	units_ok=54390	units_per_rep=2.00	bytes_per_unit=1229	ABORT PARSE
+refref	ok_n=13600	abort_n=13658	units_at_abort=54638	units_ok=54406	units_per_rep=4.00	bytes_per_unit=1228	ABORT PARSE
+refmut	ok_n=27192	abort_n=27309	units_at_abort=81933	units_ok=81582	units_per_rep=3.00	bytes_per_unit=819	ABORT PARSE
+rawref	ok_n=27192	abort_n=27309	units_at_abort=81933	units_ok=81582	units_per_rep=3.00	bytes_per_unit=819	ABORT PARSE
+try	no_abort_at_n=60000	units=60006	bytes_per_unit<1118	OK 60006
+field	no_abort_at_n=60000	units=60006	bytes_per_unit<1118	OK 60006
+tuplefield	no_abort_at_n=60000	units=60006	bytes_per_unit<1118	OK 60006
+tuple_index_float	no_abort_at_n=60000	units=120006	bytes_per_unit<559	OK 120006
+call	no_abort_at_n=60000	units=60007	bytes_per_unit<1118	OK 60007
+index	no_abort_at_n=60000	units=60007	bytes_per_unit<1118	OK 60007
+await	no_abort_at_n=60000	units=60006	bytes_per_unit<1118	OK 60006
+method	no_abort_at_n=60000	units=120007	bytes_per_unit<559	OK 120007
+turbofish	no_abort_at_n=60000	units=300007	bytes_per_unit<224	OK 300007
+add	no_abort_at_n=60000	units=60006	bytes_per_unit<1118	OK 60006
+mul	no_abort_at_n=60000	units=60006	bytes_per_unit<1118	OK 60006
+sub	no_abort_at_n=60000	units=60006	bytes_per_unit<1118	OK 60006
+addmul	no_abort_at_n=60000	units=120006	bytes_per_unit<559	OK 120006
+or	no_abort_at_n=60000	units=120006	bytes_per_unit<559	OK 120006
+and	no_abort_at_n=60000	units=240006	bytes_per_unit<280	OK 240006
+bitor	no_abort_at_n=60000	units=60006	bytes_per_unit<1118	OK 60006
+shl	no_abort_at_n=60000	units=240006	bytes_per_unit<280	OK 240006
+assign	ok_n=9088	abort_n=9117	units_at_abort=9121	units_ok=9092	units_per_rep=1.00	bytes_per_unit=7358	ABORT PARSE
+addassign	ok_n=9088	abort_n=9117	units_at_abort=18238	units_ok=18180	units_per_rep=2.00	bytes_per_unit=3680	ABORT PARSE
+cast	no_abort_at_n=60000	units=60006	bytes_per_unit<1118	OK 60006
+rangeto_incl	ok_n=6833	abort_n=6862	units_at_abort=20592	units_ok=20505	units_per_rep=3.00	bytes_per_unit=3259	ABORT PARSE
+closure	ok_n=4592	abort_n=4607	units_at_abort=9220	units_ok=9190	units_per_rep=2.00	bytes_per_unit=7279	ABORT PARSE
+closure_param	ok_n=4592	abort_n=4607	units_at_abort=9220	units_ok=9190	units_per_rep=2.00	bytes_per_unit=7279	ABORT PARSE
+closure_params	ok_n=4592	abort_n=4607	units_at_abort=9220	units_ok=9190	units_per_rep=2.00	bytes_per_unit=7279	ABORT PARSE
+closure_ret	ok_n=2080	abort_n=2088	units_at_abort=12534	units_ok=12486	units_per_rep=6.00	bytes_per_unit=5354	ABORT PARSE
+move_closure	ok_n=4592	abort_n=4607	units_at_abort=13827	units_ok=13782	units_per_rep=3.00	bytes_per_unit=4853	ABORT PARSE
+async_closure	ok_n=4592	abort_n=4607	units_at_abort=13827	units_ok=13782	units_per_rep=3.00	bytes_per_unit=4853	ABORT PARSE
+async_move_closure	ok_n=4592	abort_n=4607	units_at_abort=18434	units_ok=18374	units_per_rep=4.00	bytes_per_unit=3640	ABORT PARSE
+const_closure	ok_n=4592	abort_n=4607	units_at_abort=13827	units_ok=13782	units_per_rep=3.00	bytes_per_unit=4853	ABORT PARSE
+for_closure	ok_n=4592	abort_n=4607	units_at_abort=27648	units_ok=27558	units_per_rep=6.00	bytes_per_unit=2427	ABORT PARSE
+return_closure	ok_n=2850	abort_n=2864	units_at_abort=8598	units_ok=8556	units_per_rep=3.00	bytes_per_unit=7805	ABORT PARSE
+return	ok_n=7566	abort_n=7595	units_at_abort=7599	units_ok=7570	units_per_rep=1.00	bytes_per_unit=8831	ABORT PARSE
+break	ok_n=6687	abort_n=6716	units_at_abort=6723	units_ok=6694	units_per_rep=1.00	bytes_per_unit=9982	ABORT PARSE
+break_label	ok_n=6687	abort_n=6716	units_at_abort=6724	units_ok=6695	units_per_rep=1.00	bytes_per_unit=9980	ABORT PARSE
+yield	ok_n=7566	abort_n=7595	units_at_abort=7599	units_ok=7570	units_per_rep=1.00	bytes_per_unit=8831	ABORT PARSE
+become	ok_n=7068	abort_n=7097	units_at_abort=7103	units_ok=7074	units_per_rep=1.00	bytes_per_unit=9448	ABORT PARSE
+if_cond	ok_n=5500	abort_n=5515	units_at_abort=16552	units_ok=16507	units_per_rep=3.00	bytes_per_unit=4054	ABORT PARSE
+match_scrut	ok_n=6452	abort_n=6481	units_at_abort=12969	units_ok=12911	units_per_rep=2.00	bytes_per_unit=5175	ABORT PARSE
+while_cond	ok_n=6218	abort_n=6247	units_at_abort=12501	units_ok=12443	units_per_rep=2.00	bytes_per_unit=5368	ABORT PARSE
+let_chain	ok_n=6452	abort_n=6481	units_at_abort=12971	units_ok=12913	units_per_rep=2.00	bytes_per_unit=5174	ABORT PARSE
+else_if	no_abort_at_n=60000	units=120009	bytes_per_unit<559	OK 120009
+block	ok_n=3436	abort_n=3450	units_at_abort=6906	units_ok=6878	units_per_rep=2.00	bytes_per_unit=9717	ABORT PARSE
+unsafe_block	ok_n=3494	abort_n=3509	units_at_abort=10533	units_ok=10488	units_per_rep=3.00	bytes_per_unit=6371	ABORT PARSE
+async_block	ok_n=2548	abort_n=2556	units_at_abort=7674	units_ok=7650	units_per_rep=3.00	bytes_per_unit=8745	ABORT PARSE
+const_block	ok_n=3494	abort_n=3509	units_at_abort=10533	units_ok=10488	units_per_rep=3.00	bytes_per_unit=6371	ABORT PARSE
+loop_block	ok_n=3407	abort_n=3421	units_at_abort=10269	units_ok=10227	units_per_rep=3.00	bytes_per_unit=6535	ABORT PARSE
+label_block	ok_n=3040	abort_n=3055	units_at_abort=9171	units_ok=9126	units_per_rep=3.00	bytes_per_unit=7318	ABORT PARSE
+if_block	ok_n=2952	abort_n=2959	units_at_abort=8884	units_ok=8863	units_per_rep=3.00	bytes_per_unit=7554	ABORT PARSE
+match_arm	ok_n=4416	abort_n=4431	units_at_abort=13299	units_ok=13254	units_per_rep=3.00	bytes_per_unit=5046	ABORT PARSE
+match_guard	ok_n=4416	abort_n=4431	units_at_abort=13300	units_ok=13255	units_per_rep=3.00	bytes_per_unit=5046	ABORT PARSE
+closure_block	ok_n=1626	abort_n=1634	units_at_abort=6542	units_ok=6510	units_per_rep=4.00	bytes_per_unit=10258	ABORT PARSE
+closure_block_move	ok_n=1626	abort_n=1634	units_at_abort=8176	units_ok=8136	units_per_rep=5.00	bytes_per_unit=8208	ABORT PARSE
+macro_brace	no_abort_at_n=60000	units=60007	bytes_per_unit<1118	OK 60007
+paren	ok_n=5574	abort_n=5588	units_at_abort=11182	units_ok=11154	units_per_rep=2.00	bytes_per_unit=6002	ABORT PARSE
+array	ok_n=5017	abort_n=5032	units_at_abort=10070	units_ok=10040	units_per_rep=2.00	bytes_per_unit=6664	ABORT PARSE
+array_repeat	ok_n=5017	abort_n=5032	units_at_abort=10070	units_ok=10040	units_per_rep=2.00	bytes_per_unit=6664	ABORT PARSE
+tuple	ok_n=5574	abort_n=5588	units_at_abort=11182	units_ok=11154	units_per_rep=2.00	bytes_per_unit=6002	ABORT PARSE
+struct_lit	ok_n=4036	abort_n=4051	units_at_abort=8108	units_ok=8078	units_per_rep=2.00	bytes_per_unit=8277	ABORT PARSE
+macro_paren	no_abort_at_n=60000	units=60007	bytes_per_unit<1118	OK 60007
+call_arg	ok_n=4856	abort_n=4871	units_at_abort=9748	units_ok=9718	units_per_rep=2.00	bytes_per_unit=6884	ABORT PARSE
+method_arg	ok_n=4856	abort_n=4871	units_at_abort=14619	units_ok=14574	units_per_rep=3.00	bytes_per_unit=4591	ABORT PARSE
+index_arg	ok_n=5295	abort_n=5310	units_at_abort=10626	units_ok=10596	units_per_rep=2.00	bytes_per_unit=6316	ABORT PARSE
+stmt_block	ok_n=3084	abort_n=3098	units_at_abort=12398	units_ok=12342	units_per_rep=4.00	bytes_per_unit=5413	ABORT PARSE
+tref	ok_n=2125	abort_n=2132	units_at_abort=4268	units_ok=4254	units_per_rep=2.00	bytes_per_unit=15724	ABORT PARSE
+trefref	ok_n=1064	abort_n=1067	units_at_abort=4272	units_ok=4260	units_per_rep=4.00	bytes_per_unit=15709	ABORT PARSE
+tref_lt	ok_n=2125	abort_n=2132	units_at_abort=4268	units_ok=4254	units_per_rep=2.00	bytes_per_unit=15724	ABORT PARSE
+tref_mut	ok_n=2125	abort_n=2132	units_at_abort=6400	units_ok=6379	units_per_rep=3.00	bytes_per_unit=10486	ABORT PARSE
+tptr_const	ok_n=2132	abort_n=2139	units_at_abort=4282	units_ok=4268	units_per_rep=2.00	bytes_per_unit=15672	ABORT PARSE
+tptr_mut	ok_n=2132	abort_n=2139	units_at_abort=4282	units_ok=4268	units_per_rep=2.00	bytes_per_unit=15672	ABORT PARSE
+tfn	ok_n=1854	abort_n=1861	units_at_abort=7448	units_ok=7420	units_per_rep=4.00	bytes_per_unit=9010	ABORT PARSE
+textern_fn	ok_n=1854	abort_n=1861	units_at_abort=7448	units_ok=7420	units_per_rep=4.00	bytes_per_unit=9010	ABORT PARSE
+tunsafe_fn	ok_n=1854	abort_n=1861	units_at_abort=9309	units_ok=9274	units_per_rep=5.00	bytes_per_unit=7209	ABORT PARSE
+tfor_fn	ok_n=1854	abort_n=1861	units_at_abort=14892	units_ok=14836	units_per_rep=8.00	bytes_per_unit=4506	ABORT PARSE
+timpl_fn	ok_n=1728	abort_n=1736	units_at_abort=6950	units_ok=6918	units_per_rep=4.00	bytes_per_unit=9656	ABORT PARSE
+tdyn_fn	ok_n=760	abort_n=762	units_at_abort=5338	units_ok=5324	units_per_rep=7.01	bytes_per_unit=12572	ABORT PARSE
+tgeneric	ok_n=1352	abort_n=1356	units_at_abort=4072	units_ok=4060	units_per_rep=3.00	bytes_per_unit=16481	ABORT PARSE
+tgeneric_comma	ok_n=1352	abort_n=1356	units_at_abort=4072	units_ok=4060	units_per_rep=3.00	bytes_per_unit=16481	ABORT PARSE
+tassoc	ok_n=1352	abort_n=1356	units_at_abort=5428	units_ok=5412	units_per_rep=4.00	bytes_per_unit=12363	ABORT PARSE
+ttuple	ok_n=2256	abort_n=2264	units_at_abort=4532	units_ok=4516	units_per_rep=2.00	bytes_per_unit=14808	ABORT PARSE
+tparen	ok_n=2256	abort_n=2264	units_at_abort=4532	units_ok=4516	units_per_rep=2.00	bytes_per_unit=14808	ABORT PARSE
+tslice	ok_n=2256	abort_n=2264	units_at_abort=4532	units_ok=4516	units_per_rep=2.00	bytes_per_unit=14808	ABORT PARSE
+tarray	ok_n=2256	abort_n=2264	units_at_abort=4532	units_ok=4516	units_per_rep=2.00	bytes_per_unit=14808	ABORT PARSE
+tqself	ok_n=1913	abort_n=1920	units_at_abort=7684	units_ok=7656	units_per_rep=4.00	bytes_per_unit=8734	ABORT PARSE
+tfn_arg	ok_n=1758	abort_n=1766	units_at_abort=5302	units_ok=5278	units_per_rep=3.00	bytes_per_unit=12657	ABORT PARSE
+tparen_args lo=10 fails: ERR src/lib.rs:1: syntax error at column 18: expected `,` (reached by package discovery)
+timpl_bound	ok_n=1319	abort_n=1323	units_at_abort=5298	units_ok=5282	units_per_rep=4.00	bytes_per_unit=12667	ABORT PARSE
+tmacro	no_abort_at_n=60000	units=60005	bytes_per_unit<1118	OK 60005
+pref	ok_n=36096	abort_n=36213	units_at_abort=72432	units_ok=72198	units_per_rep=2.00	bytes_per_unit=927	ABORT PARSE
+prefmut	ok_n=36096	abort_n=36213	units_at_abort=108645	units_ok=108294	units_per_rep=3.00	bytes_per_unit=618	ABORT PARSE
+pat_at	ok_n=25317	abort_n=25434	units_at_abort=25440	units_ok=25323	units_per_rep=1.00	bytes_per_unit=2638	ABORT PARSE
+ptuple	ok_n=8268	abort_n=8297	units_at_abort=16599	units_ok=16541	units_per_rep=2.00	bytes_per_unit=4043	ABORT PARSE
+pslice	ok_n=9147	abort_n=9176	units_at_abort=18357	units_ok=18299	units_per_rep=2.00	bytes_per_unit=3656	ABORT PARSE
+pstruct	ok_n=5310	abort_n=5324	units_at_abort=10653	units_ok=10625	units_per_rep=2.00	bytes_per_unit=6300	ABORT PARSE
+ptuple_struct	ok_n=6774	abort_n=6804	units_at_abort=13613	units_ok=13553	units_per_rep=2.00	bytes_per_unit=4930	ABORT PARSE
+por	ok_n=8268	abort_n=8297	units_at_abort=24896	units_ok=24809	units_per_rep=3.00	bytes_per_unit=2696	ABORT PARSE
+use_path	ok_n=17524	abort_n=17583	units_at_abort=281328	units_ok=280384	units_per_rep=16.00	bytes_per_unit=239	ABORT PARSE
+use_group	ok_n=8532	abort_n=8562	units_at_abort=154116	units_ok=153576	units_per_rep=18.00	bytes_per_unit=435	ABORT PARSE
+mod_inline	ok_n=1817	abort_n=1825	units_at_abort=3650	units_ok=3634	units_per_rep=2.00	bytes_per_unit=18386	ABORT PARSE
+fn_nested	ok_n=1663	abort_n=1670	units_at_abort=6680	units_ok=6652	units_per_rep=4.00	bytes_per_unit=10046	ABORT PARSE
+impl_nested	ok_n=614	abort_n=616	units_at_abort=6776	units_ok=6754	units_per_rep=11.00	bytes_per_unit=9904	ABORT PARSE
+trait_nested	ok_n=1071	abort_n=1074	units_at_abort=6444	units_ok=6426	units_per_rep=6.00	bytes_per_unit=10414	ABORT PARSE
+const_item_block	ok_n=1392	abort_n=1396	units_at_abort=6980	units_ok=6960	units_per_rep=5.00	bytes_per_unit=9614	ABORT PARSE
+cfg_attr TIMEOUT/FAIL
+attr_nested	no_abort_at_n=60000	units=120003	bytes_per_unit<559	OK 120003
+attr_value	ok_n=18287	abort_n=18345	units_at_abort=18347	units_ok=18289	units_per_rep=1.00	bytes_per_unit=3658	ABORT PARSE
+attr_value_paren	ok_n=5574	abort_n=5588	units_at_abort=11178	units_ok=11150	units_per_rep=2.00	bytes_per_unit=6004	ABORT PARSE
+cfg_attr_path lo=10 fails: ERR src/lib.rs:1: module `a` has no file (reached by the `path` attribute of module `a` under `all(all(all(all(all(all(all(all(all(all(x))))))))))`)
+where_fn lo=10 fails: ERR src/lib.rs:1: syntax error at column 30: expected curly braces (reached by package discovery)
+where_bound	ok_n=1352	abort_n=1356	units_at_abort=4072	units_ok=4060	units_per_rep=3.00	bytes_per_unit=16481	ABORT PARSE
+generic_default	ok_n=1352	abort_n=1356	units_at_abort=5427	units_ok=5411	units_per_rep=4.00	bytes_per_unit=12366	ABORT PARSE
+impl_self_ref lo=10 fails: ERR src/lib.rs:1: the trait `X` of an impl cannot be named by an absolute path
+impl_self_generic lo=10 fails: ERR src/lib.rs:1: the trait `X` of an impl cannot be named by an absolute path
+impl_dyn_self lo=10 fails: ERR src/lib.rs:1: the trait `X` of an impl cannot be named by an absolute path
+impl_trait_generic lo=10 fails: ERR src/lib.rs:1: the trait `A` of an impl cannot be named by an absolute path
+struct_field_ty	ok_n=2125	abort_n=2132	units_at_abort=4266	units_ok=4252	units_per_rep=2.00	bytes_per_unit=15731	ABORT PARSE
+const_expr	ok_n=18287	abort_n=18345	units_at_abort=18347	units_ok=18289	units_per_rep=1.00	bytes_per_unit=3658	ABORT PARSE
+static_expr	ok_n=18287	abort_n=18345	units_at_abort=18347	units_ok=18289	units_per_rep=1.00	bytes_per_unit=3658	ABORT PARSE
+enum_disc	ok_n=18287	abort_n=18345	units_at_abort=18348	units_ok=18290	units_per_rep=1.00	bytes_per_unit=3658	ABORT PARSE
+enum_disc_block	ok_n=3436	abort_n=3450	units_at_abort=6903	units_ok=6875	units_per_rep=2.00	bytes_per_unit=9722	ABORT PARSE
+array_len	ok_n=18287	abort_n=18345	units_at_abort=18348	units_ok=18290	units_per_rep=1.00	bytes_per_unit=3658	ABORT PARSE
+fn_where_nested	ok_n=1663	abort_n=1670	units_at_abort=3341	units_ok=3327	units_per_rep=2.00	bytes_per_unit=20086	ABORT PARSE
+impl_where_nested	ok_n=614	abort_n=616	units_at_abort=4929	units_ok=4913	units_per_rep=8.00	bytes_per_unit=13615	ABORT PARSE
+struct_lit_comma	ok_n=4036	abort_n=4051	units_at_abort=8108	units_ok=8078	units_per_rep=2.00	bytes_per_unit=8277	ABORT PARSE
+match_arm_comma	ok_n=4416	abort_n=4431	units_at_abort=13299	units_ok=13254	units_per_rep=3.00	bytes_per_unit=5046	ABORT PARSE
+DONE

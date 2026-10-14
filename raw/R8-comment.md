@@ -1,0 +1,26 @@
+**R8 fixed: containment verified on the handle that is read, on every platform** (commit 51d84e5, pushed)
+
+- **Gaps:**
+  - **G3 (CRITICAL) / S-8:** listing "through the handle" held only on Linux.
+  - **S-6 / S-7:** a raced read could open an outside FIFO, and `entry` revealed outside existence.
+  - **G7:** non-Linux code never ran, and the Windows test build failed.
+  - **Found in review:** on macOS, BSD and Windows, a swap made before the open and undone before the check **returned outside file contents**.
+- **Owner decision** (verbatim in the stage validation index): "Add rustix + windows-sys".
+- **Fix by platform:**
+  - **Linux:** `O_PATH | O_NOFOLLOW`, then a `/proc/self/fd` link and type check, then a reopen to read or list. No outside FIFO or device is ever opened for I/O, and `read_unseen` keeps one open per file (confirmed by strace).
+  - **macOS and BSD:** an `openat` walk from a root descriptor with no symlink following (`rustix`).
+    - Links are resolved by the walk, and a `..` at or outside the root is refused, which removes the existence oracle.
+    - It holds one descriptor at a time (tested at 300 levels under `ulimit -n 64`) and re-checks after use.
+  - **Windows:** a held handle without delete sharing, plus a `GetFinalPathNameByHandleW` check before and after use.
+    - That FFI call is the only library `unsafe`, in one module with a scoped allowance and a SAFETY argument. The workspace lint is unchanged.
+    - Reserved names, trailing dot or space and `:` segments are refused.
+- **Checks:**
+  - Every strategy runs on Linux under test.
+  - Swap, FIFO-race, out-and-back-link and descriptor-limit suites. The FIFO race fails on the old code 10/10.
+  - Over 65,536 exhaustive swap schedules and 200k races per strategy: **0 outside contents** (old code: about 3k leaks), and Linux/macOS-model 0 outside names.
+  - The Windows model keeps its documented residual: outside *names or kinds* can leak via listing and entry, never contents.
+- **Docs:** the Contract, SECURITY.md and AGENTS.md state each platform's exact guarantee and residual. They now say which links load where: links that climb back via `..` load on Linux and Windows but not on macOS or BSD.
+- **CI and gates:** new `test-macos` and `test-windows` jobs. `make cross-check` now covers all targets for Apple, **FreeBSD** and Windows. `make check` passed (1,112 tests), plus clippy for each target and `make deny` with the two new dependencies (no duplicate versions).
+- **Not yet verified:** macOS, FreeBSD and Windows runtime. These strategies compile with `-Dwarnings` and are exercised on Linux, but only the hosted jobs will run them natively, and hosted CI is blocked by billing.
+- **Open option for the owner:** running the same walk on Linux would remove Linux's remaining one-bit existence answer for planted links and the `/proc` dependency. It is outside the current authorization, so it was not done.
+- **Review:** `tasks/R8-review.md`, VERDICT: PASS after three rechecks.

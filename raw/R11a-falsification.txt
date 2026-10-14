@@ -1,0 +1,14 @@
+test a_file_reached_by_targets_of_two_packages_belongs_to_the_first_target_in_target_order ... ok
+test items_under_matches_whole_path_segments ... FAILED
+thread 'items_under_matches_whole_path_segments' (3532414) panicked at crates/raf-source/tests/symbol_index.rs:869:5:
+test result: FAILED. 25 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s
+test a_tests_binding_must_name_a_function_marked_test ... ok
+test a_code_binding_must_name_a_shipping_item ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 139 filtered out; finished in 0.01s
+# old check_bindings (no role rule):
+# note: the package-rule fixture passes on the old tree (it pins existing behaviour); the old tree's docs_contract has no role check
+test a_code_binding_must_name_a_shipping_item ... FAILED
+test a_tests_binding_must_name_a_function_marked_test ... FAILED
+thread 'a_code_binding_must_name_a_shipping_item' (3536130) panicked at tests/docs_contract.rs:3143:9:
+thread 'a_tests_binding_must_name_a_function_marked_test' (3536131) panicked at tests/docs_contract.rs:3125:5:
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 139 filtered out; finished in 0.01s

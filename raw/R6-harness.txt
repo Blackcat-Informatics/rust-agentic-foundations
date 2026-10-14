@@ -1,0 +1,74 @@
+== cargo test -p raf-source --locked  --test overflow_harness every_committed_overflow_shape -- --nocapture
+composite_bang_paren: Refused { file: "composite_bang_paren.rs", budget: "parser recursion" }
+composite_ref_paren: Refused { file: "composite_ref_paren.rs", budget: "parser recursion" }
+composite_double_ref_paren: Refused { file: "composite_double_ref_paren.rs", budget: "parser recursion" }
+composite_generic_ref: Refused { file: "composite_generic_ref.rs", budget: "parser recursion" }
+composite_bars_paren: Refused { file: "composite_bars_paren.rs", budget: "parser recursion" }
+uncounted_return: Refused { file: "uncounted_return.rs", budget: "parser recursion" }
+uncounted_ref_mut: Refused { file: "uncounted_ref_mut.rs", budget: "parser recursion" }
+uncounted_ptr_const: Refused { file: "uncounted_ptr_const.rs", budget: "parser recursion" }
+uncounted_fn_pointer: Refused { file: "uncounted_fn_pointer.rs", budget: "parser recursion" }
+uncounted_assignment: Refused { file: "uncounted_assignment.rs", budget: "parser recursion" }
+uncounted_move_closure: Refused { file: "uncounted_move_closure.rs", budget: "closure bar chain" }
+chain_try: Refused { file: "chain_try.rs", budget: "parser recursion" }
+chain_field: Refused { file: "chain_field.rs", budget: "parser recursion" }
+chain_call: Refused { file: "chain_call.rs", budget: "parser recursion" }
+chain_index: Refused { file: "chain_index.rs", budget: "parser recursion" }
+chain_cast: Refused { file: "chain_cast.rs", budget: "parser recursion" }
+chain_add: Refused { file: "chain_add.rs", budget: "parser recursion" }
+chain_mul: Refused { file: "chain_mul.rs", budget: "parser recursion" }
+chain_await: Refused { file: "chain_await.rs", budget: "parser recursion" }
+chain_method: Refused { file: "chain_method.rs", budget: "parser recursion" }
+chain_async_closure: Refused { file: "chain_async_closure.rs", budget: "parser recursion" }
+chain_async_move_closure: Refused { file: "chain_async_move_closure.rs", budget: "parser recursion" }
+chain_const_closure: Refused { file: "chain_const_closure.rs", budget: "parser recursion" }
+chain_return_closure: Refused { file: "chain_return_closure.rs", budget: "parser recursion" }
+chain_raw_ref: Refused { file: "chain_raw_ref.rs", budget: "parser recursion" }
+chain_break: Refused { file: "chain_break.rs", budget: "parser recursion" }
+chain_yield: Refused { file: "chain_yield.rs", budget: "parser recursion" }
+chain_become: Refused { file: "chain_become.rs", budget: "parser recursion" }
+chain_add_assign: Refused { file: "chain_add_assign.rs", budget: "parser recursion" }
+chain_impl_fn_return: Refused { file: "chain_impl_fn_return.rs", budget: "parser recursion" }
+chain_extern_fn_pointer: Refused { file: "chain_extern_fn_pointer.rs", budget: "parser recursion" }
+chain_unsafe_fn_pointer: Refused { file: "chain_unsafe_fn_pointer.rs", budget: "parser recursion" }
+chain_for_fn_pointer: Refused { file: "chain_for_fn_pointer.rs", budget: "parser recursion" }
+chain_ptr_mut: Refused { file: "chain_ptr_mut.rs", budget: "parser recursion" }
+chain_box_pattern: Refused { file: "chain_box_pattern.rs", budget: "parser recursion" }
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.37s
+== cargo test -p raf-source --locked --release --test overflow_harness every_committed_overflow_shape -- --nocapture
+composite_bang_paren: Refused { file: "composite_bang_paren.rs", budget: "parser recursion" }
+composite_ref_paren: Refused { file: "composite_ref_paren.rs", budget: "parser recursion" }
+composite_double_ref_paren: Refused { file: "composite_double_ref_paren.rs", budget: "parser recursion" }
+composite_generic_ref: Refused { file: "composite_generic_ref.rs", budget: "parser recursion" }
+composite_bars_paren: Refused { file: "composite_bars_paren.rs", budget: "parser recursion" }
+uncounted_return: Refused { file: "uncounted_return.rs", budget: "parser recursion" }
+uncounted_ref_mut: Refused { file: "uncounted_ref_mut.rs", budget: "parser recursion" }
+uncounted_ptr_const: Refused { file: "uncounted_ptr_const.rs", budget: "parser recursion" }
+uncounted_fn_pointer: Refused { file: "uncounted_fn_pointer.rs", budget: "parser recursion" }
+uncounted_assignment: Refused { file: "uncounted_assignment.rs", budget: "parser recursion" }
+uncounted_move_closure: Refused { file: "uncounted_move_closure.rs", budget: "closure bar chain" }
+chain_try: Refused { file: "chain_try.rs", budget: "parser recursion" }
+chain_field: Refused { file: "chain_field.rs", budget: "parser recursion" }
+chain_call: Refused { file: "chain_call.rs", budget: "parser recursion" }
+chain_index: Refused { file: "chain_index.rs", budget: "parser recursion" }
+chain_cast: Refused { file: "chain_cast.rs", budget: "parser recursion" }
+chain_add: Refused { file: "chain_add.rs", budget: "parser recursion" }
+chain_mul: Refused { file: "chain_mul.rs", budget: "parser recursion" }
+chain_await: Refused { file: "chain_await.rs", budget: "parser recursion" }
+chain_method: Refused { file: "chain_method.rs", budget: "parser recursion" }
+chain_async_closure: Refused { file: "chain_async_closure.rs", budget: "parser recursion" }
+chain_async_move_closure: Refused { file: "chain_async_move_closure.rs", budget: "parser recursion" }
+chain_const_closure: Refused { file: "chain_const_closure.rs", budget: "parser recursion" }
+chain_return_closure: Refused { file: "chain_return_closure.rs", budget: "parser recursion" }
+chain_raw_ref: Refused { file: "chain_raw_ref.rs", budget: "parser recursion" }
+chain_break: Refused { file: "chain_break.rs", budget: "parser recursion" }
+chain_yield: Refused { file: "chain_yield.rs", budget: "parser recursion" }
+chain_become: Refused { file: "chain_become.rs", budget: "parser recursion" }
+chain_add_assign: Refused { file: "chain_add_assign.rs", budget: "parser recursion" }
+chain_impl_fn_return: Refused { file: "chain_impl_fn_return.rs", budget: "parser recursion" }
+chain_extern_fn_pointer: Refused { file: "chain_extern_fn_pointer.rs", budget: "parser recursion" }
+chain_unsafe_fn_pointer: Refused { file: "chain_unsafe_fn_pointer.rs", budget: "parser recursion" }
+chain_for_fn_pointer: Refused { file: "chain_for_fn_pointer.rs", budget: "parser recursion" }
+chain_ptr_mut: Refused { file: "chain_ptr_mut.rs", budget: "parser recursion" }
+chain_box_pattern: Refused { file: "chain_box_pattern.rs", budget: "parser recursion" }
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.46s

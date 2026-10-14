@@ -1,0 +1,902 @@
+diff --git crates/raf-source/src/error.rs crates/raf-source/src/error.rs
+index 5e96623..3734341 100644
+--- crates/raf-source/src/error.rs
++++ crates/raf-source/src/error.rs
+@@ -10,6 +10,21 @@ use std::io;
+ use crate::budget::Budget;
+ use crate::path::{PathError, RelPath};
+ 
++/// Text that came from the input, shown with every control character escaped
++/// by [`char::escape_debug`], so that an error message cannot carry a terminal
++/// escape sequence, a line break or a NUL.
++pub(crate) struct Esc<'a>(pub(crate) &'a str);
++
++impl fmt::Display for Esc<'_> {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        self.0.chars().try_for_each(|c| match c {
++            // Quotes are not control characters and stay readable.
++            '\'' | '"' => write!(f, "{c}"),
++            _ => write!(f, "{}", c.escape_debug()),
++        })
++    }
++}
++
+ /// Why a [`Tree`](crate::Tree) call failed.
+ ///
+ /// Every variant names the path it concerns. Only [`TreeError::NotFound`]
+@@ -136,24 +151,30 @@ impl From<PathError> for TreeError {
+ impl fmt::Display for TreeError {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         match self {
+-            Self::NotFound { path } => write!(f, "{path}: no such file or directory"),
+-            Self::OutsideRoot { path } => write!(f, "{path} leads outside the root"),
++            Self::NotFound { path } => write!(f, "{}: no such file or directory", Esc(path)),
++            Self::OutsideRoot { path } => write!(f, "{} leads outside the root", Esc(path)),
+             Self::NotRegular { path } => {
+-                write!(f, "{path} is not a regular file or a real directory")
++                write!(f, "{} is not a regular file or a real directory", Esc(path))
+             }
+-            Self::SymlinkLoop { path } => write!(f, "{path} runs into a symlink loop"),
++            Self::SymlinkLoop { path } => write!(f, "{} runs into a symlink loop", Esc(path)),
+             Self::TooLarge { path, limit } => {
+-                write!(f, "{path} is larger than the limit of {limit} bytes")
++                write!(f, "{} is larger than the limit of {limit} bytes", Esc(path))
+             }
+-            Self::NotUtf8 { path } => write!(f, "{path} is not valid UTF-8"),
++            Self::NotUtf8 { path } => write!(f, "{} is not valid UTF-8", Esc(path)),
+             Self::NonUtf8Name { path, name } => write!(
+                 f,
+-                "directory {path} holds an entry whose name is not valid UTF-8: {name:?}"
++                "directory {} holds an entry whose name is not valid UTF-8: \"{}\"",
++                Esc(path),
++                Esc(name)
+             ),
+             Self::DuplicatePath { path } => {
+-                write!(f, "{path} names a path that an earlier key already holds")
++                write!(
++                    f,
++                    "{} names a path that an earlier key already holds",
++                    Esc(path)
++                )
+             }
+-            Self::Io { path, source } => write!(f, "{path}: {source}"),
++            Self::Io { path, source } => write!(f, "{}: {source}", Esc(path)),
+         }
+     }
+ }
+@@ -199,19 +220,21 @@ pub enum Origin {
+ impl fmt::Display for Origin {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         match self {
+-            Self::ModDecl { module } => write!(f, "`mod {module};`"),
++            Self::ModDecl { module } => write!(f, "`mod {};`", Esc(module)),
+             Self::PathAttr {
+                 module,
+                 predicate: None,
+-            } => write!(f, "the `path` attribute of module `{module}`"),
++            } => write!(f, "the `path` attribute of module `{}`", Esc(module)),
+             Self::PathAttr {
+                 module,
+                 predicate: Some(predicate),
+             } => write!(
+                 f,
+-                "the `path` attribute of module `{module}` under `{predicate}`"
++                "the `path` attribute of module `{}` under `{}`",
++                Esc(module),
++                Esc(predicate)
+             ),
+-            Self::ManifestKey { key } => write!(f, "manifest key `{key}`"),
++            Self::ManifestKey { key } => write!(f, "manifest key `{}`", Esc(key)),
+             Self::Discovery => f.write_str("package discovery"),
+         }
+     }
+@@ -352,13 +375,25 @@ pub enum TargetProblem {
+ impl fmt::Display for TargetProblem {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         match self {
+-            Self::MissingFile { path } => write!(f, "the target file {path} does not exist"),
++            Self::MissingFile { path } => {
++                write!(f, "the target file {} does not exist", Esc(path.as_str()))
++            }
+             Self::NoName => f.write_str("the target has no name"),
+             Self::SharedRoot { root, other } => {
+-                write!(f, "the root {root} already belongs to the target `{other}`")
++                write!(
++                    f,
++                    "the root {} already belongs to the target `{}`",
++                    Esc(root.as_str()),
++                    Esc(other)
++                )
+             }
+             Self::AmbiguousRoot { first, second } => {
+-                write!(f, "both {first} and {second} could be the root")
++                write!(
++                    f,
++                    "both {} and {} could be the root",
++                    Esc(first.as_str()),
++                    Esc(second.as_str())
++                )
+             }
+             Self::DuplicateCratePath {
+                 crate_path,
+@@ -366,10 +401,18 @@ impl fmt::Display for TargetProblem {
+                 with,
+             } => write!(
+                 f,
+-                "the crate path `{crate_path}` is already used by the target `{other}` of {with}"
++                "the crate path `{}` is already used by the target `{}` of {}",
++                Esc(crate_path),
++                Esc(other),
++                Esc(with.as_str())
+             ),
+             Self::DuplicatePackage { name, with } => {
+-                write!(f, "package `{name}` is also defined by {with}")
++                write!(
++                    f,
++                    "package `{}` is also defined by {}",
++                    Esc(name),
++                    Esc(with.as_str())
++                )
+             }
+         }
+     }
+@@ -383,38 +426,51 @@ impl fmt::Display for LoadErrorKind {
+                 write!(f, "exceeds the budget for {budget} ({limit})")
+             }
+             Self::Syntax { message, column } => {
+-                write!(f, "syntax error at column {column}: {message}")
++                write!(f, "syntax error at column {column}: {}", Esc(message))
+             }
+             Self::Spawn(error) => write!(f, "cannot start the parse thread: {error}"),
+-            Self::Manifest { message } => write!(f, "invalid manifest: {message}"),
++            Self::Manifest { message } => write!(f, "invalid manifest: {}", Esc(message)),
+             Self::Target(problem) => write!(f, "{problem}"),
+             Self::DirSymlink => f.write_str("a symlinked directory is not followed"),
+             Self::UnresolvedMod { module } => {
+-                write!(f, "module `{module}` has no file")
++                write!(f, "module `{}` has no file", Esc(module))
+             }
+             Self::BothModFiles {
+                 module,
+                 first,
+                 second,
+-            } => write!(f, "module `{module}` has both {first} and {second}"),
++            } => write!(
++                f,
++                "module `{}` has both {} and {}",
++                Esc(module),
++                Esc(first.as_str()),
++                Esc(second.as_str())
++            ),
+             Self::DuplicatePathAttr { module } => {
+-                write!(f, "module `{module}` has two `path` attributes")
++                write!(f, "module `{}` has two `path` attributes", Esc(module))
+             }
+             Self::ModuleCycle { module, again } => write!(
+                 f,
+-                "module `{module}` leads back to {again}, which is still being followed"
++                "module `{}` leads back to {}, which is still being followed",
++                Esc(module),
++                Esc(again.as_str())
+             ),
+-            Self::CfgParse { message } => write!(f, "cannot read an attribute: {message}"),
+-            Self::UnsupportedItem { what } => write!(f, "unsupported item: {what}"),
++            Self::CfgParse { message } => write!(f, "cannot read an attribute: {}", Esc(message)),
++            Self::UnsupportedItem { what } => write!(f, "unsupported item: {}", Esc(what)),
+             Self::UnresolvedTrait { path } => {
+                 write!(
+                     f,
+-                    "the trait `{path}` of an impl cannot be named by an absolute path"
++                    "the trait `{}` of an impl cannot be named by an absolute path",
++                    Esc(path)
+                 )
+             }
+-            Self::Internal { what } => write!(f, "internal error: {what}"),
++            Self::Internal { what } => write!(f, "internal error: {}", Esc(what)),
+             Self::SuperAboveRoot { path } => {
+-                write!(f, "`{path}` climbs above the crate root with `super`")
++                write!(
++                    f,
++                    "`{}` climbs above the crate root with `super`",
++                    Esc(path)
++                )
+             }
+         }
+     }
+@@ -465,7 +521,7 @@ impl LoadError {
+ 
+ impl fmt::Display for LoadError {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+-        write!(f, "{}", self.file)?;
++        write!(f, "{}", Esc(self.file.as_str()))?;
+         if let Some(line) = self.line {
+             write!(f, ":{line}")?;
+         }
+@@ -492,9 +548,136 @@ mod tests {
+     use std::error::Error;
+     use std::io;
+ 
+-    use super::{LoadError, LoadErrorKind};
++    use super::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
+     use crate::RelPath;
+ 
++    /// Every kind of control character, including a NUL.
++    const HOSTILE: &str = "a\u{1b}]0;pwned\u{7}\u{1b}[2J\0\r\nb";
++    /// The same for a `RelPath`, which refuses a NUL.
++    const HOSTILE_PATH: &str = "a\u{1b}]0;pwned\u{7}\u{1b}[2J\r\nb";
++
++    fn clean(text: &str) {
++        assert!(
++            !text.chars().any(char::is_control),
++            "a control character got through: {text:?}"
++        );
++    }
++
++    #[test]
++    fn control_characters_in_a_path_are_escaped() {
++        let file = RelPath::new(&format!("src/{HOSTILE_PATH}.rs")).expect("a relative path");
++        let text = LoadError::tree(
++            &file,
++            Some(3),
++            &Origin::PathAttr {
++                module: HOSTILE.to_owned(),
++                predicate: Some(HOSTILE.to_owned()),
++            },
++            TreeError::OutsideRoot {
++                path: HOSTILE.to_owned(),
++            },
++        )
++        .to_string();
++        clean(&text);
++        assert!(
++            text.contains(r"a\u{1b}]0;pwned\u{7}\u{1b}[2J\0\r\nb"),
++            "{text}"
++        );
++        assert!(text.starts_with("src/a\\u{1b}"), "{text}");
++    }
++
++    #[test]
++    fn every_user_derived_field_of_every_display_is_escaped() {
++        let file = RelPath::new("x").expect("a relative path");
++        let hostile = || HOSTILE.to_owned();
++        let path = || RelPath::new(&format!("d/{HOSTILE_PATH}")).expect("a relative path");
++        let tree_errors = [
++            TreeError::NotFound { path: hostile() },
++            TreeError::OutsideRoot { path: hostile() },
++            TreeError::NotRegular { path: hostile() },
++            TreeError::SymlinkLoop { path: hostile() },
++            TreeError::TooLarge {
++                path: hostile(),
++                limit: 1,
++            },
++            TreeError::NotUtf8 { path: hostile() },
++            TreeError::NonUtf8Name {
++                path: hostile(),
++                name: hostile(),
++            },
++            TreeError::DuplicatePath { path: hostile() },
++            TreeError::Io {
++                path: hostile(),
++                source: io::Error::other("x"),
++            },
++        ];
++        for error in tree_errors {
++            clean(&error.to_string());
++        }
++        let origins = [
++            Origin::ModDecl { module: hostile() },
++            Origin::ManifestKey { key: hostile() },
++            Origin::PathAttr {
++                module: hostile(),
++                predicate: None,
++            },
++        ];
++        for origin in origins {
++            clean(&origin.to_string());
++        }
++        let problems = [
++            TargetProblem::MissingFile { path: path() },
++            TargetProblem::SharedRoot {
++                root: path(),
++                other: hostile(),
++            },
++            TargetProblem::AmbiguousRoot {
++                first: path(),
++                second: path(),
++            },
++            TargetProblem::DuplicateCratePath {
++                crate_path: hostile(),
++                other: hostile(),
++                with: path(),
++            },
++            TargetProblem::DuplicatePackage {
++                name: hostile(),
++                with: path(),
++            },
++        ];
++        for problem in problems {
++            clean(&problem.to_string());
++        }
++        let kinds = vec![
++            LoadErrorKind::Syntax {
++                message: hostile(),
++                column: 1,
++            },
++            LoadErrorKind::Manifest { message: hostile() },
++            LoadErrorKind::UnresolvedMod { module: hostile() },
++            LoadErrorKind::BothModFiles {
++                module: hostile(),
++                first: Box::new(path()),
++                second: Box::new(path()),
++            },
++            LoadErrorKind::DuplicatePathAttr { module: hostile() },
++            LoadErrorKind::ModuleCycle {
++                module: hostile(),
++                again: Box::new(path()),
++            },
++            LoadErrorKind::CfgParse { message: hostile() },
++            LoadErrorKind::UnsupportedItem { what: hostile() },
++            LoadErrorKind::UnresolvedTrait { path: hostile() },
++            LoadErrorKind::Internal { what: hostile() },
++            LoadErrorKind::SuperAboveRoot { path: hostile() },
++        ];
++        for kind in kinds {
++            clean(&LoadError::new(&file, None, kind).to_string());
++        }
++        let hostile_file = RelPath::new(&format!("{HOSTILE_PATH}.rs")).expect("a relative path");
++        clean(&LoadError::new(&hostile_file, None, LoadErrorKind::DirSymlink).to_string());
++    }
++
+     #[test]
+     fn a_spawn_error_displays_the_file_and_carries_its_cause() {
+         let file = RelPath::new("src/lib.rs").expect("a plain path");
+diff --git crates/raf-source/src/glob.rs crates/raf-source/src/glob.rs
+index f808ca2..2d64695 100644
+--- crates/raf-source/src/glob.rs
++++ crates/raf-source/src/glob.rs
+@@ -10,7 +10,7 @@
+ //! ignored.
+ 
+ /// One piece of a segment pattern.
+-#[derive(Debug, Clone, PartialEq, Eq)]
++#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+ enum Piece {
+     Literal(char),
+     One,
+@@ -112,7 +112,7 @@ fn matches_segment(pieces: &[Piece], text: &[char]) -> bool {
+ }
+ 
+ /// A parsed pattern.
+-#[derive(Debug, Clone, PartialEq, Eq)]
++#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+ pub(crate) struct Pattern {
+     segments: Vec<Vec<Piece>>,
+ }
+@@ -173,15 +173,23 @@ impl Pattern {
+             .is_some_and(|pieces| matches_segment(pieces, &chars))
+     }
+ 
+-    /// True when the pattern matches the path or a directory above it.
+-    pub(crate) fn matches_prefix(&self, parts: &[&str]) -> bool {
+-        self.segments.len() <= parts.len() && self.matches_start(parts)
++    /// The segments joined by `/` when no segment has a wildcard.
++    pub(crate) fn literal_key(&self) -> Option<String> {
++        let names: Option<Vec<String>> = (0..self.segments.len())
++            .map(|index| self.literal(index))
++            .collect();
++        names.map(|names| names.join("/"))
+     }
+ 
+-    fn matches_start(&self, parts: &[&str]) -> bool {
+-        self.segments.iter().zip(parts).all(|(pieces, part)| {
+-            let chars: Vec<char> = part.chars().collect();
+-            matches_segment(pieces, &chars)
+-        })
++    /// True when the pattern matches the path or a directory above it, where
++    /// `parts` holds the characters of each segment of the path. The caller
++    /// collects them once for all the patterns it tests.
++    pub(crate) fn matches_prefix(&self, parts: &[Vec<char>]) -> bool {
++        self.segments.len() <= parts.len()
++            && self
++                .segments
++                .iter()
++                .zip(parts)
++                .all(|(pieces, part)| matches_segment(pieces, part))
+     }
+ }
+diff --git crates/raf-source/src/manifest.rs crates/raf-source/src/manifest.rs
+index 232b2c6..b2f67d2 100644
+--- crates/raf-source/src/manifest.rs
++++ crates/raf-source/src/manifest.rs
+@@ -19,6 +19,12 @@ pub(crate) struct ManifestError {
+     pub(crate) key: Option<String>,
+ }
+ 
++/// The most entries `workspace.members` may have.
++pub(crate) const MAX_MEMBERS: usize = 4096;
++
++/// The most entries `workspace.exclude` may have.
++pub(crate) const MAX_EXCLUDES: usize = 4096;
++
+ fn at_key(key: &str, message: impl Into<String>) -> ManifestError {
+     ManifestError {
+         message: message.into(),
+@@ -324,14 +330,21 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
+     let package = package(&root)?;
+     let has_workspace = root.contains_key("workspace");
+     let workspace = root.get("workspace").and_then(Value::as_table);
+-    let strings = |key: &str| -> Result<Vec<String>, ManifestError> {
++    let strings = |key: &str, cap: usize| -> Result<Vec<String>, ManifestError> {
+         let Some(value) = workspace.and_then(|table| table.get(key)) else {
+             return Ok(Vec::new());
+         };
+         let full = format!("workspace.{key}");
+-        value
++        let array = value
+             .as_array()
+-            .ok_or_else(|| at_key(&full, "must be an array of strings"))?
++            .ok_or_else(|| at_key(&full, "must be an array of strings"))?;
++        if array.len() > cap {
++            return Err(at_key(
++                &full,
++                format!("has {} entries; at most {cap} are allowed", array.len()),
++            ));
++        }
++        array
+             .iter()
+             .map(|entry| {
+                 entry
+@@ -364,8 +377,8 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
+             );
+         }
+     }
+-    let members = strings("members")?;
+-    let exclude = strings("exclude")?;
++    let members = strings("members", MAX_MEMBERS)?;
++    let exclude = strings("exclude", MAX_EXCLUDES)?;
+     let workspace_edition = match root
+         .get("workspace")
+         .and_then(Value::as_table)
+diff --git crates/raf-source/src/members.rs crates/raf-source/src/members.rs
+index 930de63..b74255b 100644
+--- crates/raf-source/src/members.rs
++++ crates/raf-source/src/members.rs
+@@ -9,7 +9,7 @@
+ //! that lies inside the workspace directory and is not excluded. Every
+ //! manifest read goes through the [`Tree`], under the size cap.
+ 
+-use std::collections::{BTreeSet, VecDeque};
++use std::collections::{BTreeSet, HashSet, VecDeque};
+ 
+ use crate::budget::Budget;
+ use crate::error::{LoadError, LoadErrorKind, Origin};
+@@ -176,23 +176,72 @@ impl Context<'_> {
+     }
+ }
+ 
++/// Parse each distinct pattern once, in first-seen order.
+ fn patterns(
+     manifest_path: &RelPath,
+     key: &str,
+     texts: &[String],
+ ) -> Result<Vec<Pattern>, LoadError> {
+-    texts
+-        .iter()
+-        .map(|text| {
+-            Pattern::parse(text).map_err(|why| {
+-                manifest_error(
+-                    manifest_path,
+-                    &format!("workspace.{key}"),
+-                    format!("the pattern `{text}` is not supported: {why}"),
+-                )
+-            })
+-        })
+-        .collect()
++    let mut seen = HashSet::new();
++    let mut parsed = Vec::new();
++    for text in texts {
++        let pattern = Pattern::parse(text).map_err(|why| {
++            manifest_error(
++                manifest_path,
++                &format!("workspace.{key}"),
++                format!("the pattern `{text}` is not supported: {why}"),
++            )
++        })?;
++        if seen.insert(pattern.clone()) {
++            parsed.push(pattern);
++        }
++    }
++    Ok(parsed)
++}
++
++/// The `workspace.exclude` patterns, compiled once: a pattern without a
++/// wildcard becomes an entry of a set, looked up once per ancestor of the
++/// path, and only the patterns with a wildcard are matched one by one.
++struct Excludes {
++    literal: HashSet<String>,
++    wildcard: Vec<Pattern>,
++}
++
++impl Excludes {
++    fn new(patterns: Vec<Pattern>) -> Self {
++        let mut literal = HashSet::new();
++        let mut wildcard = Vec::new();
++        for pattern in patterns {
++            match pattern.literal_key() {
++                Some(key) => {
++                    literal.insert(key);
++                }
++                None => wildcard.push(pattern),
++            }
++        }
++        Self { literal, wildcard }
++    }
++
++    /// True when a pattern matches the path `parts` or a directory above it.
++    fn matches(&self, parts: &[&str]) -> bool {
++        let mut prefix = String::new();
++        for (index, part) in parts.iter().enumerate() {
++            if index > 0 {
++                prefix.push('/');
++            }
++            prefix.push_str(part);
++            if self.literal.contains(&prefix) {
++                return true;
++            }
++        }
++        if self.wildcard.is_empty() {
++            return false;
++        }
++        let chars: Vec<Vec<char>> = parts.iter().map(|part| part.chars().collect()).collect();
++        self.wildcard
++            .iter()
++            .any(|pattern| pattern.matches_prefix(&chars))
++    }
+ }
+ 
+ /// The member directories of the workspace whose manifest `parsed` is at
+@@ -213,7 +262,7 @@ pub(crate) fn members(
+     parsed: &Manifest,
+ ) -> Result<BTreeSet<RelPath>, LoadError> {
+     let member_patterns = patterns(manifest_path, "members", &parsed.members)?;
+-    let excluded = patterns(manifest_path, "exclude", &parsed.exclude)?;
++    let excluded = Excludes::new(patterns(manifest_path, "exclude", &parsed.exclude)?);
+     let mut cx = Context {
+         manifest_path,
+         tree,
+@@ -224,12 +273,7 @@ pub(crate) fn members(
+             file: manifest_path.clone(),
+         },
+     };
+-    let is_excluded = |cx: &Context<'_>, dir: &RelPath| {
+-        let parts = cx.relative(dir);
+-        excluded
+-            .iter()
+-            .any(|pattern| pattern.matches_prefix(&parts))
+-    };
++    let is_excluded = |cx: &Context<'_>, dir: &RelPath| excluded.matches(&cx.relative(dir));
+     let mut found: BTreeSet<RelPath> = BTreeSet::new();
+     if parsed.package.is_some() {
+         found.insert(workspace_dir.clone());
+@@ -241,10 +285,7 @@ pub(crate) fn members(
+                 .filter_map(|i| pattern.literal(i))
+                 .collect();
+             let parts: Vec<&str> = names.iter().map(String::as_str).collect();
+-            if excluded
+-                .iter()
+-                .any(|exclude| exclude.matches_prefix(&parts))
+-            {
++            if excluded.matches(&parts) {
+                 continue;
+             }
+         }
+diff --git crates/raf-source/src/path.rs crates/raf-source/src/path.rs
+index 9970466..9c99134 100644
+--- crates/raf-source/src/path.rs
++++ crates/raf-source/src/path.rs
+@@ -71,7 +71,7 @@ impl PathError {
+ 
+ impl fmt::Display for PathError {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+-        let input = self.input();
++        let input = crate::error::Esc(self.input());
+         match self {
+             Self::Absolute { .. } => write!(
+                 f,
+@@ -224,3 +224,17 @@ impl fmt::Display for RelPath {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod display_tests {
++    use super::RelPath;
++
++    #[test]
++    fn control_characters_in_a_refused_path_are_escaped() {
++        let refused = RelPath::new("/a\u{1b}[31m\u{202e}b").expect_err("absolute");
++        let text = refused.to_string();
++        assert!(!text.contains('\u{1b}'), "{text}");
++        assert!(!text.contains('\u{202e}'), "{text}");
++        assert!(text.contains("\\u{1b}"), "{text}");
++    }
++}
+diff --git crates/raf-source/tests/error_text.rs crates/raf-source/tests/error_text.rs
+new file mode 100644
+index 0000000..5c0f18d
+--- /dev/null
++++ crates/raf-source/tests/error_text.rs
+@@ -0,0 +1,48 @@
++// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++//! The text of an error a load returns carries no raw control character, even
++//! when the input chose the characters.
++
++use raf_source::{MemoryTree, Workspace};
++
++#[test]
++fn a_path_attribute_with_terminal_escapes_is_shown_escaped() {
++    let lib = "#[path = \"../../../\\u{1b}]0;pwned\\u{7}\\u{1b}[2J\\u{1b}[31mfake.rs\"] mod m;\n";
++    let tree: MemoryTree = [
++        (
++            "p/Cargo.toml",
++            "[package]\nname = \"p\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
++        ),
++        ("p/src/lib.rs", lib),
++    ]
++    .into_iter()
++    .collect();
++    let text = Workspace::load(&tree, &["p"])
++        .expect_err("the path leaves the root")
++        .to_string();
++    assert!(!text.chars().any(char::is_control), "{text:?}");
++    assert!(text.contains(r"\u{1b}]0;pwned\u{7}\u{1b}[2J"), "{text}");
++}
++
++#[test]
++fn a_manifest_with_control_characters_in_a_value_is_shown_escaped() {
++    let tree: MemoryTree = [
++        (
++            "Cargo.toml",
++            "[workspace]\nmembers = [\"a\\u001b[2Jb\\\\\"]\n[workspace.package]\nedition = \"2021\"\n",
++        ),
++        (
++            "p/Cargo.toml",
++            "[package]\nname = \"p\"\nversion = \"0.0.0\"\nedition.workspace = true\n",
++        ),
++        ("p/src/lib.rs", ""),
++    ]
++    .into_iter()
++    .collect();
++    let text = Workspace::load(&tree, &["p"])
++        .expect_err("the pattern is outside the syntax")
++        .to_string();
++    assert!(!text.chars().any(char::is_control), "{text:?}");
++    assert!(text.contains(r"a\u{1b}[2Jb"), "{text}");
++}
+diff --git crates/raf-source/tests/manifest_caps.rs crates/raf-source/tests/manifest_caps.rs
+new file mode 100644
+index 0000000..58204ba
+--- /dev/null
++++ crates/raf-source/tests/manifest_caps.rs
+@@ -0,0 +1,151 @@
++// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++//! The caps on `workspace.members` and `workspace.exclude`, and the cost of
++//! matching them. Each cap is shown at its limit, where the load succeeds, and
++//! one over, where it is refused with a `Manifest` error that names the key.
++//! Large pattern lists, duplicated or distinct, load or are refused in well
++//! under a second.
++
++use std::fmt::Write as _;
++use std::time::{Duration, Instant};
++
++use raf_source::{LoadError, LoadErrorKind, MemoryTree, Origin, Workspace};
++
++const CAP: usize = 4096;
++
++const PACKAGE: &str = "[package]\nname = \"p\"\nversion = \"0.1.0\"\nedition.workspace = true\n";
++
++/// A workspace manifest whose `members` and `exclude` hold the given quoted
++/// entries, and one package `p`.
++fn load(members: &[String], exclude: &[String]) -> Result<Workspace, LoadError> {
++    let quoted = |entries: &[String]| {
++        let mut text = String::new();
++        for entry in entries {
++            write!(text, "\"{entry}\",").expect("writes to a string");
++        }
++        text
++    };
++    let root = format!(
++        "[workspace]\nmembers = [{}]\nexclude = [{}]\n[workspace.package]\nedition = \"2021\"\n",
++        quoted(members),
++        quoted(exclude)
++    );
++    let tree: MemoryTree = [
++        ("Cargo.toml", root.as_str()),
++        ("p/Cargo.toml", PACKAGE),
++        ("p/src/lib.rs", ""),
++    ]
++    .into_iter()
++    .collect();
++    Workspace::load(&tree, &["p"])
++}
++
++fn names(count: usize, stem: &str) -> Vec<String> {
++    (0..count).map(|i| format!("{stem}{i}")).collect()
++}
++
++fn globs(count: usize, stem: &str) -> Vec<String> {
++    (0..count).map(|i| format!("{stem}{i}/*")).collect()
++}
++
++fn with(mut list: Vec<String>, entry: &str) -> Vec<String> {
++    list.push(entry.to_owned());
++    list
++}
++
++fn fast<T>(work: impl FnOnce() -> T) -> T {
++    let start = Instant::now();
++    let value = work();
++    let took = start.elapsed();
++    assert!(took < Duration::from_secs(1), "took {took:?}");
++    value
++}
++
++fn refused_key(result: Result<Workspace, LoadError>, key: &str, count: usize) {
++    let error = result.expect_err("over the cap");
++    assert!(
++        matches!(error.kind, LoadErrorKind::Manifest { .. }),
++        "{error}"
++    );
++    assert_eq!(error.file.as_str(), "Cargo.toml", "{error}");
++    let origin = error.origin.as_deref().expect("names the key");
++    assert_eq!(
++        origin,
++        &Origin::ManifestKey {
++            key: key.to_owned()
++        },
++        "{error}"
++    );
++    let text = error.to_string();
++    assert!(
++        text.contains(&format!("has {count} entries; at most {CAP} are allowed")),
++        "{text}"
++    );
++}
++
++#[test]
++fn exclude_at_the_cap_loads_and_one_over_is_refused() {
++    let at = fast(|| load(&["p".to_owned()], &globs(CAP, "q")));
++    at.unwrap_or_else(|error| panic!("at the cap: {error}"));
++    let over = fast(|| load(&["p".to_owned()], &globs(CAP + 1, "q")));
++    refused_key(over, "workspace.exclude", CAP + 1);
++}
++
++#[test]
++fn members_at_the_cap_loads_and_one_over_is_refused() {
++    let at = fast(|| load(&with(globs(CAP - 1, "m"), "p"), &[]));
++    at.unwrap_or_else(|error| panic!("at the cap: {error}"));
++    let over = fast(|| load(&with(globs(CAP, "m"), "p"), &[]));
++    refused_key(over, "workspace.members", CAP + 1);
++}
++
++#[test]
++fn the_duplicate_pattern_probe_is_refused_at_once() {
++    // 20000 members and 200000 excludes: an 880 KB manifest.
++    let members = vec!["p".to_owned(); 20_000];
++    let exclude = vec!["q".to_owned(); 200_000];
++    let result = fast(|| load(&members, &exclude));
++    refused_key(result, "workspace.members", 20_000);
++}
++
++#[test]
++fn duplicate_patterns_within_the_caps_load_at_once() {
++    let members = vec!["p".to_owned(); CAP];
++    let exclude = vec!["q*".to_owned(); CAP];
++    fast(|| load(&members, &exclude)).unwrap_or_else(|error| panic!("loads: {error}"));
++}
++
++#[test]
++fn distinct_patterns_at_both_caps_load_at_once() {
++    // Every literal member is tested against every wildcard exclude, and the
++    // only exclude that matches comes last.
++    let members = with(names(CAP - 1, "m"), "p");
++    let exclude = with(globs(CAP - 1, "a"), "m*");
++    fast(|| load(&members, &exclude)).unwrap_or_else(|error| panic!("loads: {error}"));
++}
++
++#[test]
++fn exclude_still_removes_literal_wildcard_and_nested_members() {
++    let tree: MemoryTree = [
++        (
++            "Cargo.toml",
++            "[workspace]\nmembers = [\"a\", \"b/*\", \"c\", \"d\"]\nexclude = [\"a\", \"b/x*\", \"c/sub\", \"d\", \"d\"]\n[workspace.package]\nedition = \"2021\"\n",
++        ),
++        ("a/Cargo.toml", PACKAGE),
++        ("b/xy/Cargo.toml", "[package]\nname = \"xy\"\nversion = \"0.1.0\"\nedition.workspace = true\n"),
++        ("b/ok/Cargo.toml", "[package]\nname = \"ok\"\nversion = \"0.1.0\"\nedition.workspace = true\n"),
++        ("b/ok/src/lib.rs", ""),
++        ("c/Cargo.toml", "[package]\nname = \"c\"\nversion = \"0.1.0\"\nedition.workspace = true\n"),
++        ("c/src/lib.rs", ""),
++    ]
++    .into_iter()
++    .collect();
++    for member in ["b/ok", "c"] {
++        Workspace::load(&tree, &[member]).unwrap_or_else(|e| panic!("{member}: {e}"));
++    }
++    for excluded in ["a", "b/xy"] {
++        let error = Workspace::load(&tree, &[excluded]).expect_err("excluded");
++        assert!(error.to_string().contains("member"), "{excluded}: {error}");
++    }
++}
+diff --git docs/capabilities/source-index.md docs/capabilities/source-index.md
+index ae78807..6eb65cd 100644
+--- docs/capabilities/source-index.md
++++ docs/capabilities/source-index.md
+@@ -124,6 +124,16 @@ bindings:
+     - raf_source::tree::disk::tests::windows::a_disk_tree_refuses_a_reserved_device_name_or_a_trailing_dot_or_space_beside_a_plain_name
+     - raf_source::test_crate::workspace_containment::a_tree_with_windows_device_names_loads_off_windows
+     - raf_source::error::tests::a_spawn_error_displays_the_file_and_carries_its_cause
++    - raf_source::error::tests::control_characters_in_a_path_are_escaped
++    - raf_source::error::tests::every_user_derived_field_of_every_display_is_escaped
++    - raf_source::test_crate::error_text::a_path_attribute_with_terminal_escapes_is_shown_escaped
++    - raf_source::test_crate::error_text::a_manifest_with_control_characters_in_a_value_is_shown_escaped
++    - raf_source::test_crate::manifest_caps::exclude_at_the_cap_loads_and_one_over_is_refused
++    - raf_source::test_crate::manifest_caps::members_at_the_cap_loads_and_one_over_is_refused
++    - raf_source::test_crate::manifest_caps::the_duplicate_pattern_probe_is_refused_at_once
++    - raf_source::test_crate::manifest_caps::duplicate_patterns_within_the_caps_load_at_once
++    - raf_source::test_crate::manifest_caps::distinct_patterns_at_both_caps_load_at_once
++    - raf_source::test_crate::manifest_caps::exclude_still_removes_literal_wildcard_and_nested_members
+     - raf_source::item::tests::an_item_record_is_at_most_two_hundred_fifty_six_bytes
+     - raf_source::facts::tests::a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines
+     - raf_source::settle::tests::a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room
+@@ -739,8 +749,15 @@ workspace directory and are not excluded. A pattern may use `*`, `?` and `[...]`
+ ranges and a leading `!` or `^`) in each path segment, and is matched in time
+ proportional to the pattern times the name; `**`, a backslash, an unclosed bracket and an
+ empty segment (`a//b`, `a//`) are a typed manifest error, never ignored; one trailing `/` is
+-allowed (`crates/*/` is `crates/*`). An entry
+-of `workspace.members` that has no wildcard names one directory, which must exist and have
++allowed (`crates/*/` is `crates/*`). `workspace.members` and `workspace.exclude` each
++hold at most 4096 entries, a manifest error naming the key beyond that. Each distinct
++pattern is compiled once: a duplicate is dropped, an exclude without a wildcard is a set
++entry looked up once for each directory above a path, and only the excludes with a
++wildcard are matched one by one, so a manifest of 20000 members and 200000 excludes
++(880 KB) is refused at once. The cost that remains is the directories below a root times
++the wildcard excludes: 4096 member directories against 4095 distinct wildcard excludes
++load in about 50 ms, and an adversarial set of star-heavy wildcard excludes over 4096
++directories takes about a second. An entry of `workspace.members` that has no wildcard names one directory, which must exist and have
+ a `Cargo.toml`, or it is a manifest error naming `workspace.members`, unless it is
+ excluded, in which case it is ignored and need not exist; a glob entry skips
+ what it matches that is not a directory or has no `Cargo.toml`. The member manifests are read through
+@@ -984,6 +1001,10 @@ assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
+   Contract state.
+ - Resolution covers items the source defines. Items from dependencies are outside the
+   index and resolve to a not-found failure.
++- `workspace.members` and `workspace.exclude` hold at most 4096 entries each.
++- The text of an error shows input-derived text with control characters escaped by
++  `char::escape_debug`, which also doubles a backslash, so it is safe to print to a
++  terminal; the fields of the error keep the raw text.
+ - The index is built once per `Workspace::load`; callers reload to see changed files.
+ - Output order is sorted by path, so two loads of the same tree give equal results.
+ 
+@@ -1101,6 +1122,17 @@ duplicates.
+   that load; a `workspace.members` pattern at 128 levels expands and one at 129 is
+   refused; 128 nested modules, inline and in files, load on 512 KiB, and 129 are
+   refused typed.
++- Manifest caps and pattern cost: 4096 `exclude` entries load and 4097 are a `Manifest`
++  error naming `workspace.exclude`; 4096 `members` entries load and 4097 are a
++  `Manifest` error naming `workspace.members`; the 880 KB manifest of 20000 members and
++  200000 duplicate excludes is refused, 4096 duplicates of each kind load, and 4095
++  distinct members against 4096 distinct excludes load, each in under a second; literal,
++  wildcard and nested excludes still remove their members.
++- Error text: the `Display` of `LoadError`, `LoadErrorKind`, `Origin`, `TargetProblem`,
++  `TreeError` and `PathError` escapes every control character of a path, module name, predicate,
++  key or message with `char::escape_debug` (quotes stay as written), so a `#[path]` with
++  terminal escape sequences, a NUL or a line break shows as text. One test builds every
++  variant with such text; two load a hostile `#[path]` and a hostile `members` entry.
+ - Identity fixtures: `identity` gives one value for a file, a symlink to it, a hard
+   link and a path through a directory symlink, and refuses what `read` refuses;
+   `read_unseen` gives the identity and the text of one open, leaves a seen file

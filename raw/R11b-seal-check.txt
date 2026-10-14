@@ -1,0 +1,60 @@
+R11b sealing check
+
+1. Patterns with every field each type had on 44e18b7, no '..', against raf-source at 44e18b7 (git archive):
+//! The sealing patterns, each with every field the type had on the base commit and no `..`.
+#![allow(unused_variables, missing_docs)]
+pub fn package(package: &raf_source::Package) {
+    let raf_source::Package { name, manifest, dir } = package;
+}
+pub fn target(target: &raf_source::Target) {
+    let raf_source::Target { package, name, kind, crate_path, root, shipping } = target;
+}
+pub fn source_file(file: &raf_source::SourceFile) {
+    let raf_source::SourceFile { path, package, shipping, test, text, facts, reached } = file;
+}
+pub fn reach(reach: &raf_source::Reach) {
+    let raf_source::Reach { target, module_path, test, predicate } = reach;
+}
+pub fn entry(entry: &raf_source::Entry) {
+    let raf_source::Entry { name, kind } = entry;
+}
+pub fn span(span: &raf_source::SpanFact) {
+    let raf_source::SpanFact { start_line, end_line, start_byte, end_byte } = span;
+}
+    Blocking waiting for file lock on package cache
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.86s
+
+2. The same patterns against the patched raf-source:
+error[E0638]: `..` required with struct marked as non-exhaustive
+error[E0638]: `..` required with struct marked as non-exhaustive
+error[E0027]: pattern does not mention fields `harness`, `required_features`, `test`, `doctest`
+error[E0638]: `..` required with struct marked as non-exhaustive
+error[E0638]: `..` required with struct marked as non-exhaustive
+error[E0638]: `..` required with struct marked as non-exhaustive
+error[E0638]: `..` required with struct marked as non-exhaustive
+error[E0026]: struct `SpanFact` does not have fields named `start_line`, `end_line`
+error[E0027]: pattern does not mention field `lines`
+error: could not compile `seal-sealed` (lib) due to 9 previous errors
+
+3. The doctest patterns of the patch (current fields) against the patched raf-source with only #[non_exhaustive] removed from the six structs (SourceFile omitted: its facts field is pub(crate), so no outside pattern can list it):
+//! The doctest patterns of the patch, against the patched crate with the seals removed.
+#![allow(unused_variables, missing_docs)]
+pub fn package(package: &raf_source::Package) {
+    let raf_source::Package { name, manifest, dir } = package;
+}
+pub fn target(target: &raf_source::Target) {
+    let raf_source::Target {
+        package, name, kind, crate_path, root, shipping,
+        harness, required_features, test, doctest,
+    } = target;
+}
+pub fn reach(reach: &raf_source::Reach) {
+    let raf_source::Reach { target, module_path, test, predicate } = reach;
+}
+pub fn entry(entry: &raf_source::Entry) {
+    let raf_source::Entry { name, kind } = entry;
+}
+pub fn span(span: &raf_source::SpanFact) {
+    let raf_source::SpanFact { lines, start_byte, end_byte } = span;
+}
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.07s

@@ -1,0 +1,3723 @@
+diff --git SECURITY.md SECURITY.md
+index 60a48e0..54da1c0 100644
+--- SECURITY.md
++++ SECURITY.md
+@@ -111,15 +111,20 @@ guarantees are these, and no wider:
+   search that keys the trait of an impl through imports and globs, reads and
+   parses each file once whatever spellings reach it (files are told apart by device
+   and inode, or on Windows by the path of the handle), and bounds what one load
+-  reads, keeps in its index and keeps as facts (256 MiB, 512 MiB and 256 MiB by
+-  default, 1 GiB in all).
+-  The scope tables that `use` declarations and globs build are bounded by no budget:
+-  a glob-heavy input can exhaust memory (one module of 3000 functions globbed by 3000
+-  others, 166 KB of source, peaks at 7.3 GiB). The source index parses on a
++  reads, keeps in its index, keeps as facts and holds at once in the tables of what
++  glob imports bring in (256 MiB, 512 MiB, 256 MiB and 512 MiB by default, 1.5 GiB in
++  all). What a glob brings in is kept once for every class of importers that see the
++  same of a module, so one module of 3000 functions globbed by 3000 others loads at a
++  peak of 23 MiB, and modules that bring in the names of many others are refused by
++  the glob budget (1400 modules that each glob the crate root, which globs each, are
++  refused in 2 to 3 s at a peak of 415 MiB). The work queue and the graph of undecided
++  imports that settling the imports builds are not budgeted; they are dropped once
++  the imports are settled, and the time to decide them grows faster than their size.
++  The source index parses on a
+   dedicated 64 MiB stack on a thread named after the file, and is fuzzed through a
+   target (`parse-source`) whose committed corpus `cargo test` replays in child
+   processes, in debug and in release; a second target (`load-workspace`) fuzzes a
+-  whole load from a workspace built in memory. These bound memory outside the scope tables
++  whole load from a workspace built in memory. These bound the memory a load keeps
+   and the stack that parsing an admitted file takes; the stack bound rests on an
+   audit of the parser's recursion and on measured costs. A residual stack overflow
+   aborts the run, so the gate fails and never passes, and a file ends in a typed
+diff --git crates/raf-source/examples/registry_scan.rs crates/raf-source/examples/registry_scan.rs
+index 0350097..832604c 100644
+--- crates/raf-source/examples/registry_scan.rs
++++ crates/raf-source/examples/registry_scan.rs
+@@ -27,14 +27,15 @@
+ //! One line is printed per crate, sorted by name:
+ //!
+ //! ```text
+-//! name@version | OK items=N files=N misplaced=N total=N item=N fact=N tokens=N recursion=N depth=N [first misplaced item]
++//! name@version | OK items=N files=N misplaced=N total=N item=N fact=N glob=N tokens=N recursion=N depth=N [first misplaced item]
+ //! name@version | ERR <kind> :: <message>
+ //! ```
+ //!
+-//! `total`, `item`, `fact`, `tokens`, `recursion` and `depth` are the load's
+-//! [`Usage`](raf_source::Usage): the bytes read, charged to the index and to
+-//! the facts, the most tokens of one file, the highest value of the recursion
+-//! counter in one file and the deepest directory entered.
++//! `total`, `item`, `fact`, `glob`, `tokens`, `recursion` and `depth` are the
++//! load's [`Usage`](raf_source::Usage): the bytes read, charged to the index
++//! and to the facts, the most charged to the glob tables at once, the most
++//! tokens of one file, the highest value of the recursion counter in one file
++//! and the deepest directory entered.
+ //! The kind is the [`LoadErrorKind`](raf_source::LoadErrorKind) variant, or
+ //! `memory` for a child that ran out of its address space, `abort` for a
+ //! child that ended without a result otherwise and `timeout` for one that was
+@@ -80,7 +81,15 @@ const DEFAULT_MAX_MEMORY: u64 = 8 << 30;
+ const ALLOCATION_FAILED: &str = "memory allocation of";
+ 
+ /// The usage figures of an `OK` line, in the order they are printed.
+-const USAGE: [&str; 6] = ["total", "item", "fact", "tokens", "recursion", "depth"];
++const USAGE: [&str; 7] = [
++    "total",
++    "item",
++    "fact",
++    "glob",
++    "tokens",
++    "recursion",
++    "depth",
++];
+ 
+ fn main() -> ExitCode {
+     let args: Vec<String> = std::env::args().skip(1).collect();
+@@ -344,13 +353,14 @@ fn load_one(dir: &Path) -> String {
+             let misplaced = misplaced(&ws);
+             let usage = ws.usage();
+             let mut line = format!(
+-                "OK items={} files={} misplaced={} total={} item={} fact={} tokens={} recursion={} depth={}",
++                "OK items={} files={} misplaced={} total={} item={} fact={} glob={} tokens={} recursion={} depth={}",
+                 ws.items().count(),
+                 ws.files().count(),
+                 misplaced.len(),
+                 usage.total_bytes,
+                 usage.item_bytes,
+                 usage.fact_bytes,
++                usage.glob_bytes,
+                 usage.max_file_tokens,
+                 usage.max_recursion,
+                 usage.max_directory_depth,
+diff --git crates/raf-source/src/budget.rs crates/raf-source/src/budget.rs
+index f44de92..6f62275 100644
+--- crates/raf-source/src/budget.rs
++++ crates/raf-source/src/budget.rs
+@@ -13,7 +13,7 @@ use std::fmt;
+ /// pre-scan before a file is parsed. The others bound the module walk,
+ /// discovery, the tokens of one file and the bytes one load reads and keeps.
+ /// The limits live in one table, [`Budget::limit`], which the code and the
+-/// documentation share. The token budget and the three byte budgets are
++/// documentation share. The token budget and the four byte budgets are
+ /// defaults that [`LoadOptions`](crate::LoadOptions) can change.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+ #[non_exhaustive]
+@@ -59,13 +59,18 @@ pub enum Budget {
+     /// Bytes of the facts read from the files of one load, counted on the
+     /// parse thread as they are built.
+     FactBytes,
++    /// Bytes of the glob scope tables held at once: what each module exports
++    /// to glob imports, kept once for every class of importers that see the
++    /// same of it and shared by them, the glob imports that read each table,
++    /// and the changes waiting to be passed on as the tables grow.
++    GlobBytes,
+ }
+ 
+ /// One mebibyte.
+ const MIB: usize = 1024 * 1024;
+ 
+ /// The limit of each budget, indexed by the budget's position.
+-const BUDGETS: [(Budget, usize); 13] = [
++const BUDGETS: [(Budget, usize); 14] = [
+     (Budget::Delimiters, 128),
+     (Budget::Angles, 64),
+     (Budget::PrefixOperators, 256),
+@@ -79,6 +84,7 @@ const BUDGETS: [(Budget, usize); 13] = [
+     (Budget::TotalBytes, 256 * MIB),
+     (Budget::ItemBytes, 512 * MIB),
+     (Budget::FactBytes, 256 * MIB),
++    (Budget::GlobBytes, 512 * MIB),
+ ];
+ 
+ /// The most memory parsing one file holds at its peak for each of its tokens.
+@@ -110,7 +116,7 @@ const FILE_TOKENS: usize = 2_000_000;
+ 
+ impl Budget {
+     /// Every budget, in table order.
+-    pub const ALL: [Budget; 13] = [
++    pub const ALL: [Budget; 14] = [
+         BUDGETS[0].0,
+         BUDGETS[1].0,
+         BUDGETS[2].0,
+@@ -124,10 +130,11 @@ impl Budget {
+         BUDGETS[10].0,
+         BUDGETS[11].0,
+         BUDGETS[12].0,
++        BUDGETS[13].0,
+     ];
+ 
+     /// The most the budget allows; one more is refused. For the token budget
+-    /// and the three byte budgets this is the default of the matching
++    /// and the four byte budgets this is the default of the matching
+     /// [`LoadOptions`](crate::LoadOptions) field.
+     #[must_use]
+     pub const fn limit(self) -> usize {
+@@ -151,6 +158,7 @@ impl Budget {
+             Self::TotalBytes => "bytes read in one load",
+             Self::ItemBytes => "bytes of index records",
+             Self::FactBytes => "bytes of file facts",
++            Self::GlobBytes => "bytes of glob tables",
+         }
+     }
+ }
+@@ -188,5 +196,6 @@ mod tests {
+         assert_eq!(Budget::TotalBytes.limit(), 256 * MIB);
+         assert_eq!(Budget::ItemBytes.limit(), 512 * MIB);
+         assert_eq!(Budget::FactBytes.limit(), 256 * MIB);
++        assert_eq!(Budget::GlobBytes.limit(), 512 * MIB);
+     }
+ }
+diff --git crates/raf-source/src/glob_scope.rs crates/raf-source/src/glob_scope.rs
+new file mode 100644
+index 0000000..5e7e358
+--- /dev/null
++++ crates/raf-source/src/glob_scope.rs
+@@ -0,0 +1,866 @@
++// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++//! The glob scope tables: what the glob imports of each module bring in.
++//!
++//! What a glob import brings in from its target depends on the target and on
++//! what the importer can access there, and on nothing else about the
++//! importer. Every visibility a binding of the target carries is one of the
++//! target's own (those of its items and of its `use` declarations), so the
++//! importers that can access the same of those visibilities see the same of
++//! the target: they form a class. What a module exports to globs (its bindings
++//! that shadow globs, and what its own globs bring in where none does) is kept
++//! once for each class of its importers, as a shared table, a view, and every
++//! glob of the module from an importer of that class reads that view: no
++//! importer holds a copy of what its globs bring in. The names of a view are
++//! shared strings, each stored once for the load.
++//!
++//! A view grows as the scope tables settle. What it gains is passed on only
++//! to the globs that read it, only with the names that gained something, and
++//! only where it can matter: to the views of the reading module that the
++//! glob's visibility reaches, and to the imports that wait on one of those
++//! names in the reading module. A glob whose module has no view that it
++//! reaches passes nothing on, and costs nothing for each name its view gains.
++//! So a chain of globs costs what it brings in, once for each link, and a
++//! module that a thousand modules glob is read by a thousand globs from one
++//! table.
++//!
++//! Every view, each name and item it holds, each glob's read of a view and
++//! each gain while it waits to be passed on is charged to the glob-bytes
++//! budget ([`Budget::GlobBytes`](crate::Budget::GlobBytes)) as an upper bound
++//! of what it allocates, derived from the layout of the containers that hold
++//! it (see `crate::cost`). The budget bounds what is held at once: what a gain
++//! held is released once it is passed on, and what the tables of one settle
++//! hold is released when they are built again.
++
++use std::collections::{BTreeMap, BTreeSet, HashSet};
++use std::mem::size_of;
++use std::ops::Bound::{Excluded, Unbounded};
++
++use crate::cost::{btree_entry, btree_map, hash_entry, hash_map, shared_text, vec_first, vec_slot};
++use crate::error::LoadError;
++use crate::facts::Vis;
++use crate::index::Index;
++use crate::item::{ItemId, SharedStr, SymbolKind};
++use crate::meter::Meter;
++use crate::settle::{Bound, vis_key};
++
++/// The items a name of a view stands for, in each name space, each list
++/// sorted.
++type Lists = Box<[Vec<ItemId>; 3]>;
++
++/// What one module exports to the globs of one class of importers.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub(crate) struct View {
++    /// The module the view exports.
++    target: usize,
++    /// For each visibility of the target, in the order of
++    /// [`GlobTables::vis_of`], whether the importers of the class can access a
++    /// binding that carries it.
++    class: Box<[bool]>,
++    /// The items each name stands for.
++    names: BTreeMap<SharedStr, Lists>,
++    /// The globs that read the view and whose module has a view that what
++    /// they bring in reaches: each glob's module and its place among the
++    /// module's reads.
++    active: Vec<(usize, usize)>,
++    /// The other globs that read the view, by module.
++    passive: BTreeMap<usize, Vec<usize>>,
++    /// The glob import the view was made for: a refusal by the budget while
++    /// the view grows names its file and line.
++    site: usize,
++}
++
++/// A glob import's read of the view of one of its targets.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub(crate) struct GlobRead {
++    /// The position of the glob import.
++    pub(crate) glob: usize,
++    /// The module the glob reaches.
++    pub(crate) target: usize,
++    /// The view it reads.
++    view: usize,
++}
++
++/// The glob scope tables of a load.
++#[derive(Debug, Clone, Default, PartialEq, Eq)]
++pub(crate) struct GlobTables {
++    views: Vec<View>,
++    /// The view of each module for each class.
++    view_of: BTreeMap<(usize, Box<[bool]>), usize>,
++    /// The views of each module.
++    exports: Vec<Vec<usize>>,
++    /// The reads of the globs of each module, in the order they were made.
++    reads: Vec<Vec<GlobRead>>,
++    /// The visibilities the bindings of each module can carry, sorted by
++    /// [`vis_key`] with no repeats: those of its items (a `macro_rules!`
++    /// macro is public) and of its `use` declarations.
++    vis_of: Vec<Box<[Vis]>>,
++    /// Whether a visibility of each module is `pub(in path)`, which reads
++    /// the tables: what such a module exports to an importer can change as
++    /// they settle, so its globs are tried again whenever it changes.
++    in_path: Vec<bool>,
++    /// One copy of each name the views hold.
++    strings: HashSet<SharedStr>,
++    /// What the tables were charged, released when they are cleared.
++    charged: usize,
++}
++
++/// Which modules can reach, through the glob imports of the modules on the
++/// way, a module with an explicit import of any name: only such a module's
++/// globs may still bring in a name that an explicit import keeps from the
++/// globs (see [`Index::pending_at`]), so the search for one starts only
++/// there. It is kept over every glob edge recorded in the load, so it covers
++/// the edges of the settled tables too.
++#[derive(Debug, Clone, Default, PartialEq, Eq)]
++pub(crate) struct ImportReach {
++    /// For each module, whether it reaches such a module; empty until the
++    /// first glob edge is recorded.
++    reaches: Vec<bool>,
++    /// For each module, the modules whose globs reach it.
++    globbed_by: Vec<BTreeSet<usize>>,
++}
++
++/// What a view gained, waiting to be passed on: the items of `name` in the
++/// name space at `at`.
++struct Grown {
++    view: usize,
++    name: SharedStr,
++    at: usize,
++    ids: Vec<ItemId>,
++}
++
++impl Grown {
++    /// What the change's list of items allocates at most.
++    const fn bytes(&self) -> usize {
++        vec_first::<ItemId>() + self.ids.len() * vec_slot::<ItemId>()
++    }
++}
++
++/// What a view allocates at most beyond its class and its names: its record,
++/// its entry among the views of every module and class (with a copy of the
++/// class), its place among its module's views, its table of names, and its
++/// lists of readers at their first room.
++const VIEW_BYTES: usize = vec_slot::<View>()
++    + btree_entry::<(usize, Box<[bool]>), usize>()
++    + vec_slot::<usize>()
++    + vec_first::<usize>()
++    + btree_map::<SharedStr, Lists>()
++    + vec_first::<(usize, usize)>()
++    + btree_map::<usize, Vec<usize>>();
++
++/// What a name of a view allocates at most beyond its text: its entry and its
++/// lists.
++const NAME_BYTES: usize = btree_entry::<SharedStr, Lists>() + size_of::<[Vec<ItemId>; 3]>();
++
++/// What a glob's read of a view allocates at most: its place among its
++/// module's reads (with their first room) and among the view's readers, as
++/// an active reader or a passive one, and again if it turns active.
++const READ_BYTES: usize = vec_slot::<GlobRead>()
++    + vec_first::<GlobRead>()
++    + 2 * vec_slot::<(usize, usize)>()
++    + btree_entry::<usize, Vec<usize>>()
++    + vec_first::<usize>()
++    + vec_slot::<usize>();
++
++/// What the tables allocate at most once for a load whose modules are
++/// `modules`, before their first view: the lists of each module, the table of
++/// views and the table of names.
++const fn base_bytes(modules: usize) -> usize {
++    modules * (vec_slot::<Vec<usize>>() + vec_slot::<Vec<GlobRead>>())
++        + vec_first::<Vec<usize>>()
++        + vec_first::<Vec<GlobRead>>()
++        + vec_first::<View>()
++        + btree_map::<(usize, Box<[bool]>), usize>()
++        + hash_map::<SharedStr>()
++}
++
++/// What a waiting import's name is told: the imports that wait on a name of
++/// a module are queued again when what the module's globs bring in under it
++/// grows.
++pub(crate) trait Waiters {
++    /// Queue again what waits on `name` in `module`.
++    fn wake(&mut self, module: usize, name: &str);
++    /// The modules where something waits on `name`, if any.
++    fn waiting_on(&self, name: &str) -> Option<&BTreeSet<usize>>;
++    /// The names of `module` that something waits on.
++    fn waited_in(&self, module: usize) -> Vec<String>;
++}
++
++/// No waiters: the tables are built once the imports are settled.
++pub(crate) struct Nobody;
++
++impl Waiters for Nobody {
++    fn wake(&mut self, _module: usize, _name: &str) {}
++
++    fn waiting_on(&self, _name: &str) -> Option<&BTreeSet<usize>> {
++        None
++    }
++
++    fn waited_in(&self, _module: usize) -> Vec<String> {
++        Vec::new()
++    }
++}
++
++impl Index {
++    /// Record the visibilities each module's bindings can carry, once for the
++    /// load, and charge them. Nothing is recorded for a load without glob
++    /// imports, which builds no glob tables.
++    pub(crate) fn glob_visibilities(&mut self, meter: &Meter) -> Result<(), LoadError> {
++        let Some(&first) = self.glob_imports.first() else {
++            return Ok(());
++        };
++        if !self.globs.vis_of.is_empty() {
++            return Ok(());
++        }
++        let mut vis_of: Vec<Vec<Vis>> = vec![Vec::new(); self.modules.len()];
++        for (module, record) in self.modules.iter().enumerate() {
++            for id in &record.defs {
++                let item = &self.items[id.0];
++                vis_of[module].push(if item.kind == SymbolKind::MacroRules {
++                    Vis::Public
++                } else {
++                    item.visibility.clone()
++                });
++            }
++        }
++        for decl in &self.uses {
++            vis_of[decl.module].push(decl.vis.clone());
++        }
++        let mut bytes = vec_first::<Box<[Vis]>>() + vec_first::<bool>();
++        let mut kept = Vec::with_capacity(vis_of.len());
++        let mut in_path = Vec::with_capacity(vis_of.len());
++        for mut list in vis_of {
++            list.sort_by(|left, right| vis_key(left).cmp(&vis_key(right)));
++            list.dedup();
++            bytes += vec_slot::<Box<[Vis]>>()
++                + vec_slot::<bool>()
++                + size_of::<Vis>() * list.len()
++                + list
++                    .iter()
++                    .map(|vis| match vis {
++                        Vis::Restricted(text) => text.capacity(),
++                        Vis::Inherited | Vis::Public => 0,
++                    })
++                    .sum::<usize>();
++            in_path.push(
++                list.iter()
++                    .any(|vis| matches!(vis, Vis::Restricted(text) if text.starts_with("in "))),
++            );
++            kept.push(list.into_boxed_slice());
++        }
++        let decl = &self.uses[first];
++        meter.globs(bytes, &decl.file, Some(decl.line))?;
++        self.globs.vis_of = kept;
++        self.globs.in_path = in_path;
++        Ok(())
++    }
++
++    /// Drop the glob tables, keeping the visibilities of the modules. What
++    /// they were charged is the caller's to release.
++    pub(crate) fn clear_globs(&mut self) {
++        let vis_of = std::mem::take(&mut self.globs.vis_of);
++        let in_path = std::mem::take(&mut self.globs.in_path);
++        self.globs = GlobTables {
++            vis_of,
++            in_path,
++            ..GlobTables::default()
++        };
++    }
++
++    /// Release what the glob tables were charged to `meter` and drop them.
++    pub(crate) fn release_globs(&mut self, meter: &Meter) {
++        meter.release_globs(self.globs.charged);
++        self.clear_globs();
++    }
++
++    /// Release and drop the glob tables, then charge the first room of new
++    /// ones when the load has glob imports.
++    pub(crate) fn reset_globs(&mut self, meter: &Meter) -> Result<(), LoadError> {
++        self.release_globs(meter);
++        let Some(&first) = self.glob_imports.first() else {
++            return Ok(());
++        };
++        self.charge_tables(base_bytes(self.modules.len()), first, meter)?;
++        self.globs.exports = vec![Vec::new(); self.modules.len()];
++        self.globs.reads = vec![Vec::new(); self.modules.len()];
++        Ok(())
++    }
++
++    /// True when a binding of `module` with visibility `vis` can be named by
++    /// importers of `class`.
++    fn allowed(&self, module: usize, class: &[bool], vis: &Vis) -> bool {
++        let at = self.globs.vis_of[module]
++            .binary_search_by(|known| vis_key(known).cmp(&vis_key(vis)))
++            .expect("every visibility a binding of a module carries is one of the module's");
++        class[at]
++    }
++
++    /// The class of `importer` for globs of `target`: which of the target's
++    /// visibilities it can access.
++    fn class_for(&self, target: usize, importer: usize) -> Box<[bool]> {
++        self.globs.vis_of[target]
++            .iter()
++            .map(|vis| self.is_visible(vis, target, importer))
++            .collect()
++    }
++
++    /// True when `module` has a `pub(in path)` visibility, so what it exports
++    /// to an importer can change as the tables settle.
++    pub(crate) fn exports_by_path(&self, module: usize) -> bool {
++        self.globs.in_path.get(module).copied().unwrap_or(false)
++    }
++
++    /// The reads of the globs of `module`.
++    fn reads_of(&self, module: usize) -> &[GlobRead] {
++        self.globs.reads.get(module).map_or(&[], Vec::as_slice)
++    }
++
++    /// The views of `module`.
++    fn exports_of(&self, module: usize) -> &[usize] {
++        self.globs.exports.get(module).map_or(&[], Vec::as_slice)
++    }
++
++    /// The items the globs of `module` bring in under `name` in the name
++    /// space at `at`, each with the route of the glob and target that rank
++    /// first and the visibilities of every glob that brings it in.
++    pub(crate) fn globbed(&self, module: usize, name: &str, at: usize) -> Bound {
++        let mut bound = Bound::new();
++        for read in self.reads_of(module) {
++            if let Some(lists) = self.globs.views[read.view].names.get(name) {
++                for id in &lists[at] {
++                    bound.offer(
++                        *id,
++                        Self::glob_origin(&self.uses[read.glob], read.target, at, name),
++                    );
++                }
++            }
++        }
++        bound
++    }
++
++    /// True when a glob of `module` brings in something under `name` in the
++    /// name space at `at`.
++    pub(crate) fn globbed_any(&self, module: usize, name: &str, at: usize) -> bool {
++        self.reads_of(module).iter().any(|read| {
++            self.globs.views[read.view]
++                .names
++                .get(name)
++                .is_some_and(|lists| !lists[at].is_empty())
++        })
++    }
++
++    /// True when an explicit import of `module` that binds `name` keeps the
++    /// name from what its globs export in the name space at `at` to the
++    /// importers of `class`: one they can name that binds the name there or
++    /// may still, or that a cycle left to the globs and that is not decided
++    /// (see [`Index::left_to_globs`]), as rustc hides a glob binding of a
++    /// name that a single import may still bind.
++    fn blocked_class(&self, module: usize, name: &str, at: usize, class: &[bool]) -> bool {
++        self.imports_of(module, name).iter().any(|position| {
++            (!self.use_free[*position][at] || self.left_to_globs(*position, at))
++                && self.allowed(module, class, &self.uses[*position].vis)
++        })
++    }
++
++    /// What `target` exports under `name` in the name space at `at` to the
++    /// importers of `class`: the bindings that shadow globs, when there are
++    /// any, and those importers can access; else, when no explicit import
++    /// they can name keeps the name from the globs, what the globs they can
++    /// access bring in. Sorted.
++    fn export_ids(&self, target: usize, class: &[bool], name: &str, at: usize) -> Vec<ItemId> {
++        if let Some(defs) = self.scopes[target]
++            .get(name)
++            .map(|entry| &entry.defs[at])
++            .filter(|defs| !defs.is_empty())
++        {
++            return defs
++                .iter()
++                .filter(|(_, origin)| {
++                    origin
++                        .visibilities()
++                        .any(|vis| self.allowed(target, class, vis))
++                })
++                .map(|(id, _)| *id)
++                .collect();
++        }
++        if self.blocked_class(target, name, at, class) {
++            return Vec::new();
++        }
++        let mut ids = Vec::new();
++        for read in self.reads_of(target) {
++            if self.allowed(target, class, &self.uses[read.glob].vis)
++                && let Some(lists) = self.globs.views[read.view].names.get(name)
++            {
++                ids.extend_from_slice(&lists[at]);
++            }
++        }
++        ids.sort_unstable();
++        ids.dedup();
++        ids
++    }
++
++    /// Add `ids` to the items of `name` in the name space at `at` of `view`,
++    /// charging what that allocates. Returns the items that were not there.
++    fn add_to_view(
++        &mut self,
++        view: usize,
++        name: &str,
++        at: usize,
++        ids: &[ItemId],
++        meter: &Meter,
++    ) -> Result<Vec<ItemId>, LoadError> {
++        if ids.is_empty() {
++            return Ok(Vec::new());
++        }
++        let held = self.globs.views[view].names.get(name);
++        let fresh: Vec<ItemId> = ids
++            .iter()
++            .copied()
++            .filter(|id| held.is_none_or(|lists| lists[at].binary_search(id).is_err()))
++            .collect();
++        if fresh.is_empty() {
++            return Ok(fresh);
++        }
++        let mut bytes = fresh.len() * vec_slot::<ItemId>();
++        if held.is_none_or(|lists| lists[at].is_empty()) {
++            bytes += vec_first::<ItemId>();
++        }
++        // A name new to the view takes an entry, and its text the first time
++        // any view holds it.
++        let key = if held.is_some() {
++            None
++        } else {
++            bytes += NAME_BYTES;
++            let known = self.globs.strings.get(name).cloned();
++            if known.is_none() {
++                bytes += shared_text(name.len()) + hash_entry::<SharedStr>();
++            }
++            Some(known.unwrap_or_else(|| SharedStr::from(name)))
++        };
++        self.charge_tables(bytes, self.globs.views[view].site, meter)?;
++        let lists = match key {
++            Some(key) => {
++                self.globs.strings.insert(key.clone());
++                self.globs.views[view].names.entry(key).or_default()
++            }
++            None => self.globs.views[view]
++                .names
++                .get_mut(name)
++                .expect("the name is held"),
++        };
++        for id in &fresh {
++            if let Err(place) = lists[at].binary_search(id) {
++                lists[at].insert(place, *id);
++            }
++        }
++        Ok(fresh)
++    }
++
++    /// Charge `bytes` of the tables, for the glob import at `site`.
++    fn charge_tables(&mut self, bytes: usize, site: usize, meter: &Meter) -> Result<(), LoadError> {
++        let decl = &self.uses[site];
++        meter.globs(bytes, &decl.file, Some(decl.line))?;
++        self.globs.charged += bytes;
++        Ok(())
++    }
++
++    /// Charge `bytes` held while changes wait to be passed on, for the glob
++    /// import at `site`; they are released once passed on.
++    fn charge_work(&self, bytes: usize, site: usize, meter: &Meter) -> Result<(), LoadError> {
++        let decl = &self.uses[site];
++        meter.globs(bytes, &decl.file, Some(decl.line))
++    }
++
++    /// Make the view of `target` for `class`, for the glob import at `site`:
++    /// what the target exports to the class as the tables stand. The
++    /// target's globs that reach the view pass on to it from now on.
++    fn make_view(
++        &mut self,
++        target: usize,
++        class: &[bool],
++        site: usize,
++        meter: &Meter,
++    ) -> Result<usize, LoadError> {
++        self.charge_tables(VIEW_BYTES + 2 * class.len(), site, meter)?;
++        let view = self.globs.views.len();
++        self.globs.views.push(View {
++            target,
++            class: class.into(),
++            names: BTreeMap::new(),
++            active: Vec::new(),
++            passive: BTreeMap::new(),
++            site,
++        });
++        self.globs.view_of.insert((target, class.into()), view);
++        self.globs.exports[target].push(view);
++        // The target's reads whose globs reach the view now pass on what
++        // they bring in.
++        for read in 0..self.globs.reads[target].len() {
++            let GlobRead {
++                glob,
++                view: read_view,
++                ..
++            } = self.globs.reads[target][read].clone();
++            if !self.allowed(target, class, &self.uses[glob].vis) {
++                continue;
++            }
++            let readers = &mut self.globs.views[read_view];
++            if let Some(list) = readers.passive.get_mut(&target)
++                && let Some(place) = list.iter().position(|known| *known == read)
++            {
++                list.remove(place);
++                if list.is_empty() {
++                    readers.passive.remove(&target);
++                }
++                readers.active.push((target, read));
++            }
++        }
++        // What the target exports to the class, gathered in one pass over
++        // its bindings and over the views its globs that reach the class
++        // read, then added to the view. While it is gathered it is charged as
++        // a change waiting to be passed on.
++        let mut content: BTreeMap<&str, [Vec<ItemId>; 3]> = BTreeMap::new();
++        let mut blocked: BTreeMap<(&str, usize), bool> = BTreeMap::new();
++        for (name, entry) in &self.scopes[target] {
++            for (at, defs) in entry.defs.iter().enumerate() {
++                let ids: Vec<ItemId> = defs
++                    .iter()
++                    .filter(|(_, origin)| {
++                        origin
++                            .visibilities()
++                            .any(|vis| self.allowed(target, class, vis))
++                    })
++                    .map(|(id, _)| *id)
++                    .collect();
++                if !ids.is_empty() {
++                    content.entry(name.as_str()).or_default()[at] = ids;
++                }
++            }
++        }
++        for read in self.reads_of(target) {
++            if !self.allowed(target, class, &self.uses[read.glob].vis) {
++                continue;
++            }
++            for (name, lists) in &self.globs.views[read.view].names {
++                for (at, ids) in lists.iter().enumerate() {
++                    if ids.is_empty()
++                        || self.scopes[target]
++                            .get(name.as_str())
++                            .is_some_and(|entry| !entry.defs[at].is_empty())
++                        || *blocked
++                            .entry((name.as_str(), at))
++                            .or_insert_with(|| self.blocked_class(target, name, at, class))
++                    {
++                        continue;
++                    }
++                    content.entry(name.as_str()).or_default()[at].extend_from_slice(ids);
++                }
++            }
++        }
++        let gathered: usize = content
++            .iter()
++            .map(|(name, lists)| {
++                NAME_BYTES
++                    + 2 * name.len()
++                    + vec_slot::<(String, [Vec<ItemId>; 3])>()
++                    + lists
++                        .iter()
++                        .map(|ids| vec_first::<ItemId>() + ids.len() * vec_slot::<ItemId>())
++                        .sum::<usize>()
++            })
++            .sum::<usize>()
++            + blocked.len() * btree_entry::<(&str, usize), bool>();
++        let content: Vec<(String, [Vec<ItemId>; 3])> = content
++            .into_iter()
++            .map(|(name, lists)| (name.to_owned(), lists))
++            .collect();
++        drop(blocked);
++        self.charge_work(gathered, site, meter)?;
++        for (name, mut lists) in content {
++            for (at, ids) in lists.iter_mut().enumerate() {
++                ids.sort_unstable();
++                ids.dedup();
++                self.add_to_view(view, &name, at, ids, meter)?;
++            }
++        }
++        meter.release_globs(gathered);
++        Ok(view)
++    }
++
++    /// Record that the glob import at `glob` reaches `target`: it reads the
++    /// view of the target for its module's class, made if there is none, and
++    /// what the view holds is passed on to its module. Reading the same view
++    /// again does nothing.
++    pub(crate) fn read_glob(
++        &mut self,
++        glob: usize,
++        target: usize,
++        waiters: &mut dyn Waiters,
++        meter: &Meter,
++    ) -> Result<(), LoadError> {
++        let module = self.uses[glob].module;
++        let class = self.class_for(target, module);
++        if self.reads_of(module).iter().any(|read| {
++            read.glob == glob && read.target == target && self.globs.views[read.view].class == class
++        }) {
++            return Ok(());
++        }
++        let view = match self.globs.view_of.get(&(target, class.clone())) {
++            Some(view) => *view,
++            None => self.make_view(target, &class, glob, meter)?,
++        };
++        self.charge_tables(READ_BYTES, glob, meter)?;
++        let read = self.globs.reads[module].len();
++        self.globs.reads[module].push(GlobRead { glob, target, view });
++        let passes = self
++            .exports_of(module)
++            .iter()
++            .any(|own| self.allowed(module, &self.globs.views[*own].class, &self.uses[glob].vis));
++        if !passes {
++            self.globs.views[view]
++                .passive
++                .entry(module)
++                .or_default()
++                .push(read);
++            for name in waiters.waited_in(module) {
++                if self.globs.views[view].names.contains_key(name.as_str()) {
++                    waiters.wake(module, &name);
++                }
++            }
++            return Ok(());
++        }
++        self.globs.views[view].active.push((module, read));
++        // Each name of the view, one at a time: passing one on can add to
++        // this view too, through a cycle of globs, and what it adds is passed
++        // on then.
++        let mut after: Option<SharedStr> = None;
++        loop {
++            let next = match &after {
++                None => self.globs.views[view].names.iter().next(),
++                Some(name) => self.globs.views[view]
++                    .names
++                    .range::<SharedStr, _>((Excluded(name), Unbounded))
++                    .next(),
++            };
++            let Some((name, lists)) = next.map(|(name, lists)| (name.clone(), lists.clone()))
++            else {
++                return Ok(());
++            };
++            for (at, ids) in lists.iter().enumerate() {
++                if !ids.is_empty() {
++                    let mut work = Vec::new();
++                    self.arrive(module, read, &name, at, ids, &mut work, waiters, meter)?;
++                    self.pass_on(work, glob, waiters, meter)?;
++                }
++            }
++            after = Some(name);
++        }
++    }
++
++    /// Recompute what `module` exports under `name` to each of its classes,
++    /// after its bindings of the name or an import of the name changed, and
++    /// pass on what that adds.
++    pub(crate) fn refresh(
++        &mut self,
++        module: usize,
++        name: &str,
++        waiters: &mut dyn Waiters,
++        meter: &Meter,
++    ) -> Result<(), LoadError> {
++        for view in self.exports_of(module).to_vec() {
++            let class = self.globs.views[view].class.clone();
++            for at in 0..3 {
++                let ids = self.export_ids(module, &class, name, at);
++                let fresh = self.add_to_view(view, name, at, &ids, meter)?;
++                if !fresh.is_empty() {
++                    let grown = Grown {
++                        view,
++                        name: self.globs.strings.get(name).expect("interned").clone(),
++                        at,
++                        ids: fresh,
++                    };
++                    self.pass_on(vec![grown], self.globs.views[view].site, waiters, meter)?;
++                }
++            }
++        }
++        Ok(())
++    }
++
++    /// Pass on every change in `work`, and every change that passing one on
++    /// makes, until none is left, charging what the list holds while it holds
++    /// it, to the glob import at `site` for the changes it starts with and to
++    /// the glob that passes each change on for those it makes.
++    fn pass_on(
++        &mut self,
++        mut work: Vec<Grown>,
++        site: usize,
++        waiters: &mut dyn Waiters,
++        meter: &Meter,
++    ) -> Result<(), LoadError> {
++        // The room of the list is charged as it grows and released at the end;
++        // each change's items while the change is held.
++        let mut room = work.capacity() * size_of::<Grown>();
++        self.charge_work(
++            room + work.iter().map(Grown::bytes).sum::<usize>(),
++            site,
++            meter,
++        )?;
++        while let Some(grown) = work.pop() {
++            // The globs that pass nothing on: only what waits on the name in
++            // their modules is told.
++            let passive = &self.globs.views[grown.view].passive;
++            if !passive.is_empty()
++                && let Some(modules) = waiters.waiting_on(&grown.name)
++            {
++                let woken: Vec<usize> = if modules.len() <= passive.len() {
++                    modules
++                        .iter()
++                        .copied()
++                        .filter(|module| passive.contains_key(module))
++                        .collect()
++                } else {
++                    passive
++                        .keys()
++                        .copied()
++                        .filter(|module| modules.contains(module))
++                        .collect()
++                };
++                for module in woken {
++                    waiters.wake(module, &grown.name);
++                }
++            }
++            // Passing on adds names to views, never readers, so the list of
++            // readers stays as it is meanwhile.
++            for reader in 0..self.globs.views[grown.view].active.len() {
++                let (module, read) = self.globs.views[grown.view].active[reader];
++                let before = work.len();
++                self.arrive(
++                    module,
++                    read,
++                    &grown.name,
++                    grown.at,
++                    &grown.ids,
++                    &mut work,
++                    waiters,
++                    meter,
++                )?;
++                let glob = self.globs.reads[module][read].glob;
++                let grew = (work.capacity() * size_of::<Grown>()).saturating_sub(room);
++                room += grew;
++                self.charge_work(
++                    grew + work[before..].iter().map(Grown::bytes).sum::<usize>(),
++                    glob,
++                    meter,
++                )?;
++            }
++            meter.release_globs(grown.bytes());
++        }
++        meter.release_globs(room);
++        Ok(())
++    }
++
++    /// Pass on what the read at `read` of the globs of `module` brought in,
++    /// the items `ids` of `name` in the name space at `at`: tell what waits
++    /// on the name there, and add the items to each view of the module that
++    /// the glob reaches where nothing shadows the globs, queueing what that
++    /// adds in `work`.
++    #[expect(
++        clippy::too_many_arguments,
++        reason = "one change passed on, the place it arrives at and the two sinks"
++    )]
++    fn arrive(
++        &mut self,
++        module: usize,
++        read: usize,
++        name: &SharedStr,
++        at: usize,
++        ids: &[ItemId],
++        work: &mut Vec<Grown>,
++        waiters: &mut dyn Waiters,
++        meter: &Meter,
++    ) -> Result<(), LoadError> {
++        waiters.wake(module, name);
++        if self.scopes[module]
++            .get(name.as_str())
++            .is_some_and(|entry| !entry.defs[at].is_empty())
++        {
++            return Ok(());
++        }
++        let glob = self.globs.reads[module][read].glob;
++        for view in self.exports_of(module).to_vec() {
++            let class = self.globs.views[view].class.clone();
++            if !self.allowed(module, &class, &self.uses[glob].vis)
++                || self.blocked_class(module, name, at, &class)
++            {
++                continue;
++            }
++            let fresh = self.add_to_view(view, name, at, ids, meter)?;
++            if !fresh.is_empty() {
++                work.push(Grown {
++                    view,
++                    name: name.clone(),
++                    at,
++                    ids: fresh,
++                });
++            }
++        }
++        Ok(())
++    }
++
++    /// Record that a glob of `module` reaches `target`, charging the edge
++    /// the first time, at the glob import at `glob`.
++    pub(crate) fn record_glob_edge(
++        &mut self,
++        glob: usize,
++        module: usize,
++        target: usize,
++        meter: &Meter,
++    ) -> Result<(), LoadError> {
++        let decl = &self.uses[glob];
++        if self.import_reach.reaches.is_empty() {
++            meter.globs(
++                self.modules.len() * (vec_slot::<bool>() + vec_slot::<BTreeSet<usize>>())
++                    + vec_first::<bool>()
++                    + vec_first::<BTreeSet<usize>>(),
++                &decl.file,
++                Some(decl.line),
++            )?;
++            let mut reaches = vec![false; self.modules.len()];
++            for position in &self.named_imports {
++                reaches[self.uses[*position].module] = true;
++            }
++            self.import_reach.reaches = reaches;
++            self.import_reach.globbed_by = vec![BTreeSet::new(); self.modules.len()];
++        }
++        if self.import_reach.globbed_by[target].contains(&module) {
++            return Ok(());
++        }
++        meter.globs(
++            btree_map::<usize, ()>() + btree_entry::<usize, ()>(),
++            &decl.file,
++            Some(decl.line),
++        )?;
++        self.import_reach.globbed_by[target].insert(module);
++        if !self.import_reach.reaches[target] {
++            return Ok(());
++        }
++        let mut work = vec![module];
++        while let Some(next) = work.pop() {
++            if !std::mem::replace(&mut self.import_reach.reaches[next], true) {
++                work.extend(self.import_reach.globbed_by[next].iter().copied());
++            }
++        }
++        Ok(())
++    }
++
++    /// False when no module that `module` reaches through globs, itself
++    /// among them, has an explicit import: then no glob of the module may
++    /// still bring in a name an import keeps from the globs.
++    pub(crate) fn reaches_import(&self, module: usize) -> bool {
++        self.import_reach
++            .reaches
++            .get(module)
++            .is_none_or(|reaches| *reaches)
++    }
++}
+diff --git crates/raf-source/src/index.rs crates/raf-source/src/index.rs
+index 6f5a82c..813fcd2 100644
+--- crates/raf-source/src/index.rs
++++ crates/raf-source/src/index.rs
+@@ -24,6 +24,7 @@ use crate::facts::{
+     FieldShape, ImplFact, ItemFact, ItemKind, ModBody, ModFact, PathFact, SpanFact, TestRole,
+     UseTree, Vis,
+ };
++use crate::glob_scope::{GlobTables, ImportReach};
+ use crate::intern::Interner;
+ use crate::item::{
+     Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl,
+@@ -349,6 +350,14 @@ pub(crate) struct Index {
+     /// The modules the path of each glob import reached when the glob was
+     /// last tried, by position; empty for a named import.
+     pub(crate) glob_reach: Vec<BTreeSet<usize>>,
++    /// What the globs of the settled tables reach and which of them name
++    /// nothing, computed by the first `resolve` that needs it.
++    pub(crate) glob_facts: std::sync::OnceLock<crate::resolve::GlobFacts>,
++    /// What the glob imports of each module bring in (see
++    /// [`crate::glob_scope`]).
++    pub(crate) globs: GlobTables,
++    /// The modules whose globs reach a module with an explicit import.
++    pub(crate) import_reach: ImportReach,
+     /// The crate an `extern crate` item names, by item.
+     pub(crate) extern_names: BTreeMap<ItemId, SharedStr>,
+     /// Items grouped by file and the byte offset where their span starts.
+@@ -908,6 +917,9 @@ impl Index {
+             use_empty: Vec::new(),
+             glob_closed: Vec::new(),
+             glob_reach: Vec::new(),
++            glob_facts: std::sync::OnceLock::new(),
++            globs: GlobTables::default(),
++            import_reach: ImportReach::default(),
+             extern_names: BTreeMap::new(),
+             root_items: BTreeMap::new(),
+             by_source: BTreeMap::new(),
+diff --git crates/raf-source/src/lib.rs crates/raf-source/src/lib.rs
+index d29b962..ea704c5 100644
+--- crates/raf-source/src/lib.rs
++++ crates/raf-source/src/lib.rs
+@@ -110,6 +110,7 @@ mod discovery;
+ mod error;
+ mod facts;
+ mod glob;
++mod glob_scope;
+ mod impls;
+ mod index;
+ mod intern;
+diff --git crates/raf-source/src/meter.rs crates/raf-source/src/meter.rs
+index aeaeeb0..e6836da 100644
+--- crates/raf-source/src/meter.rs
++++ crates/raf-source/src/meter.rs
+@@ -23,6 +23,10 @@ pub struct Usage {
+     pub item_bytes: usize,
+     /// Bytes charged to the facts of the files ([`Budget::FactBytes`]).
+     pub fact_bytes: usize,
++    /// The most bytes charged to the glob scope tables at once
++    /// ([`Budget::GlobBytes`]): what the tables of one settle and the changes
++    /// waiting to be passed on held at their peak, as charged.
++    pub glob_bytes: usize,
+     /// The most tokens of one file ([`Budget::FileTokens`]).
+     pub max_file_tokens: usize,
+     /// The highest value the recursion counter of the pre-scan reached in one
+@@ -39,6 +43,8 @@ pub(crate) struct Meter {
+     total_bytes: Cell<usize>,
+     item_bytes: Cell<usize>,
+     fact_bytes: Cell<usize>,
++    glob_bytes: Cell<usize>,
++    glob_peak: Cell<usize>,
+     max_file_tokens: Cell<usize>,
+     max_recursion: Cell<usize>,
+     max_directory_depth: Cell<usize>,
+@@ -68,6 +74,8 @@ impl Meter {
+             total_bytes: Cell::new(0),
+             item_bytes: Cell::new(0),
+             fact_bytes: Cell::new(0),
++            glob_bytes: Cell::new(0),
++            glob_peak: Cell::new(0),
+             max_file_tokens: Cell::new(0),
+             max_recursion: Cell::new(0),
+             max_directory_depth: Cell::new(0),
+@@ -102,6 +110,38 @@ impl Meter {
+             .map_err(|()| over_budget(Budget::ItemBytes, limit, file, line))
+     }
+ 
++    /// Charge `bytes` of glob scope tables built for the glob import at
++    /// `line` of `file`.
++    ///
++    /// Like [`Meter::items`], every charge is an upper bound of the
++    /// allocations it covers, derived from the layout of the containers that
++    /// hold them (see `crate::cost`). Unlike the other byte budgets, this one
++    /// bounds what is held at once: what is freed is released
++    /// ([`Meter::release_globs`]), and the budget refuses the charge that
++    /// would make what is held pass the limit.
++    pub(crate) fn globs(
++        &self,
++        bytes: usize,
++        file: &RelPath,
++        line: Option<usize>,
++    ) -> Result<(), LoadError> {
++        let limit = self.options.max_glob_bytes;
++        let held = add(&self.glob_bytes, bytes, limit);
++        self.glob_peak
++            .set(self.glob_peak.get().max(self.glob_bytes.get()));
++        held.map_err(|()| over_budget(Budget::GlobBytes, limit, file, line))
++    }
++
++    /// Release `bytes` of glob scope tables charged before and now freed.
++    pub(crate) fn release_globs(&self, bytes: usize) {
++        let held = self
++            .glob_bytes
++            .get()
++            .checked_sub(bytes)
++            .expect("only what was charged is released");
++        self.glob_bytes.set(held);
++    }
++
+     /// What the facts of the next file may still take: the bytes charged so
+     /// far and the limit.
+     pub(crate) fn fact_allowance(&self) -> FactAllowance {
+@@ -145,6 +185,7 @@ impl Meter {
+             total_bytes: self.total_bytes.get(),
+             item_bytes: self.item_bytes.get(),
+             fact_bytes: self.fact_bytes.get(),
++            glob_bytes: self.glob_peak.get(),
+             max_file_tokens: self.max_file_tokens.get(),
+             max_recursion: self.max_recursion.get(),
+             max_directory_depth: self.max_directory_depth.get(),
+diff --git crates/raf-source/src/options.rs crates/raf-source/src/options.rs
+index 895de02..8336445 100644
+--- crates/raf-source/src/options.rs
++++ crates/raf-source/src/options.rs
+@@ -11,8 +11,8 @@ pub const DEFAULT_MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
+ /// Limits a caller sets for one load.
+ ///
+ /// The token budget and the byte budgets default to the limits of
+-/// [`Budget::FileTokens`], [`Budget::TotalBytes`], [`Budget::ItemBytes`] and
+-/// [`Budget::FactBytes`]. A load that passes one is refused with
++/// [`Budget::FileTokens`], [`Budget::TotalBytes`], [`Budget::ItemBytes`],
++/// [`Budget::FactBytes`] and [`Budget::GlobBytes`]. A load that passes one is refused with
+ /// [`LoadErrorKind::Budget`](crate::LoadErrorKind::Budget), naming the budget,
+ /// the limit that applied and the file.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+@@ -39,6 +39,9 @@ pub struct LoadOptions {
+     /// The most bytes the facts of the files of one load may hold. Defaults to
+     /// the limit of [`Budget::FactBytes`].
+     pub max_fact_bytes: usize,
++    /// The most bytes the glob scope tables of one load may hold. Defaults to
++    /// the limit of [`Budget::GlobBytes`].
++    pub max_glob_bytes: usize,
+ }
+ 
+ impl Default for LoadOptions {
+@@ -49,6 +52,7 @@ impl Default for LoadOptions {
+             max_total_bytes: Budget::TotalBytes.limit(),
+             max_item_bytes: Budget::ItemBytes.limit(),
+             max_fact_bytes: Budget::FactBytes.limit(),
++            max_glob_bytes: Budget::GlobBytes.limit(),
+         }
+     }
+ }
+diff --git crates/raf-source/src/resolve.rs crates/raf-source/src/resolve.rs
+index 3abe263..74b5294 100644
+--- crates/raf-source/src/resolve.rs
++++ crates/raf-source/src/resolve.rs
+@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
+ use std::error::Error;
+ use std::fmt;
+ 
++use crate::error::Esc;
+ use crate::index::{Index, UseKind};
+ use crate::item::{ItemId, Namespace, SymbolKind};
+ use crate::modtree::TargetId;
+@@ -75,6 +76,39 @@ pub(crate) enum Fail {
+     Ambiguous(Vec<ItemId>),
+ }
+ 
++/// The globs of the settled tables whose paths resolve, with the modules
++/// they glob, and those that a lookup reading them fails for (see
++/// [`ResolveError::UnresolvedGlob`]).
++#[derive(Debug, Clone, Default, PartialEq, Eq)]
++pub(crate) struct GlobFacts {
++    reach: BTreeMap<usize, BTreeSet<usize>>,
++    broken: BTreeSet<usize>,
++}
++
++/// What the walks of a canonical path from its crate roots found: the items
++/// they reach, the places they found unbound and the places they read.
++#[derive(Default)]
++struct Walks {
++    found: BTreeMap<ItemId, Hit>,
++    missing: Vec<Source>,
++    reads: Vec<Source>,
++}
++
++/// What the path of a glob import names in the settled tables.
++enum GlobPath {
++    /// The modules it globs.
++    Resolves(BTreeSet<usize>),
++    /// Nothing, as rustc refuses it: a path through a name that stands for
++    /// several crates, an ambiguous first segment, or `super` above the root.
++    Nothing,
++    /// What the index cannot see: a first segment that names nothing in the
++    /// workspace, as a dependency, or a path that goes on in a crate outside
++    /// it.
++    Unknown,
++    /// Nothing past its first segment: the places where it names nothing.
++    Misses(Vec<Source>),
++}
++
+ /// What the first segment of a path may name besides the items in scope.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ pub(crate) enum Heads {
+@@ -155,22 +189,48 @@ pub enum ResolveError {
+     /// The package named to qualify the path is not a package of the
+     /// workspace.
+     UnknownPackage(String),
++    /// A lookup on the way of the path reads the names a glob import brings
++    /// in, and the glob's path names nothing in the workspace past its first
++    /// segment (`use self::missing::*;`, `use crate::a::gone::*;`). rustc
++    /// refuses such a glob, so what the lookup would find is not known. The
++    /// load does not fail for it: a module that a macro generates is globbed
++    /// this way. A glob whose first segment names nothing in the workspace,
++    /// as a dependency does, is not one: the index cannot look into it.
++    UnresolvedGlob {
++        /// The path that was resolved.
++        path: String,
++        /// The written path of the glob, without its `::*`.
++        glob: String,
++        /// The path of the module that declares the glob.
++        module: String,
++    },
+ }
+ 
+ impl fmt::Display for ResolveError {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         match self {
+-            Self::NotFound(path) => write!(f, "`{path}` names nothing in the workspace"),
++            Self::NotFound(path) => write!(f, "`{}` names nothing in the workspace", Esc(path)),
+             Self::Ambiguous(ids) => write!(f, "the path names {} different symbols", ids.len()),
+-            Self::Cyclic(path) => write!(f, "`{path}` goes through imports that form a cycle"),
+-            Self::Invalid(text) => write!(f, "`{text}` is not a path"),
++            Self::Cyclic(path) => {
++                write!(f, "`{}` goes through imports that form a cycle", Esc(path))
++            }
++            Self::Invalid(text) => write!(f, "`{}` is not a path", Esc(text)),
+             Self::UnresolvedSelf(path) => write!(
+                 f,
+-                "`{path}` goes through the self type of an inherent impl that the index cannot see"
++                "`{}` goes through the self type of an inherent impl that the index cannot see",
++                Esc(path)
+             ),
+             Self::UnknownPackage(package) => {
+-                write!(f, "`{package}` is not a package of the workspace")
++                write!(f, "`{}` is not a package of the workspace", Esc(package))
+             }
++            Self::UnresolvedGlob { path, glob, module } => write!(
++                f,
++                "`{}` reads the glob `{}::*` of module `{}`, whose path names nothing in the \
++                 workspace",
++                Esc(path),
++                Esc(glob),
++                Esc(module)
++            ),
+         }
+     }
+ }
+@@ -719,12 +779,16 @@ impl Index {
+     /// The walks of the path of the named import at `position`, in every name
+     /// space, read as a `use` path that does not consult its own binding: the
+     /// other imports it waits on (unresolved ones in `resolved_mode`, else
+-    /// unsettled ones), which bind a name the walks looked up, and the items
+-    /// of an ambiguous first segment.
+-    fn import_walks(&self, position: usize, resolved_mode: bool) -> (Vec<usize>, Vec<ItemId>) {
++    /// unsettled ones), which bind a name the walks looked up, the items of
++    /// an ambiguous first segment, and the places the walks read.
++    fn import_walks(
++        &self,
++        position: usize,
++        resolved_mode: bool,
++    ) -> (Vec<usize>, Vec<ItemId>, Vec<Source>) {
+         let decl = &self.uses[position];
+         let UseKind::Named { segs, .. } = &decl.kind else {
+-            return (Vec::new(), Vec::new());
++            return (Vec::new(), Vec::new(), Vec::new());
+         };
+         let mut reads = Vec::new();
+         let mut ambiguous = BTreeSet::new();
+@@ -744,7 +808,7 @@ impl Index {
+             }
+         }
+         let mut blockers = BTreeSet::new();
+-        for (module, name) in places(reads) {
++        for (module, name) in places(reads.clone()) {
+             // The path never reads the imports of the name it binds.
+             if !self.binds_name(position, module, &name) {
+                 blockers.extend(self.unresolved_uses(module, &name, resolved_mode));
+@@ -755,6 +819,7 @@ impl Index {
+         (
+             blockers.into_iter().collect(),
+             ambiguous.into_iter().collect(),
++            reads,
+         )
+     }
+ 
+@@ -786,8 +851,10 @@ impl Index {
+     /// else
+     /// `Ambiguous` naming the items of every ambiguous first segment among
+     /// the unresolved imports that bind them, or that those wait on; else
+-    /// `NotFound`.
+-    fn unbound(&self, missing: &[Source], text: &str) -> ResolveError {
++    /// `UnresolvedGlob` when a lookup of the walk, at `reads`, or of the paths
++    /// of those imports reads a glob whose path names nothing past its first
++    /// segment; else `NotFound`.
++    fn unbound(&self, missing: &[Source], reads: &[Source], text: &str) -> ResolveError {
+         let cyclic = missing.iter().any(|source| self.waits_on_cycle(source));
+         if cyclic {
+             return ResolveError::Cyclic(text.to_owned());
+@@ -800,25 +867,199 @@ impl Index {
+             work.extend(self.unresolved_uses(source.module, &source.name, true));
+         }
+         let mut ambiguous: BTreeSet<ItemId> = BTreeSet::new();
++        let mut through: Vec<Source> = reads.to_vec();
+         while let Some(position) = work.pop() {
+             if !seen.insert(position) {
+                 continue;
+             }
+-            let (following, items) = self.import_walks(position, true);
++            let (following, items, reads) = self.import_walks(position, true);
+             ambiguous.extend(items);
+             work.extend(following);
++            through.extend(reads);
+         }
+-        if ambiguous.is_empty() {
+-            ResolveError::NotFound(text.to_owned())
+-        } else {
+-            ResolveError::Ambiguous(self.sorted(ambiguous))
++        if !ambiguous.is_empty() {
++            return ResolveError::Ambiguous(self.sorted(ambiguous));
++        }
++        match self.unresolved_glob_read(&through) {
++            Some(glob) => self.glob_error(glob, text),
++            None => ResolveError::NotFound(text.to_owned()),
+         }
+     }
+ 
+-    fn origin_of(&self, source: &Source, id: ItemId) -> Option<&crate::settle::Origin> {
+-        let entry = self.scopes[source.module].get(&source.name)?;
++    /// The error of a path `text` whose lookups read the glob import at
++    /// `position`, whose path names nothing past its first segment.
++    fn glob_error(&self, position: usize, text: &str) -> ResolveError {
++        let decl = &self.uses[position];
++        let (UseKind::Glob { segs } | UseKind::Named { segs, .. }) = &decl.kind;
++        ResolveError::UnresolvedGlob {
++            path: text.to_owned(),
++            glob: format!(
++                "{}{}",
++                if decl.leading_colon { "::" } else { "" },
++                segs.join("::")
++            ),
++            module: self.modules[decl.module].path.to_string(),
++        }
++    }
++
++    /// True when a lookup of `name` in `ns` in `module` finds an explicit
++    /// binding there, or an explicit import keeps the name from the globs
++    /// (see [`Index::blocked`]): the globs of the module are not read.
++    fn binds_explicitly(&self, module: usize, ns: Namespace, name: &str) -> bool {
++        self.scopes[module]
++            .get(name)
++            .is_some_and(|entry| !entry.defs[slot(ns)].is_empty())
++            || self.blocked(module, name, ns, None)
++    }
++
++    /// The glob imports that a lookup of `name` in `ns` in `module` reads:
++    /// those of the module when nothing explicit binds the name there, and,
++    /// through each glob whose path resolves (`reach`), those of the modules
++    /// it globs in turn, each module once.
++    fn globs_read(
++        &self,
++        reach: &BTreeMap<usize, BTreeSet<usize>>,
++        module: usize,
++        ns: Namespace,
++        name: &str,
++    ) -> BTreeSet<usize> {
++        let mut seen = BTreeSet::from([module]);
++        let mut work = vec![module];
++        let mut out = BTreeSet::new();
++        while let Some(at) = work.pop() {
++            if self.binds_explicitly(at, ns, name) {
++                continue;
++            }
++            for glob in self.globs_of(at) {
++                out.insert(*glob);
++                for target in reach.get(glob).into_iter().flatten() {
++                    if seen.insert(*target) {
++                        work.push(*target);
++                    }
++                }
++            }
++        }
++        out
++    }
++
++    /// What the path of the glob import at `position` names in the settled
++    /// tables.
++    fn glob_path(&self, position: usize) -> GlobPath {
++        let decl = &self.uses[position];
++        let UseKind::Glob { segs } = &decl.kind else {
++            return GlobPath::Nothing;
++        };
++        let sources = match self.glob_targets(position) {
++            Ok(targets) => return GlobPath::Resolves(targets),
++            Err(Fail::Missing(sources)) => sources,
++            Err(Fail::SuperAboveRoot | Fail::SeveralCrates { .. } | Fail::Ambiguous(_)) => {
++                return GlobPath::Nothing;
++            }
++        };
++        let head = self.walk(
++            decl.module,
++            &segs[..1],
++            decl.leading_colon,
++            Namespace::Type,
++            Heads::Use {
++                test: decl.test,
++                own: Some(position),
++            },
++        );
++        // A first segment that names nothing in the workspace, or a path
++        // that goes on in a crate outside it, is a dependency.
++        if head.is_err() || sources.is_empty() {
++            GlobPath::Unknown
++        } else {
++            GlobPath::Misses(sources)
++        }
++    }
++
++    /// The globs of the settled tables whose paths resolve, and those whose
++    /// paths name nothing past their first segment, computed once for the
++    /// index (see [`ResolveError::UnresolvedGlob`]).
++    ///
++    /// A glob whose path misses is not reported when what its path could
++    /// have reached is not known to be missing: a place where the path
++    /// names nothing that an import binds, which may be an import the index
++    /// cannot see through, or that reads a glob whose path is unknown, a
++    /// dependency glob or one that is not reported in turn.
++    fn glob_facts(&self) -> &GlobFacts {
++        self.glob_facts.get_or_init(|| {
++            let mut reach: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
++            let mut misses: BTreeMap<usize, Vec<Source>> = BTreeMap::new();
++            let mut unknown: Vec<usize> = Vec::new();
++            for &glob in &self.glob_imports {
++                match self.glob_path(glob) {
++                    GlobPath::Resolves(targets) => {
++                        reach.insert(glob, targets);
++                    }
++                    GlobPath::Misses(sources) => {
++                        misses.insert(glob, sources);
++                    }
++                    GlobPath::Unknown => unknown.push(glob),
++                    GlobPath::Nothing => {}
++                }
++            }
++            // Which missing globs each glob would make unknown: those that
++            // miss at a place that reads it.
++            let mut readers: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
++            for (glob, sources) in &misses {
++                for source in sources {
++                    if !self.imports_of(source.module, &source.name).is_empty() {
++                        unknown.push(*glob);
++                    }
++                    for other in self.globs_read(&reach, source.module, source.ns, &source.name) {
++                        if other != *glob {
++                            readers.entry(other).or_default().push(*glob);
++                        }
++                    }
++                }
++            }
++            let mut opaque: BTreeSet<usize> = BTreeSet::new();
++            while let Some(glob) = unknown.pop() {
++                if opaque.insert(glob) {
++                    unknown.extend(readers.get(&glob).into_iter().flatten().copied());
++                }
++            }
++            let broken = misses
++                .into_keys()
++                .filter(|glob| !opaque.contains(glob))
++                .collect();
++            GlobFacts { reach, broken }
++        })
++    }
++
++    /// The first of the glob imports a walk read, at the places `reads`,
++    /// whose path names nothing in the workspace past its first segment.
++    fn unresolved_glob_read(&self, reads: &[Source]) -> Option<usize> {
++        let facts = self.glob_facts();
++        if facts.broken.is_empty() {
++            return None;
++        }
++        let places: BTreeSet<(usize, Namespace, &str)> = reads
++            .iter()
++            .map(|source| (source.module, source.ns, source.name.as_str()))
++            .collect();
++        places
++            .into_iter()
++            .flat_map(|(module, ns, name)| self.globs_read(&facts.reach, module, ns, name))
++            .filter(|glob| facts.broken.contains(glob))
++            .min()
++    }
++
++    fn origin_of(&self, source: &Source, id: ItemId) -> Option<crate::settle::Origin> {
+         let ns = slot(source.ns);
+-        entry.defs[ns].get(id).or_else(|| entry.globbed[ns].get(id))
++        let defs = self.scopes[source.module]
++            .get(&source.name)
++            .and_then(|entry| entry.defs[ns].get(id));
++        match defs {
++            Some(origin) => Some(origin.clone()),
++            None => self
++                .globbed(source.module, &source.name, ns)
++                .get(id)
++                .cloned(),
++        }
+     }
+ 
+     fn chain_for(&self, requested: &str, hit: &Hit, id: ItemId) -> Vec<String> {
+@@ -834,8 +1075,8 @@ impl Index {
+             chain.push(format!("{}::{}", self.modules[at.module].path, at.name));
+             let next = self
+                 .origin_of(&at, id)
+-                .and_then(|origin| origin.link.as_ref())
+-                .and_then(|link| link.source.clone());
++                .and_then(|origin| origin.link)
++                .and_then(|link| link.source);
+             match next {
+                 Some(source) => at = source,
+                 None => break,
+@@ -849,6 +1090,46 @@ impl Index {
+         &self.targets[self.modules[module].target.index()].package
+     }
+ 
++    /// Walk `rest`, the segments of a canonical path `text` after the crate
++    /// path of `root`, in `ns`, adding to `walks` what it reaches, the places
++    /// it found unbound and the places it read.
++    fn walk_from_root(
++        &self,
++        root: usize,
++        rest: &[String],
++        ns: Namespace,
++        text: &str,
++        walks: &mut Walks,
++    ) -> Result<(), ResolveError> {
++        let start = walks.reads.len();
++        let walk = self.walk_noting(root, rest, false, ns, Heads::Local, Some(&mut walks.reads));
++        if walk.is_ok()
++            && walks.reads[start..]
++                .iter()
++                .any(|source| self.bound_by_undecided(source))
++        {
++            return Err(ResolveError::Cyclic(text.to_owned()));
++        }
++        match walk {
++            Ok(walked) => {
++                for (id, hit) in walked.items {
++                    merge(&mut walks.found, id, hit);
++                }
++            }
++            Err(Fail::Missing(sources)) => walks.missing.extend(sources),
++            Err(Fail::SeveralCrates { roots: ids, .. } | Fail::Ambiguous(ids)) => {
++                return Err(ResolveError::Ambiguous(ids));
++            }
++            // A canonical path holds no `super` (see [`Index::resolve`]), so
++            // no walk of one climbs above a crate root; if one did, the path
++            // is not a path.
++            Err(Fail::SuperAboveRoot) => {
++                return Err(ResolveError::Invalid(text.to_owned()));
++            }
++        }
++        Ok(())
++    }
++
+     /// Resolve a canonical path in one name space, among the crates of
+     /// `package` when one is given.
+     fn resolve_in(
+@@ -858,10 +1139,15 @@ impl Index {
+         text: &str,
+         package: Option<&str>,
+     ) -> Result<Resolution, ResolveError> {
+-        let mut found: BTreeMap<ItemId, Hit> = BTreeMap::new();
+-        let mut missing: Vec<Source> = Vec::new();
+-        for taken in 1..=segs.len() {
+-            let prefix = segs[..taken].join("::");
++        let mut walks = Walks::default();
++        // The prefix grows by one segment a step, so the prefixes of a path
++        // cost its length, not its length squared.
++        let mut prefix = String::with_capacity(text.len());
++        for (taken, seg) in (1..=segs.len()).zip(segs) {
++            if taken > 1 {
++                prefix.push_str("::");
++            }
++            prefix.push_str(seg);
+             let Some(roots) = self.crate_roots.get(&prefix) else {
+                 continue;
+             };
+@@ -884,37 +1170,14 @@ impl Index {
+             }
+             for root in roots {
+                 if taken < segs.len() {
+-                    let mut reads = Vec::new();
+-                    let walk = self.walk_noting(
+-                        root,
+-                        &segs[taken..],
+-                        false,
+-                        ns,
+-                        Heads::Local,
+-                        Some(&mut reads),
+-                    );
+-                    if walk.is_ok() && reads.iter().any(|source| self.bound_by_undecided(source)) {
+-                        return Err(ResolveError::Cyclic(text.to_owned()));
+-                    }
+-                    match walk {
+-                        Ok(walked) => {
+-                            for (id, hit) in walked.items {
+-                                merge(&mut found, id, hit);
+-                            }
+-                        }
+-                        Err(Fail::Missing(sources)) => missing.extend(sources),
+-                        Err(Fail::SeveralCrates { roots: ids, .. } | Fail::Ambiguous(ids)) => {
+-                            return Err(ResolveError::Ambiguous(ids));
+-                        }
+-                        Err(Fail::SuperAboveRoot) => {}
+-                    }
++                    self.walk_from_root(root, &segs[taken..], ns, text, &mut walks)?;
+                 } else if ns == Namespace::Type
+                     && let Some(item) = self.root_items.get(&root)
+                 {
+                     // A path that is exactly a crate path names the crate
+                     // root, a module.
+                     merge(
+-                        &mut found,
++                        &mut walks.found,
+                         *item,
+                         Hit {
+                             via_glob: false,
+@@ -924,6 +1187,11 @@ impl Index {
+                 }
+             }
+         }
++        let Walks {
++            mut found,
++            missing,
++            reads,
++        } = walks;
+         let from_keys = found.is_empty();
+         if let (true, Some(ids)) = (from_keys, self.foreign.get(text)) {
+             for id in ids {
+@@ -942,7 +1210,7 @@ impl Index {
+             }
+         }
+         if found.is_empty() {
+-            return Err(self.unbound(&missing, text));
++            return Err(self.unbound(&missing, &reads, text));
+         }
+         // One symbol is one path and kind in one crate. Items of two targets
+         // at one path are two symbols, whatever order they were found in; the
+@@ -957,6 +1225,11 @@ impl Index {
+         if groups.len() > 1 {
+             return Err(ResolveError::Ambiguous(self.sorted(found.keys().copied())));
+         }
++        // A lookup on the way that read a glob whose path names nothing past
++        // its first segment may have missed what the glob would bring in.
++        if let Some(glob) = self.unresolved_glob_read(&reads) {
++            return Err(self.glob_error(glob, text));
++        }
+         let sites = self.sorted(found.keys().copied());
+         let first = sites[0];
+         let hit = &found[&first];
+@@ -972,8 +1245,13 @@ impl Index {
+     /// True when a proper prefix of `segs` is the self path of an inherent
+     /// impl that the index cannot see, of `package` when one is given.
+     fn through_unresolved(&self, segs: &[String], package: Option<&str>) -> bool {
+-        (1..segs.len()).any(|taken| {
+-            let prefix = segs[..taken].join("::");
++        // The prefix grows by one segment a step, as in [`Index::resolve_in`].
++        let mut prefix = String::new();
++        segs.iter().take(segs.len().saturating_sub(1)).any(|seg| {
++            if !prefix.is_empty() {
++                prefix.push_str("::");
++            }
++            prefix.push_str(seg);
+             let start = self
+                 .unresolved
+                 .partition_point(|block| block.path.as_str() < prefix.as_str());
+@@ -999,9 +1277,16 @@ impl Index {
+         {
+             return Err(ResolveError::UnknownPackage(name.to_owned()));
+         }
++        // Each segment is read once. A canonical path starts at a crate root
++        // and names items by their names, so a path keyword is no segment of
++        // one: `demo::crate::a::x` and `demo::super::x` are not canonical
++        // paths, and neither is `r#crate`, which is no raw identifier.
+         let segs: Vec<String> = path.split("::").map(|s| strip_raw(s).to_owned()).collect();
+-        let valid =
+-            |s: &String| !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || c == '_');
++        let valid = |s: &String| {
++            !s.is_empty()
++                && !matches!(s.as_str(), "crate" | "self" | "super" | "Self")
++                && s.chars().all(|c| c.is_alphanumeric() || c == '_')
++        };
+         if !segs.iter().all(valid) {
+             return Err(ResolveError::Invalid(path.to_owned()));
+         }
+@@ -1020,3 +1305,64 @@ impl Index {
+         Err(ResolveError::NotFound(text))
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::ResolveError;
++    use crate::item::ItemId;
++
++    /// An escape sequence, a bidirectional override and a line break.
++    const HOSTILE: &str = "a\u{1b}[2J\u{202e}\r\nb";
++
++    /// Every variant, built so that a new one cannot be left out: the match
++    /// names each.
++    fn every_variant() -> Vec<ResolveError> {
++        let hostile = || HOSTILE.to_owned();
++        let all = vec![
++            ResolveError::NotFound(hostile()),
++            ResolveError::Ambiguous(vec![ItemId(0), ItemId(1)]),
++            ResolveError::Cyclic(hostile()),
++            ResolveError::Invalid(hostile()),
++            ResolveError::UnresolvedSelf(hostile()),
++            ResolveError::UnknownPackage(hostile()),
++            ResolveError::UnresolvedGlob {
++                path: hostile(),
++                glob: hostile(),
++                module: hostile(),
++            },
++        ];
++        for error in &all {
++            match error {
++                ResolveError::NotFound(_)
++                | ResolveError::Ambiguous(_)
++                | ResolveError::Cyclic(_)
++                | ResolveError::Invalid(_)
++                | ResolveError::UnresolvedSelf(_)
++                | ResolveError::UnknownPackage(_)
++                | ResolveError::UnresolvedGlob { .. } => {}
++            }
++        }
++        all
++    }
++
++    #[test]
++    fn every_user_derived_field_of_every_resolve_error_is_escaped() {
++        for error in every_variant() {
++            let text = error.to_string();
++            assert!(
++                !text.chars().any(|c| c.is_control() || c == '\u{202e}'),
++                "a control character got through: {text:?}"
++            );
++            let fields = match &error {
++                ResolveError::Ambiguous(_) => 0,
++                ResolveError::UnresolvedGlob { .. } => 3,
++                _ => 1,
++            };
++            assert_eq!(
++                text.matches(r"a\u{1b}[2J\u{202e}\r\nb").count(),
++                fields,
++                "{text}"
++            );
++        }
++    }
++}
+diff --git crates/raf-source/src/settle.rs crates/raf-source/src/settle.rs
+index c275017..29ecbac 100644
+--- crates/raf-source/src/settle.rs
++++ crates/raf-source/src/settle.rs
+@@ -22,6 +22,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
+ use crate::cost::{btree_entry, btree_map};
+ use crate::error::{LoadError, LoadErrorKind};
+ use crate::facts::Vis;
++use crate::glob_scope::{Nobody, Waiters};
+ use crate::index::{Index, UseDecl, UseKind, binding_bytes};
+ use crate::item::{ItemId, Namespace};
+ use crate::meter::Meter;
+@@ -58,7 +59,7 @@ pub(crate) struct Origin {
+ 
+ /// A total order of visibilities, so that a set of them is kept the same
+ /// way whatever the order the routes were found in.
+-fn vis_key(vis: &Vis) -> (u8, &str) {
++pub(crate) fn vis_key(vis: &Vis) -> (u8, &str) {
+     match vis {
+         Vis::Public => (0, ""),
+         Vis::Restricted(text) => (1, text.as_str()),
+@@ -217,15 +218,16 @@ impl FromIterator<(ItemId, Origin)> for Bound {
+ /// The walks of an import's path, one in each name space.
+ type Walks = Vec<(Namespace, Result<Walked, Fail>)>;
+ 
+-/// The bindings of one name in the three name spaces.
++/// The bindings of one name in the three name spaces that shadow globs: the
++/// module's items and its explicit imports. What its globs bring in is kept
++/// apart, in the glob tables (see [`crate::glob_scope`]).
+ #[derive(Debug, Clone, Default, PartialEq, Eq)]
+ pub(crate) struct Entry {
+     pub(crate) defs: [Bound; 3],
+-    pub(crate) globbed: [Bound; 3],
+ }
+ 
+ /// The names of one module. Each entry is boxed, so a node of the table holds
+-/// eleven names and pointers and not eleven entries of six lists each.
++/// eleven names and pointers and not eleven entries of three lists each.
+ pub(crate) type Scope = BTreeMap<String, Box<Entry>>;
+ 
+ pub(crate) fn slot(ns: Namespace) -> usize {
+@@ -241,9 +243,12 @@ pub(crate) fn slot(ns: Namespace) -> usize {
+ struct Pending {
+     queue: VecDeque<usize>,
+     queued: BTreeSet<usize>,
+-    /// Imports waiting for a name of a module to be bound or settled.
+-    waiting: BTreeMap<(usize, String), BTreeSet<usize>>,
+-    /// Globs watching a module for new names.
++    /// Imports waiting for a name of a module to be bound or settled, by
++    /// module and name.
++    waiting: BTreeMap<usize, BTreeMap<String, BTreeSet<usize>>>,
++    /// The modules where an import waits on each name.
++    waiting_by_name: BTreeMap<String, BTreeSet<usize>>,
++    /// Globs watching a module for its globs to settle.
+     watching: BTreeMap<usize, BTreeSet<usize>>,
+ }
+ 
+@@ -258,21 +263,33 @@ impl Pending {
+     /// path read gains a binding or an import that binds it settles.
+     fn wait(&mut self, position: usize, reads: Vec<Source>) {
+         for (module, name) in places(reads) {
++            self.waiting_by_name
++                .entry(name.clone())
++                .or_default()
++                .insert(module);
+             self.waiting
+-                .entry((module, name))
++                .entry(module)
++                .or_default()
++                .entry(name)
+                 .or_default()
+                 .insert(position);
+         }
+     }
+ 
++    /// The imports waiting on `name` in `module`.
++    fn waiters(&self, module: usize, name: &str) -> Option<&BTreeSet<usize>> {
++        self.waiting.get(&module)?.get(name)
++    }
++
+     /// Wake everything that waits on a name of `module`, and the globs that
+     /// watch it.
+     fn wake_module(&mut self, module: usize) {
+         let mut woken: Vec<usize> = self
+             .waiting
+-            .range((module, String::new())..)
+-            .take_while(|((at, _), _)| *at == module)
+-            .flat_map(|(_, waiters)| waiters.iter().copied())
++            .get(&module)
++            .into_iter()
++            .flat_map(BTreeMap::values)
++            .flat_map(|waiters| waiters.iter().copied())
+             .collect();
+         if let Some(watchers) = self.watching.get(&module) {
+             woken.extend(watchers.iter().copied());
+@@ -282,20 +299,45 @@ impl Pending {
+         }
+     }
+ 
+-    fn wake(&mut self, module: usize, name: &str) {
+-        let mut woken: Vec<usize> = Vec::new();
+-        if let Some(waiters) = self.waiting.get(&(module, name.to_owned())) {
+-            woken.extend(waiters.iter().copied());
+-        }
+-        if let Some(watchers) = self.watching.get(&module) {
+-            woken.extend(watchers.iter().copied());
+-        }
++    /// Wake the globs that watch `module`.
++    fn wake_watchers(&mut self, module: usize) {
++        let woken: Vec<usize> = self
++            .watching
++            .get(&module)
++            .into_iter()
++            .flatten()
++            .copied()
++            .collect();
+         for position in woken {
+             self.push(position);
+         }
+     }
+ }
+ 
++impl Waiters for Pending {
++    fn wake(&mut self, module: usize, name: &str) {
++        let woken: Vec<usize> = self
++            .waiters(module, name)
++            .into_iter()
++            .flatten()
++            .copied()
++            .collect();
++        for position in woken {
++            self.push(position);
++        }
++    }
++
++    fn waiting_on(&self, name: &str) -> Option<&BTreeSet<usize>> {
++        self.waiting_by_name.get(name)
++    }
++
++    fn waited_in(&self, module: usize) -> Vec<String> {
++        self.waiting
++            .get(&module)
++            .map_or_else(Vec::new, |names| names.keys().cloned().collect())
++    }
++}
++
+ impl Index {
+     pub(crate) fn module_depth(&self, mut module: usize) -> usize {
+         let mut depth = 0;
+@@ -367,22 +409,10 @@ impl Index {
+         entry.defs[slot(ns)].offer(id, origin)
+     }
+ 
+-    /// Bind `id` under `name` among the glob bindings of `module`; see
+-    /// [`Index::insert_def`].
+-    pub(crate) fn insert_globbed(
+-        &mut self,
+-        module: usize,
+-        ns: usize,
+-        name: &str,
+-        id: ItemId,
+-        origin: Origin,
+-    ) -> bool {
+-        let entry = self.scopes[module].entry(name.to_owned()).or_default();
+-        entry.globbed[ns].offer(id, origin)
+-    }
+-
+-    /// The names of each module: its definitions.
++    /// The names of each module: its definitions. The glob tables are
++    /// dropped, to be built again as the tables settle.
+     pub(crate) fn build_scopes(&mut self) {
++        self.clear_globs();
+         self.scopes = vec![Scope::new(); self.modules.len()];
+         let defs: Vec<(usize, Vec<ItemId>)> = self
+             .modules
+@@ -472,7 +502,7 @@ impl Index {
+             .filter(|defs| !defs.is_empty())
+         {
+             return self
+-                .seen_by(defs, module, viewer)
++                .seen_by(Cow::Borrowed(defs), module, viewer)
+                 .map(|bound| (bound, false));
+         }
+         // An explicit import that `viewer` cannot name still hides the
+@@ -480,7 +510,7 @@ impl Index {
+         if self.blocked(module, name, ns, own) {
+             return None;
+         }
+-        self.seen_by(&entry?.globbed[at], module, viewer)
++        self.seen_by(Cow::Owned(self.globbed(module, name, at)), module, viewer)
+             .map(|bound| (bound, true))
+     }
+ 
+@@ -488,7 +518,7 @@ impl Index {
+     /// `None` when it can access none.
+     fn seen_by<'a>(
+         &self,
+-        bound: &'a Bound,
++        bound: Cow<'a, Bound>,
+         module: usize,
+         viewer: usize,
+     ) -> Option<Cow<'a, Bound>> {
+@@ -498,7 +528,7 @@ impl Index {
+                 .any(|vis| self.is_visible(vis, module, viewer))
+         };
+         if bound.iter().all(|(_, origin)| visible(origin)) {
+-            return (!bound.is_empty()).then_some(Cow::Borrowed(bound));
++            return (!bound.is_empty()).then_some(bound);
+         }
+         let kept: Bound = bound
+             .iter()
+@@ -546,8 +576,8 @@ impl Index {
+                 return None;
+             }
+         }
+-        let globbed = &entry?.globbed[at];
+-        (!globbed.is_empty()).then_some((Cow::Borrowed(globbed), true))
++        let globbed = self.globbed(module, name, at);
++        (!globbed.is_empty()).then_some((Cow::Owned(globbed), true))
+     }
+ 
+     /// True when an explicit import of `module` that binds `name` keeps the
+@@ -601,6 +631,11 @@ impl Index {
+         importer: Option<usize>,
+         except: Option<usize>,
+     ) -> bool {
++        // Only an import keeps a name from the globs: with none that the
++        // globs of the module reach, none may still bring it in.
++        if !self.reaches_import(module) {
++            return false;
++        }
+         let mut seen = BTreeSet::from([module]);
+         let mut work = vec![(module, importer, except)];
+         while let Some((from, viewer, skip)) = work.pop() {
+@@ -614,9 +649,10 @@ impl Index {
+                 // glob's path is not walked here, as walking it may ask this
+                 // again.
+                 for &target in &self.glob_reach[*glob] {
+-                    if self.scopes[target]
+-                        .get(name)
+-                        .is_some_and(|entry| !entry.defs[at].is_empty())
++                    if !self.reaches_import(target)
++                        || self.scopes[target]
++                            .get(name)
++                            .is_some_and(|entry| !entry.defs[at].is_empty())
+                     {
+                         continue;
+                     }
+@@ -795,41 +831,9 @@ impl Index {
+         Ok(targets)
+     }
+ 
+-    /// The names a glob of `target` brings in to `importer`: the bindings that
+-    /// shadow globs first, the target's own glob names where it has neither,
+-    /// and only those the importer can name. A name that an explicit import
+-    /// of the target may still bind in a name space is not brought in there
+-    /// yet, as rustc hides a glob binding of a name that a single import may
+-    /// still bind.
+-    fn visible(&self, target: usize, importer: usize) -> Vec<(String, usize, Bound)> {
+-        let mut names = Vec::new();
+-        for (name, entry) in &self.scopes[target] {
+-            for (ns, (defs, globbed)) in entry.defs.iter().zip(&entry.globbed).enumerate() {
+-                let bound = if !defs.is_empty() {
+-                    defs
+-                } else if self.blocked_for(target, name, ns, importer) {
+-                    continue;
+-                } else {
+-                    globbed
+-                };
+-                let seen: Bound = bound
+-                    .iter()
+-                    .filter(|(_, origin)| {
+-                        origin
+-                            .visibilities()
+-                            .any(|vis| self.is_visible(vis, target, importer))
+-                    })
+-                    .map(|(id, origin)| (*id, origin.clone()))
+-                    .collect();
+-                if !seen.is_empty() {
+-                    names.push((name.clone(), ns, seen));
+-                }
+-            }
+-        }
+-        names
+-    }
+-
+-    fn glob_origin(decl: &UseDecl, target: usize, ns: usize, name: &str) -> Origin {
++    /// The route of a binding that the glob import `decl` brings in from
++    /// `name` of `target` in the name space at `ns`.
++    pub(crate) fn glob_origin(decl: &UseDecl, target: usize, ns: usize, name: &str) -> Origin {
+         Origin {
+             via_glob: true,
+             vis: decl.vis.clone(),
+@@ -846,31 +850,17 @@ impl Index {
+         }
+     }
+ 
+-    /// One pass of the globs over the tables as they stand, each glob with the
+-    /// modules its path reaches: the glob bindings of every module.
+-    fn glob_pass(&self, reached: &[(usize, BTreeSet<usize>)]) -> Vec<Scope> {
+-        let mut fresh = vec![Scope::new(); self.modules.len()];
+-        for (position, targets) in reached {
+-            let decl = &self.uses[*position];
+-            for target in targets {
+-                for (name, ns, bound) in self.visible(*target, decl.module) {
+-                    for id in bound.keys() {
+-                        let origin = Self::glob_origin(decl, *target, ns, &name);
+-                        fresh[decl.module].entry(name.clone()).or_default().globbed[ns]
+-                            .offer(*id, origin);
+-                    }
+-                }
+-            }
+-        }
+-        fresh
+-    }
+-
+     /// Mark an import settled: resolved, failed, or held as ambiguous. What
+-    /// waits on the name it binds, and the globs that watch its module, are
+-    /// woken.
+-    fn settle_use(&mut self, position: usize, pending: &mut Pending) {
++    /// waits on the name it binds is woken, and what its module exports under
++    /// the name is passed on (see [`Index::touch`]).
++    fn settle_use(
++        &mut self,
++        position: usize,
++        pending: &mut Pending,
++        meter: &Meter,
++    ) -> Result<(), LoadError> {
+         if self.use_settled[position] {
+-            return;
++            return Ok(());
+         }
+         self.use_settled[position] = true;
+         self.use_decided[position] = [true; 3];
+@@ -878,8 +868,29 @@ impl Index {
+         if let UseKind::Named { name, .. } = &decl.kind {
+             let module = decl.module;
+             let name = name.clone();
+-            pending.wake(module, &name);
++            self.touch(module, &name, pending, meter)?;
+         }
++        Ok(())
++    }
++
++    /// Something about `name` in `module` changed: what binds it there, or an
++    /// import of it, which may keep it from the globs. What waits on the name
++    /// there is woken, what the module exports under it to globs is
++    /// recomputed and the change passed on to the globs that read it, and,
++    /// when a visibility of the module reads the tables, the globs of the
++    /// module are tried again.
++    fn touch(
++        &mut self,
++        module: usize,
++        name: &str,
++        pending: &mut Pending,
++        meter: &Meter,
++    ) -> Result<(), LoadError> {
++        pending.wake(module, name);
++        if self.exports_by_path(module) {
++            pending.wake_watchers(module);
++        }
++        self.refresh(module, name, pending, meter)
+     }
+ 
+     /// Settle the scope tables.
+@@ -907,6 +918,8 @@ impl Index {
+                 }
+             }
+         }
++        self.glob_visibilities(meter)?;
++        self.reset_globs(meter)?;
+         // An import held as ambiguous from the start is settled and binds
+         // nothing.
+         for position in 0..self.uses.len() {
+@@ -943,7 +956,7 @@ impl Index {
+             }
+             self.advanced(rounds, before)?;
+         }
+-        self.rebuild_globs();
++        self.rebuild_globs(meter)?;
+         // What the sets of modules the globs reached hold.
+         let reach: usize = self
+             .glob_reach
+@@ -1104,7 +1117,7 @@ impl Index {
+             }
+             changed |= !acts.is_empty();
+             for act in acts {
+-                self.act(act, pending);
++                self.act(act, pending, meter)?;
+             }
+             self.drain(pending, meter)?;
+             let mut next_wave = Vec::new();
+@@ -1179,19 +1192,24 @@ impl Index {
+                     }
+                 }
+             } else {
+-                // A place of its own module is read without the glob.
++                // A place of its own module is read without the glob. The
++                // first segment read under the name of a crate of the extern
++                // prelude waits on no glob of the module, as for a named
++                // import (see [`Index::places_read_in`]): two globs of
++                // dependencies do not wait on each other.
+                 let places: BTreeSet<Place> = reads
+                     .into_iter()
+                     .map(|source| {
+                         let own = source.module == decl.module;
+                         let except = own.then_some(position);
+                         let viewer = (!own).then_some(decl.module);
++                        let head = own && self.prelude_head(position, &source.name);
+                         (
+                             source.module,
+                             source.name,
+                             slot(source.ns),
+                             except,
+-                            false,
++                            head,
+                             viewer,
+                         )
+                     })
+@@ -1303,17 +1321,60 @@ impl Index {
+         reads
+             .into_iter()
+             .map(|source| {
+-                let head = !decl.leading_colon
+-                    && source.module == decl.module
+-                    && segs.first() == Some(&source.name)
+-                    && !matches!(source.name.as_str(), "crate" | "self" | "super")
+-                    && self.edition(decl.module) != 2015
+-                    && self.in_use_prelude(decl.module, &source.name, decl.test);
++                let head =
++                    source.module == decl.module && self.prelude_head(position, &source.name);
+                 (source.module, source.name, slot(source.ns), head)
+             })
+             .collect()
+     }
+ 
++    /// True when the path of the glob import at `position` resolves, or
++    /// names nothing only at its first segment, read in the module where the
++    /// path starts.
++    fn held_at_head(&self, position: usize) -> bool {
++        let decl = &self.uses[position];
++        let UseKind::Glob { segs } = &decl.kind else {
++            return false;
++        };
++        let Some(head) = segs.first() else {
++            return false;
++        };
++        let sources = match self.glob_targets(position) {
++            Ok(_) => return true,
++            Err(Fail::Missing(sources)) => sources,
++            Err(_) => return false,
++        };
++        let heads = Heads::Use {
++            test: decl.test,
++            own: Some(position),
++        };
++        let start = if self.crate_relative(decl.module, head, decl.leading_colon, heads) {
++            self.modules[decl.module].root
++        } else {
++            decl.module
++        };
++        !decl.leading_colon
++            && !matches!(head.as_str(), "crate" | "self" | "super")
++            && !sources.is_empty()
++            && sources
++                .iter()
++                .all(|source| source.module == start && source.name == *head)
++    }
++
++    /// True when `name`, read in the module of the import at `position`, is
++    /// the first segment of its path under the name of a crate of the extern
++    /// prelude, which a glob of the module that is not settled does not hold
++    /// back (see [`Index::unbound_use_head`]).
++    fn prelude_head(&self, position: usize, name: &str) -> bool {
++        let decl = &self.uses[position];
++        let (UseKind::Named { segs, .. } | UseKind::Glob { segs }) = &decl.kind;
++        !decl.leading_colon
++            && segs.first().is_some_and(|first| first == name)
++            && !matches!(name, "crate" | "self" | "super")
++            && self.edition(decl.module) != 2015
++            && self.in_use_prelude(decl.module, name, decl.test)
++    }
++
+     /// True when the place a path read waits on an import undecided there
+     /// outside `inside`, or on a glob that is not settled, directly or
+     /// through what its globs may still bring in.
+@@ -1399,7 +1460,12 @@ impl Index {
+             let resolved = globs
+                 .iter()
+                 .all(|position| self.glob_targets(*position).is_ok());
+-            if !imports.is_empty() || (looped && !resolved) {
++            // Globs whose paths are each held at their first segment, which
++            // only the globs of the module could bring in, wait on nothing
++            // but one another: none can resolve before another does, so none
++            // resolves, and each is settled bringing in nothing.
++            let at_heads = globs.iter().all(|position| self.held_at_head(*position));
++            if !imports.is_empty() || (looped && !resolved && !at_heads) {
+                 return Decided::Cyclic;
+             }
+             acts.extend(globs.into_iter().map(Act::CloseGlob));
+@@ -1516,9 +1582,7 @@ impl Index {
+             let last = segs.last()?;
+             for &at in spaces {
+                 if name != last {
+-                    let globbed = self.scopes[decl.module]
+-                        .get(name)
+-                        .is_some_and(|entry| !entry.globbed[at].is_empty());
++                    let globbed = self.globbed_any(decl.module, name, at);
+                     if !self.use_bound[position].iter().any(|bound| *bound) || globbed {
+                         return None;
+                     }
+@@ -1543,10 +1607,13 @@ impl Index {
+                             // A glob answer the reading module cannot access
+                             // answers nothing for it, as rustc reads it.
+                             let answered = source.module == decl.module
+-                                || self.scopes[place.0].get(&place.1).is_some_and(|entry| {
+-                                    self.seen_by(&entry.globbed[place.2], place.0, decl.module)
+-                                        .is_some()
+-                                });
++                                || self
++                                    .seen_by(
++                                        Cow::Owned(self.globbed(place.0, &place.1, place.2)),
++                                        place.0,
++                                        decl.module,
++                                    )
++                                    .is_some();
+                             if answered && graph.nodes_of(&place).any(|node| nodes.contains(&node))
+                             {
+                                 candidates.insert(place);
+@@ -1569,9 +1636,10 @@ impl Index {
+             .into_iter()
+             .filter(|(module, name, at)| {
+                 kept_inside(*module, name, *at)
+-                    && self.scopes[*module].get(name).is_some_and(|entry| {
+-                        entry.defs[*at].is_empty() && !entry.globbed[*at].is_empty()
+-                    })
++                    && self.scopes[*module]
++                        .get(name)
++                        .is_none_or(|entry| entry.defs[*at].is_empty())
++                    && self.globbed_any(*module, name, *at)
+             })
+             .collect();
+         Some(fallbacks)
+@@ -1708,10 +1776,7 @@ impl Index {
+         at: usize,
+         inside: &BTreeSet<usize>,
+     ) -> bool {
+-        let left_empty = self.use_empty[other][at]
+-            && self.scopes[module]
+-                .get(name)
+-                .is_none_or(|entry| entry.globbed[at].is_empty());
++        let left_empty = self.use_empty[other][at] && !self.globbed_any(module, name, at);
+         !inside.contains(&other) && !self.use_free[other][at] && !left_empty
+     }
+ 
+@@ -1738,9 +1803,12 @@ impl Index {
+             }
+             let entry = self.scopes[module].get(&name);
+             if entry.is_some_and(|entry| {
+-                self.seen_by(&entry.defs[at], module, viewer).is_some()
+-                    || self.seen_by(&entry.globbed[at], module, viewer).is_some()
+-            }) || self.open_glob(module, Some(viewer))
++                self.seen_by(Cow::Borrowed(&entry.defs[at]), module, viewer)
++                    .is_some()
++            }) || self
++                .seen_by(Cow::Owned(self.globbed(module, &name, at)), module, viewer)
++                .is_some()
++                || self.open_glob(module, Some(viewer))
+                 || self.imports_of(module, &name).iter().any(|other| {
+                     self.is_visible(&self.uses[*other].vis, module, viewer)
+                         && self.keeps_out(*other, module, &name, at, inside)
+@@ -1790,7 +1858,7 @@ impl Index {
+     }
+ 
+     /// Do what deciding a component decided.
+-    fn act(&mut self, act: Act, pending: &mut Pending) {
++    fn act(&mut self, act: Act, pending: &mut Pending, meter: &Meter) -> Result<(), LoadError> {
+         match act {
+             Act::Settle(position, decided, empty) => {
+                 let bound = self.use_bound[position].iter().any(|bound| *bound);
+@@ -1800,15 +1868,15 @@ impl Index {
+                     self.use_free[position][at] |= empty[at] && bound;
+                 }
+                 if self.use_decided[position] == [true; 3] {
+-                    self.settle_use(position, pending);
++                    self.settle_use(position, pending, meter)?;
+                 } else if let UseKind::Named { name, .. } = &self.uses[position].kind {
+                     let (module, name) = (self.uses[position].module, name.clone());
+-                    pending.wake(module, &name);
++                    self.touch(module, &name, pending, meter)?;
+                 }
+             }
+             Act::Hold(position) => {
+                 self.hold(position);
+-                self.settle_use(position, pending);
++                self.settle_use(position, pending, meter)?;
+             }
+             Act::Requeue(position) => pending.push(position),
+             Act::CloseGlob(position) => {
+@@ -1819,9 +1887,10 @@ impl Index {
+                 for position in keepers {
+                     self.use_free[position][at] = true;
+                 }
+-                pending.wake(module, &name);
++                self.touch(module, &name, pending, meter)?;
+             }
+         }
++        Ok(())
+     }
+ 
+     /// Settle the scope tables so that the result does not depend on the
+@@ -1859,6 +1928,7 @@ impl Index {
+             };
+             let decl = &self.uses[first];
+             meter.items(self.settle_bytes(), &decl.file, Some(decl.line))?;
++            self.release_globs(meter);
+             self.build_scopes();
+             self.crates_open = false;
+             self.use_ambiguous = ambiguous;
+@@ -1965,14 +2035,17 @@ impl Index {
+                     // is settled. One decided in every name space, bound or
+                     // not, is settled too (see [`Index::settle_stuck`]).
+                     if self.use_ambiguous[position] || self.use_decided[position] == [true; 3] {
+-                        self.settle_use(position, pending);
++                        self.settle_use(position, pending, meter)?;
+                     }
+                     bound
+                 }
+-                UseKind::Glob { .. } => self.settle_glob(position, &decl, pending),
++                UseKind::Glob { .. } => {
++                    self.settle_glob(position, &decl, pending, meter)?;
++                    Vec::new()
++                }
+             };
+             for (module, name) in bound {
+-                pending.wake(module, &name);
++                self.touch(module, &name, pending, meter)?;
+             }
+         }
+         Ok(())
+@@ -1981,10 +2054,12 @@ impl Index {
+     /// Rebuild every glob table against the final definitions, so that an
+     /// explicit import shadows a glob of the same name for every importer,
+     /// each glob bringing in from the modules its path reaches in the settled
+-    /// tables. The names each glob may still bring in are kept as the queue
+-    /// left them: each glob recorded them anew whenever a module it reads
+-    /// changed, so they are those of the settled tables.
+-    fn rebuild_globs(&mut self) {
++    /// tables: the tables are cleared and every glob reads its targets again,
++    /// which passes on what they export until nothing more is brought in. The
++    /// names each glob may still bring in are kept as the queue left them:
++    /// each glob recorded them anew whenever a module it reads changed, so
++    /// they are those of the settled tables.
++    fn rebuild_globs(&mut self, meter: &Meter) -> Result<(), LoadError> {
+         // What each glob's path reaches in the settled tables. A path read
+         // against tables whose globs are cleared could reach something else,
+         // as a crate a glob of the module shadows.
+@@ -1993,27 +2068,13 @@ impl Index {
+             .iter()
+             .filter_map(|position| Some((*position, self.glob_targets(*position).ok()?)))
+             .collect();
+-        for scope in &mut self.scopes {
+-            for entry in scope.values_mut() {
+-                entry.globbed = [Bound::new(), Bound::new(), Bound::new()];
+-            }
+-        }
+-        loop {
+-            let fresh = self.glob_pass(&reached);
+-            let mut changed = false;
+-            for (module, scope) in fresh.into_iter().enumerate() {
+-                for (name, entry) in scope {
+-                    for (ns, bound) in entry.globbed.into_iter().enumerate() {
+-                        for (id, origin) in bound {
+-                            changed |= self.insert_globbed(module, ns, &name, id, origin);
+-                        }
+-                    }
+-                }
+-            }
+-            if !changed {
+-                break;
++        self.reset_globs(meter)?;
++        for (position, targets) in reached {
++            for target in targets {
++                self.read_glob(position, target, &mut Nobody, meter)?;
+             }
+         }
++        Ok(())
+     }
+ 
+     /// The walks of the path of the named import at `position`, written as
+@@ -2210,7 +2271,7 @@ impl Index {
+                 }
+             }
+             if changed {
+-                pending.wake(decl.module, name);
++                self.touch(decl.module, name, pending, meter)?;
+             }
+         }
+         Ok(bound)
+@@ -2263,15 +2324,13 @@ impl Index {
+         let UseKind::Named { name, .. } = &decl.kind else {
+             return true;
+         };
+-        let Some(entry) = self.scopes[decl.module].get(name) else {
+-            return true;
+-        };
+-        let readers = pending.waiting.get(&(decl.module, name.clone()));
++        let globbed = self.globbed(decl.module, name, at);
++        let readers = pending.waiters(decl.module, name);
+         readers.into_iter().flatten().all(|reader| {
+             let viewer = self.uses[*reader].module;
+             *reader == position
+                 || self
+-                    .seen_by(&entry.globbed[at], decl.module, viewer)
++                    .seen_by(Cow::Borrowed(&globbed), decl.module, viewer)
+                     .is_none_or(|seen| {
+                         self.is_visible(&decl.vis, decl.module, viewer)
+                             && seen
+@@ -2310,19 +2369,21 @@ impl Index {
+         self.use_ambiguous[position] = true;
+     }
+ 
+-    /// Try a glob import. Returns the names it newly bound; the glob is
+-    /// queued again when its target module changes, or a place its path read
+-    /// does. A glob held as ambiguous brings in nothing.
++    /// Try a glob import: once its path resolves, it reads what each module
++    /// the path reaches exports to it (see [`Index::read_glob`]), and what
++    /// that brings in is passed on as the targets gain names. The glob is
++    /// queued again when a place its path read changes, or a glob of a
++    /// target settles. A glob held as ambiguous brings in nothing.
+     fn settle_glob(
+         &mut self,
+         position: usize,
+         decl: &UseDecl,
+         pending: &mut Pending,
+-    ) -> Vec<(usize, String)> {
+-        let mut bound = Vec::new();
++        meter: &Meter,
++    ) -> Result<(), LoadError> {
+         if self.use_ambiguous[position] {
+             self.close_glob(position, pending);
+-            return bound;
++            return Ok(());
+         }
+         let mut reads = Vec::new();
+         let targets = self.glob_targets_noting(position, Some(&mut reads));
+@@ -2338,14 +2399,8 @@ impl Index {
+                     .all(|target| !self.open_glob(*target, Some(decl.module)));
+                 for target in targets {
+                     pending.watching.entry(target).or_default().insert(position);
+-                    for (name, ns, names) in self.visible(target, decl.module) {
+-                        for id in names.keys() {
+-                            let origin = Self::glob_origin(decl, target, ns, &name);
+-                            if self.insert_globbed(decl.module, ns, &name, *id, origin) {
+-                                bound.push((decl.module, name.clone()));
+-                            }
+-                        }
+-                    }
++                    self.record_glob_edge(position, decl.module, target, meter)?;
++                    self.read_glob(position, target, pending, meter)?;
+                 }
+             }
+             // A glob whose path does not resolve yet waits on the places it
+@@ -2362,7 +2417,7 @@ impl Index {
+         if settled {
+             self.close_glob(position, pending);
+         }
+-        bound
++        Ok(())
+     }
+ 
+     /// Mark the glob at `position` settled, waking what waits on a name of
+diff --git crates/raf-source/src/workspace.rs crates/raf-source/src/workspace.rs
+index a2fb6d9..72bc3ce 100644
+--- crates/raf-source/src/workspace.rs
++++ crates/raf-source/src/workspace.rs
+@@ -333,8 +333,11 @@ impl Workspace {
+     /// cannot see, [`ResolveError::Ambiguous`] when it names several symbols
+     /// or starts with a crate path that targets of several packages share
+     /// (see [`Workspace::resolve_in_package`]), [`ResolveError::Cyclic`] when
+-    /// the imports on the way form a cycle and [`ResolveError::Invalid`] when
+-    /// the text is not a path.
++    /// the imports on the way form a cycle,
++    /// [`ResolveError::UnresolvedGlob`] when a lookup on the way reads a glob
++    /// whose path names nothing past its first segment, and
++    /// [`ResolveError::Invalid`] when the text is not a path, a path keyword
++    /// among its segments included.
+     pub fn resolve(&self, path: &str) -> Result<Resolution, ResolveError> {
+         self.index.resolve(path, None, None)
+     }
+diff --git crates/raf-source/tests/error_text.rs crates/raf-source/tests/error_text.rs
+index 5c0f18d..88610ea 100644
+--- crates/raf-source/tests/error_text.rs
++++ crates/raf-source/tests/error_text.rs
+@@ -4,7 +4,7 @@
+ //! The text of an error a load returns carries no raw control character, even
+ //! when the input chose the characters.
+ 
+-use raf_source::{MemoryTree, Workspace};
++use raf_source::{MemoryTree, ResolveError, Workspace};
+ 
+ #[test]
+ fn a_path_attribute_with_terminal_escapes_is_shown_escaped() {
+@@ -46,3 +46,31 @@ fn a_manifest_with_control_characters_in_a_value_is_shown_escaped() {
+     assert!(!text.chars().any(char::is_control), "{text:?}");
+     assert!(text.contains(r"a\u{1b}[2Jb"), "{text}");
+ }
++
++#[test]
++fn a_resolved_path_or_package_with_control_characters_is_shown_escaped() {
++    let tree: MemoryTree = [
++        (
++            "p/Cargo.toml",
++            "[package]\nname = \"p\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
++        ),
++        ("p/src/lib.rs", "pub fn f() {}\n"),
++    ]
++    .into_iter()
++    .collect();
++    let ws = Workspace::load(&tree, &["p"]).unwrap_or_else(|e| panic!("{e}"));
++    let path = "p::\u{1b}]0;pwned\u{7}\u{202e}f";
++    let invalid = ws.resolve(path);
++    assert_eq!(invalid, Err(ResolveError::Invalid(path.to_owned())));
++    let unknown = ws.resolve_in_package(path, "p::f");
++    assert_eq!(unknown, Err(ResolveError::UnknownPackage(path.to_owned())));
++    for error in [invalid, unknown] {
++        let text = error.expect_err("refused").to_string();
++        assert!(
++            !text.chars().any(|c| c.is_control() || c == '\u{202e}'),
++            "{text:?}"
++        );
++        assert!(text.contains(r"p::\u{1b}]0;pwned\u{7}\u{202e}f"), "{text}");
++    }
++    assert!(ws.resolve("p::f").is_ok());
++}
+diff --git crates/raf-source/tests/load_budgets.rs crates/raf-source/tests/load_budgets.rs
+index 58e0bc8..3c2f3a3 100644
+--- crates/raf-source/tests/load_budgets.rs
++++ crates/raf-source/tests/load_budgets.rs
+@@ -2,9 +2,10 @@
+ // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+ 
+ //! The work and memory budgets of a load: the tokens of one file, the bytes a
+-//! load reads, the bytes of index records and the bytes of file facts. Each is
+-//! shown at its limit, where the load succeeds, and one over, where it is
+-//! refused with a `Budget` error that names the budget and the file.
++//! load reads, the bytes of index records, the bytes of file facts and the
++//! bytes of glob tables. Each is shown at its limit, where the load succeeds,
++//! and one over, where it is refused with a `Budget` error that names the
++//! budget and the file.
+ 
+ use std::fmt::Write as _;
+ 
+@@ -386,9 +387,11 @@ fn the_default_budgets_are_the_stated_limits() {
+     assert_eq!(options.max_total_bytes, Budget::TotalBytes.limit());
+     assert_eq!(options.max_item_bytes, Budget::ItemBytes.limit());
+     assert_eq!(options.max_fact_bytes, Budget::FactBytes.limit());
++    assert_eq!(options.max_glob_bytes, Budget::GlobBytes.limit());
+     assert_eq!(Budget::TotalBytes.limit(), 256 << 20);
+     assert_eq!(Budget::ItemBytes.limit(), 512 << 20);
+     assert_eq!(Budget::FactBytes.limit(), 256 << 20);
++    assert_eq!(Budget::GlobBytes.limit(), 512 << 20);
+     assert_eq!(Budget::DirectoryDepth.limit(), 128);
+ }
+ 
+@@ -485,10 +488,10 @@ fn a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps()
+     // items at each arrival but the last, and one item at each of those.
+     let files = reached_many_times(12, "pub type T = a;\n");
+     let arrivals = (1 << 13) - 1;
+-    // A load of this shape keeps 1646 bytes of index for each arrival,
++    // A load of this shape keeps 1511 bytes of index for each arrival,
+     // measured with a counting allocator in a release build over 131071
+     // arrivals; what it is charged must cover that.
+-    let kept = 1_646 * arrivals;
++    let kept = 1_511 * arrivals;
+     let charged = item_bytes_of(&files);
+     assert!(charged >= kept, "{charged} charged for {kept} kept");
+ }
+@@ -503,11 +506,191 @@ fn nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep()
+         text
+     });
+     let modules = 20 * 101;
+-    // Such a load keeps 1499 bytes of index for each module, measured with a
++    // Such a load keeps 1443 bytes of index for each module, measured with a
+     // counting allocator in a release build over 202000 of them; what it is
+     // charged must cover that, as every charge is an upper bound of the
+     // allocations it covers.
+-    let kept = 1_499 * modules;
++    let kept = 1_443 * modules;
+     let charged = usage(&[("src/lib.rs", &text)]).item_bytes;
+     assert!(charged >= kept, "{charged} charged for {kept} kept");
+ }
++
++/// A library whose module `big` defines `names` functions and whose
++/// `importers` modules each glob it.
++fn glob_fan(names: usize, importers: usize) -> String {
++    let mut text = String::from("pub mod big {\n");
++    for i in 0..names {
++        writeln!(text, "    pub fn f{i}() {{}}").expect("write to a string");
++    }
++    text.push_str("}\n");
++    for i in 0..importers {
++        writeln!(text, "pub mod g{i} {{ pub use super::big::*; }}").expect("write to a string");
++    }
++    text
++}
++
++/// A library of `length` modules, each globbing the next, the last defining
++/// one function.
++fn glob_chain(length: usize) -> String {
++    let mut text = String::new();
++    for i in 0..length {
++        writeln!(text, "mod m{i} {{ pub use super::m{}::*; }}", i + 1).expect("write to a string");
++    }
++    writeln!(text, "pub mod m{length} {{ pub fn f() {{}} }}").expect("write to a string");
++    text
++}
++
++/// A library of `count` modules that each glob the crate root, which globs
++/// each of them, each defining one function: every module brings in every
++/// name of every other.
++fn mutual_globs(count: usize) -> String {
++    let mut text = String::new();
++    for i in 0..count {
++        writeln!(
++            text,
++            "pub use m{i}::*;\npub mod m{i} {{ pub use crate::*; pub fn g{i}() {{}} }}"
++        )
++        .expect("write to a string");
++    }
++    text
++}
++
++/// A crate in the shape of a generated binding crate: a private module of
++/// `children` modules, each of a foreign type and methods, twelve of them
++/// named as in every other child, each child globbing its parent, the parent
++/// globbing each child and the root globbing the parent.
++fn generated_bindings(children: usize) -> Vec<(String, String)> {
++    let mut files = vec![(
++        "src/lib.rs".to_owned(),
++        "mod features;\npub use features::*;\npub fn top() {}\n".to_owned(),
++    )];
++    let mut parent = String::new();
++    for i in 0..children {
++        writeln!(parent, "mod gen_{i};\npub use gen_{i}::*;").expect("write to a string");
++        let mut child = format!("use super::*;\nextern \"C\" {{\n    pub type T{i};\n");
++        for m in 0..12 {
++            writeln!(
++                child,
++                "    pub fn m{m}(this: &T{i});\n    pub fn own_{i}_{m}(this: &T{i});"
++            )
++            .expect("write to a string");
++        }
++        child.push_str("}\n");
++        files.push((format!("src/features/gen_{i}.rs"), child));
++    }
++    files.push(("src/features/mod.rs".to_owned(), parent));
++    files
++}
++
++fn glob_bytes_of(text: &str) -> usize {
++    usage(&[("src/lib.rs", text)]).glob_bytes
++}
++
++#[test]
++fn glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused() {
++    let text = "pub mod a { pub fn f() {} pub struct S; }\n\
++                pub mod b { pub use crate::a::*; }\n\
++                pub mod c { pub use crate::b::*; }\n";
++    let files = [("src/lib.rs", text)];
++    let spent = usage(&files).glob_bytes;
++    assert!(spent > 0, "a load with globs charges its glob tables");
++    let mut options = LoadOptions::default();
++    options.max_glob_bytes = spent;
++    let ws = load_with(&files, &options).expect("at the limit");
++    assert_eq!(
++        ws.resolve("demo::c::f").expect("resolves").path,
++        "demo::a::f"
++    );
++    options.max_glob_bytes = spent - 1;
++    let (budget, limit, line) = refused(load_with(&files, &options), "src/lib.rs");
++    assert_eq!((budget, limit), (Budget::GlobBytes, spent - 1));
++    // The glob of `b` or of `c` passes the limit.
++    assert!(matches!(line, Some(2 | 3)), "{line:?}");
++    // A load without a glob charges none.
++    assert_eq!(
++        glob_bytes_of("pub mod a { pub fn f() {} }\npub use a::f;\n"),
++        0
++    );
++}
++
++#[test]
++fn a_module_that_many_modules_glob_is_kept_once_for_all_of_them() {
++    // A thousand names globbed by one module and by four hundred: each more
++    // importer reads the one table of the module, and costs that read, not a
++    // copy of the thousand names.
++    let one = glob_bytes_of(&glob_fan(1000, 1));
++    let many = glob_bytes_of(&glob_fan(1000, 400));
++    let per_importer = (many - one) / 399;
++    assert!(
++        per_importer < 1024,
++        "{per_importer} bytes for each importer of a thousand names"
++    );
++    assert!(one > 1000 * 64, "{one} bytes for a thousand names");
++}
++
++#[test]
++fn a_chain_of_globs_is_charged_what_each_link_brings_in() {
++    // Each link of a chain of globs brings in one name, so twice the links
++    // cost twice the bytes, not four times.
++    let short = glob_bytes_of(&glob_chain(1000));
++    let long = glob_bytes_of(&glob_chain(2000));
++    assert!(
++        long < 2 * short + short / 10,
++        "{long} bytes for 2000 links, {short} for 1000"
++    );
++    let ws = load_with(
++        &[("src/lib.rs", &glob_chain(2000))],
++        &LoadOptions::default(),
++    )
++    .expect("loads");
++    assert_eq!(
++        ws.resolve("demo::m0::f").expect("resolves").path,
++        "demo::m2000::f"
++    );
++}
++
++#[test]
++fn modules_that_glob_one_another_are_refused_over_the_glob_budget_naming_a_glob() {
++    // Each of 200 modules brings in all 400 names of the others, which the
++    // tables hold once for each module; a limit of 4 MiB refuses them, and
++    // allows 20.
++    let mut options = LoadOptions::default();
++    options.max_glob_bytes = 4 << 20;
++    let text = mutual_globs(200);
++    let (budget, limit, line) =
++        refused(load_with(&[("src/lib.rs", &text)], &options), "src/lib.rs");
++    assert_eq!((budget, limit), (Budget::GlobBytes, 4 << 20));
++    let line = line.expect("the line of a glob");
++    assert!(
++        text.lines()
++            .nth(line - 1)
++            .is_some_and(|glob| glob.contains("::*;")),
++        "{line}"
++    );
++    let ws = load_with(&[("src/lib.rs", &mutual_globs(20))], &options).expect("loads");
++    assert_eq!(
++        ws.resolve("demo::m0::g19").expect("resolves").path,
++        "demo::m19::g19"
++    );
++}
++
++#[test]
++fn glob_tables_of_a_generated_binding_crate_are_charged_what_they_keep() {
++    // Two hundred children of one module, each globbing it, read one table
++    // of all that the module brings in. Such a load keeps 1943812 bytes of
++    // glob tables, measured with a counting allocator in a release build;
++    // what it is charged must cover that, as every charge is an upper bound
++    // of the allocations it covers.
++    let files = generated_bindings(200);
++    let borrowed: Vec<(&str, &str)> = files
++        .iter()
++        .map(|(path, text)| (path.as_str(), text.as_str()))
++        .collect();
++    let ws = load_with(&borrowed, &LoadOptions::default()).expect("loads");
++    let charged = ws.usage().glob_bytes;
++    assert!(charged >= 1_943_812, "{charged} charged");
++    assert_eq!(
++        ws.resolve("demo::T7").expect("resolves").path,
++        "demo::features::gen_7::T7"
++    );
++}
+diff --git crates/raf-source/tests/resolve_paths.rs crates/raf-source/tests/resolve_paths.rs
+new file mode 100644
+index 0000000..71e04a8
+--- /dev/null
++++ crates/raf-source/tests/resolve_paths.rs
+@@ -0,0 +1,363 @@
++// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++//! What `resolve` accepts as a canonical path, and what it answers for a path
++//! whose lookups read a glob that names nothing.
++
++use std::time::{Duration, Instant};
++
++use raf_source::{MemoryTree, Namespace, ResolveError, Workspace};
++
++fn lib(text: &str) -> Workspace {
++    lib_in("2021", text)
++}
++
++fn lib_in(edition: &str, text: &str) -> Workspace {
++    let manifest = format!(
++        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"{edition}\"\n\
++         [dependencies]\nserde = \"1\"\n"
++    );
++    let tree: MemoryTree = [("Cargo.toml", manifest.as_str()), ("src/lib.rs", text)]
++        .into_iter()
++        .collect();
++    Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"))
++}
++
++/// The answer in each name space, then in all of them.
++fn answers(ws: &Workspace, path: &str) -> Vec<Result<String, ResolveError>> {
++    let mut all: Vec<_> = Namespace::ALL
++        .iter()
++        .map(|ns| ws.resolve_in(path, *ns).map(|found| found.path))
++        .collect();
++    all.push(ws.resolve(path).map(|found| found.path));
++    all
++}
++
++fn everywhere(answer: &ResolveError) -> Vec<Result<String, ResolveError>> {
++    vec![Err(answer.clone()); 4]
++}
++
++fn path_of(ws: &Workspace, path: &str) -> String {
++    ws.resolve(path)
++        .unwrap_or_else(|e| panic!("{path}: {e}"))
++        .path
++}
++
++fn glob_error(path: &str, glob: &str, module: &str) -> ResolveError {
++    ResolveError::UnresolvedGlob {
++        path: path.to_owned(),
++        glob: glob.to_owned(),
++        module: module.to_owned(),
++    }
++}
++
++#[test]
++fn a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path() {
++    let ws = lib("pub mod a { pub fn x() {} pub struct S; }\npub fn x() {}\n");
++    for bad in [
++        "demo::crate::a::x",
++        "demo::super::x",
++        "demo::self::a::x",
++        "demo::a::self",
++        "demo::a::Self",
++        "demo::a::S::Self",
++        "demo::r#crate::a::x",
++        "demo::r#super::x",
++        "crate::a::x",
++        "self::x",
++        "super::x",
++        "Self",
++    ] {
++        assert_eq!(
++            ws.resolve(bad),
++            Err(ResolveError::Invalid(bad.to_owned())),
++            "{bad}"
++        );
++        for ns in Namespace::ALL {
++            assert_eq!(
++                ws.resolve_in(bad, ns),
++                Err(ResolveError::Invalid(bad.to_owned())),
++                "{bad} in {ns:?}"
++            );
++        }
++    }
++    assert_eq!(path_of(&ws, "demo::a::x"), "demo::a::x");
++    assert_eq!(path_of(&ws, "demo::x"), "demo::x");
++    assert_eq!(path_of(&ws, "demo::a::S"), "demo::a::S");
++    // A name that only contains a keyword is a name.
++    let ws = lib("pub mod crates { pub fn selfish() {} }\npub struct Selves;\n");
++    assert_eq!(
++        path_of(&ws, "demo::crates::selfish"),
++        "demo::crates::selfish"
++    );
++    assert_eq!(path_of(&ws, "demo::Selves"), "demo::Selves");
++}
++
++#[test]
++fn a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it() {
++    let ws = lib(concat!(
++        "pub mod a {\n",
++        "    pub use self::missing::*;\n",
++        "    pub struct Here;\n",
++        "    pub mod inner { pub fn deep() {} }\n",
++        "}\n",
++        "pub mod b { pub use crate::a::*; }\n",
++        "pub mod c { pub use crate::a::gone::*; }\n",
++        "pub mod d { pub use super::a::inner::nothing::*; pub fn f() {} }\n",
++        "pub use self::a::gone as alias;\n",
++        "pub struct Sibling;\n",
++    ));
++    // Each lookup that reads a glob whose path names nothing fails with the
++    // glob, its module and the path asked for.
++    for (path, glob, module) in [
++        ("demo::a::gone", "self::missing", "demo::a"),
++        ("demo::a::gone::deeper", "self::missing", "demo::a"),
++        ("demo::b::gone", "self::missing", "demo::a"),
++        ("demo::c::x", "crate::a::gone", "demo::c"),
++        ("demo::d::x", "super::a::inner::nothing", "demo::d"),
++        ("demo::alias", "self::missing", "demo::a"),
++    ] {
++        assert_eq!(
++            ws.resolve(path),
++            Err(glob_error(path, glob, module)),
++            "{path}"
++        );
++    }
++    // A name the module binds itself does not read its globs.
++    assert_eq!(path_of(&ws, "demo::a::Here"), "demo::a::Here");
++    assert_eq!(path_of(&ws, "demo::a::inner::deep"), "demo::a::inner::deep");
++    assert_eq!(
++        ws.resolve_in("demo::d::f", Namespace::Value)
++            .map(|found| found.path),
++        Ok("demo::d::f".to_owned())
++    );
++    // A sibling path that reads none of them resolves.
++    assert_eq!(path_of(&ws, "demo::Sibling"), "demo::Sibling");
++    assert_eq!(path_of(&ws, "demo::b"), "demo::b");
++    // A name space whose lookup reads the glob fails, though another has the
++    // name: the glob could bring in a type `f`.
++    assert_eq!(
++        ws.resolve("demo::d::f"),
++        Err(glob_error(
++            "demo::d::f",
++            "super::a::inner::nothing",
++            "demo::d"
++        ))
++    );
++}
++
++#[test]
++fn a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found() {
++    let ws = lib(concat!(
++        "pub mod a { pub use std::io::*; pub struct Here; }\n",
++        "pub mod b { pub use serde::*; }\n",
++        "pub mod d { pub use std::collections::*; }\n",
++        "pub mod e { pub use crate::d::hash_map::*; }\n",
++        "pub mod f { pub use serde::de; }\n",
++        "pub mod g { pub use crate::f::de::*; }\n",
++        "pub mod h { pub use crate::e::*; pub use crate::g::*; }\n",
++        "pub mod k { pub use ::unknown::m::*; }\n",
++    ));
++    for path in [
++        "demo::a::gone",
++        "demo::b::gone",
++        "demo::e::x",
++        "demo::g::x",
++        "demo::h::x",
++        "demo::k::x",
++    ] {
++        assert_eq!(
++            ws.resolve(path),
++            Err(ResolveError::NotFound(path.to_owned())),
++            "{path}"
++        );
++    }
++    assert_eq!(path_of(&ws, "demo::a::Here"), "demo::a::Here");
++}
++
++#[test]
++fn globs_of_dependencies_in_one_module_leave_a_missing_name_not_found() {
++    let not_found = |path: &str| everywhere(&ResolveError::NotFound(path.to_owned()));
++    // Each glob's first segment is a crate that only the other glob could
++    // also bring in: neither waits on the other.
++    for (edition, text) in [
++        (
++            "2021",
++            "pub mod a { pub use std::io::*; pub use serde::*; pub struct Here; }\n\
++             pub mod b { pub use crate::a::*; }\n",
++        ),
++        (
++            "2021",
++            "pub mod a { pub use std::io::*; pub use std::fmt::*; pub struct Here; }\n\
++             pub mod b { pub use crate::a::*; }\n",
++        ),
++        (
++            "2021",
++            "pub mod a { pub use serde::*; pub use tokio::*; pub struct Here; }\n\
++             pub mod b { pub use crate::a::*; }\n",
++        ),
++        (
++            "2015",
++            "pub mod a { pub use std::io::*; pub use std::fmt::*; pub struct Here; }\n\
++             pub mod b { pub use a::*; }\n",
++        ),
++    ] {
++        let ws = lib_in(edition, text);
++        for path in ["demo::a::gone", "demo::b::gone"] {
++            assert_eq!(
++                answers(&ws, path),
++                not_found(path),
++                "{edition} {text}: {path}"
++            );
++        }
++        for path in ["demo::a::Here", "demo::b::Here"] {
++            assert_eq!(
++                answers(&ws, path),
++                [
++                    Ok("demo::a::Here".to_owned()),
++                    Ok("demo::a::Here".to_owned()),
++                    Err(ResolveError::NotFound(path.to_owned())),
++                    Ok("demo::a::Here".to_owned()),
++                ],
++                "{edition} {text}: {path}"
++            );
++        }
++    }
++    // The same at the crate root, in both editions.
++    for edition in ["2015", "2021"] {
++        let ws = lib_in(
++            edition,
++            "pub use std::io::*;\npub use std::fmt::*;\npub struct Top {}\n",
++        );
++        assert_eq!(
++            answers(&ws, "demo::gone"),
++            not_found("demo::gone"),
++            "{edition}"
++        );
++        assert_eq!(path_of(&ws, "demo::Top"), "demo::Top", "{edition}");
++    }
++    // A glob of a dependency could bring in the module a glob beside it
++    // names, so that glob is not known to name nothing; a glob of a local
++    // module that does not have the name is.
++    let ws = lib(concat!(
++        "pub mod a { pub use std::io::*; pub use self::missing::*; }\n",
++        "pub mod b { pub use std::io::*; pub use crate::other::missing::*; }\n",
++        "pub mod other { pub struct There; }\n",
++    ));
++    assert_eq!(answers(&ws, "demo::a::gone"), not_found("demo::a::gone"));
++    assert_eq!(
++        answers(&ws, "demo::b::gone"),
++        everywhere(&glob_error(
++            "demo::b::gone",
++            "crate::other::missing",
++            "demo::b"
++        ))
++    );
++    assert_eq!(path_of(&ws, "demo::other::There"), "demo::other::There");
++}
++
++#[test]
++fn a_cycle_of_globs_stays_cyclic_beside_globs_that_resolve() {
++    let ws = lib(concat!(
++        "pub mod a { pub use crate::b::x::*; }\n",
++        "pub mod b { pub use crate::a::*; }\n",
++        "pub mod c { pub use crate::d::*; pub struct C; }\n",
++        "pub mod d { pub use crate::c::*; }\n",
++    ));
++    for path in ["demo::a::gone", "demo::b::gone"] {
++        assert_eq!(
++            answers(&ws, path),
++            everywhere(&ResolveError::Cyclic(path.to_owned())),
++            "{path}"
++        );
++    }
++    assert_eq!(path_of(&ws, "demo::d::C"), "demo::c::C");
++    assert_eq!(
++        answers(&ws, "demo::c::gone"),
++        everywhere(&ResolveError::NotFound("demo::c::gone".to_owned()))
++    );
++}
++
++#[test]
++fn a_cycle_is_reported_before_a_glob_that_names_nothing() {
++    // `gone` is bound by a cycle of imports in `c`, which the glob of `c`
++    // reads, beside a glob of a missing module: the cycle decides.
++    let ws = lib(concat!(
++        "pub mod a { pub use self::missing::*; pub use crate::c::*; }\n",
++        "pub mod c { pub use crate::d::gone; }\n",
++        "pub mod d { pub use crate::c::gone; }\n",
++    ));
++    for path in ["demo::a::gone", "demo::c::gone"] {
++        assert_eq!(
++            answers(&ws, path),
++            everywhere(&ResolveError::Cyclic(path.to_owned())),
++            "{path}"
++        );
++    }
++    // Two globs that bring in different items under one name are ambiguous
++    // beside a glob of a missing module.
++    let ws = lib(concat!(
++        "pub mod a { pub use self::missing::*; pub use crate::c::*; pub use crate::d::*; }\n",
++        "pub mod c { pub struct X {} }\n",
++        "pub mod d { pub struct X {} }\n",
++    ));
++    assert!(
++        matches!(
++            ws.resolve_in("demo::a::X", Namespace::Type),
++            Err(ResolveError::Ambiguous(ref ids)) if ids.len() == 2
++        ),
++        "{:?}",
++        ws.resolve_in("demo::a::X", Namespace::Type)
++    );
++}
++
++#[test]
++fn a_name_found_through_a_glob_beside_a_glob_that_names_nothing_fails() {
++    let ws = lib(concat!(
++        "pub mod a { pub use self::missing::*; pub use crate::c::*; }\n",
++        "pub mod c { pub struct C; pub mod inner { pub fn z() {} } }\n",
++        "pub mod e { pub use self::m::missing::*; pub mod m {} }\n",
++        "pub use crate::missing::*;\n",
++        "pub struct Top {}\n",
++    ));
++    for (path, glob, module) in [
++        ("demo::a::C", "self::missing", "demo::a"),
++        ("demo::a::inner::z", "self::missing", "demo::a"),
++        ("demo::e::gone", "self::m::missing", "demo::e"),
++        ("demo::gone", "crate::missing", "demo"),
++    ] {
++        assert_eq!(
++            answers(&ws, path),
++            everywhere(&glob_error(path, glob, module)),
++            "{path}"
++        );
++    }
++    assert_eq!(path_of(&ws, "demo::c::C"), "demo::c::C");
++    assert_eq!(path_of(&ws, "demo::c::inner::z"), "demo::c::inner::z");
++    assert_eq!(
++        ws.resolve_in("demo::Top", Namespace::Type)
++            .map(|found| found.path),
++        Ok("demo::Top".to_owned())
++    );
++}
++
++#[test]
++fn a_path_of_fifty_thousand_segments_resolves_in_linear_time() {
++    let ws = lib("pub mod m { pub use crate::m; pub fn end() {} }\n");
++    let missing = format!("demo{}", "::a".repeat(50_000));
++    let deep = format!("demo{}::end", "::m".repeat(50_000));
++    let started = Instant::now();
++    assert_eq!(
++        ws.resolve(&missing),
++        Err(ResolveError::NotFound(missing.clone()))
++    );
++    assert_eq!(path_of(&ws, &deep), "demo::m::end");
++    let took = started.elapsed();
++    // Under 100 ms in a release build; a debug build is several times slower.
++    let bound = if cfg!(debug_assertions) {
++        Duration::from_secs(1)
++    } else {
++        Duration::from_millis(100)
++    };
++    assert!(took < bound, "took {took:?}");
++}
+diff --git crates/raf-source/tests/use_resolution.rs crates/raf-source/tests/use_resolution.rs
+index 7dd97d3..7f7fafe 100644
+--- crates/raf-source/tests/use_resolution.rs
++++ crates/raf-source/tests/use_resolution.rs
+@@ -2995,3 +2995,114 @@ fn cycles_through_private_globs_resolve_as_each_reader_can_access_them_in_every_
+     assert_eq!(orders, 120);
+     assert_eq!(found, ["demo::e::A", "demo::e::A", ""]);
+ }
++
++/// The orders of `blocks` that start at each of them, forward and backward.
++fn rotations<'a>(blocks: &[&'a str]) -> Vec<Vec<&'a str>> {
++    let mut orders = Vec::new();
++    for start in 0..blocks.len() {
++        let order: Vec<&str> = blocks[start..]
++            .iter()
++            .chain(&blocks[..start])
++            .copied()
++            .collect();
++        let mut backward = order.clone();
++        backward.reverse();
++        orders.push(order);
++        orders.push(backward);
++    }
++    orders
++}
++
++#[test]
++fn a_cycle_left_to_a_glob_reads_all_that_the_glob_brings_in_once_its_round_is_decided() {
++    // `m5` and `m21` import `Y` from each other, and the cycle is left to the
++    // glob of `m21`. Through it `m25` brings in `m58::Y` at once and `m33::Y`
++    // once `m38`'s import of `Y`, which binds a module, is decided to bind
++    // nothing in the value name space, in the round that leaves the cycle to
++    // the glob. Both imports read both functions: rustc reports E0659 for
++    // each.
++    let blocks = [
++        "pub mod m5 { pub use crate::m21::Y as Y; }",
++        "pub mod m38 { pub use crate::m50::*; pub use crate::m43::X as Y; }",
++        "pub mod m59 {}",
++        "pub mod m31 { pub use crate::m49::*; }",
++        "pub mod m11 { pub use crate::m38::*; }",
++        "pub mod m49 { pub use crate::m11::*; }",
++        "pub mod m25 { pub use crate::m31::*; pub use crate::m58::*; }",
++        "pub mod m21 { pub use crate::m47::*; pub use crate::m5::Y as Y; }",
++        "pub mod m23 { pub use crate::m25::*; }",
++        "pub mod m33 { pub fn Y() {} }",
++        "pub mod m47 { pub use crate::m23::*; }",
++        "pub mod m50 { pub use crate::m33::*; }",
++        "pub mod m58 { pub fn Y() {} }",
++        "pub mod m43 { pub mod X { use super::*; } pub use crate::m59::*; }",
++    ];
++    let orders = rotations(&blocks);
++    for order in &orders {
++        let ws = lib(&order.join("\n"));
++        for path in ["demo::m5::Y", "demo::m21::Y", "demo::m25::Y"] {
++            assert_eq!(
++                answer(&ws, path, Some(Namespace::Value)),
++                "ambiguous [\"demo::m33::Y\", \"demo::m58::Y\"]",
++                "{path} in {order:?}"
++            );
++        }
++        assert_eq!(
++            answer(&ws, "demo::m38::Y", Some(Namespace::Value)),
++            "demo::m33::Y",
++            "{order:?}"
++        );
++    }
++    assert_eq!(orders.len(), 28);
++}
++
++#[test]
++fn imports_that_read_a_name_through_a_glob_agree_with_the_glob_on_an_ambiguous_re_export() {
++    // `m58` re-exports `Y` ambiguously, `m46::Y` and `m0::Y`, which rustc
++    // only warns about (`ambiguous_glob_reexports`); `m41` globs it and
++    // `m28`, and `m46` imports `m41::Y`. The cycle of `m1` and `m49` is left
++    // to the glob of `m49`, which reads `m46::Y`: it stays ambiguous, as
++    // what `m43` and `m46` bring in is, whatever the order.
++    let blocks = [
++        "pub mod m38 { pub use crate::m15::*; }",
++        "pub mod m58 { pub use crate::m46::*; pub use crate::m42::*; }",
++        "pub mod m43 { pub use crate::m46::*; }",
++        "pub mod m46 { pub use crate::m54::*; pub use crate::m41::Y; }",
++        "pub mod m9 { pub use crate::m0::*; }",
++        "pub mod m0 { pub use crate::m41::*; pub fn Y() {} }",
++        "pub mod m54 { pub use crate::m9::*; }",
++        "pub mod m28 { pub fn Y() {} }",
++        "pub mod m30 { pub use crate::m9::*; pub use crate::m47::Y as Y; }",
++        "pub mod m4 { pub use crate::m38::*; }",
++        "pub mod m41 { pub use crate::m11::*; pub use crate::m28::*; }",
++        "pub mod m47 { use crate::m4::*; pub use crate::m4::Y as Y; }",
++        "pub mod m49 { pub use crate::m1::Y; pub use crate::m43::*; }",
++        "pub mod m27 { pub use crate::m58::*; }",
++        "pub mod m1 { pub use crate::m49::Y; }",
++        "pub mod m42 { pub use crate::m30::*; }",
++        "pub mod m15 { pub mod Y { use super::*; } }",
++        "pub mod m11 { pub use crate::m27::*; }",
++    ];
++    let orders = rotations(&blocks);
++    for order in &orders {
++        let ws = lib(&order.join("\n"));
++        for path in [
++            "demo::m1::Y",
++            "demo::m49::Y",
++            "demo::m43::Y",
++            "demo::m46::Y",
++        ] {
++            assert_eq!(
++                answer(&ws, path, Some(Namespace::Value)),
++                "ambiguous [\"demo::m0::Y\", \"demo::m28::Y\"]",
++                "{path} in {order:?}"
++            );
++        }
++        assert_eq!(
++            answer(&ws, "demo::m42::Y", Some(Namespace::Value)),
++            "demo::m0::Y",
++            "{order:?}"
++        );
++    }
++    assert_eq!(orders.len(), 36);
++}
+diff --git docs/capabilities/source-index.md docs/capabilities/source-index.md
+index 8fedf59..933b40b 100644
+--- docs/capabilities/source-index.md
++++ docs/capabilities/source-index.md
+@@ -103,6 +103,8 @@ bindings:
+     - raf_source::test_crate::use_resolution::an_import_that_reads_a_name_only_through_a_glob_it_cannot_access_finds_nothing_in_every_order
+     - raf_source::test_crate::use_resolution::a_glob_the_importer_cannot_access_holds_nothing_back_in_every_order
+     - raf_source::test_crate::use_resolution::cycles_through_private_globs_resolve_as_each_reader_can_access_them_in_every_order
++    - raf_source::test_crate::use_resolution::a_cycle_left_to_a_glob_reads_all_that_the_glob_brings_in_once_its_round_is_decided
++    - raf_source::test_crate::use_resolution::imports_that_read_a_name_through_a_glob_agree_with_the_glob_on_an_ambiguous_re_export
+     - raf_source::test_crate::trait_keys::an_explicit_import_of_a_dependency_trait_shadows_a_glob_of_a_local_one
+     - raf_source::test_crate::trait_keys::a_trait_through_a_glob_the_importer_cannot_access_is_keyed_at_its_definition_in_every_order
+     - raf_source::test_crate::trait_keys::each_prelude_trait_loads_in_the_edition_that_has_it_and_is_refused_in_the_one_before
+@@ -191,6 +193,16 @@ bindings:
+     - raf_source::error::tests::every_user_derived_field_of_every_display_is_escaped
+     - raf_source::test_crate::error_text::a_path_attribute_with_terminal_escapes_is_shown_escaped
+     - raf_source::test_crate::error_text::a_manifest_with_control_characters_in_a_value_is_shown_escaped
++    - raf_source::test_crate::error_text::a_resolved_path_or_package_with_control_characters_is_shown_escaped
++    - raf_source::resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped
++    - raf_source::test_crate::resolve_paths::a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path
++    - raf_source::test_crate::resolve_paths::a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it
++    - raf_source::test_crate::resolve_paths::a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found
++    - raf_source::test_crate::resolve_paths::a_path_of_fifty_thousand_segments_resolves_in_linear_time
++    - raf_source::test_crate::resolve_paths::globs_of_dependencies_in_one_module_leave_a_missing_name_not_found
++    - raf_source::test_crate::resolve_paths::a_cycle_of_globs_stays_cyclic_beside_globs_that_resolve
++    - raf_source::test_crate::resolve_paths::a_cycle_is_reported_before_a_glob_that_names_nothing
++    - raf_source::test_crate::resolve_paths::a_name_found_through_a_glob_beside_a_glob_that_names_nothing_fails
+     - raf_source::test_crate::manifest_caps::exclude_at_the_cap_loads_and_one_over_is_refused
+     - raf_source::test_crate::manifest_caps::members_at_the_cap_loads_and_one_over_is_refused
+     - raf_source::test_crate::manifest_caps::the_duplicate_pattern_probe_is_refused_at_once
+@@ -220,6 +232,11 @@ bindings:
+     - raf_source::test_crate::load_budgets::a_long_extern_crate_name_in_a_file_reached_many_times_is_held_and_charged_once
+     - raf_source::test_crate::load_budgets::a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps
+     - raf_source::test_crate::load_budgets::nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep
++    - raf_source::test_crate::load_budgets::glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused
++    - raf_source::test_crate::load_budgets::a_module_that_many_modules_glob_is_kept_once_for_all_of_them
++    - raf_source::test_crate::load_budgets::a_chain_of_globs_is_charged_what_each_link_brings_in
++    - raf_source::test_crate::load_budgets::modules_that_glob_one_another_are_refused_over_the_glob_budget_naming_a_glob
++    - raf_source::test_crate::load_budgets::glob_tables_of_a_generated_binding_crate_are_charged_what_they_keep
+     - raf_source::cost::tests::a_map_of_one_entry_is_covered_by_what_a_map_costs_once
+     - raf_source::cost::tests::a_list_is_charged_at_least_its_room
+     - raf_source::cost::tests::a_hash_table_is_charged_at_least_its_buckets
+@@ -551,7 +568,7 @@ patterns enter at most 128 directories below their root (`DirectoryDepth`), on a
+ of their own; a deeper directory is a `Budget` error that names it, which a chain of
+ 20000 directories in memory meets on a thread of 2 MiB in a debug build, in under a
+ millisecond in a release build, and a chain of 2100 on disk in 22 ms with 4 MiB
+-resident. Three byte budgets bound one load. Each is a default that `LoadOptions` can
++resident. Four byte budgets bound one load. Each is a default that `LoadOptions` can
+ change:
+ 
+ - `max_total_bytes` (`TotalBytes`) bounds the bytes the load reads, source files
+@@ -586,32 +603,59 @@ change:
+   members; and the aliased path of a type alias and the crate an `extern crate`
+   item names are stored once for the file and charged once, however many module paths
+   reach it. Measured with a counting allocator, no shape keeps more than it is
+-  charged: a chain of files that each declare the next twice keeps 1646 bytes of index
+-  for each arrival and is charged 3693, nested inline modules whose scopes hold one
+-  name keep 1499 bytes for each module and are charged 2420. An item record is at most
++  charged: a chain of files that each declare the next twice keeps 1511 bytes of index
++  for each arrival and is charged 3632, nested inline modules whose scopes hold one
++  name keep 1443 bytes for each module and are charged 2380. An item record is at most
+   256 bytes.
+ - `max_fact_bytes` (`FactBytes`, 256 MiB) bounds the facts of the files. Each fact
+   charges its size and the room of every string and list it owns (each is trimmed
+   to its length as it is built), on the parse thread, so an oversized file is
+   refused at the line of the fact that passes the budget.
++- `max_glob_bytes` (`GlobBytes`, 512 MiB) bounds the glob tables: what the glob imports
++  of the modules bring in (see the use-alias index below). Unlike the other byte
++  budgets it bounds what is held at once: the tables of one settle are released when
++  they are built again, and a refusal comes at the charge that would make what is
++  held pass the limit, naming the glob import it was made for. Each table charges its
++  record, its class and its entries among the tables, each name it holds an entry and
++  its three lists, each item in a list its room, each name's text once for the load,
++  each glob's read of a table its places among the module's reads and the table's
++  readers, the record of each module's visibilities, the record of which modules reach
++  an explicit import through globs (an entry for each glob edge), and a change while it
++  waits to be passed on its place in the list of changes and its items, all by the
++  layout rules above. Measured with a counting allocator, no glob-heavy shape keeps
++  more than it is charged: of four hundred modules that glob one module of a thousand names,
++  of 1500 modules that glob a prelude of 150, of a chain of 4000 globs, of a chain of
++  600 that each add a name, of 300 modules that glob the crate root that globs each of
++  them, of a generated binding crate of 600 child modules, each globbing a parent that
++  globs each child, and of a random network of 1000 modules, each keeps at most one
++  byte of glob tables for each 1.5 it is charged.
+ 
+ A load over a budget is a `Budget` error that names the budget, the limit that
+ applied and the file, with the line where there is one. `Workspace::usage` reports
+-what a load spent against each. Two figures follow, measured in a release build:
++what a load spent against each, and for the glob tables the most they held at once.
++Two figures follow, measured in a release build:
+ 
+-1. Retained memory, apart from the scope tables of imports. What a load keeps of
+-   its index, its source text and its facts is bounded by the item bytes (512 MiB),
+-   the source text (`max_total_bytes`, 256 MiB by default, which a caller may raise)
+-   and the fact bytes (256 MiB): 1 GiB at the defaults. 300000 unit structs of their
++1. Retained memory. What a load keeps of its index, its source text, its facts and its
++   glob tables is bounded by the item bytes (512 MiB), the source text
++   (`max_total_bytes`, 256 MiB by default, which a caller may raise), the fact bytes
++   (256 MiB) and the glob bytes (512 MiB): 1.5 GiB at the defaults. 300000 unit structs of their
+    own names in three files load in 0.70 s at a peak of 380 MiB on the heap, and
+    400000 are refused by the item-bytes budget in 1.1 s; thirty files of 4 MiB of doc
+    comments made of quotes, which double when escaped, hold 253 MB of facts and load
+    in 1.8 s at a peak of 382 MiB, and forty are refused by the fact-bytes budget in
+    1.8 s; 31 files of 8 MiB load in 0.30 s, and 33 are refused by the total-bytes
+-   budget in 0.30 s. A load near all three limits at once (2000 copies of a chain of
++   budget in 0.30 s. A load near all four limits at once (2000 copies of a chain of
+    100 nested inline modules, 20 files of 8.3 MB of doc comments in lines of 300
+-   characters and 7 files of 8 MB of comments; 214, 466 and 244 MiB charged) keeps 746
+-   MiB and peaks at 752 MiB, in 10 to 15 s (three runs on a shared host).
++   characters, 7 files of 8 MB of comments and a module of 1000 modules that each glob
++   it while it globs each of them; 214 MiB read and 463, 245 and 474 MiB charged to the
++   index, the facts and the glob tables) keeps 1054 MiB and peaks at 1059 MiB, in 14 to
++   22 s on a shared host; without the globs the same load keeps 735 MiB and peaks at
++   741 MiB, in 13 to 16 s. 1000 modules that glob the crate root, which globs each of
++   them, so that every module brings in all 2000 names, load in 2.8 to 4.6 s with 435
++   MiB charged to the glob tables at a peak of 360 MiB resident, and 1400 are refused
++   by the glob-bytes budget in 1.9 to 3.2 s at a peak of 415 MiB; a chain of 2000
++   globs that each add a name loads in 1.9 to 3.1 s with 435 MiB charged at a peak of
++   354 MiB (three runs each).
+ 2. One-file parse peak. What parsing one file holds at its peak is at most
+    `max_file_tokens` × `PARSE_BYTES_PER_TOKEN` (1664 bytes): about 3.1 GiB at the
+    default of 2000000 tokens. The costliest arrangement of statement lists at
+@@ -623,14 +667,20 @@ what a load spent against each. Two figures follow, measured in a release build:
+    arrangement at exactly that limit loads in 0.17 s with 462 MiB allocated, 190 MiB
+    resident), and refuses files above it with the same typed error.
+ 
+-Apart from the scope tables of imports, a load holds at most figure (1) and one
+-file's figure (2) at once: about 4.1 GiB at the defaults, each term a limit of
+-`LoadOptions` that a caller sets to fit its host. The scope tables that `use`
+-declarations and globs build are bounded by no budget: their size grows with the
+-modules that glob a module times the names it holds, so a glob-heavy input can
+-exhaust a machine whatever the limits. One module of 3000 functions that 3000 other
+-modules glob, 166 KB of source and 66005 tokens, loads in 21 s at a peak of 7.3 GiB
+-on the heap and 9.2 GiB resident, while every budget stays below 14 MiB.
++A load holds at most figure (1) and one file's figure (2) at once: about 4.6 GiB at
++the defaults, each term a limit of `LoadOptions` that a caller sets to fit its host.
++The bindings that explicit imports make are charged to the index and what globs bring
++in to the glob tables, so the scope tables are within figure (1): one module of 3000
++functions that 3000 other modules glob, 163 KB of source and 63004 tokens, loads in
++35 to 59 ms at a peak of 23 MiB resident, with 3.3 MiB charged to the glob tables, as the
++importers read one table of the names. While the tables settle, a load also
++holds the work queue of the imports and, each time it runs empty, the graph of the
++imports still undecided and the places they wait on; no budget counts them, and they
++are dropped once the tables are settled. They grow with the undecided imports times
++the places their paths read through globs, and the time it takes to decide them grows
++faster still (the crate sets no time bound): 100 modules that glob the crate root,
++which globs each of them, each with an import of a name that nothing defines, settle
++in 20 to 32 s at a peak of 87 MiB resident, of which the glob tables are charged 2.5 MiB.
+ 
+ Parsing then runs on a dedicated thread, named after the file, with a stack of 64
+ MiB (`PARSE_STACK_BYTES`), which is a stated constant and not the stack of the
+@@ -949,8 +999,9 @@ and `test_fns()` returns, for each `#[test]` function (or a typed error if one's
+ name of its target (`--lib`, `--bin <name>` or `--test <name>`) and its path inside the
+ crate, which is what `cargo test -p <package> --test <target> <name>` needs;
+ `usage()` gives what the load spent against its budgets: the bytes read, charged to
+-the index and to the facts, the most tokens of one file, the highest value of the
+-recursion counter in one file and the deepest directory entered. The index
++the index and to the facts, the most charged to the glob tables at once, the most
++tokens of one file, the highest value of the recursion counter in one file and the
++deepest directory entered. The index
+ has no order that depends on the tree implementation: two loads of one tree are equal,
+ and the same regular files on disk and in memory give equal indexes.
+ 
+@@ -1080,7 +1131,21 @@ glob and a private one, is as visible from that module as its most visible route
+ whichever route is kept, so a module that globs it sees the item in every order. The tables are settled to a fixed point: an import is tried again whenever a
+ name its path read gains a binding, so it binds what its path reaches in the settled
+ tables, a chain of re-exports of any length resolves, nothing caps the search, and a
+-cycle of globs adds nothing. A name space where an import's path reached nothing,
++cycle of globs adds nothing. What a glob brings in from its target depends on the
++target and on which of the target's visibilities the importer can access, so the glob
++tables keep what a module exports to globs (its bindings that shadow globs, and what its
++own globs bring in where none does) once for each class of importers that can access
++the same of it, and every glob of the module from an importer of that class reads that
++one table: no importer holds a copy of what its globs bring in, and a module
++that a thousand modules glob is held once. What a table gains is passed on as it is
++gained, only to the globs that read it, only with the names that gained something, and
++only to the tables of the importing module that the glob's visibility reaches and to
++the imports that wait on one of those names there, so a chain of globs costs what each
++link brings in, once. As it is passed on at once, every table is up to date when an
++import reads it: after the imports left are decided (see below), the decisions take
++effect in every glob table before the queue runs again, and an import of a cycle left
++to a glob reads all that the glob brings in by then, as rustc does (E0659 for two
++items). A name space where an import's path reached nothing,
+ reading there only places in modules without globs that no other import binds or, where
+ it found nothing, that every other import of the name was decided to bind nothing at,
+ is decided in the queue, as it can never bind there; so a chain of 20,000 imports that
+@@ -1120,7 +1185,13 @@ and no glob or crate answers for it: `mod a { pub use crate::b::X; pub use
+ crate::c::*; }` beside `mod b { pub use crate::a::X; pub use crate::d::*; }` gives
+ `Cyclic` for `demo::a::X` and `demo::b::X`, as does a cycle with two globs of one
+ module or a renamed import that has bound nothing, where rustc cannot determine the
+-imports. A path through a name that an import bound in one name space while a cycle
++imports. Globs are not such a cycle when the path of each is held only at its
++first segment, read where the path starts, which only the globs of that module could
++bring in: none can resolve before another does, so each is settled bringing in
++nothing, and a missing name of the module is `NotFound` (`pub use std::io::*;` beside
++`pub use std::fmt::*;`, or `serde::*` beside `tokio::*`). The first segment of a glob's
++path that names a crate of the extern prelude waits on no glob of its module, as for a
++named import, so `std::io::*` beside a glob of a local module does not wait on it. A path through a name that an import bound in one name space while a cycle
+ leaves it undecided in another resolves `Cyclic` in every name space: such a cycle,
+ read with only what each import can access, is one that rustc does not break either, so
+ it refuses the crate, failing an import of the cycle (E0432), and when the cycle runs
+@@ -1139,7 +1210,14 @@ glob decides `via_glob`.
+ `resolve(path)` takes a canonical path such as `demo::inner::go` (a segment may be
+ written as a raw identifier: `r#match` and `match` are the same name) and tries the type,
+ value and macro name spaces in that order; `resolve_in(path, namespace)` takes one. A
+-path may end at a method: `demo::Thing::new`. The result is a `Resolution`: the
++path may end at a method: `demo::Thing::new`. A canonical path starts at a crate path
++and names each item by its name, so a segment that is a path keyword, `crate`, `self`,
++`super` or `Self`, in any position and also written as a raw identifier, makes the text
++`Invalid`: `demo::crate::a::x`, `demo::self::a::x` and `demo::super::x` are `Invalid`
++beside `demo::a::x`. Each segment is read once and the crate path is found by
++prefixes that grow a segment at a time, so the cost of a path is linear in its length:
++in a release build a path of 50,000 segments is answered in milliseconds (under 100
++ms; a debug build is several times slower). The result is a `Resolution`: the
+ canonical `path` of the definition, the `namespace`, the `sites` (non-empty, sorted by
+ path, file and position), `via_glob` (true when a glob import carried the path to the
+ symbol), and the `chain` of locations the lookup passed through from the requested path to the
+@@ -1153,7 +1231,30 @@ path through a crate name that stands for several libraries, or a path through a
+ whose first segment is ambiguous, `Cyclic` when the imports on the way depend on each
+ other or wait on imports that do (an import never depends on itself), `UnresolvedSelf` when the
+ workspace defines nothing at the path and the path goes through the self path of an
+-inherent impl the index cannot see, and `Invalid` when the text is not a path. A symbol
++inherent impl the index cannot see, `UnresolvedGlob` when a lookup on the way reads a
++glob import whose path names nothing in the workspace past its first segment, and
++`Invalid` when the text is not a path. Such a glob (`use self::missing::*;`, `use
++crate::a::gone::*;`, or the glob of a module that a macro generates) does not fail the
++load, which brings in nothing through it, but what it would bring in is not known, so
++every lookup that reads it fails, naming the path asked for, the glob's written path and
++the module that declares it: a lookup of a name that the module defines or imports
++explicitly in the name space looked up does not read the module's globs, and one that
++reads a glob that resolves reads the globs of the modules it globs in turn, so a sibling
++path that reads none of them resolves, while a name that a glob that resolves brings in
++beside such a glob fails, as the broken glob could make it ambiguous. Which globs
++name nothing is worked out once for the index, by the first lookup that needs it, so a
++workspace without such a glob pays nothing more for a lookup. A name space whose lookup reads the glob fails
++though another name space has the name (the glob could bring in a type of that name), and a path through an
++import whose own path reads it fails the same way. A glob whose first segment names
++nothing in the workspace is a dependency the index cannot look into, and a lookup that
++reads it stays `NotFound`; so does one that reads a glob whose path names nothing only
++where an import binds the name or a glob of that kind could bring it in (`use
++std::io::*;` beside `use self::missing::*;` could bring in `missing`). When a path
++fails for more than one reason, `Cyclic` comes first, then `Ambiguous`, then
++`UnresolvedGlob`, then `NotFound`: a path that reads a glob that names nothing and a
++cycle of imports is `Cyclic`. Each
++message shows the path, the package and the glob's path with every control character
++and bidirectional override escaped as `char::escape_debug` writes it. A symbol
+ is one path and kind in one target's crate: the items of two targets at one path are
+ two symbols and `Ambiguous`, whatever the order of their files, while the members of
+ trait impls on types that are not local share their trait's key across crates. The
+@@ -1223,14 +1324,16 @@ assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
+   2000000 tokens by default), or a
+   module walk that passes 128 nested modules or 262144 module walks in one load, or a
+   directory
+-  more than 128 levels below its root, or a load that passes its total, item or fact
+-  bytes (256 MiB, 512 MiB and 256 MiB by default), is refused with a typed error.
++  more than 128 levels below its root, or a load that passes its total, item, fact or
++  glob bytes (256 MiB, 512 MiB, 256 MiB and 512 MiB by default), is refused with a
++  typed error.
+   Parsing runs on a dedicated 64 MiB stack, of which an admitted file takes at most
+   half in a debug build. A residual overflow aborts the run and fails the gate; it is
+   never a pass.
+-- The scope tables that `use` declarations and globs build are bounded by no
+-  budget, so a glob-heavy input can take more memory than the figures of the
+-  Contract state.
++- The work queue and the graph of undecided imports that settling the scope tables
++  builds are not budgeted: they are dropped once the tables are settled, and they grow
++  with the undecided imports times the places their paths read through globs, while
++  the time to decide them grows faster (see Work and memory bounds).
+ - Resolution covers items the source defines. Items from dependencies are outside the
+   index and resolve to a not-found failure.
+ - Two visibility rules of rustc are not modelled. An explicit `pub use` of a binding
+@@ -1346,11 +1449,17 @@ duplicates.
+   long aliased path and a long `extern crate` name in a file reached by 256 module
+   paths, each charged once and not once per path, and a chain of files that each
+   declare the next twice and nested inline modules each charged at least the bytes of
+-  index they keep), and
++  index they keep),
+   the facts, over several files and for each large payload: a 1 MiB doc comment, a 1
+   MiB written self type and a `use` group of long names, each refused at its own line
+-  below its size. `usage()` reports the spent bytes, the most tokens, the highest
+-  recursion value and the deepest directory, and an item record is at most 256 bytes.
++  below its size, and the glob tables, refused at the line of a glob, while a load
++  without a glob charges none. A thousand names that four hundred modules glob cost
++  each importer under a kilobyte more than one importer, a chain of 2000 globs is
++  charged less than 2.1 times one of 1000, 200 modules that glob the crate root, which
++  globs each, are refused at 4 MiB naming a glob beside 20 that load, and a generated
++  binding crate of 200 child modules is charged at least the bytes of glob tables it
++  keeps. `usage()` reports the spent bytes, the most tokens, the highest recursion
++  value and the deepest directory, and an item record is at most 256 bytes.
+ - Unit fixtures of the structures the bounds rely on: a column of a short line, a
+   long line and a long line of two-byte characters, before, on and after an index
+   mark, turns into its byte offset, and a column or line past the text is refused;
+@@ -1591,6 +1700,40 @@ duplicates.
+   library that cannot name itself, raw identifiers in both spellings, a chain of 5000 re-exports
+   declared in either order, `demo::nope`, `pub use serde::Serialize` and a function that
+   a macro generates, each `NotFound` beside a positive resolution.
++- Dependency-glob fixtures: `pub use std::io::*;` beside `pub use serde::*;`, beside
++  `pub use std::fmt::*;`, `serde::*` beside `tokio::*`, the first two at the crate
++  root and the second in edition 2015, each leave a missing name of the module and of
++  a module that globs it `NotFound` in every name space, beside the module's own item,
++  which resolves through both modules; `std::io::*` beside `self::missing::*` is
++  `NotFound`, and beside `crate::other::missing::*` of a local module without the name
++  is `UnresolvedGlob`; a cycle of globs whose path goes through a name the other glob
++  would bring in stays `Cyclic` beside two globs that glob each other and resolve.
++- Order of the failures: a glob of a missing module beside a glob of a module whose
++  name a cycle of imports binds is `Cyclic`, and beside two globs that bring in two
++  structs `X` is `Ambiguous`; a name found through a glob that resolves beside a glob
++  of a missing module, a path through such a name, `self::m::missing::*` of an empty
++  local module and `crate::missing::*` at the root are each `UnresolvedGlob`.
++- Canonical-path fixtures: `demo::crate::a::x`, `demo::super::x`, `demo::self::a::x`,
++  `demo::a::Self`, `demo::r#crate::a::x` and a leading `crate`, `self`, `super` or
++  `Self`, each `Invalid` in every name space beside `demo::a::x` and the names
++  `crates`, `selfish` and `Selves`, which resolve; a missing path of 50,000 segments
++  that is `NotFound` and one of 50,000 segments through a module that imports itself
++  that resolves, together in under a second in a debug build and under 100 ms in a
++  release build.
++- Missing-glob fixtures: a module with `pub use self::missing::*;`, a module that globs
++  it, `crate::a::gone::*`, `super::a::inner::nothing::*` and an import of a name the
++  missing glob would bring in load, and each lookup that reads one of those globs is
++  `UnresolvedGlob` naming the glob and its module, a lookup in the value name space of a
++  function there resolving while the lookup in all name spaces fails, beside the
++  module's own items and a sibling, which resolve; globs of `std::io`, of `serde`, of
++  `::unknown::m`, of a module below a glob of `std::collections`, of a module below
++  an import of a dependency module and a module that globs those leave a missing name
++  `NotFound`.
++- Resolve error text: every `ResolveError` variant, with an escape sequence, a
++  bidirectional override and a line break in each field it shows, displays no control
++  character and shows each field escaped, and a path and a package name with an escape
++  sequence and a bidirectional override, which `resolve` and `resolve_in_package`
++  refuse, are shown escaped.
+ - Extern-alias fixtures: `pub use serde;`, `pub use std;`, `pub use serde::{self,
+   Serialize};`, `pub use std::{self as s2};`, and `std` imported at the root, in a module
+   and renamed, each in editions 2018, 2021 and 2024 with every path through them, and
+@@ -1685,7 +1828,11 @@ duplicates.
+   every load
+   checks, once the tables are settled, that the imports of each name, walked again
+   against them, reach every item they bound and nothing the module does not bind under
+-  that name, and that one that did not resolve reaches nothing.
++  that name, and that one that did not resolve reaches nothing. A cycle of two imports
++  left to a glob in the round that also decides an import further along the glob's
++  chain reads both functions the chain brings in, `Ambiguous` as rustc's E0659, in 28
++  orders; and the imports of a cycle left to a glob that reads a name a module
++  re-exports ambiguously stay `Ambiguous` with the modules that glob it, in 36 orders.
+ - Trait-key fixtures through `use` declarations: `use std;` with `impl
+   std::fmt::Display for &Foo` in editions 2018, 2021 and 2024 and in a 2015 module, keyed
+   `std::fmt::Display`, beside `use nope;`, which is refused; `pub use serde;` with `use

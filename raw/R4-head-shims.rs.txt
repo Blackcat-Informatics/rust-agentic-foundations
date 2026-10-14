@@ -1,0 +1,257 @@
+// The behaviour of each new test of the files that do not compile here,
+// written against the API of this revision.
+#![allow(missing_docs, clippy::all, clippy::pedantic)]
+
+use raf_source::{LoadError, MemoryTree, RelPath, ResolveError, Workspace};
+
+const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
+
+fn load(files: &[(&str, &str)]) -> Result<Workspace, LoadError> {
+    let mut all = vec![("Cargo.toml", DEMO)];
+    all.extend_from_slice(files);
+    let tree: MemoryTree = all.into_iter().collect();
+    Workspace::load(&tree, &["."])
+}
+
+fn ok(files: &[(&str, &str)]) -> Workspace {
+    load(files).unwrap_or_else(|e| panic!("{e}"))
+}
+
+#[test]
+fn si_inherent_impl_unseen_loads() {
+    for written in ["impl Missing { pub fn f() {} }", "impl Vec<u8> { pub fn f() {} }", "impl<T> T { pub fn f() {} }", "impl &Foo { pub fn f() {} }", "impl [u8] { pub fn f() {} }", "impl crate::Missing { pub fn f() {} }"] {
+        let text = format!("pub struct Foo;\n{written}\nimpl Foo {{ pub fn g() {{}} }}\n");
+        ok(&[("src/lib.rs", &text)]);
+    }
+}
+
+#[test]
+fn si_super_in_unresolved_self_loads_one_level() {
+    ok(&[("src/lib.rs", "mod m { impl super::Missing { fn f() {} } }\n")]);
+}
+
+#[test]
+fn si_bitflags_style_loads() {
+    ok(&[
+        ("src/lib.rs", "#[macro_use]\nmod flags;\npub mod kinds;\npub fn plain() {}\n"),
+        ("src/flags.rs", "macro_rules! bitflags {\n    (pub struct $name:ident: $t:ty { $(const $f:ident = $v:expr;)* }) => {\n        pub struct $name($t);\n    };\n}\n"),
+        ("src/kinds.rs", "bitflags! {\n    pub struct Kind: u8 {\n        const A = 1;\n    }\n}\n\nimpl Kind {\n    pub fn is_a(&self) -> bool { true }\n    pub const NONE: u8 = 0;\n}\n"),
+    ]);
+}
+
+#[test]
+fn si_dyn_local_trait_loads() {
+    ok(&[("src/lib.rs", "pub trait Shape { fn area(&self) -> u8; }\nimpl dyn Shape + Send { pub fn describe(&self) {} }\n")]);
+}
+
+#[test]
+fn si_enum_glob_loads() {
+    ok(&[("src/lib.rs", "pub struct Method(Inner);\nenum Inner { Get, Post }\nuse self::Inner::*;\nimpl PartialEq<Method> for str { fn eq(&self, _: &Method) -> bool { true } }\npub fn first() -> Method { Method(Get) }\n")]);
+}
+
+#[test]
+fn si_unseen_local_glob_loads() {
+    ok(&[
+        ("src/lib.rs", "macro_rules! generate { ($name:ident) => { pub enum $name { A } } }\npub mod signal;\npub mod event;\n"),
+        ("src/signal.rs", "generate!(Signal);\nimpl AsRef<str> for Signal { fn as_ref(&self) -> &str { \"\" } }\npub use self::Signal::*;\n"),
+        ("src/event.rs", "use super::generated::api::*;\npub struct Event;\nimpl ProtobufMessage for Vec<Event> { fn encode(&self) {} }\n"),
+    ]);
+}
+
+#[test]
+fn si_test_crate_overlap_only_where_paths_meet() {
+    let ws = ok(&[
+        ("src/lib.rs", "mod test_crate;\n"),
+        ("src/test_crate.rs", "pub fn first_party() {}\n"),
+        ("tests/it.rs", "pub fn case() {}\n"),
+    ]);
+    let case = ws.resolve("demo::test_crate::it::case").expect("the test item");
+    assert_eq!(ws.item(case.sites[0]).expect("item").file.as_str(), "tests/it.rs");
+    let _ = RelPath::new("src/lib.rs");
+}
+
+const SHARED_ONE: [(&str, &str); 7] = [
+    ("Cargo.toml", "[workspace]\nmembers = [\"one\", \"two\", \"four\"]\n"),
+    ("one/Cargo.toml", "[package]\nname = \"p-one\"\nedition = \"2021\"\n"),
+    ("one/src/lib.rs", "pub fn only_one() {}\n"),
+    ("one/build.rs", "pub use p_one::only_one;\nfn main() {}\n"),
+    ("two/Cargo.toml", "[package]\nname = \"p-two\"\nedition = \"2021\"\n\n[lib]\nname = \"shared\"\n"),
+    ("two/src/lib.rs", "pub struct X;\n"),
+    ("four/Cargo.toml", "[package]\nname = \"p-four\"\nedition = \"2021\"\n\n[dependencies]\nrenamed = { path = \"../two\", package = \"p-two\" }\n"),
+];
+
+fn shared_one() -> Workspace {
+    let mut all: Vec<(&str, &str)> = SHARED_ONE.to_vec();
+    all.push(("four/src/lib.rs", "pub use renamed::X;\n"));
+    let tree: MemoryTree = all.into_iter().collect();
+    Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"))
+}
+
+#[test]
+fn ur_two_libraries_with_one_name_load() {
+    let tree: MemoryTree = [
+        ("one/Cargo.toml", "[package]\nname = \"p-one\"\n\n[lib]\nname = \"shared\"\n"),
+        ("one/src/lib.rs", "pub struct X;\n"),
+        ("two/Cargo.toml", "[package]\nname = \"p-two\"\n\n[lib]\nname = \"shared\"\n"),
+        ("two/src/lib.rs", "pub struct X;\n"),
+    ]
+    .into_iter()
+    .collect();
+    Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+}
+
+#[test]
+fn ur_renamed_path_dependency_is_named_by_its_declared_name() {
+    let ws = shared_one();
+    assert!(ws.resolve("p_four::X").is_ok(), "{:?}", ws.resolve("p_four::X"));
+}
+
+#[test]
+fn ur_build_script_does_not_name_its_own_library() {
+    let ws = shared_one();
+    assert!(matches!(ws.resolve("p_one::build_script::only_one"), Err(ResolveError::NotFound(_))), "{:?}", ws.resolve("p_one::build_script::only_one"));
+}
+
+#[test]
+fn ur_extern_crate_self_and_a_library_that_cannot_name_itself() {
+    let ws = ok(&[("src/lib.rs", "pub mod inner { pub fn go() {} }\npub mod user { pub use demo::inner::go; }\n")]);
+    assert!(matches!(ws.resolve("demo::user::go"), Err(ResolveError::NotFound(_))), "{:?}", ws.resolve("demo::user::go"));
+}
+
+#[test]
+fn dt_two_packages_share_crate_paths_load() {
+    let tree: MemoryTree = [
+        ("a/Cargo.toml", "[package]\nname = \"x-y\"\n"),
+        ("a/src/lib.rs", "pub fn in_a() {}\n"),
+        ("a/src/bin/tool.rs", "fn main() {}\n"),
+        ("b/Cargo.toml", "[package]\nname = \"x_y\"\n"),
+        ("b/src/lib.rs", "pub fn in_b() {}\n"),
+        ("b/src/bin/tool.rs", "fn main() {}\n"),
+    ]
+    .into_iter()
+    .collect();
+    Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+}
+
+fn file_of(ws: &Workspace, resolution: &raf_source::Resolution) -> String {
+    ws.item(resolution.sites[0]).expect("the site is an item").file.to_string()
+}
+/// A package whose library names `shared` for one package and whose test
+/// code names `shared` for another as well: cargo builds its library and
+/// reports the name as ambiguous in its test code.
+const SPLIT: [(&str, &str); 8] = [
+    (
+        "one/Cargo.toml",
+        "[package]\nname = \"p-one\"\nedition = \"2021\"\n\n[lib]\nname = \"shared\"\n",
+    ),
+    ("one/src/lib.rs", "pub struct X;\n"),
+    (
+        "two/Cargo.toml",
+        "[package]\nname = \"p-two\"\nedition = \"2021\"\n",
+    ),
+    ("two/src/lib.rs", "pub struct X;\n"),
+    (
+        "three/Cargo.toml",
+        "[package]\nname = \"p-three\"\nedition = \"2021\"\n\n\
+         [dependencies]\np-one = { path = \"../one\" }\n\n\
+         [dev-dependencies]\nshared = { path = \"../two\", package = \"p-two\" }\n",
+    ),
+    (
+        "three/src/lib.rs",
+        "pub use shared::X as A;\n\
+         extern crate shared as one;\n\
+         pub mod d {\n    pub use one::X as D;\n}\n\
+         #[cfg(test)]\nmod tests {\n    pub use shared::X as B;\n}\n\
+         #[cfg(test)]\nextern crate shared as sh;\n\
+         #[cfg(test)]\nmod t2 {\n    pub use sh::X as C;\n}\n",
+    ),
+    ("three/tests/it.rs", "pub use shared::X;\n"),
+    ("three/src/main.rs", "pub use shared::X;\nfn main() {}\n"),
+];
+
+#[test]
+fn a_dev_dependency_is_named_only_by_test_code_even_under_a_normal_dependencys_name() {
+    let tree: MemoryTree = SPLIT.into_iter().collect();
+    let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+    // Code that is not test code names the normal dependency only.
+    for path in [
+        "p_three::A",
+        "p_three::d::D",
+        "p_three::bin_crate::p_three::X",
+    ] {
+        let found = ws.resolve(path).unwrap_or_else(|e| panic!("{path}: {e}"));
+        assert_eq!(file_of(&ws, &found), "one/src/lib.rs", "{path}");
+    }
+    // Test code names both, as rustc does, so a path through the name, or
+    // through an `extern crate` of it, is ambiguous.
+    for path in [
+        "p_three::tests::B",
+        "p_three::t2::C",
+        "p_three::test_crate::it::X",
+    ] {
+        match ws.resolve(path) {
+            Err(ResolveError::Ambiguous(ids)) => {
+                let mut files: Vec<_> = ids
+                    .iter()
+                    .map(|id| ws.item(*id).expect("item").file.as_str())
+                    .collect();
+                files.sort_unstable();
+                assert_eq!(files, ["one/src/lib.rs", "two/src/lib.rs"], "{path}");
+            }
+            other => panic!("{path}: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn a_name_bound_to_several_modules_gives_a_trait_key_through_each() {
+    let manifest = "[package]\nname = \"demo\"\nedition = \"2021\"\n\n\
+                    [dependencies]\nserde = \"1\"\nother = \"1\"\n";
+    // `m` is brought in by two globs; rustc reports it as ambiguous, and the
+    // trait key lists the path through each module, never the first.
+    let tree: MemoryTree = [
+        ("Cargo.toml", manifest),
+        (
+            "src/lib.rs",
+            "pub mod a { pub mod m { pub use serde::Tr; } }\n\
+             pub mod b { pub mod m { pub use other::Tr; } }\n\
+             pub mod user {\n\
+                 use crate::a::*;\n    use crate::b::*;\n\
+                 impl m::Tr for u8 { fn f() {} }\n\
+             }\n\
+             pub mod unseen {\n\
+                 use crate::a::*;\n    use crate::b::*;\n    use m::Gen::*;\n\
+                 impl Hidden for u8 { fn g() {} }\n\
+             }\n",
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+    let key = |path: &str| {
+        let keys: Vec<_> = ws
+            .items()
+            .filter(|item| item.path == path)
+            .map(|item| item.trait_key.as_deref().cloned())
+            .collect();
+        assert_eq!(keys.len(), 1, "{path}");
+        keys[0].clone().expect("a trait key")
+    };
+    assert_eq!(
+        key("m::Tr::f"),
+        raf_source::TraitKey::Unresolved {
+            written: "m::Tr".to_owned(),
+            candidates: vec!["other::Tr".to_owned(), "serde::Tr".to_owned()],
+        }
+    );
+    assert_eq!(
+        key("Hidden::g"),
+        raf_source::TraitKey::Unresolved {
+            written: "Hidden".to_owned(),
+            candidates: vec![
+                "demo::a::m::Gen::Hidden".to_owned(),
+                "demo::b::m::Gen::Hidden".to_owned()
+            ],
+        }
+    );
+}

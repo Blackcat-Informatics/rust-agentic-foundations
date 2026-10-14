@@ -1,0 +1,1266 @@
+# Issue #2: Shared crates: raf-okf + raf-source
+
+State: OPEN   Repo: Blackcat-Informatics/rust-agentic-foundations   Forge: github
+Labels: enhancement, crate:raf-okf, crate:raf-source
+
+## Body
+
+## Context
+Both tools need the same two foundations:
+- an OKF (Open Knowledge Format) document layer, since workplan capability and change docs are OKF;
+- a `syn` workspace index. The census resolves ledger homes and members through it, and the workplan resolves code and test bindings through it.
+
+Building each once avoids the duplication the census exists to catch.
+
+Capabilities delivered: `cap:okf-profile`, `cap:source-index`.
+
+## Scope
+### `raf-okf`
+- [ ] Parse Markdown with YAML frontmatter; `type` is required; `title`, `description`, `resource`, `tags` (re-emitted sorted) and `timestamp` follow the base OKF v0.1 shape (see `gmeow-ontology/docs/okf.md`, `gmeow-gts/docs/GTS-OKF.md`)
+- [ ] **Profiles**: a closed key set per `type`, with typed values; unknown keys are a hard error, matching the GMEOW/purrdf reader behaviour
+- [ ] Deterministic writer (round-trip stable, sorted where the spec says so)
+- [ ] Body model: H2 sections with byte spans, Markdown links (`[text](path)`), fenced code blocks, and support for delimited `<!-- raf:generated:<kind> -->` blocks and `> [!PROPOSED change:<slug>]` blocks
+- [ ] `index.md` without frontmatter is treated as navigation, not a document
+
+### `raf-source`
+- [ ] `Tree` trait (`read`, `list`) with `Disk` and in-memory `Memory` implementations, from purrdf
+- [ ] Package discovery under configurable roots (default `crates/`); lib/bin/build.rs roots; mod-tree following as rustc does it, including `#[path]`; `#[cfg(test)]`/`#[test]` items are tagged, not dropped
+- [ ] Test, bench and example targets indexed as non-shipping (`<pkg>::test_crate::<target>`, etc.)
+- [ ] Symbol index of every named item, plus the `use`-alias table, so re-exported paths resolve
+- [ ] Port from katamari `crates/katamari-helper-census/src/source.rs` (no purrdf deps), with the `Tree` trait from purrdf `crates/helper-census/src/source.rs`
+- [ ] Path-traversal safety: `#[path]` cannot escape the workspace root
+
+## Acceptance criteria
+- [ ] Fixture tests on `Memory` trees cover nested mods, `#[path]`, re-export chains, test/bench/example targets, and a `#[path]` escape that is rejected
+- [ ] OKF round-trip golden tests; an unknown-key fixture fails
+- [ ] Public APIs documented (`missing_docs` = deny)
+- [ ] `cap:okf-profile` and `cap:source-index` docs updated to match what was built (state → `implementing` or `delivered`)
+
+## Depends on
+- #1
+
+## Comments (13)
+
+### paudley — 2026-10-12T10:14:39Z
+
+# Plan: Shared crates `raf-okf` + `raf-source` (issue #2)
+
+Worktree: `.worktrees/2-shared-crates-raf-okf-raf-source`, branch
+`paudley/2-shared-crates-raf-okf-raf-source`, base `origin/main` (2c41082).
+Supporting evidence: `issue-analysis.md` (requirement IDs I-*, O-*, S-*, A-*, conflicts C-*,
+risks R-*) and `prior-art-assessment.md` (latent defects L1-L14) in the stage directory.
+
+## Issue summary
+
+Create the first two workspace member crates. `raf-okf` reads, validates against the closed RAF
+profile, models the body of, and deterministically re-renders OKF Markdown documents.
+`raf-source` is a `syn` workspace index: a `Tree` file seam with disk and memory backends,
+package and target discovery, rustc-faithful module following including `#[path]`, a symbol
+index and a `use`-alias resolver, under canonical path containment and parse resource bounds.
+The issue delivers `cap:okf-profile` and `cap:source-index`, and requires their documents to
+match what was built with state `implementing` or `delivered`.
+
+**Target state: `delivered` for both capabilities.** Every Contract, Constraints and
+Verification statement in `docs/capabilities/okf-profile.md` and
+`docs/capabilities/source-index.md` is built and executed by a gate, both change records get
+every item an `implemented` outcome and are then deleted, and bindings name real symbols that
+`raf_source::Workspace::resolve` resolves in a test.
+
+## Baseline defaults, standing goals, governing decisions
+
+- No `.baseline`, `.goals`, `CONSTITUTION.md` or ADRs exist for this repository (checked in the
+  main checkout). The governing contract is `AGENTS.md` plus the capability and architecture
+  documents, which `AGENTS.md` names as the specification.
+- AGENTS.md rules that bind every task: fail hard (closed schemas, no fallbacks, no
+  best-effort parsing); every rule has a negative fixture; a refusal is tested next to a
+  neighbouring valid case; workspace lints `missing_docs`, `unreachable_pub`, `unsafe_code`
+  denied and clippy pedantic with warnings denied; every `#[allow]` carries a reason; no
+  `#![feature]`; MSRV 1.98.1; Rust-first gates; no tracker numbers or process wording in any
+  committed file (enforced by `repo_gates`); SPDX headers on every file (REUSE); conventional
+  commits; no attribution.
+- `docs/architecture/okf-profile.md` is the normative profile; `raf-okf` implements it and adds
+  no rule of its own.
+
+## Prior art and recurrence
+
+- Port source for `raf-source`: purrdf `crates/helper-census/src/source.rs` (permissively
+  licensed). The katamari copy is AGPL-3.0-only and is used for **ideas only, never text**;
+  purrdf's `Tree`/`Disk`/`Memory` is byte-identical to katamari's, so nothing is lost.
+  gmeow-ontology `build-inputs/src/modules.rs` (AGPL) is the best precedent for rustc's
+  `#[path]` rules; ideas only.
+- Port source for `raf-okf`: this repository's `tests/docs_contract.rs` restricted YAML subset,
+  fence tracking, marker scanning, anchors, per-document checks and index rule, plus its ~90
+  negative fixtures; purrdf's OKF reader (permissive) for fence detection, duplicate-key refusal
+  and the CommonMark link-scanner fixes.
+- Recurrence: `GhpRsq-Defect-Class` trailers count `none` x1 in RAF; no precedent commit touching
+  either `source.rs` or the purrdf OKF reader carries a trailer, so trailer counts for every class
+  are **UNKNOWN**. Counted fix commits by reading history: raw-identifier module names x2 (the two
+  copies now disagree on spelling); missing test/bench/example targets x1; double-counted shared
+  files x1; hard-coded roots x1; `#[path]` escape unnoticed x1; OKF link scanner x3; general YAML
+  reader 1 commit fixing 38 bugs; RAF frontmatter hardening 1 commit (6+ classes); link to tracked
+  symlink x1.
+- Prior attempts in RAF: none. The census walkers held only as census-internal tools; they drop
+  test code instead of tagging it, clamp escaping paths instead of refusing them (L4), silently
+  prefer `x.rs` over `x/mod.rs` (L3), resolve `#[path]` inside inline modules from the wrong
+  directory (L1, L2), ignore manifest values with comments or single quotes (L6), hide ambiguity
+  with first-wins inserts and an `Option` resolver with a silent 4096-node cap (L8), and parse
+  on the caller's stack with no size cap (L5). Each of these is a named negative fixture below.
+
+## Resolved conflicts between the issue text and the capability documents
+
+The capability documents are the specification; where the build adds to them the document is
+edited in the task that builds the behaviour (the change records list `contract`, `usage`,
+`examples`, `constraints` and `verification` in `affects`).
+
+1. **Base OKF keys (C-1).** The issue's "`title`, `description`, `resource`, `tags` (re-emitted
+   sorted) and `timestamp` follow the base OKF v0.1 shape" is satisfied as far as the normative
+   profile allows: `type` is required, `title`/`description` are typed non-empty strings,
+   `resource` is rejected with its own named rule, and `tags`/`timestamp` are keys outside every
+   closed RAF key set and are rejected. No RAF type carries `tags`, so there is nothing to
+   re-emit sorted. A lenient base-OKF mode is declined: it would be a pass-through, which
+   `okf-profile.md` Constraints forbid. Surfaced in the PR for the maintainer.
+2. **Spans (C-2).** A `Span` carries both a 1-based line range and a byte range; sections,
+   generated blocks and PROPOSED blocks expose both. A section's content span starts after its
+   heading line.
+3. **Key order (C-3).** The writer emits keys in profile-table order; list values keep author
+   order. Out-of-order keys are not a violation (the profile has no order rule).
+4. **Comments (C-4).** A trailing ` # comment` is not part of the value but is re-emitted on its
+   key's line; full-line comments attach to the following key; trailing comments after the last
+   key stay last. The architecture wording "is dropped" becomes "is not part of the value".
+5. **Tree (C-5, C-13).** `Tree` has `read`, `list` and `exists`, all returning
+   `Result<_, TreeError>`; not-found is distinct from refused and I/O failure; non-UTF-8 is a
+   typed error. Types are `DiskTree` and `MemoryTree`. `DiskTree::new` returns `Result`.
+6. **Index (C-6).** `raf_okf::Index::parse(text)` applies the navigation-index rule and returns
+   its generated blocks; `raf_okf::is_capability_index(path)` lets callers route the file;
+   `Document::parse` on the index fails (no frontmatter).
+7. **Non-shipping naming (C-7).** `<pkg>::test_crate::<target>`, `<pkg>::bench_crate::<target>`,
+   `<pkg>::example_crate::<target>`, hyphens become underscores; target roots resolve as module
+   items. A first-party module of the same name is `Ambiguous`, never first-wins.
+8. **Build script (C-8).** `build.rs` (or `package.build`) is a `BuildScript` target named
+   `<pkg>::build_script`, shipping.
+9. **Roots (C-9).** `Workspace::load` takes roots explicitly; raf-source has no default (the
+   census default lives in census-ledger). A root that holds a `[package]` manifest is a package,
+   and discovery recurses below it and below non-package directories, skipping `target/`, hidden
+   directories and directory symlinks. Virtual manifests contribute no package.
+10. **rustc module rules (C-10).** `#[path]` is relative to the directory of the declaring file
+    when not inside an inline module; inside inline modules it follows the reference rules
+    (mod-rs vs non-mod-rs, plus inline components, plus `#[path]` on the inline module itself);
+    `cfg_attr(pred, path = "...")` is honoured; two `path` attributes are an error; a file loaded
+    through `#[path]` is mod-rs for its children; both `name.rs` and `name/mod.rs` is an error
+    naming both. `mod r#match;` reads `match.rs`; the index stores the unraw segment and
+    `resolve` strips `r#` per segment, so both spellings name the same item.
+11. **Duplicates (C-14).** Two definitions of one path (cfg twins, two impls with one method
+    name) are both recorded; `resolve` returns `Ambiguous` with both locations.
+12. **Options (C-15).** `Workspace::load(tree, roots)` uses defaults;
+    `Workspace::load_with(tree, roots, &LoadOptions)` sets `max_file_bytes`.
+13. **Pre-scan definitions (C-16).** Each counter is defined precisely in the source-index
+    Contract (what counts as a nested `<`, a prefix operator, a closure bar), with a neighbouring
+    valid fixture per budget so ordinary code is not refused.
+14. **Violation type (C-17).** `Violation { file, key: Option<String>, rule: Rule, line:
+    Option<usize>, message }` with `Rule` an enum, so tests assert the rule.
+15. **Link forms (C-18).** The body model extracts inline links and images, reference
+    definitions and inline-HTML `href`/`src`, single-line, tagged by form, excluding fenced code
+    and code spans.
+16. **Containment race (R-9).** `DiskTree` canonicalises, checks the canonical-root prefix, opens
+    the canonical path with `O_NONBLOCK | O_NOFOLLOW`, then `fstat`s the handle and refuses
+    anything not a regular file. A concurrent rename of an intermediate directory between
+    canonicalisation and open is a residual race. The Contract sentence "No check separates from
+    the open it guards." is replaced, not supplemented, by: "The file type is checked on the
+    opened handle, never by a stat before the open. Containment is checked on the canonical path
+    before the open; a rename of an intermediate directory between those two steps by a writer
+    with access to the tree is a residual race, outside the trust model in SECURITY.md." 
+    Unix only; on other targets the crate fails to build with a `compile_error!` naming the
+    reason, never a weaker check.
+
+## Repository policy changes this work requires
+
+- **`deny.toml`:** `syn`/`proc-macro2` always depend on `unicode-ident`, licensed
+  `(MIT OR Apache-2.0) AND Unicode-3.0`. A crate-scoped `[[licenses.exceptions]]` for
+  `unicode-ident` allowing `Unicode-3.0`, with a comment giving the reason. Not a global allow.
+  Flagged in the PR for the maintainer to confirm.
+- **Fuzz crate:** `fuzz/` is its own cargo-fuzz workspace, excluded from the root workspace
+  (`exclude = ["fuzz"]`), so `libfuzzer-sys` (NCSA) never enters the root `cargo deny` graph and
+  the nightly-only fuzz build stays out of `make msrv`. `REUSE.toml` annotates the corpus and
+  `fuzz/Cargo.lock`.
+- **Gates:** `make check` gains `test-release` (`cargo test -p raf-source --release --locked`,
+  the release half of the bound fixtures) and `fuzz` (`cargo fmt --check`, `cargo clippy -- -D
+  warnings` and `cargo deny --offline check` (CI: fetching) with a crate-scoped NCSA exception for
+  `libfuzzer-sys` held in `fuzz/deny.toml`, all on `--manifest-path fuzz/Cargo.toml`, then `cargo fuzz run parse_source` over the committed corpus
+  for a bounded number of runs with a fixed `-seed`; a missing `cargo-fuzz` is a hard failure).
+  CI gains matching jobs with `cargo-fuzz` installed at a pinned version. The Makefile header
+  comment and the gate list in AGENTS.md section 3 name both. These strengthen gates; none is
+  weakened.
+- **Lockfiles:** every task that changes the dependency graph (1, 4, 5, 6, 8) stages the root
+  `Cargo.lock` (Task 5 also `fuzz/Cargo.lock`) so `--locked` gates pass on a clean checkout.
+  Task 8 makes the pre-commit hook compile `raf-source`, `syn` and `toml` into `docs_contract`
+  (cold once, incremental after).
+- **Platform:** `raf-source` is unix-only (`compile_error!` elsewhere); through the Task 8
+  dev-dependency the root package's tests become unix-only too. CI is ubuntu-only; Task 9 states
+  it in AGENTS.md section 2.
+- **Allocation bound fixture:** measuring "allocates no more than input size times a small
+  constant" needs a counting global allocator in one test-only binary of `raf-okf`. First choice:
+  a dev-dependency that owns the `unsafe` and exposes a peak counter (`cap`, MIT OR Apache-2.0),
+  so the workspace keeps zero `unsafe` tokens. Only if its peak counter is unusable: a scoped
+  `#[allow(unsafe_code, reason = "...")]` on one `GlobalAlloc` impl over `System`, the reason
+  stating why no safe path exists. The workspace lint is not changed.
+
+## Completeness contract
+
+Every requirement maps to a task and an executable check on the shipped entry point.
+
+| Requirement (issue / capability doc) | Task | Acceptance check |
+|---|---|---|
+| Parse Markdown + YAML frontmatter, positioned errors: no fence on line 1, bad YAML, non-mapping (I-2, O-2) | 1 | `Document::parse` fixtures each `Err` with line; repo documents parse `Ok` |
+| SPDX comments preserved; comments kept (O-3, O-16) | 1 | `render(parse(x)) == x` over every repo document, which carry SPDX comment lines |
+| Bounds: 1 MiB text, YAML depth 32 checked before descent, anchors/aliases/merge keys refused, Markdown block nesting 64 (O-4..O-7) | 1 (YAML), 2 (Markdown) | 1 MiB+1 fails, 1 MiB parses; 33 levels fails, 32 parses, 100 000 levels returns `Err` on a 2 MiB thread; `&x`/`*x`/`<<` each fail naming the anchor; billion-laughs fails and the counting allocator shows peak <= 8 x input; 65 nested quotes / list levels fail, 64 parse |
+| Deterministic writer, round trip, profile-table key order, `replace_span` (I-5, O-15, O-16, O-24) | 1 | goldens byte-identical; out-of-order input renders to profile order and re-renders identically; `parse(render(d)) == d` under the stated equality (keys compared as a map with their values and attached comments, plus body bytes); `replace_span` changes only that span and the body model is rebuilt so a second splice uses fresh spans |
+| Subset refusals (A-4, Examples) | 1 | a flow mapping value `bindings: {code: []}` fails at its line naming the key, and the neighbouring block-form fixture parses |
+| Body model: H2 sections (heading, slug, line + byte span), links (target, anchor, line, form), fences, generated blocks (kind, span), PROPOSED blocks (slug, span) (I-6..I-10, O-13, C-18) | 2 | accessor fixtures; markers only inside a fence produce no blocks; four-backtick fence holding three backticks stays open (L11); `v[0](x)` in a fence is no link (L12) |
+| Body model for Markdown without frontmatter (okf-profile Purpose: the repository tooling goes through raf-okf) | 2, 8 | `Body::parse` on README-shaped text with `[a](b.md)` inside a fence and one outside yields exactly the outside link; a PROPOSED marker in such text is still a block; `Document::parse` builds its body through `Body::parse` |
+| Malformed PROPOSED, unclosed / nested generated, orphan end -> parse errors with lines (O-14, A-7, A-8) | 2 | one fixture each, exact line asserted; each misspelling of the marker fails |
+| `index.md` navigation (I-11, O-17, A-9) | 2 | `Index::parse` accepts a generated-only index, rejects prose, zero blocks, indented and mid-line markers |
+| Profiles: closed key set per type, typed values, every violation reported with file/key/rule; `resource` and unknown `type` rejected (I-3, I-4, O-8..O-12, O-19, O-21, O-22, A-1..A-6) | 3 | per type: each missing key, an extra key, `resource`, `tags`, `timestamp` -> violation with that key and `Rule`; value fixtures (state, bindings keys, affects section, items outcome incl. `moved:change:<slug>`, id prefix and slug vs file name, kebab case, scalar grammar); a document with three faults returns three violations; the Examples block of `okf-profile.md`, rewritten to block-form `bindings`, validates clean as exact text and with a `resource:` line added names `resource` and the seven Capability keys; `depends` on a missing id is not a raf-okf violation |
+| Body rules per type: seven sections in order, none empty after comments; Change `## Summary`; Architecture non-empty; PROPOSED only in Capability (A-5..A-7) | 3 | fixtures per rule with neighbouring valid case |
+| raf-okf touches no file and runs no process (O-20) | 3 | test scanning `crates/raf-okf/src` for `std::fs`/`std::process` fails on a hit; negative fixture of the scanner |
+| `Tree` with disk and memory implementations; list, read, exists (I-12, S-1, S-2) | 4 | `MemoryTree` and `DiskTree` fixtures; a test scanning `crates/raf-source/src` finds `std::fs` only in the disk module |
+| Canonical containment, `DiskTree::new` canonicalises once, symlinks leaving the root refused, no descent into directory symlinks, loop ends at first link, non-regular refused via non-blocking open + `fstat` (S-3..S-7, S-31) | 4 | `DiskTree` fixtures in a temp dir beside a sentinel: symlinked module file, `vendored/..` dir symlink, symlink to symlink, dir-symlink loop, FIFO (returns within a 10 s watchdog), each `Err` and sentinel unread |
+| `max_file_bytes` default 8 MiB, `LoadOptions`, error names file; Cargo.toml same cap (S-8, S-13) | 4 (cap in `read`), 6 (manifest) | 8 MiB+1 fails naming the file, lowered cap honoured, 8 MiB parses; a `Cargo.toml` with inline tables nested 1000 levels (under the cap) makes `Workspace::load` return a typed manifest error naming the file on the caller's 2 MiB stack, and an 8-level manifest loads |
+| Token pre-scan budgets (128 delimiters, 64 `<`, 256 prefix ops, 128 closure bars, 256 `else if`), strings/comments skipped, typed error naming file and budget (S-9) | 5 | at-limit parses, limit+1 fails with `Budget::*`; same tokens inside strings, raw strings and nested block comments do not count; 300 comparisons in one function parse |
+| Dedicated 64 MiB parse thread, stated constant, named after the file (S-10, S-28) | 5 | `PARSE_STACK_BYTES == 64 MiB`; thread-name assertion; abort message of an overflow child contains the file name |
+| Overflow fixtures in debug and release on the caller's default stack; composite and uncounted shapes in a child-process three-outcome harness (S-12, S-26, S-27) | 5 | `cargo test -p raf-source` and `cargo test -p raf-source --release` both run the listed shapes (500 `A<`, 4000 `!`, 20000 `&`, 10000 `||`, 20000 `else if`, the composites and the six 20000-repetition shapes); each ends in exactly one allowed outcome, exit 0 only with the exact expected symbol list |
+| Committed fuzz target `parse_source` and corpus; corpus replay under `cargo test`; bounded fuzz run (S-11, S-29, S-30) | 5 | `fuzz/fuzz_targets/parse_source.rs` exists; replay test iterates every corpus file in a child; `make fuzz` exits 0 |
+| Package discovery under configurable roots: lib, bin (incl. `src/bin/*`), build script, test, bench, example with default and explicit paths; shipping flags; `autotests = false` etc. (I-13, I-14, I-17, S-14, S-32, C-7..C-9) | 6 | `MemoryTree` fixture per target kind x (default, explicit path) asserting kind, name and `shipping`; virtual manifest contributes nothing; manifest with a trailing comment and single-quoted path honoured (L6); explicit target path outside root fails naming the key on both trees |
+| Mod-tree following as rustc does, `#[path]`, inline modules, unresolved `mod` error with file and line, path escape rejected without reading (I-15, I-16, I-20, S-15..S-18, C-10) | 6 | fixtures for `name.rs`, `name/mod.rs`, both present (error naming both), inline, nested, `#[path]` in mod-rs, non-mod-rs, inside inline modules in each, on an inline module, via `cfg_attr`, two `path` attributes, raw identifier, `mod missing;` -> `src/lib.rs:3`; `#[path="../../x.rs"]` and absolute path fail naming module and attribute, with a recording `Tree` showing zero reads of the outside path |
+| `cfg(test)`/`#[test]` tagged, not dropped, incl. modules reached only through them (I-16, S-19) | 6 | `#[cfg(test)] mod t;` -> every item in `src/t.rs` tagged; `#[test] fn` tagged; `any(test, unix)` and `not(test)` untagged; each also resolves positively |
+| Symbol index of every named item with path, kind, file, line, visibility, test tag; methods under the impl type path (I-18, S-20) | 7 | one fixture per kind (fn, struct, enum, union, trait, type alias, const, static, mod, `macro_rules!` incl. `#[macro_export]` at crate root), method in another file than its type |
+| Use-alias table: renames, nested groups, globs, re-export chains; typed NotFound / Ambiguous / Cyclic; glob reported; macro-generated and dependency items not found, and the consumer documents (census-ledger, workplan-document-model) say so (I-18, I-21, S-21, S-22, S-24, C-14) | 7, 9 | rename; nested group; glob with `via_glob`; three-hop chain; cycle -> `Cyclic`; two globs -> `Ambiguous`; cfg twins -> `Ambiguous`; `demo::nope` and `pub use serde::X` -> `NotFound`; `macro_rules!`-generated fn -> `NotFound`; Task 9: the docs-contract binding test refuses a binding to a `macro_rules!`-generated function with `NotFound`; impl self type that does not resolve is an error, not a guess |
+| Determinism, sorted output, `DiskTree` equals `MemoryTree` for regular files (S-25, I-12) | 7 | two loads equal; same tree on disk and in memory equal |
+| Usage and Examples compile (O-18, S-33, S-34) | 3, 7 | crate-level doctests equal to the documents' Usage and Examples blocks |
+| Public APIs documented, `missing_docs` deny (I-23) | every crate task | `cargo clippy -p <crate> --all-targets -- -D warnings` and `RUSTDOCFLAGS=-Dwarnings cargo doc -p <crate> --no-deps` |
+| raf-okf is the one reader of RAF documents (okf-profile Purpose) | 8 | `tests/docs_contract.rs` parses and validates through `raf_okf`; its private YAML, fence and marker parsers are deleted; its whole existing fixture suite passes unchanged in intent |
+| Bindings never name a missing symbol (architecture value rule) | 8 | new docs-contract test loads this workspace with `DiskTree` and resolves every binding of every capability; a negative fixture with a bogus binding fails |
+| Capability docs match the build; state `delivered`; INVENTORY; change records completed (I-1, I-24) | 9 | `cargo test --test docs_contract` green with both rows `delivered`, bindings non-empty, records deleted after a commit giving every item `outcome: implemented`; AGENTS.md, README.md, architecture page, SECURITY.md and CHANGELOG.md state the present |
+| Full qualification | 10 | one `make check` (incl. `test-release` and `fuzz`) |
+
+## Enhancements considered and declined
+
+- **Lenient base-OKF reader mode** (`tags`, `timestamp`, pass-through keys): contradicts the
+  closed-key Constraints; cost would be a second interpretation of documents.
+- **`openat2(RESOLVE_BENEATH)` containment via `rustix`:** closes the residual rename race on
+  Linux, but is Linux-only, adds a dependency, and diverges from the specified canonicalise-and-
+  prefix design; the race is documented instead. Visible cost: a concurrent attacker with write
+  access to the tree during a load can race an intermediate directory.
+- **Moving cross-document checks (cycles, state vs records, inventory) into raf-okf:** the
+  capability assigns them to the workplan document model; they stay in `docs_contract.rs`.
+- **A YAML crate** (`serde_yaml`, `yaml-rust2`, `saphyr`): deprecated or comment-dropping, expand
+  aliases before they can be refused, and pull `foldhash` (Zlib) past `deny.toml`.
+
+## Task 1: raf-okf frontmatter reader and deterministic writer
+
+Scope: create `crates/raf-okf` (workspace member, `[lints] workspace = true`, workspace package
+keys, no runtime dependencies; the `cap` dev-dependency only for the allocation test), add it
+to `members`. Implement `Document::parse` for the frontmatter: a
+hand-written bounded reader of exactly the profile's YAML subset (block mappings, block and flow
+sequences of scalars, a list of maps for `items`, a nested map for `bindings`, quoted and plain
+scalars with one shared escape set, comments; a flow mapping value is refused with a positioned
+error naming the key), duplicate keys refused at every level, CRLF
+handled, fence on line 1 required, unclosed fence an error, 1 MiB text bound, nesting depth 32
+counted iteratively before any recursion, anchors / aliases / tags / merge keys / block scalars
+refused with a positioned typed error naming the anchor, numbers kept as strings (no numeric
+canonicalisation). Comments are preserved with the attachment rules above. `Document::render`
+writes keys in profile-table order (unknown-type documents keep input order), lists in author
+order, the body byte-for-byte; `Document::replace_span` splices a caller-supplied byte range of
+the body and rebuilds the body model, returning a parse error if the result is malformed, so
+spans read after a splice are fresh. `Document` equality compares keys as a map with their values
+and attached comments, plus body bytes, and the Contract "Write" paragraph says so. Port the YAML-subset negative fixtures from `tests/docs_contract.rs` (scalar grammar,
+unterminated quotes, `: ` in plain scalars, indicator characters, block indicators). Golden
+round-trip test over every document under `docs/` and `work/` (read by the test from the
+repository root, which a test may do; the crate itself may not) plus out-of-order and comment
+fixtures. Counting-allocator billion-laughs test in its own test file. Stage `Cargo.lock`.
+Docs: update `okf-profile.md` Contract wording for spans/comments/equality and the architecture
+page's trailing-comment sentence.
+Focused validation: `cargo test -p raf-okf`, `cargo clippy -p raf-okf --all-targets --locked
+-- -D warnings`, `RUSTDOCFLAGS=-Dwarnings cargo doc -p raf-okf --no-deps --locked`,
+`cargo test --test docs_contract --test repo_gates`.
+Review, commit `feat(raf-okf): ...`, push, issue update.
+
+## Task 2: raf-okf body model and capability index
+
+Scope: `raf_okf::Body::parse(text) -> Result<Body, ParseError>`, the body model over Markdown with
+or without frontmatter around it (`Document::parse` builds its body through it, and plain
+repository Markdown such as README.md goes through it directly): fences (character and length
+matched, up to three spaces of indent, inside quotes and lists), H2 sections with heading, GitHub
+slug and line + byte spans, ATX headings with up to three spaces of indent, links of every form
+in C-18 with target, anchor, line and form (excluding fenced code and code spans of any backtick
+length), generated blocks (kind, span; unclosed, nested and orphan end are errors), PROPOSED
+blocks (slug, span; continues while lines keep the quote marker; every misspelling of the marker
+is an error), Markdown block nesting bound 64 for quotes and lists. `Index::parse` and
+`is_capability_index`. Port the docs_contract marker, anchor, link-extraction and index
+fixtures, plus purrdf's three link-scanner regressions and fence-awareness negatives.
+Docs: `okf-profile.md` Contract "Body model" (naming `Body::parse`), "Index handling" and Usage
+name the APIs and spans.
+Focused validation: as Task 1. Review, commit, push, issue update.
+
+## Task 3: raf-okf profile validation
+
+Scope: `Profile::default().validate(&doc, path) -> Vec<Violation>` with `Violation` and `Rule`
+as resolved above; typed accessors (`State`, `Bindings`, `Affects { capability, section }`,
+`Item { claim, outcome: Option<Outcome> }`, `Outcome::{Implemented, Dropped, Moved(slug)}`);
+id prefix per type, kebab slug equal to the file stem of `path`; title/description non-empty;
+`changes` non-empty list of cap ids; `affects` section set and slug in `changes`;
+`contract_effect`; body rules per type; PROPOSED only in Capability documents; every violation
+reported. Test that `crates/raf-okf/src` uses no `std::fs` or `std::process` (with a negative
+fixture of the scanner). Crate-level doctest equal to the Usage block of `okf-profile.md` and a
+test of the Examples YAML. Port the remaining per-document docs_contract fixtures.
+Docs: `okf-profile.md` Usage/Examples/Verification match the built API; the Examples block is
+rewritten to block-form `bindings:` (`  code: []`, `  tests: []`, `  examples: []`), and the
+Examples test validates that exact text.
+Focused validation: as Task 1. Review, commit, push, issue update.
+
+## Task 4: raf-source Tree, DiskTree containment and size cap
+
+Scope: create `crates/raf-source` (member, lints, `libc` for `O_NONBLOCK`/`O_NOFOLLOW`
+constants only, no unsafe). `Tree` trait (`read(path, max_bytes)`, `list(dir)`, `exists(path)`),
+`TreeError` (not found, outside root, not a regular file, symlink loop, too large, not UTF-8,
+I/O), `MemoryTree` with `From<[(&str, &str); N]>` and `FromIterator`, lexical containment for
+memory paths (`..` above root and absolute paths refused). `DiskTree::new(root) -> Result`
+canonicalises once; each candidate is canonicalised, prefix-checked, opened non-blocking and
+no-follow, `fstat`ed on the handle, read through `take(max+1)`; `list` reports entry kinds and
+never descends into a directory symlink. `compile_error!` on non-unix. All `DiskTree`
+containment fixtures from the source-index Verification list, each beside a sentinel outside the
+root (sentinel replaced by a FIFO where that proves the file is never opened), plus size-cap
+fixtures (8 MiB+1, lowered cap, exactly 8 MiB). `deny.toml` is unchanged in this task unless a
+dependency requires it. Stage `Cargo.lock`.
+Docs: source-index Contract "Tree" and "Path containment" (Result-returning `new`, the replaced
+"No check separates" sentence per resolved conflict 16, unix-only) and Usage `DiskTree::new(".")?`.
+Focused validation: `cargo test -p raf-source`, clippy and doc for the crate, `cargo deny
+--offline check`. Review, commit, push, issue update.
+
+## Task 5: raf-source bounded parsing, harness and fuzz target
+
+Scope: the token pre-scan (skips strings, raw strings with any hash count, byte and C strings,
+char literals vs lifetimes, nested block comments; counts the five budgets with the definitions
+written into the Contract), `Budget` typed errors naming file and budget; the parse entry that
+runs `syn::parse_file` on a thread named after the file with `PARSE_STACK_BYTES = 64 MiB` and
+extracts every line and byte range on that thread (proc-macro2 span data is thread-local). Add
+`syn` (major 3, `default-features = false`, features needed for full parsing and visiting) and
+`proc-macro2` with `span-locations`; add the `unicode-ident` exception to `deny.toml`. Child
+process harness: the test binary re-executes itself (`current_exe`, a selector env var,
+`RUST_MIN_STACK` removed) and classifies typed refusal / exit 0 with an exact symbol list / abort;
+exit 0 with a wrong list fails. All shape fixtures from Verification, the at-budget variants, the
+composites and the six uncounted 20 000-repetition shapes. `fuzz/` cargo-fuzz workspace
+(excluded from the root workspace) with `fuzz_targets/parse_source.rs` calling the public parse
+entry, `fuzz/corpus/parse_source/` committed with the composite and single-shape fixtures and
+files at and just over each budget (no content tripping the issue-reference gate), REUSE
+annotations, corpus replay test under `cargo test`. Makefile `test-release` and `fuzz` targets in
+`check` as described under "Repository policy changes" (fmt, clippy, deny on the fuzz manifest,
+fixed seed, missing `cargo-fuzz` a hard failure); CI jobs for both with a pinned `cargo-fuzz`;
+Makefile header and AGENTS.md gate list updated. Stage `Cargo.lock` and `fuzz/Cargo.lock`.
+Docs: source-index "Resource bounds" Contract defines each counter; Verification names the
+gates that run release and fuzz.
+Focused validation: `cargo test -p raf-source`, `cargo test -p raf-source --release`,
+`make fuzz`, clippy/doc, `cargo deny --offline check`, `make reuse`. Review, commit, push,
+issue update.
+
+## Task 6: raf-source package discovery and module tree
+
+Scope: discovery under explicit roots (rules in resolved conflict 9), manifests read through the
+`Tree` with the size cap and parsed with the `toml` crate (default features checked to add no
+licence outside the allow list), lib / bin / `src/bin/*` / build script / test / bench / example
+targets with default layout, explicit `path`, `autobins`/`autotests`/`autobenches`/`autoexamples`,
+explicit target paths contained; `Target { package, name, kind, root, shipping }` and
+`Workspace::targets()`. Mod-tree following per resolved conflict 10, `cfg(test)`/`#[test]`
+tagging with the katamari predicate matrix (ideas only), cycle detection on an active-file stack,
+unresolved `mod` error with file and line, escapes refused before any read (recording-`Tree`
+assertion). `Workspace::load` / `load_with`. Manifest recursion fixture: inline tables nested 1000
+levels under the size cap -> typed manifest error naming the file on the caller's stack, 8 levels
+load. Stage `Cargo.lock`.
+Docs: source-index Contract "Package discovery", "Mod-tree following" (rustc's rule restated),
+naming of non-shipping targets and the build script, Examples.
+Focused validation: `cargo test -p raf-source`, clippy/doc. Review, commit, push, issue update.
+
+## Task 7: raf-source symbol index and use-alias resolution
+
+Scope: `Item { path, kind, file, line, visibility, test, via_glob }` for every named item kind,
+methods and associated consts under the resolved impl type path (an impl whose self type does not
+resolve is an error naming file and line, never a `module::Last` guess), `#[macro_export]` macros
+at crate root, `extern crate x as y` and `use ::x` modelled; alias table from every `use` (renames,
+nested groups, `self`, globs, leading colon); `Workspace::resolve(path) -> Result<&Item,
+ResolveError>` with `NotFound`, `Ambiguous(Vec<Location>)`, `Cyclic(Vec<String>)`, and glob
+reporting; raw identifiers normalised per segment; no search cap that turns into not-found.
+Sorted, deterministic index with `PartialEq`. `DiskTree` vs `MemoryTree` equivalence test.
+Crate-level doctests equal to the Usage and Examples blocks of `source-index.md`.
+Docs: source-index Contract "Symbol index" and "Use-alias index" (duplicates are ambiguous, raw
+identifiers), Examples.
+Focused validation: `cargo test -p raf-source`, clippy/doc. Review, commit, push, issue update.
+
+## Task 8: docs_contract reads documents through raf-okf and resolves bindings
+
+Scope: the root package takes `raf-okf` and `raf-source` as path dev-dependencies.
+`tests/docs_contract.rs` replaces its frontmatter model, YAML subset parser, fence tracking,
+section and marker scanning, link extraction, per-document checks and index rule with calls to
+`raf_okf` (`Document::parse`, `Body::parse` for every frontmatter-less tracked Markdown file,
+`Profile::validate`, `Index::parse`), keeping only cross-document checks, link resolution against
+tracked files, inventory, placeholder and banned-wording scans; it keeps no link, fence or marker
+scanner of its own. Stage `Cargo.lock`.
+Every existing fixture keeps passing (fixtures that exercised deleted private functions are moved
+to raf-okf in Tasks 1-3 or rewritten against the public API, none dropped). New test: load this
+repository with `DiskTree` over `crates` and resolve every binding of every capability, with a
+negative fixture. Update the "only the standard library" header comments in `docs_contract.rs`
+and `tests/support/mod.rs`.
+Focused validation: `cargo test --test docs_contract --test repo_gates`, clippy over the root
+package. Review, commit, push, issue update.
+
+## Task 9: capability documents delivered
+
+Scope: commit 1 sets `outcome: implemented` on every item of `work/changes/okf-profile.md` and
+`work/changes/source-index.md`. Commit 2: both capabilities `state: delivered` with bindings
+(code: the public entry points; tests: the test targets in `<pkg>::test_crate::<target>` form;
+examples: the doctested items or empty), INVENTORY rows and the shape test counts in
+`tests/docs_contract.rs`, change records deleted, a final pass making every Contract,
+Constraints and Verification sentence describe the built behaviour, and present-tense updates to
+AGENTS.md (crate table, layout, members, the unix-only platform in section 2), README.md,
+`docs/capabilities/workplan-document-model.md` Contract "Binding resolution" gains "A symbol that a
+macro generates is not in the index, so it cannot be bound.", `docs/architecture/okf-profile.md` (what
+enforces the profile today), SECURITY.md and CHANGELOG.md `[Unreleased]`.
+Focused validation: `cargo test --test docs_contract --test repo_gates`, `make reuse`.
+Review, commit, push, issue update.
+
+## Task 10: qualification, PR and handoff
+
+Run the single full `make check` (fmt, clippy, test, test-release, doc, deny, reuse, msrv, fuzz,
+licenses, issue-refs) in the background and record it in `validation.md`. Substantive
+completeness review of the implementation against this plan and the issue, artifact inventory,
+PR creation with `Closes #2`, changes, actual validation and residual risks. The PR quotes the
+governing lines for the two policy decisions: `deny.toml` "an addition should require someone to
+look at the new crate and decide" with the licence expression `(MIT OR Apache-2.0) AND
+Unicode-3.0`, and issue "`resource`, `tags` (re-emitted sorted) and `timestamp`" against the
+architecture page ("The closed key sets do not include the OKF base key `resource`") and
+okf-profile Constraints ("There is no pass-through for extra keys"); also the residual rename race
+and the unix-only platform. plan posted to the PR, and the
+least-confident / what-the-user-should-know note on issue and PR.
+
+## Plan review dispositions
+
+Review: `reviews/plan-review.md` (pass 1, NEEDS-REVISION).
+
+- F-1 required, addressed: `Body::parse` in Task 2 and its use in Task 8; new completeness row.
+- F-2 required, addressed: flow mappings refused in Task 1 with fixture; Examples rewritten to
+  block form in Task 3 and validated as exact text.
+- F-3 required, addressed: 1000-level inline-table manifest fixture in Task 6 and the row.
+- F-4 required, addressed: workplan-document-model sentence in Task 9; row cites both consumer
+  documents; binding test refuses a macro-generated function.
+- F-5 advisory, addressed: equality stated in Task 1 and the row.
+- F-6 advisory, addressed: resolved conflict 16 names the replaced sentence and its replacement.
+- F-7 advisory, addressed: `cap` dev-dependency first, scoped allow only as stated fallback.
+- F-8 advisory, addressed: fmt/clippy/deny on the fuzz manifest, NCSA exception there, pinned
+  `cargo-fuzz`, fixed seed, gate list updates.
+- F-9 advisory, addressed: lockfile staging per task; hook cost noted.
+- F-10 advisory, addressed: `replace_span` rebuilds the model.
+- F-11 advisory, addressed: unix-only stated in AGENTS.md section 2 (Task 9).
+- F-12 advisory, addressed: Task 10 PR text quotes the governing lines.
+
+Recheck (pass 2): VERDICT PASS; its two nits (Task 1 dependency wording, offline fuzz deny and
+the NCSA exception location) are fixed in the text above.
+
+
+### paudley — 2026-10-12T10:51:23Z
+
+# Plan: Shared crates `raf-okf` + `raf-source` (issue #2)
+
+Worktree `.worktrees/2-shared-crates-raf-okf-raf-source`, branch `paudley/2-shared-crates-raf-okf-raf-source`, base `origin/main`.
+Evidence: `issue-analysis.md`, `prior-art-assessment.md`; reviews in `reviews/`.
+
+## Issue summary
+
+Create the first two workspace member crates. `raf-okf` reads, validates against the closed RAF
+profile, models the body of, and deterministically re-renders OKF Markdown documents.
+`raf-source` is a `syn` workspace index: a `Tree` file seam with disk and memory backends,
+package and target discovery, rustc-faithful module following including `#[path]`, a symbol
+index and a `use`-alias resolver, under canonical path containment and parse resource bounds.
+The issue delivers `cap:okf-profile` and `cap:source-index`, and requires their documents to
+match what was built with state `implementing` or `delivered`.
+
+**Target state: `delivered` for both capabilities.** Every Contract, Constraints and
+Verification statement in `docs/capabilities/okf-profile.md` and
+`docs/capabilities/source-index.md` is built and executed by a gate, both change records get
+every item an `implemented` outcome and are then deleted, and bindings name real symbols that
+`raf_source::Workspace::resolve` resolves in a test.
+
+## Baseline defaults, standing goals, governing decisions
+
+- No `.baseline`, `.goals`, `CONSTITUTION.md` or ADRs exist for this repository (checked in the
+  main checkout). The governing contract is `AGENTS.md` plus the capability and architecture
+  documents, which `AGENTS.md` names as the specification.
+- AGENTS.md rules that bind every task: fail hard (closed schemas, no fallbacks, no
+  best-effort parsing); every rule has a negative fixture; a refusal is tested next to a
+  neighbouring valid case; workspace lints `missing_docs`, `unreachable_pub`, `unsafe_code`
+  denied and clippy pedantic with warnings denied; every `#[allow]` carries a reason; no
+  `#![feature]`; MSRV 1.98.1; Rust-first gates; no tracker numbers or process wording in any
+  committed file (enforced by `repo_gates`); SPDX headers on every file (REUSE); conventional
+  commits; no attribution.
+- `docs/architecture/okf-profile.md` is the normative profile; `raf-okf` implements it and adds
+  no rule of its own.
+
+## Prior art and recurrence
+
+- Port source: the superset of every precedent implementation, taking the best part of each, with
+  licensing ignored (user decision). See section D for the per-concern start-from / take-from map.
+- Port source for `raf-okf`: this repository's `tests/docs_contract.rs` restricted YAML subset,
+  fence tracking, marker scanning, anchors, per-document checks and index rule, plus its ~90
+  negative fixtures; purrdf's OKF reader (permissive) for fence detection, duplicate-key refusal
+  and the CommonMark link-scanner fixes.
+- Recurrence: `GhpRsq-Defect-Class` trailers count `none` x1 in RAF; no precedent commit touching
+  either `source.rs` or the purrdf OKF reader carries a trailer, so trailer counts for every class
+  are **UNKNOWN**. Counted fix commits by reading history: raw-identifier module names x2 (the two
+  copies now disagree on spelling); missing test/bench/example targets x1; double-counted shared
+  files x1; hard-coded roots x1; `#[path]` escape unnoticed x1; OKF link scanner x3; general YAML
+  reader 1 commit fixing 38 bugs; RAF frontmatter hardening 1 commit (6+ classes); link to tracked
+  symlink x1.
+- Prior attempts in RAF: none. The census walkers held only as census-internal tools; they drop
+  test code instead of tagging it, clamp escaping paths instead of refusing them (L4), silently
+  prefer `x.rs` over `x/mod.rs` (L3), resolve `#[path]` inside inline modules from the wrong
+  directory (L1, L2), ignore manifest values with comments or single quotes (L6), hide ambiguity
+  with first-wins inserts and an `Option` resolver with a silent 4096-node cap (L8), and parse
+  on the caller's stack with no size cap (L5). Each of these is a named negative fixture below.
+
+
+## Context
+
+The Stage 1 plan for issue #2 (`.stage/shared-crates-raf-okf-raf-source/plan.md` in worktree
+`.worktrees/2-shared-crates-raf-okf-raf-source`) passed only a single combined review. On the
+user's instruction, four separate reviews then ran: completeness, constraints, SOLID/ETHOS design
+and enhancement/utility. All four returned NEEDS-REVISION. The user also directed that the port
+source is the **superset of every precedent implementation, taking the best part of each, with
+licensing ignored**. The Stage 1 completion-adversary run was stopped by the user and has not been
+re-run.
+
+This file is the revision. After approval it is merged into the stage `plan.md`, which is then
+re-posted to the issue. Partial Task 1 code (`crates/raf-okf/src/{error,value,scalar}.rs`, a stub
+`lib.rs`, `Cargo.toml` with `cap`) remains uncommitted in the worktree. It is reworked under this
+design, not discarded.
+
+Target state is unchanged: `delivered` for `cap:okf-profile` and `cap:source-index`.
+
+## User decisions (recorded 2026-10-12)
+
+1. **Extend the profile with `tags` and `timestamp`.**
+   - Both are optional keys on all three document types. `resource` stays rejected.
+   - `tags` is a list of non-empty strings. A duplicate tag is a violation, never silently deduplicated.
+   - `render` emits `tags` sorted, so canonical input carries sorted tags, and unsorted input re-renders sorted and then stays stable.
+   - `timestamp` is an RFC 3339 / `xsd:dateTime` string, validated as in purrdf reader 383-400. A malformed timestamp is a violation.
+   - The schema table marks each key required or optional, and both the writer and the validator read that table.
+   - The architecture page "Document types and keys" table and its text ("all required") gain the optional keys and their value rules. The okf-profile Contract and Examples are updated to match.
+   - Fixtures: sorted render; duplicate tag; malformed and valid timestamp; `resource` still rejected; a document without either key still valid.
+2. **No default roots in `raf-source`.** `Workspace::load` takes explicit roots, and each consumer owns its own default (census-ledger keeps the workspace root). The PR quotes the issue's "(default `crates/`)" and this decision.
+3. **Containment race: closed on Linux, with a portable fallback elsewhere.**
+   - Linux: after opening the canonical path with `O_NONBLOCK|O_NOFOLLOW` and running `fstat`, the handle's real path (`std::fs::read_link("/proc/self/fd/<fd>")`) must still lie under the canonical root. No check is separated from the open it guards.
+   - Other unix: the same open flags and `fstat`, then re-canonicalise the path after the open and require both the prefix and an equal `(dev, ino)` with the handle.
+   - Non-unix: a std-only open, then a regular-file check on `File::metadata()` of the handle, then post-open re-canonicalisation with the prefix re-check.
+   - The Contract and the SECURITY.md Containment bullet state the guarantee for each platform. A residual rename race exists only on non-Linux.
+   - Each fallback is a plain std function compiled on every platform and unit-tested on Linux too, so the fallback code is exercised.
+   - `libc` is a unix-only target dependency.
+   - New gate `make cross-check`: `cargo check -p raf-source --locked` for `x86_64-apple-darwin` and `x86_64-pc-windows-gnu`. A missing target is a hard failure. It goes into `check` and gets a CI job.
+   - The "unix-only" statements are removed from the plan.
+4. **Links split across lines are refused.**
+   - `Body` records every inline link or image whose text or destination spans a line break, outside fences and code spans. `Rule::SplitLink` reports it at its line.
+   - Through `Body::parse`, `docs_contract` applies the rule to every tracked Markdown file.
+   - The architecture sentence becomes "A link split across lines is a violation."
+   - Any existing split link in the repository is rejoined in Task 2. None was found at review time.
+   - Fixtures:
+     - `[text\nmore](a.md)` is refused;
+     - `[a](\nb.md)` is refused;
+     - a link inside a fence is not refused;
+     - a one-line link and two adjacent one-line links on separate lines are both accepted.
+   - Multi-line HTML `href`/`src` tag state keeps the existing checker's behaviour.
+5. **Completion adversary.** The user stopped the earlier run. It runs once, on its own, on the merged plan, unless the user declines at plan approval.
+
+## A. Cross-cutting rules (bind every task and implementation prompt)
+
+- **Superset port.** The start-from source per concern is listed in section D. Code is ported without text from any precedent's census payload: `Unit`, `BodyPrint`, `function_unit`, `constant_unit`, `keep`, `relex`, `normalize`, `rules`/`scan_rules`, `EXCLUDED_DIRS`/`is_excluded`/`is_outside_or_generated`, `PathEscapes`, `trait_impl` as census policy, `settle`'s fallback, and every `is_test_only(..) => continue`. Task reviews grep `crates/raf-source/src` for these names.
+- **No silent paths.** No ported or new line turns an error into absence, a default or a skip:
+  - no `.ok()`, `filter_map(Result::ok)`, `unwrap_or*`, `let … else { continue }` or `_ => {}` over a fallible or unmodelled case;
+  - only `TreeError::NotFound` may mean "absent";
+  - no first-wins map (`or_insert`, `entry().or_insert_with`) and no visited-set skip.
+
+  Specific precedent sites removed:
+  - katamari `:83`, `:87-94`, `:248`, `:470`, `:584-589` (flat-first lookup, L3), `:642-647`, `:794-795`/`:811-812` (`super` above the crate root), `:989-1002` (unparseable cfg treated as "not test"), `:1231-1249`;
+  - gmeow `:212-213` (`seen` skip) and `:244-279` (cfg evaluation);
+  - `tests/support/mod.rs:287-288` (`cfg(not(unix))` skip).
+- **No process or plan labels in committed files.** This covers code, comments, test names, fixtures, the corpus, docs and commit subjects. Banned:
+  - plan IDs (`I-*`, `O-*`, `S-*`, `A-*`, `C-*`, `R-*`, `L1`-`L14`, `F-*`), `task N`, `ACn`, tracker numbers;
+  - precedent project names, and words like "ported" or "regression in".
+
+  Fixtures are named for the behaviour they pin.
+- **Every rule gets a refused case plus a neighbouring accepted case.** Every refusal is a typed error.
+- **Per-task gates.**
+  - All cargo commands run with `--locked`.
+  - Each task runs: `cargo test -p <crate> --locked`; clippy `-D warnings`; doc with `RUSTDOCFLAGS=-Dwarnings`; `cargo test --locked --test docs_contract --test repo_gates`; `cargo fmt --all --check`; `make reuse`; `make msrv`.
+  - `make deny` also runs in every task that changes a lockfile (1, 4, 5, 6, 8).
+  - After staging, `git diff --quiet -- Cargo.lock fuzz/Cargo.lock` must hold.
+- **Docs stay current per commit.** AGENTS.md members and layout change in Tasks 1 and 4. SECURITY.md Bounds changes in Task 5. Task 9 carries only state-dependent text.
+- **Commit types.**
+  - Tasks 1-7: `feat(raf-okf)` / `feat(raf-source)`.
+  - Task 5 gate wiring: a separate `build:`/`ci:` commit.
+  - Task 8: `test(docs-contract)`.
+  - Task 9: `docs(capabilities)`.
+- **No `unsafe`.** The allocation test uses `cap::Cap<System>` and `max_allocated()`; there is no `unsafe_code` allow and no `cap` `nightly` feature.
+
+## B. raf-okf design (Tasks 1-3)
+
+**Module layout.** Modules are private; the API is `pub use` at the root.
+- `limits` (`MAX_TEXT_BYTES`, `MAX_YAML_DEPTH`, `MAX_BLOCK_NESTING`), `span`, `error` (`ParseError`, `ErrorKind`, `SpliceError`)
+- `frontmatter/{reader, scalar, value, writer}`
+- `body/{blocks, heading, link, marker, prose}`
+- `document`, `index`
+- `profile/{schema, typed, body_rules, violation}`
+
+B1. **Frontmatter subset (Task 1).**
+- Start from the partial `scalar.rs`/`value.rs` and DC 136-405 with its fixtures, plus purrdf's reader for fence/CRLF/unclosed fence, the byte cap before parse, and duplicate keys at every level.
+- Accepted: block mappings, block or flow sequences of scalars, a list of block maps (`items`), and a nested block map (`bindings`).
+- Refused, each with a positioned error naming the key or token: flow mappings, duplicates, anchors, aliases, tags, merge keys, block scalars, and unknown escapes.
+- Numbers are read as strings. Depth over 32 is refused before descent; 100 000 levels returns `Err` on a 2 MiB thread. Text over 1 MiB is refused.
+- The architecture page Value rules state this exact subset, edited in Task 1.
+
+Fixes required in the partial code:
+- Replace every `unwrap_or_default()` with a char-boundary byte cursor.
+- Move `MAX_DEPTH` to `limits`.
+- Rename the list element `ListItem` and the profile item `ChangeItem`.
+- Add `Frontmatter { map, trailing_comments }`.
+- Remove `InvalidSpan` from `ErrorKind`.
+
+B2. **Writer (Task 1).**
+- One schema table, `profile/schema.rs` (`DocType -> [KeySpec{key, ValueKind}]` in architecture-page order, plus body rules), drives both `render` key order and `validate`.
+- Render order: the type's keys in table order (optional `tags`/`timestamp` in their table position, `tags` sorted), then any other keys in input order. An unknown type keeps input order.
+- Parsed scalars re-emit their source style.
+- Reader and writer share one escape set (`\\ \" \n \r \t \0`) and one `plain_ok` predicate.
+- Constructors `Scalar::new`, `List::{block, flow}`, `Map::new`, `Entry::new` and `Document::new(frontmatter, body)` choose the style with gmeow's three-way selection, but only through `plain_ok`/`ESCAPES`. A value the reader cannot read is refused by the constructor.
+- Equality: keys are compared as a map, with values and attached comments, plus body bytes.
+- Comments: full-line comments attach to the next key, trailing comments stay on their line, and comments after the last key stay last.
+
+B3. **Body (Task 2).** `Body::parse(text)` handles Markdown with or without frontmatter around it, and `Document::parse` builds its body through it.
+- Fences: matched by character and length, indented up to 3 spaces, recognised inside quotes and lists.
+- `headings()` covers levels 1-6 outside fences, with GitHub anchors deduplicated by `-N`, and `has_anchor`.
+- `sections()` returns the H2 sections: heading, slug, and a content span starting after the heading.
+- `links()` returns inline links, images, reference definitions and HTML `href`/`src`, tagged by form. It takes from purrdf's CommonMark scanner (escaped `\)`, CommonMark whitespace, `[a] (b)` not a link), DC's reference and HTML reader, and DC's multi-line HTML tag state. Links are excluded from fences and code spans of any backtick length.
+- `Link::target_in(doc_path)` returns `External`, `Fragment` or `Relative{path, anchor}`, and refuses an escape. It is taken from purrdf's `resolve_link_path`.
+- `GeneratedBlock { kind, outer, content }`.
+- `ProposedBlock { slug, span, marker, content (unquoted), section }`.
+- `prose_lines()` yields `(line, text with code spans removed, section, in_proposed, in_generated)`, skipping fences and HTML comments.
+- The Markdown nesting bound is 64.
+- `Span { lines, bytes }` is in whole-text coordinates.
+
+B4. **Splicing (Task 2).**
+- `Body::replace_spans(&[(Span, &str)]) -> Result<(), SpliceError>` applies non-overlapping edits in one pass and rebuilds the model.
+- It is transactional: on `Err` the body is unchanged.
+- `SpliceError::{OutOfBody, NotCharBoundary, Overlap, Reparse(ParseError)}`.
+- `Document` and `Index` delegate to it. `Index::render()` returns the text.
+
+B5. **Index (Task 2).**
+- `Index::parse(text)` accepts an SPDX header (one line or several) followed by generated blocks only. An empty header tag is refused.
+- `is_capability_index(path)`.
+
+B6. **Profile (Task 3).**
+- `Profile` is a unit struct.
+- `Profile::validate(&doc, path) -> Result<RafDocument, Vec<Violation>>`, where `RafDocument` is `Capability | Change | Architecture` with typed fields: `State`, `Bindings`, `Affects{capability, section}`, `ChangeItem{claim, outcome}`, `Outcome::{Implemented, Dropped, Moved(slug)}`.
+- `Violation { file, at: Location::{Key, Section, Line, Document}, rule: Rule }`. `Display` is derived from `Rule`.
+
+Rules enforced, all reported, each with a fixture:
+- **Keys:** the closed key set per type, with required and optional keys from the schema table; missing required key; `resource` rejected; unknown `type` (`Rule::UnknownType`).
+- **Values:**
+  - id prefix, and kebab-case slug equal to the file stem;
+  - non-empty `title`/`description`;
+  - `state` enum; `bindings` exact keys with each value a list;
+  - `depends` as cap ids;
+  - `changes` non-empty, as cap ids;
+  - `affects` format, section set and slug present in `changes`;
+  - `contract_effect`;
+  - items with a non-empty `claim`, no unknown item key, and a valid outcome;
+  - optional `tags`: non-empty strings, no duplicates;
+  - optional `timestamp`: RFC 3339.
+- **Bindings by state:** `designed`/`considered` must be empty; `delivered` needs at least one code and one test.
+- **Type vs directory** of `path`.
+- **Body rules:**
+  - seven sections in order;
+  - a section is empty when nothing remains after HTML comments and generated blocks are removed (the architecture sentence is updated);
+  - Change bodies need `## Summary`; Architecture bodies must be non-empty;
+  - PROPOSED appears only in a Capability, and only inside a section;
+  - `Rule::Placeholder` applies over `prose_lines`;
+  - `Rule::SplitLink` (decision 4).
+
+Negative check: future-tense prose is not a violation. A test scans `src` (including doc comments, with no exemption) for `std::fs`/`std::process`, with a negative fixture.
+
+B7. **Usage/Examples.**
+- Usage blocks are rewritten to run without file access: text comes from `include_str!` or `#` hidden lines. Blocks that need a real tree are `no_run` in both the doc and the doctest, and the doc says so.
+- The okf Examples block is in block form, wrapped in fences with a seven-section body at path `docs/capabilities/example.md`.
+- A docs_contract test extracts each fenced `rust` block through `raf_okf::Body` and asserts that it equals its doctest. A one-line-difference negative fixture checks that this test fails.
+
+## C. raf-source design (Tasks 4-7)
+
+**Module layout:**
+- `path` (`RelPath`), `tree/{mod, memory, disk}` (`std::fs` only in `disk`)
+- `prescan`, `parse`, `facts`, `cfg`
+- `manifest`, `discovery`, `target`, `modtree`
+- `index`, `resolve`, `workspace`, `error`
+
+C1. **Paths and Tree (Task 4).**
+- `RelPath` is a validated root-relative `/`-separated UTF-8 path. `join` normalises `.` and refuses `..` above the root and absolute input.
+- `trait Tree` is object-safe, with no `Send` or `Sync` bound:
+  - `read(&RelPath, max_bytes)` — both backends enforce the cap;
+  - `list(&RelPath) -> Vec<Entry{name, kind: File|Dir|Symlink|Other}>`, sorted;
+  - `entry(&RelPath) -> Result<Option<EntryKind>>`.
+- `TreeError::{NotFound, OutsideRoot, NotRegular, SymlinkLoop, TooLarge, NotUtf8, NonUtf8Name, Io}`.
+- `MemoryTree` implements `From<[(&str,&str);N]>` and `FromIterator`.
+- `DiskTree::new(root) -> Result` canonicalises the root once. For each candidate it then:
+  1. canonicalises the path;
+  2. checks the canonical-root prefix;
+  3. opens the canonical path with `O_NONBLOCK|O_NOFOLLOW`;
+  4. runs `fstat` on the handle and refuses non-regular files;
+  5. verifies containment on the opened handle, per decision 3;
+  6. reads through `take(max+1)`.
+- `list` never descends into a directory symlink. The walker builds candidates with `RelPath::join` before touching the tree.
+- Fixtures at the tree level, with a sentinel or FIFO outside the root that is never read:
+  - a symlinked file and a symlink-to-symlink;
+  - a directory symlink with `..`;
+  - a directory symlink loop;
+  - a FIFO, which returns within a 10 s watchdog;
+  - a missing root and a symlinked root.
+- Further fixtures: `NotFound` vs `OutsideRoot`; `0xFF` content and a non-UTF-8 name; `MemoryTree` refusing `../a` and `/a`; size cap at 8 MiB+1, a lowered cap, and exactly 8 MiB.
+- A `std::fs` scanner confines `std::fs` to `tree/disk`, with a negative fixture.
+
+C2. **Errors.** There are three public types, all `#[non_exhaustive]`:
+- `TreeError` from the tree backends;
+- `LoadError { file, line, origin, kind }`, where `Origin` is one of `ModDecl{module}`, `PathAttr{module, predicate}`, `ManifestKey{key}` or `Discovery`, and `kind` is one of `Tree`, `Budget{budget, limit}`, `Syntax`, `Manifest`, `UnresolvedMod`, `BothModFiles`, `DuplicatePathAttr`, `ModuleCycle`, `InherentImplSelf`, `Target`, `UnsupportedItem`, `SuperAboveRoot`, `CfgParse` or `DirSymlink`;
+- `ResolveError` from `resolve`.
+
+C3. **Bounded parse (Task 5).**
+- `pub fn parse_source<R: Send>(file: &RelPath, text: &str, visit: impl FnOnce(&syn::File) -> R + Send) -> Result<R, LoadError>`. It runs the pre-scan on the caller's thread, then `syn::parse_file` and `visit` on a scoped thread named after the file with `PARSE_STACK_BYTES = 64 MiB`. A panic is re-raised with `resume_unwind`.
+- `pub use syn;`.
+- The pre-scan is one lexer feeding independent counters, with `const BUDGETS` as the single source. The lexer handles strings, raw strings with any number of hashes, byte and C strings, char vs lifetime, and nested comments. Each counter's definition is written into the Contract.
+- In-process fixtures on the caller's 2 MiB thread, debug and release, each returning `Budget::*` and naming the file: 500 `A<`, 4000 `!`, 20000 `&`, 10000 `||`, and a 20000-link `else if`. At-budget variants parse.
+- Neighbouring valid cases: 300 `!x;` statements, `a!()`, 300 closures, 300 `if`s, `'a` vs `'a'`, and 300 comparisons. Tokens inside strings and comments do not count.
+- The child-process three-outcome harness runs the test binary itself, with `RUST_MIN_STACK` removed, and only for the composites and the six uncounted shapes. Exit 0 must come with the exact symbol list.
+- A deterministic overflow fixture, sized from the measured per-level cost, asserts a non-zero exit and stderr containing `thread '<path>' has overflowed its stack`. A hook asserts `thread::current().name()` during a normal parse.
+
+C4. **Fuzz and gates (Task 5; gate wiring is its own `build:`/`ci:` commit).**
+- `fuzz/` is its own cargo-fuzz workspace, excluded from the root. It has `[workspace.lints]` identical to the root, and a `repo_gates` test (with a negative fixture) asserts they are equal. It also has `[lints] workspace = true`.
+- `fuzz/.gitignore` ignores `target/`, `artifacts/` and `coverage/`.
+- `fuzz/deny.toml` is the root `deny.toml` plus a crate-scoped NCSA exception, and a `repo_gates` test asserts the shared sections are equal.
+- `fuzz_targets/parse_source.rs` calls `parse_source`. The corpus holds the shapes and the at/over-budget files.
+- A crash input that trips `repo_gates` is rewritten to an equivalent reproducer, and the gate is never exempted. Every abort found is minimised, committed and covered by a budget.
+- `make fuzz` runs fmt, clippy `--locked` and `deny --offline` on the fuzz manifest, then `cargo fuzz run parse_source <mktemp dir> fuzz/corpus/parse_source -- -runs=N -seed=S`. A missing `cargo-fuzz` is a hard failure.
+- `make msrv` also checks the fuzz manifest, and `make fmt` covers it.
+- `make test-release` runs `cargo test -p raf-source --release --locked`.
+- Both targets go into `check`, and CI gets jobs with a pinned `cargo-fuzz`.
+- Every gate list is updated: the Makefile header, AGENTS.md section 3 and its missing-tool sentence, CONTRIBUTING.md, the PR template and the CHANGELOG Gates entry.
+- Root `deny.toml` gets a crate-scoped `unicode-ident` `Unicode-3.0` exception, with a system-terms reason.
+- SECURITY.md Bounds is updated.
+- Corpus REUSE annotations are added.
+- A replay test runs every corpus file in a child process.
+
+C5. **Discovery and targets (Task 6).**
+- `toml` is used with `default-features = false`, an explicit feature list, and never `unbounded`. Manifests are read through `Tree` under the cap.
+- Discovery recurses through non-package directories. It does not descend below a `[package]` manifest that lacks `[workspace]`.
+- It skips `target` and dot-directories; the Contract names both.
+- A directory symlink is a `DirSymlink` error. Two packages with one crate name are an error naming both manifests.
+- `Target { package (Cargo name), name (Cargo target name), kind, crate_path, root, shipping }`:
+  - the lib crate path is `[lib] name`, or the package name with `_`;
+  - bins are `<pkg>::bin_crate::<bin>`; tests, benches and examples are `<pkg>::{test,bench,example}_crate::<target>`; the build script is `<pkg>::build_script`;
+  - `shipping` is derived from `kind`.
+- `auto*` flags are supported.
+- These are typed errors naming the manifest key: a missing explicit target file (checked with `entry`), a target without a name, two targets sharing one root, and a target `path` that escapes.
+
+C6. **Module tree and facts (Task 6).**
+- Per file, the `parse_source` visitor extracts an owned `FileFacts`: items with name line, span, body span, attributes, doc presence and test role; `mod` declarations with raw `path`/`cfg_attr`; `use` trees; impl headers with their written self type; and `#[macro_export]`.
+- `Tree` reads and recursion run on the caller's thread.
+- rustc directory rules:
+  - inline-module components and `#[path]` on inline modules;
+  - a `#[path]` file is mod-rs for its children;
+  - both `name.rs` and `name/mod.rs` existing is an error naming both;
+  - raw identifiers.
+- Unconditional duplicate `path` attributes are an error.
+- `cfg_attr(pred, path=…)` alternatives are each resolved, contained and followed as further sites, carrying the predicate. `cfg_attr(test, path=…)` is tagged test. No cfg is evaluated other than test, and no item is dropped.
+- A cycle is detected on the active-file stack, never with a visited set. A file reached by several module paths is parsed once and indexed under every path.
+- Test roles: `None`, `CfgTest` or `TestFn`.
+  - The test predicate matrix is: `all(test, x)` → test, `any(test, test)` → test, `any(test, unix)` → not test, `not(test)` → not test.
+  - An unparseable cfg is an error.
+- An unresolved `mod` is an error giving file and line.
+- `Workspace::load` delegates to `load_with(&LoadOptions::default())`. The walk stops at the first `LoadError`.
+
+C7. **Index and resolution (Task 7).**
+- `Item { id, path, kind, namespace, file, name_line, span, body, visibility, documented, doc_hidden, test, target }`.
+  - `documented`: non-blank `#[doc]` text; `doc(hidden)` alone does not count.
+  - Kinds include fn, struct, enum, union, trait, type alias, const, static, mod, macro, `extern crate`, foreign items, inherent method, trait-impl method, trait default method and assoc const.
+  - `Item::Verbatim` is an error.
+- `(file, span.bytes.start)` is the identity.
+- Accessors:
+  - `Workspace::source(file) -> &str` returns the exact indexed text;
+  - `files()` yields each `SourceFile { path, package, reached: [(TargetId, module path)], shipping, test }` once;
+  - `items_in(file)`, `item_at(file, offset)`, `items()` (sorted by path, so a prefix is a range), `item(id)`, `packages()`, `targets()`, `is_shipping(&Item)`.
+- Alias table:
+  - covers renames, groups, `self`, globs, `use ::x` and `extern crate x as y`;
+  - `crate`, `self` and `super` are handled; `super` above the root is an error.
+- `resolve(path) -> Result<Resolution, ResolveError>`, with `Resolution { path, namespace, sites (non-empty, sorted), via_glob, chain }`.
+  - Segments resolve with rustc precedence: definitions and explicit uses shadow globs.
+  - The search runs to completion with no cap.
+  - Same path, namespace and kind gives one symbol with several sites (cfg twins).
+  - `Ambiguous(Vec<ItemId>)` only for real conflicts (glob vs glob, or two canonical targets). `Cyclic` and `NotFound` complete the set.
+  - Raw identifiers are normalised per segment.
+- Impl rules:
+  - An inherent impl self type must resolve (through aliases) to a local type; otherwise `InherentImplSelf` naming file and line.
+  - A trait impl on a local path records under that type.
+  - A trait impl on any other self type records under `<trait>::<method>` as `TraitImplMethod`, with the written self type as text.
+
+## D. Superset source map (start from → take from → fix)
+
+| Concern | Start from | Take from | Fix |
+|---|---|---|---|
+| YAML reader | partial `scalar.rs`/`value.rs`, DC 136-405 + fixtures | PURO 284-345, 305-313, 885-938 | cursor, one escape set, refusals per B1 |
+| YAML writer | partial `scalar.rs` writer | GMO style choice (constructors only) | shared `plain_ok`/`ESCAPES`; parsed style kept |
+| Fences, headings, anchors | DC 411-485, `anchors` 448-467 | — | char/length match, ATX indent ≤ 3, all levels |
+| Links | PURO scanner 567-760, `resolve_link_path` 767-800 | DC 1123-1291 incl. multi-line tag state | fence and code-span aware |
+| Markers, index, per-doc checks, placeholders | DC 993-1069, 1572-1635, 593-990, 1094-1109 | — | spans, typed rules |
+| Tree, Memory | KAT 67-132 (= PUR) | — | `Result`, `entry`, sorted `list`, cap in both |
+| Disk handle check | `tests/support/mod.rs` `check_handle` | — | no stat before open, non-blocking, cap, no non-unix skip |
+| Containment | GMB `checked_path` (refusal) | KAT `PathEscapes` messages | canonical, in-root symlinks allowed |
+| Discovery, targets | KAT `walk_dirs` 237-262, targets 1157-1258, `lib_name` 1088/1165 | PUR raw-ident tests | `toml`; `bin_crate`; typed target errors |
+| Mod tree | GMB 181-310, 618-641 (minus cfg evaluation and `seen`) | KAT 563-592 children of a `#[path]` file | E0761; `#[path]` mod-rs; `cfg_attr` alternatives |
+| cfg(test) | KAT `is_test_only` 979-1013 + tests | — | tag, never drop; unparseable cfg is an error |
+| Items, docs | KAT 388-473, 650-679, `documented` 663 | KAT 521 trait-impl kind | spans, namespaces, `doc_hidden`, foreign items |
+| Uses, resolve | KAT 594-648, 785-859 | — | precedence, no cap, typed errors, `Resolution` |
+| Fixtures | KAT 1278-1437, DC ~90, PURO link fixtures, GMB rustc-rule tests | — | positive beside every negative |
+
+## Completeness contract
+
+Where a row below and sections A-D differ, sections A-D and the user decisions govern.
+
+Every requirement maps to a task and an executable check on the shipped entry point.
+
+| Requirement (issue / capability doc) | Task | Acceptance check |
+|---|---|---|
+| Parse Markdown + YAML frontmatter, positioned errors: no fence on line 1, bad YAML, non-mapping (I-2, O-2) | 1 | `Document::parse` fixtures each `Err` with line; repo documents parse `Ok` |
+| SPDX comments preserved; comments kept (O-3, O-16) | 1 | `render(parse(x)) == x` over every repo document, which carry SPDX comment lines |
+| Bounds: 1 MiB text, YAML depth 32 checked before descent, anchors/aliases/merge keys refused, Markdown block nesting 64 (O-4..O-7) | 1 (YAML), 2 (Markdown) | 1 MiB+1 fails, 1 MiB parses; 33 levels fails, 32 parses, 100 000 levels returns `Err` on a 2 MiB thread; `&x`/`*x`/`<<` each fail naming the anchor; billion-laughs fails and the counting allocator shows peak <= 8 x input; 65 nested quotes / list levels fail, 64 parse |
+| Deterministic writer, round trip, profile-table key order, `Body::replace_spans` (I-5, O-15, O-16, O-24) | 1 (render), 2 (splice) | goldens byte-identical; out-of-order input renders to profile order and re-renders identically; `parse(render(d)) == d` under the stated equality (keys compared as a map with their values and attached comments, plus body bytes); `Body::replace_spans` with two generated blocks changes only those byte ranges; a second call uses spans read from the rebuilt model; an overlapping pair returns `SpliceError::Overlap` and the body is unchanged |
+| Subset refusals (A-4, Examples) | 1 | a flow mapping value `bindings: {code: []}` fails at its line naming the key, and the neighbouring block-form fixture parses |
+| Body model: H2 sections (heading, slug, line + byte span), links (target, anchor, line, form), fences, generated blocks (kind, span), PROPOSED blocks (slug, span) (I-6..I-10, O-13, C-18) | 2 | accessor fixtures; markers only inside a fence produce no blocks; four-backtick fence holding three backticks stays open (L11); `v[0](x)` in a fence is no link (L12) |
+| Body model for Markdown without frontmatter (okf-profile Purpose: the repository tooling goes through raf-okf) | 2, 8 | `Body::parse` on README-shaped text with `[a](b.md)` inside a fence and one outside yields exactly the outside link; a PROPOSED marker in such text is still a block; `Document::parse` builds its body through `Body::parse` |
+| Malformed PROPOSED, unclosed / nested generated, orphan end -> parse errors with lines (O-14, A-7, A-8) | 2 | one fixture each, exact line asserted; each misspelling of the marker fails |
+| `index.md` navigation (I-11, O-17, A-9) | 2 | `Index::parse` accepts a generated-only index, rejects prose, zero blocks, indented and mid-line markers |
+| Profiles: closed key set per type, typed values, every violation reported with file/key/rule; `resource` and unknown `type` rejected (I-3, I-4, O-8..O-12, O-19, O-21, O-22, A-1..A-6) | 3 | per type: each missing key, an extra key, `resource` -> violation with that key and `Rule`; value fixtures (state, bindings keys, affects section, items outcome incl. `moved:change:<slug>`, id prefix and slug vs file name, kebab case, scalar grammar); a document with three faults returns three violations; the Examples block of `okf-profile.md`, rewritten to block-form `bindings`, validates clean as exact text and with a `resource:` line added names `resource` and the seven Capability keys; `depends` on a missing id is not a raf-okf violation |
+| Base OKF optional keys `tags` and `timestamp` (issue scope, user decision 1) | 1 (render), 3 (validate, docs) | `Document::render` of a Capability with `tags: [b, a]` emits `tags: [a, b]` and re-renders byte-identically; `Profile::validate` returns a violation naming `tags` for `tags: [a, a]` and for `tags: [""]`, a violation naming `timestamp` for `timestamp: 2026-13-01T00:00:00Z`, and none for `timestamp: 2026-01-01T00:00:00Z`; a Capability with neither key validates clean; `resource:` still fails |
+| Body rules per type: seven sections in order, none empty after comments; Change `## Summary`; Architecture non-empty; PROPOSED only in Capability (A-5..A-7) | 3 | fixtures per rule with neighbouring valid case |
+| raf-okf touches no file and runs no process (O-20) | 3 | test scanning `crates/raf-okf/src` for `std::fs`/`std::process` fails on a hit; negative fixture of the scanner |
+| `Tree` with disk and memory implementations; list, read, exists (I-12, S-1, S-2) | 4 | `MemoryTree` and `DiskTree` fixtures; a test scanning `crates/raf-source/src` finds `std::fs` only in the disk module |
+| Canonical containment, `DiskTree::new` canonicalises once, symlinks leaving the root refused, no descent into directory symlinks, loop ends at first link, non-regular refused via non-blocking open + `fstat` (S-3..S-7, S-31) | 4 | `DiskTree` fixtures in a temp dir beside a sentinel: symlinked module file, `vendored/..` dir symlink, symlink to symlink, dir-symlink loop, FIFO (returns within a 10 s watchdog), each `Err` and sentinel unread |
+| `max_file_bytes` default 8 MiB, `LoadOptions`, error names file; Cargo.toml same cap (S-8, S-13) | 4 (cap in `read`), 6 (manifest) | 8 MiB+1 fails naming the file, lowered cap honoured, 8 MiB parses; a `Cargo.toml` with inline tables nested 1000 levels (under the cap) makes `Workspace::load` return a typed manifest error naming the file on the caller's 2 MiB stack, and an 8-level manifest loads |
+| Token pre-scan budgets (128 delimiters, 64 `<`, 256 prefix ops, 128 closure bars, 256 `else if`), strings/comments skipped, typed error naming file and budget (S-9) | 5 | at-limit parses, limit+1 fails with `Budget::*`; same tokens inside strings, raw strings and nested block comments do not count; 300 comparisons in one function parse |
+| Dedicated 64 MiB parse thread, stated constant, named after the file (S-10, S-28) | 5 | `PARSE_STACK_BYTES == 64 MiB`; thread-name assertion; abort message of an overflow child contains the file name |
+| Overflow fixtures in debug and release on the caller's default stack; composite and uncounted shapes in a child-process three-outcome harness (S-12, S-26, S-27) | 5 | `cargo test -p raf-source` and `cargo test -p raf-source --release` both run the listed shapes (500 `A<`, 4000 `!`, 20000 `&`, 10000 `||`, 20000 `else if`, the composites and the six 20000-repetition shapes); each ends in exactly one allowed outcome, exit 0 only with the exact expected symbol list |
+| Committed fuzz target `parse_source` and corpus; corpus replay under `cargo test`; bounded fuzz run (S-11, S-29, S-30) | 5 | `fuzz/fuzz_targets/parse_source.rs` exists; `make fuzz` exits 0; the replay test asserts `fuzz/corpus/parse_source/` holds a named file for each of the 5 single shapes, 5 composites and 6 uncounted shapes and an at-budget and over-budget file for each of the 5 budgets (fails on a missing name), runs every corpus file in a child in debug and release, and asserts each ends in exactly one outcome: typed refusal naming file and budget, exit 0 with the index equal to the recorded expected symbol list, or non-zero abort; negative fixture: a recorded list differing from the real index fails the replay test |
+| Package discovery under configurable roots: lib, bin (incl. `src/bin/*`), build script, test, bench, example with default and explicit paths; shipping flags; `autotests = false` etc. (I-13, I-14, I-17, S-14, S-32, C-7..C-9) | 6 | `MemoryTree` fixture per target kind x (default, explicit path) asserting kind, Cargo target name, `shipping` and `crate_path` (lib `demo`, binary `demo::bin_crate::x`, test `demo::test_crate::it`, bench `demo::bench_crate::b`, example `demo::example_crate::e`, build script `demo::build_script`), and an item resolves under each (e.g. `ws.resolve("demo::test_crate::it::case")` has a site in `tests/it.rs` whose target has `shipping == false`); virtual manifest contributes nothing; manifest with a trailing comment and single-quoted path honoured (L6); explicit target path outside root fails naming the key on both trees |
+| Mod-tree following as rustc does, `#[path]`, inline modules, unresolved `mod` error with file and line, path escape rejected without reading (I-15, I-16, I-20, S-15..S-18, C-10) | 6 | fixtures for `name.rs`, `name/mod.rs`, both present (error naming both), inline, nested, `#[path]` in mod-rs, non-mod-rs, inside inline modules in each, on an inline module, via `cfg_attr`, two `path` attributes, raw identifier, `mod missing;` -> `src/lib.rs:3`; `#[path="../../x.rs"]` and absolute path fail naming module and attribute, with a recording `Tree` showing zero reads of the outside path |
+| `cfg(test)`/`#[test]` tagged, not dropped, incl. modules reached only through them (I-16, S-19) | 6 | `#[cfg(test)] mod t;` -> every item in `src/t.rs` tagged; `#[test] fn` tagged; `any(test, unix)` and `not(test)` untagged; each also resolves positively |
+| Symbol index of every named item with path, kind, file, line, visibility, test tag; methods under the impl type path (I-18, S-20) | 7 | one fixture per kind (fn, struct, enum, union, trait, type alias, const, static, mod, `macro_rules!` incl. `#[macro_export]` at crate root), method in another file than its type |
+| Use-alias table: renames, nested groups, globs, re-export chains; typed NotFound / Ambiguous / Cyclic; glob reported; macro-generated and dependency items not found, and the consumer documents (census-ledger, workplan-document-model) say so (I-18, I-21, S-21, S-22, S-24, C-14) | 7, 9 | rename; nested group; glob with `via_glob`; three-hop chain; cycle -> `Cyclic`; two globs -> `Ambiguous`; `#[cfg(unix)] fn a()` beside `#[cfg(windows)] fn a()` -> `Ok(Resolution)` with exactly two sorted `sites` and `via_glob == false`; `demo::nope` and `pub use serde::X` -> `NotFound`; `macro_rules!`-generated fn -> `NotFound`; Task 9: the docs-contract binding test refuses a binding to a `macro_rules!`-generated function with `NotFound`; impl self type that does not resolve is an error, not a guess |
+| Determinism, sorted output, `DiskTree` equals `MemoryTree` for regular files (S-25, I-12) | 7 | two loads equal; same tree on disk and in memory equal |
+| Usage and Examples compile (O-18, S-33, S-34) | 3, 7 | crate-level doctests equal to the documents' Usage and Examples blocks |
+| Public APIs documented, `missing_docs` deny (I-23) | every crate task | `cargo clippy -p <crate> --all-targets -- -D warnings` and `RUSTDOCFLAGS=-Dwarnings cargo doc -p <crate> --no-deps`; a `repo_gates` test asserts every `[workspace] members` manifest carries `[lints] workspace = true`, with a negative fixture of a member manifest without it |
+| raf-okf is the one reader of RAF documents (okf-profile Purpose) | 8 | `tests/docs_contract.rs` parses and validates through `raf_okf`; its private YAML, fence and marker parsers are deleted; its whole existing fixture suite passes unchanged in intent |
+| Bindings never name a missing symbol (architecture value rule) | 8 | new docs-contract test loads this workspace with `DiskTree` and resolves every binding of every capability; a negative fixture with a bogus binding fails |
+| Capability docs match the build; state `delivered`; INVENTORY; change records completed (I-1, I-24) | 9 | `cargo test --test docs_contract` green with both rows `delivered`, bindings non-empty, records deleted after a commit giving every item `outcome: implemented`; the Task 9 checklist runs both ways with no unmatched entry (every Contract, Constraints and Verification sentence maps to a test whose assertion matches its wording; every completeness row maps to the Contract sentence stating its behaviour); AGENTS.md 'Every crate below is **designed, not yet implemented**' and '(none exist yet; `members` is empty)', README.md 'designed — not yet published' for these crates, the architecture page 'binding waits for the source index' and 'will enforce the whole profile once they are implemented', and SECURITY.md 'Once implemented' for the two surfaces are each replaced, and the Task 9 review greps that none remain |
+| Handle containment per platform (source-index Contract 'No check separates from the open it guards', user decision 3) | 4 (code, fixtures, Contract, SECURITY.md Containment bullet), 5 gate commit (`make cross-check`) | on Linux: a seam in `tree/disk` swaps an intermediate directory for a symlink to outside the root between the prefix check and the open, and `DiskTree::read` returns `OutsideRoot` with the sentinel unread; the Linux verifier given a handle on an outside file returns `OutsideRoot` and an in-root neighbour `Ok`; the other-unix verifier given a re-canonicalised `(dev, ino)` differing from the handle's returns `OutsideRoot` and an equal pair `Ok`; the non-unix verifier refuses a non-regular handle with `NotRegular` and an outside re-canonicalised path with `OutsideRoot`, each beside an accepted case; `make cross-check` exits 0 for `x86_64-apple-darwin` and `x86_64-pc-windows-gnu` and non-zero naming a missing target, is in `check` with a CI job, and is named in the Makefile header, AGENTS.md section 3, CONTRIBUTING.md, the PR template and the CHANGELOG Gates entry |
+| Split links refused (user decision 4) | 2 (`Body` records, architecture sentence, rejoin), 3 (`Rule::SplitLink`), 8 (docs_contract) | the four decision-4 fixtures through `Body::parse` and `Profile::validate`; docs_contract fails on a frontmatter-less tracked-file fixture holding `[a](\nb.md)` naming its line and passes on the one-line neighbour; the architecture 'Files and repository rules' sentence reads 'A link split across lines is a violation.' |
+| Full qualification | 10 | one `make check` (incl. `test-release`, `fuzz` and `cross-check`) |
+
+## F. Review dispositions
+
+- **Completeness (29):**
+  - adopted: 1-3 (B6), 4 (B3), 5 (B3 `prose_lines`, B6), 6 (B3, Task 2), 7 (Task 1), 8 (B4), 9 (C1 tree level, Task 6 load level), 10 (C1), 11 (Task 6), 12 (C5), 13 (C6), 14 (C7), 15 (C7 impl rules), 16-17 (C3), 18 (B7), 19 (C6), 20 (Task 3 Contract wording, Task 9 checklist), 21 (B6), 22 (Task 1), 23 (B5), 24 (Task 7), 25 (C4), 26 (D, the L-fixtures in Tasks 1/2/6/7), 28 (Task 1), 29 (C6, C7);
+  - 27 becomes decisions 1-2.
+- **Constraints (21):**
+  - adopted: 1-2 (A, C6), 3 (C5), 4-5 (C4), 6 (A), 7 (B7), 8 (A), 9 (Task 1 Value rules; placeholder rule moved into B6), 10 (fixtures listed in E), 11 (Task 8), 12 (A), 14-16 (C4), 17 (C4), 18 (B2), 19 (A), 20 (Task 1), 21 (C5);
+  - 13 becomes decision 3.
+- **SOLID/ETHOS (25):**
+  - adopted: 1-2 (C3, C6), 3 (C5), 4 (C7), 5 (C6, cfg_attr alternatives; this replaces constraints-1's "two cfg_attr paths are an error", which would refuse legal code), 6 (C6, C7), 7 (C7), 8 (C7), 9 (C1), 10 (C2), 11 (B2), 12 (B2), 13 (B4), 14 (A), 15 (layouts in B and C), 16 (B1), 17 (C5), 18 (C3), 19 (B6), 20 (C5), 21 (C7), 22 (C6), 23 (A), 24 (B3), 25 (B6, C6).
+- **Enhancement (23):**
+  - adopted: 1 (C3), 2-4 (C7), 5 (C5, C7), 6 (C7), 7 (C7), 8 (C7), 9 (C5), 10-12 (B3), 13 (B4), 14 (B2), 15 (B6), 16 (B6), 17 (B3), 18 (C7);
+  - declined, with reasons:
+    - 19: a shared Span crate — no consumer mixes Markdown and Rust spans, and matching shapes give the same consistency;
+    - 20: following `include!` — the Constraints forbid macro expansion;
+    - 21: reverse references and effective visibility — that would pre-decide a `considered` capability's open question;
+    - 23: `DiskTree` for docs_contract — the tracked-path and symlink rule differs from `DiskTree`'s;
+  - 22 becomes decision 4.
+
+## Completion adversary (pass 1)
+
+`reviews/completion-adversary.md`: FINDINGS-OPEN, F-1..F-8, no user decision required. All eight integrated: F-1 tags/timestamp row and Task 3 docs; F-2 handle-containment row, Task 4/5 text; F-3 split-links row, Task 2 docs; F-4 rows for cfg twins and splice corrected; F-5 corpus replay row; F-6 crate_path row; F-7 doc ownership in Tasks 2, 6, 7 and the two-way checklist row; F-8 lints-inheritance gate.
+
+## Verification
+
+- Before implementation:
+  - every review finding has the disposition above;
+  - the stage `plan.md` is regenerated from this file, and the decisions are recorded;
+  - per decision 5, the completion adversary runs on it;
+  - the plan is re-posted to issue #2.
+- Per task: the focused gates in section A, then an independent task review (`tasks/TN-review.md`). The review confirms the section D sources were used, that no census payload or silent path was ported (grep), and that the named fixtures exist and fail when their rule is removed.
+- Final: one `make check`, which includes `test-release`, `fuzz`, `cross-check` and `msrv` on both manifests. Also a completeness review of the code against this plan and the issue, plus the Task 9 two-way checklist in `validation.md`.
+
+
+## Task 1: raf-okf frontmatter and writer
+
+(B1, B2).
+
+Each task: implement -> focused gates (section A) -> independent task review -> commit -> push -> issue update.
+- Fixtures cover every subset refusal, plus duplicates (top-level, under `bindings`, inside an item), CRLF and a missing final newline.
+- Goldens are every tracked `docs/capabilities/*.md` except `index.md`, plus `docs/architecture/*.md` and `work/changes/*.md`, taken from `git ls-files`, with a count assertion.
+- Out-of-order keys, comment attachment, a constructed Change document, and the escape round trip.
+- Billion laughs under `cap`, with peak memory ≤ 8× the input.
+- Bound errors are positioned.
+- AGENTS.md members and layout are updated, as are the architecture Value rules.
+## Task 2: raf-okf body, splice, index
+
+(B3-B5). Fixtures per accessor and form:
+
+Each task: implement -> focused gates (section A) -> independent task review -> commit -> push -> issue update.
+- slug and span text;
+- 3- vs 4-space headings;
+- the purrdf link fixtures;
+- the four multi-line HTML tag fixtures;
+- code-span links;
+- a link split across lines;
+- `replace_spans` with two blocks, the index catalogue, overlap refused, and malformed output refused while the document stays unchanged;
+- each marker error with its line;
+- the index cases;
+- nesting at 64 and 65.
+Docs: okf-profile Contract "Body model" (line and byte spans, `Body::parse` for Markdown without frontmatter, link forms, split links refused) and "Index handling" (`Index::parse`, `is_capability_index`); the architecture sentence 'A link split across lines is a violation.'; any split link in the repository rejoined.
+
+## Task 3: raf-okf profile
+
+(B6, B7). One fixture per rule with its neighbouring valid case; the Usage/Examples doc edits; the Contract "Validate" wording.
+
+Each task: implement -> focused gates (section A) -> independent task review -> commit -> push -> issue update.
+Docs (user decision 1): first add `cap:okf-profile#explanation` to `affects` of `work/changes/okf-profile.md`; then rewrite the architecture 'Document types and keys' table, its heading and the 'no more and no fewer' bullet for optional `tags`/`timestamp`; the okf-profile Contract 'Validate' and Examples; and the okf-profile Explanation sentences 'every key is required ... rather than an optional one'.
+
+## Task 4: raf-source tree and containment
+
+(C1, C2). The source-index Contract "Tree"/"Path containment" (per decision 3), Usage `DiskTree::new(".")?`, and AGENTS.md layout are updated.
+
+Each task: implement -> focused gates (section A) -> independent task review -> commit -> push -> issue update.
+Includes the per-platform handle verifiers and their seam fixtures (completeness row 'Handle containment per platform') and the SECURITY.md Containment bullet stating the per-platform guarantee.
+
+## Task 5: raf-source bounded parse, harness, fuzz, gates
+
+(C3, C4).
+
+Each task: implement -> focused gates (section A) -> independent task review -> commit -> push -> issue update.
+The gate commit also adds `make cross-check` (targets `x86_64-apple-darwin`, `x86_64-pc-windows-gnu`; missing target is a hard failure) to `check` and CI, and to every gate list.
+
+## Task 6: raf-source discovery, targets, module tree
+
+(C5, C6). These fixtures run through `Workspace::load` with `DiskTree`:
+
+Each task: implement -> focused gates (section A) -> independent task review -> commit -> push -> issue update.
+- every Verification containment case, plus a symlinked `Cargo.toml`, with an error naming the module, attribute or key and the sentinel unread;
+- a valid in-root symlink.
+
+Also:
+- manifests at 8 MiB+1 and exactly 8 MiB;
+- 1000-level inline tables;
+- a nested fixture package;
+- auto flags;
+- lib/bin same name;
+- `test_crate` collision;
+- a shared `tests/common/mod.rs`;
+- L1, L2, L3, L14 module fixtures;
+- cycle;
+- `cfg_attr` alternatives;
+- raw identifiers via both spellings.
+Docs: source-index "Package discovery" (explicit roots; recursion and stop rule; skipped `target` and dot directories; build-script kind and shipping flag; `<pkg>::{bin,test,bench,example}_crate::<target>` and `<pkg>::build_script` paths) and "Mod-tree following" (rustc's rule replacing 'relative to the directory the module would otherwise use'; a `#[path]` file is mod-rs for its children; `name.rs` beside `name/mod.rs` is an error; `cfg_attr` path alternatives; a module cycle is an error).
+
+## Task 7: raf-source index and resolution
+
+(C7). Fixtures:
+
+Each task: implement -> focused gates (section A) -> independent task review -> commit -> push -> issue update.
+- per kind, asserting kind, file, line and visibility;
+- per impl shape;
+- namespaces;
+- cfg twins as a multi-site symbol;
+- explicit-vs-glob shadowing, glob-vs-glob ambiguity, and a mutual `super::*`;
+- a 5000-hop chain;
+- `crate`/`self`/`super` paths, `extern crate as`, `use ::x`;
+- a macro-generated symbol and a dependency item, each `NotFound`, beside a positive resolution;
+- documented, `doc_hidden`, blank `///`;
+- `files()`, `items_in()` and `item_at()`;
+- the `--test`/`--bin` argv data;
+- two loads equal, with strictly increasing order;
+- `DiskTree` vs `MemoryTree` equality.
+Docs: source-index "Use-alias index" (the `Resolution` fields; cfg twins as one multi-site symbol; `Ambiguous` only for glob against glob or two canonical targets) and "Symbol index" (item fields, namespaces, identity).
+
+## Task 8: docs_contract through raf-okf and raf-source.
+
+
+Each task: implement -> focused gates (section A) -> independent task review -> commit -> push -> issue update.
+- The root takes path dev-dependencies on both crates.
+- docs_contract uses `Document::parse`, `Body::parse` (every frontmatter-less tracked Markdown file), `Profile::validate`, `Index::parse`, `headings`/`has_anchor`, `Link::target_in` and `prose_lines`.
+- It keeps only these: cross-document checks, link resolution against tracked files, tracked-symlink refusal, directory layout, inventory, and the banned-wording scan.
+- Every existing fixture is kept or moved, none dropped.
+- Binding test: load `DiskTree::new(support::gate_root())?` over `["crates"]`, resolve every binding, and include a negative fixture (a bogus binding and a macro-generated function).
+- The doctest-equality test from B7.
+- The "standard library only" comments are updated.
+## Task 9: Capabilities delivered.
+
+
+Each task: implement -> focused gates (section A) -> independent task review -> commit -> push -> issue update.
+- Commit 1 sets `outcome: implemented` on every item.
+- Commit 2 does the rest:
+  - state `delivered` with real bindings;
+  - INVENTORY and the shape-test counts;
+  - delete both change records;
+  - workplan-document-model gains "A symbol that a macro generates is not in the index, so it cannot be bound.";
+  - census-rule-api gains "A rule runs on the parse thread, so `Rule: Sync`.";
+  - present-tense README, architecture page, SECURITY.md and CHANGELOG;
+  - the per-platform containment statement in AGENTS.md section 2.
+- A two-way checklist is recorded in `validation.md`: every Contract, Constraints and Verification sentence maps to its executing test, and every completeness row maps to the Contract sentence stating its behaviour.
+## Task 10: Qualification and PR.
+
+
+Each task: implement -> focused gates (section A) -> independent task review -> commit -> push -> issue update.
+ - One background run of `make check`.
+ - A completeness review of the implementation, then the artifact inventory.
+ - The PR quotes the governing lines for the `unicode-ident` exception and for decisions 1-4.
+ - The plan is posted to the PR, along with the "least confident" note.
+
+
+
+### paudley — 2026-10-12T11:15:52Z
+
+**Task 1 done: raf-okf frontmatter reader and deterministic writer** (commit 3f8697b, pushed)
+
+- **Reader:** reads the profile's YAML subset. It refuses each of these with an error that gives the position: flow mappings, duplicate keys at any level, anchors, aliases, tags, merge keys, block scalars and unknown escapes. Text is limited to 1 MiB and nesting to 32 levels; the depth check runs before any recursion, so 100 000 levels return an error on a 2 MiB thread.
+- **Writer:** one schema table sets the key order. Optional `tags` and `timestamp` are accepted, and `tags` are kept sorted. Comments stay attached to their keys, and CRLF and a missing final newline round-trip unchanged. Every tracked capability, architecture and change document renders back byte-for-byte.
+- **Constructors and allocation:** constructors refuse any value the reader could not read back. An allocation test using `cap` keeps the billion-laughs case under 8× the input size, with no `unsafe`.
+- **Docs:** the architecture page states the accepted subset and the optional keys, and the document-contract test accepts them.
+
+**Checks:** `cargo test -p raf-okf --locked` passes (26 refusal tests, 20 render tests, plus the schema, allocation and no-I/O tests). Clippy with `-D warnings`, rustdoc with `-Dwarnings`, `make msrv` and `make deny` pass. The pre-commit hook ran in full (fmt, REUSE, `docs_contract` 117 tests, `repo_gates` 42 tests).
+
+**Review:** the independent review first returned BLOCKED, on unsorted-tags equality and missing subset fixtures. Both were fixed, and the recheck passed.
+
+
+### paudley — 2026-10-12T13:42:45Z
+
+**Task 2 done: raf-okf body model, transactional splicing and capability index** (commit e94cd8d, pushed)
+
+- **`Body::parse`** builds a body model for Markdown with or without frontmatter:
+  - fences, matched on character and length;
+  - ATX headings at every level, with GitHub anchors;
+  - second-level sections with line and byte spans;
+  - links of every form (inline, image, reference definition, `href`, `src`), skipping fences and code spans;
+  - generated and PROPOSED blocks, each with its outer and content spans;
+  - a prose view with code spans removed.
+- **Split links:** a link split across lines is recorded, including inside block quotes, so the profile can refuse it as decided.
+- **New bounds:** link parts are limited to 4096 bytes and block nesting to 64 levels. Both are documented, and both refusals give a position.
+- **`replace_spans`:** applies edits that don't overlap in a single pass. On any error (out of range, not a char boundary, overlapping edits, a malformed result, the size limit) the body is left unchanged. Documents and the capability index both use it.
+- **`Index::parse`:** accepts only an SPDX header followed by generated blocks.
+
+**Checks:** 126 `raf-okf` tests pass. `cargo clippy --workspace --all-targets -D warnings`, rustdoc, `make msrv` and `make reuse` pass, and the pre-commit hook ran in full.
+
+**Review:** the first review timed out with no result and was replaced. The second blocked twice, first on an undocumented bound and wrong error positions, then on two test lints. All were fixed, and the final recheck passed.
+
+**Correction to the Task 1 update:** the clippy re-run I described there was scoped to the root package only, because it lacked `--workspace`. The clippy evidence for `raf-okf` at Task 1 is the implementer's `-p raf-okf` run. From Task 2 on, clippy runs over the whole workspace.
+
+
+### paudley — 2026-10-12T13:55:17Z
+
+**Task 3 done: raf-okf profile validation** (commit 1a67fa3, pushed)
+
+- `Profile::validate(&doc, path)` returns either a typed `RafDocument` (Capability, Change or Architecture) or every violation it finds. Each violation names the file, the location (a key, a section, a line, or the whole document) and the rule.
+- The closed key sets come from the same schema table the writer uses. `resource` has its own rule, a missing or unknown `type` is the only violation reported, and the optional `tags` (unique, non-empty) and `timestamp` (RFC 3339) are checked.
+- Value rules cover id, title, description, state, bindings, depends, changes, affects, contract effect and items. Bindings are checked against the capability's state, and the document's type against its directory.
+- Body rules cover:
+  - the seven capability sections in order, none empty once comments and generated blocks are removed;
+  - a Change summary and a non-empty Architecture body;
+  - PROPOSED blocks only inside capability sections;
+  - placeholder tokens in prose and in frontmatter values, with code spans exempt;
+  - links split across lines.
+- The Usage example in the capability doc runs without file access and is byte-equal to the crate doctest. The Examples block, now in block form, validates exactly as written.
+- `#explanation` was added to the change record's affected sections. The capability's Explanation and the architecture page now describe the optional keys.
+
+**Checks:** 162 `raf-okf` tests pass, plus workspace clippy with `-D warnings`, rustdoc and fmt. The pre-commit hook ran in full (REUSE, `docs_contract` 117, `repo_gates` 42).
+
+**Review:** passed. Four non-blocking notes were also fixed and rechecked: code spans exempt in frontmatter, no cascade from one bad `changes` entry, and two documentation sentences.
+
+
+### paudley — 2026-10-12T14:11:07Z
+
+**Task 4 done: raf-source file tree with canonical containment** (commit 57d9a06, pushed)
+
+- **`RelPath`:** a validated path relative to the root. Joining refuses absolute input and any climb above the root.
+- **`Tree` trait:** `read(path, max_bytes)`, `list` (sorted, with entry kinds) and `entry`. Every failure is a typed `TreeError`, and only `NotFound` means "absent".
+- **`MemoryTree`:** builds trees from path and text pairs. It refuses paths outside the root and two keys that collapse to the same path (`DuplicatePath`).
+- **`DiskTree`:**
+  - It canonicalises the root once. For each read or listing it then canonicalises the path, checks the root prefix, opens it non-blocking without following a final symlink, and verifies the opened handle.
+  - On Linux the handle check goes through `/proc/self/fd`, so a directory swapped in after the prefix check is still caught. Other unix platforms check device and inode; other platforms re-canonicalise after opening.
+  - Non-regular files (including a FIFO, refused without blocking), symlink loops, files over the size cap, and non-UTF-8 text or names are typed errors.
+- **Docs:** the source-index Contract and the SECURITY.md Containment section state the guarantee for each platform.
+
+**Checks:** 55 `raf-source` tests pass, including the swap tests for reads and listings under a 10 s watchdog. Workspace clippy, rustdoc, `make deny`, `make msrv` and the pre-commit hook all pass.
+
+**Review:** the first review blocked on silent last-wins for duplicate `MemoryTree` keys. That was fixed, along with handle verification for listings, a missing `/proc` now reported as an I/O error, and one fallback removed. The recheck passed.
+
+**Pending:** the non-Linux branches are type-checked on Linux but not yet built for macOS or Windows targets. The `make cross-check` gate in the next task covers that.
+
+
+### paudley — 2026-10-12T14:41:12Z
+
+**Task 5 done: bounded parsing, overflow harness, fuzz target and gates** (commits 0a9d243 feat, 1e965a1 build; pushed)
+
+- **Pre-scan:** before parsing, a token pre-scan skips strings, raw strings, char literals and nested comments. It refuses a file that exceeds a budget:
+  - 128 delimiter levels;
+  - 64 nested `<`;
+  - 256 prefix operators (lifetimes neither end nor extend a run);
+  - 128 closure bars;
+  - 256 `else if` links (a block used as a condition does not reset the chain).
+
+  Each refusal is a typed error naming the file and the budget.
+- **`parse_source`:** runs `syn` and the caller's visitor on a 64 MiB thread named after the file. Syntax errors carry their exact line and column. A panic on that thread is re-raised.
+- **Overflow harness:** runs each hostile shape in a child process. It accepts exactly three outcomes: a typed refusal, a complete and exact index, or a genuine abort (signal death or stack overflow). A panic, or any exit without a result line, fails the test.
+- **Fuzzing:** a cargo-fuzz target and a committed 30-file corpus. The corpus is replayed under `cargo test` in both debug and release.
+- **Licence exception:** `deny.toml` gains a crate-scoped exception allowing `unicode-ident`'s Unicode-3.0 data licence, which `syn` requires.
+- **New gates:** `make test-release`, `make fuzz` (format, lints and supply-chain check on the fuzz workspace, then a seeded run) and `make cross-check` (macOS and Windows targets). `make deny` now covers the whole workspace; before this, it only checked the root package.
+
+**Honest status:** most of the committed composite and uncounted hostile shapes still abort the run, typically by stack overflow. The Contract allows that outcome, and an abort fails the run rather than passing. Both the Contract and SECURITY.md now say so, with the measured stack cost per nesting level.
+
+**Checks:** 94 `raf-source` tests pass in debug and in release. `make deny`, `make msrv`, `make fuzz`, `make cross-check` and `make reuse` pass, and the hook passed on both commits.
+
+**Review:** blocked on two hidden bugs: syntax errors always reported line 1, and the harness accepted any crash as an abort. It also found the two budget evasions. All were fixed, and the recheck passed.
+
+
+### paudley — 2026-10-12T15:14:22Z
+
+**Task 6 done: raf-source package discovery and rustc module-tree walk** (commit e15dd4b, pushed)
+
+- **`Workspace::load`:**
+  - It takes explicit roots and has no default.
+  - Manifests are read through the tree under the size cap and parsed with `toml`, without its `unbounded` feature. Nesting 1000 levels deep is a typed error.
+  - Discovery stops below a package without `[workspace]`, skips `target` and hidden directories, and refuses directory symlinks. Symlinks are classified by what they resolve to.
+- **Targets:**
+  - Each target keeps Cargo's name and gets a crate path: `demo` for the library, `demo::bin_crate::x`, `demo::test_crate::it`, `demo::bench_crate::b`, `demo::example_crate::e` and `demo::build_script`.
+  - Test, bench and example targets are marked non-shipping. Library, binary and build-script targets are shipping.
+  - Two targets with the same crate path are a typed error naming the manifest key. So are a missing explicit target file, an unnamed target, and a target path that escapes the root.
+- **Module tree:**
+  - It follows rustc's rules: `name.rs` or `name/mod.rs` (both present is an error naming both files), and `#[path]` from files and from inline modules. A `#[path]` file counts as `mod.rs` for its own children.
+  - `cfg_attr` path alternatives, including nested ones, are each followed as their own site.
+  - Cycles are caught on the active-file stack. A file reached through several module paths is parsed once and recorded under each path.
+- **Tests:** `cfg(test)` and `#[test]` tag items without dropping them.
+- **Bounds:** module nesting is capped at 128 levels and module walks at 262,144 per load. The review found two exponential inputs, a doubling chain of `#[path]` files and nested inline `cfg_attr` alternatives. Both are now refused quickly instead of blowing up.
+- **Containment through a full load:** every on-disk containment case is refused through `Workspace::load`, with the error naming the module, attribute or manifest key. The outside sentinel file is never read.
+
+**Checks:** about 164 `raf-source` tests pass in debug and in release. Workspace clippy, `make deny`, `make msrv`, `make cross-check`, `make fuzz` and the pre-commit hook pass.
+
+**Review:** blocked first on unbounded module-path growth, silently coinciding crate paths, and missing fixtures. A recheck then found the inline-alternative growth. All of it is fixed, and the reviewer passed it.
+
+
+### paudley — 2026-10-12T15:55:28Z
+
+**Task 7 done: raf-source symbol index and use-alias resolution** (commit e4c6a66, pushed)
+
+- **Items:** every named item is indexed with its full path, kind, namespace (type, value or macro), file, line, span and body span, visibility, documentation flags, test role and target.
+  - A file reached through several module paths gives one item per path. `items_by_source()` and `same_source()` group them by `(file, offset)`.
+  - Accessors: `items()` (sorted), `item(id)`, `items_in(file)`, `item_at(file, offset)`, `files()`, `packages()`, `targets()`, `is_shipping()`, `test_fns()`.
+- **`resolve(path)`:** follows renames, groups, globs, `self`, `crate` and `super`, a leading `::`, and `extern crate` aliases, with no search cap; a 5000-hop chain resolves.
+  - Definitions and explicit imports shadow globs, decided only once every explicit import in a scope has settled. One fixture is checked in 1,440 declaration orders and gives identical results.
+  - Globs import only names visible to the importer.
+  - It returns a `Resolution` (path, namespace, sorted sites, `via_glob`, chain) or a typed `NotFound`, `Ambiguous` or `Cyclic` failure.
+  - Items defined twice under mutually exclusive `cfg`s (one per platform) are one symbol with several sites.
+  - A crate-root `mod test_crate;` beside a test target resolves as `Ambiguous`.
+- **Impls:**
+  - An inherent impl must name a local type, otherwise loading fails with a typed error.
+  - Trait-impl members on foreign or non-path types are keyed by the canonical trait path. That path comes from the edition's prelude and the package's declared dependencies, through re-exports, so `Display::fmt` and `fmt::Display::fmt` give one key.
+  - An unknown crate head is a typed error.
+  - When several dependency globs could supply the trait, the key is explicitly `Unresolved` rather than a guess.
+- **Determinism:** two loads of one tree are equal, and a disk tree equals its in-memory copy.
+
+**Checks:** 227 `raf-source` tests pass. Workspace clippy and the pre-commit hook pass, as do `make msrv`, `make cross-check`, `make deny` and `make fuzz` as run by the implementer.
+
+**Review:**
+- Blocked first on order-dependent glob shadowing and two silent defaults.
+- Then blocked on an incomplete prelude table, and on unverified trait-path heads producing two keys for one trait.
+- All were fixed, and the second recheck passed. Three small leftovers (a stale comment, a skipped unknown glob head, a Contract note) were fixed and verified before commit.
+
+
+### paudley — 2026-10-12T16:30:04Z
+
+**Task 8 done: the document-contract test reads through raf-okf and resolves bindings through raf-source** (commits 52155fa fix, 4e9c2f3 test; pushed)
+
+- **`tests/docs_contract.rs`:**
+  - Every capability, change and architecture document is now parsed and validated by `raf-okf`. Every other tracked Markdown file goes through the `raf-okf` body model.
+  - Links, anchors, markers, split links and placeholders therefore follow one definition. The test's own YAML, fence, heading, link and marker scanners are deleted.
+  - It keeps only checks that span documents or the repository: cross-document rules, link resolution against tracked files and their anchors, tracked symlinks, directory layout, the inventory and the banned-wording scan.
+  - Every old fixture survives and still rejects the same input.
+- **Binding test:** every capability binding is now resolved through `raf-source`, by loading this workspace with roots `crates`. The load must also find real symbols (`raf_okf::Document`, `raf_source::Workspace`), so it cannot pass vacuously.
+- **Doc examples:** the Usage and Examples blocks of both crate capabilities must equal the crate doctests.
+- **Placeholder rule:** `raf-okf` now exposes it as `Body::placeholder_lines()`, so the repository tooling uses the same rule as the profile.
+- **Fix found along the way (separate commit `52155fa`):** `raf-source` could not load a workspace from its member directories when members inherit `edition.workspace = true`. It now finds the workspace manifest the way Cargo does: it walks up to the nearest `[workspace]`, checks membership (`members` globs minus `exclude`, plus implied in-workspace path dependencies), and matches patterns in linear time.
+
+**Checks:** `docs_contract` 137 and `repo_gates` 55 pass, including in the hook form against a snapshot of the index. The `raf-okf` and `raf-source` test suites, workspace clippy, fmt and REUSE all pass.
+
+**Review:** the Task 8 review passed. Its notes were fixed and rechecked: the single placeholder rule, the non-vacuous binding test, and more precise fixtures. The workspace-membership fix took three review rounds. Those rounds caught an exponential glob, false refusals of valid Cargo workspaces, and four silent paths, and the final round passed.
+
+
+### paudley — 2026-10-12T16:46:20Z
+
+**Task 9 done: `cap:okf-profile` and `cap:source-index` delivered** (commits e6f3e9b fix, 376baf9 outcomes, 6c744af delivery; pushed)
+
+- **Fix found during delivery (`e6f3e9b`):** a target's crate root did not resolve. Paths such as `raf_okf::test_crate::refusals`, an example target, and even the library root `demo` were not found, yet the workplan contract binds example targets through the source index. Every target root is now a module item at its crate path. A crate path that is also a first-party item resolves as ambiguous.
+- **Outcomes (`376baf9`):** every change-record item got `outcome: implemented` while the capabilities were still `designed`.
+- **Delivery (`6c744af`):**
+  - Both capabilities are `delivered`. They are bound to their public entry points and to the tests behind their Verification sections, and the document-contract test resolves every binding through `raf-source`.
+  - Both change records are deleted, and the inventory is updated.
+  - The workplan document model now says a macro-generated symbol cannot be bound. The census rule API now states that a rule runs on the parse thread (`Rule: Sync`).
+  - AGENTS.md, README, SECURITY.md and the CHANGELOG describe both crates as built, including the containment guarantee on each platform.
+- **Two-way checklist (not committed):** every Contract, Constraints and Verification sentence maps to the test that checks it, and every requirement row maps to its Contract sentence. No entry is unmatched.
+
+**Checks:** `cargo test --workspace --locked` passes 604 tests. `docs_contract` 137 and `repo_gates` 55 pass, and the hook passed on every commit.
+
+**Review:** passed. Five non-blocking notes were applied before commit:
+- `Rule: Sync` is now written into the trait block itself, not just stated in the text.
+- One test was renamed so its name matches what it checks.
+- Two claims that no test keeps true were reworded to statements that stay true.
+- One sentence was reworded.
+- One binding was added.
+
+**Next:** the single full `make check` qualification, then the PR.
+
+
+### paudley — 2026-10-12T16:53:44Z
+
+**Handoff: what I am least confident about, and what you should know**
+
+**Least confident**
+1. **Hostile Rust input can still abort.** The pre-scan bounds the five recursion shapes the spec names, and both evasion paths the review found are now refused. But composite shapes, and repetitions that no budget counts (`return return …`, `&mut &mut …`, `a = a = …`), still abort a run by overflowing the 64 MiB parse stack. That is allowed, and an abort always fails rather than passing. Still, any consumer that loads untrusted source will see process aborts, not typed errors, for those inputs.
+2. **The non-Linux containment code is untested at runtime.** It compiles for macOS and Windows (`make cross-check`) and its checker functions are unit-tested on Linux, but nothing runs on those platforms. The rename race remains open there by design.
+3. **The resolver was rewritten more than once under review.** Review found order-dependent glob shadowing, trait keys that were incomplete or unverified, and target crate roots that did not resolve. It now passes a test that resolves one fixture in 1,440 declaration orders. It is still the newest and most intricate code in the change, and its correctness rests on fixtures, not on a check against rustc.
+
+**What you should know**
+- **The licence exception needs your confirmation.** `deny.toml` now has a crate-scoped exception allowing Unicode-3.0 for `unicode-ident`. `syn` cannot be used without it. `deny.toml` says an addition needs "someone to look at the new crate and decide", and your merge is that look. `fuzz/deny.toml` likewise allows NCSA for `libfuzzer-sys`.
+- **Your four decisions, and one consequence.** The PR quotes your four decisions (optional `tags`/`timestamp`, no default roots, per-platform containment, split links refused) against the issue text. Under the no-default-roots decision, an empty root list loads an empty workspace without error.
+- **Work beyond the issue text.** Canonical trait keys, Cargo-accurate workspace membership (`members`/`exclude` globs, implied path-dependency members), and crate-root module items all go further than the issue asks. Without them the delivered bindings, and real workspaces, would not resolve.
+- **`make check` needs more tools now.** It requires `cargo-fuzz` and the `x86_64-apple-darwin` and `x86_64-pc-windows-gnu` rustup targets. A missing one fails the gate.
+- **`make deny` was too narrow before.** It ran without `--workspace`, so it checked only the root package. It now covers every member.
+- **Plan reviews.** All five plan reviews (completeness, constraints, SOLID/ETHOS, enhancement, completion adversary) ran separately, and every finding was integrated. Only the completion adversary re-reviewed the merged plan, and it passed. The other four did not re-review it.
+- **Two `stagectl` automation gaps, worked around:**
+  - `tasks` reads the first `VERDICT:` line of a review file, so a review that blocked and later passed read as NEEDS-FIX. I added current-status headers to those review files.
+  - `pr-create` failed to parse gh's JSON even though the PR (#13) was created.
+
+**Not done here:** the Stage 2 (gap analysis) and Stage 3 (merge) gates have not run. CI on the PR has not been observed yet.
+
+
+### paudley — 2026-10-12T16:54:18Z
+
+**CI status: not run (account billing).** GitHub did not start any job on this PR. Every check-run carries the annotation "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings". The latest CI run on `main` also failed. This is an account-level block, unrelated to the code. Hosted CI has therefore produced no evidence for this PR.
+
+The local qualification is the evidence: `make check` on 6c744af exits 0, with all twelve gates and 963 tests, which are the same gates CI runs. After billing is restored, re-run the workflow (`gh run rerun 38280511329 --repo Blackcat-Informatics/rust-agentic-foundations`) before merging.
+
+

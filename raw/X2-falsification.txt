@@ -1,0 +1,57 @@
+# New X2 fixtures run against a git-archive copy of bf08e45 (only the test files and the one facts.rs unit test added)
+test facts::tests::a_verbatim_use_group_is_one_use_fact_per_member_in_its_module_with_the_whole_span ... FAILED
+
+thread 'facts::tests::a_verbatim_use_group_is_one_use_fact_per_member_in_its_module_with_the_whole_span' (1005184) panicked at crates/raf-source/src/facts.rs:1477:66:
+src/lib.rs:3: unsupported item: # [cfg (test)] pub (crate) use { :: std :: fmt :: Debug as D (reached by package discovery)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 55 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-source --lib`
+     Running tests/load_budgets.rs (/opt/.cargo/ae/8576d4c3cfb4e0/debug/build/raf-source/fc4acbabfae8f704/out/load_budgets-fc4acbabfae8f704)
+test a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms ... FAILED
+
+thread 'a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms' (1005187) panicked at crates/raf-source/tests/load_budgets.rs:50:33:
+loads: src/lib.rs:2: unsupported item: pub use { :: std :: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (reached by package discovery)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 21 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-source --test load_budgets`
+     Running tests/symbol_index.rs (/opt/.cargo/ae/8576d4c3cfb4e0/debug/build/raf-source/abb38cdde1f0f1bb/out/symbol_index-abb38cdde1f0f1bb)
+test bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written ... FAILED
+test a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line ... FAILED
+
+thread 'bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written' (1005191) panicked at crates/raf-source/tests/symbol_index.rs:24:36:
+src/lib.rs:2: unsupported item: # [ref_cast_custom] # [inline] pub (crate) const fn free (x  (reached by package discovery)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+thread 'a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line' (1005190) panicked at crates/raf-source/tests/symbol_index.rs:1087:5:
+assertion failed: load(&[("src/lib.rs", "#[cfg(any())]\nfn f();\n")]).is_ok()
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-source --test symbol_index`
+     Running tests/use_resolution.rs (/opt/.cargo/ae/8576d4c3cfb4e0/debug/build/raf-source/74233b6274eedb30/out/use_resolution-74233b6274eedb30)
+test a_crate_root_inside_a_group_under_a_path_is_a_syntax_error ... ok
+test a_leading_colon_member_of_a_use_group_reads_the_crate_root_in_edition_2015 ... FAILED
+test a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do ... FAILED
+
+thread 'a_leading_colon_member_of_a_use_group_reads_the_crate_root_in_edition_2015' (1005199) panicked at crates/raf-source/tests/use_resolution.rs:3178:25:
+src/lib.rs:2: unsupported item: pub use { :: inner :: go as colon , super :: inner } ; (reached by package discovery)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+thread 'a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do' (1005200) panicked at crates/raf-source/tests/use_resolution.rs:3148:60:
+two/src/lib.rs:2: unsupported item: # [allow (unused_imports)] pub use { :: p_one :: X as D , cr (reached by package discovery)
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 74 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-source --test use_resolution`
+error: 4 targets failed:
+    `-p raf-source --lib`
+
+# Expected: every fixture that exercises an indexed verbatim shape fails on bf08e45 with UnsupportedItem.
+# a_crate_root_inside_a_group_under_a_path_is_a_syntax_error passes on bf08e45 by design: it pins the boundary (syn's Syntax error), not the fix.
+# a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error fails on bf08e45 only at its last assertion, the bodiless fn neighbour that now loads.
+# verbatim.rs unit tests have no counterpart on bf08e45 (the module is new).
+
+# R1 regression test with the summary moved back inside the member loop (per-member, as before the fix), release:
+test facts::tests::a_large_attribute_on_a_verbatim_use_group_is_read_once_for_all_its_members ... FAILED
+thread 'facts::tests::a_large_attribute_on_a_verbatim_use_group_is_read_once_for_all_its_members' (1256210) panicked at crates/raf-source/src/facts.rs:1736:9:
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 61 filtered out; finished in 21.00s
+# With the fix (summary read once per group): release 0.05 s, debug 0.23 s; both pass.

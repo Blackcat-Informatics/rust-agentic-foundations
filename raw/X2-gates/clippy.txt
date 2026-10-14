@@ -1,0 +1,4 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source/crates/raf-source)
+    Checking rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/2-shared-crates-raf-okf-raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.75s
+exit 0

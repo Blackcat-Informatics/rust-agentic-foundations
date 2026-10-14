@@ -1,0 +1,53 @@
+   Compiling serde_core v1.0.229
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.27
+   Compiling quote v1.0.47
+   Compiling libc v0.2.190
+   Compiling winnow v1.0.4
+   Compiling rustix v1.1.5
+   Compiling toml_parser v1.1.5+spec-1.1.0
+   Compiling syn v3.0.8
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling serde_spanned v1.1.2
+   Compiling bitflags v2.13.2
+   Compiling toml v1.1.8+spec-1.1.0
+   Compiling linux-raw-sys v0.12.1
+   Compiling raf-source v0.1.0 (/tmp/r9fal.eBFj/crates/raf-source)
+error[E0599]: no variant, associated function, or constant named `NoRoots` found for enum `LoadErrorKind` in the current scope
+   --> crates/raf-source/tests/discovery_targets.rs:274:49
+    |
+274 |     assert!(matches!(error.kind, LoadErrorKind::NoRoots), "{error}");
+    |                                                 ^^^^^^^ variant, associated function, or constant not found in `LoadErrorKind`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `raf-source` (test "discovery_targets") due to 1 previous error
+
+== behavioural run on e472918: the test body with the NoRoots variant check removed ==
+   Compiling raf-source v0.1.0 (/tmp/r9fal.eBFj/crates/raf-source)
+error: unused variable: `error`
+   --> crates/raf-source/tests/discovery_targets.rs:273:9
+    |
+273 |     let error = load(&files, &[]).expect_err("no roots is an error");
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_error`
+    |
+    = note: `-D unused-variables` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(unused_variables)]`
+
+error: could not compile `raf-source` (test "discovery_targets") due to 1 previous error
+
+== runtime run on e472918 (variant name removed so the test compiles) ==
+failures:
+
+---- an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads stdout ----
+
+thread 'an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads' (4113461) panicked at crates/raf-source/tests/discovery_targets.rs:273:35:
+no roots is an error: Workspace { packages: [], targets: [], files: {}, index: Index { items: [], order: [], modules: [], module_by_path: {}, module_of: {}, crate_of: {}, crate_roots: {}, target_roots: [], preludes: [], targets: [], editions: {}, target_editions: [], target_no_std: [], crates_open: true, crate_reads: {}, no_crate: {}, unresolved: [], scopes: [], uses: [], named_imports: [], glob_imports: [], use_resolved: [], use_settled: [], use_ambiguous: [], unsettled: {}, extern_names: {}, root_items: {}, by_source: {}, assoc: {}, foreign: {}, by_file: {}, aliases: {} }, usage: Usage { total_bytes: 0, item_bytes: 13710, fact_bytes: 0, max_file_tokens: 0, max_directory_depth: 0 } }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-source --test discovery_targets`

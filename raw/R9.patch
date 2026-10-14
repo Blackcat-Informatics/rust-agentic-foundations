@@ -1,0 +1,191 @@
+diff --git crates/raf-source/src/discovery.rs crates/raf-source/src/discovery.rs
+index c027927..d9c08ff 100644
+--- crates/raf-source/src/discovery.rs
++++ crates/raf-source/src/discovery.rs
+@@ -14,15 +14,17 @@ use std::collections::BTreeMap;
+ #[cfg(doc)]
+ use crate::budget::Budget;
+ use crate::error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
+-use crate::manifest::{self, Manifest};
++use crate::manifest::{self, Manifest, PackageDecl};
+ use crate::meter::Meter;
+ use crate::path::RelPath;
+ use crate::target::Package;
+ use crate::tree::{EntryKind, Tree};
+ 
+-/// A package with its parsed manifest.
++/// A package with its parsed manifest. `declared` is the manifest's `[package]`
++/// table, moved out of `manifest` (whose `package` is `None` here).
+ pub(crate) struct Found {
+     pub(crate) package: Package,
++    pub(crate) declared: PackageDecl,
+     pub(crate) manifest: Manifest,
+ }
+ 
+@@ -102,7 +104,7 @@ impl Walk<'_> {
+         self.meter
+             .read(&path, &text)
+             .map_err(|error| error.reached_by(&origin))?;
+-        let parsed = manifest::parse(&text).map_err(|problem| {
++        let mut parsed = manifest::parse(&text).map_err(|problem| {
+             let origin = problem
+                 .key
+                 .map_or(Origin::Discovery, |key| Origin::ManifestKey { key });
+@@ -116,7 +118,7 @@ impl Walk<'_> {
+             .reached_by(&origin)
+         })?;
+         let descend = parsed.package.is_none() || parsed.has_workspace;
+-        if let Some(package) = &parsed.package {
++        if let Some(package) = parsed.package.take() {
+             match self.names.get(&package.name) {
+                 Some(other) if *other != path => {
+                     return Err(LoadError::new(
+@@ -142,6 +144,7 @@ impl Walk<'_> {
+                     manifest: path.clone(),
+                     dir: dir.clone(),
+                 },
++                declared: package,
+                 manifest: parsed,
+             };
+             // The same manifest reached from two overlapping roots is one package.
+diff --git crates/raf-source/src/error.rs crates/raf-source/src/error.rs
+index 5e96623..cfa481a 100644
+--- crates/raf-source/src/error.rs
++++ crates/raf-source/src/error.rs
+@@ -249,6 +249,8 @@ pub enum LoadErrorKind {
+     Target(Box<TargetProblem>),
+     /// A directory entry that discovery would have entered is a symlink.
+     DirSymlink,
++    /// The load was given no roots, so there is nothing to discover.
++    NoRoots,
+     /// A `mod name;` names no file.
+     UnresolvedMod {
+         /// The module name, without a raw-identifier prefix.
+@@ -389,6 +391,7 @@ impl fmt::Display for LoadErrorKind {
+             Self::Manifest { message } => write!(f, "invalid manifest: {message}"),
+             Self::Target(problem) => write!(f, "{problem}"),
+             Self::DirSymlink => f.write_str("a symlinked directory is not followed"),
++            Self::NoRoots => f.write_str("no roots were given; name at least one, such as `.`"),
+             Self::UnresolvedMod { module } => {
+                 write!(f, "module `{module}` has no file")
+             }
+diff --git crates/raf-source/src/workspace.rs crates/raf-source/src/workspace.rs
+index 16a19cf..5856f19 100644
+--- crates/raf-source/src/workspace.rs
++++ crates/raf-source/src/workspace.rs
+@@ -83,7 +83,8 @@ impl Workspace {
+     /// Load the packages under `roots` with the default [`LoadOptions`].
+     ///
+     /// A root is a directory path relative to the tree root; `"."` is the tree
+-    /// root itself. There are no default roots: each caller names its own.
++    /// root itself. There are no default roots: each caller names its own, and
++    /// an empty list is a [`LoadErrorKind::NoRoots`] error.
+     ///
+     /// # Errors
+     ///
+@@ -102,16 +103,23 @@ impl Workspace {
+     ///
+     /// # Errors
+     ///
+-    /// Returns a [`LoadError`] for a root that is missing or not a directory, a
+-    /// manifest that cannot be read, a target problem, an unresolved or
+-    /// ambiguous `mod`, a path that leaves the tree, a module cycle, a file
+-    /// over `max_file_bytes`, a load over a [`Budget`](crate::Budget) (the
++    /// Returns a [`LoadError`] for an empty `roots` list, a root that is missing or
++    /// not a directory, a manifest that cannot be read, a target problem, an
++    /// unresolved or ambiguous `mod`, a path that leaves the tree, a module cycle,
++    /// a file over `max_file_bytes`, a load over a [`Budget`](crate::Budget) (the
+     /// byte budgets as `options` sets them), or a syntax error.
+     pub fn load_with(
+         tree: &dyn Tree,
+         roots: &[&str],
+         options: &LoadOptions,
+     ) -> Result<Self, LoadError> {
++        if roots.is_empty() {
++            return Err(LoadError::new(
++                &RelPath::root(),
++                None,
++                LoadErrorKind::NoRoots,
++            ));
++        }
+         let mut root_paths = Vec::new();
+         for root in roots {
+             let path = RelPath::new(root).map_err(|error| {
+@@ -137,15 +145,12 @@ impl Workspace {
+         let mut packages = Vec::new();
+         let mut derived = Vec::new();
+         for entry in found {
+-            let Some(declared) = &entry.manifest.package else {
+-                continue;
+-            };
+             let context = Context {
+                 tree,
+                 manifest_path: &entry.package.manifest,
+                 dir: &entry.package.dir,
+                 manifest: &entry.manifest,
+-                package: declared,
++                package: &entry.declared,
+             };
+             for target in derive_targets(&context)? {
+                 derived.push((&entry.package.manifest, target));
+@@ -159,7 +164,7 @@ impl Workspace {
+                         dirs: &dirs,
+                     },
+                     &entry.package,
+-                    declared,
++                    &entry.declared,
+                     &entry.manifest,
+                     &mut caches,
+                 )?,
+diff --git crates/raf-source/tests/discovery_targets.rs crates/raf-source/tests/discovery_targets.rs
+index 46cefd2..08ebd80 100644
+--- crates/raf-source/tests/discovery_targets.rs
++++ crates/raf-source/tests/discovery_targets.rs
+@@ -268,11 +268,11 @@ fn a_virtual_manifest_contributes_nothing_but_its_children_are_found() {
+ }
+ 
+ #[test]
+-fn there_are_no_default_roots() {
+-    let ws = load(&[("Cargo.toml", DEMO), ("src/lib.rs", "")], &[]).expect("loads");
+-    assert_eq!(ws.packages().len(), 0);
+-    assert_eq!(ws.targets().count(), 0);
+-    assert_eq!(ws.files().count(), 0);
++fn an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads() {
++    let files = [("Cargo.toml", DEMO), ("src/lib.rs", "")];
++    let error = load(&files, &[]).expect_err("no roots is an error");
++    assert!(matches!(error.kind, LoadErrorKind::NoRoots), "{error}");
++    assert_eq!(load(&files, &["."]).expect("loads").packages().len(), 1);
+ }
+ 
+ #[test]
+diff --git docs/capabilities/source-index.md docs/capabilities/source-index.md
+index ae78807..d959037 100644
+--- docs/capabilities/source-index.md
++++ docs/capabilities/source-index.md
+@@ -41,6 +41,7 @@ bindings:
+     - raf_source::test_crate::workspace_containment::discovery_classifies_a_symlink_by_what_it_resolves_to
+     - raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag
+     - raf_source::test_crate::discovery_targets::two_packages_with_one_name_are_an_error_naming_both_manifests
++    - raf_source::test_crate::discovery_targets::an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads
+     - raf_source::test_crate::discovery_targets::a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads
+     - raf_source::test_crate::module_tree::a_path_attribute_in_a_mod_rs_file_is_relative_to_that_files_directory
+     - raf_source::test_crate::module_tree::every_cfg_attr_path_alternative_is_followed_carrying_its_predicate
+@@ -521,7 +522,8 @@ and not a crash. Every refusal the pre-scan makes is a typed error and not a pan
+ The crate sets no time bound.
+ 
+ **Package discovery.** `Workspace::load(tree, roots)` takes explicit roots; the
+-crate has no default roots, and each caller names its own (`"."` is the tree root).
++crate has no default roots, each caller names its own (`"."` is the tree root), and an
++empty list is a `NoRoots` error.
+ Discovery reads each root as a directory. A directory with a `Cargo.toml` that has a
+ `[package]` table is a package. The walk descends, on a stack of its own and at most
+ 128 directories below the root, through every directory that is not
+@@ -1011,7 +1013,7 @@ duplicates.
+   name, the shipping flag, the crate path and that each target's root module is
+   recorded under its crate path.
+ - Discovery fixtures: a virtual manifest contributes nothing; a manifest with a
+-  trailing comment and single-quoted values is honoured; no roots find nothing; a
++  trailing comment and single-quoted values is honoured; no roots is an error; a
+   package nested below a package without `[workspace]` is not found beside a root
+   package with `[workspace]` and a member below it; `target` and dot-directories are
+   skipped beside a sibling; roots exclude what they do not name; the `auto*` flags and

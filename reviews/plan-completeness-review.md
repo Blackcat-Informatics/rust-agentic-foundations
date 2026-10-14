@@ -1,0 +1,9 @@
+# Completeness review (independent, single concern) — condensed record
+
+Run read-only during plan mode; full report returned inline to the orchestrator. Condensed here.
+Reviewed: plan.md as amended by the superset-port revision. VERDICT: NEEDS-REVISION (20 required, 9 advisory).
+
+Required: 1 unknown `type` fixture; 2 value-rule fixtures (title/description, bindings lists, depends, changes, affects, contract_effect, item claim/keys); 3 per-document rules orphaned by docs_contract migration (bindings by state, type vs directory, layout, tracked symlinks); 4 single-line HTML link ruling vs four existing multi-line tag fixtures; 5 placeholder scan needs prose view; 6 vague body-model checks (slug/span text, indent, link forms, code spans, purrdf regressions); 7 duplicate keys / CRLF / escape-set fixtures; 8 replace_span negatives; 9 containment fixtures need load-level API (Task 6) plus DiskTree::new cases; 10 TreeError typing fixtures; 11 oversize Cargo.toml; 12 discovery rules (nested, skips, auto flags, test_crate naming/collision); 13 #[path] mod-rs children, module cycle, raw identifiers; 14 item fields per kind, extern crate/use ::x, duplicate imports, 5000-hop chain, crate/self/super; 15 impl self-type rule refuses legal code; 16 counted overflow shapes must be typed refusals in-process, neighbouring valid per budget; 17 deterministic thread-name abort fixture; 18 doctest equality mechanism and runnable Usage; 19 file reached through several module paths; 20 Contract wording per task and a sentence-to-test checklist.
+Advisory: 21 tense not a violation; 22 positioned bound errors; 23 index cases; 24 sorted order assertion; 25 fuzz entry naming and crash procedure; 26 amendment coverage and L-fixture column; 27 issue wording decisions (tags, default roots) to the user; 28 golden input set; 29 cfg predicate matrix and trait method path.
+
+Dispositions: plan.md section "F. Review dispositions".

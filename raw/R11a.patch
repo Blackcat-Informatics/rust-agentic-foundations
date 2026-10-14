@@ -1,0 +1,261 @@
+diff --git crates/raf-source/src/workspace.rs crates/raf-source/src/workspace.rs
+index a2fb6d9..8a5cdf9 100644
+--- crates/raf-source/src/workspace.rs
++++ crates/raf-source/src/workspace.rs
+@@ -257,8 +257,7 @@ impl Workspace {
+         self.files.get(path).map(|file| file.text.as_str())
+     }
+ 
+-    /// Every item, sorted by path, then name space, file and position, so the
+-    /// items under a path prefix form a contiguous run.
++    /// Every item, sorted by path, then name space, file and position.
+     pub fn items(&self) -> impl Iterator<Item = &Item> {
+         self.index
+             .order
+@@ -266,8 +265,9 @@ impl Workspace {
+             .map(|id| &self.index.items[id.index()])
+     }
+ 
+-    /// The items whose path starts with `prefix`, in the order of
+-    /// [`Workspace::items`].
++    /// The items at `prefix` or below it, in the order of [`Workspace::items`].
++    /// The prefix matches whole path segments: `demo::a` selects `demo::a` and
++    /// `demo::a::b`, not `demo::ab`. An empty prefix selects every item.
+     pub fn items_under<'a>(&'a self, prefix: &'a str) -> impl Iterator<Item = &'a Item> {
+         let order = &self.index.order;
+         let start = order.partition_point(|id| self.index.items[id.index()].path.as_str() < prefix);
+@@ -275,6 +275,13 @@ impl Workspace {
+             .iter()
+             .map(|id| &self.index.items[id.index()])
+             .take_while(move |item| item.path.starts_with(prefix))
++            .filter(move |item| {
++                prefix.is_empty()
++                    || item
++                        .path
++                        .strip_prefix(prefix)
++                        .is_some_and(|rest| rest.is_empty() || rest.starts_with("::"))
++            })
+     }
+ 
+     /// One item by id.
+diff --git crates/raf-source/tests/symbol_index.rs crates/raf-source/tests/symbol_index.rs
+index cdaf315..3c1b61f 100644
+--- crates/raf-source/tests/symbol_index.rs
++++ crates/raf-source/tests/symbol_index.rs
+@@ -850,6 +850,59 @@ fn two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order()
+     );
+ }
+ 
++#[test]
++fn items_under_matches_whole_path_segments() {
++    let ws = ok(&[
++        (
++            "src/lib.rs",
++            "pub mod a;\npub mod ab;\npub mod a1;\npub fn a_fn() {}\n",
++        ),
++        ("src/a.rs", "pub struct A;\nimpl A { pub fn m() {} }\n"),
++        ("src/ab.rs", "pub struct B;\n"),
++        ("src/a1.rs", "pub struct C;\n"),
++    ]);
++    let under = |prefix: &str| -> Vec<String> {
++        ws.items_under(prefix)
++            .map(|i| i.path.as_str().to_owned())
++            .collect()
++    };
++    assert_eq!(under("demo::a"), ["demo::a", "demo::a::A", "demo::a::A::m"]);
++    assert_eq!(under("demo::ab"), ["demo::ab", "demo::ab::B"]);
++    assert_eq!(under("demo::a::A"), ["demo::a::A", "demo::a::A::m"]);
++    assert_eq!(under("demo::a::"), Vec::<String>::new());
++    assert_eq!(under("demo::nope"), Vec::<String>::new());
++    assert_eq!(under("").len(), ws.items().count());
++}
++
++#[test]
++fn a_file_reached_by_targets_of_two_packages_belongs_to_the_first_target_in_target_order() {
++    let tree: MemoryTree = [
++        ("Cargo.toml", "[workspace]\nmembers = [\"p1\", \"p2\"]\n"),
++        (
++            "p1/Cargo.toml",
++            "[package]\nname = \"zeta\"\nversion = \"0.1.0\"\n",
++        ),
++        (
++            "p2/Cargo.toml",
++            "[package]\nname = \"alpha\"\nversion = \"0.1.0\"\n",
++        ),
++        ("p1/src/lib.rs", "#[path = \"../../shared.rs\"]\nmod s;\n"),
++        ("p2/src/lib.rs", "#[path = \"../../shared.rs\"]\nmod s;\n"),
++        ("shared.rs", "pub fn go() {}\n"),
++    ]
++    .into_iter()
++    .collect();
++    let ws = Workspace::load(&tree, &["."]).expect("loads");
++    let first = ws.targets().next().expect("a target");
++    let shared = ws
++        .file(&RelPath::new("shared.rs").expect("path"))
++        .expect("the shared file");
++    assert_eq!(shared.reached.len(), 2);
++    assert_eq!(shared.package, first.package);
++    // Packages are in manifest-path order, not name order.
++    assert_eq!(first.package, "zeta");
++}
++
+ #[test]
+ fn an_unnamed_const_is_in_the_facts_and_not_in_the_index() {
+     let ws = lib("const _: () = ();\npub const NAMED: u8 = 1;\n");
+diff --git docs/capabilities/source-index.md docs/capabilities/source-index.md
+index 8fedf59..d7829f7 100644
+--- docs/capabilities/source-index.md
++++ docs/capabilities/source-index.md
+@@ -937,13 +937,16 @@ The identity of an item is its file and the byte offset where its span starts. A
+ that several module paths reach is indexed once for each path, so the same source item
+ can appear as several `Item` values that share a file and offset and differ in `path`
+ and `target`. `items` yields every item sorted by path, then name space, file and
+-position, strictly increasing, so the items under a path prefix are a contiguous run
+-(`items_under`); `items_by_source()` and `same_source(&item)` group the items that share
++position, strictly increasing. `items_under(prefix)` yields the item at `prefix` and the
++items below it, matching whole path segments: `demo::a` selects `demo::a` and
++`demo::a::b` but not `demo::ab`, and an empty prefix selects every item.
++`items_by_source()` and `same_source(&item)` group the items that share
+ one identity, so a census can count a source item once however many paths reach it;
+ `item(id)` is a lookup; `items_in(file)` yields a file's items in order
+ of position; `item_at(file, offset)` yields the innermost items that hold the offset;
+ `is_shipping(&item)` is true for an item of a shipping target that is not test code;
+-`files()` yields each source file once, with its package, the targets and module paths
++`files()` yields each source file once, with its package (the package of the first
++target in target order that reaches the file), the targets and module paths
+ that reach it, and whether it ships; `source(file)` is the exact text that was indexed;
+ and `test_fns()` returns, for each `#[test]` function (or a typed error if one's path does not start with its target's crate path), the package, the kind and Cargo
+ name of its target (`--lib`, `--bin <name>` or `--test <name>`) and its path inside the
+@@ -1308,6 +1311,14 @@ duplicates.
+   test rejects a binding to the same misplaced shape. `raf_source::syn` and
+   `raf_source::syn::File`, through `pub use syn;`, are `NotFound` beside
+   `raf_source::DiskTree`, which resolves.
++- Path-prefix fixtures: `items_under("demo::a")` beside the modules `demo::ab` and
++  `demo::a1` returns `demo::a` and its descendants only, an empty prefix returns every
++  item, and a file that the targets of two packages reach has the package of the first
++  target in target order, which is the first by manifest path and not by name.
++- Binding fixtures in the document-contract test: a `tests` binding that names an
++  item that is not a function marked `#[test]` is a violation, and so is a `code`
++  binding that names test code or an item of a non-shipping target. The repository's
++  own bindings satisfy both rules.
+ - `#[path]` fixtures: a redirect inside the root resolves; `..` out of the root and
+   an absolute path outside it both fail naming the module and the attribute, and a
+   recording tree shows that the outside path is never read.
+diff --git tests/docs_contract.rs tests/docs_contract.rs
+index c9909bc..32d65bd 100644
+--- tests/docs_contract.rs
++++ tests/docs_contract.rs
+@@ -27,7 +27,7 @@ use raf_okf::{
+     Bindings, Body, DocType, Document, ErrorKind, FencedBlock, Index, LinkTarget, Outcome,
+     ParseError, Profile, RafDocument, Rule, State, is_capability_index,
+ };
+-use raf_source::{DiskTree, MemoryTree, Workspace};
++use raf_source::{DiskTree, ItemId, MemoryTree, TestRole, Workspace};
+ 
+ mod support;
+ 
+@@ -689,6 +689,22 @@ fn check(repo: &Repo) -> Vec<String> {
+ // Bindings
+ // ---------------------------------------------------------------------------
+ 
++/// Why the definitions a binding resolved to do not fit the list it is in: a
++/// `code` binding names shipping items, and a `tests` binding names functions
++/// marked `#[test]`. `examples` bindings only have to resolve.
++fn wrong_role(workspace: &Workspace, kind: &str, sites: &[ItemId]) -> Option<&'static str> {
++    let mut items = sites.iter().filter_map(|id| workspace.item(*id));
++    match kind {
++        "code" if items.any(|item| !workspace.is_shipping(item)) => {
++            Some("names an item that is test code or is not in a shipping target")
++        }
++        "tests" if items.any(|item| item.test != TestRole::TestFn) => {
++            Some("names an item that is not a function marked `#[test]`")
++        }
++        _ => None,
++    }
++}
++
+ /// Resolve every binding of every capability in the source index. A binding
+ /// that names nothing, names two things, or goes through a cycle is a
+ /// violation that names the capability and the binding.
+@@ -702,14 +718,22 @@ fn check_bindings(found: &Found, workspace: &Workspace) -> Vec<String> {
+         ];
+         for (kind, bindings) in lists {
+             for binding in bindings {
+-                if let Err(error) = workspace.resolve(binding) {
+-                    out.push(violation(
++                match workspace.resolve(binding) {
++                    Err(error) => out.push(violation(
+                         &cap.path,
+                         format!(
+                             "{} {kind} binding `{binding}` does not resolve: {error}",
+                             cap.id
+                         ),
+-                    ));
++                    )),
++                    Ok(resolution) => {
++                        if let Some(why) = wrong_role(workspace, kind, &resolution.sites) {
++                            out.push(violation(
++                                &cap.path,
++                                format!("{} {kind} binding `{binding}` {why}", cap.id),
++                            ));
++                        }
++                    }
+                 }
+             }
+         }
+@@ -2993,7 +3017,7 @@ fn reads_an_attribute_value_that_starts_on_the_next_line() {
+ 
+ // --- bindings ---------------------------------------------------------------
+ 
+-const DEMO_LIB: &str = "macro_rules! make {\n    ($name:ident) => {\n        pub fn $name() {}\n    };\n}\nmake!(generated);\npub fn real() {}\nmod body;\n";
++const DEMO_LIB: &str = "macro_rules! make {\n    ($name:ident) => {\n        pub fn $name() {}\n    };\n}\nmake!(generated);\npub fn real() {}\nmod body;\n#[cfg(test)]\nmod unit {\n    pub fn helper() {}\n}\n";
+ 
+ fn demo_workspace() -> Workspace {
+     let tree = MemoryTree::from([
+@@ -3005,7 +3029,7 @@ fn demo_workspace() -> Workspace {
+         // `blocks.rs` sorts before `mod.rs`, which declares it, as in raf-okf.
+         ("src/body/mod.rs", "mod blocks;\npub fn in_body() {}\n"),
+         ("src/body/blocks.rs", "pub(crate) struct FenceBlock;\n"),
+-        ("tests/it.rs", "fn case() {}\n"),
++        ("tests/it.rs", "#[test]\nfn case() {}\npub fn plain() {}\n"),
+     ]);
+     Workspace::load(&tree, &["."]).expect("the demo workspace loads")
+ }
+@@ -3093,6 +3117,37 @@ fn every_unresolved_binding_of_every_list_is_reported() {
+     }
+ }
+ 
++#[test]
++fn a_tests_binding_must_name_a_function_marked_test() {
++    let violations = binding_violations("[demo::real]", "[demo::test_crate::it::plain]", "[]");
++    assert_eq!(violations.len(), 1, "{violations:#?}");
++    assert_hit(
++        &violations,
++        "cap:gamma tests binding `demo::test_crate::it::plain` names an item that is not a function marked `#[test]`",
++    );
++    let violations = binding_violations("[demo::real]", "[demo::real]", "[]");
++    assert_eq!(violations.len(), 1, "{violations:#?}");
++    assert_hit(&violations, "tests binding `demo::real` names an item");
++}
++
++#[test]
++fn a_code_binding_must_name_a_shipping_item() {
++    for binding in ["demo::unit::helper", "demo::test_crate::it::case"] {
++        let violations = binding_violations(
++            &format!("[{binding}]"),
++            "[demo::test_crate::it::case]",
++            "[]",
++        );
++        assert_eq!(violations.len(), 1, "{violations:#?}");
++        assert_hit(
++            &violations,
++            &format!(
++                "cap:gamma code binding `{binding}` names an item that is test code or is not in a shipping target"
++            ),
++        );
++    }
++}
++
+ // --- Usage and Examples are the crate documentation tests --------------------
+ 
+ /// A fenced `rust` block: its info string and its code.
