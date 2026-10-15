@@ -194,11 +194,11 @@ git merge-base HEAD <default-commit>
 git cat-file blob <merge-base>:<prefix><path>
 ```
 
-`<default-ref>` is the full ref name that the first command prints, such as
+`<default-ref>` is the full ref name that `git symbolic-ref` prints, such as
 `refs/remotes/origin/main`, so a local branch named `origin/main` cannot be mistaken
 for it. The remote is assumed to be named `origin`. A repository where it fails has no
 default branch, which is an error and not a silent pass. The ref is resolved to a
-commit id by the second command and every later command receives that id, so a branch
+commit id by `git rev-parse --verify` and every later command receives that id, so a branch
 named like an option cannot reach `git` as an option. In the last command the path
 follows `<merge-base>:` inside one argument, so it cannot be read as an option.
 `<path>` is a repository-relative document path from the loaded document set, and
