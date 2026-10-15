@@ -341,6 +341,50 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   tree's only changes the rewrite and the removal), and scripted runners for the order
   of the processes, hostile bindings, the repository changing during the run and the
   order of the writes.
+- **`cargo-workplan`:** the cargo subcommand of the workplan, a new workspace member
+  (package and binary `cargo-workplan`) with two dependencies of its own, `clap`
+  (derive; the colour feature is off) and `serde_json`, both under the licences
+  `deny.toml` allows with no exception and no skip. It runs as `cargo workplan
+  <command>` (cargo passes the argument vector `cargo-workplan workplan <command>`) and
+  as `cargo-workplan <command>`; both forms take the same arguments and give the
+  same result. The commands are `check` (the findings of `Gate::try_check`, one line
+  each in the library's order), `status` (the roadmap of `Workplan::status`: a row for
+  each state in the order delivered, implementing, designed, considered, with the gaps
+  of each implementing capability and the open changes that list it, and a row for the
+  open changes; a gap is not a violation, so it exits 0), `docs sync` (the generated
+  blocks of `Workplan::sync` through `Workplan::write`, `rewrote <path>` for each
+  file; `--copyright <text>` and `--licence <id>` are read only when
+  `docs/capabilities/index.md` has to be created, and a missing one is exit 2 that names
+  the flag) and `docs preview <slug>` (each capability the change lists as it reads
+  once reconciled, under a `==> <path> <==` line; it never writes). The options are
+  `--root <dir>`, `--format text|json` and `-q`, each accepted before or after the
+  command. Without `--root` the root is `raf_workplan::root::discover`, exactly
+  `cargo metadata --format-version 1 --no-deps --frozen`, run in the current
+  directory with the `cargo` named by `$CARGO` or else on `PATH`. The exit codes are 0
+  (no finding), 1 (findings) and 2 (the tool could not run: a usage error, a
+  directory that is not a repository, a `git` or `cargo` that cannot run, an unknown or
+  unloaded change, a sync that refuses a file); standard output holds the findings in a
+  stable order and standard error the diagnostics, and `-q` prints nothing but
+  findings (so `status`, `docs sync` and `docs preview` print nothing under it, and a
+  failure is still written to standard error). A slug is checked against the slug
+  pattern of the profile when the arguments are parsed, so a slug that starts with `-`
+  is a usage error, exit 2, before any process starts. `--format json` prints one JSON
+  array for the run: one object for each printed record, `kind` first, then the fields
+  of its kind (a rule of the document model has `path`, `section`, `line`, `key`,
+  `message` and `fix`; the others are `rewrote`, `state`, `open-changes` and `preview`),
+  documented in the crate documentation and pinned by tests; standard output is empty
+  when the tool could not run. The binary holds no rule of its own: each command is a
+  call into `raf-workplan` and a rendering of what it returns, and a test shows that
+  `check` prints the findings of `Gate::workspace(..).check()` and exits 0 exactly
+  when `assert_clean` does not panic. The tests run the built binary in both shapes
+  of the argument vector against repositories written to a scratch directory: every
+  command with exit 0, 1 and 2, `-q`, the JSON schema, the tree byte-identical after
+  `check`, `status` and `docs preview`, root discovery from a subdirectory and
+  `--root` overriding it, and with stub programs the exact `cargo metadata` argv
+  from `$CARGO` and from `PATH`, no process before a slug that starts with `-`
+  is refused, a missing `git`, and a `build.rustc` program that discovery does not run.
+  The macOS and Windows CI jobs run these tests too. The change lifecycle commands and
+  `verify` are not part of the binary yet.
 - **Workplan capabilities delivered:** the workplan document model and the
   generated documentation blocks are `delivered`, bound to the `raf-workplan` code,
   tests and examples that realise them, with their verification matrices,

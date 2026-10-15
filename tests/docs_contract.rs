@@ -527,6 +527,7 @@ fn repository_bindings_resolve_in_the_source_index() -> Result<(), Box<dyn Error
     assert_eq!(
         packages,
         BTreeSet::from([
+            "cargo-workplan",
             "raf-okf",
             "raf-source",
             "raf-source-fuzz",

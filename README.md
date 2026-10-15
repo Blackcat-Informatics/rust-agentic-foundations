@@ -20,7 +20,9 @@ to fix the problem.
 
 `raf-okf` and `raf-source` are **delivered**. `raf-workplan` delivers its document
 model and generated documentation blocks; its reconcile step and completion gate are
-designed. The other crates are **designed — not yet published**. The linked
+designed. `cargo-workplan` runs `check`, `status` and `docs sync|preview` and its
+`change` and `verify` commands are designed. The other crates are
+**designed — not yet published**. The linked
 capability documents are the specification the crates are built against.
 
 | Crate | Kind | Purpose | Status | Specification |
@@ -30,7 +32,7 @@ capability documents are the specification the crates are built against.
 | `raf-census` | library | The duplicate-helper census, ledger and debt ratchet, with a test gate. | **designed — not yet published** | [census-normal-form](docs/capabilities/census-normal-form.md) |
 | `cargo-census` | cargo subcommand | Runs the census from the command line. | **designed — not yet published** | [census-cli](docs/capabilities/census-cli.md) |
 | `raf-workplan` | library | The workplan document model, generated documentation blocks, reconcile step and completion gate. | **model and generated blocks delivered**; reconcile and completion gate designed | [workplan-document-model](docs/capabilities/workplan-document-model.md), [workplan-generated-docs](docs/capabilities/workplan-generated-docs.md) |
-| `cargo-workplan` | cargo subcommand | Runs the workplan from the command line. | **designed — not yet published** | [workplan-cli](docs/capabilities/workplan-cli.md) |
+| `cargo-workplan` | cargo subcommand | Runs the workplan from the command line. | **`check`, `status` and `docs` commands built**; `change` and `verify` designed — not yet published | [workplan-cli](docs/capabilities/workplan-cli.md) |
 
 ## Usage
 

@@ -141,7 +141,11 @@ guarantees are these, and no wider:
   documents or the source index and a stated pattern, and then in one of three
   forms: after `--`; inside a single `<rev>:<path>` or `-L<start>,<end>:<path>`
   argument; or, for a test name that the test harness reads, as a validated filter
-  after `-- --exact --`.
+  after `-- --exact --`. The `cargo-workplan` binary starts no process of its own:
+  root discovery (`cargo metadata --format-version 1 --no-deps --frozen`) and the
+  `git` calls of the gate are made by `raf-workplan`, and a slug argument is checked
+  against the slug pattern when the arguments are parsed, so one that starts with `-`
+  is a usage error before any process starts.
 
 Each spec states its own bounds and exact invocations.
 
