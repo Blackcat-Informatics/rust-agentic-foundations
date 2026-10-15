@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-reconcile
 title: "Change reconciliation"
 description: "change new, change impact and change reconcile: opening a change, listing what it touches, and producing the documentation obligations."
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_workplan::Workplan::new_change
@@ -403,5 +403,4 @@ in these two places, so update the usage example and the lifecycle explanation".
 | Depended on by | [workplan-cli](./workplan-cli.md) |
 | Depended on by | [workplan-complete-gate](./workplan-complete-gate.md) |
 | Depended on by | [workplan-evidence-claims](./workplan-evidence-claims.md) |
-| Changed by | [workplan-reconcile](../../work/changes/workplan-reconcile.md) |
 <!-- raf:generated:end -->

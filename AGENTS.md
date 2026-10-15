@@ -53,11 +53,10 @@ the body model and the profile validation of `raf-okf`, and the `Tree` trait of
 `raf-source` with its disk and memory backends and path containment, its bounded
 parse, package and target discovery, its module tree and its symbol and use-alias
 index. `raf-workplan` delivers the document model (loading, the graph, binding
-resolution, the check rules and the `Gate`) and the generated blocks with their
-sync and preview, and builds the change lifecycle (`change new`, `impact`,
-`reconcile`, `complete` and `verify`); the capability documents that specify the
-reconcile step, the completion gate and the command line are **implementing**.
-`cargo-workplan` has all of its commands: `check`, `status`, `docs sync|preview`,
+resolution, the check rules and the `Gate`), the generated blocks with their sync
+and preview, and the change lifecycle (`change new`, `impact`, `reconcile`,
+`complete` and `verify`). `cargo-workplan` is **delivered** with all of its
+commands: `check`, `status`, `docs sync|preview`,
 `change new|impact|reconcile|complete` and `verify`. Every other crate below is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
 
@@ -67,8 +66,8 @@ reconcile step, the completion gate and the command line are **implementing**.
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | delivered |
 | `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | designed |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
-| `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | model and generated sections delivered; obligations, `verify` and completion gate implementing |
-| `cargo-workplan` | Thin command-line wrapper over `raf-workplan` | all commands built: `check`, `status`, `docs`, `change`, `verify` |
+| `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |
+| `cargo-workplan` | Thin command-line wrapper over `raf-workplan` | delivered |
 
 `raf-source` is shared on purpose: the census needs its symbol index to resolve
 ledger homes, and the workplan needs the same index to resolve code and test

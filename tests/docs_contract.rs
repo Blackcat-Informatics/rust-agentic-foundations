@@ -83,15 +83,15 @@ const INVENTORY: Inventory = Inventory {
         ("census-rule-api", "designed"),
         ("okf-profile", "delivered"),
         ("source-index", "delivered"),
-        ("workplan-cli", "implementing"),
-        ("workplan-complete-gate", "implementing"),
+        ("workplan-cli", "delivered"),
+        ("workplan-complete-gate", "delivered"),
         ("workplan-current-rationale", "considered"),
         ("workplan-document-model", "delivered"),
         ("workplan-entity-history", "considered"),
         ("workplan-evidence-claims", "considered"),
         ("workplan-generated-docs", "delivered"),
         ("workplan-prose-assessment", "considered"),
-        ("workplan-reconcile", "implementing"),
+        ("workplan-reconcile", "delivered"),
         ("workplan-two-way-coverage", "considered"),
     ],
     architecture: &["normal-form", "okf-profile"],
@@ -933,8 +933,8 @@ fn inventory_table_has_the_documented_shape() {
             .count()
     };
     assert_eq!(count("designed"), 9);
-    assert_eq!(count("implementing"), 3);
-    assert_eq!(count("delivered"), 4);
+    assert_eq!(count("implementing"), 0);
+    assert_eq!(count("delivered"), 7);
     assert_eq!(count("considered"), 5);
     assert_eq!(INVENTORY.architecture.len(), 2);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
