@@ -9,16 +9,17 @@
 //! `Cargo.lock`, no dependency and a pinned edition, the capability documents
 //! that bind it, a change record, and a git history with a remote-tracking
 //! default branch; the processes are the real `git` and the `cargo` that started
-//! this test binary. All of them share one target directory. A scripted one has
-//! the same files and the same documents but answers every process from a
-//! [`FakeRunner`], on every platform, and records the calls, so the order of the
-//! steps and the processes a refusal spends can be read from them.
+//! this test binary. Each builds into a target directory of its own, beside it
+//! and removed with it. A scripted one has the same files and the same
+//! documents but answers every process from a [`FakeRunner`], on every
+//! platform, and records the calls, so the order of the steps and the processes
+//! a refusal spends can be read from them.
 
 mod support;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use raf_source::RelPath;
@@ -46,16 +47,6 @@ fn cargo() -> PathBuf {
         .map(PathBuf::from)
         .or_else(|| option_env!("CARGO").map(PathBuf::from))
         .expect("cargo test sets CARGO")
-}
-
-/// The target directory every real fixture builds into.
-fn shared_target() -> &'static Path {
-    static TARGET: OnceLock<PathBuf> = OnceLock::new();
-    TARGET.get_or_init(|| {
-        let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("complete-fixtures");
-        std::fs::create_dir_all(&dir).expect("the shared target directory");
-        dir
-    })
 }
 
 const LIB: &str = "\
@@ -253,11 +244,7 @@ impl Fixture {
             "Cargo.lock",
             "version = 4\n\n[[package]]\nname = \"fx-life\"\nversion = \"0.1.0\"\n",
         );
-        put(
-            root,
-            ".cargo/config.toml",
-            &format!("[build]\ntarget-dir = '{}'\n", shared_target().display()),
-        );
+        put(root, ".cargo/config.toml", &scratch.cargo_config());
         put(root, "src/lib.rs", LIB);
         for (name, text) in &spec.example_files {
             put(root, &format!("examples/{name}.rs"), text);

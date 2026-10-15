@@ -141,8 +141,7 @@ fn nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_exampl
 
 #[test]
 fn a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree() {
-    let target = support::shared_target("cli-reconcile");
-    let repo = Repo::real("reconcile-example", &target);
+    let repo = Repo::real("reconcile-example");
     repo.put(
         "docs/capabilities/fixture.md",
         &support::capability(

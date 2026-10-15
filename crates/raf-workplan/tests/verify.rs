@@ -7,17 +7,16 @@
 //! Each fixture is a small repository generated into a scratch directory from
 //! the templates below: a crate with its own `[workspace]`, a template
 //! `Cargo.lock`, no dependency and a pinned edition, the capability documents
-//! that bind it and a change record. All of them share one target directory
-//! (named in the fixture's `.cargo/config.toml`, so the environment of this
-//! process is not touched), and `cargo` is the one that started this test
-//! binary (`$CARGO`). Every test asserts a wall-clock budget. A fixture that
+//! that bind it and a change record. Each builds into a target directory of its
+//! own, beside it and removed with it (named in the fixture's
+//! `.cargo/config.toml`, so the environment of this process is not touched),
+//! and `cargo` is the one that started this test binary (`$CARGO`). Every test asserts a wall-clock budget. A fixture that
 //! must start no process runs with a `cargo` and a `git` that do not exist, so
 //! a process started anyway fails as an error and cannot pass.
 
 mod support;
 
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use raf_workplan::bound::{BoundOutcome, Evidence};
@@ -41,16 +40,6 @@ fn cargo() -> PathBuf {
         .map(PathBuf::from)
         .or_else(|| option_env!("CARGO").map(PathBuf::from))
         .expect("cargo test sets CARGO")
-}
-
-/// The target directory every fixture builds into.
-fn shared_target() -> &'static Path {
-    static TARGET: OnceLock<PathBuf> = OnceLock::new();
-    TARGET.get_or_init(|| {
-        let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("verify-fixtures");
-        std::fs::create_dir_all(&dir).expect("the shared target directory");
-        dir
-    })
 }
 
 const LIB: &str = "\
@@ -137,11 +126,7 @@ impl Fixture {
             "Cargo.lock",
             "version = 4\n\n[[package]]\nname = \"fx-life\"\nversion = \"0.1.0\"\n",
         );
-        put(
-            root,
-            ".cargo/config.toml",
-            &format!("[build]\ntarget-dir = '{}'\n", shared_target().display()),
-        );
+        put(root, ".cargo/config.toml", &scratch.cargo_config());
         put(root, "src/lib.rs", LIB);
         for (name, text) in examples {
             put(root, &format!("examples/{name}.rs"), text);

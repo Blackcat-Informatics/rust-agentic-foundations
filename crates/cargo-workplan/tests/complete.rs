@@ -32,8 +32,7 @@ const DONE: &str = "items:\n  - claim: \"fixture is shaped\"\n    outcome: imple
 /// as given, and the change `shape` that lists it with `items`. The contract
 /// of the capability is edited after the fork, so its section is touched.
 fn shaped(tag: &str, state: &str, tests: &str, examples: &str, items: &str) -> Repo {
-    let target = support::shared_target("cli-complete");
-    let repo = Repo::real(tag, &target);
+    let repo = Repo::real(tag);
     repo.put(
         CAP,
         &capability(
@@ -399,8 +398,7 @@ fn json_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_fil
 
 #[test]
 fn from_new_to_a_completed_change_through_the_binary() {
-    let target = support::shared_target("cli-complete");
-    let repo = Repo::real("complete-flow", &target);
+    let repo = Repo::real("complete-flow");
     repo.put(
         CAP,
         &capability(

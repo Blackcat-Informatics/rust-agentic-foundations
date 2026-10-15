@@ -7,18 +7,20 @@
 //! Each fixture is a small crate generated into a scratch directory from the
 //! templates below: its own `[workspace]`, a template `Cargo.lock`, no
 //! dependency and a pinned edition, so nothing is fetched and no enclosing
-//! workspace is read. All of them share one target directory (named in the
-//! fixture's `.cargo/config.toml`, so the environment of this process is not
-//! touched), and `cargo` is the one that started this test binary (`$CARGO`).
+//! workspace is read. Each builds into a target directory of its own, beside it
+//! and removed with it (named in the fixture's `.cargo/config.toml`, so the
+//! environment of this process is not touched): fixtures that name the same
+//! package share a build fingerprint, so one directory for all of them lets a
+//! sibling's `cargo` rewrite or lock an executable another is running. `cargo`
+//! is the one that started this test binary (`$CARGO`).
 //! Every test asserts a wall-clock budget. A refusal before any process is run
 //! with a `cargo` that does not exist, so a refusal that started a process
 //! would fail as an error, not pass.
 
 use std::fmt::Write as _;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -38,19 +40,10 @@ fn cargo() -> PathBuf {
         .expect("cargo test sets CARGO")
 }
 
-/// The target directory every fixture builds into.
-fn shared_target() -> &'static Path {
-    static TARGET: OnceLock<PathBuf> = OnceLock::new();
-    TARGET.get_or_init(|| {
-        let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("bound-fixtures");
-        fs::create_dir_all(&dir).expect("the shared target directory");
-        dir
-    })
-}
-
-/// A generated crate, removed when dropped.
+/// A generated crate, removed when dropped together with its target directory.
 struct Fixture {
     dir: PathBuf,
+    target: PathBuf,
     package: String,
     source: Workspace,
     started: Instant,
@@ -68,6 +61,10 @@ impl Fixture {
             "raf-bound-{}-{nanos}-{}",
             std::process::id(),
             COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let target = dir.with_file_name(format!(
+            "{}-target",
+            dir.file_name().and_then(|n| n.to_str()).expect("a name")
         ));
         let put = |path: &str, text: &str| {
             let target = dir.join(path);
@@ -88,7 +85,10 @@ impl Fixture {
         );
         put(
             ".cargo/config.toml",
-            &format!("[build]\ntarget-dir = '{}'\n", shared_target().display()),
+            &format!(
+                "[build]\ntarget-dir = '{0}'\nbuild-dir = '{0}'\n",
+                target.display()
+            ),
         );
         for (path, text) in files {
             put(path, text);
@@ -97,6 +97,7 @@ impl Fixture {
             .expect("the fixture loads");
         Self {
             dir,
+            target,
             package: package.to_string(),
             source,
             started: Instant::now(),
@@ -196,6 +197,7 @@ impl Fixture {
 impl Drop for Fixture {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.dir);
+        let _ = fs::remove_dir_all(&self.target);
     }
 }
 

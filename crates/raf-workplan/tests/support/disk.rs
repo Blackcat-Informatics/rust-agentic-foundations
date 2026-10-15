@@ -33,12 +33,35 @@ impl Scratch {
     pub(crate) fn path(&self) -> &Path {
         &self.0
     }
+
+    /// The directory a real `cargo` run in this scratch directory builds into:
+    /// a sibling of it, so that the build writes nothing below the tree that is
+    /// loaded, committed and snapshotted, and removed with it.
+    pub(crate) fn target(&self) -> PathBuf {
+        let mut name = self.0.file_name().expect("a named directory").to_owned();
+        name.push("-target");
+        self.0.with_file_name(name)
+    }
+
+    /// The text of a `.cargo/config.toml` that gives this scratch directory
+    /// its own target and build directories. Two fixtures that name the same
+    /// package at the same version and path relative to their root share a
+    /// build fingerprint, so a shared directory lets one fixture's `cargo`
+    /// rewrite, lock or run an executable another one is using.
+    pub(crate) fn cargo_config(&self) -> String {
+        let target = self.target();
+        format!(
+            "[build]\ntarget-dir = '{0}'\nbuild-dir = '{0}'\n",
+            target.display()
+        )
+    }
 }
 
 impl Drop for Scratch {
     fn drop(&mut self) {
-        // The directory is under the temporary directory and only litter.
+        // The directories are under the temporary directory and only litter.
         let _ = fs::remove_dir_all(&self.0);
+        let _ = fs::remove_dir_all(self.target());
     }
 }
 

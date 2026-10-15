@@ -19,8 +19,7 @@ const BUDGET: Duration = Duration::from_secs(300);
 /// A repository with the capability `fixture` bound as given (tests, then
 /// examples) and the change `shape` that lists it.
 fn fixture(tag: &str, tests: &str, examples: &str) -> Repo {
-    let target = support::shared_target("cli-verify");
-    let repo = Repo::real(tag, &target);
+    let repo = Repo::real(tag);
     repo.put(
         "docs/capabilities/fixture.md",
         &capability(

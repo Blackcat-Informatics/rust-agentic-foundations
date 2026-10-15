@@ -55,12 +55,35 @@ impl Scratch {
     pub(crate) fn path(&self) -> &Path {
         &self.0
     }
+
+    /// The directory a real `cargo` run in this scratch directory builds into:
+    /// a sibling of it, so that the build writes nothing below the tree that is
+    /// run against and snapshotted, and removed with it.
+    pub(crate) fn target(&self) -> PathBuf {
+        let mut name = self.0.file_name().expect("a named directory").to_owned();
+        name.push("-target");
+        self.0.with_file_name(name)
+    }
+
+    /// The text of a `.cargo/config.toml` that gives this scratch directory
+    /// its own target and build directories. Two fixtures that name the same
+    /// package at the same version and path relative to their root share a
+    /// build fingerprint, so a shared directory lets one fixture's `cargo`
+    /// rewrite, lock or run an executable another one is using.
+    pub(crate) fn cargo_config(&self) -> String {
+        let target = self.target();
+        format!(
+            "[build]\ntarget-dir = '{0}'\nbuild-dir = '{0}'\n",
+            target.display()
+        )
+    }
 }
 
 impl Drop for Scratch {
     fn drop(&mut self) {
-        // The directory is under the temporary directory and only litter.
+        // The directories are under the temporary directory and only litter.
         let _ = fs::remove_dir_all(&self.0);
+        let _ = fs::remove_dir_all(self.target());
     }
 }
 
@@ -531,28 +554,17 @@ pub(crate) const GOOD_EXAMPLE: &str = "fn main() {\n    println!(\"fine\");\n}\n
 /// An example that builds and exits with a failing status.
 pub(crate) const EXITING_EXAMPLE: &str = "fn main() {\n    std::process::exit(3);\n}\n";
 
-/// The directory the fixtures that run `cargo` build into, one for each test
-/// binary and name, so no build writes below a fixture.
-pub(crate) fn shared_target(name: &str) -> PathBuf {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
-    fs::create_dir_all(&dir).expect("the shared target directory");
-    dir
-}
-
 impl Repo {
     /// A workspace that the real `cargo` builds and runs: the package `demo`
     /// with a library of two tests (`demo::tests::passes` and
     /// `demo::tests::fails`) and the examples `good` and `exiting`, building
-    /// into `target`.
-    pub(crate) fn real(tag: &str, target: &Path) -> Self {
+    /// into a target directory of its own, beside the root.
+    pub(crate) fn real(tag: &str) -> Self {
         let repo = Self::bare(tag);
         repo.put("src/lib.rs", LIB);
         repo.put("examples/good.rs", GOOD_EXAMPLE);
         repo.put("examples/exiting.rs", EXITING_EXAMPLE);
-        repo.put(
-            ".cargo/config.toml",
-            &format!("[build]\ntarget-dir = '{}'\n", target.display()),
-        );
+        repo.put(".cargo/config.toml", &repo.scratch.cargo_config());
         repo
     }
 
