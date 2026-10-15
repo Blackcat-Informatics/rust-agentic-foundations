@@ -10,7 +10,11 @@
 //! does next: the PROPOSED block to place and the state each listed capability
 //! needs while the block is there ([`NewChange`]). It writes exactly one file,
 //! created exclusively and never over an existing one, and reads the record
-//! back through the loader before it reports success.
+//! back through the loader before it reports success. Given a copyright text and
+//! a licence identifier ([`NewChangeRequest::copyright`] and
+//! [`NewChangeRequest::licence`], both or neither) it opens the record with the two
+//! SPDX comment lines, so a repository that checks licences accepts the file as
+//! it is.
 //!
 //! [`Workplan::impact`](crate::Workplan::impact) returns what a change reaches as one [`Impact`] value:
 //! the capabilities it changes, the sections it affects, the bindings of those

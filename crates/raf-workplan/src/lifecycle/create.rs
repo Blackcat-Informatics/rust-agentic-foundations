@@ -17,9 +17,18 @@ use raf_okf::{
 };
 use raf_source::{DiskTree, EntryKind, RelPath, Tree};
 
-use crate::finding::kind;
+use crate::generated;
 use crate::graph::SectionId;
 use crate::{Finding, Workplan};
+
+/// The tag of the copyright line of an SPDX header. It is written in two pieces
+/// so that this file does not carry the tag itself, which a licence checker
+/// reads in any file.
+const COPYRIGHT_TAG: &str = concat!("SPDX-", "FileCopyrightText: ");
+
+/// The tag of the licence line of an SPDX header, in two pieces for the same
+/// reason.
+const LICENCE_TAG: &str = concat!("SPDX-", "License-Identifier: ");
 
 /// The prefix of a capability id.
 const CAPABILITY_PREFIX: &str = "cap:";
@@ -40,17 +49,24 @@ const TEMPLATE_LINE: &str = "> State the proposed text here.";
 /// What `change new` is asked to create: the slug, the capabilities the change
 /// lists in `changes` and the `affects` entries.
 ///
-/// Build it with [`NewChangeRequest::new`] and the two adders; each may be
-/// called more than once.
+/// Build it with [`NewChangeRequest::new`] and the adders; `capability` and
+/// `affects` may be called more than once.
+///
+/// A repository that checks the licence of every file (REUSE) needs the record
+/// to open with two SPDX comment lines. `copyright` and `licence` give their
+/// text; they are written together or not at all.
 ///
 /// ```rust
 /// use raf_workplan::lifecycle::NewChangeRequest;
 ///
 /// let request = NewChangeRequest::new("incremental-parsing")
 ///     .capability("cap:streaming-parser")
-///     .affects("cap:streaming-parser#usage");
+///     .affects("cap:streaming-parser#usage")
+///     .copyright("2026 Example Org <dev@example.org>")
+///     .licence("CC-BY-4.0");
 /// assert_eq!(request.capabilities, ["cap:streaming-parser"]);
 /// assert_eq!(request.affects, ["cap:streaming-parser#usage"]);
+/// assert_eq!(request.licence.as_deref(), Some("CC-BY-4.0"));
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -62,6 +78,12 @@ pub struct NewChangeRequest {
     /// The `affects` entries, `cap:<name>#<section>`. When there are none, the
     /// record affects the `contract` section of each listed capability.
     pub affects: Vec<String>,
+    /// The text of the `SPDX-FileCopyrightText` comment line the record opens
+    /// with. Required when `licence` is set.
+    pub copyright: Option<String>,
+    /// The identifier of the `SPDX-License-Identifier` comment line the record
+    /// opens with. Required when `copyright` is set.
+    pub licence: Option<String>,
 }
 
 impl NewChangeRequest {
@@ -72,6 +94,8 @@ impl NewChangeRequest {
             slug: slug.into(),
             capabilities: Vec::new(),
             affects: Vec::new(),
+            copyright: None,
+            licence: None,
         }
     }
 
@@ -86,6 +110,22 @@ impl NewChangeRequest {
     #[must_use]
     pub fn affects(mut self, entry: impl Into<String>) -> Self {
         self.affects.push(entry.into());
+        self
+    }
+
+    /// Open the record with the SPDX copyright comment line `text`. Needs
+    /// [`licence`](Self::licence) as well.
+    #[must_use]
+    pub fn copyright(mut self, text: impl Into<String>) -> Self {
+        self.copyright = Some(text.into());
+        self
+    }
+
+    /// Open the record with the SPDX licence comment line `id`. Needs
+    /// [`copyright`](Self::copyright) as well.
+    #[must_use]
+    pub fn licence(mut self, id: impl Into<String>) -> Self {
+        self.licence = Some(id.into());
         self
     }
 }
@@ -103,6 +143,15 @@ pub enum StateAdvice {
 }
 
 impl StateAdvice {
+    /// The stable name of the advice: `keep` or `set-implementing`.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Keep => "keep",
+            Self::SetImplementing => "set-implementing",
+        }
+    }
+
     /// The advice for a capability in `state`.
     #[must_use]
     pub fn for_state(state: State) -> Self {
@@ -145,9 +194,10 @@ pub struct NewChange {
     pub template: String,
     /// One entry per listed capability, in the order of `capabilities`.
     pub guidance: Vec<CapabilityGuidance>,
-    /// Whether the new record makes a generated block stale that was current
-    /// before (the relationship tables name the changes that list a
-    /// capability), so the generated blocks must be synced.
+    /// Whether the record changes what a sync writes: a generated block it
+    /// makes stale (the relationship tables name the changes that list a
+    /// capability), or one that was already stale and now reads differently.
+    /// The generated blocks must then be synced.
     pub sync_needed: bool,
 }
 
@@ -167,11 +217,14 @@ impl fmt::Display for NewChange {
         writeln!(f)?;
         writeln!(f, "State of the listed capabilities:")?;
         for guidance in &self.guidance {
-            let advice = match guidance.advice {
-                StateAdvice::Keep => "no change of state is needed",
-                StateAdvice::SetImplementing => {
-                    "set `state: implementing` in the same commit as the block, since a PROPOSED block is a finding of `check` in this state"
+            let advice = match (guidance.advice, guidance.state) {
+                (StateAdvice::SetImplementing, State::Delivered) => {
+                    "set `state: implementing` in the same commit as the block, since in this state a PROPOSED block is a finding of `check` (`state-delivered-proposal`) and so is the open record itself (`state-delivered-open-record`)"
                 }
+                (StateAdvice::SetImplementing, _) => {
+                    "set `state: implementing` in the same commit as the block, since a PROPOSED block is a finding of `check` in this state (`state-designed-proposal`)"
+                }
+                (StateAdvice::Keep, _) => "no change of state is needed",
             };
             writeln!(
                 f,
@@ -184,8 +237,10 @@ impl fmt::Display for NewChange {
             writeln!(f)?;
             writeln!(
                 f,
-                "The record makes generated blocks stale: run `docs sync` to bring them up to date."
+                "The record makes generated blocks stale. Stage the record first, since a link to a file git does not track is a finding of `check`, then bring the blocks up to date:"
             )?;
+            writeln!(f, "  git add {}", self.path)?;
+            writeln!(f, "  docs sync")?;
         }
         Ok(())
     }
@@ -245,6 +300,19 @@ pub enum NewChangeError {
     Exists {
         /// The path of the record.
         path: RelPath,
+    },
+    /// One of `copyright` and `licence` is given and the other is not; the
+    /// record opens with both SPDX lines or with neither.
+    SpdxUnset {
+        /// The field that is missing: `copyright` or `licence`.
+        field: &'static str,
+    },
+    /// An SPDX field cannot be written as one comment line.
+    SpdxInvalid {
+        /// The field: `copyright` or `licence`.
+        field: &'static str,
+        /// Why.
+        reason: &'static str,
     },
     /// The record could not be built from the request.
     Build(ConstructError),
@@ -316,6 +384,14 @@ impl fmt::Display for NewChangeError {
                 f,
                 "{path} already exists and is left as it is; choose another slug"
             ),
+            Self::SpdxUnset { field } => write!(
+                f,
+                "the record needs both SPDX lines or neither, and the {field} is not given; pass --copyright <text> and --licence <id> together"
+            ),
+            Self::SpdxInvalid { field, reason } => write!(
+                f,
+                "the {field} of the SPDX header of the record is refused: {reason}"
+            ),
             Self::Build(error) => write!(f, "the record cannot be built: {error}"),
             Self::Invalid { path, findings } => {
                 write!(
@@ -368,7 +444,13 @@ impl Workplan<'_> {
     ///
     /// The record has the identity `change:<slug>`, `contract_effect: changes`,
     /// an empty `items` list, a title and a description for the author to
-    /// replace, and a non-empty `## Summary`. It is built with the writer of
+    /// replace, and a non-empty `## Summary`. With `copyright` and `licence`
+    /// given it opens with the two SPDX comment lines of the frontmatter,
+    /// the copyright tag with `copyright` and the licence tag with `licence`,
+    /// each as a `#` comment, as the change records of a
+    /// repository that checks licences do; with neither given it opens with
+    /// none, and with one only the call is refused before anything is read or
+    /// written. It is built with the writer of
     /// `raf-okf` and is the only file written: it is created exclusively, so
     /// a file already at the path is never overwritten, and `work/changes` is
     /// created when it does not exist. The record is then read back through the
@@ -407,7 +489,8 @@ impl Workplan<'_> {
     /// # Errors
     ///
     /// A [`NewChangeError`]: `BadSlug`, `NoCapability`, `UnknownCapability`,
-    /// `CapabilityNotLoaded` or `BadAffects` before anything is written;
+    /// `CapabilityNotLoaded`, `BadAffects`, `SpdxUnset` or `SpdxInvalid` before
+    /// anything is written;
     /// `Exists` when a file is already at the path (also when the record of the
     /// slug is loaded or is there and did not load); `Write` when the file or
     /// `work/changes` cannot be created, in which case no file is left; and
@@ -423,6 +506,7 @@ impl Workplan<'_> {
                 slug: slug.to_string(),
             });
         }
+        let spdx = spdx_of(request)?;
         let guidance = self.guidance_for(&request.capabilities)?;
         let capabilities: Vec<String> = guidance
             .iter()
@@ -434,9 +518,8 @@ impl Workplan<'_> {
             return Err(NewChangeError::Exists { path });
         }
         let document = Document::new(frontmatter(slug, &capabilities, &affects)?, BODY)?;
-        let findings = self.check();
-        let before = stale_files(&findings);
-        create(root, &path, &document.render())?;
+        let before = pending_sync(self);
+        create(root, &path, &with_spdx(document.render(), spdx))?;
         let after = match self.reload(root, &path, slug) {
             Ok(after) => after,
             Err(error) => {
@@ -453,7 +536,7 @@ impl Workplan<'_> {
             affects,
             template: template(slug),
             guidance,
-            sync_needed: !stale_files(&after).is_subset(&before),
+            sync_needed: after != before,
         })
     }
 
@@ -500,14 +583,9 @@ impl Workplan<'_> {
     }
 
     /// Load the documents again from `root` and require that the record at
-    /// `path` loaded with no finding. The result is the findings of `check`
+    /// `path` loaded with no finding. The result is what a sync would write
     /// after the load.
-    fn reload(
-        &self,
-        root: &Path,
-        path: &RelPath,
-        slug: &str,
-    ) -> Result<Vec<Finding>, NewChangeError> {
+    fn reload(&self, root: &Path, path: &RelPath, slug: &str) -> Result<Pending, NewChangeError> {
         let invalid = |findings| NewChangeError::Invalid {
             path: path.clone(),
             findings,
@@ -518,7 +596,7 @@ impl Workplan<'_> {
         if reloaded.change(slug).is_err() || !findings.is_empty() {
             return Err(invalid(findings));
         }
-        Ok(reloaded.check())
+        Ok(pending_sync(&reloaded))
     }
 }
 
@@ -532,13 +610,66 @@ fn record_path(slug: &str) -> Result<RelPath, NewChangeError> {
     })
 }
 
-/// The files that have a `generated-stale` finding.
-fn stale_files(findings: &[Finding]) -> BTreeSet<&str> {
-    findings
-        .iter()
-        .filter(|finding| finding.kind == kind::GENERATED_STALE)
-        .map(|finding| finding.file.as_str())
-        .collect()
+/// What a sync would write: the new text of every stale file, and the text of
+/// the index when it has to be created.
+type Pending = (Vec<(String, String)>, Option<String>);
+
+/// What a sync of `plan` would write. Two plans with the same value need the
+/// same sync, so a record that changes it makes a sync necessary, whether the
+/// file was current before or already stale.
+fn pending_sync(plan: &Workplan<'_>) -> Pending {
+    let analysis = generated::analyze(plan);
+    (analysis.edits, analysis.new_index)
+}
+
+/// The SPDX lines of a request: both, or neither.
+fn spdx_of(request: &NewChangeRequest) -> Result<Option<(&str, &str)>, NewChangeError> {
+    match (request.copyright.as_deref(), request.licence.as_deref()) {
+        (None, None) => Ok(None),
+        (Some(_), None) => Err(NewChangeError::SpdxUnset { field: "licence" }),
+        (None, Some(_)) => Err(NewChangeError::SpdxUnset { field: "copyright" }),
+        (Some(copyright), Some(licence)) => Ok(Some((
+            spdx_line("copyright", copyright)?,
+            spdx_line("licence", licence)?,
+        ))),
+    }
+}
+
+/// A value of the SPDX header: not empty and one line of text.
+fn spdx_line<'a>(field: &'static str, value: &'a str) -> Result<&'a str, NewChangeError> {
+    // A control character, and the two separators Unicode adds to the line
+    // breaks (U+2028 and U+2029), would end or split the comment line. The
+    // value is judged as given, so a line ending at its edge is refused too and
+    // not trimmed away.
+    if value
+        .chars()
+        .any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'))
+    {
+        return Err(NewChangeError::SpdxInvalid {
+            field,
+            reason: "it must be one line of text, with no control character and no line or paragraph separator",
+        });
+    }
+    let value = value.trim();
+    if value.is_empty() {
+        return Err(NewChangeError::SpdxInvalid {
+            field,
+            reason: "it is empty",
+        });
+    }
+    Ok(value)
+}
+
+/// `rendered` with the two SPDX comment lines directly after the opening
+/// fence of the frontmatter, where the change records of a repository that
+/// checks licences carry them.
+fn with_spdx(rendered: String, spdx: Option<(&str, &str)>) -> String {
+    let Some((copyright, licence)) = spdx else {
+        return rendered;
+    };
+    let fence = rendered.find('\n').map_or(rendered.len(), |end| end + 1);
+    let (head, tail) = rendered.split_at(fence);
+    format!("{head}# {COPYRIGHT_TAG}{copyright}\n# {LICENCE_TAG}{licence}\n{tail}")
 }
 
 /// The `affects` sections of a request: the entries given, or the `contract`

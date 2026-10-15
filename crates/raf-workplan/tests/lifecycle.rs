@@ -637,10 +637,12 @@ Place this block in a section named in `affects`, in the document of a listed ca
 > State the proposed text here.
 
 State of the listed capabilities:
-  cap:alpha  designed  set `state: implementing` in the same commit as the block, since a PROPOSED block is a finding of `check` in this state
+  cap:alpha  designed  set `state: implementing` in the same commit as the block, since a PROPOSED block is a finding of `check` in this state (`state-designed-proposal`)
   cap:beta  implementing  no change of state is needed
 
-The record makes generated blocks stale: run `docs sync` to bring them up to date.
+The record makes generated blocks stale. Stage the record first, since a link to a file git does not track is a finding of `check`, then bring the blocks up to date:
+  git add work/changes/fresh-change.md
+  docs sync
 "
     );
 }
@@ -1070,4 +1072,248 @@ fn impact_of_a_change_that_just_was_created_reads_the_record_from_the_disk() {
         ]
     );
     assert_eq!(snapshot(root), before);
+}
+
+// --- the SPDX lines ----------------------------------------------------------
+
+/// The tags of an SPDX header, in two pieces so this file does not carry them.
+const COPYRIGHT_TAG: &str = concat!("SPDX-", "FileCopyrightText: ");
+const LICENCE_TAG: &str = concat!("SPDX-", "License-Identifier: ");
+
+const COPYRIGHT_TEXT: &str = "2026 Example Org <dev@example.org>";
+const LICENCE_ID: &str = "CC-BY-4.0";
+
+/// The leading comment lines of the first key of a record.
+fn leading_comments(text: &str) -> Vec<String> {
+    let document = Document::parse(text).expect("reads");
+    document.frontmatter().map().entries()[0]
+        .comments()
+        .leading()
+        .to_vec()
+}
+
+#[test]
+fn both_spdx_fields_open_the_record_with_the_two_comment_lines_of_the_records_of_the_repository() {
+    let scratch = repo("new-spdx");
+    let root = scratch.path();
+    let before = snapshot(root);
+    let request = NewChangeRequest::new("fresh-change")
+        .capability("cap:beta")
+        .copyright(COPYRIGHT_TEXT)
+        .licence(LICENCE_ID);
+    assert_eq!(request.copyright.as_deref(), Some(COPYRIGHT_TEXT));
+    let result = created(root, &request);
+    // One file, and it is the record.
+    assert_eq!(changed(&before, &snapshot(root)), [FRESH]);
+    let text = read(root, FRESH);
+    assert_eq!(
+        text,
+        format!(
+            "---\n# {COPYRIGHT_TAG}{COPYRIGHT_TEXT}\n# {LICENCE_TAG}{LICENCE_ID}\n{}",
+            FRESH_BETA.strip_prefix("---\n").expect("a fence")
+        )
+    );
+    assert_eq!(result.path.as_str(), FRESH);
+
+    // The lines read back as the comments that precede the first key, which is
+    // how the change records of the repository carry the annotation that
+    // `reuse lint` reads.
+    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../work/changes");
+    let mut records: Vec<_> = std::fs::read_dir(&directory)
+        .expect("the change records of the repository")
+        .map(|entry| entry.expect("an entry").path())
+        .collect();
+    records.sort();
+    let existing = std::fs::read_to_string(&records[0]).expect("a record");
+    let existing = leading_comments(&existing);
+    assert_eq!(existing.len(), 2, "{existing:?}");
+    assert_eq!(
+        leading_comments(&text),
+        [
+            format!("# {COPYRIGHT_TAG}{COPYRIGHT_TEXT}"),
+            format!("# {LICENCE_TAG}{LICENCE_ID}"),
+        ]
+    );
+    assert!(existing[0].starts_with(&format!("# {COPYRIGHT_TAG}")));
+    assert!(existing[1].starts_with(&format!("# {LICENCE_TAG}")));
+    // The record loads with no finding.
+    on_disk(root, |plan| {
+        assert!(plan.change("fresh-change").is_ok());
+        assert!(plan.check().iter().all(|finding| finding.file != FRESH));
+    });
+}
+
+#[test]
+fn neither_spdx_field_writes_no_comment_line() {
+    let scratch = repo("new-no-spdx");
+    created(
+        scratch.path(),
+        &NewChangeRequest::new("fresh-change").capability("cap:beta"),
+    );
+    assert_eq!(read(scratch.path(), FRESH), FRESH_BETA);
+    assert_eq!(leading_comments(FRESH_BETA), Vec::<String>::new());
+}
+
+#[test]
+fn one_spdx_field_without_the_other_is_an_error_that_names_the_missing_one() {
+    let scratch = repo("new-spdx-one");
+    let root = scratch.path();
+    let before = snapshot(root);
+    for (request, missing) in [
+        (
+            NewChangeRequest::new("fresh-change")
+                .capability("cap:beta")
+                .copyright(COPYRIGHT_TEXT),
+            "licence",
+        ),
+        (
+            NewChangeRequest::new("fresh-change")
+                .capability("cap:beta")
+                .licence(LICENCE_ID),
+            "copyright",
+        ),
+    ] {
+        match create(root, &request) {
+            Err(NewChangeError::SpdxUnset { field }) => assert_eq!(field, missing),
+            other => panic!("the {missing} is missing, got {other:?}"),
+        }
+        let text = create(root, &request).expect_err("refused").to_string();
+        assert!(
+            text.contains(&format!("the {missing} is not given")),
+            "{text}"
+        );
+        assert_eq!(snapshot(root), before, "nothing is written");
+    }
+}
+
+#[test]
+fn an_spdx_field_that_is_not_one_line_of_text_is_refused_and_nothing_is_written() {
+    let scratch = repo("new-spdx-bad");
+    let root = scratch.path();
+    let before = snapshot(root);
+    for (copyright, licence, field) in [
+        ("", LICENCE_ID, "copyright"),
+        ("   ", LICENCE_ID, "copyright"),
+        ("two\nlines", LICENCE_ID, "copyright"),
+        ("carriage\rreturn", LICENCE_ID, "copyright"),
+        ("tab\there", LICENCE_ID, "copyright"),
+        ("line\u{2028}separator", LICENCE_ID, "copyright"),
+        ("paragraph\u{2029}separator", LICENCE_ID, "copyright"),
+        ("next\u{85}line", LICENCE_ID, "copyright"),
+        ("form\u{c}feed", LICENCE_ID, "copyright"),
+        ("vertical\u{b}tab", LICENCE_ID, "copyright"),
+        (COPYRIGHT_TEXT, "", "licence"),
+        (COPYRIGHT_TEXT, "MIT\nOR Apache-2.0", "licence"),
+        (COPYRIGHT_TEXT, "\u{7}", "licence"),
+        (COPYRIGHT_TEXT, "MIT\u{2028}OR Apache-2.0", "licence"),
+        (COPYRIGHT_TEXT, "MIT\u{2029}", "licence"),
+    ] {
+        let request = NewChangeRequest::new("fresh-change")
+            .capability("cap:beta")
+            .copyright(copyright)
+            .licence(licence);
+        match create(root, &request) {
+            Err(NewChangeError::SpdxInvalid { field: refused, .. }) => {
+                assert_eq!(refused, field, "{copyright:?} {licence:?}");
+            }
+            other => panic!("{copyright:?} {licence:?} should be refused, got {other:?}"),
+        }
+        assert_eq!(snapshot(root), before);
+    }
+    // The neighbour: surrounding blanks are trimmed and the text is kept.
+    created(
+        root,
+        &NewChangeRequest::new("fresh-change")
+            .capability("cap:beta")
+            .copyright(format!("  {COPYRIGHT_TEXT}  "))
+            .licence(LICENCE_ID),
+    );
+    assert!(read(root, FRESH).contains(&format!("# {COPYRIGHT_TAG}{COPYRIGHT_TEXT}\n")));
+}
+
+// --- the note about the generated blocks -------------------------------------
+
+/// The text inside the first relationships block of the file, replaced by
+/// `text`: a block that is stale before any record exists.
+fn stale_relationships(root: &Path, path: &str) {
+    let marker = "<!-- raf:generated:relationships -->\n";
+    let text = read(root, path);
+    assert!(text.contains(marker), "{path}");
+    put(
+        root,
+        path,
+        &text.replacen(marker, &format!("{marker}stale\n"), 1),
+    );
+}
+
+#[test]
+fn the_sync_note_is_there_when_the_target_file_was_already_stale() {
+    // The record lists `alpha`, whose table is stale before the record exists.
+    // A sync is owed, and the note says so.
+    let scratch = repo("new-stale-before");
+    let root = scratch.path();
+    stale_relationships(root, ALPHA);
+    assert_eq!(
+        kinds(&findings_about(root, ALPHA)),
+        ["generated-stale"],
+        "the table was stale before the record"
+    );
+    let result = created(
+        root,
+        &NewChangeRequest::new("fresh-change").capability("cap:alpha"),
+    );
+    assert!(result.sync_needed);
+    assert!(
+        result
+            .to_string()
+            .contains("  git add work/changes/fresh-change.md\n  docs sync\n")
+    );
+
+    // The neighbours: the table was current (the record stales it), and the
+    // record stales nothing while an unrelated file is stale.
+    let scratch = repo("new-current-before");
+    let result = created(
+        scratch.path(),
+        &NewChangeRequest::new("fresh-change").capability("cap:alpha"),
+    );
+    assert!(result.sync_needed);
+
+    let scratch = repo("new-unrelated-stale");
+    let root = scratch.path();
+    stale_relationships(root, GAMMA);
+    let result = created(
+        root,
+        &NewChangeRequest::new("fresh-change").capability("cap:delta"),
+    );
+    assert!(
+        !result.sync_needed,
+        "a stale file the record does not reach is not the record's"
+    );
+    assert!(!result.to_string().contains("docs sync"));
+}
+
+#[test]
+fn the_guidance_for_a_delivered_capability_names_both_findings_it_avoids() {
+    let scratch = repo("new-delivered-guidance");
+    let result = created(
+        scratch.path(),
+        &NewChangeRequest::new("fresh-change")
+            .capability("cap:gamma")
+            .capability("cap:alpha"),
+    );
+    let text = result.to_string();
+    let gamma = text
+        .lines()
+        .find(|line| line.starts_with("  cap:gamma  delivered  "))
+        .expect("a line for the delivered capability");
+    assert!(gamma.contains("`state-delivered-proposal`"), "{gamma}");
+    assert!(gamma.contains("`state-delivered-open-record`"), "{gamma}");
+    let alpha = text
+        .lines()
+        .find(|line| line.starts_with("  cap:alpha  designed  "))
+        .expect("a line for the designed capability");
+    assert!(alpha.contains("`state-designed-proposal`"), "{alpha}");
+    assert!(!alpha.contains("open-record"), "{alpha}");
+    assert_eq!(StateAdvice::Keep.name(), "keep");
+    assert_eq!(StateAdvice::SetImplementing.name(), "set-implementing");
 }

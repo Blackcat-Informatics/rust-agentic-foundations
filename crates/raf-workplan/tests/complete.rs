@@ -1647,3 +1647,69 @@ fn an_outcome_the_profile_refuses_makes_the_record_not_load_and_is_an_error() {
     );
     assert_eq!(fixture.snapshot(), before);
 }
+
+#[test]
+fn conditions_and_failures_have_stable_names_and_the_headline_is_the_first_line() {
+    for (condition, name, number) in [
+        (Condition::Obligations, "obligations", Some(1)),
+        (Condition::Outcomes, "outcomes", Some(2)),
+        (Condition::Proposals, "proposals", Some(3)),
+        (Condition::GeneratedBlocks, "generated-blocks", Some(4)),
+        (Condition::BoundRuns, "bound-runs", Some(5)),
+        (Condition::AfterRemoval, "after-removal", None),
+        (Condition::ChangedDuringRun, "changed-during-run", None),
+    ] {
+        assert_eq!(condition.name(), name);
+        assert_eq!(condition.number(), number);
+    }
+
+    let fixture = Fixture::scripted(&Spec::default().items(NO_OUTCOME));
+    fixture.edit(CAP, "description: Shaped.", "description: Reshaped.");
+    let refused = fixture
+        .over(passing(git_answers(), "passes"))
+        .complete("shape")
+        .expect("answers");
+    assert_eq!(
+        refused.headline(),
+        refused.to_string().lines().next().expect("a first line")
+    );
+    assert!(refused.headline().starts_with("refused: "));
+    let failures = refused.failures();
+    for failure in failures {
+        let repeated = failure.is_repeated_in(failures);
+        match failure {
+            Failure::Owed(obligation) => {
+                assert!(!repeated, "{failure}");
+                assert_eq!(failure.name(), obligation.kind.name());
+            }
+            Failure::Item(_) => {
+                assert!(repeated);
+                assert_eq!(failure.name(), "item-without-outcome");
+            }
+            Failure::Generated(finding) => {
+                assert!(repeated, "{failure}");
+                assert_eq!(failure.name(), finding.kind);
+            }
+            other => panic!("unexpected failure {other}"),
+        }
+    }
+    assert_eq!(
+        failures
+            .iter()
+            .filter(|failure| !failure.is_repeated_in(failures))
+            .count(),
+        refused.to_string().lines().count() - 1
+    );
+
+    // The other names, from values of the other variants.
+    let completed = Fixture::real(&Spec::default()).complete();
+    assert!(completed.is_completed());
+    assert_eq!(
+        completed.headline(),
+        "completed: removed work/changes/shape.md"
+    );
+    assert_eq!(
+        completed.to_string().lines().next(),
+        Some(completed.headline().as_str())
+    );
+}

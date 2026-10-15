@@ -56,7 +56,12 @@
 //! through the loader, and returns a [`lifecycle::NewChange`]: the PROPOSED
 //! block template to place and, for each listed capability, whether to set
 //! `state: implementing` in the same commit (`delivered` and `designed`) or
-//! nothing (`considered` and `implementing`). [`Workplan::impact`] returns one
+//! nothing (`considered` and `implementing`). With a copyright text and a
+//! licence identifier in the request the record opens with the two SPDX comment
+//! lines of the frontmatter, as the change records of a repository that checks
+//! licences do; with neither it opens with none, and with one only the request is
+//! refused. [`Workplan::open_changes`] lists the change records that loaded, by
+//! slug. [`Workplan::impact`] returns one
 //! [`lifecycle::Impact`]: the capabilities and sections of a change, their
 //! bindings, the capabilities that depend on them and the sections that link
 //! to the affected sections, in a fixed order and without writing anything.
@@ -220,5 +225,5 @@ pub use links::LinkContext;
 pub use lookup::ChangeLookupError;
 pub use model::{Loaded, Workplan};
 pub use preview::{Preview, PreviewError};
-pub use roadmap::{Gap, Roadmap, RoadmapEntry};
+pub use roadmap::{Gap, OpenChange, Roadmap, RoadmapEntry};
 pub use sync::{SyncError, SyncOptions, SyncReport};

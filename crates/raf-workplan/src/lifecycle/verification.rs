@@ -69,6 +69,13 @@ impl VerifyReport {
         self.evidence.iter().all(Evidence::passed)
     }
 
+    /// The line of each binding, in order, as `Display` prints them: one line
+    /// each, with no line ending.
+    #[must_use]
+    pub fn lines(&self) -> Vec<String> {
+        self.evidence.iter().map(evidence_line).collect()
+    }
+
     /// The bindings that did not pass.
     pub fn failures(&self) -> impl Iterator<Item = &Evidence> {
         self.evidence.iter().filter(|evidence| !evidence.passed())
@@ -77,8 +84,8 @@ impl VerifyReport {
 
 impl fmt::Display for VerifyReport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for evidence in &self.evidence {
-            writeln!(f, "{}", evidence_line(evidence))?;
+        for line in self.lines() {
+            writeln!(f, "{line}")?;
         }
         Ok(())
     }

@@ -10,153 +10,11 @@
 
 mod support;
 
-use std::ffi::OsString;
 use std::fs;
-use std::io::Write as _;
-use std::os::unix::fs::OpenOptionsExt as _;
-use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use support::{Repo, Run, Scratch, Shape};
-
-/// A stub is written and started while other tests start processes; a forked
-/// child briefly holding the descriptor that wrote the file makes the start
-/// fail with "text file busy". Every test holds this lock from its first write
-/// to its last spawn.
-static SPAWN: Mutex<()> = Mutex::new(());
-
-fn serial() -> MutexGuard<'static, ()> {
-    SPAWN.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-/// The first `name` on `PATH` that is a file.
-fn which(name: &str) -> PathBuf {
-    let path = std::env::var_os("PATH").expect("a PATH");
-    std::env::split_paths(&path)
-        .map(|dir| dir.join(name))
-        .find(|candidate| candidate.is_file())
-        .unwrap_or_else(|| panic!("no `{name}` on PATH"))
-}
-
-/// The cargo of this test run.
-fn real_cargo() -> PathBuf {
-    std::env::var_os("CARGO").map_or_else(|| which("cargo"), PathBuf::from)
-}
-
-/// Write an executable script.
-fn script(path: &Path, body: &str) {
-    fs::create_dir_all(path.parent().expect("a directory")).expect("a directory");
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o755)
-        .open(path)
-        .expect("a script file");
-    write!(file, "#!/bin/sh\n{body}\n").expect("a script body");
-}
-
-/// A stub that appends its working directory and one `arg=` line for each
-/// argument to `record`, then runs `real` with the same arguments.
-fn recording(path: &Path, record: &Path, real: &Path) {
-    script(
-        path,
-        &format!(
-            "{{ printf 'cwd=%s\\n' \"$PWD\"; for a in \"$@\"; do printf 'arg=%s\\n' \"$a\"; done; \
-             printf 'end\\n'; }} >> '{}'\nexec '{}' \"$@\"",
-            record.display(),
-            real.display()
-        ),
-    );
-}
-
-/// The arguments of each recorded call, in order.
-fn calls(record: &Path) -> Vec<Vec<String>> {
-    let Ok(text) = fs::read_to_string(record) else {
-        return Vec::new();
-    };
-    let mut calls = Vec::new();
-    let mut current = Vec::new();
-    for line in text.lines() {
-        if line == "end" {
-            calls.push(std::mem::take(&mut current));
-        } else if let Some(argument) = line.strip_prefix("arg=") {
-            current.push(argument.to_string());
-        }
-    }
-    calls
-}
-
-/// A directory of stubs for `cargo` (a recording one) and `git` (a recording
-/// one), the files they record to, and the environment that puts them in
-/// front.
-struct Stubs {
-    scratch: Scratch,
-    cargo_record: PathBuf,
-    git_record: PathBuf,
-}
-
-impl Stubs {
-    fn new(tag: &str) -> Self {
-        let scratch = Scratch::new(tag);
-        let bin = scratch.path().join("bin");
-        let cargo_record = scratch.path().join("cargo.record");
-        let git_record = scratch.path().join("git.record");
-        recording(&bin.join("cargo"), &cargo_record, &real_cargo());
-        recording(&bin.join("git"), &git_record, &which("git"));
-        Self {
-            scratch,
-            cargo_record,
-            git_record,
-        }
-    }
-
-    fn bin(&self) -> PathBuf {
-        self.scratch.path().join("bin")
-    }
-
-    /// `PATH` with the stubs in front.
-    fn path(&self) -> OsString {
-        let mut dirs = vec![self.bin()];
-        dirs.extend(std::env::split_paths(
-            &std::env::var_os("PATH").expect("a PATH"),
-        ));
-        std::env::join_paths(dirs).expect("a PATH")
-    }
-
-    /// The binary in `dir` with the stubs in front on `PATH` and `$CARGO` set
-    /// to the cargo stub, or unset when `cargo_var` is false.
-    fn command(&self, dir: &Path, shape: Shape, args: &[&str], cargo_var: bool) -> Command {
-        let mut command = support::command(dir, shape, args);
-        command.env("PATH", self.path());
-        if cargo_var {
-            command.env("CARGO", self.bin().join("cargo"));
-        } else {
-            command.env_remove("CARGO");
-        }
-        command
-    }
-
-    fn run(&self, dir: &Path, shape: Shape, args: &[&str], cargo_var: bool) -> Run {
-        support::finish(&mut self.command(dir, shape, args, cargo_var))
-    }
-
-    fn cargo_calls(&self) -> Vec<Vec<String>> {
-        calls(&self.cargo_record)
-    }
-
-    fn git_calls(&self) -> Vec<Vec<String>> {
-        calls(&self.git_record)
-    }
-}
-
-const METADATA: [&str; 4] = ["metadata", "--format-version", "1", "--no-deps"];
-
-fn metadata_argv() -> Vec<String> {
-    let mut argv: Vec<String> = METADATA.iter().map(ToString::to_string).collect();
-    argv.push("--frozen".to_string());
-    argv
-}
+use support::stubs::{Stubs, metadata_argv, real_cargo, script, serial};
+use support::{Repo, Scratch, Shape};
 
 #[test]
 fn discovery_runs_exactly_cargo_metadata_from_the_cargo_variable() {
@@ -403,4 +261,256 @@ fn discovery_does_not_run_the_build_rustc_program_of_the_workspace() {
         String::from_utf8_lossy(&build.stderr)
     );
     assert!(marker.exists(), "the configuration is not live");
+}
+
+/// Each command that takes a slug, as the words before it and the words after
+/// it, and a slug that is allowed.
+fn slug_commands() -> Vec<(Vec<&'static str>, Vec<&'static str>, &'static str)> {
+    vec![
+        (vec!["docs", "preview"], vec![], "grow"),
+        (vec!["change", "impact"], vec![], "grow"),
+        (vec!["change", "reconcile"], vec![], "grow"),
+        (vec!["change", "complete"], vec![], "grow"),
+        (vec!["verify"], vec![], "grow"),
+        (
+            vec!["change", "new"],
+            vec!["--capability", "cap:beta"],
+            "fresh",
+        ),
+    ]
+}
+
+#[test]
+fn a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts() {
+    let _lock = serial();
+    let repo = Repo::synced("process-dash-all", false);
+    let stubs = Stubs::new("process-dash-all-stubs");
+    let target = repo.root().to_string_lossy().into_owned();
+    let before = repo.snapshot();
+    for slug in ["-rf", "--since=x", "-", "--output=/tmp/x"] {
+        for shape in [Shape::Direct, Shape::Cargo] {
+            for (head, tail, _) in slug_commands() {
+                // As an argument, as a value after `--`, with a root given
+                // (git would be asked) and without (cargo would be).
+                for (rooted, dashed) in [(false, false), (false, true), (true, false), (true, true)]
+                {
+                    let mut args: Vec<&str> = Vec::new();
+                    if rooted {
+                        args.extend(["--root", &target]);
+                    }
+                    args.extend(&head);
+                    args.extend(&tail);
+                    if dashed {
+                        args.push("--");
+                    }
+                    args.push(slug);
+                    let run = stubs.run(repo.root(), shape, &args, true).expect(2);
+                    assert_eq!(run.stdout, "", "{args:?}");
+                    assert!(!run.stderr.is_empty(), "{args:?}");
+                }
+            }
+        }
+    }
+    assert_eq!(stubs.cargo_calls(), Vec::<Vec<String>>::new());
+    assert_eq!(stubs.git_calls(), Vec::<Vec<String>>::new());
+    assert_eq!(repo.snapshot(), before);
+
+    // The neighbour of each command: a slug that is a slug starts a process.
+    for (head, tail, slug) in slug_commands() {
+        let before = stubs.git_calls().len();
+        let mut args = vec!["--root", &target];
+        args.extend(&head);
+        args.push(slug);
+        args.extend(&tail);
+        stubs.run(repo.root(), Shape::Direct, &args, true);
+        assert!(
+            stubs.git_calls().len() > before,
+            "{args:?} started no process"
+        );
+    }
+}
+
+#[test]
+fn a_usage_error_of_the_change_commands_starts_no_process() {
+    let _lock = serial();
+    let repo = Repo::synced("process-change-usage", false);
+    let stubs = Stubs::new("process-change-usage-stubs");
+    for args in [
+        &["change"][..],
+        &["change", "frobnicate"],
+        &["change", "new", "fresh"],
+        &["change", "new", "--capability", "cap:beta"],
+        &[
+            "change",
+            "new",
+            "fresh",
+            "--capability",
+            "cap:beta",
+            "--copyright",
+            "x",
+        ],
+        &[
+            "change",
+            "new",
+            "fresh",
+            "--capability",
+            "cap:beta",
+            "--licence",
+            "x",
+        ],
+        &["change", "impact"],
+        &["change", "reconcile"],
+        &["change", "complete"],
+        &["change", "complete", "grow", "extra"],
+        &["verify", "grow", "extra"],
+        &["verify", "--bogus"],
+    ] {
+        stubs.run(repo.root(), Shape::Direct, args, true).expect(2);
+    }
+    assert_eq!(stubs.cargo_calls(), Vec::<Vec<String>>::new());
+    assert_eq!(stubs.git_calls(), Vec::<Vec<String>>::new());
+}
+
+/// A `git` that answers `--version` with `version`, records every call, and
+/// fails any other.
+fn old_git(path: &std::path::Path, record: &std::path::Path, version: &str) {
+    script(
+        path,
+        &format!(
+            "{{ for a in \"$@\"; do printf 'arg=%s\\n' \"$a\"; done; printf 'end\\n'; }} >> '{}'\n\
+             if [ \"$1\" = --version ]; then echo 'git version {version}'; exit 0; fi\n\
+             echo 'git: the stub answers only --version' >&2\nexit 1",
+            record.display()
+        ),
+    );
+}
+
+#[test]
+fn a_git_older_than_2_30_is_exit_two_before_any_other_process() {
+    let _lock = serial();
+    let repo = Repo::synced("process-old-git", false);
+    let scratch = Scratch::new("process-old-git-stubs");
+    let bin = scratch.path().join("bin");
+    let record = scratch.path().join("git.record");
+    old_git(&bin.join("git"), &record, "2.29.2");
+    let cargo_record = scratch.path().join("cargo.record");
+    let cargo = bin.join("cargo");
+    script(
+        &cargo,
+        &format!("echo \"$@\" >> '{}'\nexit 1", cargo_record.display()),
+    );
+    let target = repo.root().to_string_lossy().into_owned();
+    for shape in [Shape::Direct, Shape::Cargo] {
+        for command in [["change", "reconcile"], ["change", "complete"]] {
+            let before = fs::read_to_string(&record).unwrap_or_default();
+            let mut run = support::command(
+                &support::elsewhere(),
+                shape,
+                &["--root", &target, command[0], command[1], "grow"],
+            );
+            run.env("PATH", bin.clone()).env("CARGO", &cargo);
+            let run = support::finish(&mut run).expect(2);
+            assert_eq!(run.stdout, "", "{command:?}");
+            assert!(run.stderr.contains("2.30"), "{command:?}: {run:#?}");
+            let after = fs::read_to_string(&record).expect("a record");
+            // One call, and it is `git --version`.
+            assert_eq!(
+                after[before.len()..],
+                *"arg=--version\nend\n",
+                "{command:?}"
+            );
+        }
+    }
+    assert!(!cargo_record.exists(), "cargo was started");
+
+    // The neighbour: 2.30 passes the gate and the next question is asked.
+    let newer = Scratch::new("process-new-git-stubs");
+    let newer_record = newer.path().join("git.record");
+    old_git(&newer.path().join("bin/git"), &newer_record, "2.30.0");
+    let mut run = support::command(
+        &support::elsewhere(),
+        Shape::Direct,
+        &["--root", &target, "change", "reconcile", "grow"],
+    );
+    run.env("PATH", newer.path().join("bin"))
+        .env("CARGO", &cargo);
+    support::finish(&mut run).expect(2);
+    let calls = fs::read_to_string(&newer_record).expect("a record");
+    assert!(calls.starts_with("arg=--version\nend\n"), "{calls}");
+    assert!(calls.len() > "arg=--version\nend\n".len(), "{calls}");
+}
+
+#[test]
+fn cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back() {
+    let _lock = serial();
+    let repo = Repo::synced("process-dispatch", false);
+    repo.checkout();
+    let scratch = Scratch::new("process-dispatch-bin");
+    let bin = scratch.path().join("bin");
+    let record = scratch.path().join("argv.record");
+    // A `cargo-workplan` that records the words cargo gave it, then is the
+    // binary.
+    script(
+        &bin.join("cargo-workplan"),
+        &format!(
+            "for a in \"$@\"; do printf 'arg=%s\\n' \"$a\"; done >> '{}'\nprintf 'end\\n' >> '{}'\nexec '{}' \"$@\"",
+            record.display(),
+            record.display(),
+            support::BINARY
+        ),
+    );
+    let path = {
+        let mut dirs = vec![bin.clone()];
+        dirs.extend(std::env::split_paths(
+            &std::env::var_os("PATH").expect("a PATH"),
+        ));
+        std::env::join_paths(dirs).expect("a PATH")
+    };
+    let cargo = |args: &[&str]| -> support::Run {
+        let mut command = Command::new(real_cargo());
+        command
+            .arg("workplan")
+            .args(args)
+            .current_dir(repo.root())
+            .env("PATH", &path)
+            .env_remove("CARGO_TARGET_DIR")
+            .stdin(std::process::Stdio::null());
+        support::finish(&mut command)
+    };
+    let direct = |args: &[&str]| support::run_in(repo.root(), Shape::Direct, args);
+
+    // Each command, with its exit code: 0, 1 and 2.
+    for (args, code) in [
+        (vec!["check"], 0),
+        (vec!["status"], 0),
+        (vec!["change", "impact", "grow"], 0),
+        (vec!["change", "reconcile", "grow"], 1),
+        (vec!["change", "complete", "grow"], 1),
+        (vec!["change", "impact", "nowhere"], 2),
+        (vec!["--format", "json", "change", "reconcile", "grow"], 1),
+        (vec!["-q", "change", "reconcile", "grow"], 1),
+        (
+            vec!["change", "new", "fresh", "--capability", "cap:beta"],
+            0,
+        ),
+        (vec!["change", "new", "-rf", "--capability", "cap:beta"], 2),
+    ] {
+        let through = cargo(&args);
+        assert_eq!(through.code, code, "cargo workplan {args:?}: {through:#?}");
+        if args[0] != "change" || args[1] != "new" {
+            assert_eq!(through, direct(&args), "{args:?}");
+        }
+    }
+    assert!(repo.root().join("work/changes/fresh.md").is_file());
+
+    // Cargo gave the binary the word `workplan` first, then the arguments.
+    let calls = fs::read_to_string(&record).expect("a record");
+    assert!(
+        calls.starts_with("arg=workplan\narg=check\nend\n"),
+        "{calls}"
+    );
+    assert!(
+        calls.contains("arg=workplan\narg=change\narg=reconcile\narg=grow\nend\n"),
+        "{calls}"
+    );
 }

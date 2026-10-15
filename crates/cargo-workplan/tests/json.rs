@@ -11,66 +11,7 @@ mod support;
 use raf_okf::Location;
 use raf_workplan::{Finding, Gate};
 use serde_json::Value;
-use support::{COPYRIGHT, LICENCE, Repo, Run};
-
-/// The one array standard output holds.
-fn array(run: &Run) -> Vec<Value> {
-    let value: Value = serde_json::from_str(&run.stdout)
-        .unwrap_or_else(|e| panic!("standard output is not one JSON value: {e}\n{run:#?}"));
-    match value {
-        Value::Array(items) => items,
-        other => panic!("standard output is not an array: {other}"),
-    }
-}
-
-/// The member names of each object of the array, in the order written.
-///
-/// The array is printed one object to a line, so the names are read from the
-/// text: `serde_json::Value` sorts them.
-fn member_names(run: &Run) -> Vec<Vec<String>> {
-    run.stdout
-        .lines()
-        .filter(|line| line.starts_with('{'))
-        .map(|line| {
-            let line = line.trim_end_matches(',');
-            let mut names = Vec::new();
-            let mut depth = 0_i32;
-            let mut chars = line.char_indices().peekable();
-            while let Some((at, c)) = chars.next() {
-                match c {
-                    '{' | '[' => depth += 1,
-                    '}' | ']' => depth -= 1,
-                    '"' => {
-                        // A string: find its end, honouring escapes.
-                        let start = at;
-                        let mut end = at;
-                        let mut escaped = false;
-                        for (i, d) in chars.by_ref() {
-                            end = i;
-                            if escaped {
-                                escaped = false;
-                            } else if d == '\\' {
-                                escaped = true;
-                            } else if d == '"' {
-                                break;
-                            }
-                        }
-                        let is_name = depth == 1 && line[end + 1..].starts_with(':');
-                        if is_name {
-                            names.push(line[start + 1..end].to_string());
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            names
-        })
-        .collect()
-}
-
-fn strings(names: &[&str]) -> Vec<String> {
-    names.iter().map(ToString::to_string).collect()
-}
+use support::{COPYRIGHT, LICENCE, Repo, array, member_names, strings};
 
 const FINDING_FIELDS: [&str; 7] = ["kind", "path", "section", "line", "key", "message", "fix"];
 
@@ -295,7 +236,19 @@ fn a_run_that_could_not_run_prints_nothing_on_standard_output_in_json_too() {
 
 #[test]
 fn the_kinds_that_are_not_rules_are_not_rule_names() {
-    for kind in ["rewrote", "state", "open-changes", "preview"] {
+    for kind in [
+        "rewrote",
+        "state",
+        "open-changes",
+        "preview",
+        "new-change",
+        "impact",
+        "obligation",
+        "refused",
+        "refusal",
+        "completed",
+        "binding",
+    ] {
         assert!(!Finding::KINDS.contains(&kind), "{kind} is also a rule");
     }
 }

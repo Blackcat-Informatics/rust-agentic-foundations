@@ -145,7 +145,17 @@ guarantees are these, and no wider:
   root discovery (`cargo metadata --format-version 1 --no-deps --frozen`) and the
   `git` calls of the gate are made by `raf-workplan`, and a slug argument is checked
   against the slug pattern when the arguments are parsed, so one that starts with `-`
-  is a usage error before any process starts.
+  is a usage error before any process starts. The change commands add two kinds of
+  process, both started by `raf-workplan`: `git` (the default branch, the merge base
+  and the file at the merge base, for `change reconcile` and `change complete`, which
+  ask `git --version` before anything else and refuse a Git older than 2.30) and
+  `cargo` (the bound tests and examples, for `verify`, `change complete` and the
+  examples of `change reconcile`). A bound value that does not resolve, or does not
+  match its stated pattern, never reaches `cargo`; a process runs with its input
+  closed, its output bounded and a wall-clock limit. `change new` writes one file,
+  `change complete` the generated blocks it stales and then removes the one record,
+  and `change impact`, `change reconcile` and `verify` write nothing in the
+  repository (a build goes to the cargo target directory).
 
 Each spec states its own bounds and exact invocations.
 

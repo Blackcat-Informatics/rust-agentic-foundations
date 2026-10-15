@@ -13,7 +13,7 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use clap::{Args as ClapArgs, Parser, Subcommand};
+use clap::{ArgAction, Args as ClapArgs, Parser, Subcommand};
 use raf_okf::is_kebab;
 
 use crate::render::Format;
@@ -68,6 +68,29 @@ pub(crate) enum Command {
     /// Generated documentation.
     #[command(subcommand)]
     Docs(Docs),
+    /// The change records: create, read, reconcile and complete one.
+    #[command(subcommand)]
+    Change(Change),
+    /// Run the bound tests and examples of a change, or of every capability,
+    /// and print pass or fail for each binding.
+    Verify(VerifyArgs),
+}
+
+/// The commands under `change`.
+#[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
+pub(crate) enum Change {
+    /// Create the record of a new change, and print the PROPOSED block to
+    /// place and the state each listed capability needs.
+    New(NewArgs),
+    /// Print what the change reaches: its capabilities, sections, bindings,
+    /// dependants and linking sections. Writes nothing.
+    Impact(SlugArgs),
+    /// Print the obligation list of the change, one line each. Writes no file
+    /// in the repository.
+    Reconcile(SlugArgs),
+    /// Run the completion gate and, when every condition holds, remove the
+    /// record.
+    Complete(SlugArgs),
 }
 
 /// The commands under `docs`.
@@ -78,7 +101,7 @@ pub(crate) enum Docs {
     Sync(SyncArgs),
     /// Print the capabilities of a change as they read once it is
     /// reconciled. Writes nothing.
-    Preview(PreviewArgs),
+    Preview(SlugArgs),
 }
 
 /// The arguments of `docs sync`.
@@ -95,12 +118,54 @@ pub(crate) struct SyncArgs {
     pub(crate) licence: Option<String>,
 }
 
-/// The arguments of `docs preview`.
+/// The arguments of a command that takes the slug of a change record.
 #[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
-pub(crate) struct PreviewArgs {
+pub(crate) struct SlugArgs {
     /// The slug of the change record.
     #[arg(value_name = "slug", value_parser = slug)]
     pub(crate) slug: String,
+}
+
+/// The arguments of `verify`.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct VerifyArgs {
+    /// The slug of the change record. Without it every capability is verified.
+    #[arg(value_name = "slug", value_parser = slug)]
+    pub(crate) slug: Option<String>,
+}
+
+/// The arguments of `change new`.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct NewArgs {
+    /// The slug of the new change record.
+    #[arg(value_name = "slug", value_parser = slug)]
+    pub(crate) slug: String,
+
+    /// A capability the change lists, `cap:<name>`. Give the option once for
+    /// each capability.
+    #[arg(
+        long,
+        value_name = "cap:<name>",
+        required = true,
+        action = ArgAction::Append
+    )]
+    pub(crate) capability: Vec<String>,
+
+    /// A section the change affects, `cap:<name>#<section>`. Give the option
+    /// once for each section. Without it the change affects the contract of
+    /// each listed capability.
+    #[arg(long, value_name = "cap:<name>#<section>", action = ArgAction::Append)]
+    pub(crate) affects: Vec<String>,
+
+    /// The copyright text of the first SPDX line of the record. Given with
+    /// `--licence` or not at all.
+    #[arg(long, value_name = "text", requires = "licence")]
+    pub(crate) copyright: Option<String>,
+
+    /// The licence identifier of the second SPDX line of the record. Given
+    /// with `--copyright` or not at all.
+    #[arg(long, value_name = "id", requires = "copyright")]
+    pub(crate) licence: Option<String>,
 }
 
 /// A slug argument: the slug pattern of the profile, so a value that starts
@@ -186,10 +251,162 @@ mod tests {
         );
         assert_eq!(
             same(&["docs", "preview", "grow-it"]).command,
-            Command::Docs(Docs::Preview(PreviewArgs {
+            Command::Docs(Docs::Preview(SlugArgs {
                 slug: "grow-it".to_string()
             }))
         );
+        for (words, expected) in [
+            (
+                &["change", "impact", "grow"][..],
+                Change::Impact as fn(SlugArgs) -> Change,
+            ),
+            (&["change", "reconcile", "grow"], Change::Reconcile),
+            (&["change", "complete", "grow"], Change::Complete),
+        ] {
+            assert_eq!(
+                same(words).command,
+                Command::Change(expected(SlugArgs {
+                    slug: "grow".to_string()
+                })),
+                "{words:?}"
+            );
+        }
+        assert_eq!(
+            same(&["verify"]).command,
+            Command::Verify(VerifyArgs { slug: None })
+        );
+        assert_eq!(
+            same(&["verify", "grow"]).command,
+            Command::Verify(VerifyArgs {
+                slug: Some("grow".to_string())
+            })
+        );
+    }
+
+    fn new_args(words: &[&str]) -> NewArgs {
+        match same(words).command {
+            Command::Change(Change::New(args)) => args,
+            other => panic!("not `change new`: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair() {
+        let minimal = new_args(&["change", "new", "grow", "--capability", "cap:a"]);
+        assert_eq!(
+            minimal,
+            NewArgs {
+                slug: "grow".to_string(),
+                capability: vec!["cap:a".to_string()],
+                affects: Vec::new(),
+                copyright: None,
+                licence: None,
+            }
+        );
+        let full = new_args(&[
+            "change",
+            "new",
+            "grow",
+            "--capability",
+            "cap:a",
+            "--capability",
+            "cap:b",
+            "--affects",
+            "cap:a#usage",
+            "--affects",
+            "cap:b#contract",
+            "--copyright",
+            "2026 Example Org",
+            "--licence",
+            "CC-BY-4.0",
+        ]);
+        assert_eq!(full.capability, ["cap:a", "cap:b"]);
+        assert_eq!(full.affects, ["cap:a#usage", "cap:b#contract"]);
+        assert_eq!(full.copyright.as_deref(), Some("2026 Example Org"));
+        assert_eq!(full.licence.as_deref(), Some("CC-BY-4.0"));
+        // The options may come before the slug and the global ones anywhere.
+        let mixed = new_args(&[
+            "change",
+            "new",
+            "--capability",
+            "cap:a",
+            "grow",
+            "-q",
+            "--format=json",
+        ]);
+        assert_eq!(mixed, minimal);
+        let args = same(&["-q", "change", "new", "grow", "--capability", "cap:a"]);
+        assert!(args.quiet);
+    }
+
+    #[test]
+    fn change_new_needs_a_capability_and_both_or_neither_spdx_option() {
+        for words in [
+            &["cargo-workplan", "change", "new", "grow"][..],
+            &["cargo-workplan", "change", "new", "--capability", "cap:a"],
+            &[
+                "cargo-workplan",
+                "change",
+                "new",
+                "grow",
+                "--capability",
+                "cap:a",
+                "--copyright",
+                "x",
+            ],
+            &[
+                "cargo-workplan",
+                "change",
+                "new",
+                "grow",
+                "--capability",
+                "cap:a",
+                "--licence",
+                "x",
+            ],
+            &[
+                "cargo-workplan",
+                "change",
+                "new",
+                "-rf",
+                "--capability",
+                "cap:a",
+            ],
+            &["cargo-workplan", "change", "new", "grow", "--capability"],
+        ] {
+            let error = parsed(words).expect_err("a usage error");
+            assert_eq!(error.exit_code(), 2, "{words:?}");
+            // The same in the form cargo gives.
+            let mut shaped = vec!["cargo-workplan", "workplan"];
+            shaped.extend(&words[1..]);
+            assert_eq!(parsed(&shaped).expect_err("usage").exit_code(), 2);
+        }
+    }
+
+    #[test]
+    fn a_command_that_takes_a_slug_refuses_one_that_starts_with_a_dash_in_both_forms() {
+        for head in [
+            &["change", "impact"][..],
+            &["change", "reconcile"],
+            &["change", "complete"],
+            &["verify"],
+        ] {
+            for slug in ["-rf", "--since=x"] {
+                for dashed in [false, true] {
+                    let mut words = vec!["cargo-workplan"];
+                    words.extend(head);
+                    if dashed {
+                        words.push("--");
+                    }
+                    words.push(slug);
+                    assert_eq!(
+                        parsed(&words).expect_err("a slug").exit_code(),
+                        2,
+                        "{words:?}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]
@@ -248,6 +465,13 @@ mod tests {
             &["cargo-workplan", "frobnicate"],
             &["cargo-workplan", "docs"],
             &["cargo-workplan", "docs", "preview"],
+            &["cargo-workplan", "change"],
+            &["cargo-workplan", "change", "frobnicate"],
+            &["cargo-workplan", "change", "impact"],
+            &["cargo-workplan", "change", "reconcile"],
+            &["cargo-workplan", "change", "complete"],
+            &["cargo-workplan", "change", "complete", "grow", "extra"],
+            &["cargo-workplan", "verify", "grow", "extra"],
             &["cargo-workplan", "check", "extra"],
             &["cargo-workplan", "check", "--no-such-option"],
         ] {

@@ -10,7 +10,8 @@ use raf_workplan::exec::{Programs, SystemRunner};
 use raf_workplan::{Gate, RoadmapEntry, SyncError, SyncOptions, Workplan, root};
 use serde_json::{Value, json};
 
-use crate::cli::{Args, Command, Docs, SyncArgs};
+use crate::change;
+use crate::cli::{Args, Change, Command, Docs, SyncArgs};
 use crate::exit::Failure;
 use crate::render::{Record, Report};
 
@@ -27,6 +28,11 @@ pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
         Command::Status => status(&root),
         Command::Docs(Docs::Sync(sync_args)) => sync(&root, sync_args),
         Command::Docs(Docs::Preview(preview_args)) => preview(&root, &preview_args.slug),
+        Command::Change(Change::New(new_args)) => change::new(&root, new_args),
+        Command::Change(Change::Impact(slug)) => change::impact(&root, &slug.slug),
+        Command::Change(Change::Reconcile(slug)) => change::reconcile(&root, &slug.slug),
+        Command::Change(Change::Complete(slug)) => change::complete(&root, &slug.slug),
+        Command::Verify(verify_args) => change::verify(&root, verify_args.slug.as_deref()),
     }
 }
 
@@ -105,8 +111,7 @@ fn entry_text(entry: &RoadmapEntry) -> String {
         .map(|gap| format!("gap: {gap}"))
         .collect();
     if !entry.open_changes().is_empty() {
-        let slugs: Vec<&str> = entry.open_changes().iter().map(|id| bare(id)).collect();
-        notes.push(format!("changes: {}", slugs.join(", ")));
+        notes.push(format!("changes: {}", entry.open_change_slugs().join(", ")));
     }
     if notes.is_empty() {
         entry.slug().to_string()
@@ -128,44 +133,33 @@ fn entry_json(entry: &RoadmapEntry) -> Value {
             })
         })
         .collect();
-    let changes: Vec<&str> = entry.open_changes().iter().map(|id| bare(id)).collect();
     json!({
         "id": entry.id(),
         "slug": entry.slug(),
         "title": entry.title(),
         "path": entry.path(),
         "gaps": gaps,
-        "open_changes": changes,
+        "open_changes": entry.open_change_slugs(),
     })
 }
 
 /// The row of the open changes: each change record that loaded, by slug, with
 /// the capabilities it lists.
 fn open_changes_record(plan: &Workplan<'_>) -> Record {
-    let mut changes: Vec<(String, String, String, Vec<String>)> = plan
-        .changes()
-        .iter()
-        .map(|loaded| {
-            let change = loaded.value();
-            let mut listed = change.changes.clone();
-            listed.sort();
-            (
-                change.header.slug.clone(),
-                change.header.id.clone(),
-                loaded.path().to_string(),
-                listed,
-            )
-        })
-        .collect();
-    changes.sort();
+    let changes = plan.open_changes();
     let names: Vec<String> = changes
         .iter()
-        .map(|(slug, _, _, listed)| format!("{slug} ({})", listed.join(", ")))
+        .map(|open| format!("{} ({})", open.slug(), open.capabilities().join(", ")))
         .collect();
     let objects: Vec<Value> = changes
         .iter()
-        .map(|(slug, id, path, listed)| {
-            json!({ "id": id, "slug": slug, "path": path, "capabilities": listed })
+        .map(|open| {
+            json!({
+                "id": open.id(),
+                "slug": open.slug(),
+                "path": open.path(),
+                "capabilities": open.capabilities(),
+            })
         })
         .collect();
     Record::outcome(
@@ -176,11 +170,6 @@ fn open_changes_record(plan: &Workplan<'_>) -> Record {
         ],
         row("open changes", changes.len(), &names),
     )
-}
-
-/// The slug of a `change:<slug>` id.
-fn bare(id: &str) -> &str {
-    id.strip_prefix("change:").unwrap_or(id)
 }
 
 /// `docs sync`: write the generated blocks and report each file rewritten.

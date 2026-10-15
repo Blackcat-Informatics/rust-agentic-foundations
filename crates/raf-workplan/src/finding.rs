@@ -215,6 +215,34 @@ impl Finding {
     ///   endings, so sync refuses to rewrite it.
     pub const KINDS: &'static [&'static str] = ALL_KINDS;
 
+    /// The heading of the section the finding is in, when its location is a
+    /// section.
+    #[must_use]
+    pub fn section(&self) -> Option<&str> {
+        match &self.location {
+            Location::Section(name) => Some(name),
+            _ => None,
+        }
+    }
+
+    /// The 1-based line the finding is at, when its location is a line.
+    #[must_use]
+    pub fn line(&self) -> Option<usize> {
+        match &self.location {
+            Location::Line(line) => Some(*line),
+            _ => None,
+        }
+    }
+
+    /// The frontmatter key the finding is about, when its location is a key.
+    #[must_use]
+    pub fn key(&self) -> Option<&str> {
+        match &self.location {
+            Location::Key(key) => Some(key),
+            _ => None,
+        }
+    }
+
     pub(crate) fn new(
         kind: &'static str,
         file: &str,
@@ -569,5 +597,38 @@ fn error_entry(tag: ErrorTag) -> (&'static str, &'static str) {
             kind::OKF_PARSE_INDEX_EMPTY,
             "regenerate the index so it holds a generated block",
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn at(location: Location) -> Finding {
+        Finding::new(kind::LINK_BROKEN, "docs/a.md", location, "message", "fix")
+    }
+
+    #[test]
+    fn each_location_answers_to_exactly_one_accessor() {
+        let section = at(Location::Section("Usage".to_string()));
+        assert_eq!(
+            (section.section(), section.line(), section.key()),
+            (Some("Usage"), None, None)
+        );
+        let line = at(Location::Line(7));
+        assert_eq!(
+            (line.section(), line.line(), line.key()),
+            (None, Some(7), None)
+        );
+        let key = at(Location::Key("state".to_string()));
+        assert_eq!(
+            (key.section(), key.line(), key.key()),
+            (None, None, Some("state"))
+        );
+        let document = at(Location::Document);
+        assert_eq!(
+            (document.section(), document.line(), document.key()),
+            (None, None, None)
+        );
     }
 }

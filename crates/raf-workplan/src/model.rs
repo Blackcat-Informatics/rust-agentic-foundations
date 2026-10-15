@@ -14,7 +14,7 @@ use crate::generated;
 use crate::graph::{self, BindingKind, Graph};
 use crate::links::LinkContext;
 use crate::load;
-use crate::roadmap::Roadmap;
+use crate::roadmap::{OpenChange, Roadmap};
 use crate::rules;
 
 /// A document that satisfies the profile: where it is, what it says in its
@@ -255,6 +255,14 @@ impl<'s> Workplan<'s> {
     #[must_use]
     pub fn status(&self) -> Roadmap {
         Roadmap::build(&self.capabilities, &self.graph)
+    }
+
+    /// The change records that loaded, sorted by slug, each with the
+    /// capabilities it lists. A record that did not load is a finding of
+    /// [`Workplan::check`], not an entry.
+    #[must_use]
+    pub fn open_changes(&self) -> Vec<OpenChange> {
+        OpenChange::build(&self.changes)
     }
 
     /// Every finding of every check over the loaded documents: the findings

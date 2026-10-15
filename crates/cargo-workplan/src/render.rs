@@ -17,7 +17,6 @@
 use std::io::{self, Write};
 
 use clap::ValueEnum;
-use raf_okf::Location;
 use raf_workplan::Finding;
 use serde_json::Value;
 
@@ -84,19 +83,14 @@ impl Record {
     /// A finding of the document model: its `Display` text, and the fields of
     /// a rule.
     pub(crate) fn of_finding(finding: &Finding) -> Self {
-        let (section, line, key) = match &finding.location {
-            Location::Section(name) => (Value::from(name.as_str()), Value::Null, Value::Null),
-            Location::Line(line) => (Value::Null, Value::from(*line), Value::Null),
-            Location::Key(key) => (Value::Null, Value::Null, Value::from(key.as_str())),
-            _ => (Value::Null, Value::Null, Value::Null),
-        };
+        let optional = |value: Option<Value>| value.unwrap_or(Value::Null);
         Self::finding(
             finding.kind,
             vec![
                 ("path", Value::from(finding.file.as_str())),
-                ("section", section),
-                ("line", line),
-                ("key", key),
+                ("section", optional(finding.section().map(Value::from))),
+                ("line", optional(finding.line().map(Value::from))),
+                ("key", optional(finding.key().map(Value::from))),
                 ("message", Value::from(finding.message.as_str())),
                 ("fix", Value::from(finding.fix.as_str())),
             ],
@@ -181,7 +175,9 @@ impl Report {
             .collect();
         match format {
             Format::Text => {
-                for record in shown {
+                // A record with no text has no line in the text form: its
+                // fact is in the line of another record.
+                for record in shown.into_iter().filter(|record| !record.text.is_empty()) {
                     out.write_all(record.text.as_bytes())?;
                     if !record.text.ends_with('\n') {
                         out.write_all(b"\n")?;
@@ -285,6 +281,18 @@ mod tests {
         );
         let parsed: Value = serde_json::from_str(&out).expect("valid JSON");
         assert_eq!(parsed.as_array().map(Vec::len), Some(1));
+    }
+
+    #[test]
+    fn a_record_with_no_text_has_no_line_in_text_and_an_object_in_json() {
+        let silent = Record::finding("refusal", vec![("repeated", Value::from(true))], "");
+        let report = Report::of([silent, finding()]);
+        let (text, _) = printed(&report, Format::Text, false);
+        assert_eq!(text.lines().count(), 1, "{text}");
+        let (json, _) = printed(&report, Format::Json, false);
+        let parsed: Value = serde_json::from_str(&json).expect("valid JSON");
+        assert_eq!(parsed.as_array().map(Vec::len), Some(2));
+        assert_eq!(report.exit(), Exit::Findings);
     }
 
     #[test]

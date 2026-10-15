@@ -43,6 +43,20 @@ pub enum Condition {
 }
 
 impl Condition {
+    /// The stable kebab-case name of the condition.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Obligations => "obligations",
+            Self::Outcomes => "outcomes",
+            Self::Proposals => "proposals",
+            Self::GeneratedBlocks => "generated-blocks",
+            Self::BoundRuns => "bound-runs",
+            Self::AfterRemoval => "after-removal",
+            Self::ChangedDuringRun => "changed-during-run",
+        }
+    }
+
     /// The number the Contract gives the condition, for the five of its list.
     #[must_use]
     pub const fn number(self) -> Option<u8> {
@@ -146,9 +160,28 @@ impl Failure {
         }
     }
 
+    /// The stable kebab-case name of what failed: the kind of the obligation
+    /// for conditions 1 to 3, the kind of the finding for a generated block or
+    /// a finding once the record is removed, and `generated-rewrite`,
+    /// `bound-test`, `bound-example` or `changed-during-run` for the others.
+    #[must_use]
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Owed(obligation) | Self::Item(obligation) | Self::Proposal(obligation) => {
+                obligation.kind.name()
+            }
+            Self::Generated(finding) | Self::AfterRemoval(finding) => finding.kind,
+            Self::Rewrite { .. } => "generated-rewrite",
+            Self::Test(_) => "bound-test",
+            Self::Example(_) => "bound-example",
+            Self::Changed { .. } => "changed-during-run",
+        }
+    }
+
     /// Whether the line of the failure repeats the line of another failure in
     /// `all`, so that `Display` of a [`Completion`] prints it once.
-    fn repeats(&self, all: &[Failure]) -> bool {
+    #[must_use]
+    pub fn is_repeated_in(&self, all: &[Failure]) -> bool {
         match self {
             Self::Item(_) | Self::Proposal(_) | Self::Example(_) => true,
             Self::Generated(finding) => {
@@ -309,24 +342,38 @@ fn summary(failures: &[Failure]) -> String {
     parts.into_iter().flatten().collect::<Vec<_>>().join(", ")
 }
 
+impl Completion {
+    /// The first line of the text of the completion, without its line ending:
+    /// `completed: removed <path>`, or `refused:` and the count of each kind
+    /// of failure.
+    #[must_use]
+    pub fn headline(&self) -> String {
+        match self {
+            Self::Completed { removed, .. } => format!("completed: removed {removed}"),
+            Self::Refused { failures } => format!("refused: {}", summary(failures)),
+        }
+    }
+}
+
 impl fmt::Display for Completion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "{}", self.headline())?;
         match self {
-            Self::Completed { removed, rewritten } => {
-                writeln!(f, "completed: removed {removed}")?;
+            Self::Completed { rewritten, .. } => {
                 for path in rewritten {
                     writeln!(f, "rewrote {path}")?;
                 }
-                Ok(())
             }
             Self::Refused { failures } => {
-                writeln!(f, "refused: {}", summary(failures))?;
-                for failure in failures.iter().filter(|failure| !failure.repeats(failures)) {
+                for failure in failures
+                    .iter()
+                    .filter(|failure| !failure.is_repeated_in(failures))
+                {
                     writeln!(f, "{failure}")?;
                 }
-                Ok(())
             }
         }
+        Ok(())
     }
 }
 

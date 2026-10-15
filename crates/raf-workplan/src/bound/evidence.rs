@@ -36,6 +36,26 @@ pub enum BoundOutcome {
 }
 
 impl BoundOutcome {
+    /// The stable name of the verdict: `passed`, `failed` or `unresolved`.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Passed => "passed",
+            Self::Failed { .. } => "failed",
+            Self::Unresolved { .. } => "unresolved",
+        }
+    }
+
+    /// Why the binding did not pass, in full; `None` for a pass.
+    #[must_use]
+    pub fn reason(&self) -> Option<String> {
+        match self {
+            Self::Passed => None,
+            Self::Failed { reason } => Some(reason.clone()),
+            Self::Unresolved { reason } => Some(reason.to_string()),
+        }
+    }
+
     /// Whether the binding passed.
     #[must_use]
     pub fn is_passed(&self) -> bool {

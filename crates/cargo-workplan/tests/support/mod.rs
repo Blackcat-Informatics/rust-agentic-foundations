@@ -18,6 +18,10 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use raf_workplan::{Gate, SyncOptions, Workplan};
+use serde_json::Value;
+
+#[cfg(unix)]
+pub(crate) mod stubs;
 
 /// The built binary.
 pub(crate) const BINARY: &str = env!("CARGO_BIN_EXE_cargo-workplan");
@@ -440,4 +444,229 @@ pub(crate) fn change(slug: &str, changes: &str, affects: &[&str]) -> String {
          description: Changes {slug}.\nchanges: {changes}\naffects:\n{affects}\
          contract_effect: changes\nitems: []\n---\n\n## Summary\n\nChanges it.\n"
     )
+}
+
+/// The sections of a capability that hold the generated blocks of the
+/// verification matrix and the relationships, so a sync has something to
+/// rewrite when a change record comes or goes.
+pub(crate) const BLOCKS: &str = "\n<!-- raf:generated:verification-matrix -->\n<!-- raf:generated:end -->\n\n<!-- raf:generated:relationships -->\n<!-- raf:generated:end -->\n";
+
+/// Run `git` in `dir` as a fixture step, with the variables of an enclosing git
+/// command and the user's configuration out of the way. Returns standard
+/// output without its last line ending.
+pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
+    let mut command = Command::new("git");
+    command
+        .arg("-C")
+        .arg(dir)
+        .args([
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+        ])
+        .args(args)
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_AUTHOR_NAME", "Fixture")
+        .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
+        .env("GIT_COMMITTER_NAME", "Fixture")
+        .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid");
+    for variable in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_COMMON_DIR",
+        "GIT_PREFIX",
+    ] {
+        command.env_remove(variable);
+    }
+    let output = command.output().expect("git runs");
+    assert!(
+        output.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let text = String::from_utf8(output.stdout).expect("UTF-8 output");
+    text.strip_suffix('\n').unwrap_or(&text).to_string()
+}
+
+/// A library with a test that passes and one that fails, an example that
+/// builds and runs, and one that exits with a failing status: what the
+/// fixtures that run the real `cargo` bind.
+const LIB: &str = "\
+//! Fixture library.
+
+/// Documented.
+pub fn real() {}
+
+/// Adds.
+pub fn add(a: u32, b: u32) -> u32 {
+    a + b
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn passes() {
+        assert_eq!(super::add(1, 2), 3);
+    }
+
+    #[test]
+    fn fails() {
+        panic!(\"this test fails\");
+    }
+}
+";
+
+/// An example that builds and runs.
+pub(crate) const GOOD_EXAMPLE: &str = "fn main() {\n    println!(\"fine\");\n}\n";
+
+/// An example that builds and exits with a failing status.
+pub(crate) const EXITING_EXAMPLE: &str = "fn main() {\n    std::process::exit(3);\n}\n";
+
+/// The directory the fixtures that run `cargo` build into, one for each test
+/// binary and name, so no build writes below a fixture.
+pub(crate) fn shared_target(name: &str) -> PathBuf {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
+    fs::create_dir_all(&dir).expect("the shared target directory");
+    dir
+}
+
+impl Repo {
+    /// A workspace that the real `cargo` builds and runs: the package `demo`
+    /// with a library of two tests (`demo::tests::passes` and
+    /// `demo::tests::fails`) and the examples `good` and `exiting`, building
+    /// into `target`.
+    pub(crate) fn real(tag: &str, target: &Path) -> Self {
+        let repo = Self::bare(tag);
+        repo.put("src/lib.rs", LIB);
+        repo.put("examples/good.rs", GOOD_EXAMPLE);
+        repo.put("examples/exiting.rs", EXITING_EXAMPLE);
+        repo.put(
+            ".cargo/config.toml",
+            &format!("[build]\ntarget-dir = '{}'\n", target.display()),
+        );
+        repo
+    }
+
+    /// Run `git` in the root.
+    pub(crate) fn git(&self, args: &[&str]) -> String {
+        git(self.root(), args)
+    }
+
+    /// Make the root a git checkout on the branch `feature`, forked from
+    /// `main` at a commit of the files now there, with `origin/main` at that
+    /// commit and `origin/HEAD` naming it, as a clone leaves them.
+    pub(crate) fn checkout(&self) {
+        self.git(&["init", "-q", "-b", "main"]);
+        self.commit("base");
+        self.git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        self.git(&[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/main",
+        ]);
+        self.git(&["checkout", "-q", "-b", "feature"]);
+    }
+
+    /// Add everything and commit.
+    pub(crate) fn commit(&self, message: &str) {
+        self.git(&["add", "-A"]);
+        self.git(&["commit", "-q", "-m", message]);
+    }
+}
+
+/// The one array standard output holds.
+pub(crate) fn array(run: &Run) -> Vec<Value> {
+    let value: Value = serde_json::from_str(&run.stdout)
+        .unwrap_or_else(|e| panic!("standard output is not one JSON value: {e}\n{run:#?}"));
+    match value {
+        Value::Array(items) => items,
+        other => panic!("standard output is not an array: {other}"),
+    }
+}
+
+/// The member names of each object of the array, in the order written.
+///
+/// The array is printed one object to a line, so the names are read from the
+/// text: `serde_json::Value` sorts them.
+pub(crate) fn member_names(run: &Run) -> Vec<Vec<String>> {
+    run.stdout
+        .lines()
+        .filter(|line| line.starts_with('{'))
+        .map(|line| {
+            let line = line.trim_end_matches(',');
+            let mut names = Vec::new();
+            let mut depth = 0_i32;
+            let mut chars = line.char_indices().peekable();
+            while let Some((at, c)) = chars.next() {
+                match c {
+                    '{' | '[' => depth += 1,
+                    '}' | ']' => depth -= 1,
+                    '"' => {
+                        // A string: find its end, honouring escapes.
+                        let start = at;
+                        let mut end = at;
+                        let mut escaped = false;
+                        for (i, d) in chars.by_ref() {
+                            end = i;
+                            if escaped {
+                                escaped = false;
+                            } else if d == '\\' {
+                                escaped = true;
+                            } else if d == '"' {
+                                break;
+                            }
+                        }
+                        let is_name = depth == 1 && line[end + 1..].starts_with(':');
+                        if is_name {
+                            names.push(line[start + 1..end].to_string());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            names
+        })
+        .collect()
+}
+
+/// The names as owned strings.
+pub(crate) fn strings(names: &[&str]) -> Vec<String> {
+    names.iter().map(ToString::to_string).collect()
+}
+
+/// The files that differ between two snapshots: those added, removed or
+/// changed, sorted. A directory is not a file and is left out.
+pub(crate) fn changed(
+    before: &BTreeMap<String, Vec<u8>>,
+    after: &BTreeMap<String, Vec<u8>>,
+) -> Vec<String> {
+    let mut paths: Vec<String> = before
+        .keys()
+        .chain(after.keys())
+        .filter(|path| !path.ends_with('/') && before.get(*path) != after.get(*path))
+        .cloned()
+        .collect();
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+/// The snapshot of a work tree: every file but those of `.git`, which `git`
+/// itself keeps.
+pub(crate) fn worktree(root: &Path) -> BTreeMap<String, Vec<u8>> {
+    snapshot(root)
+        .into_iter()
+        .filter(|(path, _)| path != ".git/" && !path.starts_with(".git/"))
+        .collect()
+}
+
+impl Repo {
+    /// The snapshot of the work tree, without `.git`.
+    pub(crate) fn worktree(&self) -> BTreeMap<String, Vec<u8>> {
+        worktree(self.root())
+    }
 }

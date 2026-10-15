@@ -383,8 +383,60 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `--root` overriding it, and with stub programs the exact `cargo metadata` argv
   from `$CARGO` and from `PATH`, no process before a slug that starts with `-`
   is refused, a missing `git`, and a `build.rustc` program that discovery does not run.
-  The macOS and Windows CI jobs run these tests too. The change lifecycle commands and
-  `verify` are not part of the binary yet.
+  The macOS and Windows CI jobs run these tests too. The change lifecycle commands
+  and `verify` are described in the next entry.
+- **`cargo-workplan` change commands:** `change new <slug> --capability cap:<name>
+  [--capability ...] [--affects cap:<name>#<section> ...] [--copyright <text> --licence
+  <id>]`, `change impact <slug>`, `change reconcile <slug>`, `change complete <slug>`
+  and `verify [<slug>]`, each a call into `raf-workplan` (`Workplan::new_change`,
+  `Workplan::impact`, `Lifecycle::reconcile`, `Lifecycle::complete`,
+  `lifecycle::verify`) and a rendering of what it returns. `change new` writes exactly
+  one file and prints the library's text: the path, the PROPOSED block to place, the
+  state each listed capability needs and, when the record stales a generated block, the
+  note to stage the record (`git add work/changes/<slug>.md`, since the table that names it links to a file git must track) and then run `docs sync`; `--capability` and `--affects` repeat, and `--copyright` and
+  `--licence` are given together or not at all (a usage error otherwise). `change
+  impact` prints the capabilities, sections, bindings, dependants and linking sections.
+  `change reconcile` prints one line for each obligation and exits 1 exactly when there
+  is one; it writes no file in the repository (a bound example builds into the cargo
+  target directory). `change complete` prints `refused:` with the counts and the lines
+  of the failures, exit 1, or `completed: removed <path>` with a `rewrote <path>` line
+  for each file rewritten, exit 0. `verify` prints `pass` or `fail` for each bound
+  binding and exits 1 when one fails; a run with nothing to run exits 0 and says so on
+  standard error. Exit 2 is the tool that could not run: a usage error, a slug that
+  starts with `-` or is not a slug (refused when the arguments are parsed, before any
+  process starts), a slug with no record (and, for `change new`, one that has a
+  record), a record that does not load (an `outcome` that is not one), a `git` that is
+  missing or older than 2.30 (`change reconcile` and `change complete` ask `git
+  --version` before any other process of theirs), a repository with no default branch.
+  `--format json` prints, besides the earlier kinds, `new-change`, `impact`,
+  `obligation`, `refused`, `refusal` (one for each failure, with the condition it is a
+  fault of, its number in the Contract and whether another line repeats it), `completed`
+  and `binding` objects, documented in the crate documentation and pinned by tests. The
+  tests run the built binary against a fixture repository for each command with exit 0,
+  1 and 2, in both shapes of the argument vector and through a real `cargo workplan`
+  dispatch to a `cargo-workplan` found on `PATH`, with `-q`, the JSON objects, the tree
+  byte-identical after `change impact` and `change reconcile`, a slug that starts with
+  `-` for every command that takes one, a stub `git` of version 2.29 (only `git
+  --version` runs), the printed template placed in a capability of each of the four
+  states (after following the printed guidance: a clean `check` and one
+  `unresolved-proposal` line), and the whole path from `change new` to a completed
+  change.
+- **`raf-workplan` for the command line:** `NewChangeRequest` takes an optional
+  `copyright` and `licence`; when both are set the record opens with the two SPDX
+  comment lines of the frontmatter, in the form the change records of this repository
+  carry them, so a record the tool created passes `make reuse`; one without the other
+  is `NewChangeError::SpdxUnset` naming the missing field, and a value that is empty or
+  not one line (a control character, U+2028 or U+2029 included) is `NewChangeError::SpdxInvalid`. The state guidance for a `delivered`
+  capability now names both findings it avoids (`state-delivered-proposal` and
+  `state-delivered-open-record`) and the one for a `designed` capability names
+  `state-designed-proposal`. `NewChange::sync_needed` is now true whenever the record
+  changes what a sync writes, so it is no longer silent when the target file was
+  already stale. The command line reads values through accessors instead of decomposing
+  them: `Finding::section`, `line` and `key`; `Workplan::open_changes` (the loaded
+  records sorted by slug, as `OpenChange`) and `RoadmapEntry::open_change_slugs`;
+  `StateAdvice::name`; `Condition::name`, `Failure::name`, `Failure::is_repeated_in`
+  and `Completion::headline`; `VerifyReport::lines`; and `BoundOutcome::name` and
+  `reason`. All are additive.
 - **Workplan capabilities delivered:** the workplan document model and the
   generated documentation blocks are `delivered`, bound to the `raf-workplan` code,
   tests and examples that realise them, with their verification matrices,

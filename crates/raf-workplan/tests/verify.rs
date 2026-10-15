@@ -833,3 +833,57 @@ fn only_the_examples_of_the_capabilities_the_change_lists_are_run() {
     );
     assert!(list.is_empty(), "{list}");
 }
+
+#[test]
+fn the_lines_of_a_report_are_its_text_and_each_verdict_has_a_name_and_a_reason() {
+    let fixture = single(
+        "[fx_life::tests::passes, fx_life::tests::fails]",
+        "[fx_life::wrong]",
+        &[],
+    );
+    let report = report_of(&fixture, Some("shape"));
+    assert_eq!(report.lines().join("\n") + "\n", report.to_string());
+    assert_eq!(report.lines().len(), report.len());
+    let verdicts: Vec<(&str, bool)> = report
+        .evidence()
+        .iter()
+        .map(|evidence| {
+            (
+                evidence.outcome().name(),
+                evidence.outcome().reason().is_some(),
+            )
+        })
+        .collect();
+    // `fails` (failed), `passes` (passed) and `wrong` (a doc test that fails).
+    assert_eq!(
+        verdicts
+            .iter()
+            .filter(|(name, _)| *name == "passed")
+            .count(),
+        1
+    );
+    for evidence in report.evidence() {
+        match evidence.outcome() {
+            BoundOutcome::Passed => {
+                assert_eq!(evidence.outcome().name(), "passed");
+                assert_eq!(evidence.outcome().reason(), None);
+            }
+            BoundOutcome::Failed { reason } => {
+                assert_eq!(evidence.outcome().name(), "failed");
+                assert_eq!(
+                    evidence.outcome().reason().as_deref(),
+                    Some(reason.as_str())
+                );
+            }
+            BoundOutcome::Unresolved { reason } => {
+                assert_eq!(evidence.outcome().name(), "unresolved");
+                assert_eq!(
+                    evidence.outcome().reason().as_deref(),
+                    Some(reason.to_string().as_str())
+                );
+            }
+            other => panic!("unexpected verdict {other:?}"),
+        }
+    }
+    assert!(verdicts.iter().any(|(name, _)| *name == "failed"));
+}
