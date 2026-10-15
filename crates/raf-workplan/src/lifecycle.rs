@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
 //! The steps of a change: opening its record, reading what it touches,
-//! reconciling it with the documents and verifying what it binds.
+//! reconciling it with the documents, verifying what it binds and completing
+//! it.
 //!
 //! [`Workplan::new_change`](crate::Workplan::new_change) creates `work/changes/<slug>.md` for a slug, the
 //! capabilities it changes and the sections it affects, and says what the author
@@ -49,7 +50,47 @@
 //! capability, and returns a [`VerifyReport`] of per-binding
 //! [`Evidence`](crate::bound::Evidence). It needs no Git, goes through no
 //! version gate and writes nothing.
+//!
+//! # Completing a change
+//!
+//! [`Lifecycle::complete`] is the transition from an open change to a delivered
+//! one, and returns a [`Completion`]: the record was removed, or the change is
+//! refused with every [`Failure`] and nothing was written. The order of its
+//! steps is part of its contract.
+//!
+//! 1. The static conditions are judged, all of them, with no early exit: the
+//!    obligation list (every kind except `example-failing`, which needs a run),
+//!    the outcome of each item (a `moved` outcome names a record that exists),
+//!    the PROPOSED blocks of the change in any capability document, loaded or
+//!    not, the generated blocks (`docs sync` would write nothing), and `check`
+//!    of the repository as it will be once the writes are done. That
+//!    repository has no record, so the state rules are judged there: a
+//!    `delivered` capability beside its still-open record is exactly what
+//!    `complete` resolves and is not a failure, while a capability that is not
+//!    `delivered` and is listed by no other open record is `no-open-record`.
+//!    The author sets `state: delivered` before running `complete`; it never
+//!    edits prose.
+//! 2. Only when no static condition failed does it run the bound tests and
+//!    examples of the listed capabilities, through the
+//!    [`Executor`](crate::bound::Executor). A static failure therefore spends no
+//!    process on `cargo`. A capability with empty `bindings.tests` and
+//!    `bindings.examples` satisfies this condition only while it is `designed`
+//!    or `considered`. A failing example is also an `example-failing`
+//!    obligation, so it is reported under conditions 1 and 5.
+//! 3. The repository is opened again and the static conditions are judged again,
+//!    because the documents and the source can change while `cargo` runs. A
+//!    failure, or a different set of bindings to run, refuses.
+//! 4. The writes. They are the generated blocks that removing the record stales
+//!    (the `Changed by` rows of the relationship tables), rewritten through
+//!    [`Workplan::write`](crate::Workplan::write), which stages every file and
+//!    then renames; and then, as the very last step, the removal of
+//!    `work/changes/<slug>.md`. Nothing else is written. If the rewrite fails the
+//!    record is not removed; if the removal fails after the rewrite the
+//!    [`LifecycleError::Remove`] names the files already rewritten. A removed
+//!    record is therefore never found beside stale blocks.
 
+mod complete;
+mod completion;
 mod create;
 mod examples;
 mod impact;
@@ -57,6 +98,7 @@ mod session;
 mod untouched;
 mod verification;
 
+pub use completion::{Completion, Condition, Failure};
 pub use create::{
     AffectsProblem, CapabilityGuidance, NewChange, NewChangeError, NewChangeRequest, StateAdvice,
 };

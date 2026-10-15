@@ -1,0 +1,1649 @@
+// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+//! `Lifecycle::complete`: the five conditions, the check of the repository
+//! without the record, the order of the steps and the order of the writes.
+//!
+//! Two kinds of fixture are used. A real one is a generated repository in a
+//! scratch directory: a crate with its own `[workspace]`, a template
+//! `Cargo.lock`, no dependency and a pinned edition, the capability documents
+//! that bind it, a change record, and a git history with a remote-tracking
+//! default branch; the processes are the real `git` and the `cargo` that started
+//! this test binary. All of them share one target directory. A scripted one has
+//! the same files and the same documents but answers every process from a
+//! [`FakeRunner`], on every platform, and records the calls, so the order of the
+//! steps and the processes a refusal spends can be read from them.
+
+mod support;
+
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
+
+use raf_source::RelPath;
+use raf_workplan::bound::BoundOutcome;
+use raf_workplan::exec::{
+    Call, ExecError, FakeRunner, Invocation, Limits, Output, Program, Programs, Runner,
+};
+use raf_workplan::lifecycle::{Completion, Condition, Failure, Lifecycle, LifecycleError};
+use raf_workplan::obligation::ObligationKind;
+use raf_workplan::{ChangeLookupError, Gate, SyncOptions, Workplan};
+use support::changes::{DONE, capability, record};
+use support::checkout::git;
+use support::disk::{Scratch, put, read, snapshot};
+
+/// No fixture may take longer than this, builds included.
+const BUDGET: Duration = Duration::from_secs(300);
+
+const CAP: &str = "docs/capabilities/fixture.md";
+const INDEX: &str = "docs/capabilities/index.md";
+const RECORD: &str = "work/changes/shape.md";
+
+/// The `cargo` that runs this test binary: `$CARGO` as `cargo test` sets it.
+fn cargo() -> PathBuf {
+    std::env::var_os("CARGO")
+        .map(PathBuf::from)
+        .or_else(|| option_env!("CARGO").map(PathBuf::from))
+        .expect("cargo test sets CARGO")
+}
+
+/// The target directory every real fixture builds into.
+fn shared_target() -> &'static Path {
+    static TARGET: OnceLock<PathBuf> = OnceLock::new();
+    TARGET.get_or_init(|| {
+        let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("complete-fixtures");
+        std::fs::create_dir_all(&dir).expect("the shared target directory");
+        dir
+    })
+}
+
+const LIB: &str = "\
+//! Fixture library.
+
+/// Adds.
+///
+/// ```
+/// assert_eq!(fx_life::add(1, 2), 3);
+/// ```
+pub fn add(a: u32, b: u32) -> u32 {
+    a + b
+}
+
+pub fn plain() {}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn passes() {
+        assert_eq!(super::add(1, 2), 3);
+    }
+
+    #[test]
+    fn also_passes() {}
+
+    #[test]
+    fn fails() {
+        panic!(\"this test fails\");
+    }
+}
+";
+
+const GOOD_EXAMPLE: &str = "fn main() {\n    println!(\"fine\");\n}\n";
+const BROKEN_EXAMPLE: &str = "fn main() {\n    let number: u32 = \"text\";\n    drop(number);\n}\n";
+const EXITING_EXAMPLE: &str = "fn main() {\n    std::process::exit(3);\n}\n";
+
+const PASSES: &str = "[fx_life::tests::passes]";
+
+/// An item with an outcome, and one without.
+const NO_OUTCOME: &str = "  - claim: \"fixture is shaped\"\n";
+
+/// A candidate contract of the change `shape`.
+const PROPOSAL: &str = "\n> [!PROPOSED change:shape]\n> A candidate contract.\n";
+
+/// What a fixture holds: the capability `fixture`, the change `shape` that lists
+/// it, and what else is written beside them.
+#[derive(Clone)]
+struct Spec {
+    state: &'static str,
+    code: &'static str,
+    tests: &'static str,
+    examples: &'static str,
+    /// Text added to the end of a section of the capability, by section name.
+    extra: Vec<(&'static str, &'static str)>,
+    effect: &'static str,
+    affects: Vec<&'static str>,
+    items: &'static str,
+    /// The example targets, by name.
+    example_files: Vec<(&'static str, &'static str)>,
+    /// Other documents, written before the sync.
+    docs: Vec<(String, String)>,
+}
+
+impl Default for Spec {
+    /// A capability that completes: `delivered`, bound to code and one passing
+    /// test, and a record with the one item resolved and the effect `none`.
+    fn default() -> Self {
+        Self {
+            state: "delivered",
+            code: "[fx_life::add]",
+            tests: PASSES,
+            examples: "[]",
+            extra: Vec::new(),
+            effect: "none",
+            affects: vec!["cap:fixture#contract"],
+            items: DONE,
+            example_files: Vec::new(),
+            docs: Vec::new(),
+        }
+    }
+}
+
+impl Spec {
+    fn state(mut self, state: &'static str) -> Self {
+        self.state = state;
+        self
+    }
+
+    fn tests(mut self, tests: &'static str) -> Self {
+        self.tests = tests;
+        self
+    }
+
+    fn examples(mut self, examples: &'static str, files: &[(&'static str, &'static str)]) -> Self {
+        self.examples = examples;
+        self.example_files = files.to_vec();
+        self
+    }
+
+    fn extra(mut self, section: &'static str, text: &'static str) -> Self {
+        self.extra.push((section, text));
+        self
+    }
+
+    fn effect(mut self, effect: &'static str, affects: &[&'static str]) -> Self {
+        self.effect = effect;
+        self.affects = affects.to_vec();
+        self
+    }
+
+    fn items(mut self, items: &'static str) -> Self {
+        self.items = items;
+        self
+    }
+
+    fn doc(mut self, path: &str, text: String) -> Self {
+        self.docs.push((path.to_string(), text));
+        self
+    }
+
+    /// The documents: the capability, the record, and the others.
+    fn documents(&self) -> Vec<(String, String)> {
+        let mut files = vec![
+            (
+                CAP.to_string(),
+                capability(
+                    "fixture",
+                    self.state,
+                    [self.code, self.tests, self.examples],
+                    &self.extra,
+                ),
+            ),
+            (
+                RECORD.to_string(),
+                record(
+                    "shape",
+                    "[cap:fixture]",
+                    &self.affects,
+                    self.effect,
+                    self.items,
+                ),
+            ),
+        ];
+        files.extend(self.docs.clone());
+        files
+    }
+}
+
+/// A second capability that is `designed`, listed by an open record `other`,
+/// so that a record that moves an item to `other` names a change that exists
+/// and the state rules are satisfied beside it.
+fn other_record(spec: Spec) -> Spec {
+    spec.doc(
+        "docs/capabilities/second.md",
+        capability("second", "designed", ["[]", "[]", "[]"], &[]),
+    )
+    .doc(
+        "work/changes/other.md",
+        record("other", "[cap:second]", &["cap:second#purpose"], "none", ""),
+    )
+}
+
+/// A generated repository, removed when dropped.
+struct Fixture {
+    scratch: Scratch,
+    started: Instant,
+    real: bool,
+}
+
+impl Fixture {
+    /// A real fixture: a git history whose `feature` branch forks from `main`
+    /// at the commit that holds everything, so nothing is touched since the
+    /// merge base until a test edits a file.
+    fn real(spec: &Spec) -> Self {
+        Self::build(spec, true)
+    }
+
+    /// A fixture for a scripted runner: the same files, no git history.
+    fn scripted(spec: &Spec) -> Self {
+        Self::build(spec, false)
+    }
+
+    fn build(spec: &Spec, real: bool) -> Self {
+        let scratch = Scratch::new("complete");
+        let root = scratch.path().to_path_buf();
+        let root = root.as_path();
+        put(
+            root,
+            "Cargo.toml",
+            "[package]\nname = \"fx-life\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n",
+        );
+        put(
+            root,
+            "Cargo.lock",
+            "version = 4\n\n[[package]]\nname = \"fx-life\"\nversion = \"0.1.0\"\n",
+        );
+        put(
+            root,
+            ".cargo/config.toml",
+            &format!("[build]\ntarget-dir = '{}'\n", shared_target().display()),
+        );
+        put(root, "src/lib.rs", LIB);
+        for (name, text) in &spec.example_files {
+            put(root, &format!("examples/{name}.rs"), text);
+        }
+        for (path, text) in spec.documents() {
+            put(root, &path, &text);
+        }
+        if real {
+            git(root, &["init", "-q", "-b", "main"]);
+        }
+        let fixture = Self {
+            scratch,
+            started: Instant::now(),
+            real,
+        };
+        fixture.resync();
+        if real {
+            git(root, &["add", "-A"]);
+            git(root, &["commit", "-q", "-m", "base"]);
+            git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+            git(
+                root,
+                &[
+                    "symbolic-ref",
+                    "refs/remotes/origin/HEAD",
+                    "refs/remotes/origin/main",
+                ],
+            );
+            git(root, &["checkout", "-q", "-b", "feature"]);
+        }
+        fixture
+    }
+
+    fn root(&self) -> &Path {
+        self.scratch.path()
+    }
+
+    /// Run `docs sync` over the documents as they are and write what it returns.
+    fn resync(&self) {
+        let opened = Gate::workspace(self.root())
+            .tracked_paths(Vec::new())
+            .open()
+            .expect("the fixture opens");
+        let report = opened
+            .workplan()
+            .sync(&SyncOptions::new(
+                "2026 Example Org <dev@example.org>",
+                "CC-BY-4.0",
+            ))
+            .unwrap_or_else(|error| panic!("the fixture syncs: {error}"));
+        Workplan::write(&report, self.root()).expect("the sync is written");
+    }
+
+    /// The text of a file.
+    fn text(&self, path: &str) -> String {
+        read(self.root(), path)
+    }
+
+    /// Replace the first `from` in the file `path` by `to`.
+    fn edit(&self, path: &str, from: &str, to: &str) {
+        let text = self.text(path);
+        assert!(text.contains(from), "{path} has no `{from}`");
+        put(self.root(), path, &text.replacen(from, to, 1));
+    }
+
+    fn exists(&self, path: &str) -> bool {
+        self.root().join(path).exists()
+    }
+
+    /// Every file below the root except the git directory, with its bytes.
+    fn snapshot(&self) -> BTreeMap<String, Vec<u8>> {
+        snapshot(self.root())
+            .into_iter()
+            .filter(|(path, _)| !path.starts_with(".git/"))
+            .collect()
+    }
+
+    /// The tracked paths of a scripted fixture: every file below the root.
+    fn tracked(&self) -> Vec<RelPath> {
+        self.snapshot()
+            .keys()
+            .map(|path| RelPath::new(path).expect("a path"))
+            .collect()
+    }
+
+    /// The real programs: `git` and the `cargo` of this test binary.
+    fn programs(&self) -> Programs {
+        Programs::with_cargo_var(self.root(), Some(cargo().into()))
+    }
+
+    /// Programs whose `cargo` does not exist: a `cargo` process is an error.
+    fn programs_without_cargo(&self) -> Programs {
+        self.programs()
+            .with_cargo(self.root().join("no-such-cargo"))
+    }
+
+    fn lifecycle(&self) -> Lifecycle {
+        Lifecycle::open(self.programs()).unwrap_or_else(|error| panic!("opens: {error}"))
+    }
+
+    /// The gate of a scripted fixture, which asks `git` nothing.
+    fn gate(&self) -> Gate {
+        Gate::workspace(self.root()).tracked_paths(self.tracked())
+    }
+
+    /// A lifecycle over a scripted runner.
+    fn over<R: Runner>(&self, runner: R) -> Lifecycle<R> {
+        assert!(!self.real, "a scripted lifecycle is for a scripted fixture");
+        Lifecycle::open_with(&self.gate(), runner)
+            .unwrap_or_else(|error| panic!("the fixture opens: {error}"))
+    }
+
+    fn complete(&self) -> Completion {
+        let completion = self
+            .lifecycle()
+            .complete("shape")
+            .unwrap_or_else(|error| panic!("complete should answer: {error}"));
+        self.within_budget();
+        completion
+    }
+
+    fn within_budget(&self) {
+        assert!(
+            self.started.elapsed() < BUDGET,
+            "the fixture took {:?}, over its budget of {BUDGET:?}",
+            self.started.elapsed()
+        );
+    }
+}
+
+/// The refusal of a completion.
+fn refusal(completion: &Completion) -> &[Failure] {
+    assert!(!completion.is_completed(), "{completion}");
+    completion.failures()
+}
+
+/// The kinds of the obligations that stand as failures, without repeats.
+fn kinds(completion: &Completion) -> Vec<ObligationKind> {
+    let mut kinds: Vec<ObligationKind> = completion.obligations().map(|o| o.kind).collect();
+    kinds.dedup();
+    kinds
+}
+
+fn count(completion: &Completion, condition: Condition) -> usize {
+    completion.of_condition(condition).count()
+}
+
+// --- a scripted runner ------------------------------------------------------------
+
+fn said(text: &str) -> Output {
+    Output::new(Some(0), text.as_bytes().to_vec(), Vec::new())
+}
+
+/// The answers of `git` to the two questions the open asks.
+fn git_answers() -> FakeRunner {
+    FakeRunner::new()
+        .on(
+            Program::Git,
+            &["--version"],
+            Ok(said("git version 2.45.1\n")),
+        )
+        .on(
+            Program::Git,
+            &["rev-parse", "--show-prefix"],
+            Ok(said("\n")),
+        )
+}
+
+/// The answers of `cargo` to the two passes of the test `fx_life::tests::<name>`.
+fn passing(runner: FakeRunner, name: &str) -> FakeRunner {
+    let test = format!("tests::{name}");
+    runner
+        .on(
+            Program::Cargo,
+            &["test", "--frozen", "--package=fx-life", "--lib", "--", "--list", "--exact", "--", &test],
+            Ok(said(&format!("{test}: test\n\n1 test, 0 benchmarks\n"))),
+        )
+        .on(
+            Program::Cargo,
+            &["test", "--frozen", "--package=fx-life", "--lib", "--", "--exact", "--", &test],
+            Ok(said(&format!(
+                "running 1 test\ntest {test} ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n"
+            ))),
+        )
+}
+
+/// A runner that calls a function once, after the first `cargo` process ended.
+struct AfterCargo<F: FnOnce()> {
+    inner: FakeRunner,
+    then: Mutex<Option<F>>,
+}
+
+impl<F: FnOnce()> AfterCargo<F> {
+    fn new(inner: FakeRunner, then: F) -> Self {
+        Self {
+            inner,
+            then: Mutex::new(Some(then)),
+        }
+    }
+
+    fn commands(&self) -> Vec<String> {
+        self.inner.calls().iter().map(Call::command).collect()
+    }
+}
+
+impl<F: FnOnce()> Runner for AfterCargo<F> {
+    fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
+        let answer = self.inner.run(invocation, limits);
+        if invocation.program() == Program::Cargo
+            && let Some(then) = self.then.lock().expect("a lock").take()
+        {
+            then();
+        }
+        answer
+    }
+}
+
+fn programs_of(commands: &[String]) -> Vec<&str> {
+    commands
+        .iter()
+        .map(|command| command.split(' ').next().unwrap_or(""))
+        .collect()
+}
+
+// --- the happy path ----------------------------------------------------------------
+
+#[test]
+fn a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal()
+ {
+    let fixture = Fixture::real(&Spec::default());
+    let before = fixture.snapshot();
+    let cap_before = fixture.text(CAP);
+    assert!(cap_before.contains("| Changed by | [shape](../../work/changes/shape.md) |"));
+    assert!(
+        git(fixture.root(), &["status", "--porcelain"]).is_empty(),
+        "the fixture is committed"
+    );
+
+    let completion = fixture.complete();
+    assert_eq!(
+        completion,
+        Completion::Completed {
+            removed: RECORD.to_string(),
+            rewritten: vec![CAP.to_string()],
+        }
+    );
+    assert_eq!(
+        completion.to_string(),
+        format!("completed: removed {RECORD}\nrewrote {CAP}\n")
+    );
+
+    // The record is gone, the relationship table lost its one row, and no other
+    // byte of the tree moved.
+    assert!(!fixture.exists(RECORD));
+    assert_eq!(
+        fixture.text(CAP),
+        cap_before.replace(
+            "| Changed by | [shape](../../work/changes/shape.md) |\n",
+            ""
+        )
+    );
+    let after = fixture.snapshot();
+    assert_eq!(
+        support::disk::changed(&before, &after),
+        [CAP.to_string(), RECORD.to_string()]
+    );
+    assert_eq!(
+        git(fixture.root(), &["status", "--porcelain"]),
+        format!(" M {CAP}\n D {RECORD}")
+    );
+
+    // The tree is clean for the gate, and a sync has nothing left to write.
+    Gate::workspace(fixture.root()).assert_clean();
+    let opened = Gate::workspace(fixture.root()).open().expect("opens");
+    assert!(
+        opened
+            .workplan()
+            .sync(&SyncOptions::default())
+            .expect("syncs")
+            .is_empty()
+    );
+}
+
+#[test]
+fn complete_accepts_the_change_prefix_and_an_unknown_slug_or_a_record_that_did_not_load_is_an_error()
+ {
+    let fixture = Fixture::scripted(&Spec::default());
+    // A sync refuses documents that did not load, so the record is written
+    // after the fixture is built.
+    put(
+        fixture.root(),
+        "work/changes/broken.md",
+        "---\ntype: Change\nid: change:broken\n---\n\n## Summary\n\nNo keys.\n",
+    );
+    let lifecycle = fixture.over(git_answers());
+    let unknown = lifecycle.complete("nothing-like-it").expect_err("unknown");
+    assert!(
+        matches!(
+            &unknown,
+            LifecycleError::Change(ChangeLookupError::Unknown { .. })
+        ),
+        "{unknown:?}"
+    );
+    let broken = lifecycle.complete("broken").expect_err("did not load");
+    assert!(
+        matches!(
+            &broken,
+            LifecycleError::Change(ChangeLookupError::NotLoaded { .. })
+        ),
+        "{broken:?}"
+    );
+    assert!(
+        lifecycle
+            .runner()
+            .calls()
+            .iter()
+            .all(|c| c.program() == Program::Git),
+        "no cargo process ran"
+    );
+    assert!(fixture.exists("work/changes/broken.md") && fixture.exists(RECORD));
+}
+
+#[test]
+fn a_prefixed_slug_names_the_same_change() {
+    let fixture = Fixture::scripted(&Spec::default());
+    let runner = passing(git_answers(), "passes");
+    let completion = fixture
+        .over(runner)
+        .complete("change:shape")
+        .expect("complete answers");
+    assert!(completion.is_completed(), "{completion}");
+    assert!(!fixture.exists(RECORD));
+}
+
+// --- one refusal for each kind of obligation ---------------------------------------
+
+const GOOD_LIST: &str = "[fx_life::example_crate::good]";
+const BROKEN_LIST: &str = "[fx_life::example_crate::broken]";
+
+/// A fault that one kind of obligation stands for, the repair that removes it,
+/// and a spec whose repository holds the fault.
+struct Case {
+    kind: ObligationKind,
+    spec: Spec,
+    /// Made after the repository is built and synced.
+    fault: fn(&Fixture),
+    /// The edit the author makes, including the `docs sync` that follows an
+    /// edit of the generated content.
+    repair: fn(&Fixture),
+}
+
+fn nothing(_: &Fixture) {}
+
+fn cases() -> Vec<Case> {
+    let implementing = || {
+        Spec::default()
+            .state("implementing")
+            .examples(GOOD_LIST, &[("good", GOOD_EXAMPLE)])
+    };
+    vec![
+        Case {
+            kind: ObligationKind::UnresolvedProposal,
+            spec: implementing().extra("Contract", PROPOSAL),
+            fault: nothing,
+            repair: |fixture| {
+                fixture.edit(CAP, PROPOSAL, "");
+                fixture.edit(CAP, "state: implementing", "state: delivered");
+                fixture.resync();
+            },
+        },
+        Case {
+            kind: ObligationKind::ItemWithoutOutcome,
+            spec: Spec::default().items(NO_OUTCOME),
+            fault: nothing,
+            repair: |fixture| fixture.edit(RECORD, NO_OUTCOME, DONE_FIXTURE),
+        },
+        Case {
+            kind: ObligationKind::BindingMissing,
+            spec: Spec::default().tests("[fx_life::tests::nowhere]"),
+            fault: nothing,
+            repair: |fixture| {
+                fixture.edit(CAP, "[fx_life::tests::nowhere]", PASSES);
+                fixture.resync();
+            },
+        },
+        Case {
+            kind: ObligationKind::SectionUntouched,
+            spec: Spec::default().effect("changes", &["cap:fixture#contract"]),
+            fault: nothing,
+            repair: |fixture| {
+                fixture.edit(
+                    CAP,
+                    "Text for Contract of fixture.",
+                    "Text for Contract of fixture, as revised.",
+                );
+            },
+        },
+        Case {
+            kind: ObligationKind::ExampleFailing,
+            spec: Spec::default().examples(BROKEN_LIST, &[("broken", BROKEN_EXAMPLE)]),
+            fault: nothing,
+            repair: |fixture| put(fixture.root(), "examples/broken.rs", GOOD_EXAMPLE),
+        },
+        Case {
+            kind: ObligationKind::GeneratedStale,
+            spec: Spec::default(),
+            fault: |fixture| fixture.edit(CAP, "description: Shaped.", "description: Reshaped."),
+            repair: Fixture::resync,
+        },
+        Case {
+            kind: ObligationKind::TenseMismatch,
+            spec: Spec::default(),
+            fault: |fixture| {
+                fixture.edit(
+                    CAP,
+                    "Text for Purpose of fixture.",
+                    "Text for Purpose of fixture. This will be revisited.",
+                );
+            },
+            repair: |fixture| {
+                fixture.edit(
+                    CAP,
+                    "Text for Purpose of fixture. This will be revisited.",
+                    "Text for Purpose of fixture.",
+                );
+            },
+        },
+    ]
+}
+
+/// The item of the fixtures' record once it has its outcome.
+const DONE_FIXTURE: &str = DONE;
+
+#[test]
+fn the_cases_cover_every_kind_of_obligation_in_both_directions() {
+    let covered: Vec<ObligationKind> = cases().iter().map(|case| case.kind).collect();
+    assert_eq!(
+        covered,
+        ObligationKind::ALL,
+        "one case for each kind, in order"
+    );
+}
+
+#[test]
+fn each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_and_its_repair_completes()
+ {
+    for case in cases() {
+        let name = case.kind.name();
+        let fixture = Fixture::real(&case.spec);
+        (case.fault)(&fixture);
+        let before = fixture.snapshot();
+        let record_before = fixture.text(RECORD);
+
+        let refused = fixture.complete();
+        let failures = refusal(&refused);
+        assert!(!failures.is_empty(), "{name}");
+        // The kind is the only kind that stands, and it stands as an obligation
+        // of condition 1.
+        let mut stood = kinds(&refused);
+        stood.sort();
+        stood.dedup();
+        assert_eq!(stood, [case.kind], "{name}: {refused}");
+        assert!(count(&refused, Condition::Obligations) >= 1, "{name}");
+        assert!(
+            refused.to_string().starts_with("refused: "),
+            "{name}: {refused}"
+        );
+        // Nothing was written: the record is byte-identical and so is the rest.
+        assert_eq!(fixture.text(RECORD), record_before, "{name}");
+        assert_eq!(fixture.snapshot(), before, "{name}");
+
+        // The passing neighbour: the same repository once the author repaired it.
+        (case.repair)(&fixture);
+        let completed = fixture.complete();
+        assert!(
+            completed.is_completed(),
+            "{name} after its repair: {completed}"
+        );
+        assert!(!fixture.exists(RECORD), "{name}");
+        Gate::workspace(fixture.root()).assert_clean();
+    }
+}
+
+// --- one refusal for each condition -------------------------------------------------
+
+#[test]
+fn an_item_without_outcome_and_a_move_to_nowhere_or_to_itself_refuse_condition_two() {
+    let moved = |target: &str| {
+        format!("  - claim: \"fixture is shaped\"\n    outcome: moved:change:{target}\n")
+    };
+    for (outcome, why) in [
+        (moved("nowhere"), "names no change record"),
+        (
+            moved("shape"),
+            "moves to the change that is being completed",
+        ),
+    ] {
+        let fixture = Fixture::scripted(&Spec::default());
+        let text = fixture.text(RECORD).replace(DONE, &outcome);
+        put(fixture.root(), RECORD, &text);
+        let before = fixture.snapshot();
+        let lifecycle = fixture.over(passing(git_answers(), "passes"));
+        let refused = lifecycle.complete("shape").expect("answers");
+        assert_eq!(count(&refused, Condition::Outcomes), 1, "{refused}");
+        assert_eq!(count(&refused, Condition::Obligations), 1);
+        assert_eq!(kinds(&refused), [ObligationKind::ItemWithoutOutcome]);
+        assert!(refused.to_string().contains(why), "{refused}");
+        assert_eq!(fixture.snapshot(), before);
+    }
+
+    // The neighbour: a move to a record that exists completes. The other record
+    // lists another capability, so the state rules hold beside it.
+    let spec = other_record(Spec::default().items(NO_OUTCOME));
+    let fixture = Fixture::scripted(&spec);
+    let text = fixture.text(RECORD).replace(NO_OUTCOME, &moved("other"));
+    put(fixture.root(), RECORD, &text);
+    let completed = fixture
+        .over(passing(git_answers(), "passes"))
+        .complete("shape")
+        .expect("answers");
+    assert!(completed.is_completed(), "{completed}");
+}
+
+#[test]
+fn a_proposed_block_of_the_change_refuses_condition_three_in_a_loaded_and_in_an_unloaded_document()
+{
+    // Loaded: the block stands in the capability the change lists.
+    let fixture = Fixture::scripted(
+        &Spec::default()
+            .state("implementing")
+            .examples(GOOD_LIST, &[("good", GOOD_EXAMPLE)])
+            .extra("Contract", PROPOSAL),
+    );
+    let before = fixture.snapshot();
+    let refused = fixture
+        .over(git_answers())
+        .complete("shape")
+        .expect("answers");
+    assert_eq!(count(&refused, Condition::Proposals), 1, "{refused}");
+    assert_eq!(kinds(&refused), [ObligationKind::UnresolvedProposal]);
+    assert_eq!(fixture.snapshot(), before);
+
+    // Unloaded: the document has no title, so it is not part of the model, and
+    // its block is still the change's.
+    let fixture = Fixture::scripted(&Spec::default());
+    let zeta = capability(
+        "zeta",
+        "delivered",
+        ["[fx_life::add]", PASSES, "[]"],
+        &[("Purpose", PROPOSAL)],
+    )
+    .replace("title: \"Title of zeta\"\n", "");
+    put(fixture.root(), "docs/capabilities/zeta.md", &zeta);
+    let before = fixture.snapshot();
+    let refused = fixture
+        .over(passing(git_answers(), "passes"))
+        .complete("shape")
+        .expect("answers");
+    assert_eq!(count(&refused, Condition::Proposals), 1, "{refused}");
+    let Some(Failure::Proposal(owed)) = refused.of_condition(Condition::Proposals).next() else {
+        panic!("a proposal failure: {refused}")
+    };
+    assert_eq!(owed.location.path, "docs/capabilities/zeta.md");
+    assert_eq!(owed.subject.to_string(), "cap:zeta");
+    // The document is also a finding of the repository without the record.
+    assert!(
+        refused.of_condition(Condition::AfterRemoval).count() >= 1,
+        "{refused}"
+    );
+    assert_eq!(fixture.snapshot(), before);
+
+    // The neighbour: without the document the change completes.
+    std::fs::remove_file(fixture.root().join("docs/capabilities/zeta.md")).expect("removed");
+    let completed = fixture
+        .over(passing(git_answers(), "passes"))
+        .complete("shape")
+        .expect("answers");
+    assert!(completed.is_completed(), "{completed}");
+}
+
+#[test]
+fn a_block_that_is_stale_or_missing_anywhere_refuses_condition_four() {
+    // A stale block in a capability the change does not list is no obligation of
+    // the change, and `docs sync` would still write it.
+    let fixture = Fixture::scripted(&other_record(Spec::default()));
+    fixture.edit(
+        "docs/capabilities/second.md",
+        "| Relation | Capability |",
+        "| Relation | Capabilities |",
+    );
+    let before = fixture.snapshot();
+    let refused = fixture
+        .over(passing(git_answers(), "passes"))
+        .complete("shape")
+        .expect("answers");
+    assert_eq!(count(&refused, Condition::GeneratedBlocks), 1, "{refused}");
+    assert_eq!(refused.obligations().count(), 0, "{refused}");
+    let text = refused.to_string();
+    assert!(
+        text.starts_with("refused: 1 stale generated block\n"),
+        "{text}"
+    );
+    assert!(
+        text.contains("docs/capabilities/second.md: line ") && text.contains("[generated-stale]"),
+        "{text}"
+    );
+    assert_eq!(fixture.snapshot(), before);
+
+    // A missing index is a fault of the condition too.
+    let fixture = Fixture::scripted(&Spec::default());
+    std::fs::remove_file(fixture.root().join(INDEX)).expect("removed");
+    let refused = fixture
+        .over(passing(git_answers(), "passes"))
+        .complete("shape")
+        .expect("answers");
+    assert!(
+        refused
+            .of_condition(Condition::GeneratedBlocks)
+            .any(|failure| failure.finding_kind() == Some("index-missing")),
+        "{refused}"
+    );
+
+    // The neighbours: after the sync, both complete.
+    fixture.resync();
+    assert!(
+        fixture
+            .over(passing(git_answers(), "passes"))
+            .complete("shape")
+            .expect("answers")
+            .is_completed()
+    );
+}
+
+#[test]
+fn a_failing_bound_test_refuses_condition_five_alone() {
+    let fixture = Fixture::real(&Spec::default().tests("[fx_life::tests::fails]"));
+    let before = fixture.snapshot();
+    let refused = fixture.complete();
+    assert_eq!(count(&refused, Condition::BoundRuns), 1, "{refused}");
+    assert!(
+        matches!(refused.failures(), [Failure::Test(evidence)]
+            if matches!(evidence.outcome(), BoundOutcome::Failed { .. })),
+        "{refused}"
+    );
+    // A failing test is no obligation: the list is empty.
+    assert_eq!(refused.obligations().count(), 0, "{refused}");
+    let text = refused.to_string();
+    assert!(
+        text.starts_with("refused: 1 bound test failing\n"),
+        "{text}"
+    );
+    assert!(
+        text.contains("fail cap:fixture tests `fx_life::tests::fails`: "),
+        "{text}"
+    );
+    assert_eq!(fixture.snapshot(), before);
+
+    fixture.edit(CAP, "[fx_life::tests::fails]", PASSES);
+    fixture.resync();
+    assert!(fixture.complete().is_completed());
+}
+
+#[test]
+fn a_failing_bound_example_stands_under_conditions_one_and_five() {
+    let fixture =
+        Fixture::real(&Spec::default().examples(BROKEN_LIST, &[("broken", EXITING_EXAMPLE)]));
+    let before = fixture.snapshot();
+    let refused = fixture.complete();
+    assert_eq!(count(&refused, Condition::Obligations), 1, "{refused}");
+    assert_eq!(count(&refused, Condition::BoundRuns), 1, "{refused}");
+    assert_eq!(kinds(&refused), [ObligationKind::ExampleFailing]);
+    assert!(
+        matches!(
+            refused.of_condition(Condition::BoundRuns).next(),
+            Some(Failure::Example(_))
+        ),
+        "{refused}"
+    );
+    // The contract's second example: the counts, then the one obligation line.
+    let text = refused.to_string();
+    let mut lines = text.lines();
+    assert_eq!(
+        lines.next(),
+        Some("refused: 1 obligation, 1 bound example failing")
+    );
+    let line = lines.next().expect("the obligation line");
+    assert!(
+        line.starts_with("cap:fixture  examples  example-failing  ")
+            && line
+                .contains("`fx_life::example_crate::broken` fails to build or run (exit code 3)"),
+        "{line}"
+    );
+    assert_eq!(lines.next(), None, "{text}");
+    assert_eq!(fixture.snapshot(), before);
+
+    // A test and an example that both fail are two failures of one condition.
+    fixture.edit(CAP, PASSES, "[fx_life::tests::fails]");
+    fixture.resync();
+    let refused = fixture.complete();
+    assert_eq!(count(&refused, Condition::BoundRuns), 2, "{refused}");
+    assert!(
+        refused
+            .to_string()
+            .starts_with("refused: 1 obligation, 1 bound test failing, 1 bound example failing\n"),
+        "{refused}"
+    );
+
+    // The neighbour: both repaired.
+    fixture.edit(CAP, "[fx_life::tests::fails]", PASSES);
+    fixture.resync();
+    put(fixture.root(), "examples/broken.rs", GOOD_EXAMPLE);
+    assert!(fixture.complete().is_completed());
+}
+
+#[test]
+fn an_item_without_outcome_and_a_stale_block_print_the_counts_of_the_contract() {
+    let fixture = Fixture::scripted(&Spec::default().items(NO_OUTCOME));
+    fixture.edit(CAP, "description: Shaped.", "description: Reshaped.");
+    let refused = fixture
+        .over(passing(git_answers(), "passes"))
+        .complete("shape")
+        .expect("answers");
+    let text = refused.to_string();
+    let mut lines = text.lines();
+    assert_eq!(
+        lines.next(),
+        Some("refused: 2 obligations, 1 item without outcome, 1 stale generated block")
+    );
+    // One line for each obligation; the condition-two and condition-four
+    // failures repeat them and print no line of their own.
+    assert_eq!(lines.count(), 2, "{text}");
+    assert!(
+        text.contains("change:shape  item 1  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>"),
+        "{text}"
+    );
+    assert!(
+        text.contains("docs/capabilities/index.md  document  generated-stale  line ")
+            && text.contains("a docs sync run (the `catalogue` block is stale)"),
+        "{text}"
+    );
+}
+
+// --- the state of a listed capability -----------------------------------------------
+
+#[test]
+fn a_capability_left_implementing_with_no_other_record_refuses_and_says_what_to_change() {
+    let spec = Spec::default()
+        .state("implementing")
+        .examples(GOOD_LIST, &[("good", GOOD_EXAMPLE)]);
+    let fixture = Fixture::real(&spec);
+    let before = fixture.snapshot();
+    let refused = fixture.complete();
+    assert_eq!(refused.failures().len(), 1, "{refused}");
+    let Some(Failure::AfterRemoval(finding)) = refused.failures().first() else {
+        panic!("a finding of the repository without the record: {refused}")
+    };
+    assert_eq!(finding.kind, "no-open-record");
+    assert_eq!(finding.file, CAP);
+    assert!(
+        finding.fix.contains("move the state to delivered"),
+        "{finding}"
+    );
+    assert!(
+        refused
+            .to_string()
+            .contains("once the record is removed, docs/capabilities/fixture.md"),
+        "{refused}"
+    );
+    assert_eq!(fixture.snapshot(), before, "complete never edits prose");
+
+    // The author sets the state; the neighbour completes.
+    fixture.edit(CAP, "state: implementing", "state: delivered");
+    fixture.resync();
+    assert!(fixture.complete().is_completed());
+}
+
+#[test]
+fn a_delivered_capability_beside_its_open_record_is_what_complete_resolves() {
+    // The repository before the removal has a `delivered` capability and its
+    // open record, which `check` reports as `state-delivered-open-record`.
+    let fixture = Fixture::scripted(&Spec::default());
+    let opened = fixture.gate().open().expect("opens");
+    assert!(
+        opened
+            .workplan()
+            .check()
+            .iter()
+            .any(|finding| finding.kind == "state-delivered-open-record")
+    );
+    // The state rules are judged on the repository without the record.
+    let completed = fixture
+        .over(passing(git_answers(), "passes"))
+        .complete("shape")
+        .expect("answers");
+    assert!(completed.is_completed(), "{completed}");
+}
+
+#[test]
+fn a_delivered_capability_with_a_binding_that_does_not_resolve_refuses() {
+    let fixture = Fixture::scripted(&Spec::default().tests("[fx_life::tests::nowhere]"));
+    let before = fixture.snapshot();
+    let refused = fixture
+        .over(git_answers())
+        .complete("shape")
+        .expect("answers");
+    assert_eq!(kinds(&refused), [ObligationKind::BindingMissing]);
+    assert!(
+        refused
+            .to_string()
+            .contains("`fx_life::tests::nowhere` does not resolve"),
+        "{refused}"
+    );
+    assert_eq!(fixture.snapshot(), before);
+
+    // A delivered capability that binds no code does not load; what it owes is
+    // that binding.
+    let fixture = Fixture::scripted(&Spec::default());
+    fixture.edit(CAP, "code: [fx_life::add]", "code: []");
+    let refused = fixture
+        .over(git_answers())
+        .complete("shape")
+        .expect("answers");
+    // The catalogue no longer lists a document that does not load, so it is
+    // stale too.
+    assert_eq!(
+        kinds(&refused),
+        [
+            ObligationKind::BindingMissing,
+            ObligationKind::GeneratedStale
+        ]
+    );
+    assert!(
+        refused.to_string().contains("bindings.code is empty"),
+        "{refused}"
+    );
+}
+
+// --- empty bindings -------------------------------------------------------------------
+
+/// A record `keep` that also lists the capability, so that the state rules hold
+/// when `shape` is gone.
+fn keep(spec: Spec, section: &str) -> Spec {
+    spec.doc(
+        "work/changes/keep.md",
+        record(
+            "keep",
+            "[cap:fixture]",
+            &[&format!("cap:fixture#{section}")],
+            "none",
+            "",
+        ),
+    )
+}
+
+#[test]
+fn empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_or_considered() {
+    let empty = |state| {
+        let mut spec = Spec::default().state(state).tests("[]");
+        spec.code = "[]";
+        spec
+    };
+    // `cargo` is not scripted: a process started would be an error.
+    let designed = Fixture::scripted(&keep(empty("designed"), "contract"));
+    let completed = designed
+        .over(git_answers())
+        .complete("shape")
+        .expect("no cargo process is needed");
+    assert!(completed.is_completed(), "{completed}");
+
+    let considered = Fixture::scripted(&keep(
+        empty("considered").extra("Purpose", "\n> [!PROPOSED change:keep]\n> A candidate.\n"),
+        "purpose",
+    ));
+    let completed = considered
+        .over(git_answers())
+        .complete("shape")
+        .expect("no cargo process is needed");
+    assert!(completed.is_completed(), "{completed}");
+
+    // The same lists in `implementing` are an obligation, and the delivered
+    // state refuses them too.
+    let implementing = Fixture::scripted(&keep(empty("implementing"), "contract"));
+    let refused = implementing
+        .over(git_answers())
+        .complete("shape")
+        .expect("answers");
+    assert_eq!(kinds(&refused), [ObligationKind::BindingMissing]);
+    let text = refused.to_string();
+    assert!(
+        text.contains("bindings.tests is empty") && text.contains("bindings.examples is empty"),
+        "{text}"
+    );
+}
+
+// --- contract_effect: none --------------------------------------------------------------
+
+#[test]
+fn contract_effect_none_completes_without_usage_or_example_edits_and_still_refuses_for_anything_else()
+ {
+    let sections = [
+        "cap:fixture#contract",
+        "cap:fixture#usage",
+        "cap:fixture#examples",
+    ];
+
+    // `none` leaves out the untouched contract, usage and examples.
+    let fixture = Fixture::real(&Spec::default().effect("none", &sections));
+    let completed = fixture.complete();
+    assert!(completed.is_completed(), "{completed}");
+
+    // `changes` owes each of the three.
+    let fixture = Fixture::real(&Spec::default().effect("changes", &sections));
+    let refused = fixture.complete();
+    let owed: Vec<String> = refused.obligations().map(ToString::to_string).collect();
+    assert_eq!(owed.len(), 3, "{refused}");
+    assert!(
+        owed.iter().all(|line| line.contains("section-untouched")),
+        "{owed:?}"
+    );
+    assert_eq!(kinds(&refused), [ObligationKind::SectionUntouched]);
+
+    // `none` still refuses for every other kind: here a forward-looking phrase.
+    let fixture = Fixture::real(&Spec::default().effect("none", &sections));
+    fixture.edit(
+        CAP,
+        "Text for Usage of fixture.",
+        "Text for Usage of fixture. It is going to change.",
+    );
+    let refused = fixture.complete();
+    assert_eq!(
+        kinds(&refused),
+        [ObligationKind::TenseMismatch],
+        "{refused}"
+    );
+}
+
+// --- hostile bindings --------------------------------------------------------------------
+
+#[test]
+fn hostile_bindings_refuse_and_never_reach_cargo() {
+    let hostile = [
+        "-Zunstable-options",
+        "--include-ignored",
+        "--exact",
+        "a;b",
+        "a b",
+    ];
+    let quoted = hostile
+        .iter()
+        .map(|entry| format!("\"{entry}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let quoted: &'static str = Box::leak(format!("[{quoted}]").into_boxed_str());
+    let fixture = Fixture::scripted(&Spec::default().tests(quoted).examples("[\"--exact\"]", &[]));
+    let before = fixture.snapshot();
+    // Only `git` is scripted: a `cargo` process would be an unscripted call.
+    let lifecycle = fixture.over(git_answers());
+    let refused = lifecycle
+        .complete("shape")
+        .expect("a refusal and not an error");
+    assert_eq!(kinds(&refused), [ObligationKind::BindingMissing]);
+    assert_eq!(
+        refused.obligations().count(),
+        hostile.len() + 1,
+        "{refused}"
+    );
+    for entry in hostile {
+        assert!(
+            refused.to_string().contains(&format!("`{entry}`")),
+            "{entry}: {refused}"
+        );
+    }
+    assert!(
+        lifecycle
+            .runner()
+            .calls()
+            .iter()
+            .all(|call| call.program() == Program::Git),
+        "no cargo call"
+    );
+    assert_eq!(count(&refused, Condition::BoundRuns), 0);
+    assert_eq!(fixture.snapshot(), before);
+}
+
+// --- the order of the steps ---------------------------------------------------------------
+
+#[test]
+fn a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_after_the_static_checks()
+ {
+    // A static failure and a test binding: nothing is started but `git`.
+    let fixture = Fixture::scripted(&Spec::default().items(NO_OUTCOME));
+    let lifecycle = fixture.over(passing(git_answers(), "passes"));
+    let refused = lifecycle.complete("shape").expect("answers");
+    assert!(!refused.is_completed());
+    let commands: Vec<String> = lifecycle
+        .runner()
+        .calls()
+        .iter()
+        .map(Call::command)
+        .collect();
+    assert_eq!(
+        commands,
+        ["git --version", "git rev-parse --show-prefix"],
+        "no cargo process"
+    );
+
+    // The neighbour: the same repository with the item resolved runs the two
+    // passes of the one test, after the questions to `git`, and completes.
+    let fixture = Fixture::scripted(&Spec::default());
+    let lifecycle = fixture.over(passing(git_answers(), "passes"));
+    assert!(lifecycle.complete("shape").expect("answers").is_completed());
+    let commands: Vec<String> = lifecycle
+        .runner()
+        .calls()
+        .iter()
+        .map(Call::command)
+        .collect();
+    assert_eq!(
+        commands,
+        [
+            "git --version".to_string(),
+            "git rev-parse --show-prefix".to_string(),
+            "cargo test --frozen --package=fx-life --lib -- --list --exact -- tests::passes"
+                .to_string(),
+            "cargo test --frozen --package=fx-life --lib -- --exact -- tests::passes".to_string(),
+        ]
+    );
+}
+
+// --- the repository changing while the bound runs go --------------------------------------
+
+#[test]
+fn a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written() {
+    let fixture = Fixture::scripted(&Spec::default());
+    let text = fixture.text(CAP);
+    let edited = text.replace(
+        "Text for Purpose of fixture.",
+        "Text for Purpose of fixture. This will be revisited.",
+    );
+    let runner = AfterCargo::new(passing(git_answers(), "passes"), || {
+        put(fixture.root(), CAP, &edited);
+    });
+    let lifecycle = fixture.over(runner);
+    let refused = lifecycle.complete("shape").expect("answers");
+    let failures = refusal(&refused);
+    assert!(
+        matches!(&failures[0], Failure::Changed { .. }),
+        "the change is named first: {refused}"
+    );
+    assert_eq!(
+        kinds(&refused),
+        [ObligationKind::TenseMismatch],
+        "{refused}"
+    );
+    assert!(
+        refused
+            .to_string()
+            .contains("the repository changed after the bound tests and examples ran"),
+        "{refused}"
+    );
+    // Nothing was written: the record is there and the document is as the edit
+    // left it.
+    assert!(fixture.exists(RECORD));
+    assert_eq!(fixture.text(CAP), edited);
+}
+
+#[test]
+fn a_binding_added_while_the_tests_ran_is_a_change_even_when_every_condition_still_holds() {
+    let fixture = Fixture::scripted(&Spec::default());
+    let runner = AfterCargo::new(passing(git_answers(), "passes"), || {
+        fixture.edit(
+            CAP,
+            PASSES,
+            "[fx_life::tests::passes, fx_life::tests::also_passes]",
+        );
+        fixture.resync();
+    });
+    let lifecycle = fixture.over(runner);
+    let refused = lifecycle.complete("shape").expect("answers");
+    assert!(
+        matches!(refused.failures(), [Failure::Changed { what }]
+            if what.contains("differ from the ones that ran")),
+        "{refused}"
+    );
+    assert!(fixture.exists(RECORD));
+    // Only the two passes of the one test ran.
+    assert_eq!(
+        programs_of(&lifecycle.runner().commands())
+            .iter()
+            .filter(|p| **p == "cargo")
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn a_test_renamed_while_the_tests_ran_refuses() {
+    let fixture = Fixture::scripted(&Spec::default());
+    let runner = AfterCargo::new(passing(git_answers(), "passes"), || {
+        let lib = fixture.text("src/lib.rs");
+        put(
+            fixture.root(),
+            "src/lib.rs",
+            &lib.replace("fn passes()", "fn renamed()"),
+        );
+    });
+    let refused = fixture.over(runner).complete("shape").expect("answers");
+    assert!(
+        matches!(&refused.failures()[0], Failure::Changed { .. }),
+        "{refused}"
+    );
+    assert_eq!(
+        kinds(&refused),
+        [ObligationKind::BindingMissing],
+        "{refused}"
+    );
+    assert!(fixture.exists(RECORD));
+}
+
+#[test]
+fn a_record_removed_while_the_tests_ran_is_an_error_and_nothing_is_written() {
+    let fixture = Fixture::scripted(&Spec::default());
+    let before = fixture.text(CAP);
+    let runner = AfterCargo::new(passing(git_answers(), "passes"), || {
+        std::fs::remove_file(fixture.root().join(RECORD)).expect("removed");
+    });
+    let error = fixture
+        .over(runner)
+        .complete("shape")
+        .expect_err("no record");
+    assert!(
+        matches!(
+            error,
+            LifecycleError::Change(ChangeLookupError::Unknown { .. })
+        ),
+        "{error:?}"
+    );
+    assert_eq!(fixture.text(CAP), before);
+}
+
+#[test]
+fn a_run_that_cannot_start_is_an_error_and_not_a_refusal() {
+    let fixture = Fixture::real(&Spec::default());
+    let lifecycle = Lifecycle::open(fixture.programs_without_cargo()).expect("opens");
+    let before = fixture.snapshot();
+    let error = lifecycle.complete("shape").expect_err("no cargo");
+    assert!(
+        matches!(error, LifecycleError::Exec(ExecError::Spawn { .. })),
+        "{error:?}"
+    );
+    assert_eq!(fixture.snapshot(), before);
+}
+
+// --- the order of the writes --------------------------------------------------------------
+
+#[cfg(unix)]
+mod writes {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::{Path, PathBuf};
+
+    use super::*;
+
+    /// A directory made read-only, restored when dropped so the scratch
+    /// directory can be removed.
+    struct ReadOnly(PathBuf, fs::Permissions);
+
+    impl ReadOnly {
+        /// Returns `None` when the permission does not bind this process (it is
+        /// privileged), so a test of a failing write cannot run.
+        fn new(dir: &Path) -> Option<Self> {
+            let permissions = fs::metadata(dir).expect("a directory").permissions();
+            let mut closed = permissions.clone();
+            closed.set_mode(0o555);
+            fs::set_permissions(dir, closed).expect("closes");
+            let guard = Self(dir.to_path_buf(), permissions);
+            let probe = dir.join(".probe");
+            if fs::write(&probe, b"x").is_ok() {
+                let _ = fs::remove_file(&probe);
+                eprintln!("{} is writable although read-only: skipped", dir.display());
+                return None;
+            }
+            Some(guard)
+        }
+    }
+
+    impl Drop for ReadOnly {
+        fn drop(&mut self) {
+            let _ = fs::set_permissions(&self.0, self.1.clone());
+        }
+    }
+
+    /// The invariant of the order: a repository without the record never holds
+    /// stale generated blocks.
+    fn not_removed_beside_stale_blocks(fixture: &Fixture) {
+        if !fixture.exists(RECORD) {
+            Gate::workspace(fixture.root()).assert_clean();
+        }
+    }
+
+    #[test]
+    fn a_rewrite_that_fails_leaves_the_record_and_the_blocks_as_they_were() {
+        let fixture = Fixture::scripted(&Spec::default());
+        let before = fixture.snapshot();
+        {
+            let Some(_closed) = ReadOnly::new(&fixture.root().join("docs/capabilities")) else {
+                return;
+            };
+            let error = fixture
+                .over(passing(git_answers(), "passes"))
+                .complete("shape")
+                .expect_err("the rewrite fails");
+            assert!(matches!(error, LifecycleError::Rewrite { .. }), "{error:?}");
+            assert!(
+                error.to_string().contains("the record was not removed"),
+                "{error}"
+            );
+            // The record is still there, so no removed record beside stale blocks.
+            assert!(fixture.exists(RECORD));
+            not_removed_beside_stale_blocks(&fixture);
+            assert_eq!(fixture.snapshot(), before);
+        }
+        // The neighbour: with the directory writable again, it completes.
+        let completed = fixture
+            .over(passing(git_answers(), "passes"))
+            .complete("shape")
+            .expect("answers");
+        assert!(completed.is_completed(), "{completed}");
+        not_removed_beside_stale_blocks(&fixture);
+    }
+
+    #[test]
+    fn a_removal_that_fails_reports_the_files_already_rewritten_and_removes_nothing_else() {
+        let fixture = Fixture::scripted(&Spec::default());
+        let cap_before = fixture.text(CAP);
+        {
+            let Some(_closed) = ReadOnly::new(&fixture.root().join("work/changes")) else {
+                return;
+            };
+            let error = fixture
+                .over(passing(git_answers(), "passes"))
+                .complete("shape")
+                .expect_err("the removal fails");
+            let LifecycleError::Remove {
+                path, rewritten, ..
+            } = &error
+            else {
+                panic!("a removal error: {error:?}")
+            };
+            assert_eq!(path, RECORD);
+            assert_eq!(rewritten, &[CAP.to_string()]);
+            assert!(error.to_string().contains(CAP), "{error}");
+            // The rewrite was done first, so the record that is left lists a
+            // capability whose table no longer names it, and the record is the
+            // only thing that was not removed.
+            assert!(fixture.exists(RECORD));
+            assert_ne!(fixture.text(CAP), cap_before);
+        }
+        // The author removes the record by hand: the repository is clean.
+        fs::remove_file(fixture.root().join(RECORD)).expect("removed by hand");
+        not_removed_beside_stale_blocks(&fixture);
+    }
+}
+
+#[test]
+fn an_error_after_the_rewrite_does_not_leave_a_removed_record_beside_stale_blocks() {
+    // The order is observable without a failing disk: when the removal is the
+    // last write, a repository in which the record is gone has current blocks.
+    let fixture = Fixture::scripted(&Spec::default());
+    let before = fixture.snapshot();
+    let completed = fixture
+        .over(passing(git_answers(), "passes"))
+        .complete("shape")
+        .expect("answers");
+    assert!(completed.is_completed());
+    assert!(!fixture.exists(RECORD));
+    Gate::workspace(fixture.root()).assert_clean();
+    assert_eq!(
+        support::disk::changed(&before, &fixture.snapshot()),
+        [CAP.to_string(), RECORD.to_string()]
+    );
+}
+
+// --- a link to the record ------------------------------------------------------------------
+
+/// Prose, outside every generated block, that links to the record.
+const LINK_TO_RECORD: &str = "\nSee [the record](../../work/changes/shape.md).\n";
+
+#[test]
+fn prose_that_links_to_the_record_refuses_because_the_link_is_broken_once_it_is_removed() {
+    let fixture = Fixture::scripted(&Spec::default().extra("Purpose", LINK_TO_RECORD));
+    // Before the removal the link resolves: the record is tracked.
+    assert!(
+        fixture
+            .gate()
+            .open()
+            .expect("opens")
+            .workplan()
+            .check()
+            .iter()
+            .all(|finding| finding.kind != "link-broken")
+    );
+    let before = fixture.snapshot();
+    let record_before = fixture.text(RECORD);
+    let refused = fixture
+        .over(passing(git_answers(), "passes"))
+        .complete("shape")
+        .expect("answers");
+    let failures = refusal(&refused);
+    assert_eq!(failures.len(), 1, "{refused}");
+    let Some(Failure::AfterRemoval(finding)) = failures.first() else {
+        panic!("a finding of the repository without the record: {refused}")
+    };
+    assert_eq!(finding.kind, "link-broken");
+    assert_eq!(finding.file, CAP);
+    assert!(
+        finding.message.contains("../../work/changes/shape.md"),
+        "{finding}"
+    );
+    assert!(
+        refused.to_string().contains("[link-broken]"),
+        "the refusal names the link: {refused}"
+    );
+    assert_eq!(fixture.text(RECORD), record_before);
+    assert_eq!(fixture.snapshot(), before);
+
+    // The neighbour: with the link removed it completes.
+    fixture.edit(CAP, LINK_TO_RECORD, "");
+    let completed = fixture
+        .over(passing(git_answers(), "passes"))
+        .complete("shape")
+        .expect("answers");
+    assert!(completed.is_completed(), "{completed}");
+    assert!(!fixture.exists(RECORD));
+}
+
+#[test]
+fn a_broken_link_in_a_capability_the_change_does_not_list_also_blocks_completion() {
+    let fixture = Fixture::scripted(&other_record(Spec::default()));
+    fixture.edit(
+        "docs/capabilities/second.md",
+        "Text for Purpose of second.",
+        "Text for Purpose of second. See [nothing](./nowhere.md).",
+    );
+    let before = fixture.snapshot();
+    let refused = fixture
+        .over(passing(git_answers(), "passes"))
+        .complete("shape")
+        .expect("answers");
+    assert!(
+        matches!(refused.failures(), [Failure::AfterRemoval(finding)]
+            if finding.kind == "link-broken" && finding.file == "docs/capabilities/second.md"),
+        "{refused}"
+    );
+    assert_eq!(fixture.snapshot(), before);
+
+    fixture.edit(
+        "docs/capabilities/second.md",
+        " See [nothing](./nowhere.md).",
+        "",
+    );
+    assert!(
+        fixture
+            .over(passing(git_answers(), "passes"))
+            .complete("shape")
+            .expect("answers")
+            .is_completed()
+    );
+}
+
+#[test]
+fn an_outcome_the_profile_refuses_makes_the_record_not_load_and_is_an_error() {
+    let fixture = Fixture::scripted(&Spec::default());
+    // A sync refuses a record that does not load, so the value is written after.
+    fixture.edit(RECORD, "outcome: implemented", "outcome: finished");
+    let before = fixture.snapshot();
+    let error = fixture
+        .over(git_answers())
+        .complete("shape")
+        .expect_err("the record does not load");
+    assert!(
+        matches!(
+            error,
+            LifecycleError::Change(ChangeLookupError::NotLoaded { .. })
+        ),
+        "{error:?}"
+    );
+    assert_eq!(fixture.snapshot(), before);
+}

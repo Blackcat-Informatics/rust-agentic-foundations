@@ -86,7 +86,15 @@
 //! examples and documentation tests of the listed capabilities, run through the
 //! executor of [`bound`]). [`lifecycle::verify`] runs the bound tests and examples
 //! of a change, or of every capability, and returns a [`lifecycle::VerifyReport`]
-//! of per-binding evidence; it needs no Git.
+//! of per-binding evidence; it needs no Git. [`lifecycle::Lifecycle::complete`]
+//! judges the static conditions of the completion gate first and collects every
+//! failure, runs the bound tests and examples only when none failed, judges the
+//! static conditions again immediately before it writes, and then writes the
+//! generated blocks that removing the record stales and, as the very last step,
+//! removes `work/changes/<slug>.md`. Those are its only writes. It returns a
+//! [`lifecycle::Completion`]: completed, or refused with the
+//! [`lifecycle::Failure`] of each condition and each kind of obligation and
+//! nothing written.
 //!
 //! # Processes
 //!
@@ -198,6 +206,7 @@ pub mod refs;
 mod roadmap;
 pub mod root;
 mod rules;
+mod staged;
 mod sync;
 
 pub use bindings::ExampleKind;

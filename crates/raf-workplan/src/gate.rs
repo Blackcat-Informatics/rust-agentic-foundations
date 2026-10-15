@@ -15,6 +15,7 @@ use raf_okf::{DocType, Location};
 use raf_source::{DiskTree, EntryKind, LoadError, RelPath, Tree, TreeError, Workspace};
 
 use crate::exec::{Programs, SystemRunner};
+use crate::staged::Staged;
 use crate::{Finding, LinkContext, Workplan, git};
 
 /// The name of the navigation file of the capability directory, which is not a
@@ -378,6 +379,30 @@ impl Opened {
     #[must_use]
     pub fn workplan(&self) -> Workplan<'_> {
         Workplan::load_with(&self.tree, &self.workspace, &self.links())
+    }
+
+    /// The documents as they will be once the file `hidden` is removed and the
+    /// files of `replaced` hold their new text: the tree shows exactly that,
+    /// and the links are judged against the tracked paths without the removed
+    /// file, so a link to it is broken. Nothing is written.
+    pub(crate) fn workplan_after(
+        &self,
+        hidden: &RelPath,
+        replaced: &[(RelPath, String)],
+    ) -> Workplan<'_> {
+        let tree = Staged::new(
+            &self.tree,
+            hidden,
+            replaced.iter().map(|(path, text)| (path, text.as_str())),
+        );
+        let links = match &self.tracked {
+            Some(paths) => {
+                LinkContext::new(&tree, paths.iter().filter(|path| *path != hidden).cloned())
+                    .with_symlinks(self.symlinks.iter().cloned())
+            }
+            None => LinkContext::of_tree(&tree),
+        };
+        Workplan::load_with(&tree, &self.workspace, &links)
     }
 }
 

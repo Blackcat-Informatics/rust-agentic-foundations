@@ -6,6 +6,7 @@
 
 use std::error::Error;
 use std::fmt;
+use std::io;
 
 use raf_source::LoadError;
 
@@ -14,7 +15,7 @@ use crate::exec::{ExecError, Programs, Runner, SystemRunner};
 use crate::git::{self, GitError, Prefix};
 use crate::lookup::{ChangeLookupError, write_findings};
 use crate::obligation::{ReconcileError, Reconciled};
-use crate::{Finding, Gate, GateError, Opened};
+use crate::{Finding, Gate, GateError, Opened, SyncError};
 
 use super::verification::{VerifyReport, verify};
 use super::{examples, untouched};
@@ -79,6 +80,27 @@ pub enum LifecycleError {
         /// The findings about their files.
         findings: Vec<Finding>,
     },
+    /// The generated blocks that the removal of a record stales cannot be
+    /// computed, although `check` of the repository without the record is
+    /// clean. Nothing was written.
+    Sync(SyncError),
+    /// The rewrite of the generated blocks failed, so the record was not
+    /// removed. The files are written one at a time through a temporary file
+    /// and a rename, so some of them may already hold their new text.
+    Rewrite {
+        /// Why the write failed.
+        source: io::Error,
+    },
+    /// The record could not be removed, after the generated blocks were
+    /// rewritten. The blocks no longer list the record.
+    Remove {
+        /// The repository-relative path of the record.
+        path: String,
+        /// The files whose generated blocks were rewritten.
+        rewritten: Vec<String>,
+        /// Why the removal failed.
+        source: io::Error,
+    },
 }
 
 impl fmt::Display for LifecycleError {
@@ -110,6 +132,27 @@ impl fmt::Display for LifecycleError {
                 )?;
                 write_findings(f, findings)
             }
+            Self::Sync(error) => write!(
+                f,
+                "the generated blocks that removing the record stales cannot be computed: {error}; nothing was written"
+            ),
+            Self::Rewrite { source } => write!(
+                f,
+                "the generated blocks could not be rewritten: {source}; the record was not removed; some files may already hold their new text, which `docs sync` finishes or restores"
+            ),
+            Self::Remove {
+                path,
+                rewritten,
+                source,
+            } => write!(
+                f,
+                "`{path}` could not be removed: {source}; the generated blocks of {} were already rewritten and no longer list it, so remove the file yourself, or run `docs sync` and then `change complete` again",
+                if rewritten.is_empty() {
+                    "no file".to_string()
+                } else {
+                    rewritten.join(", ")
+                }
+            ),
         }
     }
 }
@@ -123,6 +166,8 @@ impl Error for LifecycleError {
             Self::Reconcile(error) => Some(error),
             Self::Exec(error) => Some(error),
             Self::Index(error) => Some(error),
+            Self::Sync(error) => Some(error),
+            Self::Rewrite { source } | Self::Remove { source, .. } => Some(source),
             Self::Document { .. } | Self::Unloaded { .. } => None,
         }
     }
@@ -158,14 +203,20 @@ impl From<ExecError> for LifecycleError {
     }
 }
 
+impl From<SyncError> for LifecycleError {
+    fn from(error: SyncError) -> Self {
+        Self::Sync(error)
+    }
+}
+
 impl From<LoadError> for LifecycleError {
     fn from(error: LoadError) -> Self {
         Self::Index(error)
     }
 }
 
-/// A repository opened for the commands that start a process: `reconcile`
-/// and, in the same entry point, `verify`.
+/// A repository opened for the commands that start a process: `reconcile`,
+/// `complete` and, in the same entry point, `verify`.
 ///
 /// [`Lifecycle::open`] asks `git --version` first and before any other
 /// process, and refuses a Git older than 2.30 (the first release whose
@@ -182,6 +233,9 @@ impl From<LoadError> for LifecycleError {
 /// the source-path pattern cannot carry is an error. A linked work tree is its
 /// own top. The root must be inside a git work tree.
 ///
+/// [`Lifecycle::complete`] opens the repository a second time, with the
+/// [`Gate`] it was opened with, to judge it again before it writes.
+///
 /// ```rust,no_run
 /// use raf_workplan::exec::Programs;
 /// use raf_workplan::lifecycle::Lifecycle;
@@ -194,9 +248,10 @@ impl From<LoadError> for LifecycleError {
 /// ```
 #[derive(Debug)]
 pub struct Lifecycle<R = SystemRunner> {
-    opened: Opened,
-    runner: R,
-    prefix: Prefix,
+    pub(super) gate: Gate,
+    pub(super) opened: Opened,
+    pub(super) runner: R,
+    pub(super) prefix: Prefix,
 }
 
 impl Lifecycle<SystemRunner> {
@@ -229,6 +284,7 @@ impl<R: Runner> Lifecycle<R> {
         let prefix = git::show_prefix(&runner)?;
         let opened = gate.open()?;
         Ok(Self {
+            gate: gate.clone(),
             opened,
             runner,
             prefix,

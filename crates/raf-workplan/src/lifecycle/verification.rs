@@ -78,32 +78,35 @@ impl VerifyReport {
 impl fmt::Display for VerifyReport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for evidence in &self.evidence {
-            let list = evidence.kind().key();
-            match evidence.outcome() {
-                BoundOutcome::Passed => writeln!(
-                    f,
-                    "pass {} {list} `{}` ({})",
-                    evidence.capability(),
-                    evidence.path(),
-                    evidence.proof()
-                )?,
-                BoundOutcome::Failed { reason } => writeln!(
-                    f,
-                    "fail {} {list} `{}`: {}",
-                    evidence.capability(),
-                    evidence.path(),
-                    one_line(reason)
-                )?,
-                BoundOutcome::Unresolved { reason } => writeln!(
-                    f,
-                    "fail {} {list} `{}`: unresolved binding: {}",
-                    evidence.capability(),
-                    evidence.path(),
-                    one_line(&reason.to_string())
-                )?,
-            }
+            writeln!(f, "{}", evidence_line(evidence))?;
         }
         Ok(())
+    }
+}
+
+/// The line `verify` prints for one binding: `pass` or `fail`, the capability,
+/// the list, the bound path and then the counts of the proof or the reason.
+pub(super) fn evidence_line(evidence: &Evidence) -> String {
+    let list = evidence.kind().key();
+    match evidence.outcome() {
+        BoundOutcome::Passed => format!(
+            "pass {} {list} `{}` ({})",
+            evidence.capability(),
+            evidence.path(),
+            evidence.proof()
+        ),
+        BoundOutcome::Failed { reason } => format!(
+            "fail {} {list} `{}`: {}",
+            evidence.capability(),
+            evidence.path(),
+            one_line(reason)
+        ),
+        BoundOutcome::Unresolved { reason } => format!(
+            "fail {} {list} `{}`: unresolved binding: {}",
+            evidence.capability(),
+            evidence.path(),
+            one_line(&reason.to_string())
+        ),
     }
 }
 

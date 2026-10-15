@@ -297,6 +297,50 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   cannot be started. The tests use real `git` repositories (the merge-base matrix, a
   linked work tree, a local branch named like the remote one, a default branch named like
   an option), stub `git` programs that record their argv, and real `cargo` fixtures.
+- **`raf-workplan` complete:** `Lifecycle::complete` is the transition from an open
+  change to a delivered one, and returns a `Completion`: `Completed { removed, rewritten }`
+  or `Refused { failures }`. The order is fixed. First the static conditions are judged,
+  every one and with no early exit: the obligation list of `reconcile` (every kind except
+  `example-failing`), the outcome of each item (a `moved` outcome names a record that
+  exists), the PROPOSED blocks of the change in any capability document whether it loads
+  or not, the generated blocks (`docs sync` would write nothing, from the one analysis
+  `check` and `sync` use), and `check` of the repository as it will be once the writes
+  are done, which is loaded through a tree that does not show the record and shows the
+  rewritten generated blocks (`Opened::workplan_after`). The state rules are therefore
+  judged there and not before: a `delivered` capability beside its still-open record is
+  what `complete` resolves, and a capability that is not `delivered` and is listed by no
+  other open record is the `no-open-record` finding, which says to move the state to
+  `delivered`. The author sets the state; `complete` never edits prose. Only when no static
+  condition failed are the bound tests and examples of the listed capabilities run through
+  the executor, so a static failure spends no process on `cargo`; a failing example is an
+  `example-failing` obligation and a failure of condition 5, a failing test is a separate
+  failure, and a capability with empty `bindings.tests` and `bindings.examples` satisfies
+  condition 5 only while it is `designed` or `considered`. Then the repository is opened
+  again with the same `Gate` and the static conditions are judged again immediately before
+  the writes, because the documents and the source can change while `cargo` runs; a
+  failure, or a different set of bindings to run, refuses and names the change first. The
+  writes are the rewrite of the generated blocks the removal stales (the `Changed by` rows
+  of the relationship tables), through `Workplan::write`, which stages every file and
+  then renames, and then, as the very last step, the removal of `work/changes/<slug>.md`;
+  nothing else is written. A rewrite that fails leaves the record in place
+  (`LifecycleError::Rewrite`), and a removal that fails after the rewrite names the
+  files already rewritten (`LifecycleError::Remove`), so a removed record is never found
+  beside stale blocks. A `Failure` is one of: an obligation (condition 1), an item
+  without outcome (2), a PROPOSED block (3), a generated block or file `docs sync` would
+  write or refuse (4), a bound test or a bound example that did not pass (5), a finding
+  once the record is removed, or a change during the run; `Failure::condition` and
+  `Failure::obligation_kind` say which. `Display` prints `refused:` and a count for each
+  kind of failure (`refused: 2 obligations, 1 item without outcome, 1 stale generated
+  block`), then one line for each failure that no other line repeats, and `completed:
+  removed work/changes/<slug>.md` with a `rewrote <path>` line for each rewritten file.
+  An unknown slug, a record or a listed capability that did not load, a process that
+  cannot be started and a failing write are errors and not refusals. The tests use real
+  `git` repositories and real `cargo` fixtures for the refusal of each kind of
+  obligation (the record and the tree byte-identical afterwards, and the repair
+  completing), each condition, the happy path (the gate clean afterwards and the
+  tree's only changes the rewrite and the removal), and scripted runners for the order
+  of the processes, hostile bindings, the repository changing during the run and the
+  order of the writes.
 - **Workplan capabilities delivered:** the workplan document model and the
   generated documentation blocks are `delivered`, bound to the `raf-workplan` code,
   tests and examples that realise them, with their verification matrices,

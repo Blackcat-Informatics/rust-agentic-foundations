@@ -6,11 +6,11 @@
 
 use raf_okf::CapabilitySection;
 
-use crate::BindingKind;
-use crate::bound::Executor;
+use crate::bound::{Evidence, Executor};
 use crate::exec::Runner;
 use crate::lookup::capability_path;
 use crate::obligation::{Needed, Obligation, ObligationKind, Part, Place, RunProblem, Subject};
+use crate::{Binding, BindingKind};
 
 use super::Impact;
 use super::session::LifecycleError;
@@ -34,22 +34,26 @@ pub(super) fn raise<R: Runner>(
         .filter(|binding| binding.kind() == BindingKind::Example && binding.resolution().is_ok())
     {
         let evidence = executor.run(binding)?;
-        let Some(problem) = RunProblem::of(&evidence) else {
-            continue;
-        };
-        owed.push(Obligation {
-            kind: ObligationKind::ExampleFailing,
-            subject: Subject::Capability(binding.capability().to_string()),
-            section: Part::Section(CapabilitySection::Examples),
-            location: Place {
-                path: capability_path(binding.capability()).unwrap_or_default(),
-                line: None,
-            },
-            evidence: Needed::PassingRun {
-                binding: binding.path().to_string(),
-                problem,
-            },
-        });
+        owed.extend(obligation(binding, &evidence));
     }
     Ok(owed)
+}
+
+/// The `example-failing` obligation of the run `evidence` of the example
+/// `binding`, or `None` when the run passed.
+pub(super) fn obligation(binding: &Binding, evidence: &Evidence) -> Option<Obligation> {
+    let problem = RunProblem::of(evidence)?;
+    Some(Obligation {
+        kind: ObligationKind::ExampleFailing,
+        subject: Subject::Capability(binding.capability().to_string()),
+        section: Part::Section(CapabilitySection::Examples),
+        location: Place {
+            path: capability_path(binding.capability()).unwrap_or_default(),
+            line: None,
+        },
+        evidence: Needed::PassingRun {
+            binding: binding.path().to_string(),
+            problem,
+        },
+    })
 }
