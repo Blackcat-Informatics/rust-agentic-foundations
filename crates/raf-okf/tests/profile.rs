@@ -212,8 +212,44 @@ fn parts(doc_type: DocType) -> Vec<(&'static str, &'static str)> {
             ("title", "title: Alpha\n"),
             ("description", "description: Does alpha.\n"),
         ],
+        DocType::Evidence => vec![
+            ("type", "type: Evidence\n"),
+            ("id", "id: evidence:alpha\n"),
+            ("subject", "subject: command\n"),
+            ("inputs", EVIDENCE_INPUTS),
+            ("verdict", "verdict: pass\n"),
+            ("by", "by: agent\n"),
+            ("for", "for: [cap:alpha]\n"),
+            ("command", "command: \"cargo bench parse\"\n"),
+            ("revision", REVISION),
+            ("values", "values:\n  peak_mib: 41\n"),
+            ("limits", "limits:\n  peak_mib: 64\n"),
+        ],
+        DocType::Assessment => vec![
+            ("type", "type: Assessment\n"),
+            ("id", "id: assessment:alpha\n"),
+            ("subject", "subject: cap:alpha#contract\n"),
+            ("inputs", ASSESSMENT_INPUTS),
+            ("verdict", "verdict: accepted\n"),
+            ("by", "by: human\n"),
+        ],
+        DocType::Coverage => vec![
+            ("type", "type: Coverage\n"),
+            ("id", "id: coverage:default\n"),
+            ("scope", "scope: [raf-workplan, cargo-workplan]\n"),
+            (
+                "exclusions",
+                "exclusions:\n  - item: raf_workplan::exec::tests::*\n    reason: \"Unit tests that guard internals.\"\n",
+            ),
+        ],
     }
 }
+
+const EVIDENCE_INPUTS: &str = "inputs:\n  - kind: symbol\n    name: demo::real\n    digest: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\n";
+
+const ASSESSMENT_INPUTS: &str = "inputs:\n  - kind: section\n    name: cap:alpha#contract\n    digest: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\n  - kind: symbol\n    name: demo::real\n    digest: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\n  - kind: record\n    name: evidence:alpha\n    digest: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\n";
+
+const REVISION: &str = "revision: b499578a1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f\n";
 
 fn body_for(doc_type: DocType) -> String {
     match doc_type {
@@ -224,6 +260,7 @@ fn body_for(doc_type: DocType) -> String {
             .join("\n"),
         DocType::Change => "## Summary\n\ntext\n".to_string(),
         DocType::Architecture => "# Alpha\n\ntext\n".to_string(),
+        DocType::Evidence | DocType::Assessment | DocType::Coverage => String::new(),
     }
 }
 
@@ -237,7 +274,8 @@ fn document_of(doc_type: DocType, skip: Option<&str>, extra: &str) -> String {
 }
 
 fn path_of(doc_type: DocType) -> String {
-    format!("{}/alpha.md", doc_type.directory())
+    let slug = doc_type.singleton().map_or("alpha", |slug| slug);
+    format!("{}/{slug}.md", doc_type.directory())
 }
 
 #[test]
@@ -323,18 +361,38 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
         // this list is the architecture page's own assignment, and it is what
         // fails when a table of this type is widened.
         let names: Vec<&str> = foreign_keys(doc_type).iter().map(|(n, _)| *n).collect();
-        let expected: &[&str] = match doc_type {
-            DocType::Capability => &["changes", "affects", "contract_effect", "items"],
-            DocType::Change => &["state", "bindings", "depends"],
-            DocType::Architecture => &[
-                "state",
-                "bindings",
-                "depends",
-                "changes",
-                "affects",
-                "contract_effect",
-                "items",
-            ],
+        let expected: Vec<&str> = match doc_type {
+            DocType::Capability => [&CHANGE_KEYS[..], &EVIDENCE_KEYS, &COVERAGE_KEYS].concat(),
+            DocType::Change => [&CAPABILITY_KEYS[..], &EVIDENCE_KEYS, &COVERAGE_KEYS].concat(),
+            DocType::Architecture => [
+                &CAPABILITY_KEYS[..],
+                &CHANGE_KEYS,
+                &EVIDENCE_KEYS,
+                &COVERAGE_KEYS,
+            ]
+            .concat(),
+            DocType::Evidence => [
+                &HEADER_KEYS[..],
+                &CAPABILITY_KEYS,
+                &CHANGE_KEYS,
+                &COVERAGE_KEYS,
+            ]
+            .concat(),
+            DocType::Assessment => [
+                &HEADER_KEYS[..],
+                &CAPABILITY_KEYS,
+                &CHANGE_KEYS,
+                &EVIDENCE_KEYS[4..],
+                &COVERAGE_KEYS,
+            ]
+            .concat(),
+            DocType::Coverage => [
+                &HEADER_KEYS[..],
+                &CAPABILITY_KEYS,
+                &CHANGE_KEYS,
+                &EVIDENCE_KEYS,
+            ]
+            .concat(),
         };
         assert_eq!(names, expected, "{}", doc_type.name());
 
@@ -347,9 +405,25 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
         }
     }
     // Capability lacks the four Change keys, Change lacks the three Capability
-    // keys, and Architecture lacks all seven.
-    assert_eq!(foreign_seen, 4 + 3 + 7);
+    // keys, and Architecture lacks all seven; each of the three lacks the nine
+    // evidence keys and the two coverage keys. Evidence lacks the title,
+    // the description and the seven document keys, and the two coverage
+    // keys; an assessment lacks those and the five keys evidence has beyond
+    // the trace; coverage lacks every key but its own.
+    assert_eq!(
+        foreign_seen,
+        (4 + 11) + (3 + 11) + (7 + 11) + (2 + 7 + 2) + (2 + 7 + 5 + 2) + (2 + 7 + 9)
+    );
 }
+
+/// The keys of each type beyond the shared ones, in table order.
+const HEADER_KEYS: [&str; 2] = ["title", "description"];
+const CAPABILITY_KEYS: [&str; 3] = ["state", "bindings", "depends"];
+const CHANGE_KEYS: [&str; 4] = ["changes", "affects", "contract_effect", "items"];
+const EVIDENCE_KEYS: [&str; 9] = [
+    "subject", "inputs", "verdict", "by", "for", "command", "revision", "values", "limits",
+];
+const COVERAGE_KEYS: [&str; 2] = ["scope", "exclusions"];
 
 #[test]
 fn a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item() {

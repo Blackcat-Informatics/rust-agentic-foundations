@@ -149,10 +149,15 @@ pub(crate) fn check_sections(doc_type: DocType, body: &Body, file: &str, out: &m
                 push(Location::Document, Rule::BodyEmpty);
             }
         }
+        DocType::Evidence | DocType::Assessment | DocType::Coverage => {
+            if !strip_html_comments(body.text()).trim().is_empty() {
+                push(Location::Document, Rule::BodyNotEmpty { doc_type });
+            }
+        }
     }
 }
 
-/// Rules about PROPOSED blocks and split links.
+/// Rules about PROPOSED blocks, claim markers and split links.
 pub(crate) fn check_blocks(doc_type: DocType, body: &Body, file: &str, out: &mut Vec<Violation>) {
     for block in body.proposed_blocks() {
         let at = Location::Line(block.marker().lines.start);
@@ -172,6 +177,15 @@ pub(crate) fn check_blocks(doc_type: DocType, body: &Body, file: &str, out: &mut
                 file: file.to_string(),
                 at,
                 rule,
+            });
+        }
+    }
+    if doc_type != DocType::Capability {
+        for claim in body.claims() {
+            out.push(Violation {
+                file: file.to_string(),
+                at: Location::Line(claim.line()),
+                rule: Rule::ClaimOutsideCapability,
             });
         }
     }

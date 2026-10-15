@@ -4,7 +4,7 @@
 //! Reading the document directories through a tree.
 
 use raf_okf::{
-    DocType, Document, ErrorTag, Index, Location, MAX_TEXT_BYTES, Profile, RafDocument, Rule,
+    Body, DocType, Document, ErrorTag, Index, Location, MAX_TEXT_BYTES, Profile, RafDocument, Rule,
     Violation, is_capability_index,
 };
 use raf_source::{EntryKind, RelPath, Tree, TreeError, Workspace};
@@ -22,13 +22,17 @@ const READ_LIMIT: u64 = MAX_TEXT_BYTES as u64 + 1;
 /// The file name of the navigation file of a directory.
 const INDEX: &str = "index.md";
 
+/// The document types the load reads, each from its directory: the
+/// documents people write. The directories of the record types are not read.
+const LOADED: [DocType; 3] = [DocType::Capability, DocType::Change, DocType::Architecture];
+
 pub(crate) fn load<'s>(
     docs: &dyn Tree,
     source: &'s Workspace,
     links: &LinkContext<'_>,
 ) -> Workplan<'s> {
     let mut plan = Workplan::empty(source);
-    for doc_type in DocType::ALL {
+    for doc_type in LOADED {
         scan_directory(docs, doc_type, links, &mut plan);
     }
     plan.relate();
@@ -195,7 +199,8 @@ fn read_file(
             path,
             Location::Key("type".to_string()),
             format!(
-                "a {} document sits in {}",
+                "{} {} document sits in {}",
+                declared.article(),
                 declared.name(),
                 dir_type.directory()
             ),
@@ -203,23 +208,7 @@ fn read_file(
         ));
     }
     match Profile.validate(&document, path) {
-        Ok(typed) => {
-            let body = document.body().clone();
-            let path = path.to_string();
-            match typed {
-                RafDocument::Capability(value) => {
-                    plan.capabilities
-                        .push(Loaded::new(path, value, body, &text));
-                }
-                RafDocument::Change(value) => {
-                    plan.changes.push(Loaded::new(path, value, body, &text));
-                }
-                RafDocument::Architecture(value) => {
-                    plan.architecture
-                        .push(Loaded::new(path, value, body, &text));
-                }
-            }
-        }
+        Ok(typed) => admit(plan, path, typed, document.body().clone(), &text),
         Err(violations) => {
             // The blocks of a document that does not validate still name
             // change records; the rules between documents judge them once
@@ -240,6 +229,26 @@ fn read_file(
             plan.findings
                 .extend(violations.iter().map(Finding::from_violation));
         }
+    }
+}
+
+/// Add a document that satisfies the profile to the model.
+fn admit(plan: &mut Workplan<'_>, path: &str, typed: RafDocument, body: Body, text: &str) {
+    let path = path.to_string();
+    match typed {
+        RafDocument::Capability(value) => {
+            plan.capabilities.push(Loaded::new(path, value, body, text));
+        }
+        RafDocument::Change(value) => {
+            plan.changes.push(Loaded::new(path, value, body, text));
+        }
+        RafDocument::Architecture(value) => {
+            plan.architecture.push(Loaded::new(path, value, body, text));
+        }
+        // A record validates only in its own directory, which the load does
+        // not read, so none reaches this point; one in a read directory is
+        // `wrong-directory`, reported before validation.
+        RafDocument::Evidence(_) | RafDocument::Assessment(_) | RafDocument::Coverage(_) => {}
     }
 }
 

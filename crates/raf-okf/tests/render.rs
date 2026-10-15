@@ -36,19 +36,15 @@ fn gate_root() -> PathBuf {
     )
 }
 
-/// The tracked Markdown documents under the three document directories.
+/// The tracked Markdown documents under the document directories of every
+/// type.
 fn tracked_documents() -> Vec<String> {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let output = Command::new("git")
         .arg("-C")
         .arg(repository)
-        .args([
-            "ls-files",
-            "-z",
-            "docs/capabilities",
-            "docs/architecture",
-            "work/changes",
-        ])
+        .args(["ls-files", "-z", "--"])
+        .args(DocType::ALL.map(DocType::directory))
         .output()
         .expect("git ls-files must run");
     assert!(
@@ -71,9 +67,6 @@ fn tracked_documents() -> Vec<String> {
     paths.sort();
     paths
 }
-
-/// The directories that hold documents, one per type.
-const DOCUMENT_DIRECTORIES: [&str; 3] = ["docs/capabilities", "work/changes", "docs/architecture"];
 
 /// The tracked documents of one directory, counted with a listing of that
 /// directory alone: the Markdown files other than the capability index.
@@ -101,11 +94,11 @@ fn tracked_in_directory(directory: &str) -> usize {
 fn every_tracked_document_renders_to_its_own_bytes() {
     let paths = tracked_documents();
     let root = gate_root();
-    let mut round_tripped = [0_usize; DOCUMENT_DIRECTORIES.len()];
+    let mut round_tripped = [0_usize; DocType::ALL.len()];
     for path in &paths {
-        let slot = DOCUMENT_DIRECTORIES
+        let slot = DocType::ALL
             .iter()
-            .position(|directory| path.starts_with(&format!("{directory}/")))
+            .position(|doc_type| path.starts_with(&format!("{}/", doc_type.directory())))
             .unwrap_or_else(|| panic!("{path} is in no document directory"));
         round_tripped[slot] += 1;
         let text =
@@ -121,11 +114,13 @@ fn every_tracked_document_renders_to_its_own_bytes() {
     }
     // Each type is round-tripped in full: as many documents as the directory
     // of the type holds, counted on its own.
-    // Change records are deleted when their change completes, so the tree may
-    // hold none; the other two directories always hold documents.
-    for (directory, done) in DOCUMENT_DIRECTORIES.iter().zip(round_tripped) {
+    // Change records are deleted when their change completes, and the tree
+    // may hold no record of a record type, so only the capability and
+    // architecture directories always hold documents.
+    for (doc_type, done) in DocType::ALL.into_iter().zip(round_tripped) {
+        let directory = doc_type.directory();
         let held = tracked_in_directory(directory);
-        if *directory != "work/changes" {
+        if matches!(doc_type, DocType::Capability | DocType::Architecture) {
             assert!(held >= 1, "{directory} holds no tracked document");
         }
         assert_eq!(
@@ -137,7 +132,7 @@ fn every_tracked_document_renders_to_its_own_bytes() {
 
 /// The committed fixture documents, one per type, written independently of the
 /// repository's own documents.
-const FIXTURES: [(&str, DocType, &str, &str); 3] = [
+const FIXTURES: [(&str, DocType, &str, &str); 6] = [
     (
         "capability.md",
         DocType::Capability,
@@ -155,6 +150,24 @@ const FIXTURES: [(&str, DocType, &str, &str); 3] = [
         DocType::Architecture,
         "docs/architecture/row-keys.md",
         include_str!("fixtures/architecture.md"),
+    ),
+    (
+        "evidence.md",
+        DocType::Evidence,
+        "work/evidence/ledger-sync-bound.md",
+        include_str!("fixtures/evidence.md"),
+    ),
+    (
+        "assessment.md",
+        DocType::Assessment,
+        "work/assessments/ledger-sync-explanation.md",
+        include_str!("fixtures/assessment.md"),
+    ),
+    (
+        "coverage.md",
+        DocType::Coverage,
+        "work/coverage/default.md",
+        include_str!("fixtures/coverage.md"),
     ),
 ];
 
@@ -252,6 +265,41 @@ body
     let again = parse(&rendered);
     assert_eq!(again.render(), rendered);
     assert_eq!(again, document);
+}
+
+#[test]
+fn record_keys_out_of_order_render_in_table_order_and_validate() {
+    let shuffled = "---\nlimits:\n  peak_mib: 64\nby: agent\nfor: [cap:x]\nverdict: pass\n\
+        values:\n  peak_mib: 41\ninputs:\n  - kind: symbol\n    name: x::y\n    \
+        digest: 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae\n\
+        subject: binding:x::tests::case\nid: evidence:x\ntype: Evidence\n---\n";
+    let document = parse(shuffled);
+    let rendered = document.render();
+    let keys: Vec<&str> = document
+        .frontmatter()
+        .map()
+        .entries()
+        .iter()
+        .map(Entry::key)
+        .collect();
+    assert_eq!(keys.len(), 9);
+    let order: Vec<&str> = rendered
+        .lines()
+        .filter(|line| !line.starts_with(' ') && line.contains(':'))
+        .map(|line| line.split(':').next().unwrap_or(line))
+        .collect();
+    assert_eq!(
+        order,
+        [
+            "type", "id", "subject", "inputs", "verdict", "by", "for", "values", "limits"
+        ]
+    );
+    let again = parse(&rendered);
+    assert_eq!(again.render(), rendered);
+    assert_eq!(again, document);
+    if let Err(violations) = Profile.validate(&again, "work/evidence/x.md") {
+        panic!("{violations:#?}");
+    }
 }
 
 #[test]

@@ -18,14 +18,13 @@
 //! * the capability inventory (`INVENTORY`), which pins the documents, their
 //!   states and the generated capability index;
 //! * the refusal of tracked symlinks;
-//! * Markdown-only document directories: any other file in `docs/capabilities`,
-//!   `docs/architecture` or `work/changes` would sit unread beside the
-//!   documents;
+//! * Markdown-only document directories: any other file in the directory of a
+//!   document type would sit unread beside the documents;
 //! * typed pages live in their directories: a page at the top level or below
-//!   `docs/` or `work/` that is outside the three document directories may not
-//!   open with a frontmatter block at all, whatever its `type`, because the
-//!   model reads such a page as plain Markdown and would never validate it
-//!   (a page with a document type is told where that type lives);
+//!   `docs/` or `work/` that is outside the document directories may not open
+//!   with a frontmatter block at all, whatever its `type`, because the model
+//!   reads such a page as plain Markdown and would never validate it (a page
+//!   with a document type is told where that type lives);
 //! * the equality of the Usage and Examples blocks of two capability documents
 //!   with the crate documentation tests;
 //! * the helpers that read tracked files safely, and the guards that keep these
@@ -56,15 +55,18 @@ type Repo = BTreeMap<PathBuf, String>;
 ///
 /// This table is the capability inventory: the real tree must hold exactly
 /// these capability documents, each with the stated `state`, exactly these
-/// architecture documents, exactly these generated documents, and an open
-/// change record named after every capability whose state is not `delivered`.
-/// Changing a state or adding a capability edits this table in the same
-/// commit.
+/// architecture documents, exactly these records, exactly these generated
+/// documents, and an open change record named after every capability whose
+/// state is not `delivered`. Changing a state, adding a capability or adding a
+/// record edits this table in the same commit.
 struct Inventory {
     /// Capability slug and the state its document declares.
     capabilities: &'static [(&'static str, &'static str)],
     /// Architecture slugs.
     architecture: &'static [&'static str],
+    /// Records (evidence, assessments and the coverage record), by id: each
+    /// lives at the path its type and slug give.
+    records: &'static [&'static str],
     /// Generated documents, by path. They have no frontmatter, so only their
     /// presence is held.
     generated: &'static [&'static str],
@@ -81,12 +83,12 @@ const INVENTORY: Inventory = Inventory {
         ("census-patterns", "designed"),
         ("census-reference-scan", "designed"),
         ("census-rule-api", "designed"),
-        ("okf-profile", "delivered"),
+        ("okf-profile", "implementing"),
         ("source-index", "delivered"),
         ("workplan-cli", "delivered"),
         ("workplan-complete-gate", "delivered"),
         ("workplan-current-rationale", "considered"),
-        ("workplan-document-model", "delivered"),
+        ("workplan-document-model", "implementing"),
         ("workplan-entity-history", "considered"),
         ("workplan-evidence-claims", "considered"),
         ("workplan-generated-docs", "delivered"),
@@ -95,6 +97,7 @@ const INVENTORY: Inventory = Inventory {
         ("workplan-two-way-coverage", "considered"),
     ],
     architecture: &["normal-form", "okf-profile"],
+    records: &[],
     generated: &["docs/capabilities/index.md"],
 };
 
@@ -229,12 +232,29 @@ fn check_inventory(repo: &Repo, inventory: &Inventory) -> Vec<String> {
             None,
         );
     }
+    let mut unknown_records = Vec::new();
+    for id in inventory.records {
+        let home = DocType::ALL
+            .into_iter()
+            .filter(|doc_type| doc_type.is_record())
+            .find_map(|doc_type| {
+                id.strip_prefix(doc_type.id_prefix())
+                    .map(|slug| format!("{}/{slug}.md", doc_type.directory()))
+            });
+        match home {
+            Some(path) => expect(path, (*id).to_string(), None),
+            None => {
+                unknown_records.push(format!("inventory: `{id}` is not the id of a record type"));
+            }
+        }
+    }
     for path in inventory.generated {
         if !repo.contains_key(Path::new(path)) {
             out.push(violation(Path::new(path), "the document is missing"));
         }
         listed.insert((*path).to_string());
     }
+    out.extend(unknown_records);
     for path in repo.keys() {
         let known = path.to_str().is_some_and(|p| listed.contains(p));
         if expected_type(path).is_some() && !known {
@@ -265,13 +285,7 @@ fn symlink_violations(symlinks: &[PathBuf]) -> Vec<String> {
 fn layout_violations(paths: &[PathBuf]) -> Vec<String> {
     paths
         .iter()
-        .filter(|path| {
-            let parts: Vec<&str> = name(path).split('/').collect();
-            matches!(
-                parts.as_slice(),
-                ["docs", "capabilities" | "architecture", _, ..] | ["work", "changes", _, ..]
-            ) && !is_markdown(path)
-        })
+        .filter(|path| in_document_directory(path) && !is_markdown(path))
         .map(|path| {
             violation(
                 path,
@@ -330,7 +344,7 @@ fn is_documentation(path: &Path) -> bool {
     top_level || first.is_some_and(|c| c.as_os_str() == "docs" || c.as_os_str() == "work")
 }
 
-/// Frontmatter belongs to the documents of the three document directories.
+/// Frontmatter belongs to the documents of the document directories.
 /// Documentation outside them is plain Markdown to the model, so a page there
 /// that opens with a frontmatter block, whatever its `type` (or none), would
 /// never be validated: it is refused here instead. A page that declares a
@@ -343,7 +357,8 @@ fn outside_violations(markdown: &Repo) -> Vec<String> {
             let document = Document::parse(text).ok()?;
             let message = match document.doc_type() {
                 Some(declared) => format!(
-                    "`type`: a {} document belongs directly in {}",
+                    "`type`: {} {} document belongs directly in {}",
+                    declared.article(),
                     declared.name(),
                     declared.directory()
                 ),
@@ -646,6 +661,7 @@ mod checkouts {
     pub(super) const INVENTORY: Inventory = Inventory {
         capabilities: &[],
         architecture: &["overview"],
+        records: &[],
         generated: &[],
     };
 
@@ -756,6 +772,9 @@ fn rejects_non_markdown_file_in_a_document_directory() {
         "docs/architecture/diagram.svg",
         "work/changes/draft.yaml",
         "docs/capabilities/sub/data.json",
+        "work/evidence/run.log",
+        "work/assessments/notes.txt",
+        "work/coverage/default.toml",
     ] {
         let found = found(&files(), &[], &[path]);
         assert_eq!(
@@ -786,21 +805,24 @@ fn rejects_a_typed_document_outside_the_document_directories() {
     };
     // A page with a document type is told where that type lives.
     for (path, doc_type, home) in [
-        ("docs/other/stray.md", "Capability", "docs/capabilities"),
-        ("docs/stray.md", "Change", "work/changes"),
-        ("work/stray.md", "Architecture", "docs/architecture"),
-        ("stray.md", "Capability", "docs/capabilities"),
+        ("docs/other/stray.md", "a Capability", "docs/capabilities"),
+        ("docs/stray.md", "a Change", "work/changes"),
+        ("work/stray.md", "an Architecture", "docs/architecture"),
+        ("stray.md", "a Capability", "docs/capabilities"),
+        ("work/evidence.md", "an Evidence", "work/evidence"),
+        ("docs/coverage.md", "a Coverage", "work/coverage"),
     ] {
+        let name = doc_type.split_once(' ').map_or(doc_type, |(_, name)| name);
         assert_eq!(
-            with(path, typed(doc_type)),
+            with(path, typed(name)),
             [format!(
-                "{path}: `type`: a {doc_type} document belongs directly in {home}"
+                "{path}: `type`: {doc_type} document belongs directly in {home}"
             )]
         );
     }
     // Any other frontmatter on such a page is refused as well: an unknown
     // type, no type, or keys that are no document's.
-    let home = "frontmatter belongs only in the documents of docs/capabilities, work/changes, docs/architecture; this page is outside them";
+    let home = "frontmatter belongs only in the documents of docs/capabilities, work/changes, docs/architecture, work/evidence, work/assessments, work/coverage; this page is outside them";
     for (path, text) in [
         ("docs/notes.md", page("title: Notes")),
         ("NOTES.md", typed("Bug")),
@@ -845,8 +867,20 @@ const FIXTURE_INVENTORY: Inventory = Inventory {
         ("gamma", "delivered"),
     ],
     architecture: &["overview"],
+    records: &["evidence:bound", "assessment:review", "coverage:default"],
     generated: &[INDEX],
 };
+
+/// The records of `FIXTURE_INVENTORY`, by path, type and id.
+const FIXTURE_RECORDS: [(&str, &str, &str); 3] = [
+    ("work/evidence/bound.md", "Evidence", "evidence:bound"),
+    (
+        "work/assessments/review.md",
+        "Assessment",
+        "assessment:review",
+    ),
+    ("work/coverage/default.md", "Coverage", "coverage:default"),
+];
 
 /// A document with only the frontmatter the inventory reads.
 fn page(doc_type: &str, id: &str, state: Option<&str>) -> String {
@@ -877,6 +911,9 @@ fn inventory_repo() -> Repo {
         PathBuf::from(OVERVIEW_PAGE),
         page("Architecture", "arch:overview", None),
     );
+    for (path, doc_type, id) in FIXTURE_RECORDS {
+        repo.insert(PathBuf::from(path), page(doc_type, id, None));
+    }
     repo.insert(
         PathBuf::from(INDEX),
         "<!-- raf:generated:catalogue -->\n<!-- raf:generated:end -->\n".to_string(),
@@ -933,10 +970,11 @@ fn inventory_table_has_the_documented_shape() {
             .count()
     };
     assert_eq!(count("designed"), 9);
-    assert_eq!(count("implementing"), 0);
-    assert_eq!(count("delivered"), 7);
+    assert_eq!(count("implementing"), 2);
+    assert_eq!(count("delivered"), 5);
     assert_eq!(count("considered"), 5);
     assert_eq!(INVENTORY.architecture.len(), 2);
+    assert_eq!(INVENTORY.records, &[] as &[&str]);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 
@@ -1015,6 +1053,52 @@ fn inventory_rejects_a_document_the_table_does_not_list() {
     assert_hit(
         &found,
         "docs/capabilities/extra.md: the document is not in the inventory table",
+    );
+}
+
+#[test]
+fn inventory_rejects_a_missing_or_unlisted_record() {
+    for (path, _, _) in FIXTURE_RECORDS {
+        let mut repo = inventory_repo();
+        repo.remove(Path::new(path));
+        let found = inventory_found(&repo);
+        assert_hit(&found, &format!("{path}: the document is missing"));
+    }
+    let mut repo = inventory_repo();
+    repo.insert(
+        PathBuf::from("work/evidence/extra.md"),
+        page("Evidence", "evidence:extra", None),
+    );
+    let found = inventory_found(&repo);
+    assert_hit(
+        &found,
+        "work/evidence/extra.md: the document is not in the inventory table",
+    );
+    let mut repo = inventory_repo();
+    let coverage = repo
+        .get_mut(Path::new("work/coverage/default.md"))
+        .expect("fixture coverage");
+    *coverage = coverage.replace("coverage:default", "coverage:other");
+    assert_hit(
+        &inventory_found(&repo),
+        "inventory expects id `coverage:default`, found `coverage:other`",
+    );
+}
+
+#[test]
+fn inventory_refuses_a_record_id_of_no_record_type() {
+    let inventory = Inventory {
+        records: &["cap:alpha"],
+        ..FIXTURE_INVENTORY
+    };
+    let found = violations(
+        &checkouts::of_repo(&inventory_repo()),
+        &checkouts::source(),
+        &inventory,
+    );
+    assert_hit(
+        &found,
+        "inventory: `cap:alpha` is not the id of a record type",
     );
 }
 

@@ -65,6 +65,16 @@ impl Case {
         self
     }
 
+    /// The case with `body` appended to its file.
+    fn with_body(mut self, body: &str) -> Self {
+        let text = self
+            .repo
+            .get_mut(&self.file)
+            .expect("the case holds its file");
+        text.push_str(body);
+        self
+    }
+
     /// Run the case and return every finding.
     pub(crate) fn run(&self) -> Vec<Finding> {
         if self.unfiltered {
@@ -116,6 +126,53 @@ fn in_overview(text: String) -> Repo {
 /// The case for a rule of the profile.
 pub(crate) fn rule_case(tag: RuleTag) -> Case {
     rule_case_unplaced(tag)
+}
+
+const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+
+/// A valid evidence record.
+fn evidence_record() -> String {
+    format!(
+        "---\ntype: Evidence\nid: evidence:bound\nsubject: command\ninputs:\n  \
+         - kind: symbol\n    name: demo::real\n    digest: {DIGEST}\n\
+         verdict: pass\nby: agent\nfor: [cap:alpha]\ncommand: \"cargo bench\"\n\
+         revision: b499578a1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f\n\
+         values:\n  peak: 41\nlimits:\n  peak: 64\n---\n"
+    )
+}
+
+/// A valid assessment record.
+fn assessment_record() -> String {
+    format!(
+        "---\ntype: Assessment\nid: assessment:review\nsubject: cap:alpha#contract\ninputs:\n  \
+         - kind: section\n    name: cap:alpha#contract\n    digest: {DIGEST}\n\
+         verdict: accepted\nby: human\n---\n"
+    )
+}
+
+/// A valid coverage record.
+fn coverage_record() -> String {
+    "---\ntype: Coverage\nid: coverage:default\nscope: [demo]\nexclusions:\n  \
+     - item: demo::unit::*\n    reason: \"Unit tests of internals.\"\n---\n"
+        .to_string()
+}
+
+/// The case for a record that breaks one rule. The load does not read the
+/// directories of the record types, so the record sits in the change
+/// directory, where it is also `wrong-directory`, and the profile still
+/// judges every key of its type.
+fn record_case(name: &str, kind: &str, record: &str, from: &str, to: &str, at: Location) -> Case {
+    assert!(record.contains(from), "the record has no `{from}`");
+    let text = record.replacen(from, to, 1);
+    let id = text
+        .lines()
+        .find_map(|line| line.strip_prefix("id: "))
+        .expect("the record has an id");
+    let slug = id.split_once(':').map_or(id, |(_, slug)| slug);
+    let path = format!("work/changes/{slug}.md");
+    let mut repo = valid();
+    repo.insert(path.clone(), text);
+    Case::new(name, repo, kind, &path, at).also(&["wrong-directory", "okf-wrong-directory"])
 }
 
 #[allow(clippy::too_many_lines, reason = "one arm per rule of the profile")]
@@ -275,6 +332,82 @@ fn rule_case_unplaced(tag: RuleTag) -> Case {
             let line = line_of(&repo[OVERVIEW], "[the page](");
             Case::new(&name, repo, &kind, OVERVIEW, Location::Line(line))
         }
+        RuleTag::ClaimOutsideCapability => {
+            let repo = mutate(
+                OVERVIEW,
+                "Body text.",
+                "Body text.\n<!-- raf:claim evidence=bound -->",
+            );
+            let line = line_of(&repo[OVERVIEW], "raf:claim");
+            Case::new(&name, repo, &kind, OVERVIEW, Location::Line(line))
+        }
+        _ => record_rule_case(tag, &name, &kind),
+    }
+}
+
+/// The case for a rule of the record types.
+fn record_rule_case(tag: RuleTag, name: &str, kind: &str) -> Case {
+    let evidence = |from: &str, to: &str, at: Location| {
+        record_case(name, kind, &evidence_record(), from, to, at)
+    };
+    let assessment = |from: &str, to: &str, at: Location| {
+        record_case(name, kind, &assessment_record(), from, to, at)
+    };
+    let coverage = |from: &str, to: &str, at: Location| {
+        record_case(name, kind, &coverage_record(), from, to, at)
+    };
+    match tag {
+        RuleTag::BodyNotEmpty => {
+            evidence("by: agent", "by: agent", Location::Document).with_body("\nThe bound held.\n")
+        }
+        RuleTag::SingletonId => coverage("id: coverage:default", "id: coverage:other", key("id")),
+        RuleTag::BadSubject => evidence("subject: command", "subject: run", key("subject")),
+        RuleTag::CommandSubject => evidence("command: \"cargo bench\"\n", "", key("subject")),
+        RuleTag::RowUnknownKey => evidence(
+            "    name: demo::real\n",
+            "    name: demo::real\n    note: x\n",
+            key("inputs"),
+        ),
+        RuleTag::RowMissingKey => evidence(&format!("    digest: {DIGEST}\n"), "", key("inputs")),
+        RuleTag::BadInputKind => evidence("kind: symbol", "kind: file", key("inputs")),
+        RuleTag::BadInputName => evidence("name: demo::real", "name: Workplan", key("inputs")),
+        RuleTag::BadDigest => evidence(DIGEST, "abc", key("inputs")),
+        RuleTag::DuplicateEntry => evidence(
+            "for: [cap:alpha]",
+            "for: [cap:alpha, cap:alpha]",
+            key("for"),
+        ),
+        RuleTag::EmptyList => evidence("for: [cap:alpha]", "for: []", key("for")),
+        RuleTag::SubjectInputMissing => assessment(
+            "name: cap:alpha#contract",
+            "name: cap:alpha#usage",
+            key("inputs"),
+        ),
+        RuleTag::BadVerdict => evidence("verdict: pass", "verdict: maybe", key("verdict")),
+        RuleTag::BadActor => evidence("by: agent", "by: Ada Lovelace", key("by")),
+        RuleTag::BadRevision => evidence(
+            "revision: b499578a1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f",
+            "revision: main",
+            key("revision"),
+        ),
+        RuleTag::BadMeasure => evidence("  peak: 41", "  peak: fast", key("values")),
+        RuleTag::LimitWithoutValue => evidence("  peak: 64", "  other: 64", key("limits")),
+        RuleTag::VerdictOverLimit => evidence("  peak: 41", "  peak: 99", key("verdict")),
+        RuleTag::BadCrateName => coverage("scope: [demo]", "scope: [\"de mo\"]", key("scope")),
+        RuleTag::BadExclusionItem => coverage(
+            "item: demo::unit::*",
+            "item: \"demo::*::unit\"",
+            key("exclusions"),
+        ),
+        RuleTag::CrateRootExclusion => {
+            coverage("item: demo::unit::*", "item: demo::*", key("exclusions"))
+        }
+        RuleTag::EmptyReason => coverage(
+            "reason: \"Unit tests of internals.\"",
+            "reason: \"\"",
+            key("exclusions"),
+        ),
+        other => panic!("{other} is not a rule of the record types"),
     }
 }
 
@@ -393,6 +526,9 @@ pub(crate) fn parse_case(tag: ErrorTag) -> Case {
         ),
         ErrorTag::OrphanGeneratedEnd => body("<!-- raf:generated:end -->\n", 8),
         ErrorTag::UnclosedGenerated => body("<!-- raf:generated:a -->\ntext\n", 8),
+        ErrorTag::MalformedClaim => body("Text.\n<!-- raf:claim evidence=Bad -->\n", 9),
+        ErrorTag::UnattachedClaim => body("<!-- raf:claim evidence=bound -->\n", 8),
+        ErrorTag::UnknownMarker => body("Text.\n<!-- raf:note -->\n", 9),
         ErrorTag::LinkPartTooLong => body(&format!("[a]({})\n", "x".repeat(4097)), 8),
         ErrorTag::IndexHeader => index(
             "<!--\nnot a tag\n-->\n<!-- raf:generated:a -->\n<!-- raf:generated:end -->\n",

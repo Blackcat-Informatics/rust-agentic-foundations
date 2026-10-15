@@ -5,6 +5,7 @@
 //! the validator that reports every violation.
 
 mod body_rules;
+mod records;
 mod schema;
 mod timestamp;
 mod typed;
@@ -19,8 +20,10 @@ pub(crate) use body_rules::placeholders;
 pub use schema::{DocType, KeySpec, ValueKind};
 pub use timestamp::{TimestampError, validate_timestamp};
 pub use typed::{
-    Affects, Architecture, Bindings, Capability, CapabilitySection, Change, ChangeItem,
-    ContractEffect, Header, Outcome, RafDocument, State,
+    Actor, Affects, Architecture, AssessmentRecord, AssessmentVerdict, Bindings, Capability,
+    CapabilitySection, Change, ChangeItem, ContractEffect, CoverageRecord, EvidenceRecord,
+    EvidenceSubject, EvidenceVerdict, Exclusion, ExclusionItem, Header, Input, InputKind, Measure,
+    Number, Outcome, RafDocument, RecordHeader, SectionRef, State,
 };
 pub use violation::{Location, Rule, RuleTag, Violation};
 
@@ -156,6 +159,19 @@ struct Collected {
     affects: Option<Vec<Affects>>,
     effect: Option<ContractEffect>,
     items: Option<Vec<ChangeItem>>,
+    subject: Option<records::Subject>,
+    inputs: Option<Vec<Input>>,
+    verdict: Option<records::Verdict>,
+    by: Option<Actor>,
+    covers: Option<Vec<String>>,
+    command: Slot<String>,
+    revision: Slot<String>,
+    values: Slot<Vec<Measure>>,
+    limits: Slot<Vec<Measure>>,
+    scope: Option<Vec<String>>,
+    exclusions: Option<Vec<Exclusion>>,
+    /// Whether a rule between the keys of a record was broken.
+    between_broken: bool,
 }
 
 impl Profile {
@@ -280,17 +296,21 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
             }
             ValueKind::CapabilityIds => {
                 let ids = check_capability_ids(check, entry, key == "changes");
-                if key == "changes" {
-                    if let Some(texts) = strings(entry.value()) {
-                        found.change_ids = texts
-                            .into_iter()
-                            .filter(|id| is_capability_id(id))
-                            .map(str::to_string)
-                            .collect();
+                match key {
+                    "changes" => {
+                        if let Some(texts) = strings(entry.value()) {
+                            found.change_ids = texts
+                                .into_iter()
+                                .filter(|id| is_capability_id(id))
+                                .map(str::to_string)
+                                .collect();
+                        }
+                        found.changes = ids;
                     }
-                    found.changes = ids;
-                } else {
-                    found.depends = ids;
+                    "for" => {
+                        found.covers = ids.filter(|ids| records::check_covers(check, ids));
+                    }
+                    _ => found.depends = ids,
                 }
             }
             ValueKind::Affects => {
@@ -298,11 +318,56 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
             }
             ValueKind::ContractEffect => found.effect = check_effect(check, entry),
             ValueKind::Items => found.items = check_items(check, entry),
+            ValueKind::Subject => {
+                found.subject = records::check_subject(check, entry, doc_type);
+            }
+            ValueKind::Inputs => found.inputs = records::check_inputs(check, entry, doc_type),
+            ValueKind::Verdict => {
+                found.verdict = records::check_verdict(check, entry, doc_type);
+            }
+            ValueKind::Actor => found.by = records::check_actor(check, entry),
+            ValueKind::Command => {
+                found.command = Slot::from_check(records::check_command(check, entry));
+            }
+            ValueKind::Revision => {
+                found.revision = Slot::from_check(records::check_revision(check, entry));
+            }
+            ValueKind::Measures => {
+                let measures = Slot::from_check(records::check_measures(check, entry));
+                if key == "limits" {
+                    found.limits = measures;
+                } else {
+                    found.values = measures;
+                }
+            }
+            ValueKind::Scope => found.scope = records::check_scope(check, entry),
+            ValueKind::Exclusions => found.exclusions = records::check_exclusions(check, entry),
             // `type` was read first.
             ValueKind::DocType => {}
         }
     }
+    found.between_broken = !records::check_between(
+        check,
+        &records::Keys {
+            subject: found.subject.as_ref(),
+            inputs: found.inputs.as_deref(),
+            verdict: found.verdict,
+            has_command: map.get("command").is_some(),
+            values: measures(&found.values),
+            limits: measures(&found.limits),
+        },
+    );
     found
+}
+
+/// The measures of an optional key: none when it is absent, `None` when it
+/// failed its check.
+fn measures(slot: &Slot<Vec<Measure>>) -> Option<&[Measure]> {
+    match slot {
+        Slot::Absent => Some(&[]),
+        Slot::Valid(measures) => Some(measures),
+        Slot::Invalid => None,
+    }
 }
 
 fn check_id(
@@ -325,6 +390,10 @@ fn check_id(
         check.key("id", Rule::InvalidId { prefix });
         return None;
     };
+    if doc_type.singleton().is_some_and(|only| only != slug) {
+        check.key("id", Rule::SingletonId { doc_type });
+        return None;
+    }
     if slug != stem {
         check.key(
             "id",
@@ -670,15 +739,19 @@ fn check_frontmatter_placeholders(check: &mut Check<'_>, map: &Map) {
             texts.push((key, text));
         }
     }
-    if let Some(list) = map.get("items").and_then(|entry| entry.value().as_list()) {
-        for item in list.items() {
-            if let Some(text) = item
-                .value()
-                .as_map()
-                .and_then(|item| item.get("claim"))
-                .and_then(scalar_text)
-            {
-                texts.push(("items", text));
+    // The prose of a list of maps: the claim of each change item and the
+    // reason of each coverage exclusion.
+    for (key, field) in [("items", "claim"), ("exclusions", "reason")] {
+        if let Some(list) = map.get(key).and_then(|entry| entry.value().as_list()) {
+            for item in list.items() {
+                if let Some(text) = item
+                    .value()
+                    .as_map()
+                    .and_then(|item| item.get(field))
+                    .and_then(scalar_text)
+                {
+                    texts.push((key, text));
+                }
             }
         }
     }
@@ -697,6 +770,12 @@ fn check_frontmatter_placeholders(check: &mut Check<'_>, map: &Map) {
 }
 
 fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
+    if found.between_broken {
+        return None;
+    }
+    if doc_type.is_record() {
+        return build_record(doc_type, found);
+    }
     let Collected {
         id,
         title,
@@ -707,10 +786,10 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         bindings,
         depends,
         changes,
-        change_ids: _,
         affects,
         effect,
         items,
+        ..
     } = found;
     let (id, slug) = id?;
     let (Ok(tags), Ok(timestamp)) = (tags.settle(), timestamp.settle()) else {
@@ -739,5 +818,83 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
             items: items?,
         })),
         DocType::Architecture => Some(RafDocument::Architecture(Architecture { header })),
+        // A record was built above.
+        DocType::Evidence | DocType::Assessment | DocType::Coverage => None,
+    }
+}
+
+fn build_record(doc_type: DocType, found: Collected) -> Option<RafDocument> {
+    let Collected {
+        id,
+        tags,
+        timestamp,
+        subject,
+        inputs,
+        verdict,
+        by,
+        covers,
+        command,
+        revision,
+        values,
+        limits,
+        scope,
+        exclusions,
+        ..
+    } = found;
+    let (id, slug) = id?;
+    let (Ok(tags), Ok(timestamp)) = (tags.settle(), timestamp.settle()) else {
+        return None;
+    };
+    let header = RecordHeader {
+        id,
+        slug,
+        tags,
+        timestamp,
+    };
+    match (doc_type, subject, verdict) {
+        (
+            DocType::Evidence,
+            Some(records::Subject::Evidence(subject)),
+            Some(records::Verdict::Evidence(verdict)),
+        ) => {
+            let (Ok(command), Ok(revision), Ok(values), Ok(limits)) = (
+                command.settle(),
+                revision.settle(),
+                values.settle(),
+                limits.settle(),
+            ) else {
+                return None;
+            };
+            Some(RafDocument::Evidence(EvidenceRecord {
+                header,
+                subject,
+                inputs: inputs?,
+                verdict,
+                by: by?,
+                covers: covers?,
+                command,
+                revision,
+                values: values.unwrap_or_default(),
+                limits: limits.unwrap_or_default(),
+            }))
+        }
+        (
+            DocType::Assessment,
+            Some(records::Subject::Section(subject)),
+            Some(records::Verdict::Assessment(verdict)),
+        ) => Some(RafDocument::Assessment(AssessmentRecord {
+            header,
+            subject,
+            inputs: inputs?,
+            verdict,
+            by: by?,
+        })),
+        (DocType::Coverage, _, _) => Some(RafDocument::Coverage(CoverageRecord {
+            header,
+            scope: scope?,
+            exclusions: exclusions?,
+        })),
+        // A value that failed its check, or a document type with no record.
+        _ => None,
     }
 }

@@ -6,8 +6,9 @@
 //! The writer reads the table for key order, and the validator reads the same
 //! table for the closed key set, so the two cannot disagree. The order is the
 //! order of the architecture page. The optional keys `tags` and `timestamp`
-//! sit directly after `description` in every type, ahead of the keys that are
-//! specific to the type.
+//! sit directly after the shared keys of every type (`description` for the
+//! three document types, `id` for the three record types), ahead of the keys
+//! that are specific to the type.
 
 /// The kind of value a key holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,6 +36,25 @@ pub enum ValueKind {
     ContractEffect,
     /// A list of maps with a claim and an optional outcome.
     Items,
+    /// What a record judges: for evidence `command` or `binding:<path>`, for
+    /// an assessment `cap:<slug>#<section>`.
+    Subject,
+    /// A list of maps with exactly the keys `kind`, `name` and `digest`.
+    Inputs,
+    /// The verdict of a record, from the set of its type.
+    Verdict,
+    /// `human` or `agent`.
+    Actor,
+    /// The command an evidence record ran, a non-empty string.
+    Command,
+    /// A Git commit id.
+    Revision,
+    /// A map of measure names to numbers.
+    Measures,
+    /// A list of crate package names with no duplicate.
+    Scope,
+    /// A list of maps with exactly the keys `item` and `reason`.
+    Exclusions,
 }
 
 /// One key of a document type.
@@ -98,7 +118,52 @@ const ARCHITECTURE: [KeySpec; 6] = [
     optional("timestamp", ValueKind::Timestamp),
 ];
 
+/// The record types share `type`, `id` and the two optional keys, and carry
+/// no `title` or `description`: a record states a result, not prose. Evidence
+/// and an assessment share the trace keys `subject`, `inputs`, `verdict` and
+/// `by`, in that order, before the keys of their own.
+const EVIDENCE: [KeySpec; 13] = [
+    required("type", ValueKind::DocType),
+    required("id", ValueKind::Id),
+    optional("tags", ValueKind::Tags),
+    optional("timestamp", ValueKind::Timestamp),
+    required("subject", ValueKind::Subject),
+    required("inputs", ValueKind::Inputs),
+    required("verdict", ValueKind::Verdict),
+    required("by", ValueKind::Actor),
+    required("for", ValueKind::CapabilityIds),
+    optional("command", ValueKind::Command),
+    optional("revision", ValueKind::Revision),
+    optional("values", ValueKind::Measures),
+    optional("limits", ValueKind::Measures),
+];
+
+const ASSESSMENT: [KeySpec; 8] = [
+    required("type", ValueKind::DocType),
+    required("id", ValueKind::Id),
+    optional("tags", ValueKind::Tags),
+    optional("timestamp", ValueKind::Timestamp),
+    required("subject", ValueKind::Subject),
+    required("inputs", ValueKind::Inputs),
+    required("verdict", ValueKind::Verdict),
+    required("by", ValueKind::Actor),
+];
+
+const COVERAGE: [KeySpec; 6] = [
+    required("type", ValueKind::DocType),
+    required("id", ValueKind::Id),
+    optional("tags", ValueKind::Tags),
+    optional("timestamp", ValueKind::Timestamp),
+    required("scope", ValueKind::Scope),
+    required("exclusions", ValueKind::Exclusions),
+];
+
 /// A document type of the RAF profile.
+///
+/// The profile closes the set, so the enum is exhaustive: a consumer matches
+/// every variant, and a new one is a breaking change. The first three are the
+/// documents people write; the last three are records, which state a result
+/// in their frontmatter and have no body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DocType {
     /// A permanent capability document.
@@ -107,13 +172,28 @@ pub enum DocType {
     Change,
     /// A shared architecture page.
     Architecture,
+    /// A record of one execution and its verdict.
+    Evidence,
+    /// A record of one assessment of an authored section.
+    Assessment,
+    /// The one coverage record of a repository: the crates it covers and
+    /// the items it excludes.
+    Coverage,
 }
 
 impl DocType {
     /// Every document type.
-    pub const ALL: [Self; 3] = [Self::Capability, Self::Change, Self::Architecture];
+    pub const ALL: [Self; 6] = [
+        Self::Capability,
+        Self::Change,
+        Self::Architecture,
+        Self::Evidence,
+        Self::Assessment,
+        Self::Coverage,
+    ];
 
-    /// The type named by the value of a `type` key, if it is one of the three.
+    /// The type named by the value of a `type` key, if it is one of
+    /// [`DocType::ALL`].
     #[must_use]
     pub fn from_name(name: &str) -> Option<Self> {
         Self::ALL
@@ -128,6 +208,26 @@ impl DocType {
             Self::Capability => "Capability",
             Self::Change => "Change",
             Self::Architecture => "Architecture",
+            Self::Evidence => "Evidence",
+            Self::Assessment => "Assessment",
+            Self::Coverage => "Coverage",
+        }
+    }
+
+    /// The indefinite article of [`DocType::name`]: `an` before a vowel,
+    /// otherwise `a`.
+    ///
+    /// ```rust
+    /// use raf_okf::DocType;
+    ///
+    /// assert_eq!(DocType::Capability.article(), "a");
+    /// assert_eq!(DocType::Evidence.article(), "an");
+    /// ```
+    #[must_use]
+    pub fn article(self) -> &'static str {
+        match self {
+            Self::Architecture | Self::Evidence | Self::Assessment => "an",
+            Self::Capability | Self::Change | Self::Coverage => "a",
         }
     }
 
@@ -138,6 +238,9 @@ impl DocType {
             Self::Capability => "docs/capabilities",
             Self::Change => "work/changes",
             Self::Architecture => "docs/architecture",
+            Self::Evidence => "work/evidence",
+            Self::Assessment => "work/assessments",
+            Self::Coverage => "work/coverage",
         }
     }
 
@@ -148,6 +251,35 @@ impl DocType {
             Self::Capability => "cap:",
             Self::Change => "change:",
             Self::Architecture => "arch:",
+            Self::Evidence => "evidence:",
+            Self::Assessment => "assessment:",
+            Self::Coverage => "coverage:",
+        }
+    }
+
+    /// The one slug a document of this type may have, for a type a
+    /// repository holds once: `default` for [`DocType::Coverage`], so its
+    /// record is `coverage:default` at `work/coverage/default.md`. `None` for
+    /// every other type.
+    #[must_use]
+    pub fn singleton(self) -> Option<&'static str> {
+        match self {
+            Self::Coverage => Some("default"),
+            Self::Capability
+            | Self::Change
+            | Self::Architecture
+            | Self::Evidence
+            | Self::Assessment => None,
+        }
+    }
+
+    /// Whether the type is a record: a result stated in the frontmatter, with
+    /// no `title`, no `description` and an empty body.
+    #[must_use]
+    pub fn is_record(self) -> bool {
+        match self {
+            Self::Evidence | Self::Assessment | Self::Coverage => true,
+            Self::Capability | Self::Change | Self::Architecture => false,
         }
     }
 
@@ -158,6 +290,22 @@ impl DocType {
             Self::Capability => &CAPABILITY,
             Self::Change => &CHANGE,
             Self::Architecture => &ARCHITECTURE,
+            Self::Evidence => &EVIDENCE,
+            Self::Assessment => &ASSESSMENT,
+            Self::Coverage => &COVERAGE,
+        }
+    }
+
+    /// The names of every type, joined for a message: `Capability, Change,
+    /// Architecture, Evidence, Assessment or Coverage` with `or` as `last`.
+    #[must_use]
+    pub fn listed(last: &str) -> String {
+        let names = Self::ALL.map(Self::name);
+        match names.split_last() {
+            Some((final_name, rest)) if !rest.is_empty() => {
+                format!("{} {last} {final_name}", rest.join(", "))
+            }
+            _ => names.join(", "),
         }
     }
 }

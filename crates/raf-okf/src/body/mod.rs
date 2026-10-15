@@ -22,8 +22,8 @@ pub(crate) use blocks::remove_code_spans;
 use blocks::{is_blank, remove_comments};
 pub use heading::{Heading, Section};
 pub use link::{Link, LinkError, LinkForm, LinkTarget, SplitLink};
+pub use marker::{Claim, GeneratedBlock, ProposedBlock, is_kebab};
 pub(crate) use marker::{GENERATED_END, GENERATED_OPEN};
-pub use marker::{GeneratedBlock, ProposedBlock, is_kebab};
 pub use prose::ProseLine;
 
 /// A fenced code block.
@@ -126,6 +126,7 @@ struct Model {
     fences: Vec<FencedBlock>,
     generated: Vec<GeneratedBlock>,
     proposed: Vec<ProposedBlock>,
+    claims: Vec<Claim>,
     prose: Vec<ProseLine>,
 }
 
@@ -154,8 +155,9 @@ impl Body {
     ///
     /// A [`ParseError`] with the line of the offence: a text over the size
     /// bound, a malformed PROPOSED marker, a malformed, nested, unclosed or
-    /// orphaned generated marker, block quotes and list items nested over 64
-    /// levels, or a link destination or title over 4096 bytes.
+    /// orphaned generated marker, a malformed or unattached claim marker, a
+    /// `<!-- raf:` comment that is no marker, block quotes and list items
+    /// nested over 64 levels, or a link destination or title over 4096 bytes.
     pub fn parse(text: &str) -> Result<Self, ParseError> {
         let (start, line) = match locate_fences(text) {
             Ok(fences) => (fences.body_start, fences.fence_line + 1),
@@ -209,7 +211,7 @@ impl Body {
                 *slot = Some(section.shared_slug());
             }
         }
-        let markers = marker::scan_markers(body, lines, origin, &section_of)?;
+        let markers = marker::scan_markers(body, lines, &visible, origin, &section_of)?;
         let views: Vec<link::LineView<'_>> = lines
             .iter()
             .zip(&visible)
@@ -269,6 +271,7 @@ impl Body {
                 fences,
                 generated: markers.generated,
                 proposed: markers.proposed,
+                claims: markers.claims,
                 prose,
             },
         })
@@ -351,6 +354,14 @@ impl Body {
     #[must_use]
     pub fn proposed_blocks(&self) -> &[ProposedBlock] {
         &self.model.proposed
+    }
+
+    /// The claim markers outside fenced code, code spans and PROPOSED blocks,
+    /// in line order, each with the statement it supports. A claim inside a
+    /// PROPOSED block is not a claim until the block is resolved.
+    #[must_use]
+    pub fn claims(&self) -> &[Claim] {
+        &self.model.claims
     }
 
     /// The prose lines: outside fenced code and HTML comments, with code

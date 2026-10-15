@@ -260,6 +260,12 @@ fn prefix_of(text: &str) -> Prefix {
     }
 }
 
+/// Whether the line opens a list item: a list marker follows its quote
+/// markers, if any.
+pub(crate) fn opens_list_item(text: &str) -> bool {
+    !prefix_of(text).markers.is_empty()
+}
+
 /// The width of a list marker at the start of `text` (`-`, `*`, `+`, or
 /// digits and `.` or `)`) that is followed by a space or the end of the line.
 fn list_marker_width(text: &str) -> Option<usize> {

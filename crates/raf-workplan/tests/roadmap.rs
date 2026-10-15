@@ -490,9 +490,17 @@ fn this_repository_lists_every_capability_once_in_its_state_group() {
             assert!(entry.gaps().is_empty(), "{}", header.id);
         }
     }
-    // The two delivered capabilities are delivered; the rest is planned work.
-    let delivered = slugs(roadmap.group(State::Delivered));
-    assert!(delivered.contains(&"okf-profile") && delivered.contains(&"source-index"));
+    // The load found the built capabilities: the first two are listed, each
+    // in the group of the state its document declares (checked above), and
+    // some capability is delivered; the rest is planned work.
+    for slug in ["okf-profile", "source-index"] {
+        assert!(roadmap.get(slug).is_some(), "{slug} is not in the roadmap");
+    }
+    assert_ne!(
+        roadmap.group(State::Delivered).len(),
+        0,
+        "nothing is delivered"
+    );
     assert_eq!(
         roadmap.planned().len(),
         roadmap.group(State::Designed).len() + roadmap.group(State::Considered).len()

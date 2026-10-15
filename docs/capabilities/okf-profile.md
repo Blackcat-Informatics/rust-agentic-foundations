@@ -5,7 +5,7 @@ type: Capability
 id: cap:okf-profile
 title: "OKF profile reader and writer"
 description: "The raf-okf crate: parse OKF Markdown, validate the RAF profile with closed key sets, and write documents back deterministically."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_okf::Document
@@ -15,6 +15,10 @@ bindings:
     - raf_okf::is_capability_index
     - raf_okf::Span
     - raf_okf::RafDocument
+    - raf_okf::EvidenceRecord
+    - raf_okf::AssessmentRecord
+    - raf_okf::CoverageRecord
+    - raf_okf::Claim
   tests:
     - raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests
     - raf_okf::test_crate::refusals::a_document_without_a_fence_on_line_one_is_refused
@@ -72,6 +76,27 @@ bindings:
     - raf_okf::test_crate::no_io_in_source::the_crate_sources_name_neither_the_file_system_nor_the_process_module
     - raf_okf::test_crate::usage_docs::the_examples_block_validates_between_fences_and_resource_is_rejected
     - raf_okf::test_crate::repo_markdown::no_tracked_markdown_file_holds_a_split_link_or_a_malformed_block
+    - raf_okf::test_crate::schema::only_coverage_is_a_singleton_and_only_the_three_records_are_records
+    - raf_okf::test_crate::records::a_valid_evidence_record_validates_to_its_typed_value
+    - raf_okf::test_crate::records::a_valid_assessment_validates_to_its_typed_value
+    - raf_okf::test_crate::records::a_valid_coverage_record_validates_and_an_empty_scope_opts_out_visibly
+    - raf_okf::test_crate::records::a_verdict_is_one_of_the_verdicts_of_its_type
+    - raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name
+    - raf_okf::test_crate::records::a_digest_is_sixty_four_lowercase_hex_digits
+    - raf_okf::test_crate::records::a_revision_is_a_full_commit_id
+    - raf_okf::test_crate::records::an_exclusion_names_an_item_or_a_module_prefix_below_a_crate_root
+    - raf_okf::test_crate::records::an_exclusion_has_a_reason_with_no_placeholder
+    - raf_okf::test_crate::records::a_list_that_holds_each_entry_once_refuses_a_repeat
+    - raf_okf::test_crate::records::coverage_is_one_record_at_its_one_path
+    - raf_okf::test_crate::records::a_record_sits_in_its_directory_and_its_id_matches_its_file
+    - raf_okf::test_crate::records::a_record_has_no_title_description_or_body
+    - raf_okf::test_crate::claims::a_claim_marker_names_its_evidence_and_supports_the_paragraph_above_it
+    - raf_okf::test_crate::claims::markers_in_fences_code_spans_and_proposed_blocks_are_not_read
+    - raf_okf::test_crate::claims::every_other_raf_comment_is_refused_with_its_line
+    - raf_okf::test_crate::claims::a_malformed_claim_marker_is_refused_with_its_line
+    - raf_okf::test_crate::claims::a_claim_marker_with_no_statement_directly_above_is_refused
+    - raf_okf::test_crate::claims::claims_in_a_document_carry_whole_text_lines
+    - raf_okf::test_crate::render::record_keys_out_of_order_render_in_table_order_and_validate
   examples: []
 depends: []
 ---
@@ -227,6 +252,45 @@ a line. The text of an index never parses as a Capability document: `Document::p
 fails on it at line 1. `Index::render` returns the text, and `Index::replace_spans`
 replaces a block and refuses an edit that leaves anything but an index.
 
+> [!PROPOSED change:okf-profile]
+> **Record types.** The profile has six types: the documents `Capability`, `Change`
+> and `Architecture`, which people write, and the records `Evidence`, `Assessment`
+> and `Coverage`, which state a result in their frontmatter. `DocType::ALL` lists
+> them, and a missing `type`, or one outside that list, is the only violation
+> reported for the document. `Profile::validate` returns a record as
+> `RafDocument::Evidence`, `RafDocument::Assessment` or `RafDocument::Coverage`,
+> holding an `EvidenceRecord`, an `AssessmentRecord` or a `CoverageRecord` with a
+> `RecordHeader`, since a record has no `title` and no `description`. The rules of
+> the records are those of the key table and value rules of the architecture page:
+>
+> - evidence and an assessment share the trace keys `subject`, `inputs`, `verdict`
+>   and `by`. The subject is parsed into an `EvidenceSubject` (`command` or
+>   `binding:<path>`) or a `SectionRef`, each input row into an `Input` with its
+>   `InputKind` and a digest of 64 lowercase hexadecimal digits, the verdict into
+>   an `EvidenceVerdict` or an `AssessmentVerdict`, and `by` into an `Actor`, which
+>   is `human` or `agent` and never the name of a person;
+> - evidence names the capabilities it covers in `for`, takes `symbol` inputs
+>   only, and states `command` exactly when its subject is `command`; `revision`
+>   is a full commit id; `values` and `limits` hold `Number`s, each limit names a
+>   value, and evidence that passes holds no value above its limit;
+> - an assessment holds the `section` input of its subject;
+> - the coverage record is `coverage:default` at `work/coverage/default.md`. Its
+>   `scope` holds distinct crate package names, and each exclusion an
+>   `ExclusionItem` below a crate root with a non-empty reason; a crate root is
+>   refused;
+> - a record body is empty. `DocType`, `InputKind`, `Actor`, `EvidenceVerdict`,
+>   `AssessmentVerdict`, `EvidenceSubject` and `ExclusionItem` are exhaustive
+>   enums, because the profile closes each set.
+>
+> **Claim markers.** `Body::claims` returns each claim marker outside fenced code,
+> code spans and PROPOSED blocks as a `Claim`: the evidence slugs it names, its
+> line, its marker span, the span of the paragraph or list item it supports, and
+> its section. A malformed claim marker, a claim marker with no statement directly
+> above it, and a `raf:` comment that is neither a generated marker nor a claim
+> marker are parse errors with their line, so a misspelt marker never reads as a
+> plain comment. A claim marker in a document that is not a capability is a
+> violation.
+
 ## Usage
 
 ```rust
@@ -345,3 +409,17 @@ would produce noise in the diff, and a clean check could not be told from a stal
   for canonical input, and `parse(render(d))` equals `d`.
 - An index fixture: a generated-block index is accepted and a hand-written one is
   rejected.
+
+> [!PROPOSED change:okf-profile]
+> - A record fixture per rule, each beside an accepted neighbour: a verdict outside
+>   the set of each type, a `by` that names a person, a malformed digest, a short
+>   commit id, an empty exclusion reason, a crate-root exclusion, a repeated scope
+>   entry, a record in another directory or under another file name, and a
+>   coverage record under another slug.
+> - Claim fixtures: a claim with one record and with several, after a paragraph
+>   and after a list item; markers inside a fence, a code span and a PROPOSED block
+>   are not read; an unknown `raf:` comment is refused; a `raf:generated:` comment
+>   keeps its own rules; each malformed and each unattached marker is refused with
+>   its line.
+> - The record fixtures render to their own bytes and validate, and a record with
+>   its keys out of order renders them in table order.

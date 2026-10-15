@@ -52,6 +52,47 @@
 //!     Err(violations) => panic!("{violations:?}"),
 //! }
 //! ```
+//!
+//! The profile has six types: the documents `Capability`, `Change` and
+//! `Architecture`, and the records `Evidence`, `Assessment` and `Coverage`
+//! ([`DocType::ALL`]). A record states a result in its frontmatter and has no
+//! title, description or body; evidence and an assessment share the trace keys
+//! `subject`, `inputs`, `verdict` and `by`. A capability names the evidence a
+//! statement rests on with a claim marker, which [`Body::claims`] reads:
+//!
+//! ```rust
+//! use raf_okf::{Body, Document, EvidenceVerdict, Profile, RafDocument};
+//!
+//! let record = "\
+//! ---
+//! type: Evidence
+//! id: evidence:memory-bound
+//! subject: command
+//! inputs:
+//!   - kind: symbol
+//!     name: raf_okf::Document::parse
+//!     digest: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+//! verdict: pass
+//! by: agent
+//! for: [cap:okf-profile]
+//! command: \"cargo bench parse\"
+//! values:
+//!   peak_mib: 41
+//! limits:
+//!   peak_mib: 64
+//! ---
+//! ";
+//! let document = Document::parse(record).expect("the text is a document");
+//! match Profile.validate(&document, "work/evidence/memory-bound.md") {
+//!     Ok(RafDocument::Evidence(evidence)) => assert_eq!(evidence.verdict, EvidenceVerdict::Pass),
+//!     Ok(other) => panic!("not evidence: {other:?}"),
+//!     Err(violations) => panic!("{violations:?}"),
+//! }
+//!
+//! let prose = "Parsing stays under 64 MiB.\n<!-- raf:claim evidence=memory-bound -->\n";
+//! let body = Body::parse(prose).expect("a body");
+//! assert_eq!(body.claims()[0].evidence(), ["memory-bound"]);
+//! ```
 
 mod body;
 mod document;
@@ -63,7 +104,7 @@ mod profile;
 mod span;
 
 pub use body::{
-    Body, FencedBlock, GeneratedBlock, Heading, Link, LinkError, LinkForm, LinkTarget,
+    Body, Claim, FencedBlock, GeneratedBlock, Heading, Link, LinkError, LinkForm, LinkTarget,
     ProposedBlock, ProseLine, Section, SplitLink, is_kebab,
 };
 pub use document::Document;
@@ -76,8 +117,10 @@ pub use frontmatter::value::{
 pub use index::{Index, is_capability_index};
 pub use limits::{MAX_BLOCK_NESTING, MAX_TEXT_BYTES, MAX_YAML_DEPTH};
 pub use profile::{
-    Affects, Architecture, Bindings, Capability, CapabilitySection, Change, ChangeItem,
-    ContractEffect, DocType, Header, KeySpec, Location, Outcome, Profile, RafDocument, Rule,
-    RuleTag, State, TimestampError, ValueKind, Violation, validate_timestamp,
+    Actor, Affects, Architecture, AssessmentRecord, AssessmentVerdict, Bindings, Capability,
+    CapabilitySection, Change, ChangeItem, ContractEffect, CoverageRecord, DocType, EvidenceRecord,
+    EvidenceSubject, EvidenceVerdict, Exclusion, ExclusionItem, Header, Input, InputKind, KeySpec,
+    Location, Measure, Number, Outcome, Profile, RafDocument, RecordHeader, Rule, RuleTag,
+    SectionRef, State, TimestampError, ValueKind, Violation, validate_timestamp,
 };
 pub use span::Span;

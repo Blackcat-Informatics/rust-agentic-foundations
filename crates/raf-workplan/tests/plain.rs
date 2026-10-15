@@ -271,3 +271,26 @@ fn an_index_in_a_document_directory_other_than_the_capability_index_is_read_as_m
         assert_eq!(findings.len(), 2, "{findings:#?}");
     }
 }
+
+#[test]
+fn a_claim_marker_outside_a_capability_is_reported_and_a_misspelt_marker_is_refused() {
+    let claim = "# Notes\n\nIt holds.\n<!-- raf:claim evidence=bound -->\n";
+    assert_one(
+        &with_file("docs/notes.md", claim),
+        "okf-claim-outside-capability",
+        "docs/notes.md",
+        4,
+    );
+    let unknown = "# Notes\n\nIt holds.\n<!-- raf:clam evidence=bound -->\n";
+    assert_one(
+        &with_file("docs/notes.md", unknown),
+        "okf-parse-unknown-marker",
+        "docs/notes.md",
+        4,
+    );
+    // The syntax written in a code span is no marker.
+    assert_clean(&with_file(
+        "docs/notes.md",
+        "# Notes\n\nWrite `<!-- raf:claim evidence=bound -->` after it.\n",
+    ));
+}

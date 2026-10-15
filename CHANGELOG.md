@@ -16,6 +16,22 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   writes documents back deterministically so a parsed document renders to its own
   bytes. Input is bounded in size and nesting, anchors and aliases are refused, and
   the crate reads no file.
+- **`raf-okf`:** the profile gains three record types beside the documents:
+  `Evidence` (`work/evidence`), `Assessment` (`work/assessments`) and `Coverage`
+  (the one record `work/coverage/default.md`). A record states a result in its
+  frontmatter, with no title, description or body. Evidence and an assessment
+  share the trace keys `subject`, `inputs` (rows of a kind, a name and a SHA-256
+  digest), `verdict` and `by` (`human` or `agent`, never a name); evidence adds
+  the capabilities it covers, the command, the commit, and measured values with
+  their limits, and the coverage record holds the crates in scope and the
+  exclusions with their reasons. `Profile::validate` returns `EvidenceRecord`,
+  `AssessmentRecord` and `CoverageRecord`, and reports one rule for each fault.
+  `Body::claims` reads the claim marker
+  `<!-- raf:claim evidence=<slug>[,<slug>...] -->` with the paragraph or list item
+  it supports; a malformed or unattached claim marker and any other `raf:` comment
+  that is not a generated marker are parse errors, and a claim outside a
+  capability is a violation. `DocType`, `RafDocument`, `Rule::ALL` and
+  `ErrorKind::ALL` grow, so an exhaustive match over them names the new variants.
 - **`raf-workplan`:** loads a repository's capability, change and architecture
   documents through a `raf-source` `Tree` into typed values with their bodies,
   validating each with `raf-okf`. `Workplan::load` never fails and never panics:
