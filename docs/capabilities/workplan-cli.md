@@ -74,7 +74,10 @@ what the documentation owes, and completes the work.
 
 The binary is `cargo-workplan`, a thin wrapper over `raf-workplan`, parsed with clap
 derive. It runs from any directory inside the workspace and finds the root from
-`cargo metadata`.
+`cargo metadata`. Cargo runs it for `cargo workplan <command>`, passing the argument
+vector `cargo-workplan workplan <command>`, and it runs directly as
+`cargo-workplan <command>`; both forms take the same arguments and give the same
+result.
 
 **Root discovery.** When `--root` is absent, the binary spawns exactly this command,
 directly with no shell, as an argv vector. The program is the one named by `$CARGO`
@@ -90,7 +93,8 @@ document is placed on the command line. Even so, cargo reads the workspace's
 `.cargo/config.toml` and the rustup proxy reads its `rust-toolchain.toml`, so the
 workspace is trusted build input, as it is for `cargo build` (see
 [the security policy](../../SECURITY.md)). The binary reads no JSON beyond the
-`workspace_root` field and bounds the output at 64 MiB.
+`workspace_root` field and bounds the output at 64 MiB. Root discovery runs before
+the processes of the command itself.
 
 | Command | Effect |
 | --- | --- |
@@ -107,26 +111,45 @@ workspace is trusted build input, as it is for `cargo build` (see
 `status` groups capabilities by state, lists for each `implementing` capability the
 bindings that are missing or do not resolve, as gaps, and names the open changes. `docs preview` applies the
 PROPOSED blocks of the named change to a copy of the text, removes the markers,
-and prints the result; it never writes a file.
-
-> [!PROPOSED change:workplan-cli]
-> Cargo runs the binary for `cargo workplan <command>`, passing the argument vector
-> `cargo-workplan workplan <command>`, and it runs directly as `cargo-workplan
-> <command>`; both forms take the same arguments. `docs sync` takes `--copyright
-> <text>` and `--licence <id>`, read only when `docs/capabilities/index.md` must be
-> created. `--format json` prints one JSON array for the run, one object for each
-> record with `kind` first; the kinds are documented in the crate documentation of
-> `cargo-workplan`. Under `-q` a command whose output holds no finding prints nothing
-> on stdout, and the exit code does not change.
+and prints the result; it never writes a file. `docs sync` takes
+`--copyright <text>` and `--licence <id>`, the two SPDX lines of a new capability
+index; they are read only when `docs/capabilities/index.md` must be created, and then
+a missing one is an error that names it. `change new` takes `--capability` once or
+more, `--affects cap:<name>#<section>` any number of times, and `--copyright` with
+`--licence`, as [reconcile](./workplan-reconcile.md) states, and prints the PROPOSED
+block to place and the state each listed capability needs. `change complete` prints
+`completed: removed <path>` and a `rewrote <path>` line for each file whose generated
+blocks the removal rewrote, or `refused:` with the count of each kind of failure and a
+line for each failure that no other line repeats.
 
 **Exit codes.** 0 means success: no violations, an empty obligation list, a completed
 change, or every binding passing. 1 means findings: violations, obligations, a refused
 completion or a failing binding. 2 means the tool could not run: a usage error, an
-unreadable file, a missing `git`, a slug that does not exist.
+unreadable file, a missing `git`, a slug that does not exist. A Git older than 2.30 is
+exit 2 for `change reconcile` and `change complete`, a change record that does not
+load (an `outcome` that is not one of the three values, for instance) is exit 2, and
+`status` exits 0 whatever gaps it lists, since a gap is not a violation.
 
 **Options.** `--root <dir>` sets the workspace root, `--format text|json` selects the
 output, and `-q` suppresses everything but findings. Findings are printed to stdout in
-a stable order and diagnostics to stderr.
+a stable order and diagnostics to stderr. Each option is accepted before or after the
+command. Under `-q` a command whose output holds no finding (`status`, `docs sync`,
+`docs preview`, `change new`, `change impact`, a completion, the passing bindings of
+`verify`) prints nothing on stdout and leaves out its notes on stderr, while the
+obligations, a refusal and the failing bindings are findings and stay; a failure of
+the tool is always written to stderr, and the exit code does not change.
+
+**JSON.** `--format json` prints one JSON array for the run on stdout: one object for
+each record the text form prints, in the same order, and `[]` when there is none.
+Every object begins with `kind`, the discriminator, followed by the fields of its kind,
+always present, with `null` for a field that does not apply. A finding of `check` has
+the kind of its rule, from `Finding::KINDS`, and the fields `path`, `section`, `line`,
+`key`, `message` and `fix`. The other kinds are `rewrote`, `state`, `open-changes`,
+`preview`, `new-change`, `impact`, `obligation`, `refused`, `refusal` (one for each
+failure of a refused completion, with its condition), `completed` and `binding`, and
+none of them equals the kind of a rule. Their fields are documented in the crate
+documentation of `cargo-workplan`. A run that could not run prints nothing on stdout,
+so stdout is either one complete array or empty.
 
 ## Usage
 
@@ -136,21 +159,34 @@ cargo workplan status
 cargo workplan change new incremental-parsing --capability cap:streaming-parser
 cargo workplan docs preview incremental-parsing
 cargo workplan change complete incremental-parsing
+cargo-workplan --format json change reconcile incremental-parsing
 ```
+
+`make docs-sync` in this repository runs `cargo-workplan docs sync` with the SPDX text
+of a new index.
 
 ## Examples
 
 ```text
 $ cargo workplan status
 delivered     2  alpha-store, beta-index
-implementing  1  streaming-parser (gap: bindings.tests is empty)
-designed      3  ...
+implementing  1  streaming-parser (gap: bindings.tests is empty; changes: incremental-parsing)
+designed      0
+considered    0
+open changes  1  incremental-parsing (cap:streaming-parser)
 $ echo $?
 0
 ```
 
-`--format json` prints one object per finding with `kind`, `path`, `section` and
-`message`, for scripts and agents.
+`--format json` prints one array for the run, with one object per finding, for
+scripts and agents:
+
+```text
+$ cargo workplan --format json check
+[
+{"kind":"link-broken","path":"docs/capabilities/alpha-store.md","section":null,"line":12,"key":null,"message":"broken link `./gone.md`","fix":"point the link at a tracked path, or remove it"}
+]
+```
 
 ## Constraints
 
@@ -158,12 +194,10 @@ $ echo $?
   `raf-workplan`, so the dev-dependency `Gate` and the CLI agree.
 - `check`, `status`, `docs preview`, `change impact` and `change reconcile` write
   nothing. `docs sync` writes only generated blocks. `change new` writes one file.
-  `change complete` deletes one file.
-
-> [!PROPOSED change:workplan-cli]
-> `change complete` deletes one file, and before it rewrites only the generated blocks
-> that the deletion stales. `verify` needs no Git beyond the listing of tracked paths,
-> and `status` exits 0 when it lists gaps.
+  `change complete` deletes one file, and before it rewrites only the generated
+  blocks that the deletion stales.
+- `verify` needs no Git beyond the listing of tracked paths and writes nothing in the
+  repository; `status` exits 0 when it lists gaps.
 - Every process the binary starts, directly or through `raf-workplan`, is spawned
   with no shell and an argv vector. Each spec that spawns lists its exact
   invocation, and runs `cargo` with `--frozen`. A value taken from a document
@@ -206,9 +240,14 @@ rather than kept by hand.
 - A `status` fixture with one capability in each state asserting the grouping and the
   gaps listed.
 - A `docs preview` fixture asserting that PROPOSED markers are absent from the output
-  and the proposed text is present.
+  and the text of the blocks is present.
 - An equivalence test: the violations from `check` equal those of
   `Gate::workspace(...).assert_clean()` on the same fixtures.
+- Both argument shapes, `cargo workplan <command>` through a real `cargo` dispatch
+  and `cargo-workplan <command>`, give the same output and exit code.
+- JSON fixtures: one array per run with a `kind` first in each object, the kinds that
+  are not rules never equal to a rule name, and stdout empty for a run that could not
+  run.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
