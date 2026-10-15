@@ -112,6 +112,31 @@ changes`, an empty `items` list and a `## Summary` stub. It fails when the slug 
 not kebab case, the file exists, or the capability does not exist. Repeating
 `--capability` lists several capabilities.
 
+> [!PROPOSED change:workplan-reconcile]
+> `change new` also lists a capability given twice once, and fails when the
+> capability's document did not load. Two further options shape the record:
+>
+> - `--affects cap:<name>#<section>`, repeatable, names a section the change affects.
+>   Each entry names a listed capability and one of the seven sections, or the command
+>   fails. Without the option the record affects `cap:<name>#contract` for each listed
+>   capability.
+> - `--copyright <text>` and `--licence <id>`, given together or not at all, open the
+>   frontmatter with the two SPDX comment lines, so a repository that checks the
+>   licence of every file accepts the record as written. A value that is empty or not
+>   one line of text is refused.
+>
+> `change new` writes exactly that one file, created exclusively and never over an
+> existing file or link, and reads it back through the loader; a record that has a
+> finding is removed again and reported. It then prints the PROPOSED block template,
+> `> [!PROPOSED change:<slug>]` and one placeholder line, for the author to place in a
+> section named in `affects`, and the state guidance for each listed capability: a
+> `delivered` or `designed` capability is set to `state: implementing` in the same
+> commit as the block; a `considered` or `implementing` capability needs no change of
+> state. When the new record makes a generated block stale, it also prints the two
+> steps that bring the blocks up to date: `git add work/changes/<slug>.md`, then
+> `docs sync`. Until the record is tracked, `check` reports the link to it as
+> `link-broken`.
+
 **`change impact <slug>`** reads the record and the graph and prints, without
 modifying anything: the capabilities in `changes`; the sections in `affects`; the
 bindings of those capabilities; the capabilities that depend on them and the sections
@@ -141,6 +166,12 @@ version of the file at the merge base of the current branch and the default bran
 found by running `git`. A section is touched when its heading span differs. A file
 that does not exist at the merge base counts as touched.
 
+> [!PROPOSED change:workplan-reconcile]
+> A section is touched when its authored text differs: its heading span, with the
+> content of every generated block left out on both sides and line endings read as LF,
+> so a regenerated table is not an edit, while marker lines, fenced code and PROPOSED
+> blocks are authored text.
+
 **Invocation.** `reconcile` starts `git` directly with no shell, with arguments as an
 argv vector, and takes no document text onto a command line. It first runs
 `git --version` and exits 2 when Git is older than 2.30, the first release
@@ -163,6 +194,16 @@ follows `<merge-base>:` inside one argument, so it cannot be read as an option.
 `<path>` is a repository-relative document path from the loaded document set. The
 output of `cat-file blob` is read up to the 1 MiB document bound, and a larger blob is
 an error.
+
+> [!PROPOSED change:workplan-reconcile]
+> After `git --version`, `reconcile` runs `git rev-parse --show-prefix` once, and
+> opening the repository lists the tracked paths (`git rev-parse --is-inside-work-tree`,
+> `git ls-files -z`) before the default branch is asked for. The last command reads
+> `<merge-base>:<prefix><path>`, where `<prefix>` is what `--show-prefix` printed, so a
+> workspace below the top of its repository reads the file it means; a prefix that does
+> not match the relative-source-path pattern is an error. The standard output and the
+> standard error of every other `git` command are each read up to 16 MiB, and a command
+> that writes more or runs past 300 seconds is killed and is an error.
 
 `example-failing` builds and runs bound examples with the `--frozen` argv forms, the
 patterns, the stdin and timeout rules, and the proof-that-it-ran rule of the

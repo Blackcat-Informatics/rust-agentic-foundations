@@ -120,9 +120,37 @@ A failing bound example also stands as an `example-failing` obligation, so condi
 1 and 5 both report it. Condition 5 is the execution and condition 1 the record of it;
 the refusal lists the fault under each.
 
+> [!PROPOSED change:workplan-complete-gate]
+> An `outcome` that is not one of the three values is refused by the profile, so the
+> record does not load and `complete` is an error (exit 2), not a refusal of condition
+> 2. Condition 3 counts the blocks of every capability document, including one that
+> failed to load.
+>
+> **Order.** The static conditions are judged first, every one of them and with no
+> early exit: conditions 1 to 4 (the obligation list without `example-failing`, which
+> needs a run) and the check of the repository once the record is removed. Only when
+> none fails are the bound tests and examples of condition 5 run, so a static failure
+> starts no `cargo` process. The repository is then opened again and the static
+> conditions are judged a second time, immediately before the writes; a failure, or a
+> different set of bindings to run, refuses.
+>
+> **The repository once the record is removed.** The state rules are judged on the
+> repository as it is once the record is removed and the generated blocks that the
+> removal stales are rewritten. `check` of that repository must report nothing, and
+> every finding there refuses completion. The author, never `complete`, sets
+> `state: delivered` before running it; a `delivered` capability beside its still-open
+> record is exactly what `complete` resolves.
+
 When any condition fails, the command prints the failures, changes nothing and exits
 with 1. When all hold, it deletes `work/changes/<slug>.md` and exits with 0. The
 deletion is the last step and the only write. Git holds the record's history.
+
+> [!PROPOSED change:workplan-complete-gate]
+> When all hold, it rewrites the generated blocks that removing the record stales (the
+> `Changed by` rows of the relationship tables), and then, as the very last step,
+> deletes `work/changes/<slug>.md`. Those are its only writes. If the rewrite fails the
+> record stays, and if the deletion fails after the rewrite the error names the files
+> already rewritten.
 
 **Obligations by effect.** All five conditions apply to every change. The effect only
 sets which obligations [reconcile](./workplan-reconcile.md) raises. A change with
@@ -169,6 +197,12 @@ reported as an unresolved binding and is not passed to `cargo`:
 - `<item-path>`: the `<name>` pattern, widened so that an impl item written by rustdoc as `Wrapper<T>::get` can be bound. Each `::`-separated segment is `[A-Za-z_][A-Za-z0-9_]*` followed by an optional generic argument list matching `<[A-Za-z0-9_,':&]*>`, with no whitespace, and the filter never begins with `-`;
 - the names in the list output, which the gate parses and never places on a command line, have the form `<relative-source-path> - <item-path> (line <n>)`, where `<relative-source-path>` matches `[A-Za-z0-9_][A-Za-z0-9_./-]*`.
 
+> [!PROPOSED change:workplan-complete-gate]
+> The relative source path has no empty, `.` or `..` segment, and each `\` in it is
+> read as `/` before the pattern is applied. Two further validators back the `git`
+> commands of reconcile: a full reference name and a commit id of 40 or 64 lowercase
+> hexadecimal digits.
+
 **Proof that the test ran (test bindings).** Exit status 0 from `cargo test` is not proof, because
 libtest reports success when a filter matches nothing. A test binding counts as passed
 only when the list pass shows exactly one `<name>: test` entry (an `#[ignore]`d test
@@ -199,6 +233,12 @@ refused.
 counts as failing. The example's own exit status decides pass or fail. The run
 executes the workspace's cargo configuration as `cargo test` would, so the workspace
 is trusted build input (see [the security policy](../../SECURITY.md)).
+
+> [!PROPOSED change:workplan-complete-gate]
+> The 300 seconds include the build that `cargo run` performs first. Each list pass and
+> run pass of `cargo test` may compile first and has a timeout of 1800 seconds. The
+> standard output and the standard error of every process are each read up to 16 MiB,
+> and a process that writes more is killed and the binding counts as failing.
 
 **`verify [<slug>]`** runs the bound tests and the bound examples of the named change's
 capabilities, or of every capability when no slug is given, and prints pass or fail for
@@ -251,6 +291,11 @@ cap:streaming-parser  examples  example-failing  examples/chunked.rs does not bu
 - The record is deleted and not archived. Recovering it is a Git operation.
 - `complete` never edits a capability document; the prose is written by a person or
   an agent before the command runs.
+
+> [!PROPOSED change:workplan-complete-gate]
+> `complete` never edits prose. It rewrites only the generated blocks that removing the
+> record stales. A bound test or example is workspace code and trusted build input, so
+> output from it that is shaped like a result is read as the run reports it.
 
 ## Explanation
 

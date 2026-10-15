@@ -109,6 +109,16 @@ bindings that are missing or do not resolve, as gaps, and names the open changes
 PROPOSED blocks of the named change to a copy of the text, removes the markers,
 and prints the result; it never writes a file.
 
+> [!PROPOSED change:workplan-cli]
+> Cargo runs the binary for `cargo workplan <command>`, passing the argument vector
+> `cargo-workplan workplan <command>`, and it runs directly as `cargo-workplan
+> <command>`; both forms take the same arguments. `docs sync` takes `--copyright
+> <text>` and `--licence <id>`, read only when `docs/capabilities/index.md` must be
+> created. `--format json` prints one JSON array for the run, one object for each
+> record with `kind` first; the kinds are documented in the crate documentation of
+> `cargo-workplan`. Under `-q` a command whose output holds no finding prints nothing
+> on stdout, and the exit code does not change.
+
 **Exit codes.** 0 means success: no violations, an empty obligation list, a completed
 change, or every binding passing. 1 means findings: violations, obligations, a refused
 completion or a failing binding. 2 means the tool could not run: a usage error, an
@@ -149,6 +159,11 @@ $ echo $?
 - `check`, `status`, `docs preview`, `change impact` and `change reconcile` write
   nothing. `docs sync` writes only generated blocks. `change new` writes one file.
   `change complete` deletes one file.
+
+> [!PROPOSED change:workplan-cli]
+> `change complete` deletes one file, and before it rewrites only the generated blocks
+> that the deletion stales. `verify` needs no Git beyond the listing of tracked paths,
+> and `status` exits 0 when it lists gaps.
 - Every process the binary starts, directly or through `raf-workplan`, is spawned
   with no shell and an argv vector. Each spec that spawns lists its exact
   invocation, and runs `cargo` with `--frozen`. A value taken from a document
