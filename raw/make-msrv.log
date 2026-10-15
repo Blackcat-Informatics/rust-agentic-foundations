@@ -1,0 +1,4 @@
+rust-validate 1.98.1 cargo check --workspace --all-targets --locked
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.36s
+rust-validate 1.98.1 cargo check --manifest-path './fuzz/Cargo.toml' --all-targets --locked
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.10s

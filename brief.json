@@ -1,0 +1,44 @@
+{
+  "issue": 8,
+  "repo": "Blackcat-Informatics/rust-agentic-foundations",
+  "forge": "github",
+  "title": "raf-workplan change lifecycle + cargo-workplan CLI",
+  "state": "OPEN",
+  "adrs": [],
+  "linked_issues": {
+    "7": "raf-workplan model: documents, check, graph, bindings, generated docs",
+    "1": "Scaffold workspace, project docs and branding, plus spec-first capability docs",
+    "2": "Shared crates: raf-okf + raf-source"
+  },
+  "link_relations": {
+    "7": "mentions",
+    "1": "2-hop",
+    "2": "2-hop"
+  },
+  "related": [
+    {
+      "number": 7,
+      "title": "raf-workplan model: documents, check, graph, bindings, generated docs",
+      "state": "CLOSED"
+    }
+  ],
+  "defect_classes": {
+    "none": 3
+  },
+  "prior_attempts": {
+    "commits": [],
+    "branches": [],
+    "prs": [],
+    "own_branch": "paudley/8-raf-workplan-change-lifecycle-cargo"
+  },
+  "coverage": [
+    "issue #8 + 0 comment(s) via github",
+    "link crawl: 3 issue(s) within 2 hop(s) of `#N` references",
+    "forge search on ['raf-workplan', 'change', 'lifecycle']: 1 other item(s)",
+    "GhpRsq-Defect-Class trailers: 1 distinct class(es) in the last 200 commits",
+    "prior attempts: 0 commit(s) citing #8 (second parents walked), 0 other branch(es) named for it",
+    "PRs citing #8: 0",
+    "requirement candidates: 17 line(s); 0 comment(s) matched no rule",
+    "referenced artifacts: 0 path(s) (0 on disk), 7 identifier(s), 1 workspace package(s), 0 URL(s)"
+  ]
+}

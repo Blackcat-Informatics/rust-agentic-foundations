@@ -1,0 +1,4 @@
+RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked
+ Documenting rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/8-raf-workplan-change-lifecycle-cargo)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.74s
+   Generated /opt/.cargo/target/8-raf-workplan-change-lifecycle-cargo-e47aaee8/doc/cargo_workplan/index.html and 4 other files

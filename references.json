@@ -1,0 +1,38 @@
+{
+  "paths": [],
+  "identifiers": [
+    {
+      "name": "reconcile",
+      "files": 30
+    },
+    {
+      "name": "complete",
+      "files": 38
+    },
+    {
+      "name": "delivered",
+      "files": 46
+    },
+    {
+      "name": "clap",
+      "files": 7
+    },
+    {
+      "name": "check",
+      "files": 130
+    },
+    {
+      "name": "status",
+      "files": 36
+    },
+    {
+      "name": "verify",
+      "files": 21
+    }
+  ],
+  "packages": [
+    "raf-workplan"
+  ],
+  "urls": [],
+  "truncated": []
+}

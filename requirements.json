@@ -1,0 +1,192 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "line": 7,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `change new <slug> --capability cap:x` scaffolds the change record and a PROPOSED block",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B2",
+      "line": 8,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `change impact <slug>` lists the affected capabilities, sections, bindings and dependents",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B3",
+      "line": 9,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `change reconcile <slug>` produces the obligation list:",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B4",
+      "line": 10,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "- unresolved proposals;",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B5",
+      "line": 11,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "- items without an outcome;",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B6",
+      "line": 12,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "- missing or broken bindings;",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B7",
+      "line": 13,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "- affected sections not touched since the merge base (via the git CLI);",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B8",
+      "line": 14,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "- stale generated blocks;",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B9",
+      "line": 15,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "- future-tense or proposal text in a `delivered` capability.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B10",
+      "line": 18,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `change complete <slug>` requires zero obligations, every item resolved, no PROPOSED blocks for the change, `docs sync` clean, and bound tests passing (`cargo test` filtered to the bound tests). It then deletes the change file. A `contract_effect: none` change records that and carries lighter obligations.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B11",
+      "line": 19,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `verify [<slug>]` runs bound tests and examples and reports pass/fail (no persisted evidence in M1)",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B12",
+      "line": 20,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `docs preview <slug>` renders the capability as it will read once reconciled",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B13",
+      "line": 21,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `cargo-workplan` binary (`clap` derive) exposing `check`, `status`, `docs sync|preview`, `change new|impact|reconcile|complete`, `verify`; exit codes 0/1/2",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B14",
+      "line": 24,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Each obligation kind has a fixture that triggers it, and `complete` refuses in each case",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B15",
+      "line": 25,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] A happy-path fixture completes and the change file is gone",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B16",
+      "line": 26,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] CLI integration tests",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B17",
+      "line": 27,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Capability docs reconciled",
+      "source": "body",
+      "author": "",
+      "date": ""
+    }
+  ],
+  "silent_comments": []
+}

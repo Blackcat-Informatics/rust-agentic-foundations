@@ -1,0 +1,4 @@
+error: toolchain 'nightly-x86_64-unknown-linux-gnu' is not installed
+help: run `rustup toolchain install` to install it
+make cross-check: target 'x86_64-apple-darwin' is not installed; run 'rustup target add x86_64-apple-darwin'
+make: *** [Makefile:105: cross-check] Error 1
