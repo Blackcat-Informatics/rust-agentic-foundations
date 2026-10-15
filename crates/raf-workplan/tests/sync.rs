@@ -661,6 +661,35 @@ fn the_docs_sync_example_asks_for_the_spdx_flags_only_when_the_index_must_be_cre
     }
 }
 
+#[test]
+fn the_docs_sync_example_opens_the_repository_as_the_gate_does() {
+    // A root that holds no capability document is not a repository to sync:
+    // the example exits 2 with the gate's message and writes nothing.
+    let empty = Scratch::new("example-empty");
+    fs::write(empty.path().join("note.txt"), "x\n").expect("write");
+    let refused = docs_sync(&[
+        empty.path().to_str().expect("a UTF-8 path"),
+        "--copyright",
+        "x",
+        "--licence",
+        "y",
+    ]);
+    assert_eq!(refused.status.code(), Some(2));
+    assert!(
+        text(&refused.stderr).contains("docs/capabilities"),
+        "{}",
+        text(&refused.stderr)
+    );
+    assert_eq!(text(&refused.stdout), "");
+    assert_eq!(fs::read_dir(empty.path()).expect("lists").count(), 1);
+
+    // A root that does not exist is the gate's "cannot open" message.
+    let gone = empty.path().join("gone");
+    let refused = docs_sync(&[gone.to_str().expect("a UTF-8 path")]);
+    assert_eq!(refused.status.code(), Some(2));
+    assert!(text(&refused.stderr).contains("docs_sync:"));
+}
+
 #[cfg(unix)]
 #[test]
 fn write_changes_no_target_when_a_later_file_cannot_be_written() {

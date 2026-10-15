@@ -96,10 +96,373 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   unambiguously (with file and line, including a quote that goes on into a fenced
   code block, which ends a block in the document model), and a reconciled text
   that does not read back. No finding kind is added.
+- **`raf-workplan` processes:** the `exec` module is the one place a `cargo` or
+  `git` process is started. An `Invocation` is a `Program` and a list of `Arg`s: fixed
+  text, or a value built through one of the patterns of the completion gate by hand
+  (`<name>`; `<pkg>`, `<bin>`, `<test>` and `<example>`; `<item-path>`, which allows
+  `Wrapper<T>::get`; the relative source path of the list output, which refuses empty,
+  `.` and `..` segments), or a full Git reference name or commit id. A value that
+  fails its pattern is a `PatternError` and never becomes an argument, so document
+  text reaches a command line only after its pattern. The constructors of
+  `Invocation` are the rows of the argv tables and root discovery. `Programs` names
+  `cargo` (from `$CARGO`, else `cargo`), `git` and the working directory, and each can
+  be replaced. `SystemRunner` starts the process directly with no shell, null standard
+  input and the argv vector as given, in the working directory, with `LC_ALL=C` when
+  its output is parsed and no other change to the environment. It captures standard
+  output and standard error, each up to a bound (16 MiB, or 64 MiB for `cargo
+  metadata`), and kills the process, and on Unix its process group, when the bound is
+  passed or the wall-clock limit is (1800 s for a build or test run, 300 s for an
+  example's run and for a query). Each case is a typed `ExecError` and none is a skip.
+  `FakeRunner` answers invocations from a script in process, on every platform, applies
+  the same output bound and time limit and records every call. The general
+  constructor of `Invocation` and the constructor of `Literal`, the type of fixed
+  argument text, are private to the crate, so only the table-row constructors build an
+  invocation. The group is signalled directly with `rustix` (the `process` feature, the
+  version `raf-source` already uses, Unix only) and not through a `kill` program on
+  `PATH`; a kill that cannot be sent is an `ExecError::Io`. `rustix` is the one
+  dependency `raf-workplan` has beyond the RAF crates and `proc-macro2`.
+- **`raf-workplan` git, root discovery and one load path:** the `git` module asks
+  `git` its questions through an `exec` runner, in the C locale and in the runner's
+  directory. `require_version` reads `git --version` (vendor suffixes such as
+  `2.45.1.windows.1` and `2.39.5 (Apple Git-154)` are tolerated), accepts 2.30 and
+  newer and refuses 2.29 with a typed `GitError`. `tracked_paths` is the listing the
+  `Gate` made inline, moved onto the runner with the same results: `None` only when
+  `git` answers that the directory is not inside a work tree, and every other failure
+  an error; it now also runs under the runner's limits (16 MiB per stream, 300 s), so a
+  listing larger than that is an error. `default_branch_ref` reads the full reference name
+  `git symbolic-ref refs/remotes/origin/HEAD` prints and, when it is unset, fails with
+  an error that names `git remote set-head origin --auto`; `resolve_commit`,
+  `merge_base` and `blob_at` follow the argv rows of the reconcile contract, and
+  `blob_at` reads up to 1 MiB (the document bound), returns `None` for a path absent
+  at the merge base, and fails on a larger file instead of cutting it. `exec` gains
+  the two rows the tracked-path listing needs, `git rev-parse --is-inside-work-tree`
+  and `git ls-files -z`. `root::discover` runs `cargo metadata --format-version 1
+  --no-deps --frozen` through the runner (64 MiB bound) and reads only the
+  top-level `workspace_root` string: a small scanner validates the whole text as JSON
+  without a JSON dependency, and a text that is not JSON, nests deeper than 128
+  levels, has the member twice or not at all, or holds a non-string or a relative path
+  is an error; a `workspace_root` key nested deeper is not the field. Cargo does not
+  run the `build.rustc`, `build.rustc-wrapper` or `build.rustc-workspace-wrapper`
+  program of the workspace's configuration for this command, which a fixture shows.
+  `Gate::open` returns an `Opened` repository (the disk tree, the source `Workspace`
+  and the tracked paths); `Opened::workplan` loads the documents as they are on disk at
+  the call, because a `Workplan` borrows the workspace and cannot be kept beside it.
+  `Gate::programs` names the programs the gate starts, `try_check`, `check` and
+  `assert_clean` run on `open` and are unchanged, and the Git version gate is not part
+  of the gate. `Workplan::change` is the shared lookup of a change record by slug
+  (`ChangeLookupError::Unknown` or `NotLoaded`), and `Workplan::preview` is built on
+  it with the same errors. The `docs_sync` example opens the repository through
+  `Gate::open`: a root that is inside a git work tree but holds no `.git` entry now
+  lists its tracked paths, and a root that holds source but no capability document is
+  exit 2 with the gate's message instead of a sync with nothing to write.
+- **`raf-workplan` bound executions:** the `bound` module runs the tests,
+  documentation tests and examples a capability binds, through an `exec` runner only.
+  An `Executor` over the source index plans a `Binding` before any process starts: a
+  path that does not resolve, an item that is not a `#[test]` function, a target with
+  `harness = false` or `required-features`, a test in a benchmark, example or
+  build-script target, and a value that fails its pattern are each a typed `Refusal`
+  that names the binding and the target, and nothing reaches `cargo`. The libtest name
+  is the path within the crate (`documents::x`, `bindings::tests::x`), and the target is
+  pinned as `--lib`, `--bin=<bin>` or `--test=<test>` under its Cargo name, hyphens
+  included. A test passes only when the list pass shows exactly one `<name>: test`
+  entry and the run pass reports `1 passed; 0 failed; 0 ignored` in one `test result:`
+  line; zero entries, two entries, `0 passed` and an `#[ignore]`d test (listed, then
+  reported as ignored) are refused. A documentation test is selected by the item part
+  of the package's list (impl items as rustdoc writes them, `Wrapper<T>::get`), run
+  with the bare item path as a substring filter, and passes only when every selected
+  entry has the whole line `test <name> ... ok`; a `no_run` (`- compile ... ok`) or
+  `compile_fail` (`- compile fail ... ok`) test is refused with a request for a
+  runnable one, and a failing sibling the substring also matches fails the exit status
+  and so the binding. An example is run with `cargo run` and standard input null, and
+  its exit status decides. Each pass of a test or documentation test has the 1800 s
+  limit and the run of an example the 300 s limit, which also covers the build `cargo
+  run` does first (`Executor::with_limits` replaces them); a process killed at its limit
+  or for its output is a failed binding that reports how long it ran, and a process that
+  cannot be started is an `ExecError`, not a verdict. The result is an `Evidence` value
+  per binding (the invocations that ran, the counts of the proof, the verdict as
+  `BoundOutcome::{Passed, Failed, Unresolved}` and the wall time) with a `Display`;
+  nothing is written. The fixtures run the real `cargo` against crates generated into a
+  scratch directory on every platform.
+- **`raf-workplan` change lifecycle, first steps:** the `lifecycle` module opens and
+  reads a change. `Workplan::new_change` takes a `NewChangeRequest` (a slug, one or
+  more `cap:<name>` capabilities, any number of `cap:<name>#<section>` `affects`
+  entries) and writes `work/changes/<slug>.md`, the only file it writes, with the
+  `raf-okf` writer: the id `change:<slug>`, the capabilities in `changes`,
+  `contract_effect: changes`, an empty `items` list, a title and description for the
+  author to replace and a non-empty `## Summary`. The slug must be a lowercase
+  kebab-case slug (`raf_okf::is_kebab`, now public, the one pattern of the profile),
+  so `Upper`, `-rf`, `--since=x`, an empty slug, a path separator and `..` are refused
+  before anything is written; each capability must be a loaded capability; every
+  `affects` entry must name a listed capability and one of the seven sections; with
+  none given the record affects the `contract` section of each listed capability. A
+  capability or `affects` entry given twice is listed once. The file is created with
+  `create_new`, so an existing file or link is a typed `Exists` error and is never
+  overwritten, `work/changes` is created when it is missing and refused when a file or
+  link stands in its place, and the record is read back through the loader: one that
+  has a finding (a slug that reads as a tracker reference) is removed again and
+  reported as `Invalid`. `NewChangeError` is `#[non_exhaustive]` and tells a bad slug,
+  an existing file, an unknown capability, a capability that did not load, a bad
+  `affects` entry and a write failure apart. The `NewChange` result carries the path,
+  the PROPOSED block template (`> [!PROPOSED change:<slug>]` and a placeholder line),
+  one `CapabilityGuidance` per listed capability (`delivered` or `designed`: set
+  `state: implementing` in the same commit, since a PROPOSED block is a finding in
+  both; `considered` and `implementing`: nothing) and whether the new record makes a
+  generated block stale (the relationship tables name the changes that list a
+  capability), and its `Display` is the text a command prints. `Workplan::impact`
+  returns one `Impact` value for a change slug: the capabilities in `changes`, the
+  sections in `affects`, the bindings of those capabilities with what the source index
+  made of each, the capabilities that depend on them and the sections that link to the
+  affected sections, each list sorted and without repeats, with a `Display`; it writes
+  nothing, and an unknown slug and a record that did not load are told apart as
+  `ChangeLookupError`. `SectionId` now has a `Display` (`cap:<slug>#<section>`) and
+  `BindingKind::key` names the list of a binding, replacing two private copies.
+- **`raf-workplan` obligations:** `Workplan::reconcile` returns the `Reconciled` list of
+  a change, what the documentation still owes it, from the loaded documents alone. An
+  `Obligation` has a closed `ObligationKind` (`unresolved-proposal`,
+  `item-without-outcome`, `binding-missing`, `section-untouched`, `example-failing`,
+  `generated-stale`, `tense-mismatch`, with `ALL`, `name` and a check that `ALL` lists
+  every kind), a `Subject` (a capability, the change record or the capability index), a
+  `Part` (a section, an item counted from 1, or the document), a `Place` (file and
+  line) and a typed `Needed` evidence whose `Display` is the evidence column of the
+  reconcile contract followed by the one thing it is about, such as `(bindings.tests is
+  empty)`. Each is derived from a value the model holds: the PROPOSED blocks of the
+  graph for the change (the line of the marker) and the blocks of capability documents
+  that did not validate, which the load keeps (a block stays owed wherever it stands),
+  the items of the record (a `moved`
+  outcome that names no change record, or the record itself, is owed too), the roadmap
+  gaps of each listed `implementing` or `delivered` capability (a `delivered` one owes
+  `code` and `tests` only) with the bindings that resolve to an item their list does
+  not take, and the stale and missing generated blocks of a sync in the listed
+  capabilities and the index. A `delivered` capability whose only fault is an empty
+  `code` or `tests` list is refused by the profile and does not load; reconcile reads
+  the empty list as the binding it owes. Any other listed capability that did not load
+  is `ReconcileError::CapabilityNotLoaded`, with the findings of its document, and an
+  unknown change and a record that did not load are `ReconcileError::Change`.
+  `tense-mismatch` reads the prose of a listed `implementing` or `delivered` capability
+  against `obligation::tense::PHRASES` (`will`, `is planned`, `are planned`,
+  `proposed`, `to be implemented`, `in the future`, `going to`, `not yet`) outside
+  fenced code, code spans, HTML comments, PROPOSED blocks, generated blocks and link
+  destinations; words match whole (`goodwill`, `William` and `willing` do not), a phrase
+  may wrap over one line break, the marker name `PROPOSED` in capitals is not wording (`WILL` is), and a
+  delivered capability with a PROPOSED block owes the same kind. The scan is linear in
+  the size of the text. The list is sorted by subject, section (the document, then the seven sections in
+  document order, then items), kind, line and then
+  evidence text and has no repeats, so two blocks in one section print in document
+  order and equal documents print equal text, whatever the load order; `Display` prints
+  one line each (`cap:x  contract  unresolved-proposal  line 31: ...`) and nothing for
+  an empty list. `contract_effect: none` suppresses `section-untouched` for the
+  `contract`, `usage` and `examples` sections and nothing else (`obligation::suppressed`).
+  `section-untouched` and `example-failing` need `git` and `cargo`; they are in the
+  closed set, with their evidence, and `reconcile` does not raise them from the
+  documents.
+- **`raf-workplan` reconcile with a process, and verify:** `Lifecycle::open` is the
+  entry point of the commands that start a process. It runs `git --version` before any
+  other process and refuses a Git older than 2.30 (the Git version gate belongs to this
+  entry point and not to `Gate::open`, and `change new`, `change impact` and `verify`
+  do not go through it), then opens the repository; `Lifecycle::open_with` takes a
+  `Gate` and any `Runner`. `Lifecycle::reconcile` returns the whole obligation list: the
+  static kinds of `Workplan::reconcile` and the two that need a process. A section in
+  `affects` is `section-untouched` when its authored text is the text it has at the
+  merge base of `HEAD` and the default branch of `origin`: `git::default_merge_base`
+  runs the three questions in order, and `blob_at` now takes only a `git::MergeBase`, a
+  value that only `merge_base` makes, so a commit id from anywhere else (which `git`
+  would report as an absent file) cannot be asked about; two `compile_fail` doctests pin
+  that. The comparison is `lifecycle::section_digest`: the heading and the content of the
+  section with the content of each generated block taken out on both sides, in LF line
+  endings, so a regenerated block is not an edit, and the marker lines, fences and
+  PROPOSED blocks are. A file or a section that is absent at the merge base counts as
+  touched, the default branch itself reports every affected section, a merge-base file that
+  exists and is not UTF-8 or does not parse as a body is an error, a blob over 1 MiB is an
+  error, and a repository with no default branch is an error that names `git remote
+  set-head origin --auto`. Nothing is asked of `git` when `contract_effect: none` leaves
+  out every affected section. `git` names a file at a commit from the top of the work
+  tree, so `Lifecycle::open` also runs `git rev-parse --show-prefix` (`git::show_prefix`,
+  a `Prefix`) after the version gate and reads each document at `<prefix><path>`: a
+  workspace in a subdirectory of a repository, however deep, compares correctly, a
+  prefix outside the source-path pattern (a space, a non-ASCII letter) is an error and not
+  a guess, a linked work tree is its own top, and a root outside a git work tree is an
+  error. `example-failing` runs the example targets and documentation tests that the
+  listed capabilities bind and that resolve through the executor; one that fails to build
+  or run, runs nothing (a documented item with no documentation test, an item that is not
+  an example), is killed at its limit or writes too much is owed, with a
+  `RunProblem` in its evidence (`Needed::PassingRun` gains the field); test bindings are
+  not run by `reconcile`. `lifecycle::verify` (also `Lifecycle::verify`) runs the bound
+  tests and examples of a change or of every capability and returns a `VerifyReport` of
+  per-binding `Evidence`: `Display` is one line a binding (`pass` or `fail`, the
+  capability, the list, the path, and the counts or the reason), `passed()` is true only
+  when every binding passed, a binding that does not resolve or whose value fails its
+  pattern is a `fail` that never reaches `cargo`, and nothing is written. An unknown
+  slug, a record that did not load, a listed capability that did not load, and (for every
+  capability) any capability document that did not load are errors, as is a process that
+  cannot be started. The tests use real `git` repositories (the merge-base matrix, a
+  linked work tree, a local branch named like the remote one, a default branch named like
+  an option), stub `git` programs that record their argv, and real `cargo` fixtures.
+- **`raf-workplan` complete:** `Lifecycle::complete` is the transition from an open
+  change to a delivered one, and returns a `Completion`: `Completed { removed, rewritten }`
+  or `Refused { failures }`. The order is fixed. First the static conditions are judged,
+  every one and with no early exit: the obligation list of `reconcile` (every kind except
+  `example-failing`), the outcome of each item (a `moved` outcome names a record that
+  exists), the PROPOSED blocks of the change in any capability document whether it loads
+  or not, the generated blocks (`docs sync` would write nothing, from the one analysis
+  `check` and `sync` use), and `check` of the repository as it will be once the writes
+  are done, which is loaded through a tree that does not show the record and shows the
+  rewritten generated blocks (`Opened::workplan_after`). The state rules are therefore
+  judged there and not before: a `delivered` capability beside its still-open record is
+  what `complete` resolves, and a capability that is not `delivered` and is listed by no
+  other open record is the `no-open-record` finding, which says to move the state to
+  `delivered`. The author sets the state; `complete` never edits prose. Only when no static
+  condition failed are the bound tests and examples of the listed capabilities run through
+  the executor, so a static failure spends no process on `cargo`; a failing example is an
+  `example-failing` obligation and a failure of condition 5, a failing test is a separate
+  failure, and a capability with empty `bindings.tests` and `bindings.examples` satisfies
+  condition 5 only while it is `designed` or `considered`. Then the repository is opened
+  again with the same `Gate` and the static conditions are judged again immediately before
+  the writes, because the documents and the source can change while `cargo` runs; a
+  failure, or a different set of bindings to run, refuses and names the change first. The
+  writes are the rewrite of the generated blocks the removal stales (the `Changed by` rows
+  of the relationship tables), through `Workplan::write`, which stages every file and
+  then renames, and then, as the very last step, the removal of `work/changes/<slug>.md`;
+  nothing else is written. A rewrite that fails leaves the record in place
+  (`LifecycleError::Rewrite`), and a removal that fails after the rewrite names the
+  files already rewritten (`LifecycleError::Remove`), so a removed record is never found
+  beside stale blocks. A `Failure` is one of: an obligation (condition 1), an item
+  without outcome (2), a PROPOSED block (3), a generated block or file `docs sync` would
+  write or refuse (4), a bound test or a bound example that did not pass (5), a finding
+  once the record is removed, or a change during the run; `Failure::condition` and
+  `Failure::obligation_kind` say which. `Display` prints `refused:` and a count for each
+  kind of failure (`refused: 2 obligations, 1 item without outcome, 1 stale generated
+  block`), then one line for each failure that no other line repeats, and `completed:
+  removed work/changes/<slug>.md` with a `rewrote <path>` line for each rewritten file.
+  An unknown slug, a record or a listed capability that did not load, a process that
+  cannot be started and a failing write are errors and not refusals. The tests use real
+  `git` repositories and real `cargo` fixtures for the refusal of each kind of
+  obligation (the record and the tree byte-identical afterwards, and the repair
+  completing), each condition, the happy path (the gate clean afterwards and the
+  tree's only changes the rewrite and the removal), and scripted runners for the order
+  of the processes, hostile bindings, the repository changing during the run and the
+  order of the writes.
+- **`cargo-workplan`:** the cargo subcommand of the workplan, a new workspace member
+  (package and binary `cargo-workplan`) with two dependencies of its own, `clap`
+  (derive; the colour feature is off) and `serde_json`, both under the licences
+  `deny.toml` allows with no exception and no skip. It runs as `cargo workplan
+  <command>` (cargo passes the argument vector `cargo-workplan workplan <command>`) and
+  as `cargo-workplan <command>`; both forms take the same arguments and give the
+  same result. The commands are `check` (the findings of `Gate::try_check`, one line
+  each in the library's order), `status` (the roadmap of `Workplan::status`: a row for
+  each state in the order delivered, implementing, designed, considered, with the gaps
+  of each implementing capability and the open changes that list it, and a row for the
+  open changes; a gap is not a violation, so it exits 0), `docs sync` (the generated
+  blocks of `Workplan::sync` through `Workplan::write`, `rewrote <path>` for each
+  file; `--copyright <text>` and `--licence <id>` are read only when
+  `docs/capabilities/index.md` has to be created, and a missing one is exit 2 that names
+  the flag) and `docs preview <slug>` (each capability the change lists as it reads
+  once reconciled, under a `==> <path> <==` line; it never writes). The options are
+  `--root <dir>`, `--format text|json` and `-q`, each accepted before or after the
+  command. Without `--root` the root is `raf_workplan::root::discover`, exactly
+  `cargo metadata --format-version 1 --no-deps --frozen`, run in the current
+  directory with the `cargo` named by `$CARGO` or else on `PATH`. The exit codes are 0
+  (no finding), 1 (findings) and 2 (the tool could not run: a usage error, a
+  directory that is not a repository, a `git` or `cargo` that cannot run, an unknown or
+  unloaded change, a sync that refuses a file); standard output holds the findings in a
+  stable order and standard error the diagnostics, and `-q` prints nothing but
+  findings (so `status`, `docs sync` and `docs preview` print nothing under it, and a
+  failure is still written to standard error). A slug is checked against the slug
+  pattern of the profile when the arguments are parsed, so a slug that starts with `-`
+  is a usage error, exit 2, before any process starts. `--format json` prints one JSON
+  array for the run: one object for each printed record, `kind` first, then the fields
+  of its kind (a rule of the document model has `path`, `section`, `line`, `key`,
+  `message` and `fix`; the others are `rewrote`, `state`, `open-changes` and `preview`),
+  documented in the crate documentation and pinned by tests; standard output is empty
+  when the tool could not run. The binary holds no rule of its own: each command is a
+  call into `raf-workplan` and a rendering of what it returns, and a test shows that
+  `check` prints the findings of `Gate::workspace(..).check()` and exits 0 exactly
+  when `assert_clean` does not panic. The tests run the built binary in both shapes
+  of the argument vector against repositories written to a scratch directory: every
+  command with exit 0, 1 and 2, `-q`, the JSON schema, the tree byte-identical after
+  `check`, `status` and `docs preview`, root discovery from a subdirectory and
+  `--root` overriding it, and with stub programs the exact `cargo metadata` argv
+  from `$CARGO` and from `PATH`, no process before a slug that starts with `-`
+  is refused, a missing `git`, and a `build.rustc` program that discovery does not run.
+  The macOS and Windows CI jobs run these tests too. The change lifecycle commands
+  and `verify` are described in the next entry.
+- **`cargo-workplan` change commands:** `change new <slug> --capability cap:<name>
+  [--capability ...] [--affects cap:<name>#<section> ...] [--copyright <text> --licence
+  <id>]`, `change impact <slug>`, `change reconcile <slug>`, `change complete <slug>`
+  and `verify [<slug>]`, each a call into `raf-workplan` (`Workplan::new_change`,
+  `Workplan::impact`, `Lifecycle::reconcile`, `Lifecycle::complete`,
+  `lifecycle::verify`) and a rendering of what it returns. `change new` writes exactly
+  one file and prints the library's text: the path, the PROPOSED block to place, the
+  state each listed capability needs and, when the record stales a generated block, the
+  note to stage the record (`git add work/changes/<slug>.md`, since the table that names it links to a file git must track) and then run `docs sync`; `--capability` and `--affects` repeat, and `--copyright` and
+  `--licence` are given together or not at all (a usage error otherwise). `change
+  impact` prints the capabilities, sections, bindings, dependants and linking sections.
+  `change reconcile` prints one line for each obligation and exits 1 exactly when there
+  is one; it writes no file in the repository (a bound example builds into the cargo
+  target directory). `change complete` prints `refused:` with the counts and the lines
+  of the failures, exit 1, or `completed: removed <path>` with a `rewrote <path>` line
+  for each file rewritten, exit 0. `verify` prints `pass` or `fail` for each bound
+  binding and exits 1 when one fails; a run with nothing to run exits 0 and says so on
+  standard error. Exit 2 is the tool that could not run: a usage error, a slug that
+  starts with `-` or is not a slug (refused when the arguments are parsed, before any
+  process starts), a slug with no record (and, for `change new`, one that has a
+  record), a record that does not load (an `outcome` that is not one), a `git` that is
+  missing or older than 2.30 (`change reconcile` and `change complete` ask `git
+  --version` before any other process of theirs), a repository with no default branch.
+  `--format json` prints, besides the earlier kinds, `new-change`, `impact`,
+  `obligation`, `refused`, `refusal` (one for each failure, with the condition it is a
+  fault of, its number in the Contract and whether another line repeats it), `completed`
+  and `binding` objects, documented in the crate documentation and pinned by tests. The
+  tests run the built binary against a fixture repository for each command with exit 0,
+  1 and 2, in both shapes of the argument vector and through a real `cargo workplan`
+  dispatch to a `cargo-workplan` found on `PATH`, with `-q`, the JSON objects, the tree
+  byte-identical after `change impact` and `change reconcile`, a slug that starts with
+  `-` for every command that takes one, a stub `git` of version 2.29 (only `git
+  --version` runs), the printed template placed in a capability of each of the four
+  states (after following the printed guidance: a clean `check` and one
+  `unresolved-proposal` line), and the whole path from `change new` to a completed
+  change.
+- **`raf-workplan` for the command line:** `NewChangeRequest` takes an optional
+  `copyright` and `licence`; when both are set the record opens with the two SPDX
+  comment lines of the frontmatter, in the form the change records of this repository
+  carry them, so a record the tool created passes `make reuse`; one without the other
+  is `NewChangeError::SpdxUnset` naming the missing field, and a value that is empty or
+  not one line (a control character, U+2028 or U+2029 included) is `NewChangeError::SpdxInvalid`. The state guidance for a `delivered`
+  capability now names both findings it avoids (`state-delivered-proposal` and
+  `state-delivered-open-record`) and the one for a `designed` capability names
+  `state-designed-proposal`. `NewChange::sync_needed` is now true whenever the record
+  changes what a sync writes, so it is no longer silent when the target file was
+  already stale. The command line reads values through accessors instead of decomposing
+  them: `Finding::section`, `line` and `key`; `Workplan::open_changes` (the loaded
+  records sorted by slug, as `OpenChange`) and `RoadmapEntry::open_change_slugs`;
+  `StateAdvice::name`; `Condition::name`, `Failure::name`, `Failure::is_repeated_in`
+  and `Completion::headline`; `VerifyReport::lines`; and `BoundOutcome::name` and
+  `reason`. All are additive.
 - **Workplan capabilities delivered:** the workplan document model and the
   generated documentation blocks are `delivered`, bound to the `raf-workplan` code,
   tests and examples that realise them, with their verification matrices,
   relationship tables and the catalogue generated by `make docs-sync`.
+- **Workplan change lifecycle capabilities delivered:** the reconcile step, the
+  completion gate and the command line are `delivered`, bound to the `raf-workplan`
+  and `cargo-workplan` code, tests and documentation tests that realise them, with
+  their verification matrices and relationship tables. Their documents state the
+  built contract: the options of `change new`, the `git` commands of `reconcile` with
+  `git rev-parse --show-prefix`, the order of `complete` (static conditions, the bound
+  runs, the second judgement, the rewrite of the generated blocks and the removal of
+  the record), the time and output bounds of each process, the JSON encoding and the
+  two forms of the command line.
+- **`raf-workplan` documentation tests of an impl in another file:** rustdoc names a
+  method by the module of its impl block, so a doc-test binding to a method whose
+  impl block sits in another file than its type (`Workplan::sync`, whose impl is in
+  `src/sync.rs` while the type is in `src/model.rs`) is listed and run under the
+  module of that file, `sync::Workplan<'_>::sync`. Before, the list pass selected
+  nothing and the binding was refused. An impl in an inline module of another file,
+  or under another spelling of its self type, is still refused and never run wrongly.
+  The module documentation of `bound` states that the proof is not a defence against
+  the code it runs: output shaped like a result from a bound test, which is trusted
+  workspace code, is read as the run reports it.
+- **`make docs-sync`** runs `cargo-workplan docs sync` with the SPDX text of a new
+  capability index, in place of the `docs_sync` example of `raf-workplan`; the
+  example stays.
 - **`raf-okf` rule and error tags:** `Rule::ALL` and `ErrorKind::ALL` list the
   payload-free `RuleTag` and `ErrorTag` of every variant, with `Rule::kind`,
   `ErrorKind::tag` and a kebab-case `name`, so a caller can name and map every rule

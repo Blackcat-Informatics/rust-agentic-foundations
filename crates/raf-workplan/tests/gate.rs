@@ -13,12 +13,24 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use raf_source::RelPath;
+use raf_source::{RelPath, Tree as _};
+use raf_workplan::exec::Programs;
 use raf_workplan::{Finding, Gate, GateError};
 use support::Repo;
 use support::synced::{ALPHA, BETA, DELTA, GROW, OVERVIEW, base, synced, unsynced};
+
+/// A stub program is written and started while other tests start `git`; a
+/// forked child briefly holding the descriptor that wrote the file makes the
+/// start fail with "text file busy". Every test holds this lock from its first
+/// process to its last.
+static SPAWN: Mutex<()> = Mutex::new(());
+
+fn serial() -> MutexGuard<'static, ()> {
+    SPAWN.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 /// A scratch directory under the system temporary directory, named by process
 /// id, a nanosecond timestamp and a counter, and removed when dropped.
@@ -130,6 +142,7 @@ fn with_overview_link(link: &str) -> Repo {
 
 #[test]
 fn a_clean_repository_passes() {
+    let _lock = serial();
     let scratch = Scratch::new();
     scratch.repository(&base());
     // The usage of the documentation: the directory, nothing else.
@@ -145,6 +158,7 @@ fn a_clean_repository_passes() {
 
 #[test]
 fn a_broken_repository_panics_listing_every_finding() {
+    let _lock = serial();
     let scratch = Scratch::new();
     let mut repo = base();
     // Three faults in three files: a key the profile does not allow, a link
@@ -193,6 +207,7 @@ fn a_broken_repository_panics_listing_every_finding() {
 
 #[test]
 fn a_missing_capabilities_directory_is_an_error() {
+    let _lock = serial();
     let scratch = Scratch::new();
     scratch.repository(&Repo::new());
     scratch.put(OVERVIEW, &base()[OVERVIEW]);
@@ -213,6 +228,7 @@ fn a_missing_capabilities_directory_is_an_error() {
 
 #[test]
 fn a_capabilities_directory_without_a_capability_document_is_an_error() {
+    let _lock = serial();
     let scratch = Scratch::new();
     scratch.repository(&Repo::new());
     // The index and a page in a subdirectory are not capability documents.
@@ -236,6 +252,7 @@ fn a_capabilities_directory_without_a_capability_document_is_an_error() {
 
 #[test]
 fn a_directory_that_does_not_exist_is_an_error() {
+    let _lock = serial();
     let scratch = Scratch::new();
     let gone = scratch.path().join("gone");
     let error = Gate::workspace(&gone)
@@ -247,6 +264,7 @@ fn a_directory_that_does_not_exist_is_an_error() {
 
 #[test]
 fn a_source_workspace_that_does_not_load_is_an_error() {
+    let _lock = serial();
     let scratch = Scratch::new();
     scratch.repository(&base());
     let error = scratch
@@ -262,6 +280,7 @@ fn a_source_workspace_that_does_not_load_is_an_error() {
 
 #[test]
 fn a_missing_changes_directory_is_the_empty_set_of_changes() {
+    let _lock = serial();
     let scratch = Scratch::new();
     // Only the delivered capability: no change record is needed or present.
     let mut only_gamma = unsynced();
@@ -287,6 +306,7 @@ fn a_missing_changes_directory_is_the_empty_set_of_changes() {
 #[cfg(unix)]
 #[test]
 fn a_link_to_a_symlink_the_tracked_set_names_is_link_symlink() {
+    let _lock = serial();
     let scratch = Scratch::new();
     scratch.repository(&with_overview_link("[alias](../../notes/alias.md)"));
     scratch.put("notes/real.md", "# Real\n");
@@ -329,6 +349,7 @@ fn a_link_to_a_symlink_the_tracked_set_names_is_link_symlink() {
 
 #[test]
 fn a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken() {
+    let _lock = serial();
     let scratch = Scratch::new();
     scratch.repository(&with_overview_link("[note](../../notes/untracked.md)"));
     scratch.put("notes/untracked.md", "# Untracked\n");
@@ -380,6 +401,7 @@ fn git(dir: &Path, args: &[&str]) {
 
 #[test]
 fn inside_a_git_checkout_the_tracked_paths_come_from_the_index() {
+    let _lock = serial();
     let scratch = Scratch::new();
     scratch.repository(&with_overview_link("[note](../../notes/untracked.md)"));
     scratch.put("notes/untracked.md", "# Untracked\n");
@@ -408,6 +430,7 @@ fn inside_a_git_checkout_the_tracked_paths_come_from_the_index() {
 
 #[test]
 fn a_work_tree_whose_index_cannot_be_listed_is_an_error_and_not_a_walk() {
+    let _lock = serial();
     let scratch = Scratch::new();
     scratch.repository(&base());
     git(scratch.path(), &["init", "-q"]);
@@ -428,6 +451,7 @@ const CHILD_DIR: &str = "RAF_WORKPLAN_GATE_CHILD_DIR";
 
 #[test]
 fn a_git_dir_that_names_no_repository_is_an_error_and_not_a_walk() {
+    let _lock = serial();
     let scratch = Scratch::new();
     scratch.repository(&base());
     // `set_var` is unsafe, so the environment is given to a run of this very
@@ -455,6 +479,7 @@ fn a_git_dir_that_names_no_repository_is_an_error_and_not_a_walk() {
 /// directory, so an ordinary run passes it.
 #[test]
 fn the_gate_under_a_git_dir_that_names_nothing() {
+    let _lock = serial();
     let Some(dir) = std::env::var_os(CHILD_DIR) else {
         return;
     };
@@ -464,4 +489,174 @@ fn the_gate_under_a_git_dir_that_names_nothing() {
     assert!(matches!(&error, GateError::Tracked { .. }), "{error:?}");
     assert!(error.to_string().contains("GIT_DIR"), "{error}");
     println!("the gate refused: {error}");
+}
+
+// --- Gate::open and Gate::programs -----------------------------------------
+
+#[test]
+fn open_gives_the_tree_the_workspace_the_tracked_paths_and_the_documents() {
+    let _lock = serial();
+    let scratch = Scratch::new();
+    scratch.repository(&base());
+    // Not a git checkout: every file stands for a tracked path.
+    let opened = scratch
+        .gate()
+        .open()
+        .expect("the gate opens the repository");
+    assert_eq!(opened.dir(), scratch.path());
+    assert!(opened.tracked().is_none());
+    assert_eq!(opened.workspace().packages().len(), 1);
+    let plan = opened.workplan();
+    let documents = base()
+        .keys()
+        .filter(|path| path.starts_with("docs/capabilities/") && !path.ends_with("/index.md"))
+        .count();
+    assert_eq!(plan.capabilities().len(), documents);
+    // The verdict of `try_check` is the verdict of the opened documents.
+    assert_eq!(
+        plan.check(),
+        scratch.gate().try_check().expect("a verdict"),
+        "try_check runs open"
+    );
+    assert_eq!(plan.check(), Vec::<Finding>::new());
+    // The tree is the directory's.
+    assert!(
+        opened
+            .tree()
+            .list(&rel("docs/capabilities"))
+            .expect("a listing")
+            .iter()
+            .any(|entry| entry.name == "alpha.md")
+    );
+
+    // In a checkout the tracked paths are the index, and the links are judged
+    // against them.
+    git(scratch.path(), &["init", "-q"]);
+    git(
+        scratch.path(),
+        &[
+            "add",
+            "--",
+            "docs",
+            "work",
+            "Cargo.toml",
+            "src",
+            "tests",
+            "examples",
+        ],
+    );
+    let opened = scratch.gate().open().expect("the gate opens the checkout");
+    let tracked = opened.tracked().expect("the index lists the paths");
+    assert!(tracked.contains(&rel("docs/capabilities/alpha.md")));
+    assert!(!tracked.contains(&rel("target/none")));
+    assert_eq!(opened.workplan().check(), Vec::<Finding>::new());
+}
+
+#[test]
+fn open_is_the_load_of_try_check_and_refuses_what_it_refuses() {
+    let _lock = serial();
+    let scratch = Scratch::new();
+    scratch.repository(&Repo::new());
+    let missing = scratch
+        .gate()
+        .open()
+        .expect_err("no capabilities directory");
+    assert!(
+        matches!(&missing, GateError::NoCapabilities { reason, .. } if reason == "does not exist"),
+        "{missing:?}"
+    );
+    let gone = Gate::workspace(scratch.path().join("gone"))
+        .open()
+        .expect_err("no such directory");
+    assert!(matches!(gone, GateError::Root { .. }), "{gone:?}");
+
+    let loaded = Scratch::new();
+    loaded.repository(&base());
+    let error = loaded
+        .gate()
+        .source_roots(&["nowhere"])
+        .open()
+        .expect_err("no such root");
+    assert!(matches!(error, GateError::Source { .. }), "{error:?}");
+}
+
+#[test]
+fn each_call_of_workplan_reads_the_documents_as_they_are_on_disk_then() {
+    let _lock = serial();
+    let scratch = Scratch::new();
+    scratch.repository(&base());
+    let opened = scratch.gate().open().expect("opened");
+    assert_eq!(opened.workplan().check(), Vec::<Finding>::new());
+    scratch.put(
+        OVERVIEW,
+        &format!("{}\nSee [gone](nowhere.md).\n", base()[OVERVIEW]),
+    );
+    let after = opened.workplan().check();
+    assert_eq!(kinds(&after), ["link-broken"], "{after:#?}");
+}
+
+#[test]
+fn the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process() {
+    let _lock = serial();
+    let scratch = Scratch::new();
+    scratch.repository(&base());
+    // A git that cannot be started would be an error if it were asked.
+    let programs = Programs::new(scratch.path()).with_git(scratch.path().join("no-such-git"));
+    let gate = scratch
+        .gate()
+        .programs(programs.clone())
+        .tracked_paths(files_below(scratch.path()));
+    let opened = gate.open().expect("no process is started");
+    assert!(opened.tracked().is_some());
+    assert_eq!(opened.workplan().check(), Vec::<Finding>::new());
+
+    // The neighbour: without the list, the same programs are asked and fail.
+    let error = scratch
+        .gate()
+        .programs(programs)
+        .open()
+        .expect_err("git cannot be started");
+    assert!(matches!(&error, GateError::Tracked { .. }), "{error:?}");
+    assert!(error.to_string().contains("cannot start"), "{error}");
+    assert!(error.to_string().contains("tracked_paths"), "{error}");
+}
+
+#[cfg(unix)]
+#[test]
+fn the_programs_of_a_gate_are_started_in_its_directory() {
+    use std::io::Write as _;
+    use std::os::unix::fs::OpenOptionsExt as _;
+
+    let _lock = serial();
+    let scratch = Scratch::new();
+    scratch.repository(&base());
+    let elsewhere = Scratch::new();
+    // A stub `git` that records where it ran and says it is not in a work
+    // tree.
+    let stub = elsewhere.path().join("git");
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o755)
+        .open(&stub)
+        .expect("a stub file");
+    write!(
+        file,
+        "#!/bin/sh\npwd -P > '{}'\necho false\n",
+        elsewhere.path().join("cwd").display()
+    )
+    .expect("a stub body");
+    drop(file);
+    // The programs name another directory; the gate's own replaces it.
+    let programs = Programs::new(elsewhere.path()).with_git(&stub);
+    let opened = scratch
+        .gate()
+        .programs(programs)
+        .open()
+        .expect("the stub answers");
+    // `false` is the answer of a directory that is no work tree: the fallback.
+    assert!(opened.tracked().is_none());
+    let ran_in = fs::read_to_string(elsewhere.path().join("cwd")).expect("the stub ran");
+    let expected = fs::canonicalize(scratch.path()).expect("a canonical directory");
+    assert_eq!(ran_in.trim_end(), expected.to_str().expect("a UTF-8 path"));
 }

@@ -222,6 +222,78 @@ fn open_changes_are_the_changes_that_list_the_capability() {
 }
 
 #[test]
+fn open_change_slugs_are_the_open_changes_without_their_prefix() {
+    let tree = fixture();
+    let workspace = demo_workspace();
+    let roadmap = Workplan::load(&tree, &workspace).status();
+    let slugs = |slug: &str| -> Vec<String> {
+        roadmap
+            .get(slug)
+            .expect("present")
+            .open_change_slugs()
+            .into_iter()
+            .map(ToString::to_string)
+            .collect()
+    };
+    assert_eq!(slugs("mid"), ["also-mid", "grow-mid"]);
+    assert_eq!(slugs("alpha"), ["add-alpha"]);
+    assert_eq!(slugs("zeta"), Vec::<String>::new());
+}
+
+#[test]
+fn the_open_changes_are_sorted_by_slug_whatever_the_order_of_the_files() {
+    let tree = fixture();
+    let workspace = demo_workspace();
+    let plan = Workplan::load(&tree, &workspace);
+    let open = plan.open_changes();
+    let shown: Vec<(&str, &str, &str, Vec<&str>)> = open
+        .iter()
+        .map(|change| {
+            (
+                change.slug(),
+                change.id(),
+                change.path(),
+                change.capabilities().iter().map(String::as_str).collect(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            (
+                "add-alpha",
+                "change:add-alpha",
+                "work/changes/add-alpha.md",
+                vec!["cap:alpha"]
+            ),
+            (
+                "also-mid",
+                "change:also-mid",
+                "work/changes/also-mid.md",
+                vec!["cap:mid"]
+            ),
+            (
+                "grow-mid",
+                "change:grow-mid",
+                "work/changes/grow-mid.md",
+                // Sorted, not in the order the record lists them.
+                vec!["cap:beta", "cap:mid"]
+            ),
+        ]
+    );
+    // A record that does not load is not an open change.
+    let broken: MemoryTree = files()
+        .into_iter()
+        .chain([(
+            "work/changes/broken.md".to_string(),
+            "---\ntype: Change\n".to_string(),
+        )])
+        .collect();
+    let plan = Workplan::load(&broken, &workspace);
+    assert_eq!(plan.open_changes().len(), 3);
+}
+
+#[test]
 fn an_entry_carries_what_the_catalogue_row_needs() {
     let tree = fixture();
     let workspace = demo_workspace();

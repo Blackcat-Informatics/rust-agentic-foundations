@@ -47,16 +47,18 @@ built.
 
 ### Crates
 
-`raf-okf`, `raf-source` and `raf-workplan` are workspace members. `raf-okf` and
+`raf-okf`, `raf-source`, `raf-workplan` and `cargo-workplan` are workspace members. `raf-okf` and
 `raf-source` are **delivered**: the frontmatter reader, the deterministic writer,
 the body model and the profile validation of `raf-okf`, and the `Tree` trait of
 `raf-source` with its disk and memory backends and path containment, its bounded
 parse, package and target discovery, its module tree and its symbol and use-alias
 index. `raf-workplan` delivers the document model (loading, the graph, binding
-resolution, the check rules and the `Gate`) and the generated blocks with their
-sync and preview; its reconcile step and completion gate are **designed**. Every
-other crate below is **designed** and joins the workspace members list when it is
-built. The capability documents in `docs/capabilities/` are the specification.
+resolution, the check rules and the `Gate`), the generated blocks with their sync
+and preview, and the change lifecycle (`change new`, `impact`, `reconcile`,
+`complete` and `verify`). `cargo-workplan` is **delivered** with all of its
+commands: `check`, `status`, `docs sync|preview`,
+`change new|impact|reconcile|complete` and `verify`. Every other crate below is
+**designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
 |---|---|---|
@@ -64,8 +66,8 @@ built. The capability documents in `docs/capabilities/` are the specification.
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | delivered |
 | `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | designed |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
-| `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | model and generated sections delivered; obligations and completion gate designed |
-| `cargo-workplan` | Thin command-line wrapper over `raf-workplan` | designed |
+| `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |
+| `cargo-workplan` | Thin command-line wrapper over `raf-workplan` | delivered |
 
 `raf-source` is shared on purpose: the census needs its symbol index to resolve
 ledger homes, and the workplan needs the same index to resolve code and test
@@ -75,7 +77,7 @@ bindings.
 
 | Path | Contents |
 |---|---|
-| `crates/` | The workspace member crates (`raf-okf`, `raf-source` and `raf-workplan`; each other crate joins `members` when it is built) |
+| `crates/` | The workspace member crates (`raf-okf`, `raf-source`, `raf-workplan` and `cargo-workplan`; each other crate joins `members` when it is built) |
 | `docs/capabilities/` | One permanent capability document per capability |
 | `docs/architecture/` | Shared current decisions (normal form, OKF profile) |
 | `work/changes/` | In-flight change records |
@@ -240,9 +242,10 @@ this repository's own policy, such as the capability inventory.
 - **Completion** is a gate. A change is complete only when no obligation remains,
   every item has an outcome, no proposed block is left, generated sections are in
   sync, and the bound tests and examples pass. The change record is then
-  **deleted**; Git keeps the history. The command that enforces this is designed
-  ([workplan completion gate](docs/capabilities/workplan-complete-gate.md)); the
-  conditions are checked by hand before a record is deleted.
+  **deleted**; Git keeps the history. The command that enforces this is
+  `cargo workplan change complete`
+  ([workplan completion gate](docs/capabilities/workplan-complete-gate.md)), and
+  the records of this repository are completed with it.
 - **Identifiers are slugs**, never numbers. Documents never refer to a tracker.
 
 ---

@@ -137,6 +137,18 @@ jobs:
           toolchain: nightly # keep in sync with rust-toolchain.toml
       - name: Test raf-source on macOS
         run: cargo test -p raf-source --locked
+      # The executors of bound tests, doc tests and examples run the real cargo
+      # against crates generated into a scratch directory, and their in-process
+      # matrix runs through the fake runner; both are part of the claim that they
+      # work on every platform.
+      - name: Test the bound executors against the fake runner on macOS
+        run: "cargo test -p raf-workplan --locked --lib bound::"
+      - name: Test the bound executors against the real cargo on macOS
+        run: cargo test -p raf-workplan --locked --test bound
+      # The binary is run as built, in both shapes of its argument vector, against
+      # repositories written to a scratch directory and the real cargo and git.
+      - name: Test the cargo-workplan binary on macOS
+        run: cargo test -p cargo-workplan --locked
 
   test-windows:
     runs-on: windows-latest
@@ -156,6 +168,19 @@ jobs:
           toolchain: nightly # keep in sync with rust-toolchain.toml
       - name: Test raf-source on Windows
         run: cargo test -p raf-source --locked
+      # The executors of bound tests, doc tests and examples run the real cargo
+      # against crates generated into a scratch directory, and their in-process
+      # matrix runs through the fake runner; both are part of the claim that they
+      # work on every platform.
+      - name: Test the bound executors against the fake runner on Windows
+        run: "cargo test -p raf-workplan --locked --lib bound::"
+      - name: Test the bound executors against the real cargo on Windows
+        run: cargo test -p raf-workplan --locked --test bound
+      # The binary is run as built, in both shapes of its argument vector, against
+      # repositories written to a scratch directory and the real cargo and git.
+      # The tests that use shell stubs are Unix-only and compile to nothing here.
+      - name: Test the cargo-workplan binary on Windows
+        run: cargo test -p cargo-workplan --locked
 
   doc:
     runs-on: ubuntu-latest

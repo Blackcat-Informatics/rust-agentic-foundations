@@ -102,8 +102,24 @@ fn looks_like_proposed(trimmed: &str) -> bool {
         .starts_with("[!proposed")
 }
 
-/// A lowercase kebab-case slug.
-pub(crate) fn is_kebab(slug: &str) -> bool {
+/// Whether `slug` is a lowercase kebab-case slug: one or more parts of ASCII
+/// lowercase letters and digits, joined by single `-`, with no `-` at either
+/// end. It is the one slug pattern of the profile: the slug of a document id
+/// and of a PROPOSED marker, and the kind of a generated marker.
+///
+/// ```rust
+/// use raf_okf::is_kebab;
+///
+/// assert!(is_kebab("incremental-parsing"));
+/// assert!(is_kebab("2fa"));
+/// assert!(!is_kebab("-rf"));
+/// assert!(!is_kebab("Upper"));
+/// assert!(!is_kebab("a--b"));
+/// assert!(!is_kebab("../x"));
+/// assert!(!is_kebab(""));
+/// ```
+#[must_use]
+pub fn is_kebab(slug: &str) -> bool {
     !slug.is_empty()
         && slug.split('-').all(|part| {
             !part.is_empty()

@@ -141,15 +141,32 @@ guarantees are these, and no wider:
   documents or the source index and a stated pattern, and then in one of three
   forms: after `--`; inside a single `<rev>:<path>` or `-L<start>,<end>:<path>`
   argument; or, for a test name that the test harness reads, as a validated filter
-  after `-- --exact --`.
+  after `-- --exact --`. The `cargo-workplan` binary starts no process of its own:
+  root discovery (`cargo metadata --format-version 1 --no-deps --frozen`) and the
+  `git` calls of the gate are made by `raf-workplan`, and a slug argument is checked
+  against the slug pattern when the arguments are parsed, so one that starts with `-`
+  is a usage error before any process starts. The change commands add two kinds of
+  process, both started by `raf-workplan`: `git` (the default branch, the merge base
+  and the file at the merge base, for `change reconcile` and `change complete`, which
+  ask `git --version` before anything else, refuse a Git older than 2.30, and then
+  ask `git rev-parse --show-prefix` once to read each file at the workspace's place
+  below the top of its work tree) and
+  `cargo` (the bound tests and examples, for `verify`, `change complete` and the
+  examples of `change reconcile`). A bound value that does not resolve, or does not
+  match its stated pattern, never reaches `cargo`; a process runs with its input
+  closed, its output bounded and a wall-clock limit. `change new` writes one file,
+  `change complete` the generated blocks it stales and then removes the one record,
+  and `change impact`, `change reconcile` and `verify` write nothing in the
+  repository (a build goes to the cargo target directory).
 
 Each spec states its own bounds and exact invocations.
 
 ## Security surface
 
 The most relevant security surface for this project is **reading untrusted
-files**. The following surfaces apply; `raf-okf` and `raf-source` implement the
-parsing and path-traversal surfaces, and the rest apply as the other crates are built:
+files**. The following surfaces apply; `raf-okf`, `raf-source` and `raf-workplan`
+implement the parsing and path-traversal surfaces, `raf-workplan` and `cargo-workplan`
+the subprocess surface, and the rest apply as the other crates are built:
 
 - **Rust source parsing** — `syn` parsing of untrusted `.rs` files; resource
   exhaustion from pathological nesting, very large files, or deeply recursive

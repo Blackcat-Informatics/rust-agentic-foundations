@@ -64,7 +64,7 @@ mod span;
 
 pub use body::{
     Body, FencedBlock, GeneratedBlock, Heading, Link, LinkError, LinkForm, LinkTarget,
-    ProposedBlock, ProseLine, Section, SplitLink,
+    ProposedBlock, ProseLine, Section, SplitLink, is_kebab,
 };
 pub use document::Document;
 pub use error::{ConstructError, ErrorKind, ErrorTag, ParseError, SpliceError};

@@ -99,7 +99,7 @@ fn run(
             continue;
         };
         let at = Location::Key("bindings".to_string());
-        let list = list_name(binding.kind());
+        let list = binding.kind().key();
         let who = format!(
             "{} {list} binding `{}`",
             binding.capability(),
@@ -131,14 +131,6 @@ fn run(
     (findings, macros.lexes)
 }
 
-fn list_name(kind: BindingKind) -> &'static str {
-    match kind {
-        BindingKind::Code => "code",
-        BindingKind::Test => "tests",
-        BindingKind::Example => "examples",
-    }
-}
-
 fn role_fix(kind: BindingKind) -> &'static str {
     match kind {
         BindingKind::Code => {
@@ -157,7 +149,11 @@ fn role_fix(kind: BindingKind) -> &'static str {
 /// when every one does. One failing site fails the binding: a binding is a
 /// claim about the symbol, and a symbol defined twice (`cfg` twins) is judged
 /// on both definitions.
-fn wrong_role(source: &Workspace, binding: &Binding, sites: &[ItemId]) -> Option<&'static str> {
+pub(crate) fn wrong_role(
+    source: &Workspace,
+    binding: &Binding,
+    sites: &[ItemId],
+) -> Option<&'static str> {
     let mut items = sites.iter().filter_map(|id| source.item(*id));
     match binding.kind() {
         BindingKind::Code if items.any(|item| !source.is_shipping(item)) => {

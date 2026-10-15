@@ -22,8 +22,8 @@ pub(crate) use blocks::remove_code_spans;
 use blocks::{is_blank, remove_comments};
 pub use heading::{Heading, Section};
 pub use link::{Link, LinkError, LinkForm, LinkTarget, SplitLink};
-pub(crate) use marker::{GENERATED_END, GENERATED_OPEN, is_kebab};
-pub use marker::{GeneratedBlock, ProposedBlock};
+pub(crate) use marker::{GENERATED_END, GENERATED_OPEN};
+pub use marker::{GeneratedBlock, ProposedBlock, is_kebab};
 pub use prose::ProseLine;
 
 /// A fenced code block.

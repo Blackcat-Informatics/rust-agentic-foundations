@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use raf_source::{DiskTree, MemoryTree, Workspace};
-use raf_workplan::{LinkContext, Preview, PreviewError, Workplan};
+use raf_workplan::{ChangeLookupError, LinkContext, Preview, PreviewError, Workplan};
 use support::{Repo, demo_files, demo_workspace};
 
 const ALPHA: &str = "docs/capabilities/alpha.md";
@@ -500,4 +500,85 @@ fn adjacent_blocks_of_two_changes_are_told_apart() {
         previews[2].text,
         format!("{head}\nMine.\n> [!PROPOSED change:other]\n> Theirs.\n")
     );
+}
+
+// --- the change lookup preview is built on ----------------------------------
+
+fn lookup(repo: &Repo, slug: &str) -> Result<String, ChangeLookupError> {
+    let tree: MemoryTree = repo.iter().collect();
+    let source = demo_workspace();
+    let plan = Workplan::load(&tree, &source);
+    plan.change(slug)
+        .map(|record| record.value().header.id.clone())
+}
+
+#[test]
+fn a_change_is_found_by_its_slug_with_or_without_the_prefix() {
+    let repo = base();
+    assert_eq!(lookup(&repo, "grow").ok().as_deref(), Some("change:grow"));
+    assert_eq!(
+        lookup(&repo, "change:grow").ok().as_deref(),
+        Some("change:grow")
+    );
+    assert_eq!(lookup(&repo, "other").ok().as_deref(), Some("change:other"));
+}
+
+#[test]
+fn an_unknown_slug_is_told_apart_from_a_record_that_did_not_load() {
+    let repo = base();
+    // Unknown: the slug as asked for, without a prefix, and what is open.
+    for asked in ["nope", "change:nope"] {
+        match lookup(&repo, asked) {
+            Err(ChangeLookupError::Unknown { slug, known }) => {
+                assert_eq!(slug, "nope");
+                assert_eq!(known, ["grow", "other"]);
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+    assert!(matches!(
+        lookup(&Repo::new(), "grow"),
+        Err(ChangeLookupError::Unknown { known, .. }) if known.is_empty()
+    ));
+
+    // Known but not loaded: the findings about the record.
+    let mut broken = base();
+    let text = broken[GROW].replacen("contract_effect: changes", "contract_effect: bogus", 1);
+    broken.insert(GROW.to_string(), text);
+    match lookup(&broken, "grow") {
+        Err(ChangeLookupError::NotLoaded { slug, findings }) => {
+            assert_eq!(slug, "grow");
+            assert!(
+                findings.iter().any(|f| f.kind.starts_with("okf-")),
+                "{findings:?}"
+            );
+            assert!(findings.iter().all(|f| f.file == GROW));
+        }
+        other => panic!("{other:?}"),
+    }
+    // The neighbours still load, and are named when a slug is unknown.
+    assert_eq!(
+        lookup(&broken, "other").ok().as_deref(),
+        Some("change:other")
+    );
+    match lookup(&broken, "nope") {
+        Err(ChangeLookupError::Unknown { known, .. }) => assert_eq!(known, ["other"]),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn the_lookup_and_the_preview_say_the_same_thing_about_a_slug() {
+    let mut broken = base();
+    let text = broken[GROW].replacen("contract_effect: changes", "contract_effect: bogus", 1);
+    broken.insert(GROW.to_string(), text);
+    for (repo, slug) in [
+        (base(), "nope"),
+        (broken.clone(), "grow"),
+        (Repo::new(), "grow"),
+    ] {
+        let from_lookup = lookup(&repo, slug).expect_err(slug).to_string();
+        let from_preview = error(&repo, slug).to_string();
+        assert_eq!(from_lookup, from_preview, "{slug}");
+    }
 }

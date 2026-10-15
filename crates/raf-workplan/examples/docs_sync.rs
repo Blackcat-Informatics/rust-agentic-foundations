@@ -23,18 +23,20 @@
 //! argument, a document that does not load, a file sync refuses, a write that
 //! fails), with a message on standard error.
 //!
-//! The documents are read through a disk tree rooted at `ROOT`, and the source
-//! index is built from the workspace at `ROOT`. Links are judged against the
-//! tracked paths from `git ls-files` when `ROOT` holds a `.git` entry. When it
-//! does not, every file of the tree stands for a tracked path; that only
-//! changes the link findings of `check`, which sync does not read.
+//! The repository is opened with `Gate::open`, the load the gate runs: the
+//! documents are read through a disk tree rooted at `ROOT`, and the source index
+//! is built from the workspace at `ROOT`. Links are judged against the tracked
+//! paths from `git ls-files` when `ROOT` is inside a git work tree. When `git`
+//! answers that it is not, every file of the tree stands for a tracked path; that
+//! only changes the link findings of `check`, which sync does not read. A `ROOT`
+//! with no `docs/capabilities` directory, or none that holds a capability
+//! document, is exit 2 with the gate's message.
 
 use std::error::Error;
-use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode};
+use std::path::PathBuf;
+use std::process::ExitCode;
 
-use raf_source::{DiskTree, RelPath, Workspace};
-use raf_workplan::{LinkContext, SyncError, SyncOptions, Workplan};
+use raf_workplan::{Gate, SyncError, SyncOptions, Workplan};
 
 /// The command line.
 struct Args {
@@ -78,45 +80,10 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Args, String> {
     })
 }
 
-/// The tracked paths of the checkout at `root`, as `git ls-files` lists them.
-fn tracked(root: &Path) -> Result<Vec<RelPath>, Box<dyn Error>> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["ls-files", "-z"])
-        .output()
-        .map_err(|error| format!("cannot run `git ls-files` in {}: {error}", root.display()))?;
-    if !output.status.success() {
-        return Err(format!(
-            "`git ls-files` failed in {}: {}",
-            root.display(),
-            String::from_utf8_lossy(&output.stderr).trim()
-        )
-        .into());
-    }
-    let mut paths = Vec::new();
-    for name in output
-        .stdout
-        .split(|byte| *byte == 0)
-        .filter(|name| !name.is_empty())
-    {
-        let text = std::str::from_utf8(name)
-            .map_err(|error| format!("a tracked path is not UTF-8: {error}"))?;
-        paths.push(RelPath::new(text).map_err(|error| format!("`{text}` is not a path: {error}"))?);
-    }
-    Ok(paths)
-}
-
 fn run() -> Result<ExitCode, Box<dyn Error>> {
     let args = parse(std::env::args().skip(1))?;
-    let tree = DiskTree::new(&args.root)?;
-    let source = Workspace::load(&tree, &["."])?;
-    let context = if args.root.join(".git").exists() {
-        LinkContext::new(&tree, tracked(&args.root)?)
-    } else {
-        LinkContext::of_tree(&tree)
-    };
-    let plan = Workplan::load_with(&tree, &source, &context);
+    let opened = Gate::workspace(&args.root).open()?;
+    let plan = opened.workplan();
     let report = plan.sync(&args.options).map_err(|error| match error {
         SyncError::SpdxUnset { field } => format!(
             "docs/capabilities/index.md must be created and --{field} is not given; {USAGE}"

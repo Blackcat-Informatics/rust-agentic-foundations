@@ -18,9 +18,12 @@ to fix the problem.
 
 ## Crates
 
-`raf-okf` and `raf-source` are **delivered**. `raf-workplan` delivers its document
-model and generated documentation blocks; its reconcile step and completion gate are
-designed. The other crates are **designed — not yet published**. The linked
+`raf-okf`, `raf-source`, `raf-workplan` and `cargo-workplan` are **delivered**.
+`raf-workplan` delivers its document model, generated documentation blocks,
+reconcile step, `verify` and completion gate, and `cargo-workplan` runs `check`,
+`status`, `docs sync|preview`, `change new|impact|reconcile|complete` and
+`verify`. The other crates are
+**designed — not yet published**. The linked
 capability documents are the specification the crates are built against.
 
 | Crate | Kind | Purpose | Status | Specification |
@@ -29,8 +32,8 @@ capability documents are the specification the crates are built against.
 | `raf-source` | library | Indexes Rust source so tools can bind documents to code. | **delivered** | [source-index](docs/capabilities/source-index.md) |
 | `raf-census` | library | The duplicate-helper census, ledger and debt ratchet, with a test gate. | **designed — not yet published** | [census-normal-form](docs/capabilities/census-normal-form.md) |
 | `cargo-census` | cargo subcommand | Runs the census from the command line. | **designed — not yet published** | [census-cli](docs/capabilities/census-cli.md) |
-| `raf-workplan` | library | The workplan document model, generated documentation blocks, reconcile step and completion gate. | **model and generated blocks delivered**; reconcile and completion gate designed | [workplan-document-model](docs/capabilities/workplan-document-model.md), [workplan-generated-docs](docs/capabilities/workplan-generated-docs.md) |
-| `cargo-workplan` | cargo subcommand | Runs the workplan from the command line. | **designed — not yet published** | [workplan-cli](docs/capabilities/workplan-cli.md) |
+| `raf-workplan` | library | The workplan document model, generated documentation blocks, reconcile step and completion gate. | **delivered** for the capabilities listed — not yet published | [workplan-document-model](docs/capabilities/workplan-document-model.md), [workplan-generated-docs](docs/capabilities/workplan-generated-docs.md), [workplan-reconcile](docs/capabilities/workplan-reconcile.md), [workplan-complete-gate](docs/capabilities/workplan-complete-gate.md) |
+| `cargo-workplan` | cargo subcommand | Runs the workplan from the command line. | **delivered** — not yet published | [workplan-cli](docs/capabilities/workplan-cli.md) |
 
 ## Usage
 

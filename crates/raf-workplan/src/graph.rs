@@ -24,6 +24,7 @@
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
 
 use raf_okf::{
     Architecture, Body, Capability, CapabilitySection, Change, LinkTarget, Location, Outcome,
@@ -39,6 +40,13 @@ use crate::{Finding, Loaded};
 pub struct SectionId {
     capability: String,
     section: CapabilitySection,
+}
+
+impl fmt::Display for SectionId {
+    /// `cap:<slug>#<section>`, the form of an `affects` entry.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}#{}", self.capability, self.section.slug())
+    }
 }
 
 impl SectionId {
@@ -84,7 +92,7 @@ impl Ord for SectionId {
 }
 
 /// The place of a section in the order a capability holds them.
-fn position(section: CapabilitySection) -> usize {
+pub(crate) fn position(section: CapabilitySection) -> usize {
     CapabilitySection::ALL
         .iter()
         .position(|candidate| *candidate == section)
@@ -211,6 +219,25 @@ pub enum BindingKind {
     Test,
     /// `bindings.examples`.
     Example,
+}
+
+impl BindingKind {
+    /// The list a key of `bindings` names.
+    pub(crate) fn from_key(key: &str) -> Option<Self> {
+        [Self::Code, Self::Test, Self::Example]
+            .into_iter()
+            .find(|list| list.key() == key)
+    }
+
+    /// The key of the list in `bindings`: `code`, `tests` or `examples`.
+    #[must_use]
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Code => "code",
+            Self::Test => "tests",
+            Self::Example => "examples",
+        }
+    }
 }
 
 /// A binding edge: an entry of a capability's `bindings`, and what the source

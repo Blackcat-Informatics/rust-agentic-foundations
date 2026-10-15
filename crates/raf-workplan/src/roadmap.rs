@@ -12,7 +12,7 @@
 
 use std::fmt;
 
-use raf_okf::{Capability, State};
+use raf_okf::{Capability, Change, State};
 
 use crate::graph::{BindingKind, Graph};
 use crate::model::Loaded;
@@ -55,27 +55,14 @@ impl Gap {
     }
 }
 
-/// The key of the `bindings` list.
-fn list_key(list: BindingKind) -> &'static str {
-    match list {
-        BindingKind::Code => "code",
-        BindingKind::Test => "tests",
-        BindingKind::Example => "examples",
-    }
-}
-
 impl fmt::Display for Gap {
     /// The gap as a phrase for a row: "bindings.tests is empty" or
     /// "bindings.code `a::b` does not resolve".
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyList(list) => write!(f, "bindings.{} is empty", list_key(*list)),
+            Self::EmptyList(list) => write!(f, "bindings.{} is empty", list.key()),
             Self::Unresolved { list, binding } => {
-                write!(
-                    f,
-                    "bindings.{} `{binding}` does not resolve",
-                    list_key(*list)
-                )
+                write!(f, "bindings.{} `{binding}` does not resolve", list.key())
             }
         }
     }
@@ -144,6 +131,16 @@ impl RoadmapEntry {
         &self.open_changes
     }
 
+    /// The slugs of the changes that list the capability, without the
+    /// `change:` prefix, sorted.
+    #[must_use]
+    pub fn open_change_slugs(&self) -> Vec<&str> {
+        self.open_changes
+            .iter()
+            .map(|id| crate::lookup::bare_slug(id))
+            .collect()
+    }
+
     /// The gaps in the bindings, in list order (`code`, `tests`, `examples`)
     /// and then by path. Empty unless the state is
     /// [`Implementing`](State::Implementing): the other states make no claim
@@ -151,6 +148,65 @@ impl RoadmapEntry {
     #[must_use]
     pub fn gaps(&self) -> &[Gap] {
         &self.gaps
+    }
+}
+
+/// A change record that loaded: the open change a status listing names.
+///
+/// The value is read from the record; it is not the record. Build the list
+/// with [`Workplan::open_changes`](crate::Workplan::open_changes).
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct OpenChange {
+    slug: String,
+    id: String,
+    path: String,
+    capabilities: Vec<String>,
+}
+
+impl OpenChange {
+    /// The open changes of the loaded records, sorted by slug (then id and
+    /// path), each with its capabilities sorted.
+    pub(crate) fn build(changes: &[Loaded<Change>]) -> Vec<Self> {
+        let mut open: Vec<Self> = changes
+            .iter()
+            .map(|loaded| {
+                let change = loaded.value();
+                let mut capabilities = change.changes.clone();
+                capabilities.sort();
+                Self {
+                    slug: change.header.slug.clone(),
+                    id: change.header.id.clone(),
+                    path: loaded.path().to_string(),
+                    capabilities,
+                }
+            })
+            .collect();
+        open.sort();
+        open
+    }
+
+    /// The slug of the change, without the `change:` prefix.
+    #[must_use]
+    pub fn slug(&self) -> &str {
+        &self.slug
+    }
+
+    /// The change id, with its prefix: `change:<slug>`.
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// The repository-relative path of the record.
+    #[must_use]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// The ids of the capabilities the change lists, sorted.
+    #[must_use]
+    pub fn capabilities(&self) -> &[String] {
+        &self.capabilities
     }
 }
 
@@ -289,8 +345,10 @@ fn entry(loaded: &Loaded<Capability>, graph: &Graph) -> RoadmapEntry {
     }
 }
 
-/// The empty lists and the unresolved entries of a capability's bindings.
-fn gaps(id: &str, graph: &Graph) -> Vec<Gap> {
+/// The empty lists and the unresolved entries of a capability's bindings,
+/// whatever its state: the roadmap keeps them for an implementing capability,
+/// and `reconcile` reads them for a delivered one too.
+pub(crate) fn gaps(id: &str, graph: &Graph) -> Vec<Gap> {
     let mut gaps = Vec::new();
     for list in [BindingKind::Code, BindingKind::Test, BindingKind::Example] {
         let mut entries = graph

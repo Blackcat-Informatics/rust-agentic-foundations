@@ -4,12 +4,13 @@
 //! Reading the document directories through a tree.
 
 use raf_okf::{
-    DocType, Document, ErrorTag, Index, Location, MAX_TEXT_BYTES, Profile, RafDocument,
-    is_capability_index,
+    DocType, Document, ErrorTag, Index, Location, MAX_TEXT_BYTES, Profile, RafDocument, Rule,
+    Violation, is_capability_index,
 };
 use raf_source::{EntryKind, RelPath, Tree, TreeError, Workspace};
 
 use crate::finding::kind;
+use crate::graph::BindingKind;
 use crate::links::{self, LinkContext};
 use crate::model::IndexSlot;
 use crate::{Finding, Loaded, Workplan, plain, refs};
@@ -233,9 +234,28 @@ fn read_file(
                         )
                     }));
             }
+            if doc_type_is_capability(&document, dir_type) {
+                note_unbound(plan, path, &violations);
+            }
             plan.findings
                 .extend(violations.iter().map(Finding::from_violation));
         }
+    }
+}
+
+/// Record a capability document whose only violation is a delivered
+/// capability that binds nothing in a list it must bind: the document is
+/// otherwise sound, and what it owes is that binding.
+fn note_unbound(plan: &mut Workplan<'_>, path: &str, violations: &[Violation]) {
+    let required: Vec<BindingKind> = violations
+        .iter()
+        .filter_map(|violation| match violation.rule() {
+            Rule::BindingRequired { binding } => BindingKind::from_key(binding),
+            _ => None,
+        })
+        .collect();
+    if !required.is_empty() && required.len() == violations.len() {
+        plan.unbound.push((path.to_string(), required));
     }
 }
 

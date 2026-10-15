@@ -38,7 +38,93 @@
 //! [`Gate::workspace`] is the entry point for a test of a repository: it opens a
 //! checkout on disk, loads its documents and its source, and
 //! [`Gate::assert_clean`] panics with every finding. A repository without a
-//! capability document is an error, not a clean verdict.
+//! capability document is an error, not a clean verdict. [`Gate::open`] is that
+//! load on its own: it returns an [`Opened`] repository (the tree, the source
+//! workspace and the tracked paths), whose [`Opened::workplan`] loads the
+//! documents as they are on disk at the call. Every caller that reads a
+//! repository goes through it, and [`Gate::programs`] names the programs it
+//! starts.
+//!
+//! [`Workplan::change`] finds the change record a slug names, and says whether
+//! the slug is unknown or its record did not load ([`ChangeLookupError`]).
+//!
+//! [`lifecycle`] opens and reads a change. [`Workplan::new_change`] writes the
+//! record `work/changes/<slug>.md` of a new change, exclusively and as the only
+//! file it writes, validates the slug with the profile's slug pattern, checks
+//! that every listed capability is loaded and every `affects` entry names a
+//! listed capability and one of the seven sections, reads the record back
+//! through the loader, and returns a [`lifecycle::NewChange`]: the PROPOSED
+//! block template to place and, for each listed capability, whether to set
+//! `state: implementing` in the same commit (`delivered` and `designed`) or
+//! nothing (`considered` and `implementing`). With a copyright text and a
+//! licence identifier in the request the record opens with the two SPDX comment
+//! lines of the frontmatter, as the change records of a repository that checks
+//! licences do; with neither it opens with none, and with one only the request is
+//! refused. [`Workplan::open_changes`] lists the change records that loaded, by
+//! slug. [`Workplan::impact`] returns one
+//! [`lifecycle::Impact`]: the capabilities and sections of a change, their
+//! bindings, the capabilities that depend on them and the sections that link
+//! to the affected sections, in a fixed order and without writing anything.
+//!
+//! [`Workplan::reconcile`] returns the [`obligation::Reconciled`] list of a
+//! change: what the documentation still owes it, each [`obligation::Obligation`]
+//! with a kind, the capability or record and the section or item it is about,
+//! a file and line, and the typed [`obligation::Needed`] evidence that settles
+//! it. It is derived from values the model already holds (the PROPOSED blocks
+//! of the graph, the items of the record, the gaps of the roadmap, the stale
+//! generated blocks of a sync) and from a fixed list of forward-looking
+//! phrases ([`obligation::tense::PHRASES`]) read in the prose of `implementing`
+//! and `delivered` capabilities. The list is sorted by subject, section, kind,
+//! line and evidence text; `contract_effect: none` suppresses
+//! `section-untouched` for `contract`, `usage` and `examples` and nothing else.
+//! The two kinds that need a process, `section-untouched` and
+//! `example-failing`, are in the closed set of [`obligation::ObligationKind`];
+//! `Workplan::reconcile` does not raise them, and [`lifecycle::Lifecycle::reconcile`]
+//! does.
+//!
+//! [`lifecycle::Lifecycle::open`] is the entry point of the commands that start a
+//! process: it asks `git --version` before any other process, refuses a Git older
+//! than 2.30, and opens the repository. [`lifecycle::Lifecycle::reconcile`] adds
+//! `section-untouched` (each section in `affects` against the file at the merge
+//! base of `HEAD` and the default branch, a section being touched when its authored
+//! text differs, see [`lifecycle::section_digest`]) and `example-failing` (the bound
+//! examples and documentation tests of the listed capabilities, run through the
+//! executor of [`bound`]). [`lifecycle::verify`] runs the bound tests and examples
+//! of a change, or of every capability, and returns a [`lifecycle::VerifyReport`]
+//! of per-binding evidence; it needs no Git. [`lifecycle::Lifecycle::complete`]
+//! judges the static conditions of the completion gate first and collects every
+//! failure, runs the bound tests and examples only when none failed, judges the
+//! static conditions again immediately before it writes, and then writes the
+//! generated blocks that removing the record stales and, as the very last step,
+//! removes `work/changes/<slug>.md`. Those are its only writes. It returns a
+//! [`lifecycle::Completion`]: completed, or refused with the
+//! [`lifecycle::Failure`] of each condition and each kind of obligation and
+//! nothing written.
+//!
+//! # Processes
+//!
+//! [`exec`] is the one place a `cargo` or `git` process is started. A process is
+//! an [`exec::Invocation`] of fixed text and values validated by the patterns of
+//! the completion gate, started with no shell, null standard input, bounded
+//! output and a wall-clock kill by an [`exec::Runner`]; [`exec::FakeRunner`]
+//! answers in process for tests.
+//!
+//! [`git`] asks `git` its questions through a runner: the version gate
+//! ([`git::require_version`] refuses a Git older than 2.30), the tracked paths
+//! of a checkout, where the directory is below the top of its work tree
+//! ([`git::show_prefix`]), and the four commands that read a file as it was at the merge
+//! base of the current branch and the default branch (the file is read only at a
+//! [`git::MergeBase`], which only [`git::merge_base`] makes). [`root::discover`] finds
+//! the workspace root with `cargo metadata --format-version 1 --no-deps
+//! --frozen`, reading nothing but its `workspace_root` field.
+//!
+//! [`bound`] runs what a capability binds: the tests, documentation tests and
+//! examples of `tests` and `examples`, through a runner and only the argv forms of the
+//! completion gate. An [`bound::Executor`] decides from the source index what a
+//! [`Binding`] runs as (refusing a function that is not a test, a target without the
+//! libtest harness, a target with required features, and any value that fails its
+//! pattern, before a process starts), counts a test as passed only on the proof its
+//! kind requires, and returns an [`bound::Evidence`] without writing anything.
 //!
 //! # Preview
 //!
@@ -106,29 +192,38 @@
 //! ```
 
 mod bindings;
+pub mod bound;
+pub mod exec;
 mod finding;
 mod gate;
 mod generated;
+pub mod git;
 mod graph;
+pub mod lifecycle;
 mod links;
 mod load;
+mod lookup;
 mod model;
+pub mod obligation;
 pub mod plain;
 mod preview;
 pub mod refs;
 mod roadmap;
+pub mod root;
 mod rules;
+mod staged;
 mod sync;
 
 pub use bindings::ExampleKind;
 pub use finding::Finding;
-pub use gate::{Gate, GateError};
+pub use gate::{Gate, GateError, Opened};
 pub use graph::{
     AffectsEdge, Binding, BindingKind, ChangesEdge, DependsEdge, Edge, EdgeKind, Graph, LinkEdge,
     LinkEnd, Node, NodeKind, Proposal, SectionId,
 };
 pub use links::LinkContext;
+pub use lookup::ChangeLookupError;
 pub use model::{Loaded, Workplan};
 pub use preview::{Preview, PreviewError};
-pub use roadmap::{Gap, Roadmap, RoadmapEntry};
+pub use roadmap::{Gap, OpenChange, Roadmap, RoadmapEntry};
 pub use sync::{SyncError, SyncOptions, SyncReport};
