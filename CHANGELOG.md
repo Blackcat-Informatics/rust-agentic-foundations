@@ -255,6 +255,48 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `section-untouched` and `example-failing` need `git` and `cargo`; they are in the
   closed set, with their evidence, and `reconcile` does not raise them from the
   documents.
+- **`raf-workplan` reconcile with a process, and verify:** `Lifecycle::open` is the
+  entry point of the commands that start a process. It runs `git --version` before any
+  other process and refuses a Git older than 2.30 (the Git version gate belongs to this
+  entry point and not to `Gate::open`, and `change new`, `change impact` and `verify`
+  do not go through it), then opens the repository; `Lifecycle::open_with` takes a
+  `Gate` and any `Runner`. `Lifecycle::reconcile` returns the whole obligation list: the
+  static kinds of `Workplan::reconcile` and the two that need a process. A section in
+  `affects` is `section-untouched` when its authored text is the text it has at the
+  merge base of `HEAD` and the default branch of `origin`: `git::default_merge_base`
+  runs the three questions in order, and `blob_at` now takes only a `git::MergeBase`, a
+  value that only `merge_base` makes, so a commit id from anywhere else (which `git`
+  would report as an absent file) cannot be asked about; two `compile_fail` doctests pin
+  that. The comparison is `lifecycle::section_digest`: the heading and the content of the
+  section with the content of each generated block taken out on both sides, in LF line
+  endings, so a regenerated block is not an edit, and the marker lines, fences and
+  PROPOSED blocks are. A file or a section that is absent at the merge base counts as
+  touched, the default branch itself reports every affected section, a merge-base file that
+  exists and is not UTF-8 or does not parse as a body is an error, a blob over 1 MiB is an
+  error, and a repository with no default branch is an error that names `git remote
+  set-head origin --auto`. Nothing is asked of `git` when `contract_effect: none` leaves
+  out every affected section. `git` names a file at a commit from the top of the work
+  tree, so `Lifecycle::open` also runs `git rev-parse --show-prefix` (`git::show_prefix`,
+  a `Prefix`) after the version gate and reads each document at `<prefix><path>`: a
+  workspace in a subdirectory of a repository, however deep, compares correctly, a
+  prefix outside the source-path pattern (a space, a non-ASCII letter) is an error and not
+  a guess, a linked work tree is its own top, and a root outside a git work tree is an
+  error. `example-failing` runs the example targets and documentation tests that the
+  listed capabilities bind and that resolve through the executor; one that fails to build
+  or run, runs nothing (a documented item with no documentation test, an item that is not
+  an example), is killed at its limit or writes too much is owed, with a
+  `RunProblem` in its evidence (`Needed::PassingRun` gains the field); test bindings are
+  not run by `reconcile`. `lifecycle::verify` (also `Lifecycle::verify`) runs the bound
+  tests and examples of a change or of every capability and returns a `VerifyReport` of
+  per-binding `Evidence`: `Display` is one line a binding (`pass` or `fail`, the
+  capability, the list, the path, and the counts or the reason), `passed()` is true only
+  when every binding passed, a binding that does not resolve or whose value fails its
+  pattern is a `fail` that never reaches `cargo`, and nothing is written. An unknown
+  slug, a record that did not load, a listed capability that did not load, and (for every
+  capability) any capability document that did not load are errors, as is a process that
+  cannot be started. The tests use real `git` repositories (the merge-base matrix, a
+  linked work tree, a local branch named like the remote one, a default branch named like
+  an option), stub `git` programs that record their argv, and real `cargo` fixtures.
 - **Workplan capabilities delivered:** the workplan document model and the
   generated documentation blocks are `delivered`, bound to the `raf-workplan` code,
   tests and examples that realise them, with their verification matrices,

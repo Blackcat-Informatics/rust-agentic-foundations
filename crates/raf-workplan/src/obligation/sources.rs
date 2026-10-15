@@ -17,7 +17,7 @@ use crate::finding::kind;
 use crate::generated::{self, INDEX_PATH};
 use crate::graph::{Binding, BindingKind};
 use crate::lifecycle::Impact;
-use crate::lookup::CHANGE_PREFIX;
+use crate::lookup::{CHANGE_PREFIX, capability_path};
 use crate::model::IndexSlot;
 use crate::roadmap::{self, Gap};
 use crate::{Loaded, Workplan};
@@ -72,9 +72,7 @@ fn listed<'a>(
             loaded.push(*cap);
             continue;
         }
-        let path = id
-            .strip_prefix("cap:")
-            .map(|slug| format!("docs/capabilities/{slug}.md"));
+        let path = capability_path(id);
         let unbound = path.as_ref().and_then(|path| {
             plan.unbound
                 .iter()

@@ -73,8 +73,20 @@
 //! line and evidence text; `contract_effect: none` suppresses
 //! `section-untouched` for `contract`, `usage` and `examples` and nothing else.
 //! The two kinds that need a process, `section-untouched` and
-//! `example-failing`, are in the closed set of [`obligation::ObligationKind`]
-//! and are not raised from the documents.
+//! `example-failing`, are in the closed set of [`obligation::ObligationKind`];
+//! `Workplan::reconcile` does not raise them, and [`lifecycle::Lifecycle::reconcile`]
+//! does.
+//!
+//! [`lifecycle::Lifecycle::open`] is the entry point of the commands that start a
+//! process: it asks `git --version` before any other process, refuses a Git older
+//! than 2.30, and opens the repository. [`lifecycle::Lifecycle::reconcile`] adds
+//! `section-untouched` (each section in `affects` against the file at the merge
+//! base of `HEAD` and the default branch, a section being touched when its authored
+//! text differs, see [`lifecycle::section_digest`]) and `example-failing` (the bound
+//! examples and documentation tests of the listed capabilities, run through the
+//! executor of [`bound`]). [`lifecycle::verify`] runs the bound tests and examples
+//! of a change, or of every capability, and returns a [`lifecycle::VerifyReport`]
+//! of per-binding evidence; it needs no Git.
 //!
 //! # Processes
 //!
@@ -86,8 +98,10 @@
 //!
 //! [`git`] asks `git` its questions through a runner: the version gate
 //! ([`git::require_version`] refuses a Git older than 2.30), the tracked paths
-//! of a checkout, and the four commands that read a file as it was at the merge
-//! base of the current branch and the default branch. [`root::discover`] finds
+//! of a checkout, where the directory is below the top of its work tree
+//! ([`git::show_prefix`]), and the four commands that read a file as it was at the merge
+//! base of the current branch and the default branch (the file is read only at a
+//! [`git::MergeBase`], which only [`git::merge_base`] makes). [`root::discover`] finds
 //! the workspace root with `cargo metadata --format-version 1 --no-deps
 //! --frozen`, reading nothing but its `workspace_root` field.
 //!

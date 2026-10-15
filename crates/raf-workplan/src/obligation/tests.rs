@@ -12,7 +12,7 @@ use raf_okf::{Body, CapabilitySection, ContractEffect};
 use super::tense::{self, PHRASES};
 use super::{
     BindingWhy, Found, Needed, Obligation, ObligationKind, OutcomeProblem, Part, Place, Reconciled,
-    Subject, SyncProblem, suppressed,
+    RunProblem, Subject, SyncProblem, suppressed,
 };
 use crate::BindingKind;
 
@@ -283,6 +283,7 @@ fn evidence_of(kind: ObligationKind) -> Needed {
         ObligationKind::SectionUntouched => Needed::SectionDiff,
         ObligationKind::ExampleFailing => Needed::PassingRun {
             binding: "demo::example_crate::show".to_string(),
+            problem: RunProblem::Fails { code: Some(101) },
         },
         ObligationKind::GeneratedStale => Needed::SyncRun(SyncProblem::IndexMissing),
         ObligationKind::TenseMismatch => Needed::SupportedBehaviour(Found::Phrase("will")),
@@ -543,4 +544,49 @@ fn hostile_text_is_read_in_linear_time() {
     assert_eq!(found(&wrapped), []);
     let alternating = "is\nplanned\n".repeat(50_000);
     assert_eq!(found(&alternating).len(), 50_000);
+}
+
+#[test]
+fn a_failing_run_names_the_binding_and_what_happened_without_a_time_or_output() {
+    let binding = || "demo::example_crate::show".to_string();
+    let text = |problem: RunProblem| {
+        Needed::PassingRun {
+            binding: binding(),
+            problem,
+        }
+        .to_string()
+    };
+    let lead = Needed::PassingRun {
+        binding: binding(),
+        problem: RunProblem::TimedOut,
+    }
+    .contract_text();
+    for (problem, detail) in [
+        (
+            RunProblem::Fails { code: Some(101) },
+            "`demo::example_crate::show` fails to build or run (exit code 101)",
+        ),
+        (
+            RunProblem::Fails { code: None },
+            "`demo::example_crate::show` fails to build or run (ended by a signal)",
+        ),
+        (
+            RunProblem::TimedOut,
+            "`demo::example_crate::show` ran past its time limit and was killed",
+        ),
+        (
+            RunProblem::Overflowed,
+            "`demo::example_crate::show` wrote more output than the bound and was killed",
+        ),
+        (
+            RunProblem::Unresolved(crate::bound::Refusal::NoDocItem {
+                path: "demo".to_string(),
+            }),
+            "`demo::example_crate::show` proves nothing: `demo` has no item part",
+        ),
+    ] {
+        let shown = text(problem);
+        assert!(shown.starts_with(lead), "{shown}");
+        assert!(shown.contains(&format!("({detail}")), "{shown}");
+    }
 }

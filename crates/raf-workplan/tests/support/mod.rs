@@ -11,6 +11,8 @@
 )]
 
 pub(crate) mod cases;
+pub(crate) mod changes;
+pub(crate) mod checkout;
 pub(crate) mod disk;
 pub(crate) mod synced;
 

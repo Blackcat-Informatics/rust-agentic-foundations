@@ -16,8 +16,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use raf_okf::MAX_TEXT_BYTES;
 use raf_workplan::exec::{Commit, Programs, RefName, SourcePath, SystemRunner};
 use raf_workplan::git::{
-    GitError, GitVersion, blob_at, default_branch_ref, merge_base, require_version, resolve_commit,
-    tracked_paths,
+    GitError, GitVersion, MergeBase, blob_at, default_branch_ref, merge_base, require_version,
+    resolve_commit, show_prefix, tracked_paths,
 };
 
 /// A stub is written and started while other tests start `git`; a forked child
@@ -148,6 +148,12 @@ fn commit(text: &str) -> Commit {
 
 fn path(text: &str) -> SourcePath {
     SourcePath::new(text).expect("a source path")
+}
+
+/// The merge base of `HEAD` of `repo` and the commit `ancestor`, which is the
+/// only way to get a revision to read a file at.
+fn base_at(repo: &Repo, ancestor: &str) -> MergeBase {
+    merge_base(&repo.runner(), &commit(ancestor)).expect("a merge base")
 }
 
 /// A repository cloned from a bare origin, so that `refs/remotes/origin/HEAD`
@@ -424,6 +430,67 @@ fn histories_with_no_common_ancestor_have_no_merge_base() {
     assert!(error.to_string().contains("no common ancestor"), "{error}");
 }
 
+// ------------------------------------------------------------------ prefix
+
+#[test]
+fn the_prefix_is_where_the_directory_is_below_the_top_of_its_work_tree() {
+    let _lock = serial();
+    let scratch = Scratch::new();
+    let repo = Repo::init(scratch.path().join("repo"));
+    repo.put("top.md", b"top\n");
+    repo.put("services/api/inner.md", b"inner\n");
+    repo.commit("services/api/more.md", b"more\n", "first");
+    let prefix = |dir: &Path| show_prefix(&runner_in(dir)).expect("a prefix");
+    assert!(prefix(&repo.dir).is_top());
+    assert_eq!(prefix(&repo.dir.join("services")).as_str(), "services/");
+    assert_eq!(
+        prefix(&repo.dir.join("services/api")).as_str(),
+        "services/api/"
+    );
+
+    // A file is read at the prefix, and at the bare path it is absent.
+    let tip = repo.git(&["rev-parse", "HEAD"]);
+    let base = base_at(&repo, &tip);
+    let named = prefix(&repo.dir.join("services/api"))
+        .join(&path("inner.md"))
+        .expect("a joined path");
+    assert_eq!(named.as_str(), "services/api/inner.md");
+    assert_eq!(
+        blob_at(&repo.runner(), &base, &named).expect("an answer"),
+        Some(b"inner\n".to_vec())
+    );
+    assert_eq!(
+        blob_at(&repo.runner(), &base, &path("inner.md")).expect("an answer"),
+        None
+    );
+
+    // A directory outside any work tree has no prefix.
+    let loose = scratch.path().join("loose");
+    fs::create_dir(&loose).expect("a directory");
+    assert!(matches!(
+        show_prefix(&runner_in(&loose)),
+        Err(GitError::Failed { .. })
+    ));
+}
+
+#[test]
+fn a_linked_work_tree_is_its_own_top() {
+    let _lock = serial();
+    let scratch = Scratch::new();
+    let (work, _, _) = forked(&scratch);
+    let linked = scratch.path().join("linked");
+    work.git(&[
+        "worktree",
+        "add",
+        "-q",
+        "-b",
+        "from-main",
+        linked.to_str().expect("a UTF-8 path"),
+        "main",
+    ]);
+    assert!(show_prefix(&runner_in(&linked)).expect("a prefix").is_top());
+}
+
 // ----------------------------------------------------------------- blob_at
 
 #[test]
@@ -436,7 +503,8 @@ fn a_file_is_read_as_it_was_at_the_merge_base() {
     seed.git(&["checkout", "-q", "-b", "feature", &fork]);
     seed.commit("doc.md", b"edited on the branch\n", "branch edit");
     seed.commit("added.md", b"new on the branch\n", "branch add");
-    let base = commit(&fork);
+    let base = base_at(&seed, &fork);
+    assert_eq!(base.as_str(), fork);
 
     let read = |name: &str| blob_at(&seed.runner(), &base, &path(name)).expect("an answer");
     assert_eq!(read("doc.md").as_deref(), Some(b"as it was\n".as_slice()));
@@ -456,13 +524,13 @@ fn a_blob_is_returned_byte_for_byte() {
     let bytes: Vec<u8> = (0..=255u8).chain([b'\r', b'\n', 0, 0xff]).collect();
     let tip = repo.commit("blob.bin", &bytes, "binary");
     repo.commit("empty.md", b"", "empty");
-    let base = commit(&tip);
+    let base = base_at(&repo, &tip);
     assert_eq!(
         blob_at(&repo.runner(), &base, &path("blob.bin")).expect("a blob"),
         Some(bytes)
     );
     // The empty file is a file, not an absent one.
-    let head = commit(&repo.git(&["rev-parse", "HEAD"]));
+    let head = base_at(&repo, &repo.git(&["rev-parse", "HEAD"]));
     assert_eq!(
         blob_at(&repo.runner(), &head, &path("empty.md")).expect("a blob"),
         Some(Vec::new())
@@ -478,7 +546,7 @@ fn a_blob_over_one_mebibyte_is_an_error_and_exactly_one_mebibyte_is_read() {
     repo.put("over.md", &vec![b'a'; MAX_TEXT_BYTES + 1]);
     repo.git(&["add", "-A"]);
     repo.git(&["commit", "-q", "-m", "big files"]);
-    let tip = commit(&repo.git(&["rev-parse", "HEAD"]));
+    let tip = base_at(&repo, &repo.git(&["rev-parse", "HEAD"]));
 
     let exact = blob_at(&repo.runner(), &tip, &path("exact.md"))
         .expect("the bound itself passes")
@@ -499,11 +567,12 @@ fn a_directory_is_an_error_and_not_an_absent_file() {
     let scratch = Scratch::new();
     let repo = Repo::init(scratch.path().join("repo"));
     let tip = repo.commit("dir/file.md", b"x\n", "first");
-    let error = blob_at(&repo.runner(), &commit(&tip), &path("dir")).expect_err("a directory");
+    let error =
+        blob_at(&repo.runner(), &base_at(&repo, &tip), &path("dir")).expect_err("a directory");
     assert!(matches!(error, GitError::Failed { .. }), "{error:?}");
     // The neighbour: the file in the directory reads.
     assert_eq!(
-        blob_at(&repo.runner(), &commit(&tip), &path("dir/file.md")).expect("a blob"),
+        blob_at(&repo.runner(), &base_at(&repo, &tip), &path("dir/file.md")).expect("a blob"),
         Some(b"x\n".to_vec())
     );
 }
@@ -594,6 +663,7 @@ case "$1" in
 rev-parse)
   case "$2" in
   --is-inside-work-tree) echo true ;;
+  --show-prefix) echo ;;
   *) echo {COMMIT} ;;
   esac ;;
 ls-files) printf 'docs/a.md\0src/lib.rs\0' ;;
@@ -673,6 +743,7 @@ esac"#
             .expect("a listing")
             .expect("inside a work tree");
         assert_eq!(tracked.len(), 2);
+        assert!(show_prefix(&runner).expect("a prefix").is_top());
         let name = default_branch_ref(&runner).expect("a default branch");
         assert_eq!(name.as_str(), "refs/remotes/origin/--output=x");
         let default = resolve_commit(&runner, &name).expect("a commit");
@@ -687,6 +758,7 @@ esac"#
             vec!["--version"],
             vec!["rev-parse", "--is-inside-work-tree"],
             vec!["ls-files", "-z"],
+            vec!["rev-parse", "--show-prefix"],
             vec!["symbolic-ref", "refs/remotes/origin/HEAD"],
             vec![
                 "rev-parse",
@@ -711,6 +783,7 @@ esac"#
         let fixed = [
             "--version",
             "--is-inside-work-tree",
+            "--show-prefix",
             "-z",
             "--verify",
             "--end-of-options",
@@ -725,7 +798,7 @@ esac"#
         let work = fs::canonicalize(stub.work()).expect("a canonical work directory");
         let cwd = work.to_str().expect("a UTF-8 path");
         assert!(stub.lines("cwd").iter().all(|line| line == cwd));
-        assert_eq!(stub.lines("cwd").len(), 7);
+        assert_eq!(stub.lines("cwd").len(), 8);
         assert!(stub.lines("lc_all").iter().all(|line| line == "C"));
     }
 

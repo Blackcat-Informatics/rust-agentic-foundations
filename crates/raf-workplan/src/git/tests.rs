@@ -8,11 +8,11 @@
 use raf_okf::MAX_TEXT_BYTES;
 
 use super::{
-    GitError, GitVersion, blob_at, default_branch_ref, merge_base, require_version, resolve_commit,
-    tracked_paths,
+    GitError, GitVersion, MergeBase, blob_at, default_branch_ref, default_merge_base, merge_base,
+    require_version, resolve_commit, show_prefix, tracked_paths,
 };
 use crate::exec::{
-    Commit, ExecError, FakeRunner, Limits, Output, Program, RefName, SourcePath, Stream,
+    Call, Commit, ExecError, FakeRunner, Limits, Output, Program, RefName, SourcePath, Stream,
 };
 
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -476,7 +476,7 @@ fn the_merge_base_is_asked_of_head_and_the_commit() {
         &["merge-base", "HEAD", COMMIT],
         Ok(said(&format!("{OTHER}\n"))),
     );
-    assert_eq!(merge_base(&runner, &default), Ok(commit(OTHER)));
+    assert_eq!(merge_base(&runner, &default), Ok(MergeBase(commit(OTHER))));
     assert_eq!(runner.calls().len(), 1);
 }
 
@@ -508,6 +508,51 @@ fn histories_without_a_common_ancestor_and_odd_answers_are_errors() {
     ));
 }
 
+#[test]
+fn the_merge_base_of_the_default_branch_is_three_questions_in_order_and_stops_at_the_first_failure()
+{
+    let resolve = [
+        "rev-parse",
+        "--verify",
+        "--end-of-options",
+        "refs/remotes/origin/main^{commit}",
+    ];
+    let runner = FakeRunner::new()
+        .on(
+            Program::Git,
+            &DEFAULT,
+            Ok(said("refs/remotes/origin/main\n")),
+        )
+        .on(Program::Git, &resolve, Ok(said(&format!("{COMMIT}\n"))))
+        .on(
+            Program::Git,
+            &["merge-base", "HEAD", COMMIT],
+            Ok(said(&format!("{OTHER}\n"))),
+        );
+    let base = default_merge_base(&runner).expect("a merge base");
+    assert_eq!(base, MergeBase(commit(OTHER)));
+    assert_eq!(base.as_str(), OTHER);
+    assert_eq!(base.to_string(), OTHER);
+    assert_eq!(base.commit(), &commit(OTHER));
+    let commands: Vec<String> = runner.calls().iter().map(Call::command).collect();
+    assert_eq!(
+        commands,
+        [
+            "git symbolic-ref refs/remotes/origin/HEAD".to_string(),
+            "git rev-parse --verify --end-of-options refs/remotes/origin/main^{commit}".to_string(),
+            format!("git merge-base HEAD {COMMIT}"),
+        ]
+    );
+
+    // No default branch: the first question fails and nothing else is asked.
+    let none = FakeRunner::new().on(Program::Git, &DEFAULT, Ok(failed(128, "fatal: no\n")));
+    assert!(matches!(
+        default_merge_base(&none),
+        Err(GitError::NoDefaultBranch { .. })
+    ));
+    assert_eq!(none.calls().len(), 1);
+}
+
 // ----------------------------------------------------------------- blob_at
 
 fn blob_argv() -> [String; 3] {
@@ -529,7 +574,7 @@ fn a_blob_is_read_from_the_merge_base_in_one_argument() {
     let runner = blob_runner(Ok(said("# Title\n")));
     let bytes = blob_at(
         &runner,
-        &commit(COMMIT),
+        &MergeBase(commit(COMMIT)),
         &path("docs/capabilities/workplan-cli.md"),
     )
     .expect("a blob");
@@ -548,7 +593,7 @@ fn a_blob_over_one_mebibyte_is_an_error_and_never_cut() {
         vec![b'a'; MAX_TEXT_BYTES],
         Vec::new(),
     )));
-    let bytes = blob_at(&exact, &commit(COMMIT), &at)
+    let bytes = blob_at(&exact, &MergeBase(commit(COMMIT)), &at)
         .expect("exactly the bound passes")
         .expect("a blob");
     assert_eq!(bytes.len(), MAX_TEXT_BYTES);
@@ -558,7 +603,7 @@ fn a_blob_over_one_mebibyte_is_an_error_and_never_cut() {
         vec![b'a'; MAX_TEXT_BYTES + 1],
         Vec::new(),
     )));
-    let error = blob_at(&over, &commit(COMMIT), &at).expect_err("one byte over");
+    let error = blob_at(&over, &MergeBase(commit(COMMIT)), &at).expect_err("one byte over");
     assert!(
         matches!(&error, GitError::BlobTooLarge { limit, path } if *limit == MAX_TEXT_BYTES && *path == at),
         "{error:?}"
@@ -572,7 +617,7 @@ fn a_blob_over_one_mebibyte_is_an_error_and_never_cut() {
         limit: MAX_TEXT_BYTES,
     }));
     assert!(matches!(
-        blob_at(&overflow, &commit(COMMIT), &at),
+        blob_at(&overflow, &MergeBase(commit(COMMIT)), &at),
         Err(GitError::BlobTooLarge { .. })
     ));
     // An overflow of standard error is not a large blob.
@@ -582,7 +627,7 @@ fn a_blob_over_one_mebibyte_is_an_error_and_never_cut() {
         limit: MAX_TEXT_BYTES,
     }));
     assert!(matches!(
-        blob_at(&noisy, &commit(COMMIT), &at),
+        blob_at(&noisy, &MergeBase(commit(COMMIT)), &at),
         Err(GitError::Exec(ExecError::OutputTooLarge { .. }))
     ));
 }
@@ -597,7 +642,11 @@ fn a_path_missing_at_the_merge_base_is_none_and_other_failures_are_errors() {
         ),
     ] {
         let runner = blob_runner(Ok(failed(128, &stderr)));
-        assert_eq!(blob_at(&runner, &commit(COMMIT), &at), Ok(None), "{stderr}");
+        assert_eq!(
+            blob_at(&runner, &MergeBase(commit(COMMIT)), &at),
+            Ok(None),
+            "{stderr}"
+        );
     }
     for stderr in [
         format!("fatal: git cat-file {COMMIT}:docs/capabilities/workplan-cli.md: bad file\n"),
@@ -605,10 +654,98 @@ fn a_path_missing_at_the_merge_base_is_none_and_other_failures_are_errors() {
         String::new(),
     ] {
         let runner = blob_runner(Ok(failed(128, &stderr)));
-        let error = blob_at(&runner, &commit(COMMIT), &at).expect_err(&stderr);
+        let error = blob_at(&runner, &MergeBase(commit(COMMIT)), &at).expect_err(&stderr);
         assert!(
             matches!(error, GitError::Failed { .. }),
             "{stderr}: {error:?}"
         );
     }
+}
+
+// ------------------------------------------------------------------ prefix
+
+const PREFIX: [&str; 2] = ["rev-parse", "--show-prefix"];
+
+fn prefix_of(answer: Output) -> Result<super::Prefix, GitError> {
+    show_prefix(&FakeRunner::new().on(Program::Git, &PREFIX, Ok(answer)))
+}
+
+#[test]
+fn the_prefix_is_empty_at_the_top_and_a_path_with_a_slash_below_it() {
+    let top = prefix_of(said("\n")).expect("the top");
+    assert!(top.is_top());
+    assert_eq!(top.as_str(), "");
+    assert_eq!(top, super::Prefix::default());
+
+    let one = prefix_of(said("sub/\n")).expect("one level");
+    assert!(!one.is_top());
+    assert_eq!(one.as_str(), "sub/");
+    let deep = prefix_of(said("services/api-v2/crate_1.0/\n")).expect("three levels");
+    assert_eq!(deep.as_str(), "services/api-v2/crate_1.0/");
+
+    // The prefix goes before the document path, and before nothing at the top.
+    let document = path("docs/capabilities/x.md");
+    assert_eq!(
+        deep.join(&document).expect("joined").as_str(),
+        "services/api-v2/crate_1.0/docs/capabilities/x.md"
+    );
+    assert_eq!(top.join(&document).expect("joined"), document);
+}
+
+#[test]
+fn the_prefix_is_asked_with_exactly_its_argv_in_the_c_locale() {
+    let runner = FakeRunner::new().on(Program::Git, &PREFIX, Ok(said("sub/\n")));
+    show_prefix(&runner).expect("a prefix");
+    let calls = runner.calls();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].args(), PREFIX);
+    assert!(calls[0].limits().c_locale());
+}
+
+#[test]
+fn a_prefix_the_source_path_pattern_cannot_carry_is_refused_with_its_neighbour_accepted() {
+    for answer in [
+        "my docs/",
+        "sub",
+        "../up/",
+        "./sub/",
+        "a//b/",
+        "/abs/",
+        "-opts/",
+        "caf\u{e9}/",
+        "a b/c/",
+        "a;b/",
+        "/",
+    ] {
+        let error = prefix_of(said(&format!("{answer}\n"))).expect_err(answer);
+        assert!(
+            matches!(&error, GitError::Answer { .. }),
+            "{answer}: {error:?}"
+        );
+    }
+    // Two lines are not one prefix.
+    assert!(matches!(
+        prefix_of(said("a/\nb/\n")),
+        Err(GitError::Answer { .. })
+    ));
+    // The neighbours: a dot inside a name, a hyphen, an underscore, a digit.
+    for answer in ["a.b/", "a-b/", "_a/", "9/", "a/b/c/"] {
+        prefix_of(said(&format!("{answer}\n"))).unwrap_or_else(|error| panic!("{answer}: {error}"));
+    }
+}
+
+#[test]
+fn a_failing_prefix_question_is_an_error() {
+    let error =
+        prefix_of(failed(128, "fatal: not a git repository\n")).expect_err("not a work tree");
+    assert!(
+        matches!(
+            error,
+            GitError::Failed {
+                code: Some(128),
+                ..
+            }
+        ),
+        "{error:?}"
+    );
 }

@@ -20,7 +20,7 @@
 //! | `binding-missing` | the gaps of [`Workplan::status`] for each listed `implementing` or `delivered` capability (a `delivered` one owes `code` and `tests` only), and the bindings that resolve to an item their list does not take |
 //! | `generated-stale` | the stale and missing generated blocks of a sync, in the listed capabilities and the index |
 //! | `tense-mismatch` | the fixed [`tense::PHRASES`] list in the prose of a listed `implementing` or `delivered` capability, and a PROPOSED block in a `delivered` one |
-//! | `section-untouched`, `example-failing` | the merge base and the bound examples, which need a process; `reconcile` does not raise them (see [`ObligationKind::is_static`]) |
+//! | `section-untouched`, `example-failing` | the merge base and the bound examples, which need a process; `Workplan::reconcile` does not raise them (see [`ObligationKind::is_static`]) and [`Lifecycle::reconcile`](crate::lifecycle::Lifecycle::reconcile) does, from `git` and from the executor of [`bound`](crate::bound) |
 //!
 //! The list is sorted by subject (capabilities, then change records, then the
 //! index, each by id), part, kind, line and then evidence text, so equal
@@ -55,6 +55,7 @@ use std::fmt;
 
 use raf_okf::{CapabilitySection, ContractEffect};
 
+use crate::bound::{BoundOutcome, Ended, Evidence, Refusal, Run};
 use crate::graph::{BindingKind, position};
 use crate::lookup::{ChangeLookupError, write_findings};
 use crate::{Finding, Workplan};
@@ -266,6 +267,46 @@ pub enum BindingWhy {
     WrongRole(&'static str),
 }
 
+/// Why a bound example or documentation test is not a passing run.
+///
+/// It is read from the [`Evidence`] of the run and carries no time and no
+/// output of the process, so equal inputs print equal lines.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum RunProblem {
+    /// A process of the run exited with a failing status: the build failed or
+    /// the example, or a documentation test, failed. `None` is a signal.
+    Fails {
+        /// The exit code of the last process, or `None` when a signal ended
+        /// it.
+        code: Option<i32>,
+    },
+    /// A process ran past its wall-clock limit and was killed.
+    TimedOut,
+    /// A process wrote more than the output bound and was killed.
+    Overflowed,
+    /// The binding cannot be run and counted: it ran no documentation test
+    /// (zero tests), a documentation test was built and not run, or the index
+    /// facts or a value refuse it.
+    Unresolved(Refusal),
+}
+
+impl RunProblem {
+    /// What is wrong with the run of `evidence`, or `None` when it passed.
+    pub(crate) fn of(evidence: &Evidence) -> Option<Self> {
+        match evidence.outcome() {
+            BoundOutcome::Passed => None,
+            BoundOutcome::Unresolved { reason } => Some(Self::Unresolved(reason.clone())),
+            BoundOutcome::Failed { .. } => Some(match evidence.runs().last().map(Run::ended) {
+                Some(Ended::TimedOut) => Self::TimedOut,
+                Some(Ended::Overflowed) => Self::Overflowed,
+                Some(Ended::Exited(code)) => Self::Fails { code },
+                _ => Self::Fails { code: None },
+            }),
+        }
+    }
+}
+
 /// What a sync would repair.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -318,6 +359,8 @@ pub enum Needed {
     PassingRun {
         /// The binding path of the example or documentation test.
         binding: String,
+        /// What is wrong with the run.
+        problem: RunProblem,
     },
     /// A `docs sync` run.
     SyncRun(SyncProblem),
@@ -370,7 +413,21 @@ impl Needed {
                     }
                 })
             }
-            Self::PassingRun { binding } => Some(format!("`{binding}` fails")),
+            Self::PassingRun { binding, problem } => Some(match problem {
+                RunProblem::Fails { code: Some(code) } => {
+                    format!("`{binding}` fails to build or run (exit code {code})")
+                }
+                RunProblem::Fails { code: None } => {
+                    format!("`{binding}` fails to build or run (ended by a signal)")
+                }
+                RunProblem::TimedOut => {
+                    format!("`{binding}` ran past its time limit and was killed")
+                }
+                RunProblem::Overflowed => {
+                    format!("`{binding}` wrote more output than the bound and was killed")
+                }
+                RunProblem::Unresolved(refusal) => format!("`{binding}` proves nothing: {refusal}"),
+            }),
             Self::SyncRun(SyncProblem::Stale(block)) => {
                 Some(format!("the `{block}` block is stale"))
             }

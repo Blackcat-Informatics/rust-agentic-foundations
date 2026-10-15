@@ -279,6 +279,13 @@ impl Invocation {
         ])
     }
 
+    /// The path of the working directory below the top of its work tree:
+    /// `git rev-parse --show-prefix`.
+    #[must_use]
+    pub fn git_show_prefix() -> Self {
+        Self::git(vec![Arg::lit("rev-parse"), Arg::lit("--show-prefix")])
+    }
+
     /// The tracked paths, NUL-separated: `git ls-files -z`.
     #[must_use]
     pub fn git_ls_files() -> Self {

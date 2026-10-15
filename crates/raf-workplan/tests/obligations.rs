@@ -14,99 +14,16 @@ use std::time::{Duration, Instant};
 
 use raf_workplan::ChangeLookupError;
 use raf_workplan::obligation::{Needed, ObligationKind, ReconcileError, Reconciled};
+use support::changes::{
+    BOUND, DONE, OMEGA, SHAPE, base, capability, record, replaced, repo, without,
+};
 use support::disk::{Scratch, on_disk, snapshot, write_repo};
 use support::synced::{self, document, with_plan};
 use support::{Repo, line_of};
 
-const OMEGA: &str = "docs/capabilities/omega.md";
 const SIGMA: &str = "docs/capabilities/sigma.md";
-const SHAPE: &str = "work/changes/shape.md";
 const OTHER: &str = "work/changes/other.md";
 const INDEX: &str = synced::INDEX;
-
-/// The generated blocks of a section the fixtures keep in `Verification`.
-const BLOCKS: &str = "\n<!-- raf:generated:verification-matrix -->\n<!-- raf:generated:end -->\n\n<!-- raf:generated:relationships -->\n<!-- raf:generated:end -->\n";
-
-/// A bound `omega`: code, a test and an example, all of which resolve.
-const BOUND: [&str; 3] = [
-    "[demo::real]",
-    "[demo::test_crate::it::case]",
-    "[demo::example_crate::show]",
-];
-
-/// A capability document with the generated blocks of `Verification`, and
-/// `extra` added to the end of the named sections.
-fn capability(slug: &str, state: &str, bindings: [&str; 3], extra: &[(&str, &str)]) -> String {
-    let mut extra = extra.to_vec();
-    extra.push(("Verification", BLOCKS));
-    document(slug, "Shaped.", state, bindings, "[]", &extra)
-}
-
-/// A change record that lists `changes` and affects `affects`.
-fn record(slug: &str, changes: &str, affects: &[&str], effect: &str, items: &str) -> String {
-    let affects = affects
-        .iter()
-        .map(|entry| format!("  - {entry}\n"))
-        .collect::<Vec<_>>()
-        .concat();
-    let items = if items.is_empty() {
-        "items: []\n".to_string()
-    } else {
-        format!("items:\n{items}")
-    };
-    format!(
-        "---\ntype: Change\nid: change:{slug}\ntitle: Change {slug}\n\
-         description: Changes {slug}.\nchanges: {changes}\naffects:\n{affects}\
-         contract_effect: {effect}\n{items}---\n\n## Summary\n\nChanges it.\n"
-    )
-}
-
-const DONE: &str = "  - claim: \"omega is shaped\"\n    outcome: implemented\n";
-
-/// The repository of the fixtures, synced: `omega` implementing and fully
-/// bound, and the change `shape` that lists it and resolves its one item.
-fn base() -> Repo {
-    repo(&[
-        (OMEGA, capability("omega", "implementing", BOUND, &[])),
-        (
-            SHAPE,
-            record(
-                "shape",
-                "[cap:omega]",
-                &["cap:omega#contract"],
-                "changes",
-                DONE,
-            ),
-        ),
-    ])
-}
-
-/// The documents synced into a repository.
-fn repo(files: &[(&str, String)]) -> Repo {
-    let mut repo = Repo::new();
-    for (path, text) in files {
-        repo.insert((*path).to_string(), text.clone());
-    }
-    synced::synced(&repo)
-}
-
-/// `repo` with the first `from` of `path` replaced by `to`.
-fn replaced(repo: &Repo, path: &str, from: &str, to: &str) -> Repo {
-    let mut next = repo.clone();
-    let text = next
-        .get_mut(path)
-        .unwrap_or_else(|| panic!("the fixture has no {path}"));
-    assert!(text.contains(from), "{path} has no `{from}`");
-    *text = text.replacen(from, to, 1);
-    next
-}
-
-/// `repo` without `path`.
-fn without(repo: &Repo, path: &str) -> Repo {
-    let mut next = repo.clone();
-    assert!(next.remove(path).is_some(), "the fixture has no {path}");
-    next
-}
 
 fn reconcile_err(repo: &Repo, change: &str) -> Result<Reconciled, ReconcileError> {
     with_plan(repo, |plan| plan.reconcile(change))

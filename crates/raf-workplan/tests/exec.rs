@@ -457,6 +457,12 @@ fn git_rows() -> Vec<Row> {
             "rev-parse --is-inside-work-tree",
         ),
         (
+            "git work tree prefix",
+            Invocation::git_show_prefix(),
+            Program::Git,
+            "rev-parse --show-prefix",
+        ),
+        (
             "git tracked paths",
             Invocation::git_ls_files(),
             Program::Git,
@@ -492,7 +498,7 @@ fn git_rows() -> Vec<Row> {
 #[test]
 fn every_invocation_is_the_row_of_its_table() {
     let rows = rows();
-    assert_eq!(rows.len(), 15);
+    assert_eq!(rows.len(), 16);
     for (label, invocation, program, expected) in rows {
         assert_eq!(invocation.program(), program, "{label}");
         let expected: Vec<&str> = expected.split(' ').collect();

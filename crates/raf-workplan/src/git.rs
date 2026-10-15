@@ -11,10 +11,12 @@
 //!
 //! * [`require_version`] refuses a Git older than [`GitVersion::MINIMUM`], the
 //!   first release whose `rev-parse` handles `--end-of-options`.
+//! * [`show_prefix`] says where the directory is below the top of its work
+//!   tree, because `git cat-file` names a path from the top.
 //! * [`tracked_paths`] lists the paths of the index, and says when the
 //!   directory is not in a work tree at all.
 //! * [`default_branch_ref`], [`resolve_commit`], [`merge_base`] and [`blob_at`]
-//!   are the four commands that read a file as it was at the merge base of the
+//!   ([`default_merge_base`] runs the first three) are the four commands that read a file as it was at the merge base of the
 //!   current branch and the default branch. The default branch is the full
 //!   reference name `git symbolic-ref refs/remotes/origin/HEAD` prints, so a local
 //!   branch named `origin/main` is never mistaken for it. It is resolved to a
@@ -107,6 +109,97 @@ impl GitVersion {
 impl fmt::Display for GitVersion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+/// The merge base of the current commit and the default branch, as
+/// [`merge_base`] returns it.
+///
+/// It is the only revision [`blob_at`] reads a file at. There is no
+/// constructor: a value comes from [`merge_base`] (or [`default_merge_base`])
+/// and from nowhere else, so a revision a caller made up, or took from a
+/// document, cannot be asked about. `git` answers a commit it does not have in
+/// the words it uses for a missing path, which would read as "the file is
+/// absent"; this type makes that question impossible to ask.
+///
+/// ```compile_fail,E0308
+/// use raf_workplan::exec::{Commit, SourcePath};
+/// use raf_workplan::git::{blob_at};
+///
+/// fn made_up(runner: &dyn raf_workplan::exec::Runner) {
+///     let rev = Commit::new("0123456789abcdef0123456789abcdef01234567").unwrap();
+///     let path = SourcePath::new("docs/capabilities/x.md").unwrap();
+///     // A `Commit` is not a `MergeBase`.
+///     let _ = blob_at(runner, &rev, &path);
+/// }
+/// ```
+///
+/// ```compile_fail,E0423
+/// use raf_workplan::exec::Commit;
+/// use raf_workplan::git::MergeBase;
+///
+/// let rev = Commit::new("0123456789abcdef0123456789abcdef01234567").unwrap();
+/// let _ = MergeBase(rev);
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MergeBase(Commit);
+
+impl MergeBase {
+    /// The commit id.
+    #[must_use]
+    pub fn commit(&self) -> &Commit {
+        &self.0
+    }
+
+    /// The commit id as text.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl fmt::Display for MergeBase {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+/// Where the working directory is below the top of its work tree, as
+/// `git rev-parse --show-prefix` prints it: empty at the top, and otherwise
+/// the directories from the top with a `/` after each, such as `crates/app/`.
+///
+/// `git cat-file blob <rev>:<path>` reads a path relative to the top of the
+/// work tree, not to the working directory, so a workspace below the top of a
+/// repository (a monorepo) reads its files at the prefix. [`Prefix::join`] puts
+/// the prefix before the path of a document. A prefix is validated by the
+/// pattern of a relative source path, so one with a space, a non-ASCII letter,
+/// a `.` or `..` segment or any other character outside that pattern is an
+/// error and not a guess.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Prefix(String);
+
+impl Prefix {
+    /// The prefix as text: empty, or ending in `/`.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Whether the working directory is the top of its work tree.
+    #[must_use]
+    pub fn is_top(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// The path of a file of the workspace as the work tree names it: the
+    /// prefix and then `path`.
+    ///
+    /// # Errors
+    ///
+    /// The [`PatternError`] of the joined path, which only a path of the
+    /// workspace that is too unusual to be a relative source path can cause.
+    pub fn join(&self, path: &SourcePath) -> Result<SourcePath, PatternError> {
+        SourcePath::new(&format!("{}{path}", self.0))
     }
 }
 
@@ -371,6 +464,40 @@ pub fn require_version(runner: &dyn Runner) -> Result<GitVersion, GitError> {
     Ok(found)
 }
 
+/// The path of the runner's directory below the top of its work tree:
+/// `git rev-parse --show-prefix`. A linked work tree is its own top, so its
+/// prefix is empty.
+///
+/// # Errors
+///
+/// [`GitError::Failed`] when the command fails, as it does outside a work
+/// tree; [`GitError::Answer`] when the answer is not empty and not a relative
+/// directory path of the source-path pattern ending in `/`, so a directory that
+/// the pattern cannot carry is refused; [`GitError::Exec`] when it cannot run.
+pub fn show_prefix(runner: &dyn Runner) -> Result<Prefix, GitError> {
+    let invocation = Invocation::git_show_prefix();
+    let output = query(runner, &invocation)?;
+    if !output.success() {
+        return Err(failed(&invocation, &output));
+    }
+    let line = one_line(&invocation, &output, "a directory path ending in `/`")?;
+    if line.is_empty() {
+        return Ok(Prefix::default());
+    }
+    let valid = line
+        .strip_suffix('/')
+        .is_some_and(|directory| SourcePath::new(directory).is_ok());
+    if valid {
+        Ok(Prefix(line.to_string()))
+    } else {
+        Err(GitError::Answer {
+            command: invocation.to_string(),
+            expected: "a directory path of letters, digits, `_`, `.` and `-` ending in `/`",
+            answer: shown(line),
+        })
+    }
+}
+
 /// The tracked paths of the work tree the runner's directory is in, relative
 /// to that directory, as `git ls-files -z` lists them.
 ///
@@ -482,7 +609,7 @@ pub fn resolve_commit(runner: &dyn Runner, reference: &RefName) -> Result<Commit
 /// [`GitError::NoMergeBase`] when the two have no common ancestor;
 /// [`GitError::Failed`] when the command fails otherwise; [`GitError::Answer`]
 /// when the answer is not one commit id; [`GitError::Exec`] when it cannot run.
-pub fn merge_base(runner: &dyn Runner, default: &Commit) -> Result<Commit, GitError> {
+pub fn merge_base(runner: &dyn Runner, default: &Commit) -> Result<MergeBase, GitError> {
     let invocation = Invocation::git_merge_base(default);
     let output = query(runner, &invocation)?;
     match output.code {
@@ -495,18 +622,35 @@ pub fn merge_base(runner: &dyn Runner, default: &Commit) -> Result<Commit, GitEr
         _ => return Err(failed(&invocation, &output)),
     }
     let line = one_line(&invocation, &output, "one commit id")?;
-    typed(&invocation, line, "one commit id", Commit::new)
+    typed(&invocation, line, "one commit id", Commit::new).map(MergeBase)
 }
 
-/// The bytes of the file `path` at the commit `rev`: `git cat-file blob
+/// The merge base of the current commit and the default branch of the remote
+/// `origin`: the three questions that lead to it in order,
+/// [`default_branch_ref`], [`resolve_commit`] and [`merge_base`]. The commit
+/// id the second question returns is the only thing the third receives.
+///
+/// # Errors
+///
+/// The [`GitError`] of the first question that fails; a repository with no
+/// default branch is [`GitError::NoDefaultBranch`], which names
+/// `git remote set-head origin --auto`.
+pub fn default_merge_base(runner: &dyn Runner) -> Result<MergeBase, GitError> {
+    let reference = default_branch_ref(runner)?;
+    let default = resolve_commit(runner, &reference)?;
+    merge_base(runner, &default)
+}
+
+/// The bytes of the file `path` at the merge base `rev`: `git cat-file blob
 /// <rev>:<path>`. The file is read up to the document bound of 1 MiB
 /// ([`MAX_TEXT_BYTES`]); a larger file is an error and is never cut.
 ///
 /// `None` is returned when `git` says the path does not exist at `rev`, so the
 /// caller can tell a file that is new from a failure. Every other failure is an
 /// error, including a path that names a directory. `git` says the same of a
-/// commit it does not have, so `rev` must be a commit that [`merge_base`] or
-/// [`resolve_commit`] returned.
+/// commit it does not have, which is why `rev` is a [`MergeBase`], a value only
+/// [`merge_base`] makes. `path` is named from the top of the work tree (see
+/// [`Prefix::join`]).
 ///
 /// # Errors
 ///
@@ -514,10 +658,10 @@ pub fn merge_base(runner: &dyn Runner, default: &Commit) -> Result<Commit, GitEr
 /// when the command fails otherwise; [`GitError::Exec`] when it cannot run.
 pub fn blob_at(
     runner: &dyn Runner,
-    rev: &Commit,
+    rev: &MergeBase,
     path: &SourcePath,
 ) -> Result<Option<Vec<u8>>, GitError> {
-    let invocation = Invocation::git_blob(rev, path);
+    let invocation = Invocation::git_blob(rev.commit(), path);
     let limits = Limits::query().with_max_output(MAX_TEXT_BYTES);
     let output = match runner.run(&invocation, &limits) {
         Ok(output) => output,
@@ -535,6 +679,10 @@ pub fn blob_at(
     if output.success() {
         return Ok(Some(output.stdout));
     }
+    // The words are git's English ones. The query limits set `LC_ALL=C`, which
+    // is what keeps them stable; a runner that stopped setting it would turn an
+    // absent file into an error here (never into an absent file), because
+    // anything that is not these two messages is an error.
     let stderr = output.stderr_text();
     let absent = stderr.starts_with("fatal: path '")
         && (stderr.contains("' does not exist in '")

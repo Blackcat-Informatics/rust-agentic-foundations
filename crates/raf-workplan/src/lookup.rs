@@ -14,6 +14,13 @@ use crate::{Finding, Loaded, Workplan};
 /// The prefix a change id carries.
 pub(crate) const CHANGE_PREFIX: &str = "change:";
 
+/// The repository-relative path of the document of the capability `id`:
+/// `docs/capabilities/<slug>.md`. `None` for an id that is not `cap:<slug>`.
+pub(crate) fn capability_path(id: &str) -> Option<String> {
+    id.strip_prefix("cap:")
+        .map(|slug| format!("docs/capabilities/{slug}.md"))
+}
+
 /// A change slug without the `change:` prefix a caller may have written.
 pub(crate) fn bare_slug(change: &str) -> &str {
     change.strip_prefix(CHANGE_PREFIX).unwrap_or(change)
