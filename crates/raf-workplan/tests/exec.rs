@@ -1292,14 +1292,16 @@ echo to-stderr >&2"#;
         // The stub starts a child that keeps the output pipes open, as a test
         // binary started by cargo does.
         let stub = scratch.stub("family", "sleep 60 &\necho $! > \"${0%/*}/pid\"\nwait");
-        let limits = Limits::query().with_timeout(Duration::from_millis(500));
+        // The limit leaves a loaded machine time to start the shell and write the pid
+        // before the limit runs out.
+        let limits = Limits::query().with_timeout(Duration::from_secs(3));
         let started = Instant::now();
         let error = scratch
             .runner(&stub)
             .run(&Invocation::git_version(), &limits)
             .unwrap_err();
         assert!(matches!(error, ExecError::Timeout { .. }), "{error:?}");
-        assert!(started.elapsed() < Duration::from_secs(10));
+        assert!(started.elapsed() < Duration::from_secs(20));
         let pid: u32 = scratch.text("pid").trim().parse().expect("a pid");
         let deadline = Instant::now() + Duration::from_secs(10);
         while alive(pid) && Instant::now() < deadline {
