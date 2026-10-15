@@ -8,7 +8,7 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 
 use raf_workplan::exec::Programs;
 use raf_workplan::lifecycle::{Lifecycle, LifecycleError};
@@ -26,10 +26,23 @@ pub(crate) fn serial() -> MutexGuard<'static, ()> {
     SPAWN.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// Run `git` in `dir` as a fixture step, with the variables of an enclosing git
-/// command and the user's configuration out of the way. Returns standard
-/// output without its last line ending.
-pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
+/// A directory that holds nothing, which stands in for the home and the
+/// configuration directory of the user while a fixture runs `git`.
+fn empty_home() -> &'static Path {
+    static HOME: OnceLock<PathBuf> = OnceLock::new();
+    HOME.get_or_init(|| {
+        let dir = std::env::temp_dir().join("raf-workplan-empty-home");
+        std::fs::create_dir_all(&dir).expect("an empty home directory");
+        dir
+    })
+}
+
+/// A `git` command for a fixture step in `dir`, cut off from the user: no
+/// global, system or home configuration, no global ignore file (neither
+/// `core.excludesFile` nor the default `$XDG_CONFIG_HOME/git/ignore`, which a
+/// user may have set to hide `*.md` or `work/`), no hooks, no signing, and none
+/// of the variables of an enclosing git command.
+pub(crate) fn git_command(dir: &Path) -> Command {
     let mut command = Command::new("git");
     command
         .arg("-C")
@@ -39,10 +52,14 @@ pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
             "commit.gpgsign=false",
             "-c",
             "core.hooksPath=/dev/null",
+            "-c",
+            "core.excludesFile=",
         ])
-        .args(args)
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("HOME", empty_home())
+        .env("USERPROFILE", empty_home())
+        .env("XDG_CONFIG_HOME", empty_home())
         .env("GIT_AUTHOR_NAME", "Fixture")
         .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
         .env("GIT_COMMITTER_NAME", "Fixture")
@@ -57,13 +74,24 @@ pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
     ] {
         command.env_remove(variable);
     }
-    let output = command.output().expect("git runs");
+    command
+}
+
+/// Run `git` in `dir` as a fixture step ([`git_command`]) and return standard
+/// output exactly as git wrote it.
+pub(crate) fn git_exact(dir: &Path, args: &[&str]) -> String {
+    let output = git_command(dir).args(args).output().expect("git runs");
     assert!(
         output.status.success(),
         "git {args:?}: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let text = String::from_utf8(output.stdout).expect("UTF-8 output");
+    String::from_utf8(output.stdout).expect("UTF-8 output")
+}
+
+/// As [`git_exact`], without the last line ending of standard output.
+pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
+    let text = git_exact(dir, args);
     text.strip_suffix('\n').unwrap_or(&text).to_string()
 }
 

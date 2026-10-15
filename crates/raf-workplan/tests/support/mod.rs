@@ -14,7 +14,13 @@ pub(crate) mod cases;
 pub(crate) mod changes;
 pub(crate) mod checkout;
 pub(crate) mod disk;
+pub(crate) mod project;
+pub(crate) mod story;
+pub(crate) mod streaming;
+pub(crate) mod streaming_code;
 pub(crate) mod synced;
+pub(crate) mod window;
+pub(crate) mod window_code;
 
 use std::collections::BTreeMap;
 
