@@ -6,7 +6,7 @@
 
 use std::path::Path;
 
-use raf_source::{DiskTree, Namespace, ResolveError, Workspace};
+use raf_source::{DiskTree, Namespace, ResolveError, SymbolKind, TargetKind, Vis, Workspace};
 
 /// This repository, loaded with the crates directory as the root.
 fn this_repository() -> Workspace {
@@ -71,4 +71,73 @@ fn a_dependency_re_exported_by_its_crate_name_is_not_found_and_not_a_cycle() {
             .path,
         "raf_source::tree::disk::DiskTree"
     );
+}
+
+#[test]
+fn the_surface_of_each_library_and_binary_of_this_repository_lists_its_public_items() {
+    let ws = this_repository();
+    let (mut listed, mut binaries) = (0, 0);
+    for id in ws.target_ids() {
+        let target = ws.target(id).expect("target");
+        if !matches!(target.kind, TargetKind::Lib | TargetKind::Bin) {
+            continue;
+        }
+        let exports = ws
+            .exported_items(id)
+            .unwrap_or_else(|e| panic!("{}: {e}", target.crate_path));
+        listed += exports.items.len();
+        if target.crate_path == "raf_source" {
+            let paths: Vec<&str> = exports.items.iter().map(|e| e.path.as_str()).collect();
+            for public in [
+                "raf_source::Workspace",
+                "raf_source::Workspace::exported_items",
+                "raf_source::DiskTree",
+                "raf_source::ExportedItem",
+            ] {
+                assert!(paths.contains(&public), "{public} is not listed");
+            }
+            // No item of a private module is listed under that module, nor is
+            // the dependency `syn`, which is a re-export of another crate.
+            let private: Vec<String> = ws
+                .items_under("raf_source")
+                .filter(|item| {
+                    item.kind == SymbolKind::Mod
+                        && item.visibility == Vis::Inherited
+                        && item.path.matches("::").count() == 1
+                })
+                .map(|item| format!("{}::", item.path))
+                .collect();
+            assert!(private.len() > 10, "{private:?}");
+            for path in &paths {
+                assert!(
+                    !private
+                        .iter()
+                        .any(|module| path.starts_with(module.as_str())),
+                    "{path}"
+                );
+            }
+            assert!(
+                exports
+                    .reexports
+                    .iter()
+                    .any(|reexport| reexport.path == "raf_source::syn" && reexport.item.is_none())
+            );
+            let disk = exports
+                .items
+                .iter()
+                .find(|e| e.path == "raf_source::DiskTree")
+                .expect("listed");
+            assert_eq!(
+                ws.item(disk.item).expect("item").path,
+                "raf_source::tree::disk::DiskTree"
+            );
+        }
+        // The command line binary keeps its items in its crate.
+        if target.crate_path == "cargo_workplan::bin_crate::cargo_workplan" {
+            assert_eq!(exports.items, []);
+            binaries += 1;
+        }
+    }
+    assert_eq!(binaries, 1);
+    assert!(listed > 100, "{listed}");
 }

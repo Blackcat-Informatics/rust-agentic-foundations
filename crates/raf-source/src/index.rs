@@ -173,6 +173,8 @@ pub(crate) struct UseDecl {
     /// True for test code: the declaration or a module around it is guarded
     /// by a `test` predicate, or its file is reached only through test code.
     pub(crate) test: bool,
+    /// True when the declaration has `#[doc(hidden)]`.
+    pub(crate) doc_hidden: bool,
     pub(crate) kind: UseKind,
 }
 
@@ -637,6 +639,7 @@ impl<'a> Builder<'a> {
             self_key: None,
             trait_path: None,
             shape: fact.shape,
+            macro_export: fact.macro_export,
         });
         Ok(id)
     }
@@ -855,6 +858,7 @@ impl<'a> Builder<'a> {
                     leading_colon: decl.leading_colon,
                     vis: decl.vis.clone(),
                     test: decl.test != TestRole::None || cx.reach_test,
+                    doc_hidden: decl.doc_hidden,
                     kind,
                 };
                 self.store.charge(entry.bytes(), cx.file, Some(decl.line))?;
@@ -1111,6 +1115,7 @@ impl Index {
                 self_key: None,
                 trait_path: None,
                 shape: None,
+                macro_export: false,
             });
             self.module_of.insert(id, module);
             self.root_items.insert(module, id);
@@ -1238,6 +1243,7 @@ impl Index {
             self_key: Some(self_key),
             trait_path,
             shape: None,
+            macro_export: false,
         });
         Ok(id)
     }
@@ -1352,6 +1358,16 @@ impl Index {
             + 4 * vec_first::<bool>()
             + 4 * vec_first::<[bool; 3]>()
             + vec_first::<BTreeSet<usize>>()
+    }
+
+    /// The named imports of `module`, sorted by bound name and position.
+    pub(crate) fn named_of(&self, module: usize) -> &[usize] {
+        let start = self
+            .named_imports
+            .partition_point(|position| self.uses[*position].module < module);
+        let end = self.named_imports[start..]
+            .partition_point(|position| self.uses[*position].module == module);
+        &self.named_imports[start..start + end]
     }
 
     /// The glob imports of `module`, in order of position.

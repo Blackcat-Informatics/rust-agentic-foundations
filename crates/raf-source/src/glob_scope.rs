@@ -344,6 +344,38 @@ impl Index {
         self.globs.exports.get(module).map_or(&[], Vec::as_slice)
     }
 
+    /// Each read of the globs of `module` in the settled tables: the glob
+    /// import, the module it reaches and the view of that module it reads.
+    pub(crate) fn glob_reads(
+        &self,
+        module: usize,
+    ) -> impl Iterator<Item = (usize, usize, usize)> + '_ {
+        self.reads_of(module)
+            .iter()
+            .map(|read| (read.glob, read.target, read.view))
+    }
+
+    /// True when `view` holds `id` under `name` in the name space at `at`.
+    pub(crate) fn view_holds(&self, view: usize, name: &str, at: usize, id: ItemId) -> bool {
+        self.globs.views[view]
+            .names
+            .get(name)
+            .is_some_and(|lists| lists[at].binary_search(&id).is_ok())
+    }
+
+    /// The items `view` holds under `name` in the name space at `at`, sorted.
+    pub(crate) fn view_ids(&self, view: usize, name: &str, at: usize) -> &[ItemId] {
+        self.globs.views[view]
+            .names
+            .get(name)
+            .map_or(&[][..], |lists| lists[at].as_slice())
+    }
+
+    /// The names `view` holds, in order.
+    pub(crate) fn view_names(&self, view: usize) -> impl Iterator<Item = &str> + '_ {
+        self.globs.views[view].names.keys().map(SharedStr::as_str)
+    }
+
     /// The items the globs of `module` bring in under `name` in the name
     /// space at `at`, each with the route of the glob and target that rank
     /// first and the visibilities of every glob that brings it in.

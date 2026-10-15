@@ -32,6 +32,24 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   that is not a generated marker are parse errors, and a claim outside a
   capability is a violation. `DocType`, `RafDocument`, `Rule::ALL` and
   `ErrorKind::ALL` grow, so an exhaustive match over them names the new variants.
+- **`raf-source`:** `Workspace::exported_items` lists the public surface of a
+  library or a binary: the items another crate can name through its crate root,
+  each as an `ExportedItem` with the path it is exported under and the item that
+  defines it, so a re-export under another name maps back to its definition. An
+  item is exported through a route of `pub` declarations back to a `pub`
+  definition, through `pub` modules and named, renamed and glob `pub use`
+  re-exports, so a `pub` item of a private module is exported only through a
+  re-export and a restricted item or a re-export that is not `pub` keeps a name in.
+  The `pub` members of the inherent impls of an exported type and the members of an
+  exported trait follow it; test code is never exported. A re-export of another
+  crate, of an enum variant or of a path the index cannot follow is a `Reexport`
+  and not an item, also where a `pub` glob carries it into the module that reads
+  the glob. `Item::macro_export` tells a `#[macro_export]` macro.
+  `#[doc(hidden)]` paths are left out unless `ExportOptions::include_hidden` lists
+  them, flagged. An ambiguous or cyclic public name, or a `pub` glob of nothing,
+  fails with the resolver's error, and the listing is charged to the item-bytes
+  budget left after the load; a listing whose decision of a carried re-export
+  passes it is `ExportError::CarryBudget`, naming the re-export.
 - **`raf-workplan`:** loads a repository's capability, change and architecture
   documents through a `raf-source` `Tree` into typed values with their bodies,
   validating each with `raf-okf`. `Workplan::load` never fails and never panics:

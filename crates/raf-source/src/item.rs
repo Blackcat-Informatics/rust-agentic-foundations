@@ -329,6 +329,10 @@ pub struct Item {
     pub self_key: Option<SelfType>,
     /// For a struct or union, how its fields are declared.
     pub shape: Option<FieldShape>,
+    /// True for a `macro_rules!` macro with an unconditional
+    /// `#[macro_export]`, which is indexed at the crate root and which other
+    /// crates can name there; false for every other item.
+    pub macro_export: bool,
 }
 
 impl Item {
