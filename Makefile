@@ -115,7 +115,7 @@ issue-refs: ## Fail on issue/PR tokens and process wording in tracked files.
 	cargo test --locked --test repo_gates
 
 docs-sync: ## Rewrite the generated documentation blocks and create the capability index.
-	cargo run --locked -p raf-workplan --example docs_sync -- '$(ROOT)' --copyright '$(DOCS_COPYRIGHT)' --licence '$(DOCS_LICENCE)'
+	cargo run --locked -q -p cargo-workplan -- --root '$(ROOT)' docs sync --copyright '$(DOCS_COPYRIGHT)' --licence '$(DOCS_LICENCE)'
 
 check: ## Run every gate, stopping at the first failure.
 	$(MAKE) fmt

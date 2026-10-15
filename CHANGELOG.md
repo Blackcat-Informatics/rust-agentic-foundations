@@ -451,6 +451,9 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   The module documentation of `bound` states that the proof is not a defence against
   the code it runs: output shaped like a result from a bound test, which is trusted
   workspace code, is read as the run reports it.
+- **`make docs-sync`** runs `cargo-workplan docs sync` with the SPDX text of a new
+  capability index, in place of the `docs_sync` example of `raf-workplan`; the
+  example stays.
 - **`raf-okf` rule and error tags:** `Rule::ALL` and `ErrorKind::ALL` list the
   payload-free `RuleTag` and `ErrorTag` of every variant, with `Rule::kind`,
   `ErrorKind::tag` and a kebab-case `name`, so a caller can name and map every rule

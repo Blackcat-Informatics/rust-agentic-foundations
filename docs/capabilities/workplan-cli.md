@@ -5,11 +5,60 @@ type: Capability
 id: cap:workplan-cli
 title: "cargo workplan command line"
 description: "The cargo workplan subcommands, options and exit codes."
-state: designed
+state: implementing
 bindings:
-  code: []
-  tests: []
-  examples: []
+  code:
+    - cargo_workplan::bin_crate::cargo_workplan::main
+    - cargo_workplan::bin_crate::cargo_workplan::cli::parse
+    - cargo_workplan::bin_crate::cargo_workplan::cli::Args
+    - cargo_workplan::bin_crate::cargo_workplan::command::run
+    - cargo_workplan::bin_crate::cargo_workplan::exit::Exit
+    - raf_workplan::root::discover
+  tests:
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::each_command_parses_in_both_shapes
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_default_and_parse_in_both_shapes
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_sync_text_options_parse
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_format_that_is_not_text_or_json_is_a_usage_error
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given
+    - cargo_workplan::bin_crate::cargo_workplan::exit::tests::the_three_exits_have_the_documented_codes
+    - cargo_workplan::bin_crate::cargo_workplan::render::tests::quiet_prints_only_findings_and_keeps_the_exit
+    - cargo_workplan::test_crate::check::a_clean_repository_exits_zero_and_prints_nothing
+    - cargo_workplan::test_crate::check::a_repository_with_findings_exits_one_and_prints_each_finding
+    - cargo_workplan::test_crate::check::the_findings_are_those_of_the_library_gate_in_the_same_order
+    - cargo_workplan::test_crate::check::the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message
+    - cargo_workplan::test_crate::check::usage_errors_exit_two_with_a_message_on_standard_error
+    - cargo_workplan::test_crate::status::the_roadmap_groups_one_capability_in_each_state_with_the_gaps_and_the_change
+    - cargo_workplan::test_crate::preview::the_proposed_text_is_printed_and_the_markers_are_not
+    - cargo_workplan::test_crate::preview::an_unknown_slug_is_exit_two_and_names_the_open_changes
+    - cargo_workplan::test_crate::sync::a_missing_index_with_the_text_is_created_with_that_header
+    - cargo_workplan::test_crate::sync::only_the_generated_blocks_are_rewritten
+    - cargo_workplan::test_crate::new::new_prints_the_library_text_writes_the_record_and_nothing_else_in_both_shapes
+    - cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal
+    - cargo_workplan::test_crate::impact::impact_prints_what_the_change_reaches_and_writes_nothing
+    - cargo_workplan::test_crate::reconcile::nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples
+    - cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary
+    - cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way
+    - cargo_workplan::test_crate::verify::json_is_one_binding_object_for_each_binding
+    - cargo_workplan::test_crate::json::check_prints_one_object_for_each_finding_of_the_gate_with_the_fields_of_its_location
+    - cargo_workplan::test_crate::json::the_kinds_that_are_not_rules_are_not_rule_names
+    - cargo_workplan::test_crate::json::every_object_is_a_single_line_inside_one_array
+    - cargo_workplan::test_crate::json::a_run_that_could_not_run_prints_nothing_on_standard_output_in_json_too
+    - cargo_workplan::test_crate::process::discovery_runs_exactly_cargo_metadata_from_the_cargo_variable
+    - cargo_workplan::test_crate::process::discovery_runs_the_cargo_on_path_when_the_variable_is_unset
+    - cargo_workplan::test_crate::process::discovery_does_not_run_the_build_rustc_program_of_the_workspace
+    - cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts
+    - cargo_workplan::test_crate::process::a_missing_git_is_exit_two_and_names_it
+    - cargo_workplan::test_crate::process::cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back
+    - cargo_workplan::test_crate::root::the_root_is_found_from_the_root_and_from_any_directory_below_it
+    - cargo_workplan::test_crate::root::every_command_finds_the_root_from_a_subdirectory
+  examples:
+    - raf_workplan::Workplan::sync
+    - raf_workplan::Workplan::preview
+    - raf_workplan::Workplan::new_change
+    - raf_workplan::Workplan::impact
 depends: [cap:workplan-complete-gate, cap:workplan-reconcile, cap:workplan-generated-docs]
 ---
 
@@ -145,3 +194,60 @@ rather than kept by hand.
   and the proposed text is present.
 - An equivalence test: the violations from `check` equal those of
   `Gate::workspace(...).assert_clean()` on the same fixtures.
+
+<!-- raf:generated:verification-matrix -->
+| Item | Kind | Section |
+| --- | --- | --- |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_format_that_is_not_text_or_json_is_a_usage_error` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::each_command_parses_in_both_shapes` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_default_and_parse_in_both_shapes` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_sync_text_options_parse` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::exit::tests::the_three_exits_have_the_documented_codes` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::render::tests::quiet_prints_only_findings_and_keeps_the_exit` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::a_clean_repository_exits_zero_and_prints_nothing` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::a_repository_with_findings_exits_one_and_prints_each_finding` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::the_findings_are_those_of_the_library_gate_in_the_same_order` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::usage_errors_exit_two_with_a_message_on_standard_error` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::impact::impact_prints_what_the_change_reaches_and_writes_nothing` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::json::a_run_that_could_not_run_prints_nothing_on_standard_output_in_json_too` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::json::check_prints_one_object_for_each_finding_of_the_gate_with_the_fields_of_its_location` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::json::every_object_is_a_single_line_inside_one_array` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::json::the_kinds_that_are_not_rules_are_not_rule_names` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::new::new_prints_the_library_text_writes_the_record_and_nothing_else_in_both_shapes` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::preview::an_unknown_slug_is_exit_two_and_names_the_open_changes` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::preview::the_proposed_text_is_printed_and_the_markers_are_not` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::process::a_missing_git_is_exit_two_and_names_it` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::process::cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::process::discovery_does_not_run_the_build_rustc_program_of_the_workspace` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::process::discovery_runs_exactly_cargo_metadata_from_the_cargo_variable` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::process::discovery_runs_the_cargo_on_path_when_the_variable_is_unset` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::reconcile::nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::root::every_command_finds_the_root_from_a_subdirectory` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::root::the_root_is_found_from_the_root_and_from_any_directory_below_it` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::status::the_roadmap_groups_one_capability_in_each_state_with_the_gaps_and_the_change` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::sync::a_missing_index_with_the_text_is_created_with_that_header` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::sync::only_the_generated_blocks_are_rewritten` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::verify::json_is_one_binding_object_for_each_binding` | test | [Verification](#verification) |
+| `raf_workplan::Workplan::impact` | doctest | [Verification](#verification) |
+| `raf_workplan::Workplan::new_change` | doctest | [Verification](#verification) |
+| `raf_workplan::Workplan::preview` | doctest | [Verification](#verification) |
+| `raf_workplan::Workplan::sync` | doctest | [Verification](#verification) |
+<!-- raf:generated:end -->
+
+<!-- raf:generated:relationships -->
+| Relation | Capability |
+| --- | --- |
+| Depends on | [workplan-complete-gate](./workplan-complete-gate.md) |
+| Depends on | [workplan-generated-docs](./workplan-generated-docs.md) |
+| Depends on | [workplan-reconcile](./workplan-reconcile.md) |
+| Changed by | [workplan-cli](../../work/changes/workplan-cli.md) |
+<!-- raf:generated:end -->

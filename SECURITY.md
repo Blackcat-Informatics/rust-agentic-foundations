@@ -148,7 +148,9 @@ guarantees are these, and no wider:
   is a usage error before any process starts. The change commands add two kinds of
   process, both started by `raf-workplan`: `git` (the default branch, the merge base
   and the file at the merge base, for `change reconcile` and `change complete`, which
-  ask `git --version` before anything else and refuse a Git older than 2.30) and
+  ask `git --version` before anything else, refuse a Git older than 2.30, and then
+  ask `git rev-parse --show-prefix` once to read each file at the workspace's place
+  below the top of its work tree) and
   `cargo` (the bound tests and examples, for `verify`, `change complete` and the
   examples of `change reconcile`). A bound value that does not resolve, or does not
   match its stated pattern, never reaches `cargo`; a process runs with its input
@@ -162,8 +164,9 @@ Each spec states its own bounds and exact invocations.
 ## Security surface
 
 The most relevant security surface for this project is **reading untrusted
-files**. The following surfaces apply; `raf-okf` and `raf-source` implement the
-parsing and path-traversal surfaces, and the rest apply as the other crates are built:
+files**. The following surfaces apply; `raf-okf`, `raf-source` and `raf-workplan`
+implement the parsing and path-traversal surfaces, `raf-workplan` and `cargo-workplan`
+the subprocess surface, and the rest apply as the other crates are built:
 
 - **Rust source parsing** — `syn` parsing of untrusted `.rs` files; resource
   exhaustion from pathological nesting, very large files, or deeply recursive

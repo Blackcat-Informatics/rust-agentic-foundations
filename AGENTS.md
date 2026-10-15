@@ -56,8 +56,7 @@ index. `raf-workplan` delivers the document model (loading, the graph, binding
 resolution, the check rules and the `Gate`) and the generated blocks with their
 sync and preview, and builds the change lifecycle (`change new`, `impact`,
 `reconcile`, `complete` and `verify`); the capability documents that specify the
-reconcile step, the completion gate and the command line still describe them as
-**designed**.
+reconcile step, the completion gate and the command line are **implementing**.
 `cargo-workplan` has all of its commands: `check`, `status`, `docs sync|preview`,
 `change new|impact|reconcile|complete` and `verify`. Every other crate below is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
@@ -68,7 +67,7 @@ reconcile step, the completion gate and the command line still describe them as
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | delivered |
 | `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | designed |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
-| `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | model and generated sections delivered; obligations, `verify` and completion gate built, their capability documents still designed |
+| `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | model and generated sections delivered; obligations, `verify` and completion gate implementing |
 | `cargo-workplan` | Thin command-line wrapper over `raf-workplan` | all commands built: `check`, `status`, `docs`, `change`, `verify` |
 
 `raf-source` is shared on purpose: the census needs its symbol index to resolve
@@ -246,10 +245,8 @@ this repository's own policy, such as the capability inventory.
   sync, and the bound tests and examples pass. The change record is then
   **deleted**; Git keeps the history. The command that enforces this is
   `cargo workplan change complete`
-  ([workplan completion gate](docs/capabilities/workplan-complete-gate.md), whose
-  capability document still describes it as designed); the records of this
-  repository are completed by hand, and the conditions are checked by hand before
-  one is deleted.
+  ([workplan completion gate](docs/capabilities/workplan-complete-gate.md)), and
+  the records of this repository are completed with it.
 - **Identifiers are slugs**, never numbers. Documents never refer to a tracker.
 
 ---
