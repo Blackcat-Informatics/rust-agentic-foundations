@@ -578,8 +578,11 @@ fn example_site(
         )
         .map(Plan::Example),
         ExampleKind::Doctest => {
-            let within = doc_item_path(item, target).ok_or_else(|| Refusal::NoDocItem {
-                path: path.to_string(),
+            let file_module = file_module(source, item, target);
+            let within = doc_item_path(item, target, file_module.as_deref()).ok_or_else(|| {
+                Refusal::NoDocItem {
+                    path: path.to_string(),
+                }
             })?;
             doc_plan(path, &target.package, &within).map(Plan::DocTest)
         }
@@ -624,16 +627,39 @@ fn pattern(path: &str, what: &'static str, error: PatternError) -> Refusal {
     }
 }
 
+/// The module path, within its crate, of the file that holds `item` in the
+/// target of the item: `""` for the crate root file, `sync` for `src/sync.rs`.
+/// `None` when the index does not say.
+fn file_module(source: &Workspace, item: &Item, target: &SourceTarget) -> Option<String> {
+    let file = source.file(&item.file)?;
+    let reach = file
+        .reached
+        .iter()
+        .find(|reach| reach.target == item.target)?;
+    let module: &str = &reach.module_path;
+    if module == target.crate_path {
+        return Some(String::new());
+    }
+    module
+        .strip_prefix(&target.crate_path)?
+        .strip_prefix("::")
+        .map(str::to_string)
+}
+
 /// The item part of the name rustdoc gives the documentation tests of `item`:
 /// its path within the crate, with an inherent impl's method written under the
 /// self type as the impl writes it (`Wrapper<T>::get`). `None` for the crate
 /// root, which has no item part.
 ///
-/// The impl block is taken to sit in the module of its self type; an impl
-/// written elsewhere, or under another spelling of its self type, is named
+/// rustdoc names a method by the module of its impl block. The impl is taken to
+/// sit in the module of its self type when the file that holds it is that
+/// module or one that contains it (an inline module of the file), and in the
+/// module of that file otherwise (`sync::Workplan<'_>::sync` for an impl of
+/// `model::Workplan` written in `src/sync.rs`). An impl in an inline module of
+/// another file, or under another spelling of its self type, is named
 /// differently by rustdoc and the list pass then selects nothing, which is a
 /// refusal.
-fn doc_item_path(item: &Item, target: &SourceTarget) -> Option<String> {
+fn doc_item_path(item: &Item, target: &SourceTarget, file_module: Option<&str>) -> Option<String> {
     let within = item
         .path
         .strip_prefix(&target.crate_path)?
@@ -643,6 +669,10 @@ fn doc_item_path(item: &Item, target: &SourceTarget) -> Option<String> {
         let (modules, type_name) = owner
             .rsplit_once("::")
             .map_or(("", owner), |(modules, name)| (modules, name));
+        let modules = match file_module {
+            Some(file) if !holds(file, modules) => file,
+            _ => modules,
+        };
         if self_type.split('<').next() == Some(type_name) {
             return Some(if modules.is_empty() {
                 format!("{self_type}::{method}")
@@ -652,4 +682,13 @@ fn doc_item_path(item: &Item, target: &SourceTarget) -> Option<String> {
         }
     }
     Some(within.to_string())
+}
+
+/// Whether the module `outer` is the module `inner` or contains it.
+fn holds(outer: &str, inner: &str) -> bool {
+    outer.is_empty()
+        || inner == outer
+        || inner
+            .strip_prefix(outer)
+            .is_some_and(|rest| rest.starts_with("::"))
 }

@@ -741,6 +741,67 @@ fn each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_a
     }
 }
 
+/// The file an obligation of each kind points at in the cases above, and
+/// whether it names a line.
+fn place_of(kind: ObligationKind) -> (&'static str, bool) {
+    match kind {
+        ObligationKind::UnresolvedProposal | ObligationKind::TenseMismatch => (CAP, true),
+        ObligationKind::ItemWithoutOutcome => (RECORD, false),
+        ObligationKind::BindingMissing
+        | ObligationKind::SectionUntouched
+        | ObligationKind::ExampleFailing => (CAP, false),
+        ObligationKind::GeneratedStale => (INDEX, true),
+        _ => unreachable!("every kind has a case"),
+    }
+}
+
+#[test]
+fn each_kind_of_obligation_is_a_reconcile_line_in_a_git_repository_and_fixing_it_removes_the_line()
+{
+    for case in cases() {
+        let name = case.kind.name();
+        let fixture = Fixture::real(&case.spec);
+        (case.fault)(&fixture);
+        let before = fixture.snapshot();
+
+        let owed = fixture
+            .lifecycle()
+            .reconcile("shape")
+            .unwrap_or_else(|error| panic!("{name}: reconcile answers: {error}"));
+        assert!(!owed.is_empty(), "{name}");
+        let (path, with_line) = place_of(case.kind);
+        let text = owed.to_string();
+        for obligation in owed.obligations() {
+            // The kind is the only one owed, at its place, with its evidence.
+            assert_eq!(obligation.kind, case.kind, "{name}: {text}");
+            assert_eq!(obligation.location.path, path, "{name}: {text}");
+            assert_eq!(
+                obligation.location.line.is_some(),
+                with_line,
+                "{name}: {text}"
+            );
+            let line = obligation.to_string();
+            assert!(line.contains(&format!("  {name}  ")), "{name}: {line}");
+            assert!(
+                line.contains(obligation.evidence.contract_text()),
+                "{name}: {line}"
+            );
+        }
+        // Reconcile writes nothing in the repository.
+        assert_eq!(fixture.snapshot(), before, "{name}");
+
+        // Fixing it removes the line.
+        (case.repair)(&fixture);
+        let repaired = fixture
+            .lifecycle()
+            .reconcile("shape")
+            .unwrap_or_else(|error| panic!("{name} repaired: reconcile answers: {error}"));
+        assert_eq!(repaired.of_kind(case.kind).count(), 0, "{name}: {repaired}");
+        assert!(repaired.is_empty(), "{name}: {repaired}");
+        fixture.within_budget();
+    }
+}
+
 // --- one refusal for each condition -------------------------------------------------
 
 #[test]
@@ -916,6 +977,65 @@ fn a_failing_bound_test_refuses_condition_five_alone() {
     assert_eq!(fixture.snapshot(), before);
 
     fixture.edit(CAP, "[fx_life::tests::fails]", PASSES);
+    fixture.resync();
+    assert!(fixture.complete().is_completed());
+}
+
+#[test]
+fn a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside_passing_neighbours()
+ {
+    // A documentation test that fails: an `example-failing` obligation and a
+    // failure of condition 5. Its neighbour, the passing doc test, completes.
+    let doc = "/// assert_eq!(fx_life::add(1, 2), 3);";
+    let fixture = Fixture::real(&Spec::default().examples("[fx_life::add]", &[]));
+    fixture.edit("src/lib.rs", doc, "/// assert_eq!(fx_life::add(1, 2), 4);");
+    let before = fixture.snapshot();
+    let refused = fixture.complete();
+    assert_eq!(count(&refused, Condition::BoundRuns), 1, "{refused}");
+    assert!(
+        matches!(
+            refused.of_condition(Condition::BoundRuns).next(),
+            Some(Failure::Example(_))
+        ),
+        "{refused}"
+    );
+    assert_eq!(kinds(&refused), [ObligationKind::ExampleFailing]);
+    assert_eq!(fixture.snapshot(), before);
+    fixture.edit("src/lib.rs", "/// assert_eq!(fx_life::add(1, 2), 4);", doc);
+    assert!(fixture.complete().is_completed());
+
+    // A tests binding to a function that is not a `#[test]` runs zero tests:
+    // it does not fit its list, so it is owed and no process proves it.
+    let fixture = Fixture::real(&Spec::default().tests("[fx_life::plain]"));
+    let before = fixture.snapshot();
+    let refused = fixture.complete();
+    assert_eq!(
+        kinds(&refused),
+        [ObligationKind::BindingMissing],
+        "{refused}"
+    );
+    assert_eq!(count(&refused, Condition::BoundRuns), 0, "{refused}");
+    assert_eq!(fixture.snapshot(), before);
+
+    // An `#[ignore]`d test is listed and does not run: condition 5 refuses.
+    let fixture = Fixture::real(&Spec::default());
+    fixture.edit(
+        "src/lib.rs",
+        "    fn also_passes() {}\n",
+        "    fn also_passes() {}\n\n    #[test]\n    #[ignore]\n    fn ignored() {}\n",
+    );
+    fixture.edit(CAP, PASSES, "[fx_life::tests::ignored]");
+    fixture.resync();
+    let before = fixture.snapshot();
+    let refused = fixture.complete();
+    assert_eq!(count(&refused, Condition::BoundRuns), 1, "{refused}");
+    assert!(
+        matches!(refused.failures(), [Failure::Test(evidence)] if !evidence.passed()),
+        "{refused}"
+    );
+    assert_eq!(fixture.snapshot(), before);
+    // The neighbour: the passing test completes.
+    fixture.edit(CAP, "[fx_life::tests::ignored]", PASSES);
     fixture.resync();
     assert!(fixture.complete().is_completed());
 }

@@ -653,16 +653,40 @@ pub mod inner {{
     /// ```
     pub fn solo() {{}}
 }}
+
+mod more;
 "
     )
 }
+
+/// An impl of `Wrapper` in a file of its own, whose methods rustdoc names by
+/// the module of that file.
+const DOCS_MORE: &str = "\
+//! More of the wrapper.
+
+use crate::Wrapper;
+
+impl<T> Wrapper<T> {
+    /// Gets the value again.
+    ///
+    /// ```
+    /// assert_eq!(fx_docs::Wrapper(2).again(), &2);
+    /// ```
+    pub fn again(&self) -> &T {
+        &self.0
+    }
+}
+";
 
 fn docs_fixture(edition: &str) -> Fixture {
     Fixture::new(
         "fx-docs",
         edition,
         "",
-        &[("src/lib.rs", &docs_lib("fx_docs"))],
+        &[
+            ("src/lib.rs", &docs_lib("fx_docs")),
+            ("src/more.rs", DOCS_MORE),
+        ],
     )
 }
 
@@ -712,6 +736,22 @@ fn doc_rules(edition: &str) {
     );
 
     passed(&fixture.run("examples", "fx_docs::inner::solo"));
+
+    // A method whose impl block sits in another file is named by the module of
+    // that file, as rustdoc names it.
+    let again = fixture.run("examples", "fx_docs::Wrapper::again");
+    passed(&again);
+    assert_eq!(
+        again.runs()[1].argv(),
+        argv(&[
+            "test",
+            "--frozen",
+            "--package=fx-docs",
+            "--doc",
+            "--",
+            "more::Wrapper<T>::again"
+        ])
+    );
 
     let bad = fixture.run("examples", "fx_docs::bad");
     assert!(

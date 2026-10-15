@@ -45,6 +45,13 @@
 //! and the run has no verdict; a process killed at its limit is a failed
 //! binding that reports how long it ran.
 //!
+//! The proof guards against a filter that selects nothing, more than one test
+//! or the wrong one; it is not a defence against the code it runs. A bound test
+//! or example is workspace code and trusted build input (see `SECURITY.md`), so
+//! output from it that is shaped like a result, such as a test that prints its
+//! own `test result:` line and exits with status 0, is read as the run reports
+//! it.
+//!
 //! ```rust
 //! use raf_source::{MemoryTree, Workspace};
 //! use raf_workplan::Workplan;
