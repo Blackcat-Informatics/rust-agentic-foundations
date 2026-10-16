@@ -3,7 +3,7 @@
 
 //! The value rules of the record types: evidence, assessments and coverage.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::frontmatter::value::{Entry, ItemValue, Map, Scalar};
 use crate::profile::schema::DocType;
@@ -587,8 +587,14 @@ pub(super) fn check_between(check: &mut Check<'_>, keys: &Keys<'_>) -> bool {
         None => {}
     }
     if let (Some(values), Some(limits)) = (keys.values, keys.limits) {
+        // One lookup per limit, so a record with many measures is judged in
+        // time linear in their number.
+        let by_name: HashMap<&str, &Measure> = values
+            .iter()
+            .map(|value| (value.name.as_str(), value))
+            .collect();
         for limit in limits {
-            let Some(value) = values.iter().find(|value| value.name == limit.name) else {
+            let Some(value) = by_name.get(limit.name.as_str()) else {
                 check.key(
                     "limits",
                     Rule::LimitWithoutValue {

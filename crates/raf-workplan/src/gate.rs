@@ -109,7 +109,8 @@ impl Error for GateError {
 /// ```
 ///
 /// [`Gate::workspace`] names the directory. The gate reads `docs/capabilities`,
-/// `docs/architecture` and `work/changes` below it, loads the source
+/// `docs/architecture` and `work/changes` below it, and the records of
+/// `work/evidence`, `work/assessments` and `work/coverage`, loads the source
 /// [`Workspace`] with the roots `["."]` (change them with
 /// [`Gate::source_roots`]), and runs [`Workplan::check`].
 ///

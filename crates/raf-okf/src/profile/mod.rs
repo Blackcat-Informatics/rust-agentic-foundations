@@ -10,6 +10,7 @@ mod schema;
 mod timestamp;
 mod typed;
 mod violation;
+mod write;
 
 use std::collections::HashSet;
 

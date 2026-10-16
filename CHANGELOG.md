@@ -29,9 +29,18 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `Body::claims` reads the claim marker
   `<!-- raf:claim evidence=<slug>[,<slug>...] -->` with the paragraph or list item
   it supports; a malformed or unattached claim marker and any other `raf:` comment
-  that is not a generated marker are parse errors, and a claim outside a
+  that is not a `raf:generated:` comment are parse errors, and a claim outside a
   capability is a violation. `DocType`, `RafDocument`, `Rule::ALL` and
   `ErrorKind::ALL` grow, so an exhaustive match over them names the new variants.
+- **`raf-okf`:** a record is built with `EvidenceRecord::new`,
+  `AssessmentRecord::new` or `CoverageRecord::new` (with `RecordHeader::new`,
+  `Input::new`, `SectionRef::new`, `Measure::new` and `Exclusion::new`) and
+  written by its `to_document`: keys in key-table order, numbers unquoted as
+  written, an empty list as `[]`, absent optional keys left out and an empty body,
+  so `Profile::validate` reads the text back as the same record.
+  `EvidenceVerdict::name`, `AssessmentVerdict::name` and `EvidenceSubject::text`
+  give the key values. The limits of an evidence record are judged against its
+  values in time linear in their number.
 - **`raf-source`:** `Workspace::exported_items` lists the public surface of a
   library or a binary: the items another crate can name through its crate root,
   each as an `ExportedItem` with the path it is exported under and the item that
@@ -50,6 +59,24 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   fails with the resolver's error, and the listing is charged to the item-bytes
   budget left after the load; a listing whose decision of a carried re-export
   passes it is `ExportError::CarryBudget`, naming the re-export.
+- **`raf-workplan`:** `Workplan::load` reads the records: the evidence of
+  `work/evidence`, the assessments of `work/assessments` and the coverage record
+  `work/coverage/default.md` (`Workplan::evidence`, `Workplan::assessments`,
+  `Workplan::coverage`). Any other file in `work/coverage` is
+  `singleton-other-file`, and a repository without these directories loads as
+  before. The graph gains record and crate nodes and the `for`, claim, assessment
+  subject, `scope` and input edges (`Graph::evidence_of`, `Graph::claims_on`,
+  `Graph::assessments_of`, `Graph::inputs_of`); a symbol a record input names is
+  a node, and an input that resolves to nothing is no edge and no finding. `check`
+  reports `claim-evidence-missing` and
+  `claim-evidence-not-for` with the line of the marker, `evidence-for-missing`,
+  `assessment-subject-missing` and `scope-crate-missing`. `NodeKind`, `EdgeKind`,
+  `Node` and `Edge` grow. `digest::Digest` is the SHA-256 of a section, a symbol
+  or a record over a domain-separated, length-prefixed encoding with CRLF read as
+  LF, computed in the crate with no new dependency. `record::create` writes a new
+  record exclusively and `record::replace` replaces one through a temporary file
+  and a rename, each with optional SPDX lines and refusing a record that would not
+  load clean.
 - **`raf-workplan`:** loads a repository's capability, change and architecture
   documents through a `raf-source` `Tree` into typed values with their bodies,
   validating each with `raf-okf`. `Workplan::load` never fails and never panics:

@@ -26,6 +26,20 @@ bindings:
     - raf_workplan::Gate::assert_clean
     - raf_workplan::plain::check
     - raf_workplan::refs::banned_in_line
+    - raf_workplan::Workplan::evidence
+    - raf_workplan::Workplan::assessments
+    - raf_workplan::Workplan::coverage
+    - raf_workplan::Graph::evidence_of
+    - raf_workplan::Graph::claims_on
+    - raf_workplan::Graph::assessments_of
+    - raf_workplan::Graph::inputs_of
+    - raf_workplan::digest::Digest
+    - raf_workplan::digest::Digest::section
+    - raf_workplan::digest::Digest::symbol
+    - raf_workplan::digest::Digest::record
+    - raf_workplan::record::Record
+    - raf_workplan::record::create
+    - raf_workplan::record::replace
   tests:
     - raf_workplan::test_crate::documents::accepts_valid_fixture
     - raf_workplan::test_crate::documents::the_model_holds_typed_values_and_bodies
@@ -93,6 +107,27 @@ bindings:
     - raf_workplan::test_crate::plain::reads_markdown_outside_the_document_directories_with_or_without_frontmatter
     - raf_workplan::test_crate::plain::a_broken_link_and_a_split_link_are_reported_together_for_a_plain_file
     - raf_workplan::test_crate::generated::a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check
+    - raf_workplan::test_crate::records::each_record_type_loads_from_its_directory_into_the_model
+    - raf_workplan::test_crate::records::a_repository_without_record_directories_has_no_records_and_no_new_findings
+    - raf_workplan::test_crate::records::work_coverage_holds_only_the_coverage_record
+    - raf_workplan::test_crate::records::a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_clean
+    - raf_workplan::test_crate::records::a_claim_on_unknown_evidence_names_the_file_and_the_line
+    - raf_workplan::test_crate::records::a_claim_on_evidence_for_another_capability_is_a_finding
+    - raf_workplan::test_crate::records::claims_are_section_granular_and_one_edge_per_named_record
+    - raf_workplan::test_crate::records::the_records_are_nodes_with_their_edges
+    - raf_workplan::test_crate::records::each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding
+    - raf_workplan::test_crate::records::replace_renames_a_new_file_over_the_target_and_never_writes_into_it
+    - raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value
+    - raf_workplan::test_crate::records::create_never_replaces_a_file
+    - raf_workplan::test_crate::records::replace_puts_new_text_in_place_of_an_existing_record_only
+    - raf_workplan::test_crate::records::a_record_that_would_not_load_clean_is_not_written
+    - raf_workplan::test_crate::records::a_hundred_thousand_claims_load_in_time_linear_in_their_number
+    - raf_workplan::test_crate::digest::each_kind_hashes_its_documented_encoding
+    - raf_workplan::test_crate::digest::a_digest_is_the_same_on_every_run
+    - raf_workplan::test_crate::digest::crlf_and_lf_give_the_same_digest
+    - raf_workplan::test_crate::digest::a_regenerated_block_leaves_the_section_digest_and_an_edit_moves_it
+    - raf_workplan::test_crate::digest::every_definition_of_a_path_counts_once_in_file_order
+    - raf_workplan::digest::tests::sha256_gives_the_standard_test_vectors
   examples:
     - raf_workplan::Gate
     - raf_workplan::LinkContext
@@ -245,6 +280,55 @@ are empty and the bindings that do not resolve.
 Markdown outside the document directories, such as a README, is judged by the same
 link, marker and reference rules through `raf_workplan::plain::check`.
 
+> [!PROPOSED change:workplan-document-model]
+> **Records.** `Workplan::load` also reads the records of the profile: the evidence
+> records of `work/evidence`, the assessments of `work/assessments` and the coverage
+> record `work/coverage/default.md`, each validated with the OKF reader and kept as a
+> typed record (`Workplan::evidence`, `Workplan::assessments`, `Workplan::coverage`).
+> A record directory holds its records directly, as a document directory does, and
+> `work/coverage` holds only `default.md`: any other file there is
+> `singleton-other-file` and is not read. A directory that does not exist holds
+> nothing, so a repository without records loads and checks as it did before.
+>
+> The graph holds a node for each record, for each crate the coverage record
+> scopes and for each symbol an input names, and five more edges: `for` from an
+> evidence record to each capability it covers (`Graph::covers`,
+> `Graph::evidence_of`); a claim from the section of a capability that holds a claim
+> marker to each evidence record the marker names (`Graph::claims`,
+> `Graph::claims_on`); the subject of an assessment, a section (`Graph::assesses`,
+> `Graph::assessments_of`); `scope` from the coverage record to each crate
+> (`Graph::scope`); and an input edge from a record to the section, the definitions
+> of the symbol or the evidence record each of its input rows names
+> (`Graph::inputs`, `Graph::inputs_of`). An input whose name resolves to nothing
+> now makes no edge and is no finding of the load. A claim marker inside a PROPOSED block is not a
+> claim until the block is resolved. `check` reports a claim on evidence that does
+> not exist (`claim-evidence-missing`) or whose `for` does not list the capability
+> (`claim-evidence-not-for`), each with the file and the line of the marker; an
+> evidence record whose `for` names no capability document (`evidence-for-missing`);
+> an assessment whose subject is a section of no capability document
+> (`assessment-subject-missing`); and a `scope` entry that is no package of the
+> source workspace (`scope-crate-missing`). A name whose document or record exists
+> and is broken is explained by the findings of that file.
+>
+> **Digests.** `raf_workplan::digest::Digest` is the SHA-256 (FIPS 180-4, computed
+> in the crate) of a canonical encoding of a record input, one or more fields
+> `<kind> NUL <name> NUL <length> NUL <text>`: the kind (`section`, `symbol` or
+> `record`) keeps the domains apart and the decimal length ends each field. `Digest::section` hashes
+> the authored text of a section, with the content of its generated blocks left out;
+> `Digest::symbol` hashes the source span of each definition a path resolves to, once
+> per source item and in file order; `Digest::record` hashes the text of a record.
+> Every text has CRLF read as LF, so a digest is the same on every run and platform.
+> A digest is written and read as 64 lowercase hexadecimal digits.
+>
+> **Writing records.** `raf_workplan::record::create` writes a new `Record` file
+> exclusively, never replacing a file, below the root, creating the directory of
+> its type when it is missing and refusing a link or a file on the way;
+> `record::replace` puts new text in place of an existing record file through a
+> temporary file and a rename. Both write the text the OKF writer renders for the
+> record, opened with the two SPDX comment lines of `RecordOptions` when both are
+> given, and refuse, before anything is written, a record whose text would not load
+> with no finding.
+
 ## Usage
 
 A project runs the checks from a test with the dev-dependency API:
@@ -265,6 +349,11 @@ location and fix, when there is one. A directory without a capability document i
 error, not a clean verdict, and a missing `work/changes` is the empty set of changes.
 A command line is specified separately ([command line](./workplan-cli.md)) and is
 not part of this capability.
+
+> [!PROPOSED change:workplan-document-model]
+> `Gate::workspace` also reads the records of `work/evidence`, `work/assessments`
+> and `work/coverage`; a missing record directory holds no record, so a repository
+> with none checks as before.
 
 ## Examples
 
@@ -388,11 +477,38 @@ touches, and the obligations those sections receive are defined by
   fixture repository on disk, panics with every finding on a broken one, and is an
   error for a directory without capability documents.
 
+> [!PROPOSED change:workplan-document-model]
+> - Record fixtures in their directories: each record type loads into the model; a
+>   record in the directory of another type, under another file name or below its
+>   directory is refused; a file beside the coverage record is
+>   `singleton-other-file`; a repository without record directories reports nothing
+>   new.
+> - Reference fixtures for the records and the claims, each beside a neighbour that
+>   passes: a capability in `for` with no document, a subject with no capability, a
+>   `scope` crate that is no package, a claim on unknown evidence with its line, and
+>   a claim on evidence for another capability; a claim inside a PROPOSED block is
+>   not read. An input of each kind that resolves is an edge, a re-exported symbol
+>   leads to its definition, and an input of each kind that does not resolve is no
+>   edge and no finding.
+> - Digest fixtures: the SHA-256 test vectors (the empty message, `abc`, the 448-bit
+>   message and a million `a`), each encoding pinned against an independent SHA-256,
+>   two runs equal, CRLF and LF equal, a regenerated block that leaves a section
+>   digest, and each definition of a symbol counted once.
+> - Writer fixtures: a written record of each type reloads with no finding as the
+>   same value; `create` never replaces a file; `replace` needs a record file that
+>   exists, renames a new file over it, and in a directory that refuses a new file
+>   fails with the target unchanged and no temporary file left; a record that would
+>   not load clean, a bad slug and half an SPDX header are refused with nothing
+>   written.
+> - Cost fixtures: a record at the size bound with the most measures, and a hundred
+>   thousand claims, load in time linear in their size.
+
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
 | `raf_workplan::Gate` | doctest | [Verification](#verification) |
 | `raf_workplan::LinkContext` | doctest | [Verification](#verification) |
+| `raf_workplan::digest::tests::sha256_gives_the_standard_test_vectors` | test | [Verification](#verification) |
 | `raf_workplan::plain::check` | doctest | [Contract](#contract) |
 | `raf_workplan::test_crate::bindings::a_binding_through_a_re_export_resolves_to_its_definition` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::a_binding_to_a_macro_generated_function_is_not_found` | test | [Verification](#verification) |
@@ -403,6 +519,11 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::bindings::a_tests_binding_must_name_a_function_marked_test` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::an_examples_binding_is_an_example_target_or_a_documented_library_item` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::bindings_that_name_real_symbols_resolve` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::digest::a_digest_is_the_same_on_every_run` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::digest::a_regenerated_block_leaves_the_section_digest_and_an_edit_moves_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::digest::crlf_and_lf_give_the_same_digest` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::digest::each_kind_hashes_its_documented_encoding` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::digest::every_definition_of_a_path_counts_once_in_file_order` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::a_broken_document_is_a_finding_and_not_in_the_model` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::accepts_valid_fixture` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::rejects_capability_without_frontmatter` | test | [Verification](#verification) |
@@ -436,6 +557,21 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::parse_errors::every_reader_error_has_a_fixture_reported_with_file_and_line` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::a_broken_link_and_a_split_link_are_reported_together_for_a_plain_file` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::reads_markdown_outside_the_document_directories_with_or_without_frontmatter` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_claim_on_evidence_for_another_capability_is_a_finding` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_claim_on_unknown_evidence_names_the_file_and_the_line` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_hundred_thousand_claims_load_in_time_linear_in_their_number` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_clean` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_record_that_would_not_load_clean_is_not_written` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_repository_without_record_directories_has_no_records_and_no_new_findings` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::claims_are_section_granular_and_one_edge_per_named_record` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::create_never_replaces_a_file` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::each_record_type_loads_from_its_directory_into_the_model` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::replace_puts_new_text_in_place_of_an_existing_record_only` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::replace_renames_a_new_file_over_the_target_and_never_writes_into_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::the_records_are_nodes_with_their_edges` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::work_coverage_holds_only_the_coverage_record` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::references::a_slug_id_that_differs_from_the_file_name_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::references::accepts_a_depends_on_an_existing_capability_and_an_acyclic_graph` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::references::rejects_changes_missing` | test | [Verification](#verification) |

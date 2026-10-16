@@ -23,8 +23,9 @@ const READ_LIMIT: u64 = MAX_TEXT_BYTES as u64 + 1;
 const INDEX: &str = "index.md";
 
 /// The document types the load reads, each from its directory: the
-/// documents people write. The directories of the record types are not read.
-const LOADED: [DocType; 3] = [DocType::Capability, DocType::Change, DocType::Architecture];
+/// documents people write and the records. A directory that does not exist
+/// holds nothing, so a repository without records loads as before.
+const LOADED: [DocType; 6] = DocType::ALL;
 
 pub(crate) fn load<'s>(
     docs: &dyn Tree,
@@ -78,6 +79,10 @@ fn scan_directory(
             let path = format!("{directory}/{}", entry.name);
             if entry.kind == EntryKind::Dir {
                 subdirectories.push((path, depth + 1));
+            } else if let Some(only) = doc_type.singleton().filter(|_| depth == 0)
+                && entry.name != format!("{only}.md")
+            {
+                plan.findings.push(other_file(&path, doc_type, only));
             } else if is_markdown(&entry.name) {
                 if depth == 0 {
                     read_file(docs, doc_type, &path, links, plan);
@@ -124,6 +129,25 @@ fn nested(path: &str, home: &str) -> Finding {
         Location::Document,
         format!("a document sits below {home}; documents sit directly in their directory"),
         format!("move the file directly into {home}"),
+    )
+}
+
+/// A file in the directory of a type a repository holds once, other than its
+/// one file.
+fn other_file(path: &str, doc_type: DocType, only: &str) -> Finding {
+    let home = doc_type.directory();
+    Finding::new(
+        kind::SINGLETON_OTHER_FILE,
+        path,
+        Location::Document,
+        format!(
+            "{home} holds only {only}.md, the one {} record of the repository; this file is not read",
+            doc_type.name()
+        ),
+        format!(
+            "keep the {} record at {home}/{only}.md and remove this file; a hidden `.{only}.md.*.tmp` file is the temporary of a write that was interrupted, and is removed the same way",
+            doc_type.name()
+        ),
     )
 }
 
@@ -245,10 +269,18 @@ fn admit(plan: &mut Workplan<'_>, path: &str, typed: RafDocument, body: Body, te
         RafDocument::Architecture(value) => {
             plan.architecture.push(Loaded::new(path, value, body, text));
         }
-        // A record validates only in its own directory, which the load does
-        // not read, so none reaches this point; one in a read directory is
-        // `wrong-directory`, reported before validation.
-        RafDocument::Evidence(_) | RafDocument::Assessment(_) | RafDocument::Coverage(_) => {}
+        RafDocument::Evidence(value) => {
+            plan.evidence.push(Loaded::new(path, value, body, text));
+        }
+        RafDocument::Assessment(value) => {
+            plan.assessments.push(Loaded::new(path, value, body, text));
+        }
+        // The profile validates a coverage record only as
+        // `work/coverage/default.md`, the one file of its directory the load
+        // reads, so at most one is admitted.
+        RafDocument::Coverage(value) => {
+            plan.coverage = Some(Loaded::new(path, value, body, text));
+        }
     }
 }
 

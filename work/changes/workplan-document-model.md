@@ -8,12 +8,16 @@ description: "Loads the evidence, assessment and coverage records, relates them 
 changes: [cap:workplan-document-model]
 affects:
   - cap:workplan-document-model#contract
+  - cap:workplan-document-model#usage
+  - cap:workplan-document-model#verification
 contract_effect: changes
 items:
   - claim: "Finding::KINDS holds one okf kind for each rule and each reader error of the record types and the claim markers, and each kind is produced by a named fixture."
   - claim: "Workplan::load reads the Evidence, Assessment and Coverage records from work/evidence, work/assessments and work/coverage, and reads the coverage record only at work/coverage/default.md."
   - claim: "The graph holds the records and their edges to the capabilities, sections, symbols and evidence they name."
   - claim: "Workplan::check reports the findings of the records with the file and location of each, and a repository without records reports none of them."
+  - claim: "raf_workplan::digest::Digest is the SHA-256 of the canonical encoding of a section, a symbol or a record, the same on every run and platform."
+  - claim: "raf_workplan::record::create writes a new record exclusively and record::replace replaces an existing record through a temporary file, each refusing a record that would not load clean."
 ---
 
 ## Summary

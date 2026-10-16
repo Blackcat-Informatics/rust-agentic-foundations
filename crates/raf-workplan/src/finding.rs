@@ -32,6 +32,12 @@ kinds! {
     DEPENDS_MISSING = "depends-missing";
     CHANGES_MISSING = "changes-missing";
     MOVED_MISSING = "moved-missing";
+    SINGLETON_OTHER_FILE = "singleton-other-file";
+    CLAIM_EVIDENCE_MISSING = "claim-evidence-missing";
+    CLAIM_EVIDENCE_NOT_FOR = "claim-evidence-not-for";
+    EVIDENCE_FOR_MISSING = "evidence-for-missing";
+    ASSESSMENT_SUBJECT_MISSING = "assessment-subject-missing";
+    SCOPE_CRATE_MISSING = "scope-crate-missing";
     DEPENDS_CYCLE = "depends-cycle";
     PROPOSED_MISSING_CHANGE = "proposed-missing-change";
     PROPOSED_CHANGE_NOT_LISTING = "proposed-change-not-listing";
@@ -203,6 +209,19 @@ impl Finding {
     ///   is wrong with it.
     /// * `depends-cycle`: capabilities that depend on each other, once for
     ///   each group, a capability that depends on itself included.
+    /// * `singleton-other-file`: a file other than `default.md` in
+    ///   `work/coverage`, the directory of the one coverage record.
+    /// * `claim-evidence-missing` and `claim-evidence-not-for`: a claim marker
+    ///   of a capability names an evidence record that does not exist, or one
+    ///   whose `for` does not list the capability; the finding names the
+    ///   capability document and the line of the marker.
+    /// * `evidence-for-missing`, `assessment-subject-missing` and
+    ///   `scope-crate-missing`: an evidence record's `for` names a capability
+    ///   with no document, an assessment's subject is a section of a
+    ///   capability with no document, or the coverage record's `scope` names
+    ///   a crate that is no package of the source workspace. As for the
+    ///   documents, a name whose record or document exists but is broken is
+    ///   not missing.
     ///
     /// * `proposed-missing-change`, `proposed-change-not-listing` and
     ///   `proposed-section-not-affected`: a PROPOSED block names a change

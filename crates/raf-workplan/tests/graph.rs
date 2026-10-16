@@ -78,7 +78,7 @@ fn repo() -> support::Repo {
                 "Run the example `demo::example_crate::show`, not `{CASE}_extra`, `other::{CASE}` or `{CASE}::inner`."
             ),
             &format!("Also `{CASE}` and `{ABSENT}` hold."),
-            "Why.",
+            "Why it holds.\n<!-- raf:claim evidence=bound -->",
             "Links to [beta](beta.md) as a whole and [alpha contract](#contract).",
         ],
     );
@@ -110,7 +110,44 @@ fn repo() -> support::Repo {
     repo.insert(BETA.to_string(), beta);
     repo.insert(CHANGE.to_string(), change);
     repo.insert(OVERVIEW.to_string(), overview);
+    for (path, record) in records() {
+        repo.insert(path.to_string(), record);
+    }
     repo
+}
+
+const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+const EVIDENCE: &str = "work/evidence/bound.md";
+const ASSESSMENT: &str = "work/assessments/review.md";
+const COVERAGE: &str = "work/coverage/default.md";
+
+/// One record of each type: evidence for alpha and beta, which alpha's
+/// Explanation claims, an assessment of alpha's Contract, and the coverage
+/// record of the demo crate.
+fn records() -> [(&'static str, String); 3] {
+    [
+        (
+            EVIDENCE,
+            format!(
+                "---\ntype: Evidence\nid: evidence:bound\nsubject: command\ninputs:\n  \
+                 - kind: symbol\n    name: demo::real\n    digest: {DIGEST}\n\
+                 verdict: pass\nby: agent\nfor: [cap:beta, cap:alpha]\ncommand: \"cargo bench\"\n---\n"
+            ),
+        ),
+        (
+            ASSESSMENT,
+            format!(
+                "---\ntype: Assessment\nid: assessment:review\nsubject: cap:alpha#contract\ninputs:\n  \
+                 - kind: section\n    name: cap:alpha#contract\n    digest: {DIGEST}\n\
+                 verdict: accepted\nby: human\n---\n"
+            ),
+        ),
+        (
+            COVERAGE,
+            "---\ntype: Coverage\nid: coverage:default\nscope: [demo]\nexclusions: []\n---\n"
+                .to_string(),
+        ),
+    ]
 }
 
 fn with_plan<T>(repo: &support::Repo, check: impl FnOnce(&Workplan<'_>, &Workspace) -> T) -> T {

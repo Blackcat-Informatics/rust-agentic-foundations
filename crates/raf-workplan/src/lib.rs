@@ -2,12 +2,17 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
 //! Loads the capability, change and architecture documents of a repository
-//! into a typed model and reports what is wrong with them.
+//! and its evidence, assessment and coverage records into a typed model and
+//! reports what is wrong with them.
 //!
 //! [`Workplan::load`] reads `docs/capabilities`, `docs/architecture` and
 //! `work/changes` through a [`Tree`](raf_source::Tree), parses and validates
 //! each document with `raf-okf`, and keeps the typed documents and their bodies.
-//! Everything that goes wrong is a [`Finding`] with a stable kind from
+//! It reads the records of `work/evidence`, `work/assessments` and
+//! `work/coverage` the same way ([`Workplan::evidence`],
+//! [`Workplan::assessments`], [`Workplan::coverage`]); `work/coverage` holds only
+//! `default.md`, and a repository without these directories loads as one with
+//! no record. Everything that goes wrong is a [`Finding`] with a stable kind from
 //! [`Finding::KINDS`], a location and a fix; nothing is skipped and nothing
 //! panics. [`Workplan::check`] returns the findings.
 //!
@@ -21,7 +26,22 @@
 //!
 //! The load also builds the [`Graph`] of the documents and the source they are
 //! bound to, available as [`Workplan::graph`], and reports the references that
-//! name a document that does not exist and the `depends` cycles.
+//! name a document that does not exist and the `depends` cycles. The records are
+//! nodes of the graph too: an evidence record covers the capabilities of its
+//! `for` ([`CoversEdge`]), a claim marker of a capability names the evidence its
+//! statement rests on ([`ClaimEdge`], from the section that holds it), an
+//! assessment assesses a section ([`AssessesEdge`]), the coverage record
+//! scopes crates ([`ScopeEdge`]), and each input row of a record leads to the
+//! section, symbol or evidence record it names when that resolves
+//! ([`InputEdge`]). A claim on evidence that does not exist, or
+//! that does not cover the capability, is a finding with the file and line of
+//! its marker.
+//!
+//! [`digest`] gives the SHA-256 digest of a record input (a section, a symbol
+//! or a record) over a domain-separated, length-prefixed encoding, the same on
+//! every run and platform. [`record`] writes a new record exclusively, or
+//! replaces one through a temporary file and a rename, as the text the
+//! `raf-okf` writer renders, refusing a record that would not load clean.
 //!
 //! Each entry of a capability's `bindings` is resolved through the source
 //! index once, when the graph is built, and the result is kept on its
@@ -193,7 +213,9 @@
 
 mod bindings;
 pub mod bound;
+pub mod digest;
 pub mod exec;
+mod files;
 mod finding;
 mod gate;
 mod generated;
@@ -207,10 +229,12 @@ mod model;
 pub mod obligation;
 pub mod plain;
 mod preview;
+pub mod record;
 pub mod refs;
 mod roadmap;
 pub mod root;
 mod rules;
+mod spdx;
 mod staged;
 mod sync;
 
@@ -218,8 +242,9 @@ pub use bindings::ExampleKind;
 pub use finding::Finding;
 pub use gate::{Gate, GateError, Opened};
 pub use graph::{
-    AffectsEdge, Binding, BindingKind, ChangesEdge, DependsEdge, Edge, EdgeKind, Graph, LinkEdge,
-    LinkEnd, Node, NodeKind, Proposal, SectionId,
+    AffectsEdge, AssessesEdge, Binding, BindingKind, ChangesEdge, ClaimEdge, CoversEdge,
+    DependsEdge, Edge, EdgeKind, Graph, InputEdge, InputTarget, LinkEdge, LinkEnd, Node, NodeKind,
+    Proposal, ScopeEdge, SectionId,
 };
 pub use links::LinkContext;
 pub use lookup::ChangeLookupError;

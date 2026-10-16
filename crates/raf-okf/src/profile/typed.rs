@@ -3,6 +3,8 @@
 
 //! The typed form of a document that satisfies the profile.
 
+use crate::profile::schema::{COVERAGE_SLUG, DocType};
+
 /// The lifecycle state of a capability.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum State {
@@ -236,6 +238,22 @@ pub struct RecordHeader {
     pub timestamp: Option<String>,
 }
 
+impl RecordHeader {
+    /// The header of the record `<prefix><slug>` of `doc_type`, with no tags
+    /// and no timestamp. The slug is not checked here: a record is judged when
+    /// its text is read back by [`Profile::validate`](crate::Profile::validate).
+    #[must_use]
+    pub fn new(doc_type: DocType, slug: impl Into<String>) -> Self {
+        let slug = slug.into();
+        Self {
+            id: format!("{}{slug}", doc_type.id_prefix()),
+            slug,
+            tags: None,
+            timestamp: None,
+        }
+    }
+}
+
 /// A section of a capability: `cap:<slug>#<section>`, as the subject of an
 /// assessment and the name of a `section` input.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -248,6 +266,15 @@ pub struct SectionRef {
 }
 
 impl SectionRef {
+    /// The section `section` of the capability `capability` (`cap:<slug>`).
+    #[must_use]
+    pub fn new(capability: impl Into<String>, section: CapabilitySection) -> Self {
+        Self {
+            capability: capability.into(),
+            section,
+        }
+    }
+
     /// The text `cap:<slug>#<section>`.
     #[must_use]
     pub fn text(&self) -> String {
@@ -302,6 +329,18 @@ pub struct Input {
     pub digest: String,
 }
 
+impl Input {
+    /// The input `name` of `kind` with the digest `digest`.
+    #[must_use]
+    pub fn new(kind: InputKind, name: impl Into<String>, digest: impl Into<String>) -> Self {
+        Self {
+            kind,
+            name: name.into(),
+            digest: digest.into(),
+        }
+    }
+}
+
 /// Who made a record. The profile names the kind of assessor, never a person.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Actor {
@@ -340,6 +379,20 @@ pub enum EvidenceVerdict {
     Fail,
 }
 
+impl EvidenceVerdict {
+    /// Every verdict.
+    pub const ALL: [Self; 2] = [Self::Pass, Self::Fail];
+
+    /// The value of the `verdict` key: `pass` or `fail`.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Pass => "pass",
+            Self::Fail => "fail",
+        }
+    }
+}
+
 /// The verdict of an assessment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssessmentVerdict {
@@ -349,6 +402,20 @@ pub enum AssessmentVerdict {
     Rejected,
 }
 
+impl AssessmentVerdict {
+    /// Every verdict.
+    pub const ALL: [Self; 2] = [Self::Accepted, Self::Rejected];
+
+    /// The value of the `verdict` key: `accepted` or `rejected`.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Accepted => "accepted",
+            Self::Rejected => "rejected",
+        }
+    }
+}
+
 /// Where the verdict of an evidence record came from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvidenceSubject {
@@ -356,6 +423,17 @@ pub enum EvidenceSubject {
     Command,
     /// A bound test or example, by its path.
     Binding(String),
+}
+
+impl EvidenceSubject {
+    /// The value of the `subject` key: `command`, or `binding:<path>`.
+    #[must_use]
+    pub fn text(&self) -> String {
+        match self {
+            Self::Command => "command".to_string(),
+            Self::Binding(path) => format!("binding:{path}"),
+        }
+    }
 }
 
 /// A number written in a record: an optional `-`, digits, and an optional
@@ -428,6 +506,17 @@ pub struct Measure {
     pub value: Number,
 }
 
+impl Measure {
+    /// The measure `name` with the number `value`.
+    #[must_use]
+    pub fn new(name: impl Into<String>, value: Number) -> Self {
+        Self {
+            name: name.into(),
+            value,
+        }
+    }
+}
+
 /// An evidence record: one execution, the capabilities it covers, its
 /// verdict, and the inputs whose digests it was made against.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -456,6 +545,36 @@ pub struct EvidenceRecord {
     pub limits: Vec<Measure>,
 }
 
+impl EvidenceRecord {
+    /// The evidence record `evidence:<slug>` with no tags, no timestamp, no
+    /// command, no revision and no measures; set the fields that apply. The
+    /// values are not checked here: [`EvidenceRecord::to_document`] writes
+    /// the record and [`Profile::validate`](crate::Profile::validate) judges
+    /// the text it renders to.
+    #[must_use]
+    pub fn new(
+        slug: impl Into<String>,
+        subject: EvidenceSubject,
+        inputs: Vec<Input>,
+        verdict: EvidenceVerdict,
+        by: Actor,
+        covers: Vec<String>,
+    ) -> Self {
+        Self {
+            header: RecordHeader::new(DocType::Evidence, slug),
+            subject,
+            inputs,
+            verdict,
+            by,
+            covers,
+            command: None,
+            revision: None,
+            values: Vec::new(),
+            limits: Vec::new(),
+        }
+    }
+}
+
 /// An assessment record: the verdict on one authored section and the inputs
 /// it was given.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -471,6 +590,28 @@ pub struct AssessmentRecord {
     pub verdict: AssessmentVerdict,
     /// Who assessed.
     pub by: Actor,
+}
+
+impl AssessmentRecord {
+    /// The assessment record `assessment:<slug>` with no tags and no
+    /// timestamp. The values are not checked here; see
+    /// [`AssessmentRecord::to_document`].
+    #[must_use]
+    pub fn new(
+        slug: impl Into<String>,
+        subject: SectionRef,
+        inputs: Vec<Input>,
+        verdict: AssessmentVerdict,
+        by: Actor,
+    ) -> Self {
+        Self {
+            header: RecordHeader::new(DocType::Assessment, slug),
+            subject,
+            inputs,
+            verdict,
+            by,
+        }
+    }
 }
 
 /// What a coverage exclusion takes out.
@@ -493,6 +634,17 @@ pub struct Exclusion {
     pub reason: String,
 }
 
+impl Exclusion {
+    /// The exclusion of `item` for `reason`.
+    #[must_use]
+    pub fn new(item: ExclusionItem, reason: impl Into<String>) -> Self {
+        Self {
+            item,
+            reason: reason.into(),
+        }
+    }
+}
+
 /// The coverage record of a repository.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -504,6 +656,19 @@ pub struct CoverageRecord {
     pub scope: Vec<String>,
     /// The exclusions, in author order.
     pub exclusions: Vec<Exclusion>,
+}
+
+impl CoverageRecord {
+    /// The coverage record `coverage:default` with no tags and no timestamp.
+    /// The values are not checked here; see [`CoverageRecord::to_document`].
+    #[must_use]
+    pub fn new(scope: Vec<String>, exclusions: Vec<Exclusion>) -> Self {
+        Self {
+            header: RecordHeader::new(DocType::Coverage, COVERAGE_SLUG),
+            scope,
+            exclusions,
+        }
+    }
 }
 
 /// A document that satisfies the RAF profile.

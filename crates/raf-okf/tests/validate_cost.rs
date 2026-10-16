@@ -117,3 +117,49 @@ fn a_capability_at_the_cap_with_many_sections_and_blocks_validates_within_the_bo
     );
     assert_within_bound(elapsed, &format!("{sections} sections and 10000 blocks"));
 }
+
+/// An evidence record at the size cap: as many `values` as fit, each with its
+/// limit, so judging the limits against the values is the product of two
+/// lists if it is done by search.
+fn evidence_at_the_cap() -> (String, usize) {
+    let head = "---\ntype: Evidence\nid: evidence:probe\nsubject: command\ninputs:\n  \
+                - kind: symbol\n    name: probe::item\n    digest: \
+                9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\n\
+                verdict: pass\nby: agent\nfor: [cap:probe]\ncommand: \"cargo bench\"\n";
+    let tail = "---\n";
+    let entry = |n: usize| (format!("  m{n}: 1\n"), format!("  m{n}: 2\n"));
+    let mut used = head.len() + tail.len() + "values:\nlimits:\n".len();
+    let mut count = 0;
+    loop {
+        let (value, limit) = entry(count);
+        if used + value.len() + limit.len() > MAX_TEXT_BYTES {
+            break;
+        }
+        used += value.len() + limit.len();
+        count += 1;
+    }
+    let mut text = String::with_capacity(MAX_TEXT_BYTES);
+    text.push_str(head);
+    text.push_str("values:\n");
+    (0..count).for_each(|n| text.push_str(&entry(n).0));
+    text.push_str("limits:\n");
+    // The limits in the reverse order of the values: a search from the front
+    // would walk the whole list for each.
+    (0..count).rev().for_each(|n| text.push_str(&entry(n).1));
+    text.push_str(tail);
+    (text, count)
+}
+
+#[test]
+fn an_evidence_record_at_the_cap_with_maximal_values_and_limits_validates_within_the_bound() {
+    let (text, count) = evidence_at_the_cap();
+    assert!(text.len() <= MAX_TEXT_BYTES && text.len() > MAX_TEXT_BYTES - 64);
+    assert!(count > 40_000, "the probe holds only {count} measures");
+    let (elapsed, result) = timed(&text, "work/evidence/probe.md");
+    let Ok(RafDocument::Evidence(evidence)) = result else {
+        panic!("the probe is a valid evidence record: {result:?}");
+    };
+    assert_eq!(evidence.values.len(), count);
+    assert_eq!(evidence.limits.len(), count);
+    assert_within_bound(elapsed, &format!("{count} values and limits"));
+}

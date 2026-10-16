@@ -19,6 +19,12 @@ bindings:
     - raf_okf::AssessmentRecord
     - raf_okf::CoverageRecord
     - raf_okf::Claim
+    - raf_okf::EvidenceRecord::new
+    - raf_okf::EvidenceRecord::to_document
+    - raf_okf::AssessmentRecord::new
+    - raf_okf::AssessmentRecord::to_document
+    - raf_okf::CoverageRecord::new
+    - raf_okf::CoverageRecord::to_document
   tests:
     - raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests
     - raf_okf::test_crate::refusals::a_document_without_a_fence_on_line_one_is_refused
@@ -97,6 +103,13 @@ bindings:
     - raf_okf::test_crate::claims::a_claim_marker_with_no_statement_directly_above_is_refused
     - raf_okf::test_crate::claims::claims_in_a_document_carry_whole_text_lines
     - raf_okf::test_crate::render::record_keys_out_of_order_render_in_table_order_and_validate
+    - raf_okf::test_crate::record_writer::a_built_evidence_record_renders_to_a_record_that_reads_back_equal
+    - raf_okf::test_crate::record_writer::a_built_assessment_and_coverage_record_read_back_equal
+    - raf_okf::test_crate::record_writer::every_record_fixture_reads_back_equal_after_writing
+    - raf_okf::test_crate::record_writer::the_keys_are_written_in_the_order_of_the_key_table
+    - raf_okf::test_crate::record_writer::a_value_the_profile_refuses_is_written_and_refused_when_it_is_read_back
+    - raf_okf::test_crate::claims::a_raf_generated_comment_in_another_case_or_spacing_is_text
+    - raf_okf::test_crate::validate_cost::an_evidence_record_at_the_cap_with_maximal_values_and_limits_validates_within_the_bound
   examples: []
 depends: []
 ---
@@ -286,10 +299,23 @@ replaces a block and refuses an edit that leaves anything but an index.
 > code spans and PROPOSED blocks as a `Claim`: the evidence slugs it names, its
 > line, its marker span, the span of the paragraph or list item it supports, and
 > its section. A malformed claim marker, a claim marker with no statement directly
-> above it, and a `raf:` comment that is neither a generated marker nor a claim
-> marker are parse errors with their line, so a misspelt marker never reads as a
-> plain comment. A claim marker in a document that is not a capability is a
-> violation.
+> above it, and a `raf:` comment that is neither a `raf:generated:` comment nor a
+> claim marker are parse errors with their line, so a misspelt claim marker never
+> reads as a plain comment. A claim marker in a document that is not a capability is
+> a violation.
+>
+> **Writing records.** `EvidenceRecord::new`, `AssessmentRecord::new` and
+> `CoverageRecord::new` build a record with its header (`RecordHeader::new`), from
+> `Input::new`, `SectionRef::new`, `Measure::new` and `Exclusion::new`; the
+> constructors judge nothing. `EvidenceRecord::to_document`,
+> `AssessmentRecord::to_document` and `CoverageRecord::to_document` write a record as
+> a document with its keys in key-table order, its lists and measures in record
+> order, numbers unquoted as written, an empty list as `[]`, absent optional keys left
+> out, and an empty body. `Profile::validate` reads the rendering back as an equal
+> record when the values satisfy the profile, and refuses it with the violations
+> otherwise; a value the frontmatter cannot hold is a `ConstructError`.
+> `EvidenceVerdict::name`, `AssessmentVerdict::name` and `EvidenceSubject::text` give
+> the values of the keys.
 
 ## Usage
 
@@ -423,3 +449,12 @@ would produce noise in the diff, and a clean check could not be told from a stal
 >   its line.
 > - The record fixtures render to their own bytes and validate, and a record with
 >   its keys out of order renders them in table order.
+> - A record of each type built with the constructors, and each record fixture,
+>   written by `to_document` reads back as an equal record with its keys in table
+>   order; empty lists and absent optional keys are written as the profile reads
+>   them; a value the profile refuses is refused on reading back, and a value the
+>   frontmatter cannot hold by the writer.
+> - A `raf:generated:` comment in another letter case or spacing is text, beside
+>   an unknown `raf:` comment that is refused.
+> - Cost fixture: an evidence record at the 1 MiB cap with the most `values` and
+>   `limits` validates within 100 ms in a release build.

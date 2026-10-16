@@ -360,9 +360,18 @@ fn a_tree_that_cannot_be_built_is_a_finding_for_each_directory() {
     let workspace = support::demo_workspace();
     let findings = without_sync_findings(Workplan::load(&tree, &workspace).check());
     let files: Vec<&str> = findings.iter().map(|f| f.file.as_str()).collect();
+    // The directories in the order of `DocType::ALL`: the documents, then
+    // the records.
     assert_eq!(
         files,
-        ["docs/capabilities", "work/changes", "docs/architecture"]
+        [
+            "docs/capabilities",
+            "work/changes",
+            "docs/architecture",
+            "work/evidence",
+            "work/assessments",
+            "work/coverage"
+        ]
     );
     assert!(findings.iter().all(|f| f.kind == "unreadable-directory"));
 }

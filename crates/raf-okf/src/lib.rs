@@ -57,8 +57,11 @@
 //! `Architecture`, and the records `Evidence`, `Assessment` and `Coverage`
 //! ([`DocType::ALL`]). A record states a result in its frontmatter and has no
 //! title, description or body; evidence and an assessment share the trace keys
-//! `subject`, `inputs`, `verdict` and `by`. A capability names the evidence a
-//! statement rests on with a claim marker, which [`Body::claims`] reads:
+//! `subject`, `inputs`, `verdict` and `by`. A record is built with the
+//! constructor of its type, such as [`EvidenceRecord::new`], and written by
+//! its `to_document`, whose text the profile reads back as the same record. A
+//! capability names the evidence a statement rests on with a claim marker,
+//! which [`Body::claims`] reads:
 //!
 //! ```rust
 //! use raf_okf::{Body, Document, EvidenceVerdict, Profile, RafDocument};

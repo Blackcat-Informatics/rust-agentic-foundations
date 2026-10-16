@@ -252,8 +252,11 @@ such line directly above it is not attached and is an error. A claim marker appe
 only in a Capability document.
 
 Every other `<!-- raf:` comment outside a `raf:generated:` comment, in any letter
-case and spacing after `<!--`, is an error, so a misspelt marker is never read as a
-plain comment. Markers inside fenced code and code spans are not read, and neither
+case and spacing after `<!--`, is an error, so a misspelt claim marker, or a
+comment with an unknown `raf:` word, is never read as a plain comment. A
+`raf:generated:` comment that is not a generated marker, in another letter case or
+spacing or not at the start of its line, is text. Markers inside fenced code and
+code spans are not read, and neither
 are claim markers inside a PROPOSED block: a proposed claim is a claim once the
 block is resolved.
 

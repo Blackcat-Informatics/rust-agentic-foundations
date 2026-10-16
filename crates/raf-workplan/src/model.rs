@@ -5,7 +5,10 @@
 
 use std::collections::BTreeSet;
 
-use raf_okf::{Architecture, Body, Capability, Change, DocType, Index};
+use raf_okf::{
+    Architecture, AssessmentRecord, Body, Capability, Change, CoverageRecord, DocType,
+    EvidenceRecord, Index,
+};
 use raf_source::Workspace;
 
 use crate::Finding;
@@ -78,8 +81,9 @@ pub(crate) enum IndexSlot {
     Invalid(Finding),
 }
 
-/// The capability, change and architecture documents of a repository, loaded
-/// through a [`Tree`](raf_source::Tree), with every finding the load made.
+/// The capability, change and architecture documents of a repository and its
+/// evidence, assessment and coverage records, loaded through a
+/// [`Tree`](raf_source::Tree), with every finding the load made.
 ///
 /// A document that breaks the profile is not part of the model; its findings
 /// are. A file the tree refuses to give is a finding that names it.
@@ -88,6 +92,11 @@ pub struct Workplan<'s> {
     pub(crate) capabilities: Vec<Loaded<Capability>>,
     pub(crate) changes: Vec<Loaded<Change>>,
     pub(crate) architecture: Vec<Loaded<Architecture>>,
+    pub(crate) evidence: Vec<Loaded<EvidenceRecord>>,
+    pub(crate) assessments: Vec<Loaded<AssessmentRecord>>,
+    /// The coverage record: only `work/coverage/default.md` is read, so there
+    /// is at most one.
+    pub(crate) coverage: Option<Loaded<CoverageRecord>>,
     pub(crate) findings: Vec<Finding>,
     /// The ids of the documents that exist as files, loaded or not.
     present: BTreeSet<String>,
@@ -104,7 +113,9 @@ pub struct Workplan<'s> {
 
 impl<'s> Workplan<'s> {
     /// Load the documents under `docs/capabilities`, `docs/architecture` and
-    /// `work/changes` of `docs`, and relate them to the source index `source`.
+    /// `work/changes` of `docs` and the records under `work/evidence`,
+    /// `work/assessments` and `work/coverage`, and relate them to the source
+    /// index `source`.
     ///
     /// The load never fails and never panics: every problem is a [`Finding`].
     /// Each directory holds its documents directly. A typed document in the
@@ -112,7 +123,10 @@ impl<'s> Workplan<'s> {
     /// document directory is `nested-directory`, a Markdown file other than
     /// `index.md` that has no frontmatter is `stray-markdown`, and a file or a
     /// directory the tree refuses is `unreadable-file` or
-    /// `unreadable-directory`. A directory that does not exist holds nothing.
+    /// `unreadable-directory`. `work/coverage` holds the one coverage record,
+    /// `default.md`, and any other file there is `singleton-other-file` and is
+    /// not read. A directory that does not exist holds nothing, so a
+    /// repository without records loads as it did before they existed.
     ///
     /// Links are judged against every file `docs` lists, which is the set of
     /// tracked paths only for a tree that holds nothing else. On a disk tree
@@ -142,6 +156,9 @@ impl<'s> Workplan<'s> {
             capabilities: Vec::new(),
             changes: Vec::new(),
             architecture: Vec::new(),
+            evidence: Vec::new(),
+            assessments: Vec::new(),
+            coverage: None,
             findings: Vec::new(),
             present: BTreeSet::new(),
             unvalidated_blocks: Vec::new(),
@@ -194,6 +211,11 @@ impl<'s> Workplan<'s> {
             &self.capabilities,
             &self.changes,
             &self.architecture,
+            &graph::Records {
+                evidence: &self.evidence,
+                assessments: &self.assessments,
+                coverage: self.coverage.as_ref(),
+            },
             &self.present,
             self.source,
         );
@@ -237,6 +259,25 @@ impl<'s> Workplan<'s> {
     #[must_use]
     pub fn architecture(&self) -> &[Loaded<Architecture>] {
         &self.architecture
+    }
+
+    /// The evidence records of `work/evidence`, in directory order.
+    #[must_use]
+    pub fn evidence(&self) -> &[Loaded<EvidenceRecord>] {
+        &self.evidence
+    }
+
+    /// The assessment records of `work/assessments`, in directory order.
+    #[must_use]
+    pub fn assessments(&self) -> &[Loaded<AssessmentRecord>] {
+        &self.assessments
+    }
+
+    /// The coverage record `work/coverage/default.md`, when it is there and
+    /// loaded.
+    #[must_use]
+    pub fn coverage(&self) -> Option<&Loaded<CoverageRecord>> {
+        self.coverage.as_ref()
     }
 
     /// The findings the load made.

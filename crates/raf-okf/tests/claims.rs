@@ -284,3 +284,23 @@ fn a_capability_states_claims_in_its_sections() {
     assert_eq!(sections[0], Some("purpose"));
     assert_eq!(sections[6], Some("verification"));
 }
+
+#[test]
+fn a_raf_generated_comment_in_another_case_or_spacing_is_text() {
+    for text in [
+        "<!-- RAF:GENERATED:catalogue -->\n",
+        "<!-- Raf:Generated:catalogue -->\n",
+        "<!--raf:generated:catalogue-->\n",
+        "<!--   raf:generated:catalogue -->\n",
+        "Intro <!-- raf:generated:catalogue --> mid-line.\n",
+    ] {
+        let parsed = body(text);
+        assert_eq!(parsed.generated_blocks().len(), 0, "{text:?}");
+        assert_eq!(parsed.claims(), [], "{text:?}");
+    }
+    // The neighbour with an unknown word is refused.
+    assert_eq!(
+        refused("<!-- RAF:note -->\n").kind(),
+        &ErrorKind::UnknownMarker
+    );
+}

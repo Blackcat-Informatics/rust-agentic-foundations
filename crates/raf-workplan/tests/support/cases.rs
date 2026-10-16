@@ -6,7 +6,7 @@
 
 use std::fmt::Write as _;
 
-use raf_okf::{ErrorTag, Location, MAX_TEXT_BYTES, MAX_YAML_DEPTH, Rule, RuleTag};
+use raf_okf::{DocType, ErrorTag, Location, MAX_TEXT_BYTES, MAX_YAML_DEPTH, Rule, RuleTag};
 use raf_workplan::Finding;
 
 use super::fixtures::{ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, bound, mutate, valid};
@@ -128,10 +128,10 @@ pub(crate) fn rule_case(tag: RuleTag) -> Case {
     rule_case_unplaced(tag)
 }
 
-const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+pub(crate) const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
 
 /// A valid evidence record.
-fn evidence_record() -> String {
+pub(crate) fn evidence_record() -> String {
     format!(
         "---\ntype: Evidence\nid: evidence:bound\nsubject: command\ninputs:\n  \
          - kind: symbol\n    name: demo::real\n    digest: {DIGEST}\n\
@@ -142,7 +142,7 @@ fn evidence_record() -> String {
 }
 
 /// A valid assessment record.
-fn assessment_record() -> String {
+pub(crate) fn assessment_record() -> String {
     format!(
         "---\ntype: Assessment\nid: assessment:review\nsubject: cap:alpha#contract\ninputs:\n  \
          - kind: section\n    name: cap:alpha#contract\n    digest: {DIGEST}\n\
@@ -151,28 +151,41 @@ fn assessment_record() -> String {
 }
 
 /// A valid coverage record.
-fn coverage_record() -> String {
+pub(crate) fn coverage_record() -> String {
     "---\ntype: Coverage\nid: coverage:default\nscope: [demo]\nexclusions:\n  \
      - item: demo::unit::*\n    reason: \"Unit tests of internals.\"\n---\n"
         .to_string()
 }
 
-/// The case for a record that breaks one rule. The load does not read the
-/// directories of the record types, so the record sits in the change
-/// directory, where it is also `wrong-directory`, and the profile still
-/// judges every key of its type.
+/// Where a record lives: the directory of its type, under the slug of its
+/// id, or under the one slug of a type a repository holds once.
+pub(crate) fn record_home(text: &str) -> String {
+    let field = |key: &str| {
+        text.lines()
+            .find_map(|line| line.strip_prefix(key))
+            .unwrap_or_else(|| panic!("the record has no `{key}`"))
+    };
+    let doc_type = DocType::from_name(field("type: ")).expect("the record has a type");
+    let id = field("id: ");
+    let slug = doc_type
+        .singleton()
+        .unwrap_or_else(|| id.split_once(':').map_or(id, |(_, slug)| slug));
+    format!("{}/{slug}.md", doc_type.directory())
+}
+
+/// The valid repository with `record` at its home.
+pub(crate) fn with_record(record: &str) -> (Repo, String) {
+    let path = record_home(record);
+    let mut repo = valid();
+    repo.insert(path.clone(), record.to_string());
+    (repo, path)
+}
+
+/// The case for a record that breaks one rule, in the directory of its type.
 fn record_case(name: &str, kind: &str, record: &str, from: &str, to: &str, at: Location) -> Case {
     assert!(record.contains(from), "the record has no `{from}`");
-    let text = record.replacen(from, to, 1);
-    let id = text
-        .lines()
-        .find_map(|line| line.strip_prefix("id: "))
-        .expect("the record has an id");
-    let slug = id.split_once(':').map_or(id, |(_, slug)| slug);
-    let path = format!("work/changes/{slug}.md");
-    let mut repo = valid();
-    repo.insert(path.clone(), text);
-    Case::new(name, repo, kind, &path, at).also(&["wrong-directory", "okf-wrong-directory"])
+    let (repo, path) = with_record(&record.replacen(from, to, 1));
+    Case::new(name, repo, kind, &path, at)
 }
 
 #[allow(clippy::too_many_lines, reason = "one arm per rule of the profile")]
@@ -609,6 +622,18 @@ pub(crate) fn directory_cases() -> Vec<Case> {
             Location::Line(1),
         ));
     }
+    // A file beside the coverage record in its directory, Markdown or not.
+    for path in ["work/coverage/other.md", "work/coverage/notes.txt"] {
+        let (mut repo, _) = with_record(&coverage_record());
+        repo.insert(path.to_string(), coverage_record());
+        cases.push(Case::new(
+            &format!("singleton-other-file-{path}"),
+            repo,
+            "singleton-other-file",
+            path,
+            Location::Document,
+        ));
+    }
     // A file over the read bound is reported, not skipped.
     let mut repo = valid();
     let huge = "docs/architecture/huge.md".to_string();
@@ -695,6 +720,7 @@ pub(crate) fn reference_cases() -> Vec<Case> {
         ALPHA,
         key("depends"),
     ));
+    cases.extend(record_reference_cases());
     // The profile closes the outcome set; a deferred claim is refused.
     cases.push(broken(
         "okf-bad-outcome-deferred",
@@ -703,6 +729,76 @@ pub(crate) fn reference_cases() -> Vec<Case> {
         "outcome: deferred",
         "okf-bad-outcome",
         key("items"),
+    ));
+    cases
+}
+
+/// The cases for the references of the records and the claims: a capability,
+/// a section, a crate or a record that does not exist, and a claim on
+/// evidence that does not cover its capability.
+fn record_reference_cases() -> Vec<Case> {
+    let mut cases = Vec::new();
+    let record = |name: &str, record: String, from: &str, to: &str, kind: &str, at: Location| {
+        assert!(record.contains(from), "the record has no `{from}`");
+        let (repo, path) = with_record(&record.replace(from, to));
+        Case::new(name, repo, kind, &path, at)
+    };
+    cases.push(record(
+        "evidence-for-missing",
+        evidence_record(),
+        "for: [cap:alpha]",
+        "for: [cap:alpha, cap:ghost]",
+        "evidence-for-missing",
+        key("for"),
+    ));
+    cases.push(record(
+        "assessment-subject-missing",
+        assessment_record(),
+        "cap:alpha#contract",
+        "cap:ghost#contract",
+        "assessment-subject-missing",
+        key("subject"),
+    ));
+    cases.push(record(
+        "scope-crate-missing",
+        coverage_record(),
+        "scope: [demo]",
+        "scope: [demo, ghost]",
+        "scope-crate-missing",
+        key("scope"),
+    ));
+    let claim = |evidence: &str| {
+        let (mut repo, _) = with_record(&evidence_record());
+        edit(
+            &mut repo,
+            ALPHA,
+            "Text for Purpose.\n",
+            &format!("Text for Purpose.\n<!-- raf:claim evidence={evidence} -->\n"),
+        );
+        let at = Location::Line(line_of(&repo[ALPHA], "raf:claim"));
+        (repo, at)
+    };
+    let (repo, at) = claim("bound,ghost");
+    cases.push(Case::new(
+        "claim-evidence-missing",
+        repo,
+        "claim-evidence-missing",
+        ALPHA,
+        at,
+    ));
+    let (mut repo, at) = claim("bound");
+    edit(
+        &mut repo,
+        "work/evidence/bound.md",
+        "for: [cap:alpha]",
+        "for: [cap:gamma]",
+    );
+    cases.push(Case::new(
+        "claim-evidence-not-for",
+        repo,
+        "claim-evidence-not-for",
+        ALPHA,
+        at,
     ));
     cases
 }

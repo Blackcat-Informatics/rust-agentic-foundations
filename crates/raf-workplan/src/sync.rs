@@ -358,7 +358,7 @@ fn judge(tree: &DiskTree, path: &RelPath) -> io::Result<()> {
 /// Write `text` to a new temporary file beside `target`, with the permissions
 /// of `target`, and return its path. The file is created exclusively under a
 /// name no other file has, so a file that is already there is never touched.
-fn stage(target: &Path, text: &str) -> io::Result<PathBuf> {
+pub(crate) fn stage(target: &Path, text: &str) -> io::Result<PathBuf> {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let name = target
         .file_name()

@@ -158,6 +158,9 @@ const COVERAGE: [KeySpec; 6] = [
     required("exclusions", ValueKind::Exclusions),
 ];
 
+/// The one slug of the coverage record.
+pub(crate) const COVERAGE_SLUG: &str = "default";
+
 /// A document type of the RAF profile.
 ///
 /// The profile closes the set, so the enum is exhaustive: a consumer matches
@@ -264,7 +267,7 @@ impl DocType {
     #[must_use]
     pub fn singleton(self) -> Option<&'static str> {
         match self {
-            Self::Coverage => Some("default"),
+            Self::Coverage => Some(COVERAGE_SLUG),
             Self::Capability
             | Self::Change
             | Self::Architecture

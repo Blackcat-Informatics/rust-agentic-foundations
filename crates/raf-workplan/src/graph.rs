@@ -9,25 +9,36 @@
 //!
 //! * **Nodes** ([`Node`]): capabilities, the seven sections of each
 //!   capability, changes, architecture pages, the PROPOSED blocks of the
-//!   capabilities, and the code symbols, tests and examples the bindings
-//!   resolve to.
+//!   capabilities, the code symbols, tests and examples the bindings
+//!   resolve to, the evidence, assessment and coverage records, and the
+//!   crates the coverage record scopes.
 //! * **Edges** ([`Edge`]): bindings from a capability to a path of the source
 //!   index, `depends` between capabilities, `affects` from a change to a
-//!   section of a capability, `changes` from a change to a capability, and
-//!   Markdown links. A link edge is section-granular: it runs from the
-//!   section that holds the link to the section its anchor names, or to the
-//!   target document when the link has no anchor.
+//!   section of a capability, `changes` from a change to a capability,
+//!   Markdown links, `for` from an evidence record to a capability it covers,
+//!   claims from a section of a capability to the evidence it rests on, the
+//!   subject of an assessment, the `scope` of the coverage record, and the
+//!   inputs of a record to the section, symbol or evidence record each names,
+//!   when it resolves. Links
+//!   and claims are section-granular: a link runs from the section that holds
+//!   it to the section its anchor names, or to the target document when the
+//!   link has no anchor, and a claim runs from the section that holds its
+//!   marker.
 //!
 //! The queries are [`Graph::code_of`], [`Graph::capabilities_of`],
-//! [`Graph::tests_for`], [`Graph::sections_of`] and
-//! [`Graph::linking_sections`]. Each returns typed values in a fixed order.
+//! [`Graph::tests_for`], [`Graph::sections_of`],
+//! [`Graph::linking_sections`], [`Graph::evidence_of`],
+//! [`Graph::claims_on`], [`Graph::assessments_of`] and [`Graph::inputs_of`].
+//! Each returns typed
+//! values in a fixed order.
 
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fmt;
 
 use raf_okf::{
-    Architecture, Body, Capability, CapabilitySection, Change, LinkTarget, Location, Outcome,
+    Architecture, AssessmentRecord, Body, Capability, CapabilitySection, Change, CoverageRecord,
+    DocType, EvidenceRecord, Input, InputKind, LinkTarget, Location, Outcome,
 };
 use raf_source::{ItemId, ResolveError, Workspace};
 
@@ -148,17 +159,25 @@ pub enum NodeKind {
     Architecture,
     /// A PROPOSED block.
     Proposal,
-    /// A source item bound as code.
+    /// A source item bound as code, or named by a `symbol` input of a record.
     Symbol,
     /// A source item bound as a test.
     Test,
     /// A source item bound as an example.
     Example,
+    /// An evidence record.
+    Evidence,
+    /// An assessment record.
+    Assessment,
+    /// The coverage record.
+    Coverage,
+    /// A crate in the `scope` of the coverage record.
+    Crate,
 }
 
 impl NodeKind {
     /// Every kind of node.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 12] = [
         Self::Capability,
         Self::Section,
         Self::Change,
@@ -167,6 +186,10 @@ impl NodeKind {
         Self::Symbol,
         Self::Test,
         Self::Example,
+        Self::Evidence,
+        Self::Assessment,
+        Self::Coverage,
+        Self::Crate,
     ];
 }
 
@@ -184,12 +207,20 @@ pub enum Node {
     Architecture(String),
     /// A PROPOSED block.
     Proposal(Proposal),
-    /// A source item bound as code.
+    /// A source item bound as code, or named by a `symbol` input of a record.
     Symbol(ItemId),
     /// A source item bound as a test.
     Test(ItemId),
     /// A source item bound as an example.
     Example(ItemId),
+    /// An evidence record, by id.
+    Evidence(String),
+    /// An assessment record, by id.
+    Assessment(String),
+    /// The coverage record, by id.
+    Coverage(String),
+    /// A crate of the source workspace, by package name.
+    Crate(String),
 }
 
 impl Node {
@@ -205,6 +236,10 @@ impl Node {
             Self::Symbol(_) => NodeKind::Symbol,
             Self::Test(_) => NodeKind::Test,
             Self::Example(_) => NodeKind::Example,
+            Self::Evidence(_) => NodeKind::Evidence,
+            Self::Assessment(_) => NodeKind::Assessment,
+            Self::Coverage(_) => NodeKind::Coverage,
+            Self::Crate(_) => NodeKind::Crate,
         }
     }
 }
@@ -436,6 +471,157 @@ impl LinkEdge {
     }
 }
 
+/// A `for` edge from an evidence record to a capability it covers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CoversEdge {
+    evidence: String,
+    capability: String,
+}
+
+impl CoversEdge {
+    /// The id of the evidence record.
+    #[must_use]
+    pub fn evidence(&self) -> &str {
+        &self.evidence
+    }
+
+    /// The id of the capability.
+    #[must_use]
+    pub fn capability(&self) -> &str {
+        &self.capability
+    }
+}
+
+/// A claim: a statement of a capability that rests on an evidence record,
+/// named by a claim marker. One edge for each record the marker names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClaimEdge {
+    capability: String,
+    section: Option<CapabilitySection>,
+    evidence: String,
+    line: usize,
+}
+
+impl ClaimEdge {
+    /// The id of the capability whose document holds the marker.
+    #[must_use]
+    pub fn capability(&self) -> &str {
+        &self.capability
+    }
+
+    /// The section that holds the marker, or `None` for a marker before the
+    /// first section.
+    #[must_use]
+    pub fn section(&self) -> Option<SectionId> {
+        self.section
+            .map(|section| SectionId::new(self.capability.clone(), section))
+    }
+
+    /// The id of the evidence record, `evidence:<slug>`.
+    #[must_use]
+    pub fn evidence(&self) -> &str {
+        &self.evidence
+    }
+
+    /// The 1-based line of the marker in the capability document.
+    #[must_use]
+    pub fn line(&self) -> usize {
+        self.line
+    }
+}
+
+/// An assessment and the section it assesses, its subject.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssessesEdge {
+    assessment: String,
+    section: SectionId,
+}
+
+impl AssessesEdge {
+    /// The id of the assessment record.
+    #[must_use]
+    pub fn assessment(&self) -> &str {
+        &self.assessment
+    }
+
+    /// The section it assesses.
+    #[must_use]
+    pub fn section(&self) -> &SectionId {
+        &self.section
+    }
+}
+
+/// A `scope` edge from the coverage record to a crate whose coverage it
+/// enforces.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScopeEdge {
+    coverage: String,
+    package: String,
+}
+
+impl ScopeEdge {
+    /// The id of the coverage record.
+    #[must_use]
+    pub fn coverage(&self) -> &str {
+        &self.coverage
+    }
+
+    /// The package name of the crate.
+    #[must_use]
+    pub fn package(&self) -> &str {
+        &self.package
+    }
+}
+
+/// What an input of a record leads to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum InputTarget {
+    /// A section of a capability that exists.
+    Section(SectionId),
+    /// The definitions a symbol path resolves to, sorted by path and then by
+    /// id.
+    Symbol(Vec<ItemId>),
+    /// An evidence record that loaded, by id.
+    Record(String),
+}
+
+/// An input of a record: the row the record was made against and what its
+/// name resolves to now.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InputEdge {
+    record: String,
+    kind: InputKind,
+    name: String,
+    to: InputTarget,
+}
+
+impl InputEdge {
+    /// The id of the record that holds the input.
+    #[must_use]
+    pub fn record(&self) -> &str {
+        &self.record
+    }
+
+    /// The kind of the input row.
+    #[must_use]
+    pub fn kind(&self) -> InputKind {
+        self.kind
+    }
+
+    /// The name the input row writes.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// What the name resolves to.
+    #[must_use]
+    pub fn target(&self) -> &InputTarget {
+        &self.to
+    }
+}
+
 /// The kinds of edge of the graph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -450,16 +636,32 @@ pub enum EdgeKind {
     Changes,
     /// A Markdown link.
     Link,
+    /// An evidence record covers a capability.
+    Covers,
+    /// A statement of a capability rests on an evidence record.
+    Claim,
+    /// An assessment assesses a section of a capability.
+    Assesses,
+    /// The coverage record enforces the coverage of a crate.
+    Scope,
+    /// A record was made against an input: a section, a symbol or an
+    /// evidence record.
+    Input,
 }
 
 impl EdgeKind {
     /// Every kind of edge.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 10] = [
         Self::Binding,
         Self::Depends,
         Self::Affects,
         Self::Changes,
         Self::Link,
+        Self::Covers,
+        Self::Claim,
+        Self::Assesses,
+        Self::Scope,
+        Self::Input,
     ];
 }
 
@@ -477,6 +679,16 @@ pub enum Edge {
     Changes(ChangesEdge),
     /// A link edge.
     Link(LinkEdge),
+    /// A `for` edge of an evidence record.
+    Covers(CoversEdge),
+    /// A claim.
+    Claim(ClaimEdge),
+    /// The subject of an assessment.
+    Assesses(AssessesEdge),
+    /// A `scope` edge of the coverage record.
+    Scope(ScopeEdge),
+    /// An input of a record.
+    Input(InputEdge),
 }
 
 impl Edge {
@@ -489,6 +701,11 @@ impl Edge {
             Self::Affects(_) => EdgeKind::Affects,
             Self::Changes(_) => EdgeKind::Changes,
             Self::Link(_) => EdgeKind::Link,
+            Self::Covers(_) => EdgeKind::Covers,
+            Self::Claim(_) => EdgeKind::Claim,
+            Self::Assesses(_) => EdgeKind::Assesses,
+            Self::Scope(_) => EdgeKind::Scope,
+            Self::Input(_) => EdgeKind::Input,
         }
     }
 }
@@ -505,14 +722,24 @@ pub struct Graph {
     affects: Vec<AffectsEdge>,
     changes_edges: Vec<ChangesEdge>,
     links: Vec<LinkEdge>,
+    evidence: Vec<String>,
+    assessments: Vec<String>,
+    coverage: Vec<String>,
+    crates: Vec<String>,
+    covers: Vec<CoversEdge>,
+    claims: Vec<ClaimEdge>,
+    assesses: Vec<AssessesEdge>,
+    scope: Vec<ScopeEdge>,
+    inputs: Vec<InputEdge>,
     /// The source path of every item a binding resolved to.
     item_paths: BTreeMap<ItemId, String>,
 }
 
 impl Graph {
     /// Every node: the capabilities, their sections, the changes, the
-    /// architecture pages, the proposals, and the symbols, tests and examples
-    /// bound by a resolving binding, each group sorted.
+    /// architecture pages, the proposals, the symbols, tests and examples
+    /// bound by a resolving binding, the evidence, assessment and coverage
+    /// records, and the crates of the coverage scope, each group sorted.
     #[must_use]
     pub fn nodes(&self) -> Vec<Node> {
         let mut nodes: Vec<Node> = self
@@ -531,18 +758,31 @@ impl Graph {
         nodes.extend(self.changes.iter().cloned().map(Node::Change));
         nodes.extend(self.architecture.iter().cloned().map(Node::Architecture));
         nodes.extend(self.proposals.iter().cloned().map(Node::Proposal));
+        let input_symbols = self.inputs.iter().flat_map(|edge| match &edge.to {
+            InputTarget::Symbol(items) => items.as_slice(),
+            InputTarget::Section(_) | InputTarget::Record(_) => &[],
+        });
+        let symbols = self.sorted_items(
+            self.bound_items(BindingKind::Code)
+                .into_iter()
+                .chain(input_symbols.copied()),
+        );
+        nodes.extend(symbols.into_iter().map(Node::Symbol));
         for (kind, make) in [
-            (BindingKind::Code, Node::Symbol as fn(ItemId) -> Node),
-            (BindingKind::Test, Node::Test),
+            (BindingKind::Test, Node::Test as fn(ItemId) -> Node),
             (BindingKind::Example, Node::Example),
         ] {
             nodes.extend(self.bound_items(kind).into_iter().map(make));
         }
+        nodes.extend(self.evidence.iter().cloned().map(Node::Evidence));
+        nodes.extend(self.assessments.iter().cloned().map(Node::Assessment));
+        nodes.extend(self.coverage.iter().cloned().map(Node::Coverage));
+        nodes.extend(self.crates.iter().cloned().map(Node::Crate));
         nodes
     }
 
-    /// Every edge: the bindings, then `depends`, `affects`, `changes` and
-    /// links, each group sorted.
+    /// Every edge: the bindings, then `depends`, `affects`, `changes`, links,
+    /// `for`, claims, assessment subjects and `scope`, each group sorted.
     #[must_use]
     pub fn edges(&self) -> Vec<Edge> {
         let mut edges: Vec<Edge> = self.bindings.iter().cloned().map(Edge::Binding).collect();
@@ -550,7 +790,107 @@ impl Graph {
         edges.extend(self.affects.iter().cloned().map(Edge::Affects));
         edges.extend(self.changes_edges.iter().cloned().map(Edge::Changes));
         edges.extend(self.links.iter().cloned().map(Edge::Link));
+        edges.extend(self.covers.iter().cloned().map(Edge::Covers));
+        edges.extend(self.claims.iter().cloned().map(Edge::Claim));
+        edges.extend(self.assesses.iter().cloned().map(Edge::Assesses));
+        edges.extend(self.scope.iter().cloned().map(Edge::Scope));
+        edges.extend(self.inputs.iter().cloned().map(Edge::Input));
         edges
+    }
+
+    /// The evidence record ids, sorted.
+    #[must_use]
+    pub fn evidence(&self) -> &[String] {
+        &self.evidence
+    }
+
+    /// The assessment record ids, sorted.
+    #[must_use]
+    pub fn assessments(&self) -> &[String] {
+        &self.assessments
+    }
+
+    /// The id of the coverage record, when it loaded.
+    #[must_use]
+    pub fn coverage(&self) -> Option<&str> {
+        self.coverage.first().map(String::as_str)
+    }
+
+    /// The `for` edges to capabilities that exist, by evidence record and
+    /// then by capability.
+    #[must_use]
+    pub fn covers(&self) -> &[CoversEdge] {
+        &self.covers
+    }
+
+    /// The claims that name an evidence record that loaded, by capability,
+    /// line and record.
+    #[must_use]
+    pub fn claims(&self) -> &[ClaimEdge] {
+        &self.claims
+    }
+
+    /// The subjects of the assessments, to sections of capabilities that
+    /// exist, by assessment.
+    #[must_use]
+    pub fn assesses(&self) -> &[AssessesEdge] {
+        &self.assesses
+    }
+
+    /// The `scope` edges of the coverage record to crates of the source
+    /// workspace, sorted by package name.
+    #[must_use]
+    pub fn scope(&self) -> &[ScopeEdge] {
+        &self.scope
+    }
+
+    /// The input edges of the records: each input row whose section,
+    /// symbol or evidence record resolves, by record, kind and name. An input
+    /// that names nothing the repository holds now makes no edge and no
+    /// finding: an input that moved is a matter of the record's currency, not
+    /// of the load.
+    #[must_use]
+    pub fn inputs(&self) -> &[InputEdge] {
+        &self.inputs
+    }
+
+    /// The input edges of the record `record`, by kind and name.
+    #[must_use]
+    pub fn inputs_of(&self, record: &str) -> Vec<&InputEdge> {
+        self.inputs
+            .iter()
+            .filter(|edge| edge.record == record)
+            .collect()
+    }
+
+    /// The evidence records whose `for` lists the capability, sorted by id.
+    #[must_use]
+    pub fn evidence_of(&self, capability: &str) -> Vec<&str> {
+        self.covers
+            .iter()
+            .filter(|edge| edge.capability == capability)
+            .map(|edge| edge.evidence.as_str())
+            .collect()
+    }
+
+    /// The claims that name the evidence record `evidence`, by capability and
+    /// line.
+    #[must_use]
+    pub fn claims_on(&self, evidence: &str) -> Vec<&ClaimEdge> {
+        self.claims
+            .iter()
+            .filter(|edge| edge.evidence == evidence)
+            .collect()
+    }
+
+    /// The assessments whose subject is `section`, sorted by id.
+    #[must_use]
+    pub fn assessments_of(&self, section: &SectionId) -> Vec<&str> {
+        self.assesses
+            .iter()
+            .filter(|edge| &edge.section == section)
+            .map(|edge| edge.assessment.as_str())
+            .collect()
     }
 
     /// The capability ids, sorted.
@@ -717,8 +1057,16 @@ impl Graph {
     }
 }
 
+/// The records of a load.
+pub(crate) struct Records<'a> {
+    pub(crate) evidence: &'a [Loaded<EvidenceRecord>],
+    pub(crate) assessments: &'a [Loaded<AssessmentRecord>],
+    pub(crate) coverage: Option<&'a Loaded<CoverageRecord>>,
+}
+
 /// Build the graph of the loaded documents, and the findings of the rules
-/// between documents: a reference to a document that does not exist, and a
+/// between documents: a reference to a document or a record that does not
+/// exist, a claim on evidence that does not cover its capability, and a
 /// `depends` cycle.
 ///
 /// `present` holds the ids of the documents that exist as files, loaded or
@@ -728,6 +1076,7 @@ pub(crate) fn build(
     capabilities: &[Loaded<Capability>],
     changes: &[Loaded<Change>],
     architecture: &[Loaded<Architecture>],
+    records: &Records<'_>,
     present: &BTreeSet<String>,
     source: &Workspace,
 ) -> (Graph, Vec<Finding>) {
@@ -764,7 +1113,249 @@ pub(crate) fn build(
         .sort_by(|a, b| (&a.change, &a.capability).cmp(&(&b.change, &b.capability)));
     graph.changes_edges.dedup();
     add_links(&mut graph, capabilities, changes, architecture);
+    add_records(&mut graph, records, &known, present, source, &mut findings);
+    add_claims(&mut graph, &caps, records.evidence, present, &mut findings);
     (graph, findings)
+}
+
+/// The record nodes, the `for`, subject and `scope` edges, and the findings
+/// for a capability or a crate a record names and that does not exist.
+fn add_records(
+    graph: &mut Graph,
+    records: &Records<'_>,
+    known: &BTreeSet<String>,
+    present: &BTreeSet<String>,
+    source: &Workspace,
+    findings: &mut Vec<Finding>,
+) {
+    for evidence in records.evidence {
+        let id = &evidence.value().header.id;
+        graph.evidence.push(id.clone());
+        for capability in &evidence.value().covers {
+            if known.contains(capability) {
+                graph.covers.push(CoversEdge {
+                    evidence: id.clone(),
+                    capability: capability.clone(),
+                });
+            } else if !present.contains(capability) {
+                findings.push(Finding::new(
+                    kind::EVIDENCE_FOR_MISSING,
+                    evidence.path(),
+                    Location::Key("for".to_string()),
+                    format!("`for` names `{capability}`, which is not a capability document"),
+                    "name a capability the evidence covers, or remove the entry",
+                ));
+            }
+        }
+    }
+    for assessment in records.assessments {
+        let id = &assessment.value().header.id;
+        graph.assessments.push(id.clone());
+        let subject = &assessment.value().subject;
+        if known.contains(&subject.capability) {
+            graph.assesses.push(AssessesEdge {
+                assessment: id.clone(),
+                section: SectionId::new(subject.capability.clone(), subject.section),
+            });
+        } else if !present.contains(&subject.capability) {
+            findings.push(Finding::new(
+                kind::ASSESSMENT_SUBJECT_MISSING,
+                assessment.path(),
+                Location::Key("subject".to_string()),
+                format!(
+                    "the subject `{}` is a section of `{}`, which is not a capability document",
+                    subject.text(),
+                    subject.capability
+                ),
+                "name a section of an existing capability, or remove the record",
+            ));
+        }
+    }
+    if let Some(coverage) = records.coverage {
+        let id = &coverage.value().header.id;
+        graph.coverage.push(id.clone());
+        let packages: BTreeSet<&str> = source
+            .packages()
+            .iter()
+            .map(|package| package.name.as_str())
+            .collect();
+        for package in &coverage.value().scope {
+            if packages.contains(package.as_str()) {
+                graph.crates.push(package.clone());
+                graph.scope.push(ScopeEdge {
+                    coverage: id.clone(),
+                    package: package.clone(),
+                });
+            } else {
+                let known = if packages.is_empty() {
+                    "the source workspace has no package".to_string()
+                } else {
+                    format!(
+                        "the packages are {}",
+                        packages.iter().copied().collect::<Vec<_>>().join(", ")
+                    )
+                };
+                findings.push(Finding::new(
+                    kind::SCOPE_CRATE_MISSING,
+                    coverage.path(),
+                    Location::Key("scope".to_string()),
+                    format!("`scope` names `{package}`, which is no package of the source workspace; {known}"),
+                    "name the crate by the `name` of its `[package]`, or remove the entry",
+                ));
+            }
+        }
+    }
+    graph.evidence.sort();
+    graph.assessments.sort();
+    graph.crates.sort();
+    graph.crates.dedup();
+    graph
+        .covers
+        .sort_by(|a, b| (&a.evidence, &a.capability).cmp(&(&b.evidence, &b.capability)));
+    graph
+        .assesses
+        .sort_by(|a, b| (&a.assessment, &a.section).cmp(&(&b.assessment, &b.section)));
+    graph.scope.sort_by(|a, b| a.package.cmp(&b.package));
+    add_inputs(graph, records, known, source);
+}
+
+/// The input edges of the evidence records and the assessments. The evidence
+/// ids are sorted already, so an input that names a record finds it.
+fn add_inputs(
+    graph: &mut Graph,
+    records: &Records<'_>,
+    known: &BTreeSet<String>,
+    source: &Workspace,
+) {
+    let inputs = records
+        .evidence
+        .iter()
+        .map(|record| (&record.value().header.id, &record.value().inputs))
+        .chain(
+            records
+                .assessments
+                .iter()
+                .map(|record| (&record.value().header.id, &record.value().inputs)),
+        );
+    for (id, rows) in inputs {
+        for input in rows {
+            add_input(graph, id, input, known, source);
+        }
+    }
+    graph
+        .inputs
+        .sort_by(|a, b| (&a.record, a.kind, &a.name).cmp(&(&b.record, b.kind, &b.name)));
+}
+
+/// The edge of one input row of the record `record`, when its name resolves:
+/// a section of a capability that exists, a symbol of the source index, or an
+/// evidence record that loaded.
+fn add_input(
+    graph: &mut Graph,
+    record: &str,
+    input: &Input,
+    known: &BTreeSet<String>,
+    source: &Workspace,
+) {
+    let to = match input.kind {
+        InputKind::Section => input.name.split_once('#').and_then(|(capability, slug)| {
+            let section = CapabilitySection::from_slug(slug)?;
+            known
+                .contains(capability)
+                .then(|| InputTarget::Section(SectionId::new(capability, section)))
+        }),
+        InputKind::Symbol => source.resolve(&input.name).ok().map(|found| {
+            for id in &found.sites {
+                if let Some(item) = source.item(*id) {
+                    graph.item_paths.insert(*id, item.path.to_string());
+                }
+            }
+            InputTarget::Symbol(graph.sorted_items(found.sites.into_iter()))
+        }),
+        InputKind::Record => graph
+            .evidence
+            .binary_search(&input.name)
+            .is_ok()
+            .then(|| InputTarget::Record(input.name.clone())),
+    };
+    if let Some(to) = to {
+        graph.inputs.push(InputEdge {
+            record: record.to_string(),
+            kind: input.kind,
+            name: input.name.clone(),
+            to,
+        });
+    }
+}
+
+/// The claim edges of the capability documents, and the findings for a claim
+/// on a record that does not exist or does not cover the capability.
+fn add_claims(
+    graph: &mut Graph,
+    caps: &[&Loaded<Capability>],
+    evidence: &[Loaded<EvidenceRecord>],
+    present: &BTreeSet<String>,
+    findings: &mut Vec<Finding>,
+) {
+    let loaded: HashSet<&str> = evidence
+        .iter()
+        .map(|record| record.value().header.id.as_str())
+        .collect();
+    let covered: HashSet<(&str, &str)> = evidence
+        .iter()
+        .flat_map(|record| {
+            record
+                .value()
+                .covers
+                .iter()
+                .map(|capability| (record.value().header.id.as_str(), capability.as_str()))
+        })
+        .collect();
+    let prefix = DocType::Evidence.id_prefix();
+    for cap in caps {
+        let capability = cap.value().header.id.as_str();
+        for claim in cap.body().claims() {
+            let section = claim.section().and_then(CapabilitySection::from_slug);
+            for slug in claim.evidence() {
+                let id = format!("{prefix}{slug}");
+                if loaded.contains(id.as_str()) {
+                    if !covered.contains(&(id.as_str(), capability)) {
+                        findings.push(Finding::new(
+                            kind::CLAIM_EVIDENCE_NOT_FOR,
+                            cap.path(),
+                            Location::Line(claim.line()),
+                            format!(
+                                "the claim names `{id}`, whose `for` does not list `{capability}`"
+                            ),
+                            format!(
+                                "add `{capability}` to the `for` of the record, or name evidence that covers the capability"
+                            ),
+                        ));
+                    }
+                    graph.claims.push(ClaimEdge {
+                        capability: capability.to_string(),
+                        section,
+                        evidence: id,
+                        line: claim.line(),
+                    });
+                } else if !present.contains(&id) {
+                    findings.push(Finding::new(
+                        kind::CLAIM_EVIDENCE_MISSING,
+                        cap.path(),
+                        Location::Line(claim.line()),
+                        format!("the claim names `{id}`, which is not an evidence record"),
+                        format!(
+                            "record the evidence as {}/{slug}.md, or name an existing record",
+                            DocType::Evidence.directory()
+                        ),
+                    ));
+                }
+            }
+        }
+    }
+    graph.claims.sort_by(|a, b| {
+        (&a.capability, a.line, &a.evidence).cmp(&(&b.capability, b.line, &b.evidence))
+    });
 }
 
 /// A document that can hold or receive a link.
