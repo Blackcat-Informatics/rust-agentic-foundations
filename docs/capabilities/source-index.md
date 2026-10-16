@@ -192,11 +192,10 @@ bindings:
     - raf_source::tree::disk::tests::strategy::a_link_that_climbs_back_into_the_root_is_read_only_by_canonicalisation
     - raf_source::tree::disk::tests::strategy::a_symlink_that_becomes_a_directory_during_a_step_is_stepped_again
     - raf_source::tree::disk::tests::strategy::a_path_three_hundred_deep_is_walked_under_a_limit_of_sixty_four_descriptors
-    - raf_source::tree::disk::tests::windows::the_final_path_of_a_handle_is_its_canonical_path_and_lies_under_the_root
+    - raf_source::tree::disk::tests::linux_verifier_reads_the_real_descriptor_of_an_open_file
     - raf_source::tree::disk::tests::strategy::every_strategy_refuses_an_outside_symlink_and_reads_in_root_links
     - raf_source::tree::disk::tests::strategy::every_strategy_reports_entry_kinds_and_refuses_an_outside_directory
     - raf_source::tree::disk::tests::reserved_device_names_and_trailing_dots_or_spaces_are_ambiguous_on_windows_beside_plain_names
-    - raf_source::tree::disk::tests::windows::a_disk_tree_refuses_a_reserved_device_name_or_a_trailing_dot_or_space_beside_a_plain_name
     - raf_source::test_crate::workspace_containment::a_tree_with_windows_device_names_loads_off_windows
     - raf_source::error::tests::a_spawn_error_displays_the_file_and_carries_its_cause
     - raf_source::error::tests::control_characters_in_a_path_are_escaped
@@ -329,7 +328,8 @@ bindings:
     - raf_source::test_crate::exported_items::only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_and_re_exports
     - raf_source::test_crate::exported_items::in_random_small_crates_a_carried_re_export_is_listed_hidden_or_absent_as_the_item_is
     - raf_source::test_crate::this_repository::the_surface_of_each_library_and_binary_of_this_repository_lists_its_public_items
-  examples: []
+  examples:
+    - raf_source::Workspace::exported_items
 depends: []
 ---
 
@@ -1268,8 +1268,8 @@ imports as the last segment of its path, is one a glob of its module would answe
 import of the cycle waits anywhere else, and each renamed one is one rustc reads
 without itself (it bound its name in another name space, and no glob of its module
 brings the name in there), and leaving the place to the glob ends every loop of
-imports in the cycle, that place is left to the glob for the paths that read it, though
-not yet for the globs of other modules, and the cycle resolves through it. An import
+imports in the cycle, that place is left to the glob for the paths that read it, and
+not for the globs of other modules, and the cycle resolves through it. An import
 that keeps the place then binds only what keeps every item that a path which read the
 place found the glob answering there, as that path's module can access it; one that
 would take such an item away, or whose path may still reach something there, is
@@ -1370,152 +1370,153 @@ names the `X` of `p-two`, and a name that is no package of the workspace is
 macro generates is not indexed, and the documentation of the capabilities that rely on
 the index says so.
 
+**Exported items.** `Workspace::exported_items(target)` lists the public surface of
+a library or binary target: the items another crate can name through its crate
+root. It returns `Exports`, whose `items` are `ExportedItem`s, each with the `path`
+it is exported under, starting with the target's crate path (`demo::run` for `pub
+use inner::go as run;`), the defining `item`, so that a re-export under another
+name maps back to its definition, its `kind`, `file` and `span`, and `doc_hidden`;
+and whose `reexports` are the `Reexport`s below. The surface is read from the
+settled scope tables, breadth first from the crate root, through each module that a
+public binding of its `mod` item reaches. A binding is public when a route of `pub`
+declarations leads from it back to its definition: each `use` declaration on the
+way, named, renamed or glob, is `pub` and not test code, and the definition is `pub`
+(a `macro_rules!` macro is `#[macro_export]`) and not test code. Every glob that
+brings the item in is searched for such a route, not only the route the tables
+keep. So a `pub` item of a private module is exported only through a `pub`
+re-export; a `pub(crate)`, `pub(super)`, `pub(self)`, `pub(in path)` or private item
+never is; and neither is an item that a re-export which is not `pub` carries on the
+way, as rustc brings a name in through a glob no more visible than the binding it
+reads and refuses a named re-export of a binding less visible than itself. Test code
+(an item, a module or a `use` declaration with the `cfg(test)` tag or in a file
+reached only through test code, and a `#[test]` function) is never exported. A
+module that several public paths reach is listed under each and read once, under
+the first in breadth-first order (the shortest, then the first in the order of its
+segments), a path that `#[doc(hidden)]` does not hide coming before one that it
+does; a cycle of globs (`pub mod a { pub use super::*; }` beside `pub use a::*;`)
+reads each module once. An item that a name binds in two name spaces, as a unit or
+tuple struct, is listed once.
+
+The members of an exported struct, enum, union or trait follow it under its
+exported path (`demo::Thing::new`): every member of a trait, its methods,
+associated constants and associated types, and each `pub` member of an inherent
+impl of a type, wherever the impl is written, each when it is not test code. The
+members of trait impls are not listed: they carry no visibility of their own, and
+their interface is the trait's. Enum variants and struct fields are not items of
+the index and not items of the surface, and a glob of an enum brings in nothing. A
+type alias is listed alone, and the members of the type it names are listed where
+that type is exported. The members of an inherent impl whose self type the index
+cannot see (`unresolved_impls`) are not listed, and an item that a macro generates
+is not indexed and is not listed.
+
+A public re-export that names nothing the target defines is a `Reexport`, with the
+exported `path` (`<module>::*` for a glob), the path the declaration names as
+`written`, the `item` when the index sees one (an item of another crate of the
+workspace, or that crate's root), and the `file` and `line` of the declaration: a
+`pub use` or `pub extern crate` of another crate of the workspace or of one of its
+items, of a crate outside the workspace or one of its items (`pub use
+serde::Serialize;`, `pub use serde;`, `pub use std::fmt::*;`, each with no `item`),
+of an enum variant (`pub use p::F::G;`, as variants are not items of the index), and
+of a path the index cannot follow, such as a module that a macro generates. A `pub`
+glob carries such a re-export of each module its public routes reach, through
+`pub` globs that are not test code, into the module that reads it, under that
+module's path (`demo::Debug` for `pub use a::*;` where a private `a` has `pub use
+std::fmt::Debug;`, and `demo::*` where it has `pub use std::collections::*;`),
+unless a module on every such route, the reader included, binds the name itself, in
+any name space, as the index cannot tell the name space of an item it does not see;
+such a re-export is hidden when only routes that leave the reader by a
+`#[doc(hidden)]` glob carry it, as an item is: a hidden glob further on the way
+hides nothing, and one whose shown route a module on the way shadows and whose
+route by a hidden glob of the reader is free is hidden. `pub extern crate self as name;`
+names the target itself and is one of its items. An `Item` carries `macro_export`,
+true for a `macro_rules!` macro with `#[macro_export]`, which the listing reads.
+
+`#[doc(hidden)]` hides a path when it is on the item, on a module of the path (on
+its declaration, or as `#![doc(hidden)]` in the module's file), on the `use`
+declaration that exports it (on each one, where several do), or on the type or
+trait whose member it is. One rule decides which declarations export a name, for an
+item and a carried re-export alike: a named `pub use` of the reader that binds it,
+or a `pub` glob of the reader whose target carries the name out of the crate, that
+is, binds it with a route of `pub` declarations of its own; a glob whose target
+brings the name in only at `pub(crate)`, or keeps it behind a binding that is not
+`pub` or an import that shadows it, exports nothing, whatever the index's tables
+hold for it. So `mod c { pub struct Cell; } mod m1 { pub(crate) use crate::c::*; }
+pub use m1::*; #[doc(hidden)] pub use c::*;` exports `demo::Cell` hidden, as it
+does with `mod m0 { pub use crate::c::*; use std::rc::Rc as Cell; }` in place of
+`m1`, and with `pub use std::cell::Cell;` in `c`, though rustdoc documents the
+item of the first. `exported_items` leaves hidden items and re-exports out;
+`exported_items_with(target, &options)` with `ExportOptions::include_hidden` lists
+them with `doc_hidden` set, and only then reads a module under a hidden path. A
+binary's surface is read the same way from its crate root: no other crate can name
+it, and it is what the binary's root exposes.
+
+Items are sorted by path, then in the order of `items()` of the defining item, and
+re-exports by path, file and line, so two loads of one tree give equal surfaces,
+whatever the order of the declarations. A failure is an `ExportError`:
+`NotLibraryOrBinary` for a test, bench, example or build-script target; `Resolve`,
+with the error that `resolve` gives for the path, when a public name is ambiguous
+(two globs bring in two items of the index; an item and a carried re-export of a
+crate outside the workspace under one name are both listed, as the index cannot
+tell whether they collide, so `mod a { pub struct Rc; }` and `mod b { pub use
+std::rc::Rc; }` globbed by the root give the item `demo::Rc` and a `Reexport`
+`demo::Rc`), goes through an import that never settles (a cycle
+of imports), or reads a glob whose path names nothing in the workspace, as a `pub`
+glob of such a path does even when nothing reads it; `Budget`; and `CarryBudget`,
+with the exported path of a carried re-export, when deciding whether the globs
+carry it passes the item-bytes budget (below), its `Budget` load error naming the
+file and line of the carried `use` declaration. Each binding the
+listing passes is checked as `resolve` checks the last segment of a path, and every
+module of a path is reached through such a binding, so a chain of re-exports is
+checked once for each segment. What the listing keeps (its entries, the path of
+each module it reads, the names it reads there, the globs of the modules it reads
+with the views of them that hold each name, and the decision for each binding it
+searched a route for) is charged to the
+item-bytes budget after what the load spent, by the layout rules above, before it
+is kept, so the index and one listing stay within `max_item_bytes`; a listing past
+it is a `Budget` load error of `ItemBytes` that names the file and line of the item
+whose entry passed it. The search for one binding's route and the items one name
+binds are not charged: each is bounded by the bindings the load charged, and is
+dropped before the next is made. The search keeps a stack of its own, and once it
+finds a route, or finds that there is none, every binding it passed is decided for
+the rest of the listing, so a chain of re-exports is followed once for all of its
+names: 20,000 chained re-exports, and a chain of 20,000 `pub` globs, list on a thread
+of 2 MiB. The globs of a module that bring in a name are found by the name, so a
+module of 3000 `pub` globs of one name each lists in about 15 ms in a release
+build. The modules a reader's routes reach are walked once, into a graph, for the
+re-exports they carry. A carried name is decided first over the routes that
+`#[doc(hidden)]` does not hide and, when they do not carry it, over every route,
+which carries it hidden; each decision is made from the modules of that walk
+that bind it, other than the carrying module: a binder with no public routes of
+its own is never on the way, so with none left the name is carried; the reader,
+or a binder that dominates the carrying module in the graph (is on every route
+to it), keeps it out; and a single binder that does not dominate it leaves a free
+route. The tree of dominators of each set of routes is made once for the reader, by
+the iterative
+algorithm of Cooper, Harvey and Kennedy, the first time a name needs it. Only a
+name that several binders with routes of their own keep, none of them dominating,
+is decided by a search from the reader past its binders, once for the name, which
+keeps the answer for each module that carries it and nothing of what it walked.
+Each step of the walk, of the tree and of the searches, a module or a route read,
+is charged a binding to the item-bytes budget, with what they hold, so a listing
+whose searches pass it is a `CarryBudget` error and never runs unbounded: a chain of
+5000 globs to a module that carries 2000 names, each of which two modules beside
+the chain bind, is refused in about 0.4 s in a release build, beside a chain of 50
+globs to 200 such names, which lists. Whether a route avoids a set of several modules
+needs that search, as no structure computed once for the reader answers it for
+every set the way the tree answers it for one module. 3000 `pub` globs that each
+carry a re-export of their own name, beside 3000 globs of modules that each bind
+that name privately, list in about 90 ms in a release build and are charged under
+16 MiB beyond the load, and 10,000 such in about 0.26 s, where walking the reach
+again for each name took 12.8 s at 3000.
+
 **API surface.** The data structs a caller reads, `Package`, `Target`, `SourceFile`,
 `Reach`, `Entry` and `SpanFact`, are `#[non_exhaustive]` like `Item`, so a later field
 is not a breaking change: a pattern over one names the fields it reads and ends in
 `..`, and a `Tree` backend outside the crate builds an `Entry` with `Entry::new`. The
 per-file facts the index is built from are not public. `LoadOptions` is `Clone` and
-not `Copy`, so a later option that is not `Copy` is not a breaking change.
-
-> [!PROPOSED change:source-index]
-> **Exported items.** `Workspace::exported_items(target)` lists the public surface of
-> a library or binary target: the items another crate can name through its crate
-> root. It returns `Exports`, whose `items` are `ExportedItem`s, each with the `path`
-> it is exported under, starting with the target's crate path (`demo::run` for `pub
-> use inner::go as run;`), the defining `item`, so that a re-export under another
-> name maps back to its definition, its `kind`, `file` and `span`, and `doc_hidden`;
-> and whose `reexports` are the `Reexport`s below. The surface is read from the
-> settled scope tables, breadth first from the crate root, through each module that a
-> public binding of its `mod` item reaches. A binding is public when a route of `pub`
-> declarations leads from it back to its definition: each `use` declaration on the
-> way, named, renamed or glob, is `pub` and not test code, and the definition is `pub`
-> (a `macro_rules!` macro is `#[macro_export]`) and not test code. Every glob that
-> brings the item in is searched for such a route, not only the route the tables
-> keep. So a `pub` item of a private module is exported only through a `pub`
-> re-export; a `pub(crate)`, `pub(super)`, `pub(self)`, `pub(in path)` or private item
-> never is; and neither is an item that a re-export which is not `pub` carries on the
-> way, as rustc brings a name in through a glob no more visible than the binding it
-> reads and refuses a named re-export of a binding less visible than itself. Test code
-> (an item, a module or a `use` declaration with the `cfg(test)` tag or in a file
-> reached only through test code, and a `#[test]` function) is never exported. A
-> module that several public paths reach is listed under each and read once, under
-> the first in breadth-first order (the shortest, then the first in the order of its
-> segments), a path that `#[doc(hidden)]` does not hide coming before one that it
-> does; a cycle of globs (`pub mod a { pub use super::*; }` beside `pub use a::*;`)
-> reads each module once. An item that a name binds in two name spaces, as a unit or
-> tuple struct, is listed once.
->
-> The members of an exported struct, enum, union or trait follow it under its
-> exported path (`demo::Thing::new`): every member of a trait, its methods,
-> associated constants and associated types, and each `pub` member of an inherent
-> impl of a type, wherever the impl is written, each when it is not test code. The
-> members of trait impls are not listed: they carry no visibility of their own, and
-> their interface is the trait's. Enum variants and struct fields are not items of
-> the index and not items of the surface, and a glob of an enum brings in nothing. A
-> type alias is listed alone, and the members of the type it names are listed where
-> that type is exported. The members of an inherent impl whose self type the index
-> cannot see (`unresolved_impls`) are not listed, and an item that a macro generates
-> is not indexed and is not listed.
->
-> A public re-export that names nothing the target defines is a `Reexport`, with the
-> exported `path` (`<module>::*` for a glob), the path the declaration names as
-> `written`, the `item` when the index sees one (an item of another crate of the
-> workspace, or that crate's root), and the `file` and `line` of the declaration: a
-> `pub use` or `pub extern crate` of another crate of the workspace or of one of its
-> items, of a crate outside the workspace or one of its items (`pub use
-> serde::Serialize;`, `pub use serde;`, `pub use std::fmt::*;`, each with no `item`),
-> of an enum variant (`pub use p::F::G;`, as variants are not items of the index), and
-> of a path the index cannot follow, such as a module that a macro generates. A `pub`
-> glob carries such a re-export of each module its public routes reach, through
-> `pub` globs that are not test code, into the module that reads it, under that
-> module's path (`demo::Debug` for `pub use a::*;` where a private `a` has `pub use
-> std::fmt::Debug;`, and `demo::*` where it has `pub use std::collections::*;`),
-> unless a module on every such route, the reader included, binds the name itself, in
-> any name space, as the index cannot tell the name space of an item it does not see;
-> such a re-export is hidden when only routes that leave the reader by a
-> `#[doc(hidden)]` glob carry it, as an item is: a hidden glob further on the way
-> hides nothing, and one whose shown route a module on the way shadows and whose
-> route by a hidden glob of the reader is free is hidden. `pub extern crate self as name;`
-> names the target itself and is one of its items. An `Item` carries `macro_export`,
-> true for a `macro_rules!` macro with `#[macro_export]`, which the listing reads.
->
-> `#[doc(hidden)]` hides a path when it is on the item, on a module of the path (on
-> its declaration, or as `#![doc(hidden)]` in the module's file), on the `use`
-> declaration that exports it (on each one, where several do), or on the type or
-> trait whose member it is. One rule decides which declarations export a name, for an
-> item and a carried re-export alike: a named `pub use` of the reader that binds it,
-> or a `pub` glob of the reader whose target carries the name out of the crate, that
-> is, binds it with a route of `pub` declarations of its own; a glob whose target
-> brings the name in only at `pub(crate)`, or keeps it behind a binding that is not
-> `pub` or an import that shadows it, exports nothing, whatever the index's tables
-> hold for it. So `mod c { pub struct Cell; } mod m1 { pub(crate) use crate::c::*; }
-> pub use m1::*; #[doc(hidden)] pub use c::*;` exports `demo::Cell` hidden, as it
-> does with `mod m0 { pub use crate::c::*; use std::rc::Rc as Cell; }` in place of
-> `m1`, and with `pub use std::cell::Cell;` in `c`, though rustdoc documents the
-> item of the first. `exported_items` leaves hidden items and re-exports out;
-> `exported_items_with(target, &options)` with `ExportOptions::include_hidden` lists
-> them with `doc_hidden` set, and only then reads a module under a hidden path. A
-> binary's surface is read the same way from its crate root: no other crate can name
-> it, and it is what the binary's root exposes.
->
-> Items are sorted by path, then in the order of `items()` of the defining item, and
-> re-exports by path, file and line, so two loads of one tree give equal surfaces,
-> whatever the order of the declarations. A failure is an `ExportError`:
-> `NotLibraryOrBinary` for a test, bench, example or build-script target; `Resolve`,
-> with the error that `resolve` gives for the path, when a public name is ambiguous
-> (two globs bring in two items of the index; an item and a carried re-export of a
-> crate outside the workspace under one name are both listed, as the index cannot
-> tell whether they collide, so `mod a { pub struct Rc; }` and `mod b { pub use
-> std::rc::Rc; }` globbed by the root give the item `demo::Rc` and a `Reexport`
-> `demo::Rc`), goes through an import that never settles (a cycle
-> of imports), or reads a glob whose path names nothing in the workspace, as a `pub`
-> glob of such a path does even when nothing reads it; `Budget`; and `CarryBudget`,
-> with the exported path of a carried re-export, when deciding whether the globs
-> carry it passes the item-bytes budget (below), its `Budget` load error naming the
-> file and line of the carried `use` declaration. Each binding the
-> listing passes is checked as `resolve` checks the last segment of a path, and every
-> module of a path is reached through such a binding, so a chain of re-exports is
-> checked once for each segment. What the listing keeps (its entries, the path of
-> each module it reads, the names it reads there, the globs of the modules it reads
-> with the views of them that hold each name, and the decision for each binding it
-> searched a route for) is charged to the
-> item-bytes budget after what the load spent, by the layout rules above, before it
-> is kept, so the index and one listing stay within `max_item_bytes`; a listing past
-> it is a `Budget` load error of `ItemBytes` that names the file and line of the item
-> whose entry passed it. The search for one binding's route and the items one name
-> binds are not charged: each is bounded by the bindings the load charged, and is
-> dropped before the next is made. The search keeps a stack of its own, and once it
-> finds a route, or finds that there is none, every binding it passed is decided for
-> the rest of the listing, so a chain of re-exports is followed once for all of its
-> names: 20,000 chained re-exports, and a chain of 20,000 `pub` globs, list on a thread
-> of 2 MiB. The globs of a module that bring in a name are found by the name, so a
-> module of 3000 `pub` globs of one name each lists in about 15 ms in a release
-> build. The modules a reader's routes reach are walked once, into a graph, for the
-> re-exports they carry. A carried name is decided first over the routes that
-> `#[doc(hidden)]` does not hide and, when they do not carry it, over every route,
-> which carries it hidden; each decision is made from the modules of that walk
-> that bind it, other than the carrying module: a binder with no public routes of
-> its own is never on the way, so with none left the name is carried; the reader,
-> or a binder that dominates the carrying module in the graph (is on every route
-> to it), keeps it out; and a single binder that does not dominate it leaves a free
-> route. The tree of dominators of each set of routes is made once for the reader, by
-> the iterative
-> algorithm of Cooper, Harvey and Kennedy, the first time a name needs it. Only a
-> name that several binders with routes of their own keep, none of them dominating,
-> is decided by a search from the reader past its binders, once for the name, which
-> keeps the answer for each module that carries it and nothing of what it walked.
-> Each step of the walk, of the tree and of the searches, a module or a route read,
-> is charged a binding to the item-bytes budget, with what they hold, so a listing
-> whose searches pass it is a `CarryBudget` error and never runs unbounded: a chain of
-> 5000 globs to a module that carries 2000 names, each of which two modules beside
-> the chain bind, is refused in about 0.4 s in a release build, beside a chain of 50
-> globs to 200 such names, which lists. Whether a route avoids a set of several modules
-> needs that search, as no structure computed once for the reader answers it for
-> every set the way the tree answers it for one module. 3000 `pub` globs that each
-> carry a re-export of their own name, beside 3000 globs of modules that each bind
-> that name privately, list in about 90 ms in a release build and are charged under
-> 16 MiB beyond the load, and 10,000 such in about 0.26 s, where walking the reach
-> again for each name took 12.8 s at 3000.
+not `Copy`, so a later option that is not `Copy` is not a breaking change. `Exports`,
+`ExportedItem`, `Reexport`, `ExportOptions` and `ExportError` are `#[non_exhaustive]`
+as well, so a caller builds `ExportOptions` from `ExportOptions::default()`.
 
 ## Usage
 
@@ -1540,15 +1541,34 @@ for target in ws.targets().filter(|t| !t.shipping) {
 A line that starts with `# ` is hidden by rustdoc and is there so that the block
 compiles.
 
-> [!PROPOSED change:source-index]
-> List the public surface of a library or a binary with `ws.exported_items(id)`, for
-> an `id` of `ws.target_ids()`. Each `ExportedItem` of `items` maps its exported
-> `path` back to its definition through `ws.item(export.item)`, and each `Reexport`
-> of `reexports` gives what it re-exports as `written`. `exported_items_with(id,
-> &options)`, with `options.include_hidden` set on `ExportOptions::default()`, lists
-> what `#[doc(hidden)]` hides as well. The crate documentation of `raf-source` shows
-> the listing over a real tree, in a block that is compiled and not run, and over a
-> `MemoryTree`, in a block that runs.
+List the public surface of a library or a binary with `ws.exported_items(id)`, for
+an `id` of `ws.target_ids()`. Each `ExportedItem` of `items` maps its exported
+`path` back to its definition through `ws.item(export.item)`, and each `Reexport`
+of `reexports` gives what it re-exports as `written`. `exported_items_with(id,
+&options)`, with `options.include_hidden` set on `ExportOptions::default()`, lists
+what `#[doc(hidden)]` hides as well. The block lists the surface of each library of
+a real tree, so it is compiled and not run:
+
+```rust,no_run
+use raf_source::{DiskTree, TargetKind, Workspace};
+
+let ws = Workspace::load(&DiskTree::new(".")?, &["crates"])?;
+for id in ws.target_ids() {
+    let target = ws.target(id).expect("an id of this workspace");
+    if target.kind != TargetKind::Lib {
+        continue;
+    }
+    let exports = ws.exported_items(id)?;
+    for export in &exports.items {
+        let item = ws.item(export.item).expect("an item of this workspace");
+        println!("{} is {} in {}", export.path, item.path, export.file);
+    }
+    for reexport in &exports.reexports {
+        println!("{} re-exports {}", reexport.path, reexport.written);
+    }
+}
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
 
 ## Examples
 
@@ -1567,14 +1587,35 @@ assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-> [!PROPOSED change:source-index]
-> A library whose root is `mod inner; pub use inner::go as run; pub(crate) fn
-> helper() {}`, beside an `inner.rs` of `pub fn go() {} pub fn unused() {}`, exports
-> one item: `demo::run`, whose defining item is `demo::inner::go`. `helper` is
-> `pub(crate)`, and `unused` is a `pub` item of a private module that no re-export
-> reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
-> `demo::unused` as well, and making the module `pub mod inner;` exports
-> `demo::inner`, `demo::inner::go` and `demo::inner::unused`.
+A `pub` item of a private module is exported only through a `pub` re-export:
+
+```rust
+use raf_source::{MemoryTree, Workspace};
+
+let tree = MemoryTree::from([
+    ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+    ("src/lib.rs", "mod inner;\npub use inner::go as run;\npub(crate) fn helper() {}\n"),
+    ("src/inner.rs", "pub fn go() {}\npub fn unused() {}\n"),
+]);
+let ws = Workspace::load(&tree, &["."])?;
+let lib = ws.target_ids().next().expect("the library");
+let exports = ws.exported_items(lib)?;
+assert_eq!(exports.items.len(), 1);
+assert_eq!(exports.items[0].path, "demo::run");
+assert_eq!(
+    ws.item(exports.items[0].item).map(|item| item.path.as_str()),
+    Some("demo::inner::go")
+);
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+A library whose root is `mod inner; pub use inner::go as run; pub(crate) fn
+helper() {}`, beside an `inner.rs` of `pub fn go() {} pub fn unused() {}`, exports
+one item: `demo::run`, whose defining item is `demo::inner::go`. `helper` is
+`pub(crate)`, and `unused` is a `pub` item of a private module that no re-export
+reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
+`demo::unused` as well, and making the module `pub mod inner;` exports
+`demo::inner`, `demo::inner::go` and `demo::inner::unused`.
 
 ## Constraints
 
@@ -1625,33 +1666,37 @@ assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
 - `raf_source::syn` is re-exported so consumers use the syn version that produced the
   facts; a syn major bump is a breaking change of raf-source.
 - Output order is sorted by path, so two loads of the same tree give equal results.
-
-> [!PROPOSED change:source-index]
-> - The public surface is the visibility rustc gives the items of a crate, read
->   syntactically: no `cfg` other than the `test` tag is evaluated, so an item under
->   any other `cfg` is listed whether or not a build has it, and nothing a macro
->   generates is listed. `#[doc(hidden)]` and `#[macro_export]` are read as the index
->   reads them, unconditional and, for `doc`, with `hidden` alone; one that a
->   `cfg_attr` applies is not read. Of the two visibility rules above that the index
->   does not model, the first does not reach the surface, whose routes require every
->   `use` declaration on the way to be `pub`; the second does: a name that the globs
->   of a module bring in ambiguously, one of the items through a glob that a module
->   which globs it cannot access, is listed under that module with the other item,
->   where rustc refuses the path. A name that two globs of a listed module bring in
->   as two items fails the whole listing with `Ambiguous`, also where rustc accepts
->   the crate with only the `ambiguous_glob_reexports` warning (two `pub` globs, one
->   of whose items is `pub(crate)`, so that another crate can name the other): the
->   listing refuses the name rather than choose one, as `resolve` does. A re-export
->   of an item of a crate outside the workspace that a `pub` glob carries is dropped
->   where the reader or a module on the way binds its name in any name space, as the
->   index cannot tell the name space of an item it does not see: beside `fn Rc() {}`,
->   a carried `pub use std::rc::Rc;` is not listed, though rustc exports the type.
->   A listing whose carried names need searches past several binders on long routes
->   can pass the item-bytes budget, which charges their work, and is then refused
->   with `CarryBudget` though rustc accepts the crate. The `doc_hidden` flag follows
->   the export rule of the Contract, not rustdoc: an item that a `pub` glob brings in
->   only through a `pub(crate)` glob, beside a hidden glob that exports it, is
->   flagged hidden, where rustdoc documents it.
+- The public surface is the visibility rustc gives the items of a crate, read
+  syntactically: no `cfg` other than the `test` tag is evaluated, so an item under
+  any other `cfg` is listed whether or not a build has it, and nothing a macro
+  generates is listed. `#[doc(hidden)]` and `#[macro_export]` are read as the index
+  reads them, unconditional and, for `doc`, with `hidden` alone; one that a
+  `cfg_attr` applies is not read. Of the two visibility rules above that the index
+  does not model, the first does not reach the surface, whose routes require every
+  `use` declaration on the way to be `pub`; the second does: a name that the globs
+  of a module bring in ambiguously, one of the items through a glob that a module
+  which globs it cannot access, is listed under that module with the other item,
+  where rustc refuses the path. A name that two globs of a listed module bring in
+  as two items fails the whole listing with `Ambiguous`, also where rustc accepts
+  the crate with only the `ambiguous_glob_reexports` warning (two `pub` globs, one
+  of whose items is `pub(crate)`, so that another crate can name the other): the
+  listing refuses the name rather than choose one, as `resolve` does. A re-export
+  of an item of a crate outside the workspace that a `pub` glob carries is dropped
+  where the reader or a module on the way binds its name in any name space, as the
+  index cannot tell the name space of an item it does not see: beside `fn Rc() {}`,
+  a carried `pub use std::rc::Rc;` is not listed, though rustc exports the type.
+  A listing whose carried names need searches past several binders on long routes
+  can pass the item-bytes budget, which charges their work, and is then refused
+  with `CarryBudget` though rustc accepts the crate. The `doc_hidden` flag follows
+  the export rule of the Contract, not rustdoc: an item that a `pub` glob brings in
+  only through a `pub(crate)` glob, beside a hidden glob that exports it, is
+  flagged hidden, where rustdoc documents it.
+- The proofs that need a Windows host, the final path of a handle and a `DiskTree`
+  refusing a reserved device name or a name ending in a dot or a space, are compiled
+  on every host by `make cross-check` and run only on Windows, in the Windows CI job;
+  the bound tests are those every Linux host runs: the handle-path verifier, the
+  Linux handle verifier on real descriptors, the Windows-name predicate and a tree
+  that holds those names loading off Windows.
 
 ## Explanation
 
@@ -2293,104 +2338,103 @@ duplicates.
   `n..n+1`, one over three lines ends before the line after its last, and a crate root
   spans every line of its file.
 
-> [!PROPOSED change:source-index]
-> - Exported-item fixtures, each beside a neighbour that lists: a `pub fn` beside
->   private, `pub(crate)`, `pub(super)`, `pub(self)` and `pub(in path)` items; a `pub`
->   item of a private module, absent until `pub use` exports it under its name and
->   under a rename, beside the module made `pub`; a `pub` glob that brings in the
->   `pub` items of its module only, and a private one that brings in nothing; nested
->   re-export chains through a `pub` module of a private module and through globs of
->   globs, a `pub(crate)` glob or re-export on the way that keeps the name in, and an
->   item that a restricted glob and a `pub` route both bring in, which is exported;
->   `pub(crate)`, private and `pub(in crate)` re-exports, and a `pub` re-export of a
->   `pub(crate)` item, each exporting nothing; re-exports of a dependency, of the
->   standard library by a glob, of a crate of the workspace and of its glob, of a
->   module a macro generates and `pub extern crate alloc;`, each a `Reexport` with its
->   written path, line and, for the workspace crate, its item, beside `pub extern
->   crate self as me;`, an item; enum variants and struct fields, which are not items,
->   and a glob of an enum; the `pub` inherent methods and constants of a `pub` type,
->   also from an impl in another module and under a renamed re-export, without its
->   private, `pub(crate)`, trait impl and test methods, and nothing of a private type;
->   every member of a `pub` trait and none of a private one; `#[doc(hidden)]` on an
->   item, a module, a module file, a named and a glob re-export and a method, left out
->   by default and listed flagged with `include_hidden`, and a module that a hidden and
->   a shown re-export reach, read under the shown one; test modules, items, named and
->   glob re-exports and `#[test]` functions, none listed, beside the same outside test
->   code; `#[macro_export]` macros, at the root and in a module, beside a local macro,
->   its `pub(crate) use` and a macro-generated function; a binary, which lists its own
->   `pub` items and re-exports its library's, and a test target, refused as
->   `NotLibraryOrBinary`; a module reached by two `pub` paths and a cycle of globs,
->   each read once.
-> - Re-exports of a crate outside the workspace that a `pub` glob carries: from a
->   private module and from a `pub` one (listed under both paths), renamed, through
->   two globs, hidden by a hidden glob of the reader and not by one further on, each
->   a `Reexport` of the
->   reader, beside the explicit `pub use a::Debug;` that names one; none through a
->   restricted or private glob, of a `pub(crate)` re-export, past a name the reader
->   or a module on the way binds, or of test code. A named re-export of an enum
->   variant is a `Reexport`, and a glob of the enum adds nothing. The `macro_export`
->   flag of each macro item.
-> - A module of 3000 `pub` globs of one name each lists within 150 ms in a release
->   build and a second in a debug build; 3000 that each carry a re-export of its own
->   name beside 3000 that each carry `Rc` and a `Debug` the reader shadows list
->   within 0.5 s in a release build and 4 s in a debug build; 3000 that each carry a
->   name beside 3000 globs of modules that bind it privately list within 300 ms in a
->   release build and 3 s in a debug build, charged under 32 MiB beyond the load,
->   and 10,000 such list within a second in a release build.
-> - Carried names decided exactly: a binder that dominates the carrier, a binder
->   beside a free route, a binder whose routes lead elsewhere, two binders on the two
->   routes, two binders beside a third free route, two binders on one route behind a
->   free module, the reader binding the name, a carrier with `pub` globs of its own,
->   which is not its own binder, two carriers of one name of which only the one with
->   a free route is listed, from its own line, in both orders, and a binder in an
->   irreducible cycle entered at two modules, which dominates nothing, beside the
->   cycle without its second entry. A chain of 5000 globs whose 2000 carried names
->   two modules beside it bind is refused with `CarryBudget`, naming the re-export
->   and the line of its declaration, of `ItemBytes`, beside a chain of 50 and 200
->   names, which lists them.
-> - A re-export whose shown route a module on the way shadows and whose hidden
->   route is free is hidden, as the item of the same shape is, also with two
->   shadowed shown routes, beside a free shown route, which shows it; a hidden glob
->   partway along the route, alone and beside a shadowed route, hides neither the
->   re-export nor the item.
-> - A differential family of 166 small crates, over the depth of the route (0 to 2
->   globs), a binder (none, on the route, off it), `#[doc(hidden)]` (none, on the
->   reader's glob, on a glob partway, on the declaration, on a module partway, on
->   the reader's module), a reader at the root or in a `pub` module, and an extra
->   hidden route: in each, the carried `pub use std::cell::Cell;` is listed, hidden
->   or absent exactly as `pub struct Cell;` in its place is.
-> - A seeded random differential of 450 small crates, from three fixed seeds, of one
->   to six private modules of one to three globs each to one another and to the
->   carrier, a quarter of them `#[doc(hidden)]` and a fifth `pub(crate)`, cycles
->   allowed, binders by a private struct or a private import, hidden modules and a
->   hidden carrier, and a reader of one to three globs, some hidden, at the root or
->   in a `pub` module that is sometimes hidden: in each, the carried re-export and
->   the item give the same paths with the same flags; the answers include absent,
->   shown and hidden. The two shapes a route that does not carry the name out
->   decides wrongly (a private import shadowing the glob, and a `pub(crate)` glob),
->   at the root and in a `pub` module, for the item and the re-export, are listed
->   hidden and left out by default.
-> - An item `Rc` and a carried `pub use std::rc::Rc;` under one name are both listed,
->   with no ambiguity.
-> - A module that a hidden and a shown `pub` glob both reach carries its re-export
->   shown, beside the same with the shown glob gone, where it is hidden.
-> - Determinism: the same surface from two calls and over four orders of the
->   declarations, sorted by path.
-> - The library of the Examples lists `demo::run` alone, and with the glob or the
->   `pub` module it lists the items the Examples name.
-> - Refusals: two `pub` globs that bring in two items `x` are `Ambiguous` beside two
->   that bring in different names; a cycle of `pub` imports is `Cyclic` beside a chain
->   that ends; a `pub` glob of `self::missing` is `UnresolvedGlob` naming the glob and
->   its module beside a private one; a listing over the item-bytes budget left by the
->   load is a `Budget` error of `ItemBytes` naming the file and line, beside the same
->   tree with a larger budget, which lists every item.
-> - Stack and work: 20,000 chained `pub use` re-exports and a chain of 20,000 `pub`
->   globs list on a thread of 2 MiB in debug and release builds.
-> - On this repository, the surface of each library and binary lists without an
->   error; that of `raf-source` holds `raf_source::Workspace`, its method
->   `exported_items` and `raf_source::DiskTree`, mapped to
->   `raf_source::tree::disk::DiskTree`, holds no item of a private module and lists
->   `raf_source::syn` as a re-export of a crate outside the workspace, and the
->   `cargo-workplan` binary exports nothing.
-> - The `load-workspace` fuzz target lists the surface of every target of each
->   workspace that loads, hidden items included.
+- Exported-item fixtures, each beside a neighbour that lists: a `pub fn` beside
+  private, `pub(crate)`, `pub(super)`, `pub(self)` and `pub(in path)` items; a `pub`
+  item of a private module, absent until `pub use` exports it under its name and
+  under a rename, beside the module made `pub`; a `pub` glob that brings in the
+  `pub` items of its module only, and a private one that brings in nothing; nested
+  re-export chains through a `pub` module of a private module and through globs of
+  globs, a `pub(crate)` glob or re-export on the way that keeps the name in, and an
+  item that a restricted glob and a `pub` route both bring in, which is exported;
+  `pub(crate)`, private and `pub(in crate)` re-exports, and a `pub` re-export of a
+  `pub(crate)` item, each exporting nothing; re-exports of a dependency, of the
+  standard library by a glob, of a crate of the workspace and of its glob, of a
+  module a macro generates and `pub extern crate alloc;`, each a `Reexport` with its
+  written path, line and, for the workspace crate, its item, beside `pub extern
+  crate self as me;`, an item; enum variants and struct fields, which are not items,
+  and a glob of an enum; the `pub` inherent methods and constants of a `pub` type,
+  also from an impl in another module and under a renamed re-export, without its
+  private, `pub(crate)`, trait impl and test methods, and nothing of a private type;
+  every member of a `pub` trait and none of a private one; `#[doc(hidden)]` on an
+  item, a module, a module file, a named and a glob re-export and a method, left out
+  by default and listed flagged with `include_hidden`, and a module that a hidden and
+  a shown re-export reach, read under the shown one; test modules, items, named and
+  glob re-exports and `#[test]` functions, none listed, beside the same outside test
+  code; `#[macro_export]` macros, at the root and in a module, beside a local macro,
+  its `pub(crate) use` and a macro-generated function; a binary, which lists its own
+  `pub` items and re-exports its library's, and a test target, refused as
+  `NotLibraryOrBinary`; a module reached by two `pub` paths and a cycle of globs,
+  each read once.
+- Re-exports of a crate outside the workspace that a `pub` glob carries: from a
+  private module and from a `pub` one (listed under both paths), renamed, through
+  two globs, hidden by a hidden glob of the reader and not by one further on, each
+  a `Reexport` of the
+  reader, beside the explicit `pub use a::Debug;` that names one; none through a
+  restricted or private glob, of a `pub(crate)` re-export, past a name the reader
+  or a module on the way binds, or of test code. A named re-export of an enum
+  variant is a `Reexport`, and a glob of the enum adds nothing. The `macro_export`
+  flag of each macro item.
+- A module of 3000 `pub` globs of one name each lists within 150 ms in a release
+  build and a second in a debug build; 3000 that each carry a re-export of its own
+  name beside 3000 that each carry `Rc` and a `Debug` the reader shadows list
+  within 0.5 s in a release build and 4 s in a debug build; 3000 that each carry a
+  name beside 3000 globs of modules that bind it privately list within 300 ms in a
+  release build and 3 s in a debug build, charged under 32 MiB beyond the load,
+  and 10,000 such list within a second in a release build.
+- Carried names decided exactly: a binder that dominates the carrier, a binder
+  beside a free route, a binder whose routes lead elsewhere, two binders on the two
+  routes, two binders beside a third free route, two binders on one route behind a
+  free module, the reader binding the name, a carrier with `pub` globs of its own,
+  which is not its own binder, two carriers of one name of which only the one with
+  a free route is listed, from its own line, in both orders, and a binder in an
+  irreducible cycle entered at two modules, which dominates nothing, beside the
+  cycle without its second entry. A chain of 5000 globs whose 2000 carried names
+  two modules beside it bind is refused with `CarryBudget`, naming the re-export
+  and the line of its declaration, of `ItemBytes`, beside a chain of 50 and 200
+  names, which lists them.
+- A re-export whose shown route a module on the way shadows and whose hidden
+  route is free is hidden, as the item of the same shape is, also with two
+  shadowed shown routes, beside a free shown route, which shows it; a hidden glob
+  partway along the route, alone and beside a shadowed route, hides neither the
+  re-export nor the item.
+- A differential family of 166 small crates, over the depth of the route (0 to 2
+  globs), a binder (none, on the route, off it), `#[doc(hidden)]` (none, on the
+  reader's glob, on a glob partway, on the declaration, on a module partway, on
+  the reader's module), a reader at the root or in a `pub` module, and an extra
+  hidden route: in each, the carried `pub use std::cell::Cell;` is listed, hidden
+  or absent exactly as `pub struct Cell;` in its place is.
+- A seeded random differential of 450 small crates, from three fixed seeds, of one
+  to six private modules of one to three globs each to one another and to the
+  carrier, a quarter of them `#[doc(hidden)]` and a fifth `pub(crate)`, cycles
+  allowed, binders by a private struct or a private import, hidden modules and a
+  hidden carrier, and a reader of one to three globs, some hidden, at the root or
+  in a `pub` module that is sometimes hidden: in each, the carried re-export and
+  the item give the same paths with the same flags; the answers include absent,
+  shown and hidden. The two shapes a route that does not carry the name out
+  decides wrongly (a private import shadowing the glob, and a `pub(crate)` glob),
+  at the root and in a `pub` module, for the item and the re-export, are listed
+  hidden and left out by default.
+- An item `Rc` and a carried `pub use std::rc::Rc;` under one name are both listed,
+  with no ambiguity.
+- A module that a hidden and a shown `pub` glob both reach carries its re-export
+  shown, beside the same with the shown glob gone, where it is hidden.
+- Determinism: the same surface from two calls and over four orders of the
+  declarations, sorted by path.
+- The library of the Examples lists `demo::run` alone, and with the glob or the
+  `pub` module it lists the items the Examples name.
+- Refusals: two `pub` globs that bring in two items `x` are `Ambiguous` beside two
+  that bring in different names; a cycle of `pub` imports is `Cyclic` beside a chain
+  that ends; a `pub` glob of `self::missing` is `UnresolvedGlob` naming the glob and
+  its module beside a private one; a listing over the item-bytes budget left by the
+  load is a `Budget` error of `ItemBytes` naming the file and line, beside the same
+  tree with a larger budget, which lists every item.
+- Stack and work: 20,000 chained `pub use` re-exports and a chain of 20,000 `pub`
+  globs list on a thread of 2 MiB in debug and release builds.
+- On this repository, the surface of each library and binary lists without an
+  error; that of `raf-source` holds `raf_source::Workspace`, its method
+  `exported_items` and `raf_source::DiskTree`, mapped to
+  `raf_source::tree::disk::DiskTree`, holds no item of a private module and lists
+  `raf_source::syn` as a re-export of a crate outside the workspace, and the
+  `cargo-workplan` binary exports nothing.
+- The `load-workspace` fuzz target lists the surface of every target of each
+  workspace that loads, hidden items included.
