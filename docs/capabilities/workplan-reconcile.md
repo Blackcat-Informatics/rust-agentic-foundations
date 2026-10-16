@@ -295,41 +295,34 @@ needed. The kinds are:
 | `example-failing` | A bound example target or documentation test of a capability the change lists fails to build or run | A passing `verify` run for the change, or a binding edit that removes the broken example |
 | `generated-stale` | A generated block differs from what `docs sync` writes | A `docs sync` run |
 | `tense-mismatch` | Delivered or implementing contract text uses proposal or forward-looking wording, or a delivered capability has a PROPOSED block | Text rewritten as the supported behaviour |
+| `claim-unsupported` | A claim of a listed capability names an evidence record that does not load, whose verdict is `fail`, or that holds a value over its limit | A passing record within its limits for each evidence id the claim names, or the claim reworded or removed |
+| `evidence-stale` | An input of an evidence record that a listed capability's `for` list or claims reach has another digest now than the one the record keeps, or no longer resolves | The evidence recorded again with `evidence record` |
+| `evidence-changed` | An evidence record a claim of a listed capability names passed at the merge base and now fails, holds a value over a limit (its own or the one at the merge base), has lost a limit it had there, or no longer loads | The claim reviewed against the new result: the evidence passes within the limits of the merge base again, or the claim no longer names it |
+| `assessment-missing` | An authored section in `affects` has no assessment | An assessment of the section recorded with `assess` |
+| `assessment-stale` | An input of the assessment of an authored section in `affects` has another digest now than the one the record keeps, no longer resolves, is no longer an input, or is an input now and was not then | The section assessed again with `assess` |
+| `assessment-rejected` | The assessment of an authored section in `affects` is current and its verdict is `rejected` | The section revised and assessed again with `assess`, with the verdict `accepted` |
 
-> [!PROPOSED change:workplan-reconcile]
-> Six kinds follow `tense-mismatch` in the table, and in the order of the list:
->
-> | Kind | Raised when | Evidence that resolves it |
-> | --- | --- | --- |
-> | `claim-unsupported` | A claim of a listed capability names an evidence record that does not load, whose verdict is `fail`, or that holds a value over its limit | A passing record within its limits for each evidence id the claim names, or the claim reworded or removed |
-> | `evidence-stale` | An input of an evidence record that a listed capability's `for` list or claims reach has another digest now than the one the record keeps, or no longer resolves | The evidence recorded again with `evidence record` |
-> | `evidence-changed` | An evidence record a claim of a listed capability names passed at the merge base and now fails, holds a value over a limit (its own or the one at the merge base), has lost a limit it had there, or no longer loads | The claim reviewed against the new result: the evidence passes within the limits of the merge base again, or the claim no longer names it |
-> | `assessment-missing` | An authored section in `affects` has no assessment | An assessment of the section recorded with `assess` |
-> | `assessment-stale` | An input of the assessment of an authored section in `affects` has another digest now than the one the record keeps, no longer resolves, is no longer an input, or is an input now and was not then | The section assessed again with `assess` |
-> | `assessment-rejected` | The assessment of an authored section in `affects` is current and its verdict is `rejected` | The section revised and assessed again with `assess`, with the verdict `accepted` |
->
-> `claim-unsupported` and `evidence-changed` are owed at the line of the claim
-> marker, in the section that holds it, once for each record the marker names
-> (and, for `evidence-changed`, once for each change). `evidence-stale` is owed
-> at the record, once for each input that moved, and names the input; it compares
-> the digest of the text of each input symbol now with the digest the record
-> keeps, so it reads no revision and asks Git nothing. A removed record is
-> both `claim-unsupported` and `evidence-changed`. The evidence names the record
-> and what is wrong, for example `` (`evidence:memory-bound`: `peak` is 80, over
-> its limit 64) ``.
->
-> The three assessment kinds are owed in the affected section, as the
-> [prose assessment](./workplan-prose-assessment.md) defines the record and its
-> inputs: `assessment-missing` when no record has the id
-> `assessment:<capability slug>-<section>`, `assessment-stale` once for each
-> input that moved, naming it, for example `` (`assessment:streaming-parser-usage`:
-> the symbol `raf_parser::Parser::push` has changed since) ``, and
-> `assessment-rejected` for a current assessment with the verdict `rejected`.
-> Every section of a capability that loads holds authored text, since the profile
-> refuses one with nothing outside its generated blocks and comments
-> (`okf-section-empty`), and a listed capability that does not load is an error.
-> They compare digests the tool computes
-> from the working tree, so they read no revision and ask Git nothing.
+`claim-unsupported` and `evidence-changed` are owed at the line of the claim marker,
+in the section that holds it, once for each record the marker names (and, for
+`evidence-changed`, once for each change). `evidence-stale` is owed at the record,
+once for each input that moved, and names the input; it compares the digest of the
+text of each input symbol now with the digest the record keeps, so it reads no
+revision and asks Git nothing. A removed record is both `claim-unsupported` and
+`evidence-changed`. The evidence names the record and what is wrong, for example
+`` (`evidence:memory-bound`: `peak` is 80, over its limit 64) ``.
+
+The three assessment kinds are owed in the affected section, as the
+[prose assessment](./workplan-prose-assessment.md) defines the record and its inputs:
+`assessment-missing` when no record has the id
+`assessment:<capability slug>-<section>`, `assessment-stale` once for each input that
+moved, naming it, for example `` (`assessment:streaming-parser-usage`: the symbol
+`raf_parser::Parser::push` has changed since) ``, and `assessment-rejected` for a
+current assessment with the verdict `rejected`. A section with nothing outside its
+generated blocks and comments cannot occur: the profile refuses such a section
+(`okf-section-empty`), so every section of a capability that loads holds authored
+text, and a listed capability that does not load is an error. The assessment kinds
+compare digests the tool computes from the working tree, so they read no revision and
+ask Git nothing.
 
 Each obligation line gives its subject (a capability, the change record or the
 capability index), the part it is about (the document, a section or an item of the
@@ -387,16 +380,14 @@ a larger blob is an error. The standard output and the standard error of every o
 `git` command are each read up to 16 MiB, and a command that writes more or runs past
 300 seconds is killed and is an error.
 
-> [!PROPOSED change:workplan-reconcile]
-> `evidence-changed` reads, with the same `git cat-file blob
-> <merge-base>:<prefix><path>` row and the same merge base, the record
-> `work/evidence/<slug>.md` of each evidence id a claim of a listed capability
-> names, once per record; `<slug>` is the id of the claim marker, which the profile
-> holds to the slug pattern. The merge base is asked for once, and only when a
-> section of `affects` or a claim needs it. A record that is not there at the merge
-> base, or whose verdict there is `fail`, is compared with nothing; a record there
-> that does not read as an evidence record is an error, and so is one over the
-> 1 MiB bound.
+`evidence-changed` reads, with the same `git cat-file blob <merge-base>:<prefix><path>`
+row and the same merge base, the record `work/evidence/<slug>.md` of each evidence id
+a claim of a listed capability names, once per record; `<slug>` is the id of the claim
+marker, which the profile holds to the slug pattern. The merge base is asked for once,
+and only when a section of `affects` or a claim needs it. A record that is not there
+at the merge base, or whose verdict there is `fail`, is compared with nothing; a
+record there that does not read as an evidence record is an error, and so is one over
+the 1 MiB bound.
 
 `example-failing` builds and runs bound examples with the `--frozen` argv forms, the
 patterns, the stdin, timeout and output rules, and the proof-that-it-ran rule of the
@@ -408,12 +399,10 @@ which is trusted build input (see [the security policy](../../SECURITY.md)).
 **`contract_effect: none`.** For a change with this effect, the obligation list is
 lighter. `section-untouched` is not raised for `contract`, `usage` and `examples`,
 since the change declares they are unaffected. All other kinds apply, because stale
-bindings and stale generated blocks are errors regardless of the contract.
-
-> [!PROPOSED change:workplan-reconcile]
-> The assessment kinds are among the kinds that apply: a section the change lists
-> in `affects` is read by the people the change reaches whether or not its
-> contract moved, so its assessment is owed under either effect.
+bindings and stale generated blocks are errors regardless of the contract. The
+assessment kinds are among the kinds that apply: a section the change lists in
+`affects` is read by the people the change reaches whether or not its contract moved,
+so its assessment is owed under either effect.
 
 ## Usage
 
@@ -449,7 +438,8 @@ line of kind `example-failing` for the capability in the same form.
 - `reconcile` and `impact` never write a file in the repository. Only `change new`
   writes, and it writes one file.
 - The merge base comes from `git`; a repository with no default branch reachable from
-  `HEAD` makes `section-untouched` an error and not a silent pass.
+  `HEAD` makes `section-untouched`, and `evidence-changed` for a change whose
+  capabilities hold a claim, an error and not a silent pass.
 - Tense findings come from a fixed list of phrases (for example `will`, `is planned`
   and `proposed`) and are reported as findings, not as proof. The list is defined in
   the tool and applies outside code fences, code spans, HTML comments, link
@@ -503,9 +493,12 @@ in these two places, so update the usage example and the lifecycle explanation".
   reported, and one where it is unchanged and is reported; one where only the content
   of a generated block changed is reported too, and a workspace below the top of its
   repository is compared at its prefix.
-- An invocation fixture with stub `git` and `cargo` on `PATH` records each argv and
-  asserts the forms above, and a default branch named `--output=x` is resolved to a
-  commit id and never reaches `git` as an option.
+- An invocation fixture gives the library a stub `git` as the program it starts; the
+  stub records each argv, working directory and locale, and the fixture asserts the
+  commands above in order, each in the workspace root and in the C locale, and that a
+  default branch named `--output=x` is resolved to a commit id and never reaches `git`
+  as an option. The `cargo` argv forms of `example-failing` are the rows of the
+  [completion gate](./workplan-complete-gate.md), whose stub fixture asserts each one.
 - A Git version fixture: a stub `git --version` reporting 2.29 makes `reconcile` exit
   2 before any other process starts, and a repository with no
   `refs/remotes/origin/HEAD` is an error.
@@ -520,24 +513,23 @@ in these two places, so update the usage example and the lifecycle explanation".
 - Scenario A and Scenario B are described in
   [the completion gate](./workplan-complete-gate.md) and use `reconcile` at each step.
 
-> [!PROPOSED change:workplan-reconcile]
-> - One fixture per new kind: a claim on a missing, a failing and an over-limit
->   record is `claim-unsupported`, and a passing record clears it; an edit of a
->   bound symbol makes its record `evidence-stale` naming the symbol, while an edit
->   of another item and a CRLF-only change do not; and in a Git repository a
->   record replaced by a failing one, by one over its limit, by one without a
->   limit of the merge base, or removed, is `evidence-changed` at the claim, beside
->   a record that did not change and owes nothing.
-> - The completion gate refuses each of the three kinds and completes once it is
->   repaired.
-> - One fixture per assessment kind: an affected section with no assessment is
->   `assessment-missing`; an edit of the section, of a symbol it names, of a
->   bound symbol when it names none, and of an evidence record a claim of it
->   names each make its assessment `assessment-stale` naming that input, while a
->   regenerated block and an edit of another section do not; a current
->   `rejected` assessment is `assessment-rejected`, whether a human or an agent
->   gave it; `contract_effect: none` keeps them; and the completion gate refuses
->   each of the three and completes once the section is assessed and accepted.
+- One fixture per trace kind: a claim on a missing, a failing and an over-limit
+  record is `claim-unsupported`, and a passing record clears it; an edit of a bound
+  symbol makes its record `evidence-stale` naming the symbol, while an edit of another
+  item and a CRLF-only change do not; and in a Git repository a record replaced by a
+  failing one, by one over its limit, by one without a limit of the merge base, or
+  removed, is `evidence-changed` at the claim, beside a record that did not change and
+  owes nothing.
+- One fixture per assessment kind: an affected section with no assessment is
+  `assessment-missing`; an edit of the section, of a symbol it names, of a bound symbol
+  when it names none, and of an evidence record a claim of it names each make its
+  assessment `assessment-stale` naming that input, while a regenerated block and an
+  edit of another section do not; a current `rejected` assessment is
+  `assessment-rejected`, whether a human or an agent gave it; and
+  `contract_effect: none` keeps them.
+- The per-kind fixture of the completion gate refuses each of the six trace and
+  assessment kinds and completes once it is repaired: the record passing again, its
+  digests current again or its limit restored, and the section assessed and accepted.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |

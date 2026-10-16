@@ -8,16 +8,24 @@ description: "Adds claim-unsupported, evidence-stale and evidence-changed to the
 changes: [cap:workplan-reconcile]
 affects:
   - cap:workplan-reconcile#contract
+  - cap:workplan-reconcile#constraints
   - cap:workplan-reconcile#verification
 contract_effect: changes
 items:
   - claim: "ObligationKind::ALL lists claim-unsupported, evidence-stale and evidence-changed after tense-mismatch, each with its Needed evidence text, and the contract table of the reconcile capability lists the same kinds in the same order."
+    outcome: implemented
   - claim: "Workplan::reconcile raises claim-unsupported for each claim of a listed capability that names an evidence record that does not load, fails, or holds a value over its limit, at the line of the claim marker."
+    outcome: implemented
   - claim: "Workplan::reconcile raises evidence-stale for each input of an evidence record that a listed capability's for list or claims reach whose digest now differs or that no longer resolves, naming the input, without Git and without a revision."
+    outcome: implemented
   - claim: "Lifecycle::reconcile and Lifecycle::complete raise evidence-changed through one helper, Lifecycle::process_obligations, by reading each record a claim names at the merge base with one git cat-file blob: a pass that now fails, a value over a limit, a limit gone, or a record gone; a record there that does not read is an error."
+    outcome: implemented
   - claim: "contract_effect: none leaves the three new kinds in the list."
+    outcome: implemented
   - claim: "ObligationKind::ALL lists assessment-missing, assessment-stale and assessment-rejected after evidence-changed, each with its Needed evidence text, and the contract table of the reconcile capability lists the same kinds in the same order."
+    outcome: implemented
   - claim: "Workplan::reconcile raises, for each authored section in affects, assessment-missing when no record has the id of the section, assessment-stale once for each input of its assessment that moved, naming the input, and assessment-rejected for a current assessment with the verdict rejected; contract_effect: none leaves the three kinds in the list."
+    outcome: implemented
 ---
 
 ## Summary
