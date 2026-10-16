@@ -50,6 +50,12 @@ impl<T> Loaded<T> {
         &self.head
     }
 
+    /// The whole text of the file as it was read: the frontmatter and the
+    /// body, byte for byte.
+    pub(crate) fn text(&self) -> String {
+        format!("{}{}", self.head, self.body.text())
+    }
+
     /// The repository-relative path of the file, with `/` separators.
     #[must_use]
     pub fn path(&self) -> &str {

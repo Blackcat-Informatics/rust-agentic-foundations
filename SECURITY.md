@@ -196,8 +196,14 @@ guarantees are these, and no wider:
   closed, its output bounded and a wall-clock limit. `change new` writes one file,
   `evidence record` writes one record, `work/evidence/<id>.md` (created exclusively,
   or replaced through a temporary file and a rename), and only after the run, and
-  never a document,
-  `change complete` the generated blocks it stales and then removes the one record,
+  never a document, recording an assessment (`Workplan::record_assessment`) writes
+  one record, `work/assessments/<capability slug>-<section>.md` (created
+  exclusively, or put in place of the assessment of the same section through a
+  temporary file and a rename, refusing a link or any other file in the way), starts
+  no process, and never edits a document, the digests it keeps being computed from
+  the loaded documents and the source index,
+  `change complete` the generated blocks it stales and then removes the one record
+  (the assessment records are read and left as they are),
   and `change impact`, `change reconcile` and `verify` write nothing in the
   repository (a build goes to the cargo target directory).
 

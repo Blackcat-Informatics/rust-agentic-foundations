@@ -26,9 +26,11 @@ cap:delta  contract  section-untouched  a diff of that section against the merge
 cap:gamma  contract  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
 ";
 
-/// The roadmap repository as a git checkout on a branch of its own.
+/// The roadmap repository as a git checkout on a branch of its own, the
+/// sections `grow` affects assessed as they stand.
 fn checkout(tag: &str) -> Repo {
     let repo = Repo::synced(tag, false);
+    assert_eq!(repo.assess("grow").len(), 3);
     repo.checkout();
     repo
 }
@@ -43,6 +45,7 @@ fn calm(tag: &str) -> Repo {
             .replace("contract_effect: changes", "contract_effect: none"),
     );
     repo.sync();
+    repo.assess("calm");
     repo.checkout();
     repo
 }
@@ -93,6 +96,8 @@ fn fixing_an_obligation_removes_its_line_and_only_its_line() {
         "Gamma states its contract here.",
     );
     repo.sync();
+    // The author has the edited contract assessed again.
+    repo.assess("grow");
     let run = repo.both(&["change", "reconcile", "grow"]).expect(1);
     let after: Vec<&str> = run.lines();
     let expected: Vec<&String> = before
@@ -109,6 +114,7 @@ fn fixing_an_obligation_removes_its_line_and_only_its_line() {
         "Delta reads streams as they arrive.\n",
     );
     repo.sync();
+    repo.assess("grow");
     let run = repo.both(&["change", "reconcile", "grow"]).expect(1);
     assert!(!run.stdout.contains("unresolved-proposal"), "{run:#?}");
     assert!(!run.stdout.contains("cap:delta"), "{run:#?}");
@@ -168,6 +174,7 @@ fn a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tre
         "Fixture states its contract here.",
     );
     repo.sync();
+    repo.assess("shape");
     let before = repo.worktree();
     let run = repo.both(&["change", "reconcile", "shape"]).expect(1);
     assert_eq!(run.lines().len(), 1, "{run:#?}");

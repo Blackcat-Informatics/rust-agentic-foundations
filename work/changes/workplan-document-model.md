@@ -16,6 +16,7 @@ items:
   - claim: "Workplan::load reads the Evidence, Assessment and Coverage records from work/evidence, work/assessments and work/coverage, and reads the coverage record only at work/coverage/default.md."
   - claim: "The graph holds the records and their edges to the capabilities, sections, symbols and evidence they name."
   - claim: "Workplan::check reports the findings of the records with the file and location of each, and a repository without records reports none of them."
+  - claim: "Workplan::check reports assessment-id-mismatch for an assessment whose id is not assessment:<capability slug>-<section> of its subject, so a section has at most one assessment."
   - claim: "raf_workplan::digest::Digest is the SHA-256 of the canonical encoding of a section, a symbol or a record, the same on every run and platform."
   - claim: "raf_workplan::record::create writes a new record exclusively and record::replace replaces an existing record through a temporary file, each refusing a record that would not load clean."
 ---

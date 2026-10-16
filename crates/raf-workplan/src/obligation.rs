@@ -22,6 +22,7 @@
 //! | `tense-mismatch` | the fixed [`tense::PHRASES`] list in the prose of a listed `implementing` or `delivered` capability, and a PROPOSED block in a `delivered` one |
 //! | `claim-unsupported` | the claim markers of each listed capability ([`Body::claims`](raf_okf::Body::claims)) against the loaded evidence records: one for each named record that does not load, fails, or holds a value over its limit, at the line of the marker |
 //! | `evidence-stale` | the `inputs` of each evidence record whose `for` lists a listed capability or that one of its claims names, against [`Digest::symbol`](crate::digest::Digest::symbol) of the source now: one for each input whose digest differs or that does not resolve, at the record |
+//! | `assessment-missing`, `assessment-stale`, `assessment-rejected` | each authored section in `affects` of a loaded capability against its assessment record ([`assessment`](crate::assessment)): none under the id of the section, one whose inputs moved (one obligation for each input, naming it), or one that is current with the verdict `rejected`; a section with only generated blocks would owe none, and the profile refuses one in a capability document |
 //! | `section-untouched`, `example-failing`, `evidence-changed` | the merge base and the bound examples, which need a process; `Workplan::reconcile` does not raise them (see [`ObligationKind::is_static`]) and [`Lifecycle::reconcile`](crate::lifecycle::Lifecycle::reconcile) does, from `git` and from the executor of [`bound`](crate::bound) |
 //!
 //! The list is sorted by subject (capabilities, then change records, then the
@@ -56,8 +57,9 @@ use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt;
 
-use raf_okf::{CapabilitySection, ContractEffect};
+use raf_okf::{Actor, CapabilitySection, ContractEffect};
 
+use crate::assessment::MovedInput;
 use crate::bound::{BoundOutcome, Ended, Evidence, Refusal, Run};
 use crate::graph::{BindingKind, position};
 use crate::lookup::{ChangeLookupError, write_findings};
@@ -99,12 +101,21 @@ pub enum ObligationKind {
     /// merge base and has changed since: it fails, a value is over a limit, a
     /// limit is gone, or the record is gone.
     EvidenceChanged,
+    /// An authored section in `affects` has no assessment.
+    AssessmentMissing,
+    /// An input of the assessment of an authored section in `affects` moved:
+    /// its digest differs now, it no longer resolves, it is no longer an
+    /// input, or something is an input now that was not one then.
+    AssessmentStale,
+    /// The assessment of an authored section in `affects` is current and its
+    /// verdict is `rejected`.
+    AssessmentRejected,
 }
 
 impl ObligationKind {
     /// Every kind, in the order of the table in the reconcile contract. The
     /// order is the order of [`Ord`] and of the sort of a [`Reconciled`] list.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 13] = [
         Self::UnresolvedProposal,
         Self::ItemWithoutOutcome,
         Self::BindingMissing,
@@ -115,6 +126,9 @@ impl ObligationKind {
         Self::ClaimUnsupported,
         Self::EvidenceStale,
         Self::EvidenceChanged,
+        Self::AssessmentMissing,
+        Self::AssessmentStale,
+        Self::AssessmentRejected,
     ];
 
     /// The stable kebab-case name printed on an obligation line.
@@ -131,6 +145,9 @@ impl ObligationKind {
             Self::ClaimUnsupported => "claim-unsupported",
             Self::EvidenceStale => "evidence-stale",
             Self::EvidenceChanged => "evidence-changed",
+            Self::AssessmentMissing => "assessment-missing",
+            Self::AssessmentStale => "assessment-stale",
+            Self::AssessmentRejected => "assessment-rejected",
         }
     }
 
@@ -160,12 +177,15 @@ impl ObligationKind {
             Self::ClaimUnsupported => 7,
             Self::EvidenceStale => 8,
             Self::EvidenceChanged => 9,
+            Self::AssessmentMissing => 10,
+            Self::AssessmentStale => 11,
+            Self::AssessmentRejected => 12,
         }
     }
 }
 
 /// The last rank plus one is the number of kinds, which `ALL` must list.
-const _: () = assert!(ObligationKind::EvidenceChanged.rank() + 1 == ObligationKind::ALL.len());
+const _: () = assert!(ObligationKind::AssessmentRejected.rank() + 1 == ObligationKind::ALL.len());
 
 impl PartialOrd for ObligationKind {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -476,6 +496,28 @@ pub enum Needed {
         /// How it changed.
         change: EvidenceChange,
     },
+    /// An assessment of the section recorded with `assess`.
+    Assessed {
+        /// The section, `cap:<slug>#<section>`.
+        subject: String,
+        /// The id the assessment of the section has, `assessment:<slug>`.
+        assessment: String,
+    },
+    /// The section assessed again with `assess`.
+    AssessedAgain {
+        /// The id of the assessment.
+        assessment: String,
+        /// The input that moved.
+        input: MovedInput,
+    },
+    /// The section revised and assessed again with `assess`, with the verdict
+    /// `accepted`.
+    AcceptedAssessment {
+        /// The id of the assessment.
+        assessment: String,
+        /// Who gave the verdict `rejected`.
+        by: Actor,
+    },
 }
 
 impl Needed {
@@ -502,6 +544,11 @@ impl Needed {
             Self::RecordedAgain { .. } => "the evidence recorded again with evidence record",
             Self::ReviewedClaim { .. } => {
                 "the claim reviewed against the new result: the evidence passes within the limits of the merge base again, or the claim no longer names it"
+            }
+            Self::Assessed { .. } => "an assessment of the section recorded with assess",
+            Self::AssessedAgain { .. } => "the section assessed again with assess",
+            Self::AcceptedAssessment { .. } => {
+                "the section revised and assessed again with assess, with the verdict accepted"
             }
         }
     }
@@ -586,6 +633,15 @@ impl Needed {
                     format!("`{evidence}` passed at the merge base and is not a loaded record now")
                 }
             }),
+            Self::Assessed {
+                subject,
+                assessment,
+            } => Some(format!("`{subject}` has no assessment `{assessment}`")),
+            Self::AssessedAgain { assessment, input } => Some(format!("`{assessment}`: {input}")),
+            Self::AcceptedAssessment { assessment, by } => Some(format!(
+                "`{assessment}` is current and has the verdict rejected, by {}",
+                by.name()
+            )),
         }
     }
 }
@@ -653,8 +709,12 @@ impl fmt::Display for Obligation {
 /// `contract_effect: none` records that the contract, usage and examples are
 /// unaffected, so `section-untouched` is not raised for those three sections.
 /// Nothing else is suppressed: stale bindings, stale generated blocks, open
-/// proposals, items without outcome, tense and the claims and evidence the
-/// documents rest on are owed whatever the effect says.
+/// proposals, items without outcome, tense, the claims and evidence the
+/// documents rest on, and the assessments of the sections in `affects` are
+/// owed whatever the effect says. A section a change lists in `affects` is
+/// read by the people the change reaches whether its contract moved or not, so
+/// the completion gate asks for a current accepted assessment of it in either
+/// case.
 #[must_use]
 pub fn suppressed(kind: ObligationKind, section: Part, effect: ContractEffect) -> bool {
     effect == ContractEffect::None

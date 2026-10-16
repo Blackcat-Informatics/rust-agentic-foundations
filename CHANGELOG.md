@@ -143,6 +143,34 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   fails, a value over its limit or the merge base's, a limit gone, or the record
   gone. `Needed` gains `SupportingEvidence`, `RecordedAgain` and `ReviewedClaim`,
   with `ClaimProblem`, `OverLimit`, `InputMoved` and `EvidenceChange`.
+- **`raf-workplan` prose assessment:** the `assessment` module records the
+  verdict of a human or an agent on one authored section, `cap:<slug>#<section>`,
+  as the record `work/assessments/<capability slug>-<section>.md`
+  (`record_slug`), one for each section. Its inputs, each kept with its digest, are
+  the section (generated blocks left out), the `code` bindings of the capability
+  the section names in code spans (by the path or a `::`-suffix of two segments
+  or more, beside those it names by the last segment alone; every `code` binding
+  when it names none by a path), and the evidence records its claims name. `Workplan::assess_context` gives the
+  assessor the section, the bound symbols with their source text and the evidence
+  with its verdicts, the same for a human and an agent;
+  `Workplan::assessment_record` builds the record and `Workplan::record_assessment`
+  writes it, replacing the assessment of the section, refusing a bound symbol that
+  does not resolve, a claim on a record that does not load and a record over the
+  document bound; `Workplan::list_assessments` says of each record whether it is
+  current and which inputs moved (`Currency`, `MovedInput`, `InputChange`). A
+  section with nothing outside its generated blocks and comments is not assessed.
+  `check` reports `assessment-id-mismatch` for an assessment named otherwise than
+  its subject. The `prose_of` pass over a section is linear in its text and blocks.
+- **`raf-workplan` assessment obligations and condition 6:** `ObligationKind` gains
+  `assessment-missing`, `assessment-stale` (once for each input that moved, named)
+  and `assessment-rejected`, raised by `Workplan::reconcile` for each authored
+  section in `affects` whatever the `contract_effect`, with `Needed::Assessed`,
+  `Needed::AssessedAgain` and `Needed::AcceptedAssessment`. `Lifecycle::complete`
+  gains condition 6 (`Condition::Assessments`, `Failure::Assessment`): each
+  authored section in `affects` needs a current assessment with the verdict
+  `accepted`, by a human or an agent, judged with the static conditions before any
+  bound run; a refusal counts the sections without one. `complete` leaves the
+  assessment records as they are.
 - **`raf-workplan`:** loads a repository's capability, change and architecture
   documents through a `raf-source` `Tree` into typed values with their bodies,
   validating each with `raf-okf`. `Workplan::load` never fails and never panics:

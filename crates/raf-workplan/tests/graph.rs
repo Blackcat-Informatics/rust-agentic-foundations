@@ -118,7 +118,7 @@ fn repo() -> support::Repo {
 
 const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
 const EVIDENCE: &str = "work/evidence/bound.md";
-const ASSESSMENT: &str = "work/assessments/review.md";
+const ASSESSMENT: &str = "work/assessments/alpha-contract.md";
 const COVERAGE: &str = "work/coverage/default.md";
 
 /// One record of each type: evidence for alpha and beta, which alpha's
@@ -137,7 +137,7 @@ fn records() -> [(&'static str, String); 3] {
         (
             ASSESSMENT,
             format!(
-                "---\ntype: Assessment\nid: assessment:review\nsubject: cap:alpha#contract\ninputs:\n  \
+                "---\ntype: Assessment\nid: assessment:alpha-contract\nsubject: cap:alpha#contract\ninputs:\n  \
                  - kind: section\n    name: cap:alpha#contract\n    digest: {DIGEST}\n\
                  verdict: accepted\nby: human\n---\n"
             ),

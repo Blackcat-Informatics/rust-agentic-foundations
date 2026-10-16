@@ -30,6 +30,7 @@ use std::path::Path;
 
 use raf_workplan::lifecycle::{Completion, NewChangeRequest, StateAdvice};
 use raf_workplan::{BindingKind, Gate, Opened};
+use support::assessed::assess_on_disk;
 use support::disk::{Scratch, on_disk};
 use support::project::{COPYRIGHT, LICENCE, Project, cargo};
 use support::story::{
@@ -58,6 +59,13 @@ fn owed(project: &Project, slug: &str) -> Vec<String> {
         .iter()
         .map(|obligation| format!("{} {}", obligation.kind.name(), obligation.section))
         .collect()
+}
+
+/// The lines of `owed` that are not about an assessment, and the ones that
+/// are, in order.
+fn split_assessments(owed: Vec<String>) -> (Vec<String>, Vec<String>) {
+    owed.into_iter()
+        .partition(|line| !line.starts_with("assessment-"))
 }
 
 /// The failures of a refusal, as `condition:name` and, for an obligation, the
@@ -94,8 +102,8 @@ fn refused(project: &Project, slug: &str) -> Completion {
 }
 
 /// Require that `completion` is a refusal with exactly these failures.
-fn assert_refusal(label: &str, completion: &Completion, expected: &[&str]) {
-    let mut expected: Vec<String> = expected.iter().map(ToString::to_string).collect();
+fn assert_refusal<S: AsRef<str>>(label: &str, completion: &Completion, expected: &[S]) {
+    let mut expected: Vec<String> = expected.iter().map(|s| s.as_ref().to_string()).collect();
     expected.sort();
     assert_eq!(shape(completion), expected, "{label}:\n{completion}");
 }
@@ -201,9 +209,9 @@ fn genesis() -> (Project, Landed) {
     (project, landed)
 }
 
-/// What `reconcile` lists while the proposals of `redesign` stand: an
-/// unresolved proposal for each block, the sections that are affected and carry
-/// no block untouched, and each item without outcome.
+/// What `reconcile` lists while the proposals of `redesign` stand, beside the
+/// assessments: an unresolved proposal for each block, the sections that are
+/// affected and carry no block untouched, and each item without outcome.
 fn expected_while_proposed(redesign: &Redesign) -> Vec<String> {
     let proposed = redesign.drafts.last().expect("a draft");
     let mut lines = Vec::new();
@@ -219,6 +227,29 @@ fn expected_while_proposed(redesign: &Redesign) -> Vec<String> {
         lines.push(format!("item-without-outcome item {number}"));
     }
     lines
+}
+
+/// The assessment lines while the proposals of `redesign` stand, before
+/// anything is built: with no earlier assessment, each affected section has
+/// none; after the earlier redesigns were assessed, a section the proposal
+/// edited has moved, and an affected section it left as it was is current.
+fn assessments_while_proposed(redesign: &Redesign, first: bool) -> Vec<String> {
+    let proposed = redesign.drafts.last().expect("a draft");
+    HEADINGS
+        .iter()
+        .map(|heading| heading.to_lowercase())
+        .filter(|slug| redesign.affects.contains(&slug.as_str()))
+        .filter_map(|slug| {
+            if first {
+                Some(format!("assessment-missing {slug}"))
+            } else {
+                proposed
+                    .iter()
+                    .any(|(section, _)| *section == slug)
+                    .then(|| format!("assessment-stale {slug}"))
+            }
+        })
+        .collect()
 }
 
 /// The items of a redesign with their outcomes, or without.
@@ -321,9 +352,11 @@ impl<'a> Step<'a> {
             };
             revisions.push(self.project.commit(&message));
         }
+        let (other, assessments) = split_assessments(owed(self.project, slug));
+        assert_eq!(other, expected_while_proposed(self.redesign));
         assert_eq!(
-            owed(self.project, slug),
-            expected_while_proposed(self.redesign)
+            assessments,
+            assessments_while_proposed(self.redesign, self.before == 0)
         );
         revisions
     }
@@ -350,10 +383,21 @@ impl<'a> Step<'a> {
         );
         self.project.sync();
         let revision = self.project.commit(&format!("feat: build {slug}"));
-        assert_eq!(
-            owed(self.project, slug),
-            expected_while_proposed(self.redesign)
-        );
+        let (other, assessments) = split_assessments(owed(self.project, slug));
+        assert_eq!(other, expected_while_proposed(self.redesign));
+        // The build moved the bound code, so every affected section owes an
+        // assessment of the account against it.
+        let owing: BTreeSet<String> = assessments
+            .iter()
+            .filter_map(|line| line.split_once(' ').map(|(_, section)| section.to_string()))
+            .collect();
+        let affected: BTreeSet<String> = self
+            .redesign
+            .affects
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(owing, affected, "{assessments:?}");
         revision
     }
 
@@ -376,6 +420,9 @@ impl<'a> Step<'a> {
             }
         }
         self.project.sync();
+        // The author has the account assessed against the code it describes.
+        let assessed = assess_on_disk(self.project.root(), slug);
+        assert_eq!(assessed.len(), self.redesign.affects.len(), "{assessed:?}");
         let revision = self.project.commit(&format!("docs: settle {slug}"));
         let reconciled = owed(self.project, slug);
         assert!(reconciled.is_empty(), "{reconciled:?}");
@@ -1119,16 +1166,40 @@ impl<'a> Account<'a> {
     }
 }
 
+/// The failures of a section of the window with no assessment, for each of
+/// the seven sections the change affects: an `assessment-missing` obligation
+/// (condition 1) and the same fault under condition 6.
+fn assessments_missing() -> Vec<String> {
+    window::AFFECTS
+        .iter()
+        .flat_map(|section| {
+            [
+                format!("obligations:assessment-missing {section}"),
+                format!("assessments:assessment-missing {section}"),
+            ]
+        })
+        .collect()
+}
+
+/// `lines`, and the failures of the seven sections with no assessment.
+fn and_assessments_missing(lines: &[&str]) -> Vec<String> {
+    let mut all: Vec<String> = lines.iter().map(ToString::to_string).collect();
+    all.extend(assessments_missing());
+    all
+}
+
 /// Scenario B: "`change complete` must refuse until Usage, Examples and the
 /// bindings match the new API and the dropped claim has the outcome `dropped`."
-/// Returns the commit of the account once it is settled.
+/// No section is assessed on the way, so each refusal also lists the seven
+/// sections without an assessment. Returns the commit of the account once it
+/// is settled.
 fn refuse_until_reconciled(project: &Project, template: &str) -> String {
     // Nothing of the documentation has moved.
     let completion = refused(project, window::CHANGE);
     assert_refusal(
         "implemented only",
         &completion,
-        &[
+        &and_assessments_missing(&[
             "after-removal:no-open-record",
             "obligations:item-without-outcome item 1",
             "obligations:item-without-outcome item 2",
@@ -1151,7 +1222,7 @@ fn refuse_until_reconciled(project: &Project, template: &str) -> String {
             "proposals:unresolved-proposal contract",
             "proposals:unresolved-proposal examples",
             "proposals:unresolved-proposal usage",
-        ],
+        ]),
     );
 
     // The author settles the contract, the constraints, the explanation and the
@@ -1169,7 +1240,7 @@ fn refuse_until_reconciled(project: &Project, template: &str) -> String {
     assert_refusal(
         "contract settled, usage and examples not",
         &refused(project, window::CHANGE),
-        &[
+        &and_assessments_missing(&[
             "after-removal:binding-unresolved",
             "after-removal:binding-unresolved",
             "after-removal:state-delivered-proposal",
@@ -1185,7 +1256,7 @@ fn refuse_until_reconciled(project: &Project, template: &str) -> String {
             "outcomes:item-without-outcome item 2",
             "proposals:unresolved-proposal examples",
             "proposals:unresolved-proposal usage",
-        ],
+        ]),
     );
 
     // Usage and Examples are written for the new API, but the bindings still
@@ -1196,14 +1267,14 @@ fn refuse_until_reconciled(project: &Project, template: &str) -> String {
     assert_refusal(
         "bindings of the old API",
         &refused(project, window::CHANGE),
-        &[
+        &and_assessments_missing(&[
             "after-removal:binding-unresolved",
             "after-removal:binding-unresolved",
             "obligations:binding-missing verification",
             "obligations:binding-missing verification",
             "obligations:item-without-outcome item 2",
             "outcomes:item-without-outcome item 2",
-        ],
+        ]),
     );
 
     // The bindings match the new API; the dropped claim has no outcome yet.
@@ -1212,10 +1283,10 @@ fn refuse_until_reconciled(project: &Project, template: &str) -> String {
     assert_refusal(
         "one claim without outcome",
         &refused(project, window::CHANGE),
-        &[
+        &and_assessments_missing(&[
             "obligations:item-without-outcome item 2",
             "outcomes:item-without-outcome item 2",
-        ],
+        ]),
     );
 
     // The claim is dropped. The documentation is the account of the built
@@ -1227,10 +1298,15 @@ fn refuse_until_reconciled(project: &Project, template: &str) -> String {
     assert_refusal(
         "state implementing",
         &refused(project, window::CHANGE),
-        &["after-removal:no-open-record"],
+        &and_assessments_missing(&["after-removal:no-open-record"]),
     );
     let settled = project.commit("docs: settle the rolling window");
-    assert!(owed(project, window::CHANGE).is_empty(), "nothing is owed");
+    // The account is settled, and what it still owes is its assessments.
+    let expected: Vec<String> = window::AFFECTS
+        .iter()
+        .map(|section| format!("assessment-missing {section}"))
+        .collect();
+    assert_eq!(owed(project, window::CHANGE), expected);
     settled
 }
 
@@ -1337,6 +1413,19 @@ fn planning_produces_the_documentation() {
     // record.
     project.edit(window::DOCUMENT, "state: implementing", "state: delivered");
     project.sync();
+    // Implemented and settled, but no section is assessed: condition 6
+    // refuses, and only it.
+    assert_refusal(
+        "settled and not assessed",
+        &refused(&project, window::CHANGE),
+        &assessments_missing(),
+    );
+    // The assessor reads each section and accepts it; the records are
+    // committed on their own.
+    let assessed = assess_on_disk(project.root(), window::CHANGE);
+    assert_eq!(assessed.len(), window::AFFECTS.len(), "{assessed:?}");
+    project.git(&["add", "--", "work/assessments"]);
+    project.git(&["commit", "-q", "-m", "docs: assess the rolling window"]);
     assert!(owed(&project, window::CHANGE).is_empty(), "nothing is owed");
     completed(&project, window::CHANGE, window::DOCUMENT);
     assert_eq!(
@@ -1397,6 +1486,7 @@ fn a_document_that_merely_exists_does_not_satisfy_the_scenario() {
         ),
     );
     project.sync();
+    assess_on_disk(project.root(), window::CHANGE);
     assert_refusal(
         "an example that is not there",
         &refused(&project, window::CHANGE),
@@ -1423,6 +1513,7 @@ fn a_document_that_merely_exists_does_not_satisfy_the_scenario() {
         ),
     );
     project.sync();
+    assess_on_disk(project.root(), window::CHANGE);
     assert_refusal(
         "an example that fails",
         &refused(&project, window::CHANGE),
@@ -1470,11 +1561,13 @@ fn a_thin_document_is_not_the_account_the_scenario_builds() {
     }
     assert!(!faults.contains(&"state") && !faults.contains(&"proposal-left"));
 
-    // The gate itself accepts this document: the five conditions ask a delivered
-    // capability for at least one code path and one test, so a capability with
-    // tests and `examples: []` completes, and the sentence of Scenario B about a
-    // real usage example is held by the detector above and not by `complete`.
+    // The gate itself accepts this document once its sections are assessed:
+    // the conditions ask a delivered capability for at least one code path and
+    // one test, so a capability with tests and `examples: []` completes, and the
+    // sentence of Scenario B about a real usage example is held by the detector
+    // above and not by `complete`, nor by an assessment that accepts it.
     // Pinned so that a stricter gate is a visible, deliberate change here.
+    assess_on_disk(project.root(), window::CHANGE);
     completed(&project, window::CHANGE, window::DOCUMENT);
     project.git(&["reset", "--hard", "-q", "HEAD"]);
     assert!(project.exists(window::RECORD));
@@ -1492,6 +1585,7 @@ fn a_thin_document_is_not_the_account_the_scenario_builds() {
             outcomes: all_settled,
         },
     );
+    assess_on_disk(project.root(), window::CHANGE);
     assert_eq!(Account::of(&project).faults(), Vec::<&str>::new());
     completed(&project, window::CHANGE, window::DOCUMENT);
     project.within_budget();
@@ -1516,6 +1610,7 @@ fn finished_window() -> Project {
         outcomes: [Some("implemented"), Some("dropped"), Some("implemented")],
     };
     author(&project, &template, &edit);
+    assess_on_disk(project.root(), window::CHANGE);
     project.commit("docs: settle the rolling window");
     project.edit(window::DOCUMENT, "state: implementing", "state: delivered");
     project.sync();

@@ -37,6 +37,7 @@ kinds! {
     CLAIM_EVIDENCE_NOT_FOR = "claim-evidence-not-for";
     EVIDENCE_FOR_MISSING = "evidence-for-missing";
     ASSESSMENT_SUBJECT_MISSING = "assessment-subject-missing";
+    ASSESSMENT_ID_MISMATCH = "assessment-id-mismatch";
     SCOPE_CRATE_MISSING = "scope-crate-missing";
     DEPENDS_CYCLE = "depends-cycle";
     PROPOSED_MISSING_CHANGE = "proposed-missing-change";
@@ -222,6 +223,10 @@ impl Finding {
     ///   a crate that is no package of the source workspace. As for the
     ///   documents, a name whose record or document exists but is broken is
     ///   not missing.
+    /// * `assessment-id-mismatch`: an assessment whose id is not
+    ///   `assessment:<capability slug>-<section>` of its subject, the one id
+    ///   an assessment of that section has, so a section has at most one
+    ///   assessment.
     ///
     /// * `proposed-missing-change`, `proposed-change-not-listing` and
     ///   `proposed-section-not-affected`: a PROPOSED block names a change

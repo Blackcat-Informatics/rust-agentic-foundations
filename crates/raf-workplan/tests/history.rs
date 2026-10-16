@@ -177,7 +177,7 @@ fn story() -> Story {
         &change_record("grow", "[cap:alpha]", "  - cap:alpha#contract\n", ""),
     );
     repo.put("work/evidence/bound.md", &evidence_record());
-    repo.put("work/assessments/review.md", &assessment_record());
+    repo.put("work/assessments/alpha-contract.md", &assessment_record());
     let added = repo.commit("add the workspace");
     fs::create_dir_all(repo.root.join("docs/capabilities")).expect("a directory");
     repo.git(&["mv", "docs/drafts/alpha.md", "docs/capabilities/alpha.md"]);
@@ -359,7 +359,10 @@ fn each_kind_of_id_has_the_history_of_its_file() {
         ("change:grow", "work/changes/grow.md"),
         ("arch:overview", "docs/architecture/overview.md"),
         ("evidence:bound", "work/evidence/bound.md"),
-        ("assessment:review", "work/assessments/review.md"),
+        (
+            "assessment:alpha-contract",
+            "work/assessments/alpha-contract.md",
+        ),
     ] {
         let history = story
             .repo

@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-complete-gate
 title: "Completion gate"
 description: "change complete and verify: the five completion conditions, lighter obligations for changes that leave the contract alone, deletion of the record, and the acceptance scenarios."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_workplan::lifecycle::Lifecycle::complete
@@ -51,6 +51,7 @@ bindings:
     - raf_workplan::test_crate::complete::prose_that_links_to_the_record_refuses_because_the_link_is_broken_once_it_is_removed
     - raf_workplan::test_crate::complete::a_broken_link_in_a_capability_the_change_does_not_list_also_blocks_completion
     - raf_workplan::test_crate::complete::an_outcome_the_profile_refuses_makes_the_record_not_load_and_is_an_error
+    - raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does
     - raf_workplan::test_crate::bound::a_passing_test_passes_on_one_listed_entry_and_one_passed
     - raf_workplan::test_crate::bound::a_failing_test_fails_the_binding
     - raf_workplan::test_crate::bound::an_ignored_test_is_listed_and_refused
@@ -123,6 +124,30 @@ values is refused by the profile, so the record does not load and `complete` is 
 error (exit 2), not a refusal of condition 2. Condition 3 counts the blocks of every
 capability document, including one that failed to load.
 
+> [!PROPOSED change:workplan-complete-gate]
+> A sixth condition joins the five, and `change complete <slug>` succeeds only
+> when all six hold:
+>
+> 6. Each authored section in `affects` has a current assessment with the verdict
+>    `accepted`, as the [prose assessment](./workplan-prose-assessment.md) records
+>    it: the record `work/assessments/<capability slug>-<section>.md` exists, every
+>    input it keeps (the section, the bound symbols, the evidence its claims name)
+>    has the digest it keeps, and the section has no input the record lacks.
+>
+> A section with no assessment, one whose assessment has an input that moved, and
+> one whose current assessment is `rejected` each refuse. An assessment by an agent
+> satisfies the condition as one by a human does, and a `rejected` verdict never
+> does. A section with no text outside its generated blocks and comments would
+> hold nothing an author wrote, but the profile refuses such a section
+> (`okf-section-empty`), so its document does not load and `complete` is an error
+> before any condition is judged; every section of a capability that loads is
+> authored. Each section without a current accepted assessment is also
+> an `assessment-missing`, `assessment-stale` or `assessment-rejected` obligation,
+> so conditions 1 and 6 both report it, and the refusal prints the line once,
+> under its obligation, with the count `sections without a current accepted
+> assessment`. `complete` reads the assessment records and never writes one: they
+> stay as they are when the change record is removed.
+
 **Order.** The static conditions are judged first, every one of them and with no
 early exit: conditions 1 to 4 (the obligation list without `example-failing`, which
 needs a run) and the check of the repository once the record is removed, described
@@ -131,6 +156,13 @@ static failure starts no `cargo` process. The repository is then opened again an
 static conditions are judged a second time, immediately before the writes, because the
 documents and the source can change while `cargo` runs; a failure, or a different set
 of bindings to run, refuses.
+
+> [!PROPOSED change:workplan-complete-gate]
+> Condition 6 is a static condition: the currency of each assessment is judged with
+> conditions 1 to 4 and the check of the repository once the record is removed,
+> from digests of the working tree, before any bound test or example runs, and it
+> is judged again with them immediately before the writes. A section without a
+> current accepted assessment therefore starts no `cargo` process.
 
 **The repository once the record is removed.** The state rules of the
 [document model](./workplan-document-model.md) are judged on the repository as it is
@@ -160,6 +192,11 @@ is unaffected, so reconcile raises no `section-untouched` obligation for the con
 usage and examples sections. Every other obligation kind still applies, and the
 obligation list must still be empty. A small internal change does not need a new
 tutorial.
+
+> [!PROPOSED change:workplan-complete-gate]
+> The effect does not change condition 6 either: under `contract_effect: none` each
+> authored section in `affects` still needs a current accepted assessment, since
+> the people the change reaches read it whether or not its contract moved.
 
 **State.** Promotion to a stronger state requires reconciliation, not just a status
 change. The gate refuses a listed capability whose `state` the content does not
@@ -284,6 +321,16 @@ Each fault prints one line, under the count of its condition. The `rewrote` line
 relationship table of the capability, which no longer names the removed record as a
 change.
 
+> [!PROPOSED change:workplan-complete-gate]
+> A refusal on the sixth condition, where the Usage section was assessed before
+> the bound `push` changed:
+>
+> ```text
+> $ cargo workplan change complete incremental-parsing
+> refused: 1 obligation, 1 section without a current accepted assessment
+> cap:streaming-parser  usage  assessment-stale  the section assessed again with assess (`assessment:streaming-parser-usage`: the symbol `raf_parser::Parser::push` has changed since)
+> ```
+
 A refusal on the fifth condition, where a bound example no longer builds:
 
 ```text
@@ -402,6 +449,20 @@ Further checks:
 - A `verify` fixture with one passing and one failing bound test, asserting per-binding
   output and exit codes 0 and 1.
 
+> [!PROPOSED change:workplan-complete-gate]
+> - A refusal fixture for each way condition 6 fails, each beside its passing
+>   neighbour: an affected section with no assessment, one edited after its
+>   assessment, and one whose current assessment is `rejected` (by a human and by an
+>   agent) each refuse with the failure counted under condition 6 and the tree
+>   byte-identical, and each completes once the section is assessed and accepted.
+> - Every other fixture assesses the sections its change affects with one shared
+>   helper, through the library, so it is judged on what it is about; Scenario B
+>   gains the step where the account is implemented and settled and its sections
+>   are not assessed, which refuses with condition 6 alone and completes once they
+>   are.
+> - The completion writes only the rewrite and the removal: the assessment records
+>   are left as they are.
+
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
@@ -441,6 +502,7 @@ Further checks:
 | `raf_workplan::test_crate::complete::a_proposed_block_of_the_change_refuses_condition_three_in_a_loaded_and_in_an_unloaded_document` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_after_the_static_checks` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_test_renamed_while_the_tests_ran_refuses` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::an_error_after_the_rewrite_does_not_leave_a_removed_record_beside_stale_blocks` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::an_item_without_outcome_and_a_move_to_nowhere_or_to_itself_refuse_condition_two` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::an_item_without_outcome_and_a_stale_block_print_the_counts_of_the_contract` | test | [Verification](#verification) |
@@ -481,4 +543,5 @@ Further checks:
 | Depends on | [workplan-reconcile](./workplan-reconcile.md) |
 | Depended on by | [workplan-cli](./workplan-cli.md) |
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
+| Changed by | [workplan-complete-gate](../../work/changes/workplan-complete-gate.md) |
 <!-- raf:generated:end -->

@@ -12,6 +12,7 @@ mod support;
 use std::collections::BTreeSet;
 use std::time::{Duration, Instant};
 
+use raf_okf::{Actor, AssessmentVerdict};
 use raf_workplan::ChangeLookupError;
 use raf_workplan::obligation::{Needed, ObligationKind, ReconcileError, Reconciled};
 use support::changes::{
@@ -19,14 +20,22 @@ use support::changes::{
 };
 use support::disk::{Scratch, on_disk, snapshot, write_repo};
 use support::evidence::{Evidence, OTHER_DIGEST, claim, real_digest};
-use support::synced::{self, document, with_plan};
+use support::synced::{self, assessed, assessed_as, document, with_plan};
 use support::{Repo, line_of};
 
 const SIGMA: &str = "docs/capabilities/sigma.md";
 const OTHER: &str = "work/changes/other.md";
 const INDEX: &str = synced::INDEX;
 
+/// The list of `change` once the sections it affects are assessed as the
+/// documents stand ([`assessed`]): the fixtures that are about another kind
+/// owe no assessment.
 fn reconcile_err(repo: &Repo, change: &str) -> Result<Reconciled, ReconcileError> {
+    reconcile_as_is(&assessed(repo, change), change)
+}
+
+/// The list of `change` over `repo` as it is, assessments and all.
+fn reconcile_as_is(repo: &Repo, change: &str) -> Result<Reconciled, ReconcileError> {
     with_plan(repo, |plan| plan.reconcile(change))
 }
 
@@ -231,13 +240,18 @@ fn binding_cases(base: &Repo, cases: &mut Vec<Case>) {
         fixed: base.clone(),
         want: owed("bindings.examples is empty"),
     });
+    // The Contract names no bound symbol, so every code binding is an input
+    // of its assessment, and one that does not resolve leaves the section
+    // with no assessment until it does.
+    let mut want = vec![assessment_missing()];
+    want.extend(owed(&format!(
+        "bindings.code `demo::missing` does not resolve: {REASON_NOT_FOUND}"
+    )));
     cases.push(Case {
         name: "implementing-with-a-path-that-does-not-resolve",
         broken: binding("implementing", ["[demo::missing]", BOUND[1], BOUND[2]]),
         fixed: base.clone(),
-        want: owed(&format!(
-            "bindings.code `demo::missing` does not resolve: {REASON_NOT_FOUND}"
-        )),
+        want,
     });
     cases.push(Case {
         name: "implementing-with-a-test_that_is_not_a_test",
@@ -391,9 +405,12 @@ fn trace_cases(cases: &mut Vec<Case>) {
         name: "claim-unsupported-missing",
         broken: claimed(None),
         fixed: fixed.clone(),
-        want: vec![unsupported(
-            "`evidence:bound` is not a loaded evidence record",
-        )],
+        // A claim on a record that does not load leaves its section with no
+        // assessment: an assessment keeps the digest of each record it read.
+        want: vec![
+            unsupported("`evidence:bound` is not a loaded evidence record"),
+            assessment_missing(),
+        ],
     });
     cases.push(Case {
         name: "claim-unsupported-failing",
@@ -669,6 +686,151 @@ fn each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_
     }
 }
 
+// --- the assessments ------------------------------------------------------------
+
+/// The `assessment-missing` line of the Contract of `omega`.
+fn assessment_missing() -> Want {
+    Want {
+        kind: ObligationKind::AssessmentMissing,
+        path: OMEGA,
+        line: None,
+        text: format!(
+            "cap:omega  contract  assessment-missing  {ASSESSED_EVIDENCE} (`cap:omega#contract` has no assessment `assessment:omega-contract`)"
+        ),
+    }
+}
+
+const ASSESSMENT: &str = "work/assessments/omega-contract.md";
+const ASSESSED_EVIDENCE: &str = "an assessment of the section recorded with assess";
+const ASSESS_AGAIN_EVIDENCE: &str = "the section assessed again with assess";
+const ACCEPTED_EVIDENCE: &str =
+    "the section revised and assessed again with assess, with the verdict accepted";
+
+/// A repository judged as it is, assessments and all: the section `omega`'s
+/// Contract, the one `shape` affects, with no assessment, a stale one or a
+/// rejected one, beside the repository whose assessment is current and
+/// accepted.
+fn assessment_cases() -> Vec<Case> {
+    let base = base();
+    let current = assessed(&base, "shape");
+    let mut cases = Vec::new();
+    cases.push(Case {
+        name: "assessment-missing",
+        broken: base.clone(),
+        fixed: current.clone(),
+        want: vec![assessment_missing()],
+    });
+    let stale = |detail: &str| Want {
+        kind: ObligationKind::AssessmentStale,
+        path: ASSESSMENT,
+        line: None,
+        text: format!(
+            "cap:omega  contract  assessment-stale  {ASSESS_AGAIN_EVIDENCE} (`assessment:omega-contract`: {detail})"
+        ),
+    };
+    // The section edited after the assessment.
+    let edited = replaced(
+        &current,
+        OMEGA,
+        "Text for Contract of omega.\n",
+        "Text for Contract of omega, edited.\n",
+    );
+    cases.push(Case {
+        name: "assessment-stale-section",
+        fixed: assessed(&edited, "shape"),
+        broken: edited,
+        want: vec![stale("the section `cap:omega#contract` has changed since")],
+    });
+    // The record was made against another text of the bound symbol.
+    let real = real_digest();
+    let other_symbol = replaced(&current, ASSESSMENT, &real, OTHER_DIGEST);
+    cases.push(Case {
+        name: "assessment-stale-symbol",
+        broken: other_symbol,
+        fixed: current.clone(),
+        want: vec![stale("the symbol `demo::real` has changed since")],
+    });
+    // A current assessment with the verdict rejected, by a human or an agent.
+    for by in Actor::ALL {
+        cases.push(Case {
+            name: if by == Actor::Human {
+                "assessment-rejected-by-a-human"
+            } else {
+                "assessment-rejected-by-an-agent"
+            },
+            broken: assessed_as(&base, "shape", AssessmentVerdict::Rejected, by),
+            fixed: current.clone(),
+            want: vec![Want {
+                kind: ObligationKind::AssessmentRejected,
+                path: ASSESSMENT,
+                line: None,
+                text: format!(
+                    "cap:omega  contract  assessment-rejected  {ACCEPTED_EVIDENCE} (`assessment:omega-contract` is current and has the verdict rejected, by {})",
+                    by.name()
+                ),
+            }],
+        });
+    }
+    cases
+}
+
+impl Case {
+    /// As [`Case::run`], with the repositories judged as they are.
+    fn run_as_is(&self) {
+        let list = reconcile_as_is(&self.broken, "shape").expect("reconciles");
+        assert_eq!(list.len(), self.want.len(), "{}: {list}", self.name);
+        for (obligation, want) in list.obligations().iter().zip(&self.want) {
+            assert_eq!(obligation.kind, want.kind, "{}", self.name);
+            assert_eq!(obligation.location.path, want.path, "{}", self.name);
+            assert_eq!(obligation.location.line, want.line, "{}", self.name);
+            assert_eq!(obligation.to_string(), want.text, "{}", self.name);
+        }
+        let fixed = reconcile_as_is(&self.fixed, "shape").expect("reconciles");
+        assert!(fixed.is_empty(), "{}: still owed:\n{fixed}", self.name);
+    }
+}
+
+#[test]
+fn each_assessment_fault_is_owed_at_the_section_naming_the_input_and_a_current_acceptance_clears_it()
+ {
+    for case in assessment_cases() {
+        case.run_as_is();
+    }
+}
+
+#[test]
+fn contract_effect_none_keeps_the_assessments_and_another_section_is_not_judged() {
+    let none = replaced(
+        &base(),
+        SHAPE,
+        "contract_effect: changes",
+        "contract_effect: none",
+    );
+    let owed = reconcile_as_is(&none, "shape").expect("reconciles");
+    assert_eq!(
+        owed.obligations()
+            .iter()
+            .map(|o| o.kind)
+            .collect::<Vec<_>>(),
+        [ObligationKind::AssessmentMissing],
+        "{owed}"
+    );
+    // An edit of a section the change does not affect leaves the assessment
+    // of the affected one current.
+    let current = assessed(&base(), "shape");
+    let other = replaced(
+        &current,
+        OMEGA,
+        "Text for Usage of omega.\n",
+        "Text for Usage of omega, edited.\n",
+    );
+    assert!(
+        reconcile_as_is(&other, "shape")
+            .expect("reconciles")
+            .is_empty()
+    );
+}
+
 #[test]
 fn the_baseline_owes_nothing_and_check_agrees() {
     let base = base();
@@ -686,6 +848,11 @@ fn every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by
     for case in cases() {
         assert!(names.insert(case.name), "{} is named twice", case.name);
         let list = reconcile(&case.broken);
+        raised.extend(list.obligations().iter().map(|o| o.kind.name()));
+    }
+    for case in assessment_cases() {
+        assert!(names.insert(case.name), "{} is named twice", case.name);
+        let list = reconcile_as_is(&case.broken, "shape").expect("reconciles");
         raised.extend(list.obligations().iter().map(|o| o.kind.name()));
     }
     let known: BTreeSet<&str> = ObligationKind::ALL.iter().map(|k| k.name()).collect();
@@ -1155,6 +1322,9 @@ fn contract_effect_none_keeps_every_obligation_the_documents_can_show() {
             ObligationKind::TenseMismatch,
             ObligationKind::ClaimUnsupported,
             ObligationKind::EvidenceStale,
+            // A claim on a record that does not load, and code bindings that
+            // do not resolve, leave the affected sections with no assessment.
+            ObligationKind::AssessmentMissing,
         ])
     );
 }

@@ -1152,6 +1152,7 @@ fn add_records(
         let id = &assessment.value().header.id;
         graph.assessments.push(id.clone());
         let subject = &assessment.value().subject;
+        findings.extend(assessment_id_mismatch(assessment));
         if known.contains(&subject.capability) {
             graph.assesses.push(AssessesEdge {
                 assessment: id.clone(),
@@ -1217,6 +1218,37 @@ fn add_records(
         .sort_by(|a, b| (&a.assessment, &a.section).cmp(&(&b.assessment, &b.section)));
     graph.scope.sort_by(|a, b| a.package.cmp(&b.package));
     add_inputs(graph, records, known, source);
+}
+
+/// The `assessment-id-mismatch` finding of an assessment whose id is not the
+/// one id of its subject, `assessment:<capability slug>-<section>`.
+fn assessment_id_mismatch(assessment: &Loaded<AssessmentRecord>) -> Option<Finding> {
+    let value = assessment.value();
+    let subject = &value.subject;
+    let wanted = crate::assessment::record_slug(&subject.capability, subject.section);
+    if wanted.as_deref() == Some(value.header.slug.as_str()) {
+        return None;
+    }
+    let wanted = wanted.map_or_else(
+        || format!("`{}` is not a capability id", subject.capability),
+        |slug| {
+            format!(
+                "the id of an assessment of `{}` is `assessment:{slug}`",
+                subject.text()
+            )
+        },
+    );
+    Some(Finding::new(
+        kind::ASSESSMENT_ID_MISMATCH,
+        assessment.path(),
+        Location::Key("id".to_string()),
+        format!(
+            "the record `{}` assesses `{}`, and {wanted}, so it is not the assessment of its subject",
+            value.header.id,
+            subject.text()
+        ),
+        "name the record after its subject, `<capability slug>-<section>`, or record the assessment again with `assess`",
+    ))
 }
 
 /// The input edges of the evidence records and the assessments. The evidence
@@ -1732,10 +1764,13 @@ fn substantiated(body: &Body, path: &str) -> Vec<CapabilitySection> {
 /// The text of a section with its fenced code blocks, PROPOSED blocks and
 /// generated blocks blanked out, line breaks kept. A generated block is
 /// derived from this very text, so it must not count as prose.
-fn prose_of(body: &Body, section: &raf_okf::Section) -> Option<String> {
+///
+/// The blocks are merged into sorted, disjoint ranges once and the text is
+/// read in one pass, so the time is linear in the text and the blocks.
+pub(crate) fn prose_of(body: &Body, section: &raf_okf::Section) -> Option<String> {
     let text = body.section_text(section)?;
     let start = section.content().bytes.start;
-    let blanked: Vec<(usize, usize)> = body
+    let mut blanked: Vec<(usize, usize)> = body
         .fenced_blocks()
         .iter()
         .map(raf_okf::FencedBlock::span)
@@ -1755,11 +1790,24 @@ fn prose_of(body: &Body, section: &raf_okf::Section) -> Option<String> {
                 span.bytes.end.saturating_sub(start),
             )
         })
+        .filter(|(from, to)| from < to)
         .collect();
+    blanked.sort_unstable();
+    let mut merged: Vec<(usize, usize)> = Vec::with_capacity(blanked.len());
+    for (from, to) in blanked {
+        match merged.last_mut() {
+            Some(last) if from <= last.1 => last.1 = last.1.max(to),
+            _ => merged.push((from, to)),
+        }
+    }
+    let mut ranges = merged.into_iter().peekable();
     Some(
         text.char_indices()
             .map(|(at, c)| {
-                let inside = blanked.iter().any(|(from, to)| (*from..*to).contains(&at));
+                while ranges.peek().is_some_and(|(_, to)| *to <= at) {
+                    ranges.next();
+                }
+                let inside = ranges.peek().is_some_and(|(from, _)| *from <= at);
                 if inside && c != '\n' && c != '\r' {
                     ' '
                 } else {
@@ -1768,6 +1816,68 @@ fn prose_of(body: &Body, section: &raf_okf::Section) -> Option<String> {
             })
             .collect(),
     )
+}
+
+/// Every path a code span of `text` names as a whole path, by the rule of
+/// [`names_in_code_span`]: for each paragraph, each code span, and in it each
+/// run of identifiers joined by `::` that no identifier character or `:`
+/// precedes and no identifier character or `::` follows.
+///
+/// A path `p` is in the set exactly when `names_in_code_span(text, p)`, and
+/// the set is found in one pass over the text, so a section that names many
+/// symbols is judged in time linear in its length.
+pub(crate) fn code_span_paths(text: &str) -> BTreeSet<String> {
+    let mut found = BTreeSet::new();
+    let mut paragraph = String::new();
+    for line in text.lines().chain(std::iter::once("")) {
+        if line.trim().is_empty() {
+            for span in code_spans(&paragraph) {
+                paths_in_span(span, &mut found);
+            }
+            paragraph.clear();
+        } else {
+            paragraph.push_str(line);
+            paragraph.push('\n');
+        }
+    }
+    found
+}
+
+/// The whole paths of one code span (see [`code_span_paths`]).
+fn paths_in_span(span: &str, found: &mut BTreeSet<String>) {
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    let chars: Vec<(usize, char)> = span.char_indices().collect();
+    let mut index = 0;
+    while index < chars.len() {
+        let (at, c) = chars[index];
+        let before = index.checked_sub(1).map(|i| chars[i].1);
+        if !ident(c) || before.is_some_and(|b| ident(b) || b == ':') {
+            index += 1;
+            continue;
+        }
+        // The longest run `ident (:: ident)*` from here.
+        let mut end = index;
+        loop {
+            while end < chars.len() && ident(chars[end].1) {
+                end += 1;
+            }
+            let joined = end + 2 < chars.len()
+                && chars[end].1 == ':'
+                && chars[end + 1].1 == ':'
+                && ident(chars[end + 2].1);
+            if joined {
+                end += 2;
+            } else {
+                break;
+            }
+        }
+        let stop = chars.get(end).map_or(span.len(), |(at, _)| *at);
+        let after = &span[stop..];
+        if !after.starts_with("::") {
+            found.insert(span[at..stop].to_string());
+        }
+        index = end.max(index + 1);
+    }
 }
 
 /// Whether a code span of `text` names `path`: the path stands in the span as
@@ -1838,4 +1948,88 @@ fn names(span: &str, path: &str) -> bool {
             && !after.chars().next().is_some_and(ident)
             && !after.starts_with("::")
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fmt::Write as _;
+
+    use super::{code_span_paths, names_in_code_span};
+
+    /// The set of paths a text names is exactly the paths `names_in_code_span`
+    /// accepts, for the paths of the text and for paths it does not hold.
+    #[test]
+    fn the_paths_of_the_code_spans_are_the_paths_names_in_code_span_accepts() {
+        let texts = [
+            "Call `demo::run` and `demo::run()`.",
+            "A `demo::run::inner` path and `demo::run::*` glob.",
+            "`x.demo::run` and `::demo::run` and `ademo::run`.",
+            "`demo::run:x` with one colon, `demo::runner` longer.",
+            "A span that opens `demo::run\nand closes` on the next line.",
+            "A span over a blank line `demo::run\n\nis` not a span.",
+            "``demo::run`` doubled, ``a`b`` with a tick, `` ` `` alone.",
+            "`ünïcode::päth` and `demo::_hidden` and `demo::r2d2`.",
+            "Unclosed `demo::run and nothing else.",
+            "`a::a::a` and `a::a`.",
+            "",
+        ];
+        let probes = [
+            "demo::run",
+            "demo::run::inner",
+            "demo",
+            "run",
+            "demo::runner",
+            "ünïcode::päth",
+            "demo::_hidden",
+            "demo::r2d2",
+            "a::a",
+            "a::a::a",
+            "a",
+        ];
+        for text in texts {
+            let found = code_span_paths(text);
+            for probe in probes
+                .iter()
+                .copied()
+                .chain(found.iter().map(String::as_str))
+            {
+                assert_eq!(
+                    found.contains(probe),
+                    names_in_code_span(text, probe),
+                    "{probe} in {text:?}"
+                );
+            }
+        }
+    }
+
+    /// A section of twenty thousand paragraphs, each beside a fenced block, is
+    /// read in time linear in its text and its blocks: the blocks are blanked,
+    /// the code spans outside them are read, and none inside them is.
+    #[test]
+    fn a_section_of_many_blocks_is_read_in_linear_time() {
+        let paragraph = "`demo::kept` x.\n\n```\n`demo::fenced`\n```\n\n";
+        let text = format!("# Title\n\n## Contract\n\n{}", paragraph.repeat(20_000));
+        let body = raf_okf::Body::parse(&text).expect("a body");
+        assert_eq!(body.fenced_blocks().len(), 20_000);
+        let section = &body.sections()[0];
+        let started = std::time::Instant::now();
+        let prose = super::prose_of(&body, section).expect("the section");
+        let found = code_span_paths(&prose);
+        let took = started.elapsed();
+        assert!(found.contains("demo::kept"));
+        assert!(!found.contains("demo::fenced"));
+        assert_eq!(prose.len(), body.section_text(section).expect("text").len());
+        assert!(took < std::time::Duration::from_secs(20), "{took:?}");
+    }
+
+    #[test]
+    fn ten_thousand_named_paths_are_found_in_one_pass() {
+        let text = (0..10_000).fold(String::new(), |mut text, n| {
+            let _ = write!(text, "`demo::item_{n}` ");
+            text
+        });
+        let found = code_span_paths(&text);
+        assert_eq!(found.len(), 10_000);
+        assert!(found.contains("demo::item_9999"));
+    }
 }

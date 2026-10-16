@@ -58,6 +58,8 @@ bindings:
     - raf_workplan::test_crate::obligations::wording_that_only_looks_like_a_phrase_owes_nothing
     - raf_workplan::test_crate::obligations::text_of_a_proposed_block_is_not_read_for_wording
     - raf_workplan::test_crate::obligations::reconcile_writes_nothing
+    - raf_workplan::test_crate::obligations::each_assessment_fault_is_owed_at_the_section_naming_the_input_and_a_current_acceptance_clears_it
+    - raf_workplan::test_crate::obligations::contract_effect_none_keeps_the_assessments_and_another_section_is_not_judged
     - raf_workplan::test_crate::complete::each_kind_of_obligation_is_a_reconcile_line_in_a_git_repository_and_fixing_it_removes_the_line
     - raf_workplan::test_crate::evidence::an_edit_of_a_bound_symbol_makes_its_record_stale_and_nothing_else_does
     - raf_workplan::test_crate::evidence::a_stale_record_of_a_capability_the_change_does_not_list_is_not_owed
@@ -168,13 +170,16 @@ needed. The kinds are:
 | `tense-mismatch` | Delivered or implementing contract text uses proposal or forward-looking wording, or a delivered capability has a PROPOSED block | Text rewritten as the supported behaviour |
 
 > [!PROPOSED change:workplan-reconcile]
-> Three kinds follow `tense-mismatch` in the table, and in the order of the list:
+> Six kinds follow `tense-mismatch` in the table, and in the order of the list:
 >
 > | Kind | Raised when | Evidence that resolves it |
 > | --- | --- | --- |
 > | `claim-unsupported` | A claim of a listed capability names an evidence record that does not load, whose verdict is `fail`, or that holds a value over its limit | A passing record within its limits for each evidence id the claim names, or the claim reworded or removed |
 > | `evidence-stale` | An input of an evidence record that a listed capability's `for` list or claims reach has another digest now than the one the record keeps, or no longer resolves | The evidence recorded again with `evidence record` |
 > | `evidence-changed` | An evidence record a claim of a listed capability names passed at the merge base and now fails, holds a value over a limit (its own or the one at the merge base), has lost a limit it had there, or no longer loads | The claim reviewed against the new result: the evidence passes within the limits of the merge base again, or the claim no longer names it |
+> | `assessment-missing` | An authored section in `affects` has no assessment | An assessment of the section recorded with `assess` |
+> | `assessment-stale` | An input of the assessment of an authored section in `affects` has another digest now than the one the record keeps, no longer resolves, is no longer an input, or is an input now and was not then | The section assessed again with `assess` |
+> | `assessment-rejected` | The assessment of an authored section in `affects` is current and its verdict is `rejected` | The section revised and assessed again with `assess`, with the verdict `accepted` |
 >
 > `claim-unsupported` and `evidence-changed` are owed at the line of the claim
 > marker, in the section that holds it, once for each record the marker names
@@ -185,6 +190,19 @@ needed. The kinds are:
 > both `claim-unsupported` and `evidence-changed`. The evidence names the record
 > and what is wrong, for example `` (`evidence:memory-bound`: `peak` is 80, over
 > its limit 64) ``.
+>
+> The three assessment kinds are owed in the affected section, as the
+> [prose assessment](./workplan-prose-assessment.md) defines the record and its
+> inputs: `assessment-missing` when no record has the id
+> `assessment:<capability slug>-<section>`, `assessment-stale` once for each
+> input that moved, naming it, for example `` (`assessment:streaming-parser-usage`:
+> the symbol `raf_parser::Parser::push` has changed since) ``, and
+> `assessment-rejected` for a current assessment with the verdict `rejected`.
+> Every section of a capability that loads holds authored text, since the profile
+> refuses one with nothing outside its generated blocks and comments
+> (`okf-section-empty`), and a listed capability that does not load is an error.
+> They compare digests the tool computes
+> from the working tree, so they read no revision and ask Git nothing.
 
 Each obligation line gives its subject (a capability, the change record or the
 capability index), the part it is about (the document, a section or an item of the
@@ -264,6 +282,11 @@ which is trusted build input (see [the security policy](../../SECURITY.md)).
 lighter. `section-untouched` is not raised for `contract`, `usage` and `examples`,
 since the change declares they are unaffected. All other kinds apply, because stale
 bindings and stale generated blocks are errors regardless of the contract.
+
+> [!PROPOSED change:workplan-reconcile]
+> The assessment kinds are among the kinds that apply: a section the change lists
+> in `affects` is read by the people the change reaches whether or not its
+> contract moved, so its assessment is owed under either effect.
 
 ## Usage
 
@@ -380,6 +403,14 @@ in these two places, so update the usage example and the lifecycle explanation".
 >   a record that did not change and owes nothing.
 > - The completion gate refuses each of the three kinds and completes once it is
 >   repaired.
+> - One fixture per assessment kind: an affected section with no assessment is
+>   `assessment-missing`; an edit of the section, of a symbol it names, of a
+>   bound symbol when it names none, and of an evidence record a claim of it
+>   names each make its assessment `assessment-stale` naming that input, while a
+>   regenerated block and an edit of another section do not; a current
+>   `rejected` assessment is `assessment-rejected`, whether a human or an agent
+>   gave it; `contract_effect: none` keeps them; and the completion gate refuses
+>   each of the three and completes once the section is assessed and accepted.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
@@ -419,6 +450,8 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::test_crate::lifecycle::the_printed_text_holds_the_template_and_the_guidance` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::the_template_in_a_capability_of_each_state_gives_one_block_and_a_clean_check` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::contract_effect_none_keeps_every_obligation_the_documents_can_show` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::contract_effect_none_keeps_the_assessments_and_another_section_is_not_judged` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::each_assessment_fault_is_owed_at_the_section_naming_the_input_and_a_current_acceptance_clears_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::equal_inputs_print_equal_output` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by_none` | test | [Verification](#verification) |

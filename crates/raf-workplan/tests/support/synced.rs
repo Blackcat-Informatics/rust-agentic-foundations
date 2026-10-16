@@ -5,9 +5,11 @@
 //! helpers that sync it in memory, and the synced base the generated-block
 //! cases break.
 
+use raf_okf::{Actor, AssessmentVerdict};
 use raf_source::MemoryTree;
 use raf_workplan::{Finding, SyncError, SyncOptions, SyncReport, Workplan};
 
+use super::assessed::records_of;
 use super::{Repo, demo_workspace};
 
 /// The copyright text of an index the fixtures create.
@@ -241,4 +243,27 @@ pub(crate) fn synced(repo: &Repo) -> Repo {
         Ok(report) => apply(repo, &report),
         Err(error) => panic!("the fixture does not sync: {error}"),
     }
+}
+
+/// `repo` with a current accepted assessment by an agent of each authored
+/// section `change` affects, replacing the assessments of those sections
+/// that are there.
+pub(crate) fn assessed(repo: &Repo, change: &str) -> Repo {
+    assessed_as(repo, change, AssessmentVerdict::Accepted, Actor::Agent)
+}
+
+/// `repo` with a current assessment by `by` with `verdict` of each authored
+/// section `change` affects.
+pub(crate) fn assessed_as(
+    repo: &Repo,
+    change: &str,
+    verdict: AssessmentVerdict,
+    by: Actor,
+) -> Repo {
+    let records = with_plan(repo, |plan| records_of(plan, change, verdict, by));
+    let mut next = repo.clone();
+    for (path, text) in records {
+        next.insert(path, text);
+    }
+    next
 }

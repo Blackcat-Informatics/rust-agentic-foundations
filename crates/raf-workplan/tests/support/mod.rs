@@ -10,6 +10,7 @@
     reason = "each test binary uses a part of the shared support"
 )]
 
+pub(crate) mod assessed;
 pub(crate) mod cases;
 pub(crate) mod changes;
 pub(crate) mod checkout;

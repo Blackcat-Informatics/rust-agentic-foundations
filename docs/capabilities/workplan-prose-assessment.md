@@ -33,22 +33,60 @@ Open questions:
 
 > [!PROPOSED change:workplan-prose-assessment]
 > **Mechanical and authored text.** Text inside a generated block is produced by
-> `docs sync` and is never assessed. Every other section is authored and may be
-> assessed.
+> `docs sync` and is never assessed. A section whose text outside its generated
+> blocks and HTML comments is blank holds nothing an author wrote: it is not
+> assessed and the completion gate asks for no assessment of it. The profile
+> refuses such a section in a capability document, so every section of a
+> capability that loads is authored and may be assessed. An assessment covers a
+> whole section, `cap:<slug>#<section>`; a section the capability does not have,
+> or a name that is not one of the seven sections, is an error.
 >
-> **The record.** An assessment names the section, the assessor and its kind (human or
-> agent), the verdict, and the input digest. The input digest covers the section text,
-> the bound code and the evidence the section depends on. `cargo workplan assess
-> <cap:slug>#<section>` prints the structured context an assessor reads and writes
-> the record once a verdict is given.
+> **The record.** An assessment is the record
+> `work/assessments/<capability slug>-<section>.md`, with the id
+> `assessment:<capability slug>-<section>`: one id for each section, so a section
+> has at most one assessment, and a record named otherwise than its subject is the
+> `check` finding `assessment-id-mismatch` and is not the assessment of the
+> section. The record names the section (`subject`), the verdict (`accepted` or
+> `rejected`), who assessed by kind only (`by: human` or `by: agent`, never a
+> name), and one `inputs` row for each input with the digest of its text when the
+> assessment was made. The inputs are the section itself, its authored text with
+> the content of its generated blocks left out; the bound symbols; and each
+> evidence record a claim marker of the section names. A code span outside fenced
+> code, PROPOSED blocks and generated blocks names a `code` binding strongly when it
+> holds, as a whole path, the binding's path or a `::`-suffix of it of two segments
+> or more (`raf_workplan::Workplan::check` or `Workplan::check`), and weakly when it
+> holds the last segment alone (`check`), a word that may stand for something
+> else; a suffix that two bindings end in names both. When the section names a
+> binding strongly, the bound symbols that are inputs are the bindings it names
+> strongly or weakly; when it names none strongly, they are every `code` binding of
+> the capability. A weak name therefore only ever adds an input and never narrows
+> the set. Recording a verdict for a section that has an
+> assessment replaces that record, and nothing of the earlier one is kept. A bound
+> symbol that does not resolve, or a claim on a record that does not load, is
+> refused, since the record would keep no digest of it, and so is a record over the
+> document bound. Recording writes that one file and never edits a document.
 >
-> **Invalidation.** An assessment is current while its input digest equals the digest
-> computed now. When the section text, a bound symbol or a depended-on result changes,
-> the assessment is invalidated and the section receives an obligation in the
-> [reconcile](./workplan-reconcile.md) list.
+> **The context.** `assess_context` gives the assessor the authored text of the
+> section, each bound symbol that is an input with the source text of its
+> definitions, each evidence record its claims name with its verdict, values and
+> limits, and the inputs with their digests now. Nothing in it depends on who
+> asks, so a human and an agent read the same context.
 >
-> **The gate.** The [completion gate](./workplan-complete-gate.md) requires current
-> assessments for the authored sections that a change lists in `affects`.
+> **Invalidation.** An assessment is current while every input it keeps has the
+> digest it keeps and the section has no input the record lacks. An input moved
+> when its digest differs now, when it no longer resolves, when it is no longer an
+> input (the section no longer names the symbol, the capability no longer binds it,
+> the claim is gone) or when something is an input now that was not then. A
+> regenerated block, and an edit of another section or of a symbol that is not an
+> input, leave the assessment current. A section in a change's `affects` whose
+> assessment is missing, stale or rejected receives an obligation in the
+> [reconcile](./workplan-reconcile.md) list, naming the input that moved.
+>
+> **The gate.** The [completion gate](./workplan-complete-gate.md) requires a
+> current assessment with the verdict `accepted` for each authored section that a
+> change lists in `affects`. An assessment by an agent satisfies it by itself, as
+> one by a human does; the record says which. A `rejected` verdict never satisfies
+> it, whoever gave it.
 
 ## Usage
 
@@ -56,8 +94,13 @@ Open questions:
 > - `cargo workplan assess cap:workplan-reconcile#explanation --context` prints the
 >   section, the bound symbols and the evidence for the assessor.
 > - `cargo workplan assess cap:workplan-reconcile#explanation --verdict accepted --by agent`
->   records the assessment.
-> - `cargo workplan assess --list` shows each assessment and whether it is current.
+>   records the assessment, replacing the one the section had.
+> - `cargo workplan assess --list` shows each assessment, whether it is current,
+>   and the inputs that moved.
+>
+> The library gives the same through `Workplan::assess_context`,
+> `Workplan::record_assessment` (and `Workplan::assessment_record`, which builds
+> the record without writing it) and `Workplan::list_assessments`.
 
 ## Examples
 
@@ -71,17 +114,34 @@ Open questions:
 > | Support the memory bound | The documented bound has no current evidence. |
 >
 > Each resolved item ends in an assessment record, and the record stays current only
-> until the section, a bound symbol or the evidence changes.
+> until the section, a bound symbol or the evidence changes. An assessment that
+> moved is listed with the input, for example:
+>
+> ```text
+> cap:streaming-parser#usage  assessment:streaming-parser-usage  accepted  agent  stale: the symbol `raf_parser::Parser::push` has changed since
+> ```
 
 ## Constraints
 
 > [!PROPOSED change:workplan-prose-assessment]
-> - An assessment never edits the section it assesses.
+> - An assessment never edits the section it assesses; recording writes only its
+>   own record.
 > - Generated blocks are excluded from assessment, so a regenerated table does not
 >   invalidate the assessment of the prose around it.
-> - The digest is deterministic: the same inputs always produce the same digest.
+> - The digest is deterministic: the same inputs always produce the same digest,
+>   and recording the same verdict on the same inputs writes the same bytes.
 > - Humans and agents receive the same context, and the record states which of them
->   assessed.
+>   assessed, by kind and never by name.
+> - A weak name, the last segment of a binding alone, never narrows the inputs: it
+>   adds its binding beside the others. Once a section names a bound symbol
+>   strongly, by its path or a suffix of two segments or more, a bound symbol it
+>   describes only in prose, or reaches through another path such as a re-export,
+>   is not an input; with no bound symbol named strongly, every one is.
+> - The digest of a bound symbol is the text of its own item: the binding of a type
+>   covers the type's definition and not the bodies of its methods, so a section
+>   that describes a method names the method, and the capability binds it.
+> - A record holds every input in one file under the document bound, so a section
+>   with more inputs than fit is refused rather than recorded in part.
 
 ## Explanation
 
@@ -102,10 +162,37 @@ sections to rewrite and the evidence still missing, and an assessor resolves the
 
 > [!PROPOSED change:workplan-prose-assessment]
 > - An assessment is current for an unchanged section and invalidated after an edit to
->   the section text.
-> - Changing a bound symbol invalidates the assessments of the sections that bind it.
-> - Replacing evidence that a section depends on invalidates the assessment.
+>   the section text, naming the section; an edit of another section leaves it
+>   current.
+> - Changing a symbol the section names invalidates its assessment, naming the
+>   symbol, while changing a bound symbol it does not name does not; with no bound
+>   symbol named, a change of any bound symbol does, and a binding added or removed
+>   is an input that moved.
+> - A section that names one bound symbol by its whole path and another by its
+>   last segment goes stale when either changes and stays current when a bound
+>   symbol it does not name changes; a section whose only match is a common word,
+>   the last segment of a binding in a command line, keeps every bound symbol as an
+>   input and goes stale when another changes; a method named by its type and name
+>   is an input and its sibling method is not; a suffix of two segments that two
+>   bindings end in makes both inputs, and a last segment they share narrows
+>   nothing.
+> - For generated sections and bindings, adding code spans that hold only last
+>   segments never removes an input.
+> - CRLF line endings in the document, the source and the evidence leave the
+>   assessment current, and an edit under them still makes it stale.
+> - Replacing evidence that a claim of the section names invalidates the
+>   assessment, naming the record, and a record that no longer loads is an input
+>   that does not resolve.
 > - A regenerated generated block leaves the neighbouring assessment current.
-> - The digest is identical across two runs on the same tree.
-> - The completion gate rejects a change whose affected authored section has no current
->   assessment.
+> - The digest is identical across two runs on the same tree: a second record of
+>   the same verdict is the same bytes, and it replaces the first.
+> - The context is byte-identical for a human and an agent, and the two records
+>   differ only in `by`.
+> - A record named otherwise than its subject is a `check` finding and not the
+>   assessment of the section; a missing section, an unknown capability, a bound
+>   symbol that does not resolve and a claim on a record that does not load are
+>   each refused with nothing written, beside a neighbour that records.
+> - A section of ten thousand named symbols and one near the document bound are
+>   judged in bounded time.
+> - The completion gate rejects a change whose affected authored section has no
+>   current assessment, or a current one that is `rejected` by a human or an agent.

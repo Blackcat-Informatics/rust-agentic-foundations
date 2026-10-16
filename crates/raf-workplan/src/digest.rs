@@ -117,25 +117,7 @@ impl Digest {
     /// symbol, and [`SymbolDigestError::Source`] when the index holds no text
     /// for a definition's span.
     pub fn symbol(source: &Workspace, path: &str) -> Result<Self, SymbolDigestError> {
-        let resolution = source
-            .resolve(path)
-            .map_err(|error| SymbolDigestError::Resolve {
-                path: path.to_string(),
-                error,
-            })?;
-        let mut sites = Vec::new();
-        for id in resolution.sites {
-            let missing = || SymbolDigestError::Source {
-                path: path.to_string(),
-            };
-            let item = source.item(id).ok_or_else(missing)?;
-            let text = source
-                .source(&item.file)
-                .and_then(|text| text.get(item.span.start_byte..item.span.end_byte))
-                .ok_or_else(missing)?;
-            let (file, start) = item.source_key();
-            sites.push(((file.as_str(), start), text));
-        }
+        let sites = symbol_sites(source, path)?;
         Ok(symbol_of(path, sites))
     }
 
@@ -257,6 +239,53 @@ impl Error for SymbolDigestError {
             Self::Source { .. } => None,
         }
     }
+}
+
+/// A definition of a symbol: its source key (file and start offset) and its
+/// source text.
+type Site<'w> = ((&'w str, usize), &'w str);
+
+/// The definitions of the symbol `path`, each with its source key (file and
+/// start offset) and its source text, in no particular order and possibly
+/// with a definition listed twice; [`symbol_of`] and [`symbol_texts`] order
+/// and de-duplicate them.
+fn symbol_sites<'w>(source: &'w Workspace, path: &str) -> Result<Vec<Site<'w>>, SymbolDigestError> {
+    let resolution = source
+        .resolve(path)
+        .map_err(|error| SymbolDigestError::Resolve {
+            path: path.to_string(),
+            error,
+        })?;
+    let mut sites = Vec::new();
+    for id in resolution.sites {
+        let missing = || SymbolDigestError::Source {
+            path: path.to_string(),
+        };
+        let item = source.item(id).ok_or_else(missing)?;
+        let text = source
+            .source(&item.file)
+            .and_then(|text| text.get(item.span.start_byte..item.span.end_byte))
+            .ok_or_else(missing)?;
+        let (file, start) = item.source_key();
+        sites.push(((file.as_str(), start), text));
+    }
+    Ok(sites)
+}
+
+/// The source text of each definition of the symbol `path`, as
+/// [`Digest::symbol`] hashes it: once per source key, in key order, with CRLF
+/// read as LF. Each entry is the file and the text.
+pub(crate) fn symbol_texts(
+    source: &Workspace,
+    path: &str,
+) -> Result<Vec<(String, String)>, SymbolDigestError> {
+    let mut sites = symbol_sites(source, path)?;
+    sites.sort_by(|a, b| a.0.cmp(&b.0));
+    sites.dedup_by(|a, b| a.0 == b.0);
+    Ok(sites
+        .into_iter()
+        .map(|((file, _), text)| (file.to_string(), lf(text)))
+        .collect())
 }
 
 /// The digest of the symbol `path` from the texts of its definitions, each

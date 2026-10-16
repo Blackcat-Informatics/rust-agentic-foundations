@@ -25,7 +25,7 @@ use support::fixtures::{ALPHA, BETA, GAMMA, valid};
 use support::{Repo, assert_clean, check, demo_workspace, key, line_of, without_sync_findings};
 
 const EVIDENCE: &str = "work/evidence/bound.md";
-const ASSESSMENT: &str = "work/assessments/review.md";
+const ASSESSMENT: &str = "work/assessments/alpha-contract.md";
 const COVERAGE: &str = "work/coverage/default.md";
 
 /// The valid repository with one record of each type.
@@ -287,7 +287,9 @@ fn a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_cle
             "for",
         ),
         (
-            assessment_record().replace("cap:alpha#contract", "cap:ghost#contract"),
+            assessment_record()
+                .replace("cap:alpha#contract", "cap:ghost#contract")
+                .replace("assessment:alpha-contract", "assessment:ghost-contract"),
             "assessment-subject-missing",
             "subject",
         ),
@@ -295,6 +297,13 @@ fn a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_cle
             coverage_record().replace("scope: [demo]", "scope: [ghost]"),
             "scope-crate-missing",
             "scope",
+        ),
+        // An assessment named otherwise than its subject is not the one
+        // assessment of the section.
+        (
+            assessment_record().replace("id: assessment:alpha-contract", "id: assessment:ghost"),
+            "assessment-id-mismatch",
+            "id",
         ),
     ];
     for (text, kind, at) in cases {
@@ -321,8 +330,11 @@ fn a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_cle
     );
     // A name whose document is there and broken is explained by that
     // document's own findings.
-    let (mut repo, _) =
-        with_record(&assessment_record().replace("cap:alpha#contract", "cap:broken#contract"));
+    let (mut repo, _) = with_record(
+        &assessment_record()
+            .replace("cap:alpha#contract", "cap:broken#contract")
+            .replace("assessment:alpha-contract", "assessment:broken-contract"),
+    );
     repo.insert(
         "docs/capabilities/broken.md".to_string(),
         "---\ntype: Capability\nid: cap:broken\n---\n".to_string(),
@@ -494,14 +506,14 @@ fn the_records_are_nodes_with_their_edges() {
         let nodes = graph.nodes();
         for node in [
             Node::Evidence("evidence:bound".into()),
-            Node::Assessment("assessment:review".into()),
+            Node::Assessment("assessment:alpha-contract".into()),
             Node::Coverage("coverage:default".into()),
             Node::Crate("demo".into()),
         ] {
             assert!(nodes.contains(&node), "{node:?}");
         }
         assert_eq!(graph.evidence(), ["evidence:bound"]);
-        assert_eq!(graph.assessments(), ["assessment:review"]);
+        assert_eq!(graph.assessments(), ["assessment:alpha-contract"]);
         assert_eq!(graph.coverage(), Some("coverage:default"));
         let [covers] = graph.covers() else {
             panic!("{:?}", graph.covers());
@@ -514,9 +526,12 @@ fn the_records_are_nodes_with_their_edges() {
             panic!("{:?}", graph.assesses());
         };
         let contract = SectionId::new("cap:alpha", CapabilitySection::Contract);
-        assert_eq!(assesses.assessment(), "assessment:review");
+        assert_eq!(assesses.assessment(), "assessment:alpha-contract");
         assert_eq!(assesses.section(), &contract);
-        assert_eq!(graph.assessments_of(&contract), ["assessment:review"]);
+        assert_eq!(
+            graph.assessments_of(&contract),
+            ["assessment:alpha-contract"]
+        );
         assert_none(graph.assessments_of(&SectionId::new("cap:alpha", CapabilitySection::Usage)));
         let [scope] = graph.scope() else {
             panic!("{:?}", graph.scope());
@@ -541,7 +556,7 @@ fn with_inputs() -> Repo {
         format!("  - kind: {kind}\n    name: {name}\n    digest: {DIGEST}\n")
     };
     let rows = [
-        row("section", "cap:alpha#contract"),
+        row("section", "cap:alpha#usage"),
         row("section", "cap:ghost#usage"),
         row("symbol", "demo::bare"),
         row("symbol", "demo::shown"),
@@ -551,9 +566,9 @@ fn with_inputs() -> Repo {
     ]
     .concat();
     repo.insert(
-        "work/assessments/inputs.md".to_string(),
+        "work/assessments/alpha-usage.md".to_string(),
         format!(
-            "---\ntype: Assessment\nid: assessment:inputs\nsubject: cap:alpha#contract\n\
+            "---\ntype: Assessment\nid: assessment:alpha-usage\nsubject: cap:alpha#usage\n\
              inputs:\n{rows}verdict: accepted\nby: agent\n---\n"
         ),
     );
@@ -570,7 +585,7 @@ fn each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_f
     on_plan(&repo, |plan| {
         let graph = plan.graph();
         let inputs: Vec<(InputKind, &str, InputTarget)> = graph
-            .inputs_of("assessment:inputs")
+            .inputs_of("assessment:alpha-usage")
             .into_iter()
             .map(|edge| (edge.kind(), edge.name(), edge.target().clone()))
             .collect();
@@ -579,8 +594,8 @@ fn each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_f
             [
                 (
                     InputKind::Section,
-                    "cap:alpha#contract",
-                    InputTarget::Section(SectionId::new("cap:alpha", CapabilitySection::Contract))
+                    "cap:alpha#usage",
+                    InputTarget::Section(SectionId::new("cap:alpha", CapabilitySection::Usage))
                 ),
                 (
                     InputKind::Symbol,
@@ -603,7 +618,7 @@ fn each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_f
         // The evidence record's own symbol input and the first assessment's
         // section input are edges too.
         assert_eq!(graph.inputs_of("evidence:bound").len(), 1);
-        assert_eq!(graph.inputs_of("assessment:review").len(), 1);
+        assert_eq!(graph.inputs_of("assessment:alpha-contract").len(), 1);
         assert_eq!(graph.inputs().len(), 6);
         assert!(graph.edges().iter().any(|e| matches!(e, Edge::Input(_))));
         // A symbol an input names is a node, though no capability binds it.

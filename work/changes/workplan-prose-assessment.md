@@ -15,7 +15,8 @@ affects:
 contract_effect: changes
 items:
   - claim: "assess prints the structured context for a section and records a verdict."
-  - claim: "An assessment names its assessor, its kind and the digest of its inputs."
+  - claim: "An assessment names the section, its verdict, who assessed by kind only (by: human or agent, never a name) and the digest of each input."
+  - claim: "The id of an assessment is assessment:<capability slug>-<section> of its subject, and recording a verdict for a section replaces its record."
   - claim: "An assessment is invalidated when the section, a bound symbol or depended-on evidence changes."
   - claim: "Generated blocks are excluded from assessment."
   - claim: "The completion gate requires current assessments for the affected authored sections."

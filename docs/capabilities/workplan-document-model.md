@@ -306,7 +306,9 @@ link, marker and reference rules through `raf_workplan::plain::check`.
 > (`claim-evidence-not-for`), each with the file and the line of the marker; an
 > evidence record whose `for` names no capability document (`evidence-for-missing`);
 > an assessment whose subject is a section of no capability document
-> (`assessment-subject-missing`); and a `scope` entry that is no package of the
+> (`assessment-subject-missing`); an assessment whose id is not
+> `assessment:<capability slug>-<section>` of its subject, the one id the
+> assessment of that section has (`assessment-id-mismatch`); and a `scope` entry that is no package of the
 > source workspace (`scope-crate-missing`). A name whose document or record exists
 > and is broken is explained by the findings of that file.
 >
@@ -485,8 +487,9 @@ touches, and the obligations those sections receive are defined by
 >   new.
 > - Reference fixtures for the records and the claims, each beside a neighbour that
 >   passes: a capability in `for` with no document, a subject with no capability, a
->   `scope` crate that is no package, a claim on unknown evidence with its line, and
->   a claim on evidence for another capability; a claim inside a PROPOSED block is
+>   `scope` crate that is no package, an assessment named otherwise than its
+>   subject, a claim on unknown evidence with its line, and a claim on evidence for
+>   another capability; a claim inside a PROPOSED block is
 >   not read. An input of each kind that resolves is an edge, a re-exported symbol
 >   leads to its definition, and an input of each kind that does not resolve is no
 >   edge and no finding.

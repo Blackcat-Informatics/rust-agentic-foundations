@@ -27,6 +27,7 @@ use raf_workplan::lifecycle::{Lifecycle, LifecycleError, VerifyReport, verify};
 use raf_workplan::obligation::ObligationKind;
 use raf_workplan::{ChangeLookupError, Gate, Opened, SyncOptions, Workplan};
 use std::sync::Mutex;
+use support::assessed::assess_on_disk;
 use support::changes::{DONE, capability, record};
 use support::checkout::git;
 use support::disk::{Scratch, put, snapshot};
@@ -105,9 +106,11 @@ struct Fixture {
 impl Fixture {
     /// The crate `fx-life` with these examples, and `docs` written below the
     /// root, then synced.
+    /// The sections the change `shape` affects are assessed as they stand.
     fn new(examples: &[(&str, &str)], docs: &[(&str, String)]) -> Self {
         let fixture = Self::unsynced(examples, docs);
         fixture.sync();
+        assess_on_disk(fixture.root(), "shape");
         fixture
     }
 

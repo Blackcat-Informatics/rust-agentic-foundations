@@ -25,6 +25,7 @@ use support::Repo;
 use support::changes::{DONE, OMEGA, SHAPE, capability, record, replaced, repo};
 use support::checkout::{Checkout, serial};
 use support::disk::{self, snapshot};
+use support::synced::assessed;
 
 /// The evidence column of `section-untouched`.
 const EVIDENCE: &str =
@@ -40,11 +41,16 @@ fn base() -> Repo {
     with_affects(&["cap:omega#contract", "cap:omega#usage"], "changes")
 }
 
+/// The repository, its affected sections assessed as they stand, so the list
+/// holds the kinds these fixtures are about and nothing else.
 fn with_affects(affects: &[&str], effect: &str) -> Repo {
-    repo(&[
-        (OMEGA, capability("omega", "delivered", BOUND, &[])),
-        (SHAPE, record("shape", "[cap:omega]", affects, effect, DONE)),
-    ])
+    assessed(
+        &repo(&[
+            (OMEGA, capability("omega", "delivered", BOUND, &[])),
+            (SHAPE, record("shape", "[cap:omega]", affects, effect, DONE)),
+        ]),
+        "shape",
+    )
 }
 
 fn lifecycle(checkout: &Checkout) -> Lifecycle {

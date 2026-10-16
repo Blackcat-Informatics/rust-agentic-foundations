@@ -75,8 +75,10 @@
 //!    obligation list (every kind except `example-failing`, which needs a run),
 //!    the outcome of each item (a `moved` outcome names a record that exists),
 //!    the PROPOSED blocks of the change in any capability document, loaded or
-//!    not, the generated blocks (`docs sync` would write nothing), and `check`
-//!    of the repository as it will be once the writes are done. That
+//!    not, the generated blocks (`docs sync` would write nothing), a current
+//!    accepted assessment of each authored section in `affects` (condition 6,
+//!    see [`assessment`](crate::assessment)), and `check` of the repository as
+//!    it will be once the writes are done. That
 //!    repository has no record, so the state rules are judged there: a
 //!    `delivered` capability beside its still-open record is exactly what
 //!    `complete` resolves and is not a failure, while a capability that is not

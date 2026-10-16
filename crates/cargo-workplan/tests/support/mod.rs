@@ -20,6 +20,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use raf_workplan::{Gate, SyncOptions, Workplan};
 use serde_json::Value;
 
+/// The helper of the library's fixtures that assesses the sections a change
+/// affects, through the library, shared as one file.
+#[path = "../../../raf-workplan/tests/support/assessed.rs"]
+pub(crate) mod assessed;
 #[cfg(unix)]
 pub(crate) mod stubs;
 
@@ -192,6 +196,13 @@ impl Repo {
 
     pub(crate) fn root(&self) -> &Path {
         self.scratch.path()
+    }
+
+    /// Give each authored section `change` affects a current accepted
+    /// assessment of the documents as they stand, through the library's
+    /// `record_assessment`; return the paths written.
+    pub(crate) fn assess(&self, change: &str) -> Vec<String> {
+        assessed::assess_on_disk(self.root(), change)
     }
 
     /// Write `text` at `path`, creating the directories.

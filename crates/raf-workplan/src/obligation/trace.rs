@@ -11,14 +11,23 @@
 //! * `evidence-stale`: for each evidence record that a listed capability's `for`
 //!   edge or claim reaches, each input whose digest now differs from the digest
 //!   it keeps, or that resolves to nothing now. Nothing reads a revision or Git.
+//! * `assessment-missing`, `assessment-stale` and `assessment-rejected`: for
+//!   each authored section in `affects`, the assessment record under the id of
+//!   the section ([`record_slug`](crate::assessment::record_slug)): none, one
+//!   whose inputs moved (once for each input, naming it), or one that is
+//!   current and rejected. A section that holds only generated blocks would owe
+//!   nothing, and the profile refuses one, so a loaded capability has none.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use raf_okf::{
-    Capability, CapabilitySection, DocType, EvidenceRecord, EvidenceVerdict, InputKind, Measure,
+    AssessmentVerdict, Capability, CapabilitySection, DocType, EvidenceRecord, EvidenceVerdict,
+    InputKind, Measure,
 };
 
+use crate::assessment::Judged;
 use crate::digest::{Digest, SymbolDigestError};
+use crate::graph::SectionId;
 use crate::{Loaded, Workplan};
 
 use super::{
@@ -135,6 +144,71 @@ pub(super) fn raise(
                     },
                 });
             }
+        }
+    }
+}
+
+/// The assessment obligations of the sections in `affects`.
+///
+/// Each section of a loaded capability is judged. The listed capabilities are
+/// loaded, or reconcile has stopped with an error, except a delivered one that
+/// only binds nothing in a list it must bind: it owes that binding and takes
+/// part in nothing else until it loads, as for every other kind.
+pub(super) fn assessments(
+    plan: &Workplan<'_>,
+    sections: &[SectionId],
+    found: &mut Vec<Obligation>,
+) {
+    for id in sections {
+        let Some(cap) = plan
+            .capabilities()
+            .iter()
+            .find(|cap| cap.value().header.id == id.capability())
+        else {
+            continue;
+        };
+        let owed = |kind, path: &str, evidence| Obligation {
+            kind,
+            subject: Subject::Capability(id.capability().to_string()),
+            section: Part::Section(id.section()),
+            location: Place {
+                path: path.to_string(),
+                line: None,
+            },
+            evidence,
+        };
+        match plan.judge_section(cap, id.section()) {
+            Judged::Missing { id: assessment } => found.push(owed(
+                ObligationKind::AssessmentMissing,
+                cap.path(),
+                Needed::Assessed {
+                    subject: id.to_string(),
+                    assessment,
+                },
+            )),
+            Judged::Stale(record, moved) => {
+                for input in moved {
+                    found.push(owed(
+                        ObligationKind::AssessmentStale,
+                        record.path(),
+                        Needed::AssessedAgain {
+                            assessment: record.value().header.id.clone(),
+                            input,
+                        },
+                    ));
+                }
+            }
+            Judged::Current(record) if record.value().verdict == AssessmentVerdict::Rejected => {
+                found.push(owed(
+                    ObligationKind::AssessmentRejected,
+                    record.path(),
+                    Needed::AcceptedAssessment {
+                        assessment: record.value().header.id.clone(),
+                        by: record.value().by,
+                    },
+                ));
+            }
+            Judged::Exempt | Judged::Current(_) => {}
         }
     }
 }

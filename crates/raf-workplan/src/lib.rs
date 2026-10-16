@@ -105,6 +105,16 @@
 //! [`obligation::ObligationKind`]; `Workplan::reconcile` does not raise them,
 //! and [`lifecycle::Lifecycle::reconcile`] does.
 //!
+//! [`assessment`] records the verdict of a human or an agent on one authored
+//! section, against the digests of its inputs (the section, the bound symbols
+//! it names, the evidence its claims name): [`Workplan::assess_context`] gives
+//! the assessor the same context whoever assesses,
+//! [`Workplan::record_assessment`] writes the one record of the section, and
+//! [`Workplan::list_assessments`] says which are current. Reconcile owes
+//! `assessment-missing`, `assessment-stale` and `assessment-rejected` for the
+//! authored sections in `affects`, and the completion gate requires a current
+//! accepted assessment of each (condition 6).
+//!
 //! [`evidence`] records one execution as an evidence record: the caller's own
 //! command ([`exec::TrustedArgv`], from the command line after `--`, run with no
 //! shell and its verdict from its exit status and the `name=number` values it
@@ -122,7 +132,8 @@
 //! executor of [`bound`]). [`lifecycle::verify`] runs the bound tests and examples
 //! of a change, or of every capability, and returns a [`lifecycle::VerifyReport`]
 //! of per-binding evidence; it needs no Git. [`lifecycle::Lifecycle::complete`]
-//! judges the static conditions of the completion gate first and collects every
+//! judges the static conditions of the completion gate first, a current accepted
+//! assessment of each affected authored section among them, and collects every
 //! failure, runs the bound tests and examples only when none failed, judges the
 //! static conditions again immediately before it writes, and then writes the
 //! generated blocks that removing the record stales and, as the very last step,
@@ -231,6 +242,7 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+pub mod assessment;
 mod bindings;
 pub mod bound;
 pub mod digest;

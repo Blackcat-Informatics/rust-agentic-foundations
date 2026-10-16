@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use raf_okf::{Body, CapabilitySection, ContractEffect};
+use raf_okf::{Actor, Body, CapabilitySection, ContractEffect, InputKind};
 
 use super::tense::{self, PHRASES};
 use super::{
@@ -16,6 +16,7 @@ use super::{
     SyncProblem, suppressed,
 };
 use crate::BindingKind;
+use crate::assessment::{InputChange, MovedInput};
 
 // --- the kinds ---------------------------------------------------------------
 
@@ -37,7 +38,7 @@ fn all_lists_every_kind_once_in_order_with_unique_kebab_names() {
 }
 
 #[test]
-fn the_kinds_are_the_ten_of_the_contract() {
+fn the_kinds_are_the_thirteen_of_the_contract() {
     let names: Vec<&str> = ObligationKind::ALL.iter().map(|kind| kind.name()).collect();
     assert_eq!(
         names,
@@ -52,6 +53,9 @@ fn the_kinds_are_the_ten_of_the_contract() {
             "claim-unsupported",
             "evidence-stale",
             "evidence-changed",
+            "assessment-missing",
+            "assessment-stale",
+            "assessment-rejected",
         ]
     );
 }
@@ -307,6 +311,22 @@ fn evidence_of(kind: ObligationKind) -> Needed {
         ObligationKind::EvidenceChanged => Needed::ReviewedClaim {
             evidence: "evidence:bound".to_string(),
             change: EvidenceChange::Removed,
+        },
+        ObligationKind::AssessmentMissing => Needed::Assessed {
+            subject: "cap:x#usage".to_string(),
+            assessment: "assessment:x-usage".to_string(),
+        },
+        ObligationKind::AssessmentStale => Needed::AssessedAgain {
+            assessment: "assessment:x-usage".to_string(),
+            input: MovedInput {
+                kind: InputKind::Symbol,
+                name: "demo::run".to_string(),
+                change: InputChange::Changed,
+            },
+        },
+        ObligationKind::AssessmentRejected => Needed::AcceptedAssessment {
+            assessment: "assessment:x-usage".to_string(),
+            by: Actor::Agent,
         },
     }
 }

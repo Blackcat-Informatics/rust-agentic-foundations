@@ -144,7 +144,7 @@ pub(crate) fn evidence_record() -> String {
 /// A valid assessment record.
 pub(crate) fn assessment_record() -> String {
     format!(
-        "---\ntype: Assessment\nid: assessment:review\nsubject: cap:alpha#contract\ninputs:\n  \
+        "---\ntype: Assessment\nid: assessment:alpha-contract\nsubject: cap:alpha#contract\ninputs:\n  \
          - kind: section\n    name: cap:alpha#contract\n    digest: {DIGEST}\n\
          verdict: accepted\nby: human\n---\n"
     )
@@ -751,13 +751,23 @@ fn record_reference_cases() -> Vec<Case> {
         "evidence-for-missing",
         key("for"),
     ));
+    // The id follows the subject, so the record is the assessment of the
+    // section it names and only the missing capability is wrong.
     cases.push(record(
         "assessment-subject-missing",
-        assessment_record(),
+        assessment_record().replace("assessment:alpha-contract", "assessment:ghost-contract"),
         "cap:alpha#contract",
         "cap:ghost#contract",
         "assessment-subject-missing",
         key("subject"),
+    ));
+    cases.push(record(
+        "assessment-id-mismatch",
+        assessment_record(),
+        "id: assessment:alpha-contract",
+        "id: assessment:review",
+        "assessment-id-mismatch",
+        key("id"),
     ));
     cases.push(record(
         "scope-crate-missing",
