@@ -245,7 +245,7 @@ checkbox that says "update docs".
 1. The obligation list from [reconcile](./workplan-reconcile.md) is empty, with
    zero obligations.
 2. Every item in the record has an `outcome` of `implemented`, `dropped` or
-   `moved:change:<slug>`, and a `moved` outcome names a change that exists.
+   `moved:change:<slug>`, and a `moved` outcome names another change that exists.
 3. No PROPOSED block for the change remains in any capability document.
 4. `docs sync` would rewrite nothing, so every generated block is current.
 5. The bound tests and examples pass: `cargo test` filtered to the tests in
@@ -347,8 +347,9 @@ from raw document text:
 the resolved item's path within its crate. The `--` before `<name>` is a backstop:
 libtest reads a value after it as a filter even if validation regressed.
 
-Four patterns validate the placeholders, and a value that fails its pattern is
-reported as an unresolved binding and is not passed to `cargo`:
+Four patterns validate the values the gate handles. A placeholder value that fails
+its pattern is reported as an unresolved binding and is not passed to `cargo`, and a
+line of the list output whose file part fails its pattern is not read as an entry:
 
 - `<name>`: `[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)*`;
 - `<pkg>`, `<bin>`, `<test>` and `<example>`: `[A-Za-z0-9_][A-Za-z0-9_-]*`, which
@@ -399,9 +400,10 @@ cargo configuration as `cargo test` would, so the workspace is trusted build inp
 
 **Bounds.** Each list pass and run pass of `cargo test` may compile first and has a
 timeout of 1800 seconds. The standard output and the standard error of every process
-are each read up to 16 MiB. A process that runs past its timeout or writes more than
-the bound is killed, its process group with it on Unix, and the binding counts as
-failing; a process that cannot be started is an error and not a verdict.
+of a bound run are each read up to 16 MiB. A process that runs past its timeout or
+writes more than the bound is killed, its process group with it on Unix, and the
+binding counts as failing; a process that cannot be started is an error and not a
+verdict.
 
 A bound test that runs past its timeout is killed and fails its binding, and the
 reason says that it was killed, with the time it ran and its limit.
@@ -442,7 +444,9 @@ completed: removed work/changes/incremental-parsing.md
 rewrote docs/capabilities/streaming-parser.md
 ```
 
-Each fault prints one line, under the count of its condition. The `rewrote` line is the
+Each fault prints one line, and the headline counts it under each condition that states
+it: the item without outcome is an obligation and a fault of condition 2, and the stale
+catalogue an obligation and a fault of condition 4. The `rewrote` line is the
 relationship table of the capability, which no longer names the removed record as a
 change.
 
@@ -557,7 +561,8 @@ Further checks:
   unresolved-binding finding, make `complete` refuse and `verify` exit 1, and are
   never passed to `cargo`.
 - A zero-test fixture: a binding that resolves in the source index to a function that
-  is not a `#[test]` runs zero tests, so `complete` refuses and `verify` exits 1; so
+  is not a `#[test]` would run zero tests and is refused before any process starts, so
+  `complete` refuses and `verify` exits 1; so
   does an `#[ignore]`d test, and a test whose name matches in two targets runs only
   in the pinned target.
 - A doc-test fixture: a binding to a documented function with a passing doc test runs
@@ -568,7 +573,8 @@ Further checks:
   matches a failing `foo_more` doc test refuses; an item `Wrapper<T>::get` binds and
   passes; a `no_run` doc test and a `compile_fail` doc test, each bound as a doc test,
   are refused with the message that asks for a runnable doc test; and an item path
-  that begins with `-` is rejected by its pattern.
+  that begins with `-` never reaches `cargo`: bound, it does not resolve, and given
+  to the plan, it is refused by its pattern.
 - An example fixture: a hyphenated example target runs, an example that reads stdin
   sees it closed, and an example that does not exit within the timeout fails the
   binding.
@@ -584,7 +590,9 @@ Further checks:
   helper, through the library, so it is judged on what it is about; a section whose
   assessment cannot be recorded gets none, so what it owes stays visible. Scenario B
   holds the step where the account is implemented and settled and its sections are
-  not assessed, which refuses with condition 6 alone and completes once they are.
+  not assessed, which refuses only for the missing assessments, each an
+  `assessment-missing` obligation and a fault of condition 6, and completes once they
+  are.
 - The completion writes only the rewrite and the removal: the assessment records are
   left as they are.
 

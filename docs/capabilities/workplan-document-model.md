@@ -497,7 +497,8 @@ link, marker and reference rules through `raf_workplan::plain::check`.
 **Digests.** `raf_workplan::digest::Digest` is the SHA-256 (FIPS 180-4, computed
 in the crate) of a canonical encoding of a record input, one or more fields
 `<kind> NUL <name> NUL <length> NUL <text>`: the kind (`section`, `symbol` or
-`record`) keeps the domains apart and the decimal length ends each field.
+`record`) keeps the domains apart and the decimal length says where each field
+ends.
 `Digest::section` hashes the authored text of a section, with the content of its
 generated blocks left out; `Digest::symbol` hashes the source span of each
 definition a path resolves to, once per source item and in file order, and for a
@@ -513,8 +514,8 @@ its type when it is missing and refusing a link or a file on the way;
 `record::replace` puts new text in place of an existing record file through a
 temporary file and a rename. Both write the text the OKF writer renders for the
 record, opened with the two SPDX comment lines of `RecordOptions` when both are
-given, and refuse, before anything is written, a record whose text would not load
-with no finding.
+given, and refuse, before anything is written, one of the two lines given without
+the other and a record whose text would not read back as a record with no finding.
 
 ## Usage
 
@@ -532,7 +533,9 @@ fn workplan() {
 under the directory, and the records of `work/evidence`, `work/assessments` and
 `work/coverage`, loads the workspace sources from the roots `["."]`
 (`Gate::source_roots` changes them), judges links against the paths `git ls-files`
-lists, and runs the checks; `assert_clean` panics with every finding, each with its
+lists (every file under the directory when `git` answers that the directory is not
+inside a work tree, and the caller's list with `Gate::tracked_paths`), and runs the
+checks; `assert_clean` panics with every finding, each with its
 location and fix, when there is one. A directory without a capability document is an
 error, not a clean verdict, a missing `work/changes` is the empty set of changes, and
 a missing record directory holds no record.

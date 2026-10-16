@@ -52,8 +52,9 @@ depends: [cap:workplan-document-model, cap:workplan-generated-docs, cap:workplan
 
 Reference sections, relationship tables, indices and verification matrices can be
 generated. Explanations and instructional prose need an author, and they need a
-reviewer. This capability records what was assessed, by whom and against which inputs,
-and treats the assessment as out of date when any of those inputs change.
+reviewer. This capability records what was assessed, whether a human or an agent
+assessed it and against which inputs, and treats the assessment as out of date when
+any of those inputs change.
 
 ## Contract
 
@@ -86,10 +87,10 @@ else; a suffix that two bindings end in names both. When the section names a
 binding strongly, the bound symbols that are inputs are the bindings it names
 strongly or weakly; when it names none strongly, they are every `code` binding of
 the capability. A weak name therefore only ever adds an input and never narrows
-the set. Recording a verdict for a section that has an
-assessment replaces that record, and nothing of the earlier one is kept. A bound
-symbol that does not resolve, or a claim on a record that does not load, is
-refused, since the record would keep no digest of it, and so is a record over the
+the set. Recording a verdict for a section that has an assessment replaces that
+record, and nothing of the earlier one is kept. A bound symbol that is an input
+and does not resolve, or a claim on a record that does not load, is refused,
+since the record would keep no digest of it, and so is a record over the
 document bound. Recording writes that one file and never edits a document.
 
 **The context.** `assess_context` gives the assessor the authored text of the
@@ -105,8 +106,10 @@ input (the section no longer names the symbol, the capability no longer binds it
 the claim is gone) or when something is an input now that was not then. A
 regenerated block, and an edit of another section or of a symbol that is not an
 input, leave the assessment current. A section in a change's `affects` whose
-assessment is missing, stale or rejected receives an obligation in the
-[reconcile](./workplan-reconcile.md) list, naming the input that moved.
+assessment is missing, stale or rejected receives obligations in the
+[reconcile](./workplan-reconcile.md) list: `assessment-missing`, one
+`assessment-stale` for each input that moved, naming it, or
+`assessment-rejected`.
 
 **The gate.** The [completion gate](./workplan-complete-gate.md) requires a
 current assessment with the verdict `accepted` for each authored section that a
@@ -117,9 +120,12 @@ it, whoever gave it.
 ## Usage
 
 - `cargo workplan assess cap:workplan-reconcile#explanation --context` prints the
-  section, the bound symbols and the evidence for the assessor.
+  section, the bound symbols, the evidence and the inputs with their digests for
+  the assessor.
 - `cargo workplan assess cap:workplan-reconcile#explanation --verdict accepted --by agent`
-  records the assessment, replacing the one the section had.
+  records the assessment, replacing the one the section had, if any; given
+  together, `--copyright <text>` and `--licence <id>` open the record with its
+  two SPDX lines.
 - `cargo workplan assess --list` shows each assessment, whether it is current,
   and the inputs that moved.
 
@@ -135,12 +141,14 @@ that moved or the verdict that stands in the way:
 
 ```text
 cap:streaming-parser  usage  assessment-stale  the section assessed again with assess (`assessment:streaming-parser-usage`: the symbol `raf_parser::Parser::push` has changed since)
-cap:streaming-parser  explanation  assessment-missing  an assessment of the section recorded with assess (`cap:streaming-parser#explanation` has no assessment `assessment:streaming-parser-explanation`)
 cap:streaming-parser  constraints  assessment-rejected  the section revised and assessed again with assess, with the verdict accepted (`assessment:streaming-parser-constraints` is current and has the verdict rejected, by human)
+cap:streaming-parser  explanation  assessment-missing  an assessment of the section recorded with assess (`cap:streaming-parser#explanation` has no assessment `assessment:streaming-parser-explanation`)
 ```
 
-Each resolved item ends in an assessment record, and the record stays current only
-until the section, a bound symbol or the evidence changes. `assess --list` shows an
+The lines come in the order of the sections. Each is resolved by recording an
+assessment, after revising the section for the rejected one, and the record stays
+current only until one of its inputs moves: the section, a bound symbol that is an
+input or an evidence record a claim of the section names. `assess --list` shows an
 assessment that moved with the input, for example:
 
 ```text
@@ -218,11 +226,15 @@ sections to rewrite and the evidence still missing, and an assessor resolves the
 - The context is byte-identical for a human and an agent, and the two records
   differ only in `by`.
 - A record named otherwise than its subject is a `check` finding and not the
-  assessment of the section; a missing section, an unknown capability, a bound
-  symbol that does not resolve and a claim on a record that does not load are
-  each refused with nothing written, beside a neighbour that records.
+  assessment of the section; a subject not written `cap:<slug>#<section>`, a
+  section that is not one of the seven, an unknown capability, a bound symbol
+  that does not resolve and a claim on a record that does not load are each
+  refused with nothing written, beside a neighbour that records; one SPDX field
+  alone is refused and the two together are written.
 - A section of ten thousand named symbols and one near the document bound are
-  judged in bounded time.
+  judged in bounded time; the record of ten thousand named symbols is over the
+  document bound and is refused with nothing written, and the record of eight
+  thousand is written, is current, and goes stale naming the one symbol edited.
 - A subject is a capability and one of the seven sections, and its record slug is
   the capability slug and the section, which no two sections share; a capability
   that does not load is refused; a section of generated blocks and comments only

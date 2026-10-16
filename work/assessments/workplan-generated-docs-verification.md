@@ -1,0 +1,40 @@
+---
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: CC-BY-4.0
+type: Assessment
+id: assessment:workplan-generated-docs-verification
+subject: cap:workplan-generated-docs#verification
+inputs:
+  - kind: section
+    name: cap:workplan-generated-docs#verification
+    digest: 1ab8b2a5b8005aa380b6352ed1ad7244ee772fcf159941bece39208d111ab73d
+  - kind: symbol
+    name: raf_workplan::ChangeLookupError
+    digest: 459b574b27a4df1e272bcae550119b42a7ce8ee9b12d1a0fd17155ae14c2185b
+  - kind: symbol
+    name: raf_workplan::Preview
+    digest: 966eea8404c29a11c218b82080ac4b962ba05d5a35f3ec609f38f5e720f0b3d1
+  - kind: symbol
+    name: raf_workplan::PreviewError
+    digest: 139e4731cb32af24d238e5b9cc7ca5f2148ed57764597b868a79423af8519bd6
+  - kind: symbol
+    name: raf_workplan::SyncError
+    digest: 9d7c8251f301ca2a08e34ccf8ff0555c4fd729efe3c360c22d4b097744172606
+  - kind: symbol
+    name: raf_workplan::SyncOptions
+    digest: 63de6cced3b105868c1a9fbdf579fc889c530b0a18d5679990d1fcab5dc0ecab
+  - kind: symbol
+    name: raf_workplan::SyncReport
+    digest: 5fa32e60b1b7a7cce5f85e350d7eb429d08216a40fc82b6bf15ed5b975c2ed84
+  - kind: symbol
+    name: raf_workplan::Workplan::preview
+    digest: 04393e5f8c58e32c5a8f28dc6a0c237cb6a4e186d214f69e50fe03be54555199
+  - kind: symbol
+    name: raf_workplan::Workplan::sync
+    digest: 8719e564a33f0c74a475611c7158419988b930829e648c98d122be6f04d09669
+  - kind: symbol
+    name: raf_workplan::Workplan::write
+    digest: da6f27462ccc7cd6e04bbdafadac28bc28d31acc47b5241f7ec06ab8b028b027
+verdict: accepted
+by: agent
+---

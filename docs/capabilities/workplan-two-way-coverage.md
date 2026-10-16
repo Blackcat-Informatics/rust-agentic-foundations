@@ -42,11 +42,12 @@ depends: [cap:workplan-document-model, cap:source-index, cap:workplan-evidence-c
 
 ## Purpose
 
-The document model checks that what is documented exists: every binding resolves to
-code and to a test. The opposite directions ask whether what exists is documented.
-This capability adds code to documentation (public items that no capability explains)
-and tests to claims (tests that support no documented guarantee), so that built
-functionality and its documentation stay aligned in both directions.
+The document model checks that what is documented exists: every code binding
+resolves to an item and every test binding to a test. The opposite directions ask
+whether what exists is documented. This capability adds code to documentation
+(public items that no capability explains) and tests to claims (tests that support
+no documented guarantee), so that built functionality and its documentation stay
+aligned in both directions.
 
 ## Contract
 
@@ -69,7 +70,7 @@ under its path. An item that `#[doc(hidden)]` hides is not public surface. A
 re-export of another crate is not an item of the re-exporting crate: an item of
 another crate of the workspace counts in that crate, and a crate outside the
 workspace is not counted. An item exported under several paths is one item and is
-reported under the first of them. A binary's items are `pub(crate)` or private in
+reported under the first of them in path order. A binary's items are `pub(crate)` or private in
 practice, since no other crate can name them, so the public surface of a binary
 target is empty in practice and the code direction asks nothing of it; the tests
 of a binary package count in the tests direction like those of a library.
@@ -124,11 +125,12 @@ exclusion that matches no public item and no test of the workspace is an error
 `coverage-item-unbound` and an unbound test `coverage-test-unbound`, at the file and
 line of the item, an unbound unresolved re-export is `coverage-reexport-unbound` at
 its declaration, and a surface that cannot be listed is
-`coverage-surface-unreadable`. A crate outside `scope` is not enforced, and its gaps
-are in the reports. A repository with capability documents and no coverage record
-has exactly one finding, `coverage-record-missing`, whose fix is to add the record;
-`scope: []` enforces nothing and says so in the repository. These kinds are in the
-closed list of finding kinds.
+`coverage-surface-unreadable` at the record's `scope`. A crate outside `scope` is not
+enforced, and its gaps are in the reports. A repository with capability documents and
+no coverage record has one coverage finding and no other, `coverage-record-missing`,
+whose fix is to add the record; a record that does not load is reported by its own
+findings and not as missing. `scope: []` enforces no crate and says so in the
+repository. These kinds are in the closed list of finding kinds.
 
 **The account.** For a repository revision the coverage reports name every gap in
 either direction for the whole workspace, so the current account is complete or
@@ -138,28 +140,32 @@ states what is missing.
 
 - `cargo workplan coverage code` prints the public items without a capability.
 - `cargo workplan coverage tests` prints the tests without a bound guarantee.
+- `cargo workplan coverage code --crate raf-okf` prints the report of one package,
+  named by its package name or its crate name (`raf_okf`).
 - `cargo workplan check` enforces both directions for the crates of the coverage
   record's `scope`, and a gap there fails the check.
-- `scope: []` in `work/coverage/default.md` enforces nothing, and the reports name
+- `scope: []` in `work/coverage/default.md` enforces no crate, and the reports name
   every gap all the same.
 
 ## Examples
 
-Adding a public function `parse_partial` to a crate and running the code report:
+Adding to `raf-okf` a public function `parse_partial`, and a `#[cfg(test)]` module
+`body::tests` of unit tests of the private functions of `body`, gives the code report
+a row for the function among its gaps:
 
 | Gap | Crate | Path | Location |
 | --- | --- | --- | --- |
 | public item | raf-okf | `raf_okf::parse_partial` | crates/raf-okf/src/lib.rs:120 |
 
 The gap closes when a capability lists the path, or a module or type it is below,
-in `bindings.code`, or when the coverage record lists it with a reason, as it lists
-the prefix of a module of unit tests that guard internals:
+in `bindings.code`, or when the coverage record lists it with a reason. The record
+takes the new unit tests out of the tests report by the prefix of their module:
 
 ```yaml
 scope: [raf-okf]
 exclusions:
   - item: "raf_okf::parse_partial"
-    reason: "A wrapper of parse that the parse capability explains with it."
+    reason: "A wrapper of Document::parse that the OKF profile explains with it."
   - item: "raf_okf::body::tests::*"
     reason: "Unit tests of the private functions of the module."
 ```
@@ -202,14 +208,15 @@ stops compiling or running it receives an `example-failing` obligation.
 
 ## Verification
 
-- A fixture crate with one bound and one unbound public item: the code report lists
-  only the unbound item.
+- A bound public item is absent from the code report, and its unbound neighbour is
+  listed.
 - A fixture with a private item, a `pub(crate)` item and a `#[doc(hidden)]` item:
   none appears in the code report; a `pub` item re-exported through a private
   module does.
-- Binding a module or a type covers the items below it; binding a re-export covers
-  its definition under every path; a crate root covers nothing below it; an item
-  bound only in `examples` is a gap.
+- Binding a module or a type covers the items below it and nothing beside it;
+  binding an item by its exported or its defining path covers it, and what is below
+  it, under its exported path; a crate root covers nothing below it; an item bound
+  only in `examples` is a gap.
 - A type a macro generates, re-exported, is an `unresolved re-export` in the report
   and `coverage-reexport-unbound` in `scope`, closed by a binding of its module or an
   exclusion; a re-export of a crate outside the workspace is not counted.
@@ -221,8 +228,10 @@ stops compiling or running it receives an `example-failing` obligation.
 - An exclusion with an empty reason, and an exclusion that matches nothing, each
   fail with the file named, beside a passing neighbour.
 - `check` reports the gaps of the crates of `scope` only; `scope: []` passes while the
-  reports list gaps; no record gives exactly one `coverage-record-missing`; a surface
-  that cannot be listed is an error of the report and a finding in `scope`.
+  reports list gaps; no record gives exactly one finding, `coverage-record-missing`,
+  while a record that does not load gives only its own findings and a repository
+  without capability documents owes no record; a surface that cannot be listed is an error of
+  the report and a finding in `scope`.
 - Reports are identical across two runs on the same tree, and a crate with thousands
   of items and tests is judged in bounded time.
 - A `scope` entry that is a crate name and not a package name is
@@ -231,7 +240,8 @@ stops compiling or running it receives an `example-failing` obligation.
 - An item is excluded by its exported or its defining path; a surface over the item
   budget is a budget error.
 - The table and the JSON of a report carry the same entries, escaped.
-- This repository's `check` is clean with `scope: [raf-workplan, cargo-workplan]`,
-  and both directions of those crates are covered.
+- This repository's coverage record has `scope: [raf-workplan, cargo-workplan]`, its
+  `check` has no coverage finding, both directions of those crates are covered, and
+  `raf-okf` and `raf-source`, outside the scope, are reported with their gaps.
 - The documentation example of `Workplan::coverage_report` runs: two unbound public
   functions of a crate outside `scope` are the two gaps of the code direction.

@@ -1148,8 +1148,8 @@ type name space and that is also a crate of the extern prelude, other than that 
 crate, is ambiguous, as rustc's E0659 has it. Of the sysroot crates, the extern prelude
 of a `use` path holds `core`, and `std` unless the crate root has an unconditional
 `#![no_std]` (a `cfg_attr` applies it under a predicate only, so `std` stays); an
-`extern crate std;` at the root adds it back. The import binds nothing and keeps its
-name indeterminate, so no glob of its module answers for it, and a path through it is
+`extern crate std;` at the root adds it back. The ambiguous import binds nothing and
+keeps its name indeterminate, so no glob of its module answers for it, and a path through it is
 `Ambiguous`, naming what the glob brings in and the crate root of each library of the
 workspace that the crate name stands for. A glob that brings in an alias of another
 crate under the crate's name (`pub use std as serde;`) collides with the crate as well,
@@ -1510,11 +1510,11 @@ that name privately, list in about 90 ms in a release build and are charged unde
 again for each name took 12.8 s at 3000.
 
 **API surface.** The data structs a caller reads, `Package`, `Target`, `SourceFile`,
-`Reach`, `Entry` and `SpanFact`, are `#[non_exhaustive]` like `Item`, so a later field
+`Reach`, `Entry` and `SpanFact`, are `#[non_exhaustive]` like `Item`, so adding a field
 is not a breaking change: a pattern over one names the fields it reads and ends in
 `..`, and a `Tree` backend outside the crate builds an `Entry` with `Entry::new`. The
 per-file facts the index is built from are not public. `LoadOptions` is `Clone` and
-not `Copy`, so a later option that is not `Copy` is not a breaking change. `Exports`,
+not `Copy`, so adding an option that is not `Copy` is not a breaking change. `Exports`,
 `ExportedItem`, `Reexport`, `ExportOptions` and `ExportError` are `#[non_exhaustive]`
 as well, so a caller builds `ExportOptions` from `ExportOptions::default()`.
 
@@ -1624,8 +1624,10 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
   with no body or a type with no definition, which rustc accepts only as the input of
   an attribute macro or under a false `cfg`, is indexed under its written name and
   kind whatever the macro makes of it.
-- Every opened path must be, after canonicalisation, inside the canonical workspace
-  root and a regular file; the same rule bounds explicit `Cargo.toml` target paths.
+- Every opened path must lead inside the canonical workspace root, as the disk
+  resolves it (canonicalised on Linux and Windows, walked beneath the root on other
+  Unix systems), and every file read must be a regular file; the same rule bounds
+  explicit `Cargo.toml` target paths.
 - A file larger than `max_file_bytes` (default 8 MiB), or one that exceeds a
   budget of the pre-scan (128 delimiter levels, 64 nested `<`, 256 prefix
   operators, 128 closure bars, 256 `else if` links, 1927 units of parser recursion,

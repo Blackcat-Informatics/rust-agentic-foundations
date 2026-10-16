@@ -306,9 +306,9 @@ than written.
   leaves it unchanged, and a file without blocks that is not in the report.
 - Line-ending fixtures: a CRLF document, an LF document, a CRLF frontmatter over an
   LF body, and a body with mixed endings that sync refuses and `check` reports. The
-  line ending of a document is its first break, an LF frontmatter over a CRLF body
-  gets CRLF blocks, and a CRLF document syncs idempotently, a stale block in it
-  repaired in CRLF.
+  line ending of a body is its first break, so a CRLF frontmatter over an LF body
+  gets LF blocks and an LF frontmatter over a CRLF body gets CRLF blocks, and a CRLF
+  document syncs idempotently, a stale block in it repaired in CRLF.
 - Index fixtures: a missing index created with its SPDX lines, SPDX text that is
   required and fits one comment line, and a hand-written `index.md` that is rejected.
   An existing index keeps its own header while a stale catalogue is rewritten in

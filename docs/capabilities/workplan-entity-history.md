@@ -14,7 +14,6 @@ bindings:
     - raf_workplan::git::symbol_log
     - raf_workplan::git::last_change
     - raf_workplan::git::is_shallow
-    - raf_workplan::git::resolve_commit
     - raf_workplan::git::AuthorDate
     - raf_workplan::git::LogEntry
     - raf_workplan::git::LastChange
@@ -58,9 +57,9 @@ depends: [cap:workplan-document-model, cap:source-index]
 ## Purpose
 
 The current documentation states what applies now and carries no chronology. Some
-readers still need to know how a capability or a decision came to be what it is. This
-capability answers that question on request, from Git, so that the answer costs the
-asking reader and nobody else.
+readers nevertheless need to know how a capability or a decision came to be what it
+is. This capability answers that question on request, from Git, so that the answer
+costs the asking reader and nobody else.
 
 ## Contract
 
@@ -97,10 +96,12 @@ crate that no package of the workspace provides has no directory, and the report
 says so with no process started.
 
 **Invocation.** Every `git` process is spawned directly with no shell and with its
-arguments as an argv vector, in the workspace root and with `LC_ALL=C`. The
-command first runs `git --version` and exits 2 when Git is older than 2.30, the
-minimum for the suite, and then `git rev-parse --is-shallow-repository`, and exits
-2 when it answers `true`. The history commands are:
+arguments as an argv vector, in the workspace root and with `LC_ALL=C`. Loading
+the repository lists its tracked paths with `git`, as it does for every command of
+the [command line](./workplan-cli.md). Then, before any question of its own, the
+history runs `git --version` and exits 2 when Git is older than 2.30, the minimum
+for the suite, and then `git rev-parse --is-shallow-repository`, and exits 2 when
+it answers `true`. The history commands are:
 
 ```text
 git --no-pager log --no-show-signature --follow --cc --root --format=%x1e%H%x1f%aI%x1f%s --name-only "--since=<date> 00:00:00 +0000" -- <doc-path>
@@ -117,8 +118,8 @@ line; `<crate-dir>` is `.` for a package at the root. In the first and third for
 `--` precedes the paths. In the second the path is embedded after the colon in
 the single `-L` argument, so a path that begins with `-` is a path and not an
 option. `<identifier>` is the last segment of the binding's path without a
-generic argument list, and must match `[A-Za-z_][A-Za-z0-9_]*`. Each commit id
-`git` prints, the parents of the third form included, is accepted only when it
+generic argument list or a raw-identifier prefix `r#`, and must match
+`[A-Za-z_][A-Za-z0-9_]*`. Each commit id `git` prints, the parents of the third form included, is accepted only when it
 matches the commit-id pattern. `--no-show-signature` keeps a user's
 `log.showSignature` from adding lines to the output, and `--root` a user's
 `log.showRoot=false` from hiding the first commit. The `<id>` argument is matched against the ids of the loaded documents
@@ -160,19 +161,20 @@ investigation. Nothing in the capability document needs to change for this.
 
 ## Examples
 
-A table for one capability with one bound function:
+A table for one capability with one bound method. The oldest commit wrote both
+the document and the method, so it is one entry with both sources:
 
 | Commit | Date | Subject | Source |
 | --- | --- | --- | --- |
 | 3f9c2a1 | 2026-05-02 | Reject duplicate obligations | document |
-| b7d014e | 2026-04-18 | Group obligations by section | `raf_workplan::reconcile` |
-| 91ac5d0 | 2026-03-30 | Add the reconcile capability | document |
+| b7d014e | 2026-04-18 | Group obligations by section | `raf_workplan::Workplan::reconcile` |
+| 91ac5d0 | 2026-03-30 | Add the reconcile capability | document, `raf_workplan::Workplan::reconcile` |
 
 ## Constraints
 
-- The command reads Git only. It never writes the working tree or the index. In a
-  partial clone Git itself may fetch missing objects from its remote while it
-  answers, which writes into `.git`; that is Git's behaviour for such a clone.
+- The command only reads, from Git and the loaded documents. It never writes the
+  working tree or the index. In a partial clone Git itself may fetch missing
+  objects from its remote while it answers, which writes into `.git`; that is Git's behaviour for such a clone.
 - A history entry always names its commit, so every line is checkable with plain Git.
 - The paths of an entry have two bases when the workspace lies below the top of its
   Git work tree. The paths of the document are the names `git log --name-only`

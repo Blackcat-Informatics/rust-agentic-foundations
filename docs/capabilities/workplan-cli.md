@@ -246,9 +246,10 @@ vector `cargo-workplan workplan <command>`, and it runs directly as
 `cargo-workplan <command>`; both forms take the same arguments and give the same
 result.
 
-**Root discovery.** When `--root` is absent, the binary spawns exactly this command,
-directly with no shell, as an argv vector. The program is the one named by `$CARGO`
-when that is set (cargo sets it for a subcommand), and `cargo` from `PATH` otherwise:
+**Root discovery.** When `--root` is absent, root discovery in `raf-workplan` spawns
+exactly this command, directly with no shell, as an argv vector. The program is the
+one named by `$CARGO` when that is set (cargo sets it for a subcommand), and `cargo`
+from `PATH` otherwise:
 
 ```text
 cargo metadata --format-version 1 --no-deps --frozen
@@ -266,7 +267,7 @@ the processes of the command itself.
 | Command | Effect |
 | --- | --- |
 | `check` | Run every rule of the [document model](./workplan-document-model.md); print each violation |
-| `status` | Print the roadmap: planned, implementing with gaps, delivered |
+| `status` | Print the roadmap: the capabilities of each state, the gaps of each implementing one, and the open changes |
 | `docs sync` | Rewrite the generated blocks ([generated documents](./workplan-generated-docs.md)) |
 | `docs preview <slug>` | Print the capabilities of the change as they read once reconciled |
 | `change new <slug> --capability cap:<name>` | Create a change record |
@@ -315,10 +316,10 @@ command from the command line of the process
 a document or record; the parser reads the same words as the trailing arguments,
 and a run whose two readings differ is refused before anything starts. An option
 whose value would be `--` is a usage error, so no option can move the start of the
-command, and so is a process whose program name is `--`. A command and
-`--from-binding` exclude each other, a bare `--` beside `--from-binding`
-included, and one of them is required. `--by` is required, since a record states
-who made it. A replacement, by `--update` or by a verdict on a section that has an
+command, and a process whose program name is `--` is refused with exit 2 before
+anything starts. A command and `--from-binding` exclude each other, a bare `--`
+beside `--from-binding` included, and one of them is required. `--by` is required,
+since a record states who made it. A replacement, by `--update` or by a verdict on a section that has an
 assessment, holds only what its own run gives, its SPDX lines included: without
 `--copyright` and `--licence` the new record has none.
 
@@ -443,9 +444,10 @@ result holds:
 - The binary holds no logic of its own. Each command calls a function in
   `raf-workplan`, so the dev-dependency `Gate` and the CLI agree.
 - `check`, `status`, `docs preview`, `change impact` and `change reconcile` write
-  nothing. `docs sync` writes only generated blocks. `change new` writes one file.
-  `change complete` deletes one file, and before it rewrites only the generated
-  blocks that the deletion stales.
+  nothing in the repository; a bound example that `change reconcile` builds leaves
+  only the build output of cargo. `docs sync` writes only generated blocks.
+  `change new` writes one file. `change complete` deletes one file, and before it
+  rewrites only the generated blocks that the deletion stales.
 - `history`, `evidence claims`, `evidence for`, `assess --context`, `assess --list`
   and `coverage` write nothing. `evidence record` writes one record,
   `work/evidence/<id>.md`, and only after the run; `assess --verdict` writes one
@@ -455,19 +457,23 @@ result holds:
   repository; `status` exits 0 when it lists gaps.
 - Every process the binary starts, directly or through `raf-workplan`, is spawned
   with no shell and an argv vector. Each spec that spawns lists its exact
-  invocation, and runs `cargo` with `--frozen`. A value taken from a document
-  reaches a process only after resolution and a stated pattern, and then in one of
-  four forms: after `--`; inside a single `<rev>:<path>` or `-L<start>,<end>:<path>`
-  argument; as a validated identifier inside one `-S<identifier>` argument of the
-  history; or as a validated test filter (see
-  [the security policy](../../SECURITY.md)).
+  invocation, and every `cargo` command the tool composes carries `--frozen`. A
+  value taken from a document reaches a process only after resolution and a stated
+  pattern, and then in one of four forms: after `--`; inside a single
+  `<rev>:<path>` or `-L<start>,<end>:<path>` argument; as a validated identifier
+  inside one `-S<identifier>` argument of the history; or as a validated test
+  filter (see [the security policy](../../SECURITY.md)).
 - The binary starts no process of its own: each process is started through
   `raf-workplan`. The caller's command of `evidence record` is the one process whose
   argv comes from the command line, and `raf-workplan` runs it with no shell,
   exactly as given; no text of a document or record reaches it.
-- A slug starts with a lowercase letter or digit; any other slug is a usage error.
-- A command that takes a slug fails with exit 2 when `work/changes/<slug>.md` does
-  not exist, except `change new`.
+- A slug is lowercase letters and digits in parts joined by single `-`, so it starts
+  with a letter or a digit; any other slug, one that starts with `-` included, is a
+  usage error.
+- A command that takes the slug of a change record (`docs preview`, `change impact`,
+  `change reconcile`, `change complete` and `verify <slug>`) fails with exit 2 when
+  `work/changes/<slug>.md` does not exist; `change new` fails with exit 2 when it
+  exists.
 
 ## Explanation
 

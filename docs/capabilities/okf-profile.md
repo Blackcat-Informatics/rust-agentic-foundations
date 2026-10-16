@@ -101,6 +101,8 @@ bindings:
     - raf_okf::test_crate::records::a_record_sits_in_its_directory_and_its_id_matches_its_file
     - raf_okf::test_crate::records::a_record_has_no_title_description_or_body
     - raf_okf::test_crate::claims::a_claim_marker_names_its_evidence_and_supports_the_paragraph_above_it
+    - raf_okf::test_crate::claims::a_claim_may_rest_on_several_records
+    - raf_okf::test_crate::claims::a_claim_after_a_list_item_supports_that_item_only
     - raf_okf::test_crate::claims::markers_in_fences_code_spans_and_proposed_blocks_are_not_read
     - raf_okf::test_crate::claims::every_other_raf_comment_is_refused_with_its_line
     - raf_okf::test_crate::claims::a_malformed_claim_marker_is_refused_with_its_line
@@ -278,10 +280,10 @@ holds:
 
 A malformed PROPOSED marker in any spelling, an unclosed generated block, a nested
 generated block and an end marker without a start are parse errors with line numbers.
-So are block quotes and list items nested over 64 levels, a malformed claim marker, a
-claim marker with no statement directly above it, and a `raf:` comment that is neither
-a `raf:generated:` comment nor a claim marker, so a misspelt claim marker never reads
-as a plain comment. `Body::replace_spans` applies non-overlapping byte-range edits in
+So are block quotes and list items nested over 64 levels and, outside fenced code,
+code spans and PROPOSED blocks, a malformed claim marker, a claim marker with no
+statement directly above it, and a `raf:` comment that is neither a `raf:generated:`
+comment nor a claim marker, so a misspelt claim marker never reads as a plain comment. `Body::replace_spans` applies non-overlapping byte-range edits in
 one pass and reads the model again; it is all or nothing, and it fails with a typed
 error for a range outside the body, a range inside a character, two ranges that
 overlap, or a result that no longer parses. `Document` and `Index` delegate to it.

@@ -78,8 +78,9 @@ repository, one at `work/evidence/<id>.md` for each id, and are written by
   environment unchanged (no `--frozen` is added to a `cargo` in it), a limit of 1800
   seconds and 16 MiB of output on each stream. Exit status 0 is `pass` and any other
   status, a signal or a run killed at its time limit is `fail`. The measured values
-  are the lines of its standard output of the form `name=number`, where the name is
-  letters, digits, `_` and `-` from the start of the line; every other line is
+  are the lines of its standard output of the form `name=number`: a line whose text
+  before its first `=` is a name, letters, digits, `_` and `-` from the start of the
+  line, is a value, and the rest of it must be a number; every other line is
   discarded and no output is kept. A number is an optional `-`, digits and an optional
   `.` followed by digits, with no exponent, so `1e-3` is refused and is written
   `0.001`. A value over its limit makes the verdict `fail`; values and limits are
@@ -114,7 +115,8 @@ paragraph or list item it supports, names one or more evidence records by slug (
 syntax is stated by the [OKF profile](../architecture/okf-profile.md#claim-markers)).
 A claim may rest on several records and holds only while every one of them holds. A
 marker inside a PROPOSED block is a claim once the block is resolved. `check` reports
-a marker that names no evidence record (`claim-evidence-missing`) or a record whose
+a marker that names an evidence record that does not exist
+(`claim-evidence-missing`) or a record whose
 `for` does not list the capability of the claim (`claim-evidence-not-for`), at the
 file and line of the marker, and a record whose `for` names a capability with no
 document (`evidence-for-missing`).
@@ -141,12 +143,13 @@ digest now than the one it keeps, or no longer resolves, is reported as stale
 - `cargo workplan evidence record --id parse-test --for cap:streaming-parser
   --by human --from-binding raf_parser::test_crate::bounds::stays_under_the_bound`
   takes the verdict from a bound test.
-- A command whose standard output holds other `key=value` lines, such as
-  `status=ok`, fails the recording, because each such line is read as a value; keep
-  them on standard error or out of the output.
+- A command whose standard output holds other lines that start with a name and `=`,
+  such as `status=ok`, has each of them read as a value: one that is not a number,
+  as here, makes the recording an error that writes nothing, and a number is stored
+  as one more value; keep such lines on standard error or out of the output.
 - `cargo workplan evidence claims memory-bound` lists the statements that depend on it.
-- `cargo workplan change reconcile <slug>` includes an obligation for every claim
-  whose evidence changed.
+- `cargo workplan change reconcile <slug>` includes an obligation for every claim of
+  a capability the change lists whose evidence changed.
 
 ## Examples
 
@@ -162,7 +165,7 @@ and the evidence record `work/evidence/memory-bound.md` holds the result:
 
 | Part | Content |
 | --- | --- |
-| Subject | command `cargo bench parse` |
+| Subject | `command`, with the command text `cargo bench parse` |
 | Verdict | pass |
 | Values | `peak: 41` |
 | Limits | `peak: 64` |
@@ -182,8 +185,10 @@ base: the bound is documented and no longer supported.
   through an authored edit that resolves the obligation.
 - Staleness reads no revision and asks Git nothing, so it holds through squash
   merges and shallow clones (the [decision](#decision) below gives the reasons).
-- The stored command is never run, and only the command line after `--` reaches a
-  process.
+- The stored command is never run, and no text of a record reaches a process: the
+  command `evidence record` runs is the command line after `--`, and a
+  `--from-binding` path reaches `cargo` only as the test filter of the rows the
+  completion gate runs.
 - A run lasts until the command exits and its standard output and standard error are
   closed: a background process that keeps them open after the command exits holds
   the run until the time limit, which records `fail`.

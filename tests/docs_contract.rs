@@ -98,7 +98,60 @@ const INVENTORY: Inventory = Inventory {
     ],
     architecture: &["normal-form", "okf-profile"],
     records: &[
+        "assessment:okf-profile-contract",
+        "assessment:okf-profile-verification",
+        "assessment:source-index-constraints",
+        "assessment:source-index-contract",
+        "assessment:source-index-examples",
+        "assessment:source-index-usage",
+        "assessment:source-index-verification",
+        "assessment:workplan-cli-constraints",
+        "assessment:workplan-cli-contract",
+        "assessment:workplan-cli-examples",
+        "assessment:workplan-cli-usage",
+        "assessment:workplan-cli-verification",
+        "assessment:workplan-complete-gate-contract",
+        "assessment:workplan-complete-gate-examples",
+        "assessment:workplan-complete-gate-verification",
+        "assessment:workplan-current-rationale-constraints",
+        "assessment:workplan-current-rationale-contract",
+        "assessment:workplan-current-rationale-examples",
         "assessment:workplan-current-rationale-explanation",
+        "assessment:workplan-current-rationale-purpose",
+        "assessment:workplan-current-rationale-usage",
+        "assessment:workplan-current-rationale-verification",
+        "assessment:workplan-document-model-contract",
+        "assessment:workplan-document-model-usage",
+        "assessment:workplan-document-model-verification",
+        "assessment:workplan-entity-history-constraints",
+        "assessment:workplan-entity-history-contract",
+        "assessment:workplan-entity-history-examples",
+        "assessment:workplan-entity-history-purpose",
+        "assessment:workplan-entity-history-usage",
+        "assessment:workplan-entity-history-verification",
+        "assessment:workplan-evidence-claims-constraints",
+        "assessment:workplan-evidence-claims-contract",
+        "assessment:workplan-evidence-claims-examples",
+        "assessment:workplan-evidence-claims-explanation",
+        "assessment:workplan-evidence-claims-purpose",
+        "assessment:workplan-evidence-claims-usage",
+        "assessment:workplan-evidence-claims-verification",
+        "assessment:workplan-generated-docs-verification",
+        "assessment:workplan-prose-assessment-constraints",
+        "assessment:workplan-prose-assessment-contract",
+        "assessment:workplan-prose-assessment-examples",
+        "assessment:workplan-prose-assessment-purpose",
+        "assessment:workplan-prose-assessment-usage",
+        "assessment:workplan-prose-assessment-verification",
+        "assessment:workplan-reconcile-constraints",
+        "assessment:workplan-reconcile-contract",
+        "assessment:workplan-reconcile-verification",
+        "assessment:workplan-two-way-coverage-constraints",
+        "assessment:workplan-two-way-coverage-contract",
+        "assessment:workplan-two-way-coverage-examples",
+        "assessment:workplan-two-way-coverage-purpose",
+        "assessment:workplan-two-way-coverage-usage",
+        "assessment:workplan-two-way-coverage-verification",
         "coverage:default",
         "evidence:gate-kills-a-test-past-its-timeout",
     ],
@@ -986,14 +1039,21 @@ fn inventory_table_has_the_documented_shape() {
     assert_eq!(count("delivered"), 0);
     assert_eq!(count("considered"), 0);
     assert_eq!(INVENTORY.architecture.len(), 2);
-    assert_eq!(
-        INVENTORY.records,
-        [
-            "assessment:workplan-current-rationale-explanation",
-            "coverage:default",
-            "evidence:gate-kills-a-test-past-its-timeout",
-        ]
+    assert!(
+        INVENTORY.records.windows(2).all(|pair| pair[0] < pair[1]),
+        "the records are listed sorted, each once"
     );
+    let records = |prefix: &str| {
+        INVENTORY
+            .records
+            .iter()
+            .filter(|id| id.starts_with(prefix))
+            .count()
+    };
+    assert_eq!(records("assessment:"), 54);
+    assert_eq!(records("coverage:"), 1);
+    assert_eq!(records("evidence:"), 1);
+    assert_eq!(INVENTORY.records.len(), 56);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 

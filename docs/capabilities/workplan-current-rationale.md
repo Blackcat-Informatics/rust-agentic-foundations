@@ -74,9 +74,10 @@ least one list item follows it, inside the Explanation and before the next
 `#` marks, then a space or a tab and the text. A setext heading, text underlined with
 `=` or `-`, is not a heading of these rules, so a decision or a conditions heading
 written that way does not count. A heading counts when its text after the `#` marks,
-with the surrounding spaces removed, is exactly `Decision` or `Conditions to revisit`,
-case included, at the level given here. A heading in fenced code does not count, and an
-unterminated fence runs to the end of the document. A heading in a PROPOSED block does
+with the surrounding spaces and a closing run of `#` marks removed, is exactly
+`Decision` or `Conditions to revisit`, case included, at the level given here. A
+heading in fenced code does not count, and an unterminated fence runs to the end of
+the document. A heading in a PROPOSED block does
 not count until the block is resolved. The list of a conditions heading runs to the
 next heading of the same or a higher level, or to the end of the section that holds
 it. An item counts when it starts with `-`, `*` or `+`, or with a number followed by
@@ -96,8 +97,9 @@ says or decides whether it has been met. A person judges that, with the
 | `decision-conditions-missing` | A decision page has no `## Conditions to revisit` heading (reported at its `## Decision`), or an architecture page has a `## Conditions to revisit` heading with no item (reported at that heading). |
 | `explanation-conditions-missing` | A `### Decision` in an Explanation has no `### Conditions to revisit` after it, before the next decision and inside the Explanation (reported at the decision), or such a subheading has no item (reported at that subheading). |
 
-A link counts when it is written in any section of the document, outside fenced code,
-code spans and comments, and resolves to the page, with or without an anchor. A link from a capability to a missing
+A link counts when it is written anywhere in the body of the document, before its
+first section or in any section, outside fenced code, code spans and comments, and
+resolves to the page, with or without an anchor. A link from a capability to a missing
 page is `link-broken`, and a link to a missing heading of a page is `anchor-broken`. A
 broken link links nothing. Each finding names the page or the capability and gives
 the fix. The rules read each heading and each line of a document once, and the
@@ -134,8 +136,8 @@ list is empty, `cargo workplan check` reports the conditions heading.
 
 ## Constraints
 
-- An architecture page states a resolved decision. It does not narrate how the
-  decision was reached.
+- A decision an architecture page records is resolved. The page does not narrate
+  how the decision was reached.
 - Rationale keeps only constraints that still govern. A constraint that was removed
   leaves the page.
 - Rationale sits next to the contract it explains. It is not collected in a separate
@@ -174,11 +176,11 @@ history in their working context.
 - Headings and list items in fenced code or in PROPOSED blocks do not count, and an
   unterminated fence runs to the end of the document.
 - A capability link to a missing page, or to a missing heading, fails the link check.
-- The findings are the same on every run. A page with a hundred thousand headings is
-  judged in bounded time.
+- The findings are the same on every run and come in the order of files and lines.
+  A page with a hundred thousand headings is judged in bounded time.
 - Headings match exactly at their level; no page is reported unlinked while a
-  document that may link it does not load; a list item is a marker, a space and text
-  with a letter or a digit, and a line without a marker or without text is none.
+  document that may link it does not load; a list item is a marker, a space or a tab
+  and text with a letter or a digit, and a line without a marker or without text is none.
 - This repository links each architecture page from a capability, and the valid
   fixture links its page from a capability.
 - The documentation example of the rules runs: a decision page whose conditions
