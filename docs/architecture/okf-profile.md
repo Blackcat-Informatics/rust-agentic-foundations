@@ -14,6 +14,17 @@ of the documents themselves, so that a reader finds the contract, and a tool can
 check it, in the same place. This page is the normative statement of that shape.
 It is itself an OKF document of type `Architecture`.
 
+## Decision
+
+RAF documents follow a closed profile of OKF v0.1. Each of the six types has a
+closed key set written in one order, `id` is the identity in place of the OKF base
+key `resource`, and the frontmatter is read in a strict subset of YAML that
+refuses every construct outside it with its line and column. A document that
+breaks a rule is an error; nothing is read loosely or skipped. The documents a
+person writes state the current contract, with proposed text inside PROPOSED
+blocks named after their change, and a record states a result in its frontmatter
+alone, with no prose, so a tool can judge it.
+
 ## Relation to OKF
 
 OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key,
@@ -293,3 +304,14 @@ in the same document shows once the first is fixed.
   system as it is.
 - A change record lives under `work/changes` while its work is open. Completing
   the change deletes the record, and Git keeps its history.
+
+## Conditions to revisit
+
+- An OKF version after v0.1 requires a base key or an identity form, such as an IRI in
+  `resource`, that other OKF tools need in order to read RAF documents.
+- A document needs a YAML construct the subset refuses, such as a block scalar or
+  a flow mapping, to state its contract, and no list or quoted scalar can hold it.
+- A record cannot be understood from its result alone, so that a reader needs
+  prose beside the verdict, such as the reason it was given.
+- A repository needs a document type outside the six, so the closed set of types
+  refuses documents its tools must read.

@@ -197,6 +197,25 @@ to search the prose. A maintainer who changes a benchmark learns which statement
 review before the change merges. This is the evidence-to-claims direction of the
 [two-way coverage](./workplan-two-way-coverage.md) table.
 
+### Decision
+
+A record is stale when the digest of one of its input symbols differs from the
+digest it keeps. The inputs are the code bindings of the capabilities the record
+covers, so a record expires when the code it was made against changes, and stays
+current through a rebase, a squash merge or a shallow clone, which move commits
+and leave the code as it was. The revision a record states is for its readers:
+staleness reads no revision and asks Git nothing.
+
+### Conditions to revisit
+
+- Results come to depend on something outside the bound code of their
+  capabilities, such as a dependency, the toolchain or the machine they ran on,
+  often enough that records stay current while the results they hold have moved.
+- Code bindings grow so wide that nearly every edit makes every record stale, so
+  records are made again without anyone reading why they moved.
+- Readers need to know whether a record holds for a commit other than the working
+  tree, such as a release, which the digests of the working tree cannot answer.
+
 ## Verification
 
 > [!PROPOSED change:workplan-evidence-claims]

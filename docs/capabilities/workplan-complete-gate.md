@@ -414,8 +414,11 @@ cargo configuration as `cargo test` would, so the workspace is trusted build inp
 timeout of 1800 seconds. The standard output and the standard error of every process
 are each read up to 16 MiB. A process that runs past its timeout or writes more than
 the bound is killed, its process group with it on Unix, and the binding counts as
-failing with the time it ran; a process that cannot be started is an error and not a
-verdict.
+failing; a process that cannot be started is an error and not a verdict.
+
+A bound test that runs past its timeout is killed and fails its binding, and the
+reason says that it was killed, with the time it ran and its limit.
+<!-- raf:claim evidence=gate-kills-a-test-past-its-timeout -->
 
 **`verify [<slug>]`** runs the bound tests and the bound examples of the named change's
 capabilities, or of every capability when no slug is given, and prints pass or fail for

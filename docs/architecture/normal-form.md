@@ -20,6 +20,17 @@ The capability that applies this definition is
 [census-normal-form](../capabilities/census-normal-form.md). The OKF document
 shape of this page is stated in [the profile](./okf-profile.md).
 
+## Decision
+
+The census compares function bodies by their tokens under one versioned normal
+form and names each result by a fingerprint. Local names are renamed by order of
+first appearance, the reference and adapter noise that does not change a value is
+removed, a body of fewer than 30 structural tokens keeps its literals verbatim,
+and a body of 6 to 29 also has a shim form that groups forwarders. The fingerprint of a body or a shim is the first 8 bytes of the BLAKE3 hash
+of the form's token sequence. A version is fixed once it is defined: any change
+that can alter a fingerprint is a new version, and a ledger written under another
+version is refused until `cargo census migrate` rewrites it.
+
 ## Token source
 
 A body is lexed with `proc_macro2`, so the census sees tokens, not text. Comments
@@ -141,3 +152,17 @@ run `cargo census migrate`, which maps the old fingerprints to the new ones. The
 census never reads a ledger under a different version, and never guesses at a mapping;
 `migrate` is the one reader of an older-version ledger, and it rewrites the ledger at
 the implemented version.
+
+## Conditions to revisit
+
+- Bodies that compute the same value are reported as distinct because they differ
+  in something the forms keep, such as a method call written as a function call or
+  independent statements in another order, often enough that the census misses
+  the duplicates it exists to find.
+- Bodies that compute different values share a fingerprint through the value form
+  or the literal tier often enough that ledger entries group code that is not
+  duplicated.
+- Two different token sequences are found with the same 8-byte fingerprint in a
+  real ledger.
+- A release of the token source lexes unchanged code into other tokens, so
+  fingerprints move with a dependency update and not with a version bump.

@@ -97,7 +97,11 @@ const INVENTORY: Inventory = Inventory {
         ("workplan-two-way-coverage", "implementing"),
     ],
     architecture: &["normal-form", "okf-profile"],
-    records: &["coverage:default"],
+    records: &[
+        "assessment:workplan-current-rationale-explanation",
+        "coverage:default",
+        "evidence:gate-kills-a-test-past-its-timeout",
+    ],
     generated: &["docs/capabilities/index.md"],
 };
 
@@ -982,7 +986,14 @@ fn inventory_table_has_the_documented_shape() {
     assert_eq!(count("delivered"), 0);
     assert_eq!(count("considered"), 0);
     assert_eq!(INVENTORY.architecture.len(), 2);
-    assert_eq!(INVENTORY.records, ["coverage:default"]);
+    assert_eq!(
+        INVENTORY.records,
+        [
+            "assessment:workplan-current-rationale-explanation",
+            "coverage:default",
+            "evidence:gate-kills-a-test-past-its-timeout",
+        ]
+    );
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 
