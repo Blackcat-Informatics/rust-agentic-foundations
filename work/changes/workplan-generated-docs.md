@@ -11,7 +11,9 @@ affects:
 contract_effect: none
 items:
   - claim: "The bindings.code of the generated documentation capability list raf_workplan::ChangeLookupError, the error a preview of an unknown or unloaded change returns."
+    outcome: implemented
   - claim: "The bindings.tests of the generated documentation capability list every test of the generated blocks, of sync and of preview, unit tests included, so check finds no unbound test of them."
+    outcome: implemented
 ---
 
 ## Summary

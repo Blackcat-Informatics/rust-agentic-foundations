@@ -286,9 +286,15 @@ than written.
 
 - Exact-output fixtures for each kind: the matrix rows, kinds, sort order and section
   links; the relationship rows, their order and the header-only table; the catalogue
-  groups, slug order and gaps; and the cell escaping.
+  groups, slug order and gaps; and the cell escaping. A relation listed twice is one
+  row, an example that does not resolve is listed as an example target, a backtick in
+  a binding path keeps its code span, whose fence is longer than any backtick run
+  inside it, and a state heading starts with a capital.
 - A fixture repository synced twice: the second sync reports no change and the bytes
-  are equal, and `check` is clean exactly when sync has nothing to write.
+  are equal, and `check` is clean exactly when sync has nothing to write. `check` and
+  sync agree after each repair, a repository in sync has nothing in the report, a
+  block in a section other than Verification converges in one sync, and the
+  frontmatter of a rewritten document is kept byte for byte.
 - A staleness fixture per kind: an edited row, a removed row and an added binding each
   make `check` fail naming the kind, and a sync repairs it.
 - Placement fixtures: a matrix and a relationship table in a section of a capability
@@ -299,16 +305,36 @@ than written.
 - A fixture where text outside a block carries a distinctive string, asserting sync
   leaves it unchanged, and a file without blocks that is not in the report.
 - Line-ending fixtures: a CRLF document, an LF document, a CRLF frontmatter over an
-  LF body, and a body with mixed endings that sync refuses and `check` reports.
+  LF body, and a body with mixed endings that sync refuses and `check` reports. The
+  line ending of a document is its first break, an LF frontmatter over a CRLF body
+  gets CRLF blocks, and a CRLF document syncs idempotently, a stale block in it
+  repaired in CRLF.
 - Index fixtures: a missing index created with its SPDX lines, SPDX text that is
   required and fits one comment line, and a hand-written `index.md` that is rejected.
+  An existing index keeps its own header while a stale catalogue is rewritten in
+  place, an index that is only a licence header and blank lines is not a generated
+  index, and a repository without capabilities needs no index.
 - Write fixtures on disk: every edit written and nothing on a second run, a refused
   target, and no target changed when a later file cannot be written; the `docs_sync`
-  example writes the expected files once and nothing on a second run.
+  example writes the expected files once and nothing on a second run. A new index is
+  created only where its directory exists, a replaced file keeps its permissions, and
+  a file already there under the temporary name is never touched. The `docs_sync`
+  example opens the repository as the gate does, asks for the SPDX flags only when it
+  must create the index, syncs a git checkout, and refuses an unknown option, a flag
+  without its value and an extra argument with exit 2 and nothing on standard
+  output.
 - Preview fixtures: a change with two blocks in one capability and a block of another
   change that stays, line endings kept, a tab after `>` kept, a fenced code block and
   a misindented line refused with their lines, an unknown slug, and a disk fixture
-  that is byte-identical afterwards.
+  that is byte-identical afterwards. A block at the end of a file without a final
+  break is resolved, a block in a list item keeps its indentation, a block with no
+  content lines disappears with its marker, a nested quote loses one level only,
+  adjacent blocks of two changes are told apart, and a fenced code block in a block
+  of another change is no obstacle; the text outside the blocks is unchanged byte for
+  byte, and two previews are equal. A change is found by its slug with or without the
+  `change:` prefix, the lookup and the preview say the same thing about a slug, an
+  unknown slug is told apart from a record that did not load, which says why, and a
+  listed capability that did not load or has no document is an error that names it.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
