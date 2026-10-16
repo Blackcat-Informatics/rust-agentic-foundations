@@ -5,10 +5,49 @@ type: Capability
 id: cap:workplan-evidence-claims
 title: "Evidence and claims"
 description: "Persisted execution evidence, the claims that depend on each result, and invalidation when the evidence changes."
-state: considered
+state: implementing
 bindings:
-  code: []
-  tests: []
+  code:
+    - raf_workplan::evidence
+    - raf_workplan::exec::TrustedArgv
+    - raf_workplan::Workplan::record_evidence
+    - raf_workplan::Workplan::evidence_claims
+    - raf_workplan::Workplan::evidence_for
+    - raf_workplan::exec::TrustedWord
+    - raf_workplan::exec::TrustedArgvError
+  tests:
+    - raf_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_no_binding_starts_nothing
+    - raf_workplan::test_crate::evidence::a_claim_on_a_value_over_its_limit_by_less_than_a_float_tells_apart_is_unsupported
+    - raf_workplan::test_crate::evidence::a_record_supports_a_capability_by_its_for_list_without_a_claim
+    - raf_workplan::test_crate::evidence::a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers
+    - raf_workplan::test_crate::evidence::hostile_record_text_is_read_as_text_and_reaches_no_process
+    - raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability
+    - raf_workplan::evidence::measure::tests::a_limit_is_a_name_and_a_number
+    - raf_workplan::evidence::measure::tests::a_limit_never_printed_is_an_error_and_a_printed_one_is_judged
+    - raf_workplan::evidence::measure::tests::a_name_printed_twice_is_an_error_and_two_names_are_not
+    - raf_workplan::evidence::measure::tests::a_value_is_over_its_limit_by_its_text_and_not_by_its_nearest_float
+    - raf_workplan::evidence::measure::tests::a_value_that_is_not_a_number_is_an_error_and_its_neighbour_is_not
+    - raf_workplan::evidence::measure::tests::only_lines_of_a_name_an_equals_sign_and_a_number_are_values
+    - raf_workplan::evidence::tests::a_capability_with_no_code_binding_or_one_that_does_not_resolve_is_refused
+    - raf_workplan::evidence::tests::a_command_that_cannot_start_writes_no_record
+    - raf_workplan::evidence::tests::a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it
+    - raf_workplan::evidence::tests::a_passing_command_writes_one_record_with_its_command_values_limits_and_input_digests
+    - raf_workplan::evidence::tests::a_run_killed_at_its_time_limit_records_fail_and_its_neighbour_passes
+    - raf_workplan::evidence::tests::a_value_over_its_limit_by_less_than_a_float_tells_apart_records_fail
+    - raf_workplan::evidence::tests::each_fault_of_the_printed_values_is_an_error_beside_a_passing_neighbour
+    - raf_workplan::evidence::tests::every_refusal_of_the_request_starts_nothing_and_writes_nothing
+    - raf_workplan::evidence::tests::more_values_than_a_record_keeps_is_an_error_and_the_most_it_keeps_records
+    - raf_workplan::evidence::tests::output_past_the_bound_is_an_error_and_writes_nothing_and_output_at_it_records
+    - raf_workplan::evidence::tests::the_argv_reaches_the_process_exactly_with_no_shell_of_the_workplan
+    - raf_workplan::evidence::tests::the_command_is_asked_with_the_bounds_of_a_build_and_the_callers_locale
+    - raf_workplan::evidence::tests::the_command_runs_in_the_root_with_its_input_closed_and_the_callers_environment
+    - raf_workplan::evidence::tests::the_exit_status_and_the_limits_decide_the_verdict
+    - raf_workplan::evidence::tests::the_recorded_line_says_why_a_verdict_is_fail
+    - raf_workplan::exec::trusted::tests::a_line_with_no_command_is_refused_and_one_with_a_command_is_not
+    - raf_workplan::exec::trusted::tests::a_word_that_is_not_utf8_is_refused_by_its_place
+    - raf_workplan::exec::trusted::tests::the_command_is_every_word_after_the_first_separator
+    - raf_workplan::exec::trusted::tests::the_text_quotes_each_word_a_shell_would_split_or_expand
+    - raf_workplan::test_crate::evidence::an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not
   examples: []
 depends: [cap:workplan-document-model, cap:workplan-reconcile]
 ---

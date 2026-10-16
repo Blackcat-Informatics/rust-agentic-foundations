@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-generated-docs
 title: "Generated documentation blocks"
 description: "Generated blocks for the verification matrix, relationship table and capability catalogue, and the deterministic sync."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_workplan::Workplan::sync
@@ -16,6 +16,7 @@ bindings:
     - raf_workplan::Workplan::preview
     - raf_workplan::Preview
     - raf_workplan::PreviewError
+    - raf_workplan::ChangeLookupError
   tests:
     - raf_workplan::test_crate::generated::the_synced_base_has_no_finding_at_all
     - raf_workplan::test_crate::generated::a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections
@@ -63,6 +64,44 @@ bindings:
     - raf_workplan::test_crate::preview::a_continuation_that_is_not_indented_as_the_marker_is_refused_with_its_line
     - raf_workplan::test_crate::preview::an_unknown_slug_names_it_and_lists_the_open_changes
     - raf_workplan::test_crate::preview::a_disk_fixture_is_byte_identical_afterwards
+    - raf_workplan::test_crate::generated::a_backtick_in_a_binding_path_does_not_break_the_code_span
+    - raf_workplan::test_crate::generated::a_block_in_a_section_other_than_verification_converges_in_one_sync
+    - raf_workplan::test_crate::generated::a_relation_listed_twice_is_one_row
+    - raf_workplan::test_crate::generated::a_repository_without_capabilities_needs_no_index
+    - raf_workplan::test_crate::generated::an_example_that_does_not_resolve_is_listed_as_an_example_target
+    - raf_workplan::test_crate::generated::an_existing_index_keeps_its_own_header_and_a_stale_catalogue_is_rewritten_in_place
+    - raf_workplan::test_crate::generated::an_index_that_is_only_a_licence_header_and_blank_lines_is_not_a_generated_index
+    - raf_workplan::test_crate::generated::an_lf_frontmatter_over_a_crlf_body_gets_crlf_blocks
+    - raf_workplan::test_crate::generated::the_frontmatter_of_a_rewritten_document_is_kept_byte_for_byte
+    - raf_workplan::test_crate::generated::the_sync_of_a_crlf_document_is_idempotent_and_stale_in_crlf_is_repaired_in_crlf
+    - raf_workplan::test_crate::preview::a_block_at_the_end_of_a_file_without_a_final_break_is_reconciled
+    - raf_workplan::test_crate::preview::a_block_in_a_list_item_keeps_its_indentation
+    - raf_workplan::test_crate::preview::a_block_with_no_content_lines_disappears_with_its_marker
+    - raf_workplan::test_crate::preview::a_change_is_found_by_its_slug_with_or_without_the_prefix
+    - raf_workplan::test_crate::preview::a_change_record_that_did_not_load_says_why
+    - raf_workplan::test_crate::preview::a_fenced_code_block_in_a_block_of_another_change_is_no_obstacle
+    - raf_workplan::test_crate::preview::a_listed_capability_that_did_not_load_is_named_never_skipped
+    - raf_workplan::test_crate::preview::a_listed_capability_without_a_document_is_an_error
+    - raf_workplan::test_crate::preview::a_nested_quote_loses_one_level_only
+    - raf_workplan::test_crate::preview::adjacent_blocks_of_two_changes_are_told_apart
+    - raf_workplan::test_crate::preview::an_unknown_slug_is_told_apart_from_a_record_that_did_not_load
+    - raf_workplan::test_crate::preview::another_change_reconciles_only_its_own_blocks
+    - raf_workplan::test_crate::preview::preview_is_deterministic
+    - raf_workplan::test_crate::preview::the_lookup_and_the_preview_say_the_same_thing_about_a_slug
+    - raf_workplan::test_crate::preview::the_slug_is_taken_with_or_without_the_prefix
+    - raf_workplan::test_crate::preview::the_text_outside_blocks_is_unchanged_byte_for_byte
+    - raf_workplan::test_crate::sync::check_and_sync_agree_after_each_repair
+    - raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync
+    - raf_workplan::test_crate::sync::the_docs_sync_example_asks_for_the_spdx_flags_only_when_the_index_must_be_created
+    - raf_workplan::test_crate::sync::the_docs_sync_example_in_a_git_checkout_and_with_bad_arguments
+    - raf_workplan::test_crate::sync::the_docs_sync_example_opens_the_repository_as_the_gate_does
+    - raf_workplan::test_crate::sync::write_creates_the_index_only_where_the_directory_exists
+    - raf_workplan::test_crate::sync::write_keeps_the_permissions_of_the_file_it_replaces
+    - raf_workplan::test_crate::sync::write_never_touches_a_file_that_is_already_there_under_a_temporary_name
+    - raf_workplan::generated::tests::a_code_span_fence_is_longer_than_any_backtick_run_inside
+    - raf_workplan::generated::tests::a_state_heading_has_a_capital
+    - raf_workplan::generated::tests::cell_text_is_escaped_by_the_documented_rule
+    - raf_workplan::generated::tests::the_line_ending_is_the_first_break_and_a_change_is_mixed
   examples:
     - raf_workplan::example_crate::docs_sync
     - raf_workplan::Workplan::sync
@@ -277,6 +316,12 @@ than written.
 | `raf_workplan::Workplan::preview` | doctest | [Verification](#verification) |
 | `raf_workplan::Workplan::sync` | doctest | [Verification](#verification) |
 | `raf_workplan::example_crate::docs_sync` | example target | [Verification](#verification) |
+| `raf_workplan::generated::tests::a_code_span_fence_is_longer_than_any_backtick_run_inside` | test | [Verification](#verification) |
+| `raf_workplan::generated::tests::a_state_heading_has_a_capital` | test | [Verification](#verification) |
+| `raf_workplan::generated::tests::cell_text_is_escaped_by_the_documented_rule` | test | [Verification](#verification) |
+| `raf_workplan::generated::tests::the_line_ending_is_the_first_break_and_a_change_is_mixed` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::a_backtick_in_a_binding_path_does_not_break_the_code_span` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::a_block_in_a_section_other_than_verification_converges_in_one_sync` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_capability_with_no_relation_has_a_table_of_the_header_only` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_catalogue_block_is_valid_only_in_the_capability_index` | test | [Verification](#verification) |
@@ -289,12 +334,18 @@ than written.
 | `raf_workplan::test_crate::generated::a_matrix_or_a_relationship_table_in_the_index_is_misplaced` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_missing_index_is_a_finding_and_sync_creates_it_with_the_spdx_lines` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_path_named_in_a_fence_or_a_proposal_is_not_a_section_that_it_substantiates` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::a_relation_listed_twice_is_one_row` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_relationship_table_lists_each_relation_sorted_by_slug_with_links` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::a_repository_without_capabilities_needs_no_index` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::an_edited_removed_or_added_catalogue_row_is_stale_and_sync_repairs_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::an_edited_removed_or_added_matrix_row_is_stale_and_sync_repairs_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::an_edited_removed_or_added_relationship_row_is_stale_and_sync_repairs_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::an_example_that_does_not_resolve_is_listed_as_an_example_target` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::an_existing_index_keeps_its_own_header_and_a_stale_catalogue_is_rewritten_in_place` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::an_index_that_is_only_a_licence_header_and_blank_lines_is_not_a_generated_index` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::an_index_with_text_outside_its_blocks_is_rejected_whatever_else_it_holds` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::an_lf_frontmatter_over_a_crlf_body_gets_crlf_blocks` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::blocks_in_a_change_record_or_an_architecture_page_are_misplaced_and_never_rewritten` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::cell_text_is_escaped_the_same_way_every_time` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::groups_with_no_capability_are_omitted_and_each_group_is_sorted_by_slug` | test | [Verification](#verification) |
@@ -302,25 +353,51 @@ than written.
 | `raf_workplan::test_crate::generated::text_outside_a_block_is_never_changed_and_a_file_without_blocks_is_untouched` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::the_catalogue_cannot_be_forged_from_a_description_that_looks_like_a_marker` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::the_catalogue_is_a_table_per_state_in_order_with_gaps_for_implementing_only` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::the_frontmatter_of_a_rewritten_document_is_kept_byte_for_byte` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::the_kinds_the_crate_owns_are_the_three_documented_ones` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::the_spdx_text_of_a_new_index_is_required_and_must_fit_one_comment_line` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::the_stale_finding_points_at_the_opening_marker_of_the_block` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::the_sync_of_a_crlf_document_is_idempotent_and_stale_in_crlf_is_repaired_in_crlf` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::the_synced_base_has_no_finding_at_all` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::a_block_at_the_end_of_a_file_without_a_final_break_is_reconciled` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::a_block_in_a_list_item_keeps_its_indentation` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::a_block_with_no_content_lines_disappears_with_its_marker` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::a_change_is_found_by_its_slug_with_or_without_the_prefix` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::a_change_record_that_did_not_load_says_why` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::preview::a_change_with_two_blocks_in_a_capability_reads_reconciled_and_other_blocks_stay` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::preview::a_continuation_that_is_not_indented_as_the_marker_is_refused_with_its_line` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::preview::a_crlf_document_keeps_its_line_endings` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::preview::a_disk_fixture_is_byte_identical_afterwards` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::a_fenced_code_block_in_a_block_of_another_change_is_no_obstacle` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::preview::a_fenced_code_block_in_a_block_of_the_change_is_refused_with_its_line` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::a_listed_capability_that_did_not_load_is_named_never_skipped` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::a_listed_capability_without_a_document_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::a_nested_quote_loses_one_level_only` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::preview::a_tab_after_the_quote_marker_is_kept_as_written` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::adjacent_blocks_of_two_changes_are_told_apart` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::an_unknown_slug_is_told_apart_from_a_record_that_did_not_load` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::preview::an_unknown_slug_names_it_and_lists_the_open_changes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::another_change_reconciles_only_its_own_blocks` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::preview_is_deterministic` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::the_lookup_and_the_preview_say_the_same_thing_about_a_slug` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::the_slug_is_taken_with_or_without_the_prefix` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::the_text_outside_blocks_is_unchanged_byte_for_byte` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::a_document_that_does_not_load_stops_the_sync_since_the_tables_would_miss_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::check_and_sync_agree_after_each_repair` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::check_is_clean_exactly_when_sync_has_nothing_to_write` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::the_catalogue_of_this_repository_equals_its_roadmap` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::the_docs_sync_example_asks_for_the_spdx_flags_only_when_the_index_must_be_created` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::the_docs_sync_example_in_a_git_checkout_and_with_bad_arguments` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::the_docs_sync_example_opens_the_repository_as_the_gate_does` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_run` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::the_roadmap_rows_equal_the_catalogue_rows` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::write_changes_no_target_when_a_later_file_cannot_be_written` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::write_creates_the_index_only_where_the_directory_exists` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::write_keeps_the_permissions_of_the_file_it_replaces` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::write_never_touches_a_file_that_is_already_there_under_a_temporary_name` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::write_puts_every_edit_on_disk_and_a_second_run_writes_nothing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index` | test | [Verification](#verification) |
 <!-- raf:generated:end -->
@@ -333,4 +410,5 @@ than written.
 | Depended on by | [workplan-complete-gate](./workplan-complete-gate.md) |
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
 | Depended on by | [workplan-reconcile](./workplan-reconcile.md) |
+| Changed by | [workplan-generated-docs](../../work/changes/workplan-generated-docs.md) |
 <!-- raf:generated:end -->

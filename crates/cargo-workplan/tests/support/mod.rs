@@ -35,6 +35,13 @@ pub(crate) const COPYRIGHT: &str = "2026 Example Org <dev@example.org>";
 /// The licence identifier of an index the fixtures create.
 pub(crate) const LICENCE: &str = "CC-BY-4.0";
 
+/// Where the coverage record lives.
+pub(crate) const COVERAGE: &str = "work/coverage/default.md";
+
+/// The coverage record that enforces nothing: `scope: []` and no exclusion.
+pub(crate) const OPEN_COVERAGE: &str =
+    "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n";
+
 /// A unique directory under the system temporary directory, removed on drop.
 pub(crate) struct Scratch(PathBuf);
 
@@ -116,6 +123,9 @@ impl Repo {
             "/// A documented function.\npub fn real() {}\n",
         );
         repo.put("tests/it.rs", "#[test]\nfn case() {}\n");
+        // The coverage record that enforces nothing, so no fixture relies on
+        // a repository without one.
+        repo.put(COVERAGE, OPEN_COVERAGE);
         repo
     }
 

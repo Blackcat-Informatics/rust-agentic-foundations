@@ -11,7 +11,7 @@ use raf_workplan::Finding;
 
 use super::fixtures::{ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, bound, mutate, valid};
 use super::synced::{self, check_all};
-use super::{Repo, check_with_symlinks, key, line_of, section};
+use super::{COVERAGE, Repo, check_with_symlinks, key, line_of, section};
 
 /// A repository in which one file breaks one rule.
 pub(crate) struct Case {
@@ -32,6 +32,8 @@ pub(crate) struct Case {
     /// Whether the case keeps the findings that only say the repository is not
     /// synced (see `without_sync_findings`).
     pub(crate) unfiltered: bool,
+    /// The source workspace, when it is not the demo workspace.
+    pub(crate) source: Option<Vec<(&'static str, String)>>,
 }
 
 impl Case {
@@ -45,7 +47,14 @@ impl Case {
             also: Vec::new(),
             symlinks: Vec::new(),
             unfiltered: false,
+            source: None,
         }
+    }
+
+    /// A case judged against the source workspace of `files`.
+    fn source(mut self, files: Vec<(&'static str, String)>) -> Self {
+        self.source = Some(files);
+        self
     }
 
     /// A case in a synced repository, judged with every finding kept.
@@ -77,6 +86,9 @@ impl Case {
 
     /// Run the case and return every finding.
     pub(crate) fn run(&self) -> Vec<Finding> {
+        if let Some(files) = &self.source {
+            return super::check_in(&self.repo, &super::workspace_of(files));
+        }
         if self.unfiltered {
             check_all(&self.repo)
         } else {
@@ -152,8 +164,8 @@ pub(crate) fn assessment_record() -> String {
 
 /// A valid coverage record.
 pub(crate) fn coverage_record() -> String {
-    "---\ntype: Coverage\nid: coverage:default\nscope: [demo]\nexclusions:\n  \
-     - item: demo::unit::*\n    reason: \"Unit tests of internals.\"\n---\n"
+    "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions:\n  \
+     - item: demo::test_crate::it::*\n    reason: \"Unit tests of internals.\"\n---\n"
         .to_string()
 }
 
@@ -406,15 +418,17 @@ fn record_rule_case(tag: RuleTag, name: &str, kind: &str) -> Case {
         RuleTag::BadMeasure => evidence("  peak: 41", "  peak: fast", key("values")),
         RuleTag::LimitWithoutValue => evidence("  peak: 64", "  other: 64", key("limits")),
         RuleTag::VerdictOverLimit => evidence("  peak: 41", "  peak: 99", key("verdict")),
-        RuleTag::BadCrateName => coverage("scope: [demo]", "scope: [\"de mo\"]", key("scope")),
+        RuleTag::BadCrateName => coverage("scope: []", "scope: [\"de mo\"]", key("scope")),
         RuleTag::BadExclusionItem => coverage(
-            "item: demo::unit::*",
+            "item: demo::test_crate::it::*",
             "item: \"demo::*::unit\"",
             key("exclusions"),
         ),
-        RuleTag::CrateRootExclusion => {
-            coverage("item: demo::unit::*", "item: demo::*", key("exclusions"))
-        }
+        RuleTag::CrateRootExclusion => coverage(
+            "item: demo::test_crate::it::*",
+            "item: demo::*",
+            key("exclusions"),
+        ),
         RuleTag::EmptyReason => coverage(
             "reason: \"Unit tests of internals.\"",
             "reason: \"\"",
@@ -772,8 +786,8 @@ fn record_reference_cases() -> Vec<Case> {
     cases.push(record(
         "scope-crate-missing",
         coverage_record(),
-        "scope: [demo]",
-        "scope: [demo, ghost]",
+        "scope: []",
+        "scope: [ghost]",
         "scope-crate-missing",
         key("scope"),
     ));
@@ -1132,6 +1146,116 @@ pub(crate) fn all_cases() -> Vec<Case> {
     cases.extend(link_cases());
     cases.extend(binding_cases());
     cases.extend(generated_cases());
+    cases.extend(coverage_cases());
+    cases
+}
+
+/// A small workspace whose surface lists: the package `demo` with the two
+/// items and the test the valid repository binds or leaves unbound,
+/// `demo::real` (bound by gamma), `demo::bare` and
+/// `demo::test_crate::it::case` (bound by gamma), and `extra` more lines of
+/// `tests/it.rs`.
+pub(crate) fn listed_workspace(extra: &str) -> Vec<(&'static str, String)> {
+    vec![
+        (
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n".to_string(),
+        ),
+        (
+            "src/lib.rs",
+            "pub fn real() {}\npub fn bare() {}\n".to_string(),
+        ),
+        ("tests/it.rs", format!("#[test]\nfn case() {{}}\n{extra}")),
+    ]
+}
+
+/// The coverage record with `scope` and the exclusion rows (each a pair of
+/// item and reason).
+pub(crate) fn coverage_with(scope: &str, exclusions: &[(&str, &str)]) -> String {
+    let mut rows = String::new();
+    if exclusions.is_empty() {
+        rows.push_str(" []\n");
+    } else {
+        for (item, reason) in exclusions {
+            let _ = write!(rows, "\n  - item: \"{item}\"\n    reason: \"{reason}\"");
+        }
+        rows.push('\n');
+    }
+    format!("---\ntype: Coverage\nid: coverage:default\nscope: {scope}\nexclusions:{rows}---\n")
+}
+
+/// The cases of the coverage checks: no record, an unbound public item and
+/// test of a crate of `scope`, an exclusion of nothing, and a surface that
+/// cannot be listed.
+pub(crate) fn coverage_cases() -> Vec<Case> {
+    let covered = |scope: &str, exclusions: &[(&str, &str)]| {
+        let mut repo = valid();
+        repo.insert(COVERAGE.to_string(), coverage_with(scope, exclusions));
+        repo
+    };
+    let mut repo = valid();
+    repo.remove(COVERAGE);
+    let mut cases = vec![Case::new(
+        "coverage-record-missing",
+        repo,
+        "coverage-record-missing",
+        COVERAGE,
+        Location::Document,
+    )];
+    cases.push(
+        Case::new(
+            "coverage-item-unbound",
+            covered("[demo]", &[]),
+            "coverage-item-unbound",
+            "src/lib.rs",
+            Location::Line(2),
+        )
+        .source(listed_workspace("")),
+    );
+    cases.push(
+        Case::new(
+            "coverage-test-unbound",
+            covered("[demo]", &[("demo::bare", "Shown only to the fixtures.")]),
+            "coverage-test-unbound",
+            "tests/it.rs",
+            Location::Line(4),
+        )
+        .source(listed_workspace("#[test]\nfn other() {}\n")),
+    );
+    cases.push(
+        Case::new(
+            "coverage-exclusion-unmatched",
+            covered("[]", &[("demo::ghost::*", "Nothing is there.")]),
+            "coverage-exclusion-unmatched",
+            COVERAGE,
+            key("exclusions"),
+        )
+        .source(listed_workspace("")),
+    );
+    // A type a macro generates, re-exported: the index cannot follow it.
+    let mut made = listed_workspace("");
+    made[1].1.push_str(
+        "mod made {\n    macro_rules! make {\n        () => {\n            pub struct Made;\n        };\n    }\n    make!();\n}\npub use made::Made;\n",
+    );
+    cases.push(
+        Case::new(
+            "coverage-reexport-unbound",
+            covered("[demo]", &[("demo::bare", "Shown only to the fixtures.")]),
+            "coverage-reexport-unbound",
+            "src/lib.rs",
+            Location::Line(11),
+        )
+        .source(made),
+    );
+    // The demo library's two globs bring in `dup` twice, so its surface
+    // cannot be listed.
+    cases.push(Case::new(
+        "coverage-surface-unreadable",
+        covered("[demo]", &[]),
+        "coverage-surface-unreadable",
+        COVERAGE,
+        key("scope"),
+    ));
     cases
 }
 

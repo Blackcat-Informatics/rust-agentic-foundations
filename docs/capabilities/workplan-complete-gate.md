@@ -21,6 +21,9 @@ bindings:
     - raf_workplan::exec::Programs
     - raf_workplan::exec::Limits
     - raf_workplan::exec::SystemRunner
+    - raf_workplan::exec
+    - raf_workplan::bound
+    - raf_workplan::lifecycle::Lifecycle
   tests:
     - raf_workplan::test_crate::scenarios::several_redesigns_leave_one_readable_present
     - raf_workplan::test_crate::scenarios::planning_produces_the_documentation
@@ -88,6 +91,138 @@ bindings:
     - cargo_workplan::test_crate::complete::a_failing_example_stands_under_conditions_one_and_five
     - cargo_workplan::test_crate::complete::a_failing_bound_test_is_condition_five_and_the_record_stays
     - cargo_workplan::test_crate::verify::one_passing_and_one_failing_test_print_one_line_each_and_exit_one
+    - raf_workplan::test_crate::bound::a_process_that_cannot_start_is_an_error_and_not_a_verdict
+    - raf_workplan::test_crate::bound::a_test_of_a_binary_runs_under_bin
+    - raf_workplan::test_crate::bound::targets_cargo_cannot_select_a_test_in_are_refused_before_any_process
+    - raf_workplan::test_crate::complete::a_prefixed_slug_names_the_same_change
+    - raf_workplan::test_crate::complete::a_record_removed_while_the_tests_ran_is_an_error_and_nothing_is_written
+    - raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal
+    - raf_workplan::test_crate::complete::complete_accepts_the_change_prefix_and_an_unknown_slug_or_a_record_that_did_not_load_is_an_error
+    - raf_workplan::test_crate::complete::conditions_and_failures_have_stable_names_and_the_headline_is_the_first_line
+    - raf_workplan::test_crate::complete::writes::a_removal_that_fails_reports_the_files_already_rewritten_and_removes_nothing_else
+    - raf_workplan::test_crate::exec::a_directory_that_does_not_exist_is_a_spawn_error
+    - raf_workplan::test_crate::exec::a_generic_list_holds_exactly_the_characters_of_the_pattern
+    - raf_workplan::test_crate::exec::a_name_missing_from_the_search_path_is_a_spawn_error
+    - raf_workplan::test_crate::exec::a_program_that_does_not_exist_is_a_spawn_error
+    - raf_workplan::test_crate::exec::a_ref_cannot_be_read_as_an_option_inside_its_argument
+    - raf_workplan::test_crate::exec::a_refusal_names_the_pattern_and_shows_the_value_safely
+    - raf_workplan::test_crate::exec::a_runner_reference_is_a_runner
+    - raf_workplan::test_crate::exec::a_test_filter_always_follows_a_separator_and_never_leads
+    - raf_workplan::test_crate::exec::a_tree_path_refuses_every_hostile_value_that_is_not_printable_path_text
+    - raf_workplan::test_crate::exec::each_newtype_is_built_only_by_its_pattern
+    - raf_workplan::test_crate::exec::every_pattern_accepts_what_it_states
+    - raf_workplan::test_crate::exec::every_pattern_refuses_what_it_does_not_state
+    - raf_workplan::test_crate::exec::stubs::a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_limit
+    - raf_workplan::test_crate::exec::stubs::a_failing_exit_code_and_a_signal_are_outputs_and_not_errors
+    - raf_workplan::test_crate::exec::stubs::a_file_that_cannot_be_executed_is_a_spawn_error
+    - raf_workplan::test_crate::exec::stubs::a_process_inside_its_limit_passes
+    - raf_workplan::test_crate::exec::stubs::a_process_that_never_stops_writing_is_killed_at_the_bound
+    - raf_workplan::test_crate::exec::stubs::both_streams_are_drained_at_once
+    - raf_workplan::test_crate::exec::stubs::nothing_else_is_added_to_the_environment
+    - raf_workplan::test_crate::exec::stubs::output_is_returned_byte_for_byte
+    - raf_workplan::test_crate::exec::stubs::the_c_locale_is_set_when_the_output_is_parsed_and_left_alone_otherwise
+    - raf_workplan::test_crate::exec::stubs::the_default_bound_is_sixteen_mebibytes_and_a_larger_one_is_a_parameter
+    - raf_workplan::test_crate::exec::stubs::the_group_is_killed_when_no_kill_program_is_on_the_path
+    - raf_workplan::test_crate::exec::stubs::the_process_runs_in_the_working_directory
+    - raf_workplan::test_crate::exec::stubs::what_the_process_started_does_not_outlive_the_kill
+    - raf_workplan::test_crate::exec::the_fake_answers_a_scripted_invocation_and_records_it
+    - raf_workplan::test_crate::exec::the_fake_applies_the_output_bound_as_the_real_runner_does
+    - raf_workplan::test_crate::exec::the_fake_applies_the_time_limit_as_the_real_runner_does
+    - raf_workplan::test_crate::exec::the_fake_keeps_the_program_apart_from_the_arguments
+    - raf_workplan::test_crate::exec::the_fake_refuses_an_invocation_it_has_no_answer_for
+    - raf_workplan::test_crate::exec::the_fake_repeats_an_answer_and_a_later_one_replaces_it
+    - raf_workplan::test_crate::exec::the_fake_returns_a_failing_exit_and_a_scripted_error
+    - raf_workplan::test_crate::exec::the_programs_come_from_cargo_and_the_path_and_can_be_replaced
+    - raf_workplan::test_crate::exec::the_real_git_and_cargo_start
+    - raf_workplan::test_crate::scenarios::each_fault_of_the_account_has_a_document_that_breaks_only_it
+    - raf_workplan::test_crate::verify::a_capability_that_did_not_load_is_an_error_and_not_a_pass
+    - raf_workplan::test_crate::verify::a_process_that_cannot_start_is_an_error_and_not_a_failing_binding
+    - raf_workplan::test_crate::verify::a_run_with_nothing_bound_passes_and_prints_nothing
+    - raf_workplan::test_crate::verify::an_example_that_cannot_be_started_is_an_error_and_not_a_line
+    - raf_workplan::test_crate::verify::an_example_that_exits_with_a_failure_or_a_doc_test_that_fails_is_a_line
+    - raf_workplan::test_crate::verify::an_unknown_slug_and_a_record_that_did_not_load_are_different_errors
+    - raf_workplan::test_crate::verify::only_the_examples_of_the_capabilities_the_change_lists_are_run
+    - raf_workplan::test_crate::verify::the_lines_of_a_report_are_its_text_and_each_verdict_has_a_name_and_a_reason
+    - raf_workplan::bound::tests::a_benchmark_is_not_a_test_entry
+    - raf_workplan::bound::tests::a_benchmark_of_the_name_is_not_a_listed_test
+    - raf_workplan::bound::tests::a_binary_test_is_pinned_with_bin
+    - raf_workplan::bound::tests::a_cfg_test_module_of_the_library_runs_as_lib_with_the_name_in_the_crate
+    - raf_workplan::bound::tests::a_code_binding_and_an_item_that_is_no_example_are_refused
+    - raf_workplan::bound::tests::a_compile_fail_doc_test_is_refused_with_a_request_for_a_runnable_one
+    - raf_workplan::bound::tests::a_doc_item_path_is_refused_unless_it_matches_its_pattern
+    - raf_workplan::bound::tests::a_doc_list_entry_has_the_form_of_the_pattern
+    - raf_workplan::bound::tests::a_doc_list_entry_with_the_platform_separator_is_read_and_keeps_its_printed_name
+    - raf_workplan::bound::tests::a_doc_status_is_never_taken_from_another_name_or_a_loose_line
+    - raf_workplan::bound::tests::a_doc_status_is_read_from_the_whole_line
+    - raf_workplan::bound::tests::a_doc_test_binding_lists_the_package_and_runs_the_bare_item_path
+    - raf_workplan::bound::tests::a_doc_test_passes_only_on_its_own_ok_line
+    - raf_workplan::bound::tests::a_failing_selected_doc_test_fails_the_binding_by_name
+    - raf_workplan::bound::tests::a_failing_sibling_the_filter_also_matches_fails_the_binding
+    - raf_workplan::bound::tests::a_failing_test_fails_the_binding
+    - raf_workplan::bound::tests::a_function_that_is_not_a_test_is_refused_by_name
+    - raf_workplan::bound::tests::a_hostile_example_name_and_package_never_reach_the_runner
+    - raf_workplan::bound::tests::a_hostile_name_in_the_manifest_never_reaches_the_runner
+    - raf_workplan::bound::tests::a_killed_test_is_a_failed_binding_that_reports_the_time
+    - raf_workplan::bound::tests::a_list_pass_that_does_not_build_fails_the_binding
+    - raf_workplan::bound::tests::a_list_with_no_entry_has_none
+    - raf_workplan::bound::tests::a_list_with_one_entry_has_one_entry
+    - raf_workplan::bound::tests::a_list_with_two_entries_has_two
+    - raf_workplan::bound::tests::a_loose_ok_line_is_not_proof
+    - raf_workplan::bound::tests::a_nested_test_of_an_integration_test_keeps_the_path_inside_the_crate
+    - raf_workplan::bound::tests::a_no_run_doc_test_is_refused_with_a_request_for_a_runnable_one
+    - raf_workplan::bound::tests::a_passing_result_is_read
+    - raf_workplan::bound::tests::a_result_line_without_its_counts_is_an_error
+    - raf_workplan::bound::tests::a_run_that_cannot_start_is_an_error_and_not_a_verdict
+    - raf_workplan::bound::tests::a_run_that_passes_one_test_with_more_passed_is_refused
+    - raf_workplan::bound::tests::a_selected_entry_with_no_ok_line_is_refused
+    - raf_workplan::bound::tests::a_status_other_than_zero_is_never_a_pass_whatever_the_counts_say
+    - raf_workplan::bound::tests::a_target_without_the_harness_or_with_required_features_is_refused
+    - raf_workplan::bound::tests::a_test_in_a_benchmark_target_is_refused
+    - raf_workplan::bound::tests::a_test_of_a_library_module_is_named_by_its_path_in_the_crate
+    - raf_workplan::bound::tests::a_test_of_a_target_with_required_features_is_refused
+    - raf_workplan::bound::tests::a_test_of_a_target_without_the_harness_is_refused
+    - raf_workplan::bound::tests::a_test_with_clean_facts_is_planned_and_its_neighbours_are_refused
+    - raf_workplan::bound::tests::an_example_killed_at_its_limit_fails_with_the_elapsed_time
+    - raf_workplan::bound::tests::an_example_runs_under_its_cargo_name_and_the_exit_status_decides
+    - raf_workplan::bound::tests::an_example_with_clean_facts_is_planned_and_hostile_ones_are_refused
+    - raf_workplan::bound::tests::an_ignored_selected_doc_test_is_refused
+    - raf_workplan::bound::tests::an_ignored_test_is_refused_though_the_list_shows_it
+    - raf_workplan::bound::tests::an_impl_item_is_bound_under_its_self_type_as_rustdoc_writes_it
+    - raf_workplan::bound::tests::an_integration_test_with_a_hyphen_is_pinned_under_its_cargo_name
+    - raf_workplan::bound::tests::an_older_result_line_without_the_time_is_read
+    - raf_workplan::bound::tests::another_entrys_ok_line_does_not_stand_for_the_selected_one
+    - raf_workplan::bound::tests::every_pass_carries_the_limits_of_its_kind
+    - raf_workplan::bound::tests::every_selected_entry_must_be_ok
+    - raf_workplan::bound::tests::evidence_reads_as_a_verdict_line_and_the_processes_that_ran
+    - raf_workplan::bound::tests::hostile_bindings_never_reach_the_runner
+    - raf_workplan::bound::tests::no_result_line_and_two_result_lines_are_unresolved
+    - raf_workplan::bound::tests::no_result_line_is_no_result
+    - raf_workplan::bound::tests::no_selected_entry_is_a_refusal_and_runs_nothing
+    - raf_workplan::bound::tests::noise_around_the_one_entry_does_not_matter
+    - raf_workplan::bound::tests::noise_lines_are_not_entries
+    - raf_workplan::bound::tests::one_entry_under_another_name_is_unresolved
+    - raf_workplan::bound::tests::the_doc_list_gives_names_and_item_parts_across_blocks
+    - raf_workplan::bound::tests::the_pinned_target_is_the_library_a_binary_or_an_integration_test
+    - raf_workplan::bound::tests::the_root_of_the_crate_has_no_item_part
+    - raf_workplan::bound::tests::too_much_output_is_a_failed_binding
+    - raf_workplan::bound::tests::two_listed_entries_are_unresolved
+    - raf_workplan::bound::tests::two_result_lines_are_two_results
+    - raf_workplan::bound::tests::windows_line_endings_are_read
+    - raf_workplan::bound::tests::zero_listed_entries_are_unresolved_and_nothing_is_run
+    - raf_workplan::bound::tests::zero_passed_failed_and_ignored_results_are_read
+    - raf_workplan::bound::tests::zero_passed_is_unresolved_even_with_exit_status_zero
+    - raf_workplan::exec::tests::a_literal_is_the_only_free_text_and_it_is_static
+    - raf_workplan::exec::tests::a_rejected_value_never_becomes_an_argument
+    - raf_workplan::exec::tests::every_variant_is_walked
+    - raf_workplan::exec::tests::no_shell::every_argument_is_one_element_and_no_shell_reads_it
+    - raf_workplan::lifecycle::completion::tests::a_completion_prints_the_removal_and_each_rewritten_file
+    - raf_workplan::lifecycle::completion::tests::a_section_without_an_accepted_assessment_counts_under_condition_six_and_prints_once
+    - raf_workplan::lifecycle::completion::tests::a_stale_block_prints_a_line_unless_an_obligation_already_does
+    - raf_workplan::lifecycle::completion::tests::conditions_are_numbered_as_the_contract_numbers_them
+    - raf_workplan::lifecycle::completion::tests::the_counts_of_a_refusal_are_singular_or_plural_and_in_the_order_of_the_conditions
+    - raf_workplan::staged::tests::a_replaced_file_reads_as_its_new_text_within_the_bound
+    - raf_workplan::staged::tests::every_other_path_is_answered_as_the_inner_tree_does
+    - raf_workplan::staged::tests::the_hidden_file_is_not_read_listed_or_found
   examples:
     - raf_workplan::bound
     - raf_workplan::exec
@@ -471,12 +606,94 @@ Further checks:
 | `cargo_workplan::test_crate::complete::a_failing_example_stands_under_conditions_one_and_five` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::verify::one_passing_and_one_failing_test_print_one_line_each_and_exit_one` | test | [Verification](#verification) |
 | `raf_workplan::bound` | doctest | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_benchmark_is_not_a_test_entry` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_benchmark_of_the_name_is_not_a_listed_test` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_binary_test_is_pinned_with_bin` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_cfg_test_module_of_the_library_runs_as_lib_with_the_name_in_the_crate` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_code_binding_and_an_item_that_is_no_example_are_refused` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_compile_fail_doc_test_is_refused_with_a_request_for_a_runnable_one` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_doc_item_path_is_refused_unless_it_matches_its_pattern` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_doc_list_entry_has_the_form_of_the_pattern` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_doc_list_entry_with_the_platform_separator_is_read_and_keeps_its_printed_name` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_doc_status_is_never_taken_from_another_name_or_a_loose_line` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_doc_status_is_read_from_the_whole_line` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_doc_test_binding_lists_the_package_and_runs_the_bare_item_path` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_doc_test_passes_only_on_its_own_ok_line` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_failing_selected_doc_test_fails_the_binding_by_name` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_failing_sibling_the_filter_also_matches_fails_the_binding` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_failing_test_fails_the_binding` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_function_that_is_not_a_test_is_refused_by_name` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_hostile_example_name_and_package_never_reach_the_runner` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_hostile_name_in_the_manifest_never_reaches_the_runner` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_killed_test_is_a_failed_binding_that_reports_the_time` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_list_pass_that_does_not_build_fails_the_binding` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_list_with_no_entry_has_none` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_list_with_one_entry_has_one_entry` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_list_with_two_entries_has_two` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_loose_ok_line_is_not_proof` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_nested_test_of_an_integration_test_keeps_the_path_inside_the_crate` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_no_run_doc_test_is_refused_with_a_request_for_a_runnable_one` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_passing_result_is_read` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_result_line_without_its_counts_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_run_that_cannot_start_is_an_error_and_not_a_verdict` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_run_that_passes_one_test_with_more_passed_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_selected_entry_with_no_ok_line_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_status_other_than_zero_is_never_a_pass_whatever_the_counts_say` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_target_without_the_harness_or_with_required_features_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_test_in_a_benchmark_target_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_test_of_a_library_module_is_named_by_its_path_in_the_crate` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_test_of_a_target_with_required_features_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_test_of_a_target_without_the_harness_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_test_with_clean_facts_is_planned_and_its_neighbours_are_refused` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::an_example_killed_at_its_limit_fails_with_the_elapsed_time` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::an_example_runs_under_its_cargo_name_and_the_exit_status_decides` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::an_example_with_clean_facts_is_planned_and_hostile_ones_are_refused` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::an_ignored_selected_doc_test_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::an_ignored_test_is_refused_though_the_list_shows_it` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::an_impl_item_is_bound_under_its_self_type_as_rustdoc_writes_it` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::an_integration_test_with_a_hyphen_is_pinned_under_its_cargo_name` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::an_older_result_line_without_the_time_is_read` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::another_entrys_ok_line_does_not_stand_for_the_selected_one` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::every_pass_carries_the_limits_of_its_kind` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::every_selected_entry_must_be_ok` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::evidence_reads_as_a_verdict_line_and_the_processes_that_ran` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::hostile_bindings_never_reach_the_runner` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::no_result_line_and_two_result_lines_are_unresolved` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::no_result_line_is_no_result` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::no_selected_entry_is_a_refusal_and_runs_nothing` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::noise_around_the_one_entry_does_not_matter` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::noise_lines_are_not_entries` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::one_entry_under_another_name_is_unresolved` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::the_doc_list_gives_names_and_item_parts_across_blocks` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::the_pinned_target_is_the_library_a_binary_or_an_integration_test` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::the_root_of_the_crate_has_no_item_part` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::too_much_output_is_a_failed_binding` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::two_listed_entries_are_unresolved` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::two_result_lines_are_two_results` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::windows_line_endings_are_read` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::zero_listed_entries_are_unresolved_and_nothing_is_run` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::zero_passed_failed_and_ignored_results_are_read` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::zero_passed_is_unresolved_even_with_exit_status_zero` | test | [Verification](#verification) |
 | `raf_workplan::exec` | doctest | [Verification](#verification) |
+| `raf_workplan::exec::tests::a_literal_is_the_only_free_text_and_it_is_static` | test | [Verification](#verification) |
+| `raf_workplan::exec::tests::a_rejected_value_never_becomes_an_argument` | test | [Verification](#verification) |
+| `raf_workplan::exec::tests::every_variant_is_walked` | test | [Verification](#verification) |
+| `raf_workplan::exec::tests::no_shell::every_argument_is_one_element_and_no_shell_reads_it` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::completion::tests::a_completion_prints_the_removal_and_each_rewritten_file` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::completion::tests::a_section_without_an_accepted_assessment_counts_under_condition_six_and_prints_once` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::completion::tests::a_stale_block_prints_a_line_unless_an_obligation_already_does` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::completion::tests::conditions_are_numbered_as_the_contract_numbers_them` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::completion::tests::the_counts_of_a_refusal_are_singular_or_plural_and_in_the_order_of_the_conditions` | test | [Verification](#verification) |
+| `raf_workplan::staged::tests::a_replaced_file_reads_as_its_new_text_within_the_bound` | test | [Verification](#verification) |
+| `raf_workplan::staged::tests::every_other_path_is_answered_as_the_inner_tree_does` | test | [Verification](#verification) |
+| `raf_workplan::staged::tests::the_hidden_file_is_not_read_listed_or_found` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_failing_test_fails_the_binding` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_function_that_is_not_a_test_is_refused_before_any_process` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_hyphenated_example_runs_under_its_cargo_name` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_passing_test_passes_on_one_listed_entry_and_one_passed` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bound::a_process_that_cannot_start_is_an_error_and_not_a_verdict` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_test_behind_a_disabled_feature_lists_nothing_and_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bound::a_test_of_a_binary_runs_under_bin` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_test_that_never_ends_is_killed_and_refused_with_the_time_it_ran` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::an_example_that_exits_zero_passes_and_one_that_does_not_fails` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::an_example_that_never_ends_is_killed_and_reported_with_the_time_it_ran` | test | [Verification](#verification) |
@@ -487,6 +704,7 @@ Further checks:
 | `raf_workplan::test_crate::bound::documentation_tests_follow_the_rules_in_edition_2021` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::documentation_tests_follow_the_rules_in_edition_2024` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::hostile_bindings_are_unresolved_and_never_reach_cargo` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bound::targets_cargo_cannot_select_a_test_in_are_refused_before_any_process` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::the_same_name_in_two_targets_runs_only_in_the_pinned_one` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_binding_added_while_the_tests_ran_is_a_change_even_when_every_condition_still_holds` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_block_that_is_stale_or_missing_anywhere_refuses_condition_four` | test | [Verification](#verification) |
@@ -499,7 +717,10 @@ Further checks:
 | `raf_workplan::test_crate::complete::a_failing_bound_example_stands_under_conditions_one_and_five` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_failing_bound_test_refuses_condition_five_alone` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside_passing_neighbours` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::a_prefixed_slug_names_the_same_change` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_proposed_block_of_the_change_refuses_condition_three_in_a_loaded_and_in_an_unloaded_document` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::a_record_removed_while_the_tests_ran_is_an_error_and_nothing_is_written` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_after_the_static_checks` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_test_renamed_while_the_tests_ran_refuses` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does` | test | [Verification](#verification) |
@@ -507,30 +728,76 @@ Further checks:
 | `raf_workplan::test_crate::complete::an_item_without_outcome_and_a_move_to_nowhere_or_to_itself_refuse_condition_two` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::an_item_without_outcome_and_a_stale_block_print_the_counts_of_the_contract` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::an_outcome_the_profile_refuses_makes_the_record_not_load_and_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::complete_accepts_the_change_prefix_and_an_unknown_slug_or_a_record_that_did_not_load_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::conditions_and_failures_have_stable_names_and_the_headline_is_the_first_line` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::contract_effect_none_completes_without_usage_or_example_edits_and_still_refuses_for_anything_else` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_and_its_repair_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_or_considered` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::hostile_bindings_refuse_and_never_reach_cargo` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::prose_that_links_to_the_record_refuses_because_the_link_is_broken_once_it_is_removed` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::the_cases_cover_every_kind_of_obligation_in_both_directions` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::writes::a_removal_that_fails_reports_the_files_already_rewritten_and_removes_nothing_else` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::writes::a_rewrite_that_fails_leaves_the_record_and_the_blocks_as_they_were` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::a_directory_that_does_not_exist_is_a_spawn_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::a_generic_list_holds_exactly_the_characters_of_the_pattern` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::a_name_missing_from_the_search_path_is_a_spawn_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::a_program_that_does_not_exist_is_a_spawn_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::a_ref_cannot_be_read_as_an_option_inside_its_argument` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::a_refusal_names_the_pattern_and_shows_the_value_safely` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::a_runner_reference_is_a_runner` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::a_test_filter_always_follows_a_separator_and_never_leads` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::a_tree_path_refuses_every_hostile_value_that_is_not_printable_path_text` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::each_newtype_is_built_only_by_its_pattern` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::every_pattern_accepts_what_it_states` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::every_pattern_refuses_hostile_values` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::every_pattern_refuses_what_it_does_not_state` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::stubs::a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_limit` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::stubs::a_failing_exit_code_and_a_signal_are_outputs_and_not_errors` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::stubs::a_file_that_cannot_be_executed_is_a_spawn_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::stubs::a_process_inside_its_limit_passes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::stubs::a_process_that_never_stops_writing_is_killed_at_the_bound` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::a_process_that_outlives_its_limit_is_killed` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::a_stub_named_by_cargo_runs_for_cargo_and_a_stub_on_the_path_when_it_is_unset` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::stubs::both_streams_are_drained_at_once` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::every_row_reaches_a_process_as_exactly_its_argv` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::stubs::nothing_else_is_added_to_the_environment` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::output_at_the_bound_passes_and_one_byte_over_is_refused_on_each_stream` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::stubs::output_is_returned_byte_for_byte` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::standard_input_is_closed` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::stubs::the_c_locale_is_set_when_the_output_is_parsed_and_left_alone_otherwise` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::stubs::the_default_bound_is_sixteen_mebibytes_and_a_larger_one_is_a_parameter` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::stubs::the_group_is_killed_when_no_kill_program_is_on_the_path` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::stubs::the_process_runs_in_the_working_directory` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::stubs::what_the_process_started_does_not_outlive_the_kill` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::the_fake_answers_a_scripted_invocation_and_records_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::the_fake_applies_the_output_bound_as_the_real_runner_does` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::the_fake_applies_the_time_limit_as_the_real_runner_does` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::the_fake_keeps_the_program_apart_from_the_arguments` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::the_fake_refuses_an_invocation_it_has_no_answer_for` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::the_fake_repeats_an_answer_and_a_later_one_replaces_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::the_fake_returns_a_failing_exit_and_a_scripted_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::the_limits_are_the_documented_bounds` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::the_patterns_are_the_ones_the_documents_state` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::the_programs_come_from_cargo_and_the_path_and_can_be_replaced` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::the_real_git_and_cargo_start` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::a_document_that_merely_exists_does_not_satisfy_the_scenario` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::a_thin_document_is_not_the_account_the_scenario_builds` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::scenarios::each_fault_of_the_account_has_a_document_that_breaks_only_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::planning_produces_the_documentation` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::several_redesigns_leave_one_readable_present` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::verify::a_capability_that_did_not_load_is_an_error_and_not_a_pass` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::verify::a_process_that_cannot_start_is_an_error_and_not_a_failing_binding` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::verify::a_run_with_nothing_bound_passes_and_prints_nothing` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::verify::an_example_that_cannot_be_started_is_an_error_and_not_a_line` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::verify::an_example_that_exits_with_a_failure_or_a_doc_test_that_fails_is_a_line` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::verify::an_unknown_slug_and_a_record_that_did_not_load_are_different_errors` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::verify::examples_and_doc_tests_are_run_and_judged_by_their_proof` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::verify::hostile_bindings_are_unresolved_results_that_never_reach_cargo` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::verify::no_slug_runs_every_capability_and_a_slug_only_the_ones_the_change_lists` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::verify::one_passing_and_one_failing_test_print_one_line_each_and_the_run_fails` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::verify::only_the_examples_of_the_capabilities_the_change_lists_are_run` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::verify::the_lines_of_a_report_are_its_text_and_each_verdict_has_a_name_and_a_reason` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::verify::verify_asks_git_nothing_and_does_not_go_through_the_version_gate` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::verify::verify_writes_nothing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::verify::zero_tests_and_ignored_tests_fail_the_run` | test | [Verification](#verification) |

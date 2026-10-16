@@ -144,7 +144,8 @@ fn records() -> [(&'static str, String); 3] {
         ),
         (
             COVERAGE,
-            "---\ntype: Coverage\nid: coverage:default\nscope: [demo]\nexclusions: []\n---\n"
+            "---\ntype: Coverage\nid: coverage:default\nscope: [demo]\nexclusions:\n  \
+             - item: demo::inner\n    reason: \"The module only holds the function exported as demo::run.\"\n---\n"
                 .to_string(),
         ),
     ]

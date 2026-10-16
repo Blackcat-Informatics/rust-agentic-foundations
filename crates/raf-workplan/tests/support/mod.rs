@@ -106,6 +106,25 @@ pub(crate) fn demo_files() -> Vec<(&'static str, &'static str)> {
     ]
 }
 
+/// The source workspace of `files`.
+pub(crate) fn workspace_of(files: &[(&'static str, String)]) -> Workspace {
+    let tree: MemoryTree = files
+        .iter()
+        .map(|(path, text)| (*path, text.as_str()))
+        .collect();
+    match Workspace::load(&tree, &["."]) {
+        Ok(workspace) => workspace,
+        Err(error) => panic!("the workspace loads: {error}"),
+    }
+}
+
+/// Load `repo` through a memory tree against `workspace` and return every
+/// finding but those that only say the repository is not synced.
+pub(crate) fn check_in(repo: &Repo, workspace: &Workspace) -> Vec<Finding> {
+    let tree: MemoryTree = repo.iter().collect();
+    without_sync_findings(Workplan::load(&tree, workspace).check())
+}
+
 /// Load `repo` through a memory tree and return every finding.
 pub(crate) fn check(repo: &Repo) -> Vec<Finding> {
     check_with_symlinks(repo, &[])
@@ -163,6 +182,24 @@ pub(crate) fn with_file(path: &str, text: &str) -> Vec<Finding> {
     let mut repo = fixtures::valid();
     repo.insert(path.to_string(), text.to_string());
     plain_check(&repo, path, &[])
+}
+
+/// Where the coverage record lives.
+pub(crate) const COVERAGE: &str = "work/coverage/default.md";
+
+/// The coverage record that enforces nothing: `scope: []` and no exclusion.
+/// Every fixture repository holds it, so none relies on a repository without
+/// a record, which `check` reports as `coverage-record-missing`.
+pub(crate) fn open_coverage() -> String {
+    "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n".to_string()
+}
+
+/// `repo` with the coverage record of [`open_coverage`] at its home, unless
+/// it holds one.
+pub(crate) fn with_open_coverage(mut repo: Repo) -> Repo {
+    repo.entry(COVERAGE.to_string())
+        .or_insert_with(open_coverage);
+    repo
 }
 
 pub(crate) mod fixtures {
@@ -240,6 +277,7 @@ pub(crate) mod fixtures {
             "README.md",
             "# Readme\n\nSee [alpha](docs/capabilities/alpha.md#purpose).\n".to_string(),
         );
+        put(super::COVERAGE, super::open_coverage());
         repo
     }
 

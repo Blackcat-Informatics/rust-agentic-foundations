@@ -171,6 +171,34 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `accepted`, by a human or an agent, judged with the static conditions before any
   bound run; a refusal counts the sections without one. `complete` leaves the
   assessment records as they are.
+- **`raf-workplan` two-way coverage:** the `coverage` module judges the public
+  items and the tests of the workspace against the bindings of the capabilities.
+  `Workplan::coverage_report` returns a `CoverageReport` of every package: the
+  public items (from `Workspace::exported_items`, `doc(hidden)` left out) that no
+  `code` binding covers, the public re-exports of the workspace the index cannot
+  follow to an item (a type a macro generates) as `unresolved re-export` entries,
+  the tests (`#[test]` functions, unit tests included) that no `tests` binding
+  names, what the exclusions of the coverage record take out with their reasons,
+  and each surface that cannot be listed as a typed `SurfaceError`, all sorted by
+  package and path; `coverage::render` writes each direction as a table and as
+  JSON. Binding an item covers the items below it, a binding is followed through
+  re-exports to the definition, and an item bound only in `examples` is a gap.
+  `check` enforces the crates of the record's `scope`: `coverage-item-unbound`,
+  `coverage-reexport-unbound`, `coverage-test-unbound` and
+  `coverage-surface-unreadable`, with `coverage-exclusion-unmatched` for an
+  exclusion of nothing and one `coverage-record-missing` for a repository with
+  capability documents and no record (`scope: []` enforces nothing). A `scope`
+  entry written as a crate name is named as the package it means. The
+  repository's own record enforces `raf-workplan` and `cargo-workplan` with no
+  exclusion: their capabilities bind every public item and every test of them,
+  unit tests included.
+- **`raf-workplan` digests of modules:** `Digest::symbol` of a module below a
+  crate root hashes, after the module's own span, the whole text of each file of
+  the module and of the modules below it, so a module binding stands for the
+  module's content in evidence and assessment inputs as it does in coverage, and
+  an edit inside a bound module makes its records stale while an edit of a
+  sibling module does not. A digest recorded against a module before this change
+  differs from the one computed now.
 - **`raf-workplan`:** loads a repository's capability, change and architecture
   documents through a `raf-source` `Tree` into typed values with their bodies,
   validating each with `raf-okf`. `Workplan::load` never fails and never panics:

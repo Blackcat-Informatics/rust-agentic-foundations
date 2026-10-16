@@ -492,14 +492,15 @@ fn this_repository_lists_every_capability_once_in_its_state_group() {
     }
     // The load found the built capabilities: the first two are listed, each
     // in the group of the state its document declares (checked above), and
-    // some capability is delivered; the rest is planned work.
+    // some capability is built, delivered or being changed while implementing;
+    // the rest is planned work.
     for slug in ["okf-profile", "source-index"] {
         assert!(roadmap.get(slug).is_some(), "{slug} is not in the roadmap");
     }
     assert_ne!(
-        roadmap.group(State::Delivered).len(),
+        roadmap.group(State::Delivered).len() + roadmap.group(State::Implementing).len(),
         0,
-        "nothing is delivered"
+        "nothing is built"
     );
     assert_eq!(
         roadmap.planned().len(),

@@ -5,10 +5,41 @@ type: Capability
 id: cap:workplan-prose-assessment
 title: "Prose assessment"
 description: "Recorded assessments of explanatory prose by humans and agents, invalidated when their inputs change."
-state: considered
+state: implementing
 bindings:
-  code: []
-  tests: []
+  code:
+    - raf_workplan::assessment
+    - raf_workplan::Workplan::assess_context
+    - raf_workplan::Workplan::assessment_record
+    - raf_workplan::Workplan::record_assessment
+    - raf_workplan::Workplan::list_assessments
+  tests:
+    - raf_workplan::test_crate::assessments::a_bound_symbol_named_by_its_last_segment_is_an_input_beside_one_named_in_full
+    - raf_workplan::test_crate::assessments::a_capability_that_does_not_load_is_refused_and_a_section_of_generated_blocks_only_does_not_load
+    - raf_workplan::test_crate::assessments::a_common_word_that_is_the_last_segment_of_a_binding_does_not_narrow_the_inputs
+    - raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged_within_bounds
+    - raf_workplan::test_crate::assessments::a_method_named_by_its_type_and_name_is_an_input_and_its_sibling_is_not
+    - raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it
+    - raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current
+    - raf_workplan::test_crate::assessments::a_rejected_assessment_is_current_and_owes_an_acceptance_whoever_gave_it
+    - raf_workplan::test_crate::assessments::a_suffix_two_bindings_end_in_names_both
+    - raf_workplan::test_crate::assessments::a_symbol_the_section_names_is_an_input_and_a_bound_symbol_it_does_not_name_is_not
+    - raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not
+    - raf_workplan::test_crate::assessments::an_evidence_record_a_claim_of_the_section_names_is_an_input
+    - raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first
+    - raf_workplan::test_crate::assessments::crlf_line_endings_in_the_document_and_the_source_leave_an_assessment_current
+    - raf_workplan::test_crate::assessments::each_refusal_writes_nothing_and_its_neighbour_records
+    - raf_workplan::test_crate::assessments::the_context_is_the_same_for_a_human_and_an_agent_and_holds_what_the_assessor_reads
+    - raf_workplan::test_crate::assessments::with_no_bound_symbol_named_every_bound_symbol_is_an_input
+    - raf_workplan::assessment::tests::a_moved_input_names_its_kind_its_name_and_how_it_moved
+    - raf_workplan::assessment::tests::a_section_of_generated_blocks_and_comments_only_is_not_authored_and_one_word_is
+    - raf_workplan::assessment::tests::a_subject_is_a_capability_and_one_of_the_seven_sections
+    - raf_workplan::assessment::tests::a_weak_name_adds_an_input_and_never_ends_the_every_binding_rule
+    - raf_workplan::assessment::tests::a_whole_path_or_a_suffix_of_two_segments_is_strong_and_the_last_segment_alone_is_weak
+    - raf_workplan::assessment::tests::authored_text_is_what_the_profile_calls_a_section_that_is_not_empty
+    - raf_workplan::assessment::tests::the_record_slug_is_the_capability_slug_and_the_section_and_no_two_sections_share_one
+    - raf_workplan::assessment::tests::widening_a_section_with_weak_names_never_removes_an_input
+    - raf_workplan::test_crate::assessments::an_edit_inside_a_bound_module_moves_the_assessment_and_a_sibling_edit_does_not
   examples: []
 depends: [cap:workplan-document-model, cap:workplan-generated-docs, cap:workplan-complete-gate, cap:workplan-evidence-claims]
 ---
@@ -139,7 +170,10 @@ Open questions:
 >   is not an input; with no bound symbol named strongly, every one is.
 > - The digest of a bound symbol is the text of its own item: the binding of a type
 >   covers the type's definition and not the bodies of its methods, so a section
->   that describes a method names the method, and the capability binds it.
+>   that describes a method names the method, and the capability binds it. The
+>   binding of a module below a crate root stands for the module's whole content,
+>   its files and those of the modules below it, so any edit inside it moves the
+>   input.
 > - A record holds every input in one file under the document bound, so a section
 >   with more inputs than fit is refused rather than recorded in part.
 

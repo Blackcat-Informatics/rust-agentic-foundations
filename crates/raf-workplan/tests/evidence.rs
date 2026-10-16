@@ -407,6 +407,59 @@ fn an_edit_of_a_bound_symbol_makes_its_record_stale_and_nothing_else_does() {
     }
 }
 
+/// The demo workspace with the first `from` of `path` replaced by `to`.
+fn demo_editing(path: &str, from: &str, to: &str) -> Workspace {
+    let files: Vec<(&str, String)> = support::demo_files()
+        .into_iter()
+        .map(|(file, text)| {
+            if file == path {
+                assert!(text.contains(from), "{file} has no `{from}`");
+                (file, text.replacen(from, to, 1))
+            } else {
+                (file, text.to_string())
+            }
+        })
+        .collect();
+    let tree: MemoryTree = files.iter().map(|(p, t)| (*p, t.as_str())).collect();
+    Workspace::load(&tree, &["."]).expect("the demo loads")
+}
+
+#[test]
+fn an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not() {
+    // `demo::body` is a file module (`src/body/mod.rs`) with the child module
+    // `blocks` in its own file; `demo::inner` is an inline sibling.
+    let demo = support::demo_workspace();
+    let bound = Evidence::passing("bound", "[cap:omega]").inputs(vec![(
+        "demo::body".to_string(),
+        digest_of(&demo, "demo::body"),
+    )]);
+    let repo = claimed(&[("Contract", &claim("bound"))], &[&bound]);
+    let stale = |source: &Workspace| -> Vec<String> {
+        reconcile_over(&repo, source)
+            .of_kind(ObligationKind::EvidenceStale)
+            .map(ToString::to_string)
+            .collect()
+    };
+    assert_eq!(stale(&demo), Vec::<String>::new());
+    let named = "cap:omega  document  evidence-stale  the evidence recorded again with evidence record (`evidence:bound` was made against `demo::body`, which has changed since)";
+    for (path, from, to) in [
+        (
+            "src/body/mod.rs",
+            "pub fn in_body() {}",
+            "pub fn in_body() { let _ = 1; }",
+        ),
+        (
+            "src/body/blocks.rs",
+            "pub(crate) struct FenceBlock;",
+            "pub(crate) struct FenceBlock(u8);",
+        ),
+    ] {
+        assert_eq!(stale(&demo_editing(path, from, to)), [named], "{path}");
+    }
+    let sibling = demo_editing("src/lib.rs", "pub fn go() {}", "pub fn go() { let _ = 2; }");
+    assert_eq!(stale(&sibling), Vec::<String>::new());
+}
+
 #[test]
 fn a_stale_record_of_a_capability_the_change_does_not_list_is_not_owed() {
     // `bound` is for `sigma`, which `shape` does not list.

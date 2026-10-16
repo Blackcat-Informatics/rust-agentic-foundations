@@ -52,6 +52,11 @@ impl Fixture {
     }
 
     fn with_lib(lib: &str, code: &str, contract: &str) -> Self {
+        Self::with_files(&[("src/lib.rs", lib)], code, contract)
+    }
+
+    /// The fixture with the source files `files` (`src/lib.rs` among them).
+    fn with_files(files: &[(&str, &str)], code: &str, contract: &str) -> Self {
         let scratch = Scratch::new("assessments");
         let root = scratch.path();
         put(
@@ -59,7 +64,9 @@ impl Fixture {
             "Cargo.toml",
             "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
         );
-        put(root, "src/lib.rs", lib);
+        for (path, text) in files {
+            put(root, path, text);
+        }
         put(root, "tests/it.rs", "#[test]\nfn case() {}\n");
         put(
             root,
@@ -76,6 +83,7 @@ impl Fixture {
             RECORD,
             &record("shape", "[cap:omega]", &[CONTRACT], "changes", DONE),
         );
+        put(root, support::COVERAGE, &support::open_coverage());
         let fixture = Self { scratch };
         fixture.sync();
         fixture
@@ -289,6 +297,42 @@ fn a_symbol_the_section_names_is_an_input_and_a_bound_symbol_it_does_not_name_is
         [
             "cap:omega  contract  assessment-stale  the section assessed again with assess (`assessment:omega-contract`: the symbol `demo::run` has changed since)"
         ]
+    );
+}
+
+#[test]
+fn an_edit_inside_a_bound_module_moves_the_assessment_and_a_sibling_edit_does_not() {
+    let fixture = Fixture::with_files(
+        &[
+            ("src/lib.rs", "pub mod tools;\npub mod other;\n"),
+            ("src/tools.rs", "pub mod deep;\npub fn t() {}\n"),
+            ("src/tools/deep.rs", "pub fn d() {}\n"),
+            ("src/other.rs", "pub fn o() {}\n"),
+        ],
+        "[demo::tools]",
+        "",
+    );
+    fixture.accept(CONTRACT);
+    // A sibling module edited: the assessment stays current.
+    fixture.edit("src/other.rs", "pub fn o() {}", "pub fn o() { let _ = 1; }");
+    assert_eq!(fixture.currency(CONTRACT), Currency::Current);
+    // A function of a child module of the bound one edited: it moves, naming
+    // the module.
+    fixture.edit(
+        "src/tools/deep.rs",
+        "pub fn d() {}",
+        "pub fn d() { let _ = 2; }",
+    );
+    assert_eq!(
+        stale(&fixture.currency(CONTRACT)),
+        [changed_input(InputKind::Symbol, "demo::tools")]
+    );
+    // Assessed again, a function in the module's own file moves it too.
+    fixture.accept(CONTRACT);
+    fixture.edit("src/tools.rs", "pub fn t() {}", "pub fn t() { let _ = 3; }");
+    assert_eq!(
+        stale(&fixture.currency(CONTRACT)),
+        [changed_input(InputKind::Symbol, "demo::tools")]
     );
 }
 

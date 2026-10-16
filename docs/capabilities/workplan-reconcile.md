@@ -33,6 +33,9 @@ bindings:
     - raf_workplan::obligation::OverLimit
     - raf_workplan::obligation::InputMoved
     - raf_workplan::obligation::EvidenceChange
+    - raf_workplan::lifecycle
+    - raf_workplan::obligation
+    - raf_workplan::git
   tests:
     - raf_workplan::test_crate::lifecycle::new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean
     - raf_workplan::test_crate::lifecycle::a_bad_slug_is_refused_before_anything_is_written_and_a_good_one_next_to_it_is_not
@@ -100,6 +103,130 @@ bindings:
     - cargo_workplan::test_crate::reconcile::fixing_an_obligation_removes_its_line_and_only_its_line
     - cargo_workplan::test_crate::new::the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not
     - cargo_workplan::test_crate::process::a_git_older_than_2_30_is_exit_two_before_any_other_process
+    - raf_workplan::test_crate::git::a_blob_is_returned_byte_for_byte
+    - raf_workplan::test_crate::git::a_blob_over_one_mebibyte_is_an_error_and_exactly_one_mebibyte_is_read
+    - raf_workplan::test_crate::git::a_default_branch_named_like_an_option_is_a_ref_and_never_an_option
+    - raf_workplan::test_crate::git::a_directory_is_an_error_and_not_an_absent_file
+    - raf_workplan::test_crate::git::a_directory_that_is_no_work_tree_has_no_listing_and_a_broken_index_is_an_error
+    - raf_workplan::test_crate::git::a_file_is_read_as_it_was_at_the_merge_base
+    - raf_workplan::test_crate::git::a_linked_work_tree_asks_about_its_own_head_and_shares_the_remote_refs
+    - raf_workplan::test_crate::git::a_linked_work_tree_is_its_own_top
+    - raf_workplan::test_crate::git::a_local_branch_named_origin_main_does_not_stand_in_for_the_remote_one
+    - raf_workplan::test_crate::git::a_program_that_does_not_exist_is_an_error_and_not_a_fallback
+    - raf_workplan::test_crate::git::a_repository_without_origin_head_has_no_default_branch_and_the_fix_is_named
+    - raf_workplan::test_crate::git::histories_with_no_common_ancestor_have_no_merge_base
+    - raf_workplan::test_crate::git::stubs::a_stub_that_exits_with_a_failure_is_an_error_with_its_message
+    - raf_workplan::test_crate::git::stubs::an_answer_that_is_not_a_full_reference_name_stops_the_chain_before_any_commit_is_asked_for
+    - raf_workplan::test_crate::git::stubs::the_version_gate_over_a_real_process_refuses_2_29_and_accepts_2_30
+    - raf_workplan::test_crate::git::the_default_branch_of_a_clone_is_the_full_remote_tracking_name
+    - raf_workplan::test_crate::git::the_installed_git_is_new_enough
+    - raf_workplan::test_crate::git::the_merge_base_is_where_the_branch_left_the_default_branch
+    - raf_workplan::test_crate::git::the_prefix_is_where_the_directory_is_below_the_top_of_its_work_tree
+    - raf_workplan::test_crate::git::the_tracked_paths_are_the_index_and_not_the_files_on_disk
+    - raf_workplan::test_crate::git::the_tracked_paths_of_a_subdirectory_are_relative_to_it
+    - raf_workplan::test_crate::lifecycle::a_file_or_a_link_where_work_changes_belongs_is_refused
+    - raf_workplan::test_crate::lifecycle::a_link_at_the_path_is_an_existing_file_and_is_not_followed
+    - raf_workplan::test_crate::lifecycle::a_slug_that_reads_as_a_tracker_reference_leaves_no_file
+    - raf_workplan::test_crate::lifecycle::an_spdx_field_that_is_not_one_line_of_text_is_refused_and_nothing_is_written
+    - raf_workplan::test_crate::lifecycle::impact_of_a_change_that_just_was_created_reads_the_record_from_the_disk
+    - raf_workplan::test_crate::lifecycle::impact_of_a_change_that_reaches_nothing_says_none
+    - raf_workplan::test_crate::lifecycle::impact_of_the_repositorys_own_change_lists_what_the_record_says
+    - raf_workplan::test_crate::lifecycle::impact_tells_an_unknown_slug_from_a_record_that_did_not_load
+    - raf_workplan::test_crate::lifecycle::neither_spdx_field_writes_no_comment_line
+    - raf_workplan::test_crate::lifecycle::the_bad_slug_message_says_what_a_slug_is
+    - raf_workplan::test_crate::lifecycle::the_guidance_for_a_delivered_capability_names_both_findings_it_avoids
+    - raf_workplan::test_crate::lifecycle::the_record_beside_a_delivered_capability_is_a_finding_until_the_state_is_set
+    - raf_workplan::test_crate::lifecycle::the_sync_note_is_there_when_the_target_file_was_already_stale
+    - raf_workplan::test_crate::lifecycle::the_template_in_the_wrong_state_is_the_finding_the_guidance_names
+    - raf_workplan::test_crate::lifecycle::work_changes_is_created_when_the_repository_has_none
+    - raf_workplan::test_crate::obligations::a_block_of_another_change_in_a_capability_that_does_not_load_is_not_owed
+    - raf_workplan::test_crate::obligations::a_capability_over_the_size_bound_is_not_loaded_and_refused
+    - raf_workplan::test_crate::obligations::a_delivered_capability_owes_code_and_tests_but_not_examples
+    - raf_workplan::test_crate::obligations::a_delivered_capability_that_breaks_another_rule_too_is_not_read_as_unbound
+    - raf_workplan::test_crate::obligations::a_hundred_thousand_lines_are_a_hundred_thousand_obligations_in_order
+    - raf_workplan::test_crate::obligations::a_listed_capability_that_is_not_loaded_is_an_error_and_not_a_skipped_one
+    - raf_workplan::test_crate::obligations::a_very_long_line_is_one_obligation_and_is_read_in_linear_time
+    - raf_workplan::test_crate::obligations::an_unknown_change_is_not_a_change_that_did_not_load
+    - raf_workplan::test_crate::obligations::an_unterminated_fence_hides_the_rest_of_the_section
+    - raf_workplan::test_crate::obligations::an_unterminated_fence_in_an_earlier_section_hides_the_headings_after_it
+    - raf_workplan::test_crate::obligations::capabilities_that_bind_nothing_owe_no_binding
+    - raf_workplan::test_crate::obligations::fixing_one_fault_removes_exactly_its_lines
+    - raf_workplan::test_crate::obligations::moves_to_unknown_records_cost_the_same_with_few_records_as_with_many
+    - raf_workplan::test_crate::obligations::needed_is_a_typed_value_whose_text_starts_with_the_contract_string
+    - raf_workplan::test_crate::obligations::only_the_capabilities_the_change_lists_are_judged
+    - raf_workplan::test_crate::obligations::text_that_is_read_as_wording_at_a_hostile_size_does_not_hang
+    - raf_workplan::test_crate::obligations::the_baseline_owes_nothing_and_check_agrees
+    - raf_workplan::test_crate::obligations::the_change_is_found_with_or_without_its_prefix
+    - raf_workplan::test_crate::obligations::the_proposals_are_those_of_the_graph_for_this_change_only
+    - raf_workplan::test_crate::obligations::two_blocks_in_one_section_print_in_document_order_and_every_line_is_in_order
+    - raf_workplan::test_crate::obligations::wording_is_read_in_every_section_of_an_implementing_capability
+    - raf_workplan::test_crate::untouched::a_checkout_with_converted_line_endings_is_untouched_in_every_section
+    - raf_workplan::test_crate::untouched::a_default_branch_with_no_common_ancestor_is_an_error
+    - raf_workplan::test_crate::untouched::a_prefix_with_a_space_is_an_error_and_a_neighbour_without_one_is_not
+    - raf_workplan::test_crate::untouched::a_repository_with_no_remote_at_all_is_an_error_and_not_a_pass
+    - raf_workplan::test_crate::untouched::a_root_outside_any_work_tree_is_an_error_at_the_open
+    - raf_workplan::test_crate::untouched::a_section_missing_from_the_merge_base_file_counts_as_touched
+    - raf_workplan::test_crate::untouched::an_affected_section_the_working_tree_file_lacks_is_an_error
+    - raf_workplan::test_crate::untouched::an_unstartable_git_is_an_error_before_the_repository_is_looked_at
+    - raf_workplan::test_crate::untouched::contract_effect_none_still_reports_the_other_sections
+    - raf_workplan::test_crate::untouched::line_endings_do_not_touch_a_section
+    - raf_workplan::test_crate::untouched::stubs::the_blob_the_stub_prints_is_what_is_compared
+    - raf_workplan::test_crate::untouched::text_in_a_fence_and_in_a_proposed_block_is_authored
+    - raf_workplan::test_crate::untouched::the_default_branch_moving_on_after_the_fork_does_not_touch_the_section
+    - raf_workplan::git::tests::a_blob_is_read_from_the_merge_base_in_one_argument
+    - raf_workplan::git::tests::a_blob_over_one_mebibyte_is_an_error_and_never_cut
+    - raf_workplan::git::tests::a_directory_outside_a_work_tree_has_no_listing
+    - raf_workplan::git::tests::a_failing_prefix_question_is_an_error
+    - raf_workplan::git::tests::a_missing_default_branch_is_an_error_that_names_the_fix
+    - raf_workplan::git::tests::a_path_missing_at_the_merge_base_is_none_and_other_failures_are_errors
+    - raf_workplan::git::tests::a_prefix_the_source_path_pattern_cannot_carry_is_refused_with_its_neighbour_accepted
+    - raf_workplan::git::tests::a_reference_is_resolved_to_a_commit_after_the_end_of_options
+    - raf_workplan::git::tests::a_reference_named_like_an_option_is_one_argument_after_the_end_of_options
+    - raf_workplan::git::tests::a_reference_that_resolves_to_nothing_or_to_text_is_an_error
+    - raf_workplan::git::tests::a_text_that_is_not_a_version_is_refused
+    - raf_workplan::git::tests::a_tracked_path_must_be_utf8_and_a_relative_path_of_the_tree
+    - raf_workplan::git::tests::a_version_is_read_from_the_text_git_prints
+    - raf_workplan::git::tests::a_version_that_cannot_be_asked_or_read_is_an_error
+    - raf_workplan::git::tests::an_answer_that_is_not_a_full_reference_name_never_becomes_one
+    - raf_workplan::git::tests::every_other_failure_of_the_listing_is_an_error_and_not_a_walk
+    - raf_workplan::git::tests::git_2_29_is_refused_and_2_30_and_2_45_are_accepted
+    - raf_workplan::git::tests::histories_without_a_common_ancestor_and_odd_answers_are_errors
+    - raf_workplan::git::tests::the_default_branch_is_the_full_reference_name
+    - raf_workplan::git::tests::the_merge_base_is_asked_of_head_and_the_commit
+    - raf_workplan::git::tests::the_merge_base_of_the_default_branch_is_three_questions_in_order_and_stops_at_the_first_failure
+    - raf_workplan::git::tests::the_prefix_is_asked_with_exactly_its_argv_in_the_c_locale
+    - raf_workplan::git::tests::the_prefix_is_empty_at_the_top_and_a_path_with_a_slash_below_it
+    - raf_workplan::git::tests::the_tracked_paths_are_the_nul_separated_listing_of_the_index
+    - raf_workplan::git::tests::the_version_question_is_exactly_git_version_in_the_c_locale
+    - raf_workplan::git::tests::versions_order_by_number_and_not_by_text
+    - raf_workplan::lifecycle::changed::tests::a_value_over_a_limit_by_less_than_a_float_tells_apart_is_a_change
+    - raf_workplan::lifecycle::changed::tests::an_unchanged_or_better_record_owes_nothing
+    - raf_workplan::lifecycle::changed::tests::each_change_is_named
+    - raf_workplan::lifecycle::tests::an_example_that_cannot_be_started_is_an_error_and_has_no_problem
+    - raf_workplan::lifecycle::tests::every_way_a_run_can_fail_is_a_problem_and_a_pass_is_none
+    - raf_workplan::lifecycle::tests::the_obligation_names_the_capability_the_examples_section_and_the_binding
+    - raf_workplan::obligation::tests::a_failing_run_names_the_binding_and_what_happened_without_a_time_or_output
+    - raf_workplan::obligation::tests::a_part_is_ordered_document_then_sections_in_document_order_then_items
+    - raf_workplan::obligation::tests::a_phrase_continues_over_one_line_break_and_not_over_anything_else
+    - raf_workplan::obligation::tests::all_lists_every_kind_once_in_order_with_unique_kebab_names
+    - raf_workplan::obligation::tests::an_empty_list_prints_nothing
+    - raf_workplan::obligation::tests::an_unterminated_fence_hides_the_rest_and_does_not_panic
+    - raf_workplan::obligation::tests::contract_effect_none_suppresses_section_untouched_for_three_sections_and_nothing_else
+    - raf_workplan::obligation::tests::every_phrase_has_a_sentence_that_finds_it_and_every_hit_is_a_phrase
+    - raf_workplan::obligation::tests::generated_blocks_are_not_read
+    - raf_workplan::obligation::tests::hostile_text_is_read_in_linear_time
+    - raf_workplan::obligation::tests::near_misses_are_not_hits
+    - raf_workplan::obligation::tests::only_prose_is_read_and_the_hit_names_its_section_and_line
+    - raf_workplan::obligation::tests::only_the_marker_name_is_exempt_in_capitals
+    - raf_workplan::obligation::tests::only_the_three_kinds_that_start_a_process_are_not_static
+    - raf_workplan::obligation::tests::several_hits_of_a_phrase_on_one_line_are_one_hit_and_two_lines_are_two
+    - raf_workplan::obligation::tests::text_before_the_first_section_has_no_section
+    - raf_workplan::obligation::tests::the_evidence_names_the_thing_it_is_about_in_parentheses
+    - raf_workplan::obligation::tests::the_evidence_strings_are_the_evidence_column_of_the_contract
+    - raf_workplan::obligation::tests::the_kinds_are_the_thirteen_of_the_contract
+    - raf_workplan::obligation::tests::the_list_is_sorted_by_subject_part_kind_line_then_evidence_and_is_without_repeats
+    - raf_workplan::obligation::tests::the_trace_evidence_names_the_record_and_what_is_wrong_with_it
+    - raf_workplan::obligation::trace::tests::a_value_over_its_limit_is_found_by_its_text_and_not_its_nearest_float
   examples:
     - raf_workplan::Workplan::new_change
     - raf_workplan::Workplan::impact
@@ -423,7 +550,61 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::Workplan::impact` | doctest | [Verification](#verification) |
 | `raf_workplan::Workplan::new_change` | doctest | [Verification](#verification) |
 | `raf_workplan::Workplan::reconcile` | doctest | [Verification](#verification) |
+| `raf_workplan::git::tests::a_blob_is_read_from_the_merge_base_in_one_argument` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::a_blob_over_one_mebibyte_is_an_error_and_never_cut` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::a_directory_outside_a_work_tree_has_no_listing` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::a_failing_prefix_question_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::a_missing_default_branch_is_an_error_that_names_the_fix` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::a_path_missing_at_the_merge_base_is_none_and_other_failures_are_errors` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::a_prefix_the_source_path_pattern_cannot_carry_is_refused_with_its_neighbour_accepted` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::a_reference_is_resolved_to_a_commit_after_the_end_of_options` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::a_reference_named_like_an_option_is_one_argument_after_the_end_of_options` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::a_reference_that_resolves_to_nothing_or_to_text_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::a_text_that_is_not_a_version_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::a_tracked_path_must_be_utf8_and_a_relative_path_of_the_tree` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::a_version_is_read_from_the_text_git_prints` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::a_version_that_cannot_be_asked_or_read_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::an_answer_that_is_not_a_full_reference_name_never_becomes_one` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::every_other_failure_of_the_listing_is_an_error_and_not_a_walk` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::git_2_29_is_refused_and_2_30_and_2_45_are_accepted` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::histories_without_a_common_ancestor_and_odd_answers_are_errors` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::the_default_branch_is_the_full_reference_name` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::the_merge_base_is_asked_of_head_and_the_commit` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::the_merge_base_of_the_default_branch_is_three_questions_in_order_and_stops_at_the_first_failure` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::the_prefix_is_asked_with_exactly_its_argv_in_the_c_locale` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::the_prefix_is_empty_at_the_top_and_a_path_with_a_slash_below_it` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::the_tracked_paths_are_the_nul_separated_listing_of_the_index` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::the_version_question_is_exactly_git_version_in_the_c_locale` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::versions_order_by_number_and_not_by_text` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::changed::tests::a_value_over_a_limit_by_less_than_a_float_tells_apart_is_a_change` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::changed::tests::an_unchanged_or_better_record_owes_nothing` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::changed::tests::each_change_is_named` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::section_digest` | doctest | [Verification](#verification) |
+| `raf_workplan::lifecycle::tests::an_example_that_cannot_be_started_is_an_error_and_has_no_problem` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::tests::every_way_a_run_can_fail_is_a_problem_and_a_pass_is_none` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::tests::the_obligation_names_the_capability_the_examples_section_and_the_binding` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::a_failing_run_names_the_binding_and_what_happened_without_a_time_or_output` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::a_part_is_ordered_document_then_sections_in_document_order_then_items` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::a_phrase_continues_over_one_line_break_and_not_over_anything_else` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::all_lists_every_kind_once_in_order_with_unique_kebab_names` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::an_empty_list_prints_nothing` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::an_unterminated_fence_hides_the_rest_and_does_not_panic` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::contract_effect_none_suppresses_section_untouched_for_three_sections_and_nothing_else` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::every_phrase_has_a_sentence_that_finds_it_and_every_hit_is_a_phrase` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::generated_blocks_are_not_read` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::hostile_text_is_read_in_linear_time` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::near_misses_are_not_hits` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::only_prose_is_read_and_the_hit_names_its_section_and_line` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::only_the_marker_name_is_exempt_in_capitals` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::only_the_three_kinds_that_start_a_process_are_not_static` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::several_hits_of_a_phrase_on_one_line_are_one_hit_and_two_lines_are_two` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::text_before_the_first_section_has_no_section` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::the_evidence_names_the_thing_it_is_about_in_parentheses` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::the_evidence_strings_are_the_evidence_column_of_the_contract` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::the_kinds_are_the_thirteen_of_the_contract` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::the_list_is_sorted_by_subject_part_kind_line_then_evidence_and_is_without_repeats` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::the_trace_evidence_names_the_record_and_what_is_wrong_with_it` | test | [Verification](#verification) |
+| `raf_workplan::obligation::trace::tests::a_value_over_its_limit_is_found_by_its_text_and_not_its_nearest_float` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::each_kind_of_obligation_is_a_reconcile_line_in_a_git_repository_and_fixing_it_removes_the_line` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::evidence::a_record_at_the_merge_base_that_does_not_read_is_an_error_and_not_a_pass` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::evidence::a_record_that_failed_at_the_merge_base_or_was_not_there_is_compared_with_nothing` | test | [Verification](#verification) |
@@ -432,47 +613,114 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::test_crate::evidence::each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::evidence::each_named_record_is_read_once_at_the_merge_base_with_the_blob_row` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::evidence::with_no_default_branch_a_claim_is_an_error_and_no_claim_asks_git_nothing` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::a_blob_is_returned_byte_for_byte` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::a_blob_over_one_mebibyte_is_an_error_and_exactly_one_mebibyte_is_read` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::a_default_branch_named_like_an_option_is_a_ref_and_never_an_option` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::a_directory_is_an_error_and_not_an_absent_file` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::a_directory_that_is_no_work_tree_has_no_listing_and_a_broken_index_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::a_file_is_read_as_it_was_at_the_merge_base` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::a_linked_work_tree_asks_about_its_own_head_and_shares_the_remote_refs` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::a_linked_work_tree_is_its_own_top` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::a_local_branch_named_origin_main_does_not_stand_in_for_the_remote_one` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::a_program_that_does_not_exist_is_an_error_and_not_a_fallback` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::a_repository_without_origin_head_has_no_default_branch_and_the_fix_is_named` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::histories_with_no_common_ancestor_have_no_merge_base` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::stubs::a_stub_that_exits_with_a_failure_is_an_error_with_its_message` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::stubs::an_answer_that_is_not_a_full_reference_name_stops_the_chain_before_any_commit_is_asked_for` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::git::stubs::every_question_reaches_git_as_exactly_its_argv_in_the_work_directory` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::stubs::the_version_gate_over_a_real_process_refuses_2_29_and_accepts_2_30` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::the_default_branch_of_a_clone_is_the_full_remote_tracking_name` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::the_installed_git_is_new_enough` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::the_merge_base_is_where_the_branch_left_the_default_branch` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::the_prefix_is_where_the_directory_is_below_the_top_of_its_work_tree` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::the_tracked_paths_are_the_index_and_not_the_files_on_disk` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::the_tracked_paths_of_a_subdirectory_are_relative_to_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::a_bad_slug_is_refused_before_anything_is_written_and_a_good_one_next_to_it_is_not` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::a_capability_that_does_not_exist_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::a_capability_whose_document_did_not_load_is_named_and_never_skipped` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::a_file_or_a_link_where_work_changes_belongs_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::a_link_at_the_path_is_an_existing_file_and_is_not_followed` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::a_slug_that_reads_as_a_tracker_reference_leaves_no_file` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::an_affects_entry_must_name_a_listed_capability_and_one_of_the_seven_sections` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::an_existing_file_is_refused_and_left_byte_identical` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::an_spdx_field_that_is_not_one_line_of_text_is_refused_and_nothing_is_written` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::both_spdx_fields_open_the_record_with_the_two_comment_lines_of_the_records_of_the_repository` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::explicit_affects_are_written_as_given_and_impact_reports_them_sorted` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::impact_gives_the_capabilities_sections_bindings_dependants_and_linking_sections` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::impact_of_a_change_that_just_was_created_reads_the_record_from_the_disk` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::impact_of_a_change_that_reaches_nothing_says_none` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::impact_of_the_repositorys_own_change_lists_what_the_record_says` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::impact_prints_each_part_in_a_fixed_order` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::impact_tells_an_unknown_slug_from_a_record_that_did_not_load` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::neither_spdx_field_writes_no_comment_line` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::one_spdx_field_without_the_other_is_an_error_that_names_the_missing_one` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::several_capabilities_are_listed_in_the_order_given_without_repeats` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::the_bad_slug_message_says_what_a_slug_is` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::the_default_affects_is_the_contract_of_each_listed_capability` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::the_guidance_follows_the_state_of_each_listed_capability` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::the_guidance_for_a_delivered_capability_names_both_findings_it_avoids` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::the_printed_text_holds_the_template_and_the_guidance` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::the_record_beside_a_delivered_capability_is_a_finding_until_the_state_is_set` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::the_sync_note_is_there_when_the_target_file_was_already_stale` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::the_template_in_a_capability_of_each_state_gives_one_block_and_a_clean_check` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::the_template_in_the_wrong_state_is_the_finding_the_guidance_names` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lifecycle::work_changes_is_created_when_the_repository_has_none` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::a_block_of_another_change_in_a_capability_that_does_not_load_is_not_owed` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::a_capability_over_the_size_bound_is_not_loaded_and_refused` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::a_delivered_capability_owes_code_and_tests_but_not_examples` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::a_delivered_capability_that_breaks_another_rule_too_is_not_read_as_unbound` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::a_hundred_thousand_lines_are_a_hundred_thousand_obligations_in_order` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::a_listed_capability_that_is_not_loaded_is_an_error_and_not_a_skipped_one` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::a_very_long_line_is_one_obligation_and_is_read_in_linear_time` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::an_unknown_change_is_not_a_change_that_did_not_load` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::an_unterminated_fence_hides_the_rest_of_the_section` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::an_unterminated_fence_in_an_earlier_section_hides_the_headings_after_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::capabilities_that_bind_nothing_owe_no_binding` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::contract_effect_none_keeps_every_obligation_the_documents_can_show` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::contract_effect_none_keeps_the_assessments_and_another_section_is_not_judged` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::each_assessment_fault_is_owed_at_the_section_naming_the_input_and_a_current_acceptance_clears_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::equal_inputs_print_equal_output` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by_none` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::fixing_one_fault_removes_exactly_its_lines` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::moves_to_unknown_records_cost_the_same_with_few_records_as_with_many` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::needed_is_a_typed_value_whose_text_starts_with_the_contract_string` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::only_the_capabilities_the_change_lists_are_judged` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::reconcile_writes_nothing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::text_of_a_proposed_block_is_not_read_for_wording` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::text_that_is_read_as_wording_at_a_hostile_size_does_not_hang` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::the_baseline_owes_nothing_and_check_agrees` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::the_binding_obligations_are_the_gaps_of_the_roadmap` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::the_change_is_found_with_or_without_its_prefix` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::the_proposals_are_those_of_the_graph_for_this_change_only` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::two_blocks_in_one_section_print_in_document_order_and_every_line_is_in_order` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::wording_is_read_in_every_section_of_an_implementing_capability` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::wording_that_only_looks_like_a_phrase_owes_nothing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::planning_produces_the_documentation` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::several_redesigns_leave_one_readable_present` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::untouched::a_checkout_with_converted_line_endings_is_untouched_in_every_section` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_default_branch_named_like_an_option_is_resolved_and_never_reaches_git_as_one` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::untouched::a_default_branch_with_no_common_ancestor_is_an_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_file_absent_at_the_merge_base_counts_as_touched` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_file_at_the_merge_base_that_does_not_parse_is_an_error_and_not_a_pass` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_file_over_one_mebibyte_at_the_merge_base_is_an_error_and_exactly_one_is_read` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_linked_work_tree_compares_its_own_head` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_local_branch_named_origin_main_does_not_stand_in_for_the_remote_one` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::untouched::a_prefix_with_a_space_is_an_error_and_a_neighbour_without_one_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::untouched::a_repository_with_no_remote_at_all_is_an_error_and_not_a_pass` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::untouched::a_root_outside_any_work_tree_is_an_error_at_the_open` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_section_edited_on_the_branch_is_not_reported_and_its_neighbour_is` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::untouched::a_section_missing_from_the_merge_base_file_counts_as_touched` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::a_workspace_below_the_top_of_the_repository_is_compared_at_its_prefix` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::untouched::an_affected_section_the_working_tree_file_lacks_is_an_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::an_edit_that_is_not_committed_counts_because_the_working_tree_is_compared` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::an_unchanged_affected_section_is_owed_with_the_line_the_contract_shows` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::untouched::an_unstartable_git_is_an_error_before_the_repository_is_looked_at` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::contract_effect_none_leaves_out_contract_usage_and_examples_and_asks_git_for_nothing_then` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::untouched::contract_effect_none_still_reports_the_other_sections` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::git_2_29_stops_the_open_before_any_other_process_and_2_30_goes_on` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::untouched::line_endings_do_not_touch_a_section` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::no_default_branch_is_an_error_that_names_the_fix_and_the_fix_clears_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::on_the_default_branch_itself_every_affected_section_is_owed_and_it_is_not_an_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::only_a_generated_block_changed_is_still_reported` | test | [Verification](#verification) |
@@ -481,6 +729,9 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::test_crate::untouched::stubs::a_root_below_the_top_reads_each_file_at_the_prefix` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::stubs::a_stub_git_2_29_runs_one_process_and_exits_with_the_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::stubs::reconcile_asks_git_exactly_the_commands_of_the_contract_in_order` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::untouched::stubs::the_blob_the_stub_prints_is_what_is_compared` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::untouched::text_in_a_fence_and_in_a_proposed_block_is_authored` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::untouched::the_default_branch_moving_on_after_the_fork_does_not_touch_the_section` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::untouched::the_digest_leaves_out_generated_blocks_on_both_sides_and_nothing_else` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::verify::a_binding_to_a_function_with_no_test_reports_zero_tests_as_failing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::verify::an_example_that_does_not_build_is_a_line_and_is_gone_once_it_builds_and_runs` | test | [Verification](#verification) |

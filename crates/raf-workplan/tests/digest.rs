@@ -260,3 +260,66 @@ fn a_digest_is_written_and_read_as_sixty_four_lowercase_hex_digits() {
     .collect();
     assert_eq!(set.len(), 2);
 }
+
+#[test]
+fn a_module_stands_for_its_files_and_the_modules_below_it_and_a_sibling_does_not_move_it() {
+    let files = [
+        (
+            "src/lib.rs",
+            "pub mod tools;\npub mod other {\n    pub fn o() {}\n}\n",
+        ),
+        ("src/tools.rs", "pub mod deep;\npub fn t() {}\n"),
+        ("src/tools/deep.rs", "pub fn d() {}\n"),
+    ];
+    let edited = |path: &str, from: &str, to: &str| {
+        let changed: Vec<(&str, String)> = files
+            .iter()
+            .map(|(file, text)| {
+                let text = if *file == path {
+                    assert!(text.contains(from), "{file} has no `{from}`");
+                    text.replacen(from, to, 1)
+                } else {
+                    (*text).to_string()
+                };
+                (*file, text)
+            })
+            .collect();
+        let borrowed: Vec<(&str, &str)> = changed.iter().map(|(f, t)| (*f, t.as_str())).collect();
+        workspace(&borrowed)
+    };
+    let digest = |source: &Workspace, path: &str| Digest::symbol(source, path).expect(path);
+    let base = workspace(&files);
+    // An edit in the module's own file and one in a child module's file each
+    // move the digest of the file module.
+    let in_own = edited("src/tools.rs", "pub fn t() {}", "pub fn t() { let _ = 1; }");
+    let in_child = edited(
+        "src/tools/deep.rs",
+        "pub fn d() {}",
+        "pub fn d() { let _ = 2; }",
+    );
+    assert_ne!(digest(&base, "demo::tools"), digest(&in_own, "demo::tools"));
+    assert_ne!(
+        digest(&base, "demo::tools"),
+        digest(&in_child, "demo::tools")
+    );
+    // The child module stands for its own file only.
+    assert_eq!(
+        digest(&base, "demo::tools::deep"),
+        digest(&in_own, "demo::tools::deep")
+    );
+    // An edit of a sibling module leaves it, and moves the inline sibling.
+    let in_sibling = edited("src/lib.rs", "pub fn o() {}", "pub fn o() { let _ = 3; }");
+    assert_eq!(
+        digest(&base, "demo::tools"),
+        digest(&in_sibling, "demo::tools")
+    );
+    assert_ne!(
+        digest(&base, "demo::other"),
+        digest(&in_sibling, "demo::other")
+    );
+    // The digest is the same on every load.
+    assert_eq!(
+        digest(&base, "demo::tools"),
+        digest(&workspace(&files), "demo::tools")
+    );
+}

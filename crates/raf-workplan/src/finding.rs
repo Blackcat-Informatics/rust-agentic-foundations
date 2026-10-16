@@ -39,6 +39,12 @@ kinds! {
     ASSESSMENT_SUBJECT_MISSING = "assessment-subject-missing";
     ASSESSMENT_ID_MISMATCH = "assessment-id-mismatch";
     SCOPE_CRATE_MISSING = "scope-crate-missing";
+    COVERAGE_RECORD_MISSING = "coverage-record-missing";
+    COVERAGE_ITEM_UNBOUND = "coverage-item-unbound";
+    COVERAGE_TEST_UNBOUND = "coverage-test-unbound";
+    COVERAGE_REEXPORT_UNBOUND = "coverage-reexport-unbound";
+    COVERAGE_EXCLUSION_UNMATCHED = "coverage-exclusion-unmatched";
+    COVERAGE_SURFACE_UNREADABLE = "coverage-surface-unreadable";
     DEPENDS_CYCLE = "depends-cycle";
     PROPOSED_MISSING_CHANGE = "proposed-missing-change";
     PROPOSED_CHANGE_NOT_LISTING = "proposed-change-not-listing";
@@ -223,6 +229,18 @@ impl Finding {
     ///   a crate that is no package of the source workspace. As for the
     ///   documents, a name whose record or document exists but is broken is
     ///   not missing.
+    /// * `coverage-record-missing`: a repository with capability documents
+    ///   has no coverage record `work/coverage/default.md` (`scope: []`
+    ///   enforces nothing, visibly). `coverage-item-unbound` and
+    ///   `coverage-test-unbound`: a public item or a test of a crate of the
+    ///   record's `scope` that no capability binds and no exclusion matches,
+    ///   at the file and line of the item; `coverage-reexport-unbound`: a
+    ///   public re-export of such a crate that the source index cannot follow
+    ///   to an item (a type a macro generates, an enum variant) and that no
+    ///   module binding covers, at its declaration. `coverage-surface-unreadable`: the
+    ///   public surface of a crate of `scope` cannot be listed.
+    ///   `coverage-exclusion-unmatched`: an exclusion that matches no public
+    ///   item and no test of the workspace. See [`crate::coverage`].
     /// * `assessment-id-mismatch`: an assessment whose id is not
     ///   `assessment:<capability slug>-<section>` of its subject, the one id
     ///   an assessment of that section has, so a section has at most one

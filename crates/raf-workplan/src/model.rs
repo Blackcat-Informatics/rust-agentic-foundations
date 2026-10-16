@@ -13,6 +13,7 @@ use raf_source::Workspace;
 
 use crate::Finding;
 use crate::bindings;
+use crate::coverage;
 use crate::generated;
 use crate::graph::{self, BindingKind, Graph};
 use crate::links::LinkContext;
@@ -241,6 +242,8 @@ impl<'s> Workplan<'s> {
             &self.present,
             &self.unvalidated_blocks,
         ));
+        let coverage = coverage::check(self);
+        self.findings.extend(coverage);
     }
 
     /// The graph of the documents and the source they are bound to.

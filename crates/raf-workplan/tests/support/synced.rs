@@ -180,6 +180,7 @@ pub(crate) fn unsynced() -> Repo {
          description: How it fits.\n---\n\n# Overview\n\nBody text.\n"
             .to_string(),
     );
+    put(super::COVERAGE, super::open_coverage());
     repo
 }
 

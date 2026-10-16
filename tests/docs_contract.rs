@@ -85,19 +85,19 @@ const INVENTORY: Inventory = Inventory {
         ("census-rule-api", "designed"),
         ("okf-profile", "implementing"),
         ("source-index", "implementing"),
-        ("workplan-cli", "delivered"),
+        ("workplan-cli", "implementing"),
         ("workplan-complete-gate", "implementing"),
         ("workplan-current-rationale", "considered"),
         ("workplan-document-model", "implementing"),
-        ("workplan-entity-history", "considered"),
-        ("workplan-evidence-claims", "considered"),
-        ("workplan-generated-docs", "delivered"),
-        ("workplan-prose-assessment", "considered"),
+        ("workplan-entity-history", "implementing"),
+        ("workplan-evidence-claims", "implementing"),
+        ("workplan-generated-docs", "implementing"),
+        ("workplan-prose-assessment", "implementing"),
         ("workplan-reconcile", "implementing"),
-        ("workplan-two-way-coverage", "considered"),
+        ("workplan-two-way-coverage", "implementing"),
     ],
     architecture: &["normal-form", "okf-profile"],
-    records: &[],
+    records: &["coverage:default"],
     generated: &["docs/capabilities/index.md"],
 };
 
@@ -970,11 +970,11 @@ fn inventory_table_has_the_documented_shape() {
             .count()
     };
     assert_eq!(count("designed"), 9);
-    assert_eq!(count("implementing"), 5);
-    assert_eq!(count("delivered"), 2);
-    assert_eq!(count("considered"), 5);
+    assert_eq!(count("implementing"), 11);
+    assert_eq!(count("delivered"), 0);
+    assert_eq!(count("considered"), 1);
     assert_eq!(INVENTORY.architecture.len(), 2);
-    assert_eq!(INVENTORY.records, &[] as &[&str]);
+    assert_eq!(INVENTORY.records, ["coverage:default"]);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 

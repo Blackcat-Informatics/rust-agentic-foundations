@@ -22,7 +22,9 @@
 //!   every-binding rule, and a suffix two bindings end in names both. Each is
 //!   [`Digest::symbol`], the text of the binding's own item, so the binding of
 //!   a type covers the type's definition and not the bodies of its methods: a
-//!   section about a method names the method's binding;
+//!   section about a method names the method's binding. The binding of a
+//!   module below a crate root stands for its whole content, the files of the
+//!   module and of the modules below it;
 //! * the evidence: each evidence record a claim marker of the section names,
 //!   by [`Digest::record`] of its text.
 //!

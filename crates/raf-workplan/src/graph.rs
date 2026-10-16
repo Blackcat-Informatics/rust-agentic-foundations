@@ -1188,7 +1188,19 @@ fn add_records(
                     package: package.clone(),
                 });
             } else {
-                let known = if packages.is_empty() {
+                // A crate name (`raf_okf`) is not the package name (`raf-okf`):
+                // say which package it is, rather than guess.
+                let crate_form = |name: &str| name.replace('-', "_");
+                let named: Vec<&str> = packages
+                    .iter()
+                    .copied()
+                    .filter(|known| crate_form(known) == crate_form(package))
+                    .collect();
+                let known = if let [only] = named.as_slice() {
+                    format!(
+                        "`scope` names packages by the `name` of their `[package]`, and `{package}` is the crate name of the package `{only}`"
+                    )
+                } else if packages.is_empty() {
                     "the source workspace has no package".to_string()
                 } else {
                     format!(

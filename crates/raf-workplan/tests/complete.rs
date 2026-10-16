@@ -286,6 +286,7 @@ impl Fixture {
         for (path, text) in spec.documents() {
             put(root, &path, &text);
         }
+        put(root, support::COVERAGE, &support::open_coverage());
         if real {
             git(root, &["init", "-q", "-b", "main"]);
         }

@@ -122,6 +122,20 @@
 //! [`bound`]; [`Workplan::evidence_claims`] and [`Workplan::evidence_for`] are
 //! the dependency views of the claims and the records.
 //!
+//! [`coverage`] is two-way coverage: [`Workplan::coverage_report`] lists, for
+//! every package of the workspace, the public items (the exported items of each
+//! library and binary target, `#[doc(hidden)]` left out) that no `code` binding
+//! covers, binding an item covering the items below it, and the tests, unit tests
+//! included, that no `tests` binding names, beside what the exclusions of the
+//! coverage record take out and each surface that cannot be listed.
+//! [`coverage::render`] writes each direction as a table and as JSON. `check`
+//! enforces the crates of the record's `scope` (`coverage-item-unbound`,
+//! `coverage-reexport-unbound` for a public re-export the index cannot follow,
+//! `coverage-test-unbound`, `coverage-surface-unreadable`), refuses an exclusion
+//! that matches nothing (`coverage-exclusion-unmatched`), and reports a repository
+//! with capability documents and no coverage record once
+//! (`coverage-record-missing`); `scope: []` enforces nothing.
+//!
 //! [`lifecycle::Lifecycle::open`] is the entry point of the commands that start a
 //! process: it asks `git --version` before any other process, refuses a Git older
 //! than 2.30, and opens the repository. [`lifecycle::Lifecycle::reconcile`] adds
@@ -245,6 +259,7 @@
 pub mod assessment;
 mod bindings;
 pub mod bound;
+pub mod coverage;
 pub mod digest;
 pub mod evidence;
 pub mod exec;

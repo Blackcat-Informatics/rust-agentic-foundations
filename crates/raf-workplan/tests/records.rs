@@ -103,7 +103,8 @@ fn each_record_type_loads_from_its_directory_into_the_model() {
         );
         let coverage = plan.coverage().expect("the coverage record loads");
         assert_eq!(coverage.path(), COVERAGE);
-        assert_eq!(coverage.value().scope, ["demo"]);
+        assert_eq!(coverage.value().scope, [] as [String; 0]);
+        assert_eq!(coverage.value().exclusions.len(), 1);
         // The documents load as before.
         assert_eq!(plan.capabilities().len(), 3);
         assert_eq!(plan.changes().len(), 1);
@@ -112,8 +113,13 @@ fn each_record_type_loads_from_its_directory_into_the_model() {
 
 #[test]
 fn a_repository_without_record_directories_has_no_records_and_no_new_findings() {
-    let repo = valid();
-    assert_clean(&check(&repo));
+    let mut repo = valid();
+    repo.remove(COVERAGE);
+    // The one finding says the coverage record is missing.
+    assert_eq!(
+        kinds(&repo),
+        [("coverage-record-missing", COVERAGE.to_string())]
+    );
     on_plan(&repo, |plan| {
         assert!(plan.evidence().is_empty() && plan.assessments().is_empty());
         assert!(plan.coverage().is_none());
@@ -137,6 +143,11 @@ fn a_repository_without_record_directories_has_no_records_and_no_new_findings() 
     }
     assert_clean(&check(&repo));
     on_plan(&repo, |plan| assert_none(plan.evidence()));
+    // The fixtures hold the coverage record that enforces nothing.
+    on_plan(&valid(), |plan| {
+        let coverage = plan.coverage().expect("the open coverage record");
+        assert!(coverage.value().scope.is_empty() && coverage.value().exclusions.is_empty());
+    });
 }
 
 #[test]
@@ -294,7 +305,7 @@ fn a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_cle
             "subject",
         ),
         (
-            coverage_record().replace("scope: [demo]", "scope: [ghost]"),
+            coverage_record().replace("scope: []", "scope: [ghost]"),
             "scope-crate-missing",
             "scope",
         ),
@@ -322,7 +333,7 @@ fn a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_cle
     }
     // A scope crate is named by its package name, so a crate path name is
     // refused and the message lists the packages.
-    let (repo, _) = with_record(&coverage_record().replace("scope: [demo]", "scope: [demo_x]"));
+    let (repo, _) = with_record(&coverage_record().replace("scope: []", "scope: [demo_x]"));
     let findings = check(&repo);
     assert!(
         findings[0].message.contains("the packages are demo"),
@@ -501,7 +512,9 @@ fn claims_are_section_granular_and_one_edge_per_named_record() {
 
 #[test]
 fn the_records_are_nodes_with_their_edges() {
-    on_plan(&with_records(), |plan| {
+    let mut repo = with_records();
+    edit(&mut repo, COVERAGE, "scope: []", "scope: [demo]");
+    on_plan(&repo, |plan| {
         let graph = plan.graph();
         let nodes = graph.nodes();
         for node in [
@@ -640,7 +653,7 @@ fn each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_f
 fn a_reference_that_does_not_resolve_makes_no_edge() {
     let mut repo = with_records();
     edit(&mut repo, EVIDENCE, "for: [cap:alpha]", "for: [cap:ghost]");
-    edit(&mut repo, COVERAGE, "scope: [demo]", "scope: [ghost]");
+    edit(&mut repo, COVERAGE, "scope: []", "scope: [ghost]");
     on_plan(&repo, |plan| {
         assert_none(plan.graph().covers());
         assert_none(plan.graph().scope());
@@ -685,9 +698,9 @@ fn assessment() -> AssessmentRecord {
 
 fn coverage() -> CoverageRecord {
     CoverageRecord::new(
-        vec!["demo".to_string()],
+        Vec::new(),
         vec![Exclusion::new(
-            ExclusionItem::Prefix("demo::inner".to_string()),
+            ExclusionItem::Prefix("demo::test_crate::it".to_string()),
             "Internals with no contract.",
         )],
     )
@@ -706,9 +719,19 @@ fn repository(tag: &str) -> Scratch {
     scratch
 }
 
+/// [`repository`] without the coverage record, for a fixture that writes
+/// one.
+fn repository_without_coverage(tag: &str) -> Scratch {
+    let scratch = Scratch::new(tag);
+    let mut repo = valid();
+    repo.remove(COVERAGE);
+    write_repo(scratch.path(), &repo);
+    scratch
+}
+
 #[test]
 fn a_written_record_reloads_with_no_finding_as_the_same_value() {
-    let scratch = repository("record-create");
+    let scratch = repository_without_coverage("record-create");
     let root = scratch.path();
     let records = [
         Record::Evidence(evidence()),
@@ -882,7 +905,7 @@ fn a_record_that_would_not_load_clean_is_not_written() {
 
 #[test]
 fn the_record_directory_is_created_below_the_root_only() {
-    let scratch = repository("record-dirs");
+    let scratch = repository_without_coverage("record-dirs");
     let root = scratch.path();
     assert!(!root.join("work/coverage").exists());
     record::create(root, &Record::Coverage(coverage()), &spdx()).expect("written");

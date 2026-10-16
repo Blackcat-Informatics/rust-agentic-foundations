@@ -56,12 +56,12 @@ fn shown(text: &str) -> String {
 
 /// `text` as a table cell: the generated-table rule, then each control or
 /// bidirectional formatting character that rule leaves as its escape.
-fn table_cell(text: &str) -> String {
+pub(crate) fn table_cell(text: &str) -> String {
     shown(&cell(text))
 }
 
 /// A code span in a table cell, escaped in the same way.
-fn table_code(text: &str) -> String {
+pub(crate) fn table_code(text: &str) -> String {
     shown(&code_span(text))
 }
 
@@ -143,7 +143,7 @@ pub fn table(history: &History) -> String {
 
 /// `text` as a JSON string (RFC 8259): `"` and `\` escaped, each control
 /// character as a short escape or `\u00XX`.
-fn string(text: &str) -> String {
+pub(crate) fn string(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 2);
     out.push('"');
     for c in text.chars() {

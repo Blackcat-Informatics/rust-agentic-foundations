@@ -40,6 +40,19 @@ bindings:
     - raf_workplan::record::Record
     - raf_workplan::record::create
     - raf_workplan::record::replace
+    - raf_workplan::graph
+    - raf_workplan::Loaded
+    - raf_workplan::Opened
+    - raf_workplan::GateError
+    - raf_workplan::ExampleKind
+    - raf_workplan::RoadmapEntry
+    - raf_workplan::OpenChange
+    - raf_workplan::Gap
+    - raf_workplan::record
+    - raf_workplan::digest
+    - raf_workplan::refs
+    - raf_workplan::plain
+    - raf_workplan::git::tracked_paths
   tests:
     - raf_workplan::test_crate::documents::accepts_valid_fixture
     - raf_workplan::test_crate::documents::the_model_holds_typed_values_and_bodies
@@ -128,6 +141,169 @@ bindings:
     - raf_workplan::test_crate::digest::a_regenerated_block_leaves_the_section_digest_and_an_edit_moves_it
     - raf_workplan::test_crate::digest::every_definition_of_a_path_counts_once_in_file_order
     - raf_workplan::digest::tests::sha256_gives_the_standard_test_vectors
+    - raf_workplan::test_crate::bindings::a_binding_to_an_item_under_the_module_that_declares_its_file_is_not_found
+    - raf_workplan::test_crate::bindings::a_capability_that_binds_nothing_has_no_binding_findings
+    - raf_workplan::test_crate::bindings::a_failure_with_no_name_to_find_says_a_macro_or_derive_may_be_behind_it
+    - raf_workplan::test_crate::bindings::a_library_that_runs_no_documentation_tests_has_no_doctest_examples
+    - raf_workplan::test_crate::bindings::a_macro_in_the_file_of_a_module_is_read_for_the_path_of_that_module
+    - raf_workplan::test_crate::bindings::a_name_held_only_inside_a_nested_group_of_the_arguments_is_still_named
+    - raf_workplan::test_crate::bindings::every_finding_of_a_wrong_role_names_the_fix_for_its_list
+    - raf_workplan::test_crate::bindings::every_unresolved_binding_of_every_list_is_reported
+    - raf_workplan::test_crate::bindings::one_failing_site_fails_a_binding_that_resolves_to_several
+    - raf_workplan::test_crate::bindings::only_a_path_before_a_bang_and_a_group_is_an_invocation
+    - raf_workplan::test_crate::bindings::the_graph_keeps_each_resolution_for_the_rules_and_the_views_that_read_it
+    - raf_workplan::test_crate::bindings::the_macro_hint_is_given_only_for_a_macro_at_the_item_level_of_the_parent_module
+    - raf_workplan::test_crate::bindings::the_macro_hint_is_only_for_a_parent_that_is_a_module
+    - raf_workplan::test_crate::bindings::the_role_is_judged_on_the_definition_a_re_export_leads_to
+    - raf_workplan::test_crate::digest::a_digest_is_written_and_read_as_sixty_four_lowercase_hex_digits
+    - raf_workplan::test_crate::digest::a_path_that_names_no_single_symbol_has_no_digest
+    - raf_workplan::test_crate::digest::a_symbol_and_a_record_with_equal_bytes_differ
+    - raf_workplan::test_crate::digest::a_symbol_digest_reads_the_definitions_of_the_path
+    - raf_workplan::test_crate::documents::a_directory_that_cannot_be_listed_is_reported_by_name
+    - raf_workplan::test_crate::documents::a_finding_renders_with_its_place_and_its_fix
+    - raf_workplan::test_crate::documents::a_generated_index_may_carry_a_licence_header
+    - raf_workplan::test_crate::documents::a_nested_typed_document_is_nested_and_not_read_as_a_document
+    - raf_workplan::test_crate::documents::a_tree_that_cannot_be_built_is_a_finding_for_each_directory
+    - raf_workplan::test_crate::documents::accepts_a_generated_capability_index
+    - raf_workplan::test_crate::documents::accepts_a_generated_index_with_an_spdx_header
+    - raf_workplan::test_crate::documents::accepts_comments_after_scalars
+    - raf_workplan::test_crate::documents::accepts_optional_tags_and_timestamp
+    - raf_workplan::test_crate::documents::accepts_quoted_and_block_forms
+    - raf_workplan::test_crate::documents::an_empty_repository_has_no_findings
+    - raf_workplan::test_crate::documents::an_index_is_navigation_and_not_a_stray_file
+    - raf_workplan::test_crate::documents::an_oversize_file_is_reported_by_name_and_not_skipped
+    - raf_workplan::test_crate::documents::comments_hide_text_but_not_the_text_beside_them
+    - raf_workplan::test_crate::documents::files_that_are_not_markdown_are_not_documents
+    - raf_workplan::test_crate::documents::findings_come_in_directory_then_name_order_and_repeat
+    - raf_workplan::test_crate::documents::fixture_builder_is_self_consistent
+    - raf_workplan::test_crate::documents::placeholder_scan_spares_code_and_longer_words
+    - raf_workplan::test_crate::documents::placeholder_scan_spares_longer_words_and_dotted_prose
+    - raf_workplan::test_crate::documents::rejects_id_filename_mismatch
+    - raf_workplan::test_crate::documents::rejects_missing_section
+    - raf_workplan::test_crate::documents::rejects_placeholder_spellings
+    - raf_workplan::test_crate::documents::rejects_placeholder_tokens
+    - raf_workplan::test_crate::documents::rejects_proposed_marker_in_change
+    - raf_workplan::test_crate::documents::rejects_resource_key
+    - raf_workplan::test_crate::documents::rejects_sections_left_empty_by_comments
+    - raf_workplan::test_crate::documents::rejects_typed_document_outside_its_directory
+    - raf_workplan::test_crate::documents::rejects_unclosed_frontmatter
+    - raf_workplan::test_crate::documents::rejects_unknown_key
+    - raf_workplan::test_crate::documents::rejects_unparseable_frontmatter
+    - raf_workplan::test_crate::gate::a_directory_that_does_not_exist_is_an_error
+    - raf_workplan::test_crate::gate::a_git_dir_that_names_no_repository_is_an_error_and_not_a_walk
+    - raf_workplan::test_crate::gate::a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken
+    - raf_workplan::test_crate::gate::a_link_to_a_symlink_the_tracked_set_names_is_link_symlink
+    - raf_workplan::test_crate::gate::a_source_workspace_that_does_not_load_is_an_error
+    - raf_workplan::test_crate::gate::a_work_tree_whose_index_cannot_be_listed_is_an_error_and_not_a_walk
+    - raf_workplan::test_crate::gate::each_call_of_workplan_reads_the_documents_as_they_are_on_disk_then
+    - raf_workplan::test_crate::gate::open_gives_the_tree_the_workspace_the_tracked_paths_and_the_documents
+    - raf_workplan::test_crate::gate::open_is_the_load_of_try_check_and_refuses_what_it_refuses
+    - raf_workplan::test_crate::gate::the_gate_under_a_git_dir_that_names_nothing
+    - raf_workplan::test_crate::gate::the_programs_of_a_gate_are_started_in_its_directory
+    - raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process
+    - raf_workplan::test_crate::graph::a_code_span_that_continues_the_bound_path_with_a_segment_does_not_substantiate
+    - raf_workplan::test_crate::graph::a_link_that_leads_nowhere_in_the_model_is_no_edge
+    - raf_workplan::test_crate::graph::bindings_record_what_the_source_index_made_of_each_path
+    - raf_workplan::test_crate::graph::hostile_an_anchor_only_another_document_has_is_no_edge_and_a_finding
+    - raf_workplan::test_crate::graph::hostile_duplicate_ids_across_files_load_one_capability_and_report_the_other_file
+    - raf_workplan::test_crate::graph::hostile_duplicated_heading_anchors_are_numbered_and_the_next_one_is_missing
+    - raf_workplan::test_crate::graph::hostile_links_in_fences_and_code_spans_are_neither_edges_nor_findings
+    - raf_workplan::test_crate::graph::hostile_self_dependency_is_one_cycle_and_one_edge
+    - raf_workplan::test_crate::graph::hostile_unterminated_backticks_name_nothing_and_break_nothing
+    - raf_workplan::test_crate::graph::tests_for_a_binding_named_only_in_prose_substantiates_verification
+    - raf_workplan::test_crate::graph::tests_for_a_path_that_does_not_resolve_is_still_a_binding_of_its_sections
+    - raf_workplan::test_crate::graph::tests_for_ignores_a_name_inside_a_proposed_block_or_a_fence
+    - raf_workplan::test_crate::graph::the_fixture_loads_with_only_its_two_unresolved_bindings
+    - raf_workplan::test_crate::graph::the_queries_are_deterministic
+    - raf_workplan::test_crate::kinds::every_finding_names_a_fix_and_a_message
+    - raf_workplan::test_crate::kinds::kinds_are_unique_kebab_case_names
+    - raf_workplan::test_crate::links::a_directory_the_walk_cannot_list_is_reported_and_not_skipped
+    - raf_workplan::test_crate::links::a_document_is_judged_against_the_supplied_tracked_set
+    - raf_workplan::test_crate::links::a_fragment_link_is_judged_against_its_own_document
+    - raf_workplan::test_crate::links::a_link_to_a_directory_resolves_and_its_anchor_is_not_read
+    - raf_workplan::test_crate::links::a_symlink_the_caller_names_is_tracked_and_still_a_symlink
+    - raf_workplan::test_crate::links::accepts_resolving_reference_and_attribute_links
+    - raf_workplan::test_crate::links::an_anchor_in_a_non_markdown_file_is_not_judged
+    - raf_workplan::test_crate::links::autolinks_are_external_and_not_judged
+    - raf_workplan::test_crate::links::does_not_read_attributes_that_only_end_in_href_or_src
+    - raf_workplan::test_crate::links::links_inside_documents_are_judged_wherever_the_document_is_valid_or_not
+    - raf_workplan::test_crate::links::reads_an_attribute_value_that_starts_on_the_next_line
+    - raf_workplan::test_crate::links::reads_attributes_with_spaces_around_the_equals_sign
+    - raf_workplan::test_crate::links::rejects_a_link_whose_target_cannot_be_read_for_its_anchor
+    - raf_workplan::test_crate::links::rejects_absolute_and_empty_link_targets_beside_relative_ones
+    - raf_workplan::test_crate::links::rejects_an_empty_link_target
+    - raf_workplan::test_crate::links::rejects_broken_attributes_in_tags_split_across_lines
+    - raf_workplan::test_crate::links::rejects_broken_href_and_src_attributes
+    - raf_workplan::test_crate::links::rejects_broken_link_outside_the_document_directories
+    - raf_workplan::test_crate::links::rejects_broken_reference_definition
+    - raf_workplan::test_crate::links::rejects_broken_unquoted_attribute_values
+    - raf_workplan::test_crate::links::tag_scan_spares_prose_autolinks_and_closed_tags
+    - raf_workplan::test_crate::links::tag_state_does_not_survive_a_blank_line_or_a_fence
+    - raf_workplan::test_crate::links::the_directories_of_a_named_symlink_are_tracked_directories
+    - raf_workplan::test_crate::links::the_symlinks_a_tree_lists_are_tracked_symlinks
+    - raf_workplan::test_crate::links::the_tree_is_walked_only_when_a_relative_link_needs_it
+    - raf_workplan::test_crate::plain::a_claim_marker_outside_a_capability_is_reported_and_a_misspelt_marker_is_refused
+    - raf_workplan::test_crate::plain::accepts_one_line_links_and_links_in_fences_beside_the_split_rule
+    - raf_workplan::test_crate::plain::an_index_in_a_document_directory_other_than_the_capability_index_is_read_as_markdown
+    - raf_workplan::test_crate::plain::does_not_read_links_or_placeholders_inside_html_comments
+    - raf_workplan::test_crate::plain::reads_a_proposed_block_in_plain_markdown_as_outside_a_capability
+    - raf_workplan::test_crate::plain::reads_placeholders_in_plain_markdown_outside_code
+    - raf_workplan::test_crate::plain::rejects_a_link_split_across_lines_in_a_profile_document
+    - raf_workplan::test_crate::plain::rejects_a_link_split_across_lines_in_any_tracked_markdown_file
+    - raf_workplan::test_crate::plain::rejects_generated_marker_errors
+    - raf_workplan::test_crate::plain::rejects_unclosed_frontmatter_in_plain_markdown
+    - raf_workplan::test_crate::plain::reports_marker_errors_of_plain_markdown_once
+    - raf_workplan::test_crate::records::a_broken_record_is_a_finding_and_not_in_the_model
+    - raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved
+    - raf_workplan::test_crate::records::a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge
+    - raf_workplan::test_crate::records::a_record_at_the_size_bound_with_the_most_measures_loads
+    - raf_workplan::test_crate::records::a_record_in_the_directory_of_another_type_is_wrong_directory
+    - raf_workplan::test_crate::records::a_record_under_another_file_name_and_a_nested_record_are_refused
+    - raf_workplan::test_crate::records::a_reference_that_does_not_resolve_makes_no_edge
+    - raf_workplan::test_crate::records::a_symbolic_link_on_the_way_to_the_record_is_refused
+    - raf_workplan::test_crate::records::the_record_directory_is_created_below_the_root_only
+    - raf_workplan::test_crate::references::a_matching_kebab_slug_is_accepted
+    - raf_workplan::test_crate::references::a_reference_to_a_broken_document_is_not_a_missing_one
+    - raf_workplan::test_crate::references::a_reference_to_a_file_without_frontmatter_is_missing
+    - raf_workplan::test_crate::references::a_slug_that_is_not_kebab_case_is_refused
+    - raf_workplan::test_crate::references::accepts_a_moved_outcome_that_names_an_existing_change
+    - raf_workplan::test_crate::references::accepts_moved_outcome
+    - raf_workplan::test_crate::references::every_reference_case_is_reported_exactly
+    - raf_workplan::test_crate::references::two_separate_cycles_are_two_findings_and_a_cycle_with_a_tail_is_one
+    - raf_workplan::test_crate::refs::a_banned_line_names_why
+    - raf_workplan::test_crate::refs::a_reference_is_reported_once_for_a_stray_page_and_a_document_that_does_not_read
+    - raf_workplan::test_crate::refs::issue_token_scan_spares_hex_colours
+    - raf_workplan::test_crate::refs::rejects_acceptance_label
+    - raf_workplan::test_crate::refs::rejects_an_issue_url_a_pull_label_and_an_issue_label_in_documents
+    - raf_workplan::test_crate::refs::rejects_issue_number_token
+    - raf_workplan::test_crate::refs::rejects_process_wording
+    - raf_workplan::test_crate::refs::the_matcher_pins_its_edge_cases
+    - raf_workplan::test_crate::roadmap::a_fully_bound_implementing_capability_has_no_gap
+    - raf_workplan::test_crate::roadmap::a_resolving_binding_of_the_wrong_role_is_not_a_gap
+    - raf_workplan::test_crate::roadmap::an_empty_repository_has_an_empty_roadmap
+    - raf_workplan::test_crate::roadmap::an_entry_carries_what_the_catalogue_row_needs
+    - raf_workplan::test_crate::roadmap::only_an_implementing_capability_has_gaps
+    - raf_workplan::test_crate::roadmap::open_change_slugs_are_the_open_changes_without_their_prefix
+    - raf_workplan::test_crate::roadmap::open_changes_are_the_changes_that_list_the_capability
+    - raf_workplan::test_crate::roadmap::planned_is_designed_then_considered_and_not_a_state
+    - raf_workplan::test_crate::roadmap::slug_order_is_not_file_name_order
+    - raf_workplan::test_crate::roadmap::the_open_changes_are_sorted_by_slug_whatever_the_order_of_the_files
+    - raf_workplan::test_crate::roadmap::the_roadmap_does_not_depend_on_insertion_order_and_repeats
+    - raf_workplan::test_crate::states::a_block_that_names_a_broken_change_is_not_a_missing_change
+    - raf_workplan::test_crate::states::a_broken_record_does_not_make_the_capabilities_it_lists_unlisted
+    - raf_workplan::test_crate::states::a_record_that_lists_two_capabilities_must_affect_the_section_of_each
+    - raf_workplan::test_crate::states::rejects_open_capability_without_change_record
+    - raf_workplan::test_crate::states::the_blocks_of_a_capability_that_does_not_validate_still_name_a_record
+    - raf_workplan::bindings::tests::the_invocations_of_a_module_are_listed_once_however_many_bindings_miss
+    - raf_workplan::digest::tests::fields_of_different_kinds_with_equal_bytes_differ
+    - raf_workplan::digest::tests::sha256_is_the_same_over_block_boundaries_and_pieces
+    - raf_workplan::digest::tests::symbol_definitions_are_deduplicated_by_source_key_and_ordered
+    - raf_workplan::digest::tests::the_encoding_is_unambiguous_across_names_texts_and_fields
+    - raf_workplan::finding::tests::each_location_answers_to_exactly_one_accessor
+    - raf_workplan::graph::tests::a_section_of_many_blocks_is_read_in_linear_time
+    - raf_workplan::graph::tests::ten_thousand_named_paths_are_found_in_one_pass
+    - raf_workplan::graph::tests::the_paths_of_the_code_spans_are_the_paths_names_in_code_span_accepts
+    - raf_workplan::test_crate::digest::a_module_stands_for_its_files_and_the_modules_below_it_and_a_sibling_does_not_move_it
   examples:
     - raf_workplan::Gate
     - raf_workplan::LinkContext
@@ -318,7 +494,10 @@ link, marker and reference rules through `raf_workplan::plain::check`.
 > `record`) keeps the domains apart and the decimal length ends each field. `Digest::section` hashes
 > the authored text of a section, with the content of its generated blocks left out;
 > `Digest::symbol` hashes the source span of each definition a path resolves to, once
-> per source item and in file order; `Digest::record` hashes the text of a record.
+> per source item and in file order, and for a module below a crate root also the
+> whole text of each file of the module and of the modules below it, so a module
+> binding stands for the module's content as it does in coverage and an edit inside
+> the module moves the digest; `Digest::record` hashes the text of a record.
 > Every text has CRLF read as LF, so a digest is the same on every run and platform.
 > A digest is written and read as 64 lowercase hexadecimal digits.
 >
@@ -511,61 +690,191 @@ touches, and the obligations those sections receive are defined by
 | --- | --- | --- |
 | `raf_workplan::Gate` | doctest | [Verification](#verification) |
 | `raf_workplan::LinkContext` | doctest | [Verification](#verification) |
+| `raf_workplan::bindings::tests::the_invocations_of_a_module_are_listed_once_however_many_bindings_miss` | test | [Verification](#verification) |
+| `raf_workplan::digest::tests::fields_of_different_kinds_with_equal_bytes_differ` | test | [Verification](#verification) |
 | `raf_workplan::digest::tests::sha256_gives_the_standard_test_vectors` | test | [Verification](#verification) |
+| `raf_workplan::digest::tests::sha256_is_the_same_over_block_boundaries_and_pieces` | test | [Verification](#verification) |
+| `raf_workplan::digest::tests::symbol_definitions_are_deduplicated_by_source_key_and_ordered` | test | [Verification](#verification) |
+| `raf_workplan::digest::tests::the_encoding_is_unambiguous_across_names_texts_and_fields` | test | [Verification](#verification) |
+| `raf_workplan::finding::tests::each_location_answers_to_exactly_one_accessor` | test | [Verification](#verification) |
+| `raf_workplan::graph::tests::a_section_of_many_blocks_is_read_in_linear_time` | test | [Verification](#verification) |
+| `raf_workplan::graph::tests::ten_thousand_named_paths_are_found_in_one_pass` | test | [Verification](#verification) |
+| `raf_workplan::graph::tests::the_paths_of_the_code_spans_are_the_paths_names_in_code_span_accepts` | test | [Verification](#verification) |
 | `raf_workplan::plain::check` | doctest | [Contract](#contract) |
 | `raf_workplan::test_crate::bindings::a_binding_through_a_re_export_resolves_to_its_definition` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::a_binding_to_a_macro_generated_function_is_not_found` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::a_binding_to_a_missing_path_is_reported_with_its_capability` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::a_binding_to_an_item_under_the_module_that_declares_its_file_is_not_found` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::a_capability_that_binds_nothing_has_no_binding_findings` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::a_code_binding_must_name_a_shipping_item` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::a_failure_with_no_name_to_find_says_a_macro_or_derive_may_be_behind_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::a_library_that_runs_no_documentation_tests_has_no_doctest_examples` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::a_macro_in_the_file_of_a_module_is_read_for_the_path_of_that_module` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::a_missing_example_target_is_reported_with_its_capability_list_and_binding` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::a_name_held_only_inside_a_nested_group_of_the_arguments_is_still_named` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::a_path_two_globs_both_bring_in_is_ambiguous_and_names_both_definitions` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::a_tests_binding_must_name_a_function_marked_test` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::an_examples_binding_is_an_example_target_or_a_documented_library_item` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::bindings_that_name_real_symbols_resolve` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::every_finding_of_a_wrong_role_names_the_fix_for_its_list` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::every_unresolved_binding_of_every_list_is_reported` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::one_failing_site_fails_a_binding_that_resolves_to_several` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::only_a_path_before_a_bang_and_a_group_is_an_invocation` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::the_graph_keeps_each_resolution_for_the_rules_and_the_views_that_read_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::the_macro_hint_is_given_only_for_a_macro_at_the_item_level_of_the_parent_module` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::the_macro_hint_is_only_for_a_parent_that_is_a_module` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::the_role_is_judged_on_the_definition_a_re_export_leads_to` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::digest::a_digest_is_the_same_on_every_run` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::digest::a_digest_is_written_and_read_as_sixty_four_lowercase_hex_digits` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::digest::a_module_stands_for_its_files_and_the_modules_below_it_and_a_sibling_does_not_move_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::digest::a_path_that_names_no_single_symbol_has_no_digest` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::digest::a_regenerated_block_leaves_the_section_digest_and_an_edit_moves_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::digest::a_symbol_and_a_record_with_equal_bytes_differ` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::digest::a_symbol_digest_reads_the_definitions_of_the_path` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::digest::crlf_and_lf_give_the_same_digest` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::digest::each_kind_hashes_its_documented_encoding` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::digest::every_definition_of_a_path_counts_once_in_file_order` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::a_broken_document_is_a_finding_and_not_in_the_model` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::a_directory_that_cannot_be_listed_is_reported_by_name` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::a_finding_renders_with_its_place_and_its_fix` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::a_generated_index_may_carry_a_licence_header` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::a_nested_typed_document_is_nested_and_not_read_as_a_document` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::a_tree_that_cannot_be_built_is_a_finding_for_each_directory` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::accepts_a_generated_capability_index` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::accepts_a_generated_index_with_an_spdx_header` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::accepts_comments_after_scalars` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::accepts_optional_tags_and_timestamp` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::accepts_quoted_and_block_forms` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::accepts_valid_fixture` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::an_empty_repository_has_no_findings` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::an_index_is_navigation_and_not_a_stray_file` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::an_oversize_file_is_reported_by_name_and_not_skipped` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::comments_hide_text_but_not_the_text_beside_them` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::files_that_are_not_markdown_are_not_documents` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::findings_come_in_directory_then_name_order_and_repeat` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::fixture_builder_is_self_consistent` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::placeholder_scan_spares_code_and_longer_words` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::placeholder_scan_spares_longer_words_and_dotted_prose` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::rejects_capability_without_frontmatter` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_id_filename_mismatch` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_missing_section` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::rejects_nested_documents` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_placeholder_spellings` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_placeholder_tokens` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::rejects_proposed_marker_in_architecture` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_proposed_marker_in_change` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_resource_key` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_sections_left_empty_by_comments` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::rejects_type_in_the_wrong_directory` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_typed_document_outside_its_directory` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_unclosed_frontmatter` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_unknown_key` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_unparseable_frontmatter` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::the_model_holds_typed_values_and_bodies` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_broken_repository_panics_listing_every_finding` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_capabilities_directory_without_a_capability_document_is_an_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_clean_repository_passes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::a_directory_that_does_not_exist_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::a_git_dir_that_names_no_repository_is_an_error_and_not_a_walk` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::a_link_to_a_symlink_the_tracked_set_names_is_link_symlink` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_missing_capabilities_directory_is_an_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_missing_changes_directory_is_the_empty_set_of_changes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::a_source_workspace_that_does_not_load_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::a_work_tree_whose_index_cannot_be_listed_is_an_error_and_not_a_walk` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::each_call_of_workplan_reads_the_documents_as_they_are_on_disk_then` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::inside_a_git_checkout_the_tracked_paths_come_from_the_index` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::open_gives_the_tree_the_workspace_the_tracked_paths_and_the_documents` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::open_is_the_load_of_try_check_and_refuses_what_it_refuses` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::the_gate_under_a_git_dir_that_names_nothing` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::the_programs_of_a_gate_are_started_in_its_directory` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::a_code_span_that_continues_the_bound_path_with_a_segment_does_not_substantiate` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::a_link_that_leads_nowhere_in_the_model_is_no_edge` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::bindings_record_what_the_source_index_made_of_each_path` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::capabilities_of_names_every_capability_bound_to_a_symbol` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::code_of_lists_the_items_that_realise_a_capability_in_path_order` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::hostile_an_anchor_only_another_document_has_is_no_edge_and_a_finding` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::hostile_duplicate_ids_across_files_load_one_capability_and_report_the_other_file` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::hostile_duplicated_heading_anchors_are_numbered_and_the_next_one_is_missing` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::hostile_links_in_fences_and_code_spans_are_neither_edges_nor_findings` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::hostile_self_dependency_is_one_cycle_and_one_edge` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::hostile_unterminated_backticks_name_nothing_and_break_nothing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::linking_sections_are_section_granular` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::links_run_from_the_section_that_holds_them_to_the_section_they_name` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::sections_of_a_change_are_its_affected_sections_sorted` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::tests_for_a_binding_named_in_two_sections_substantiates_both` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::tests_for_a_binding_named_only_in_prose_substantiates_verification` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::tests_for_a_path_that_does_not_resolve_is_still_a_binding_of_its_sections` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::tests_for_ignores_a_name_inside_a_proposed_block_or_a_fence` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::the_fixture_loads_with_only_its_two_unresolved_bindings` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::the_graph_has_every_kind_of_edge` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::the_graph_has_every_kind_of_node` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::the_queries_are_deterministic` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::kinds::every_finding_names_a_fix_and_a_message` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::kinds::every_rule_and_every_reader_error_has_its_own_kind` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::kinds::kinds_are_unique_kebab_case_names` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::a_directory_the_walk_cannot_list_is_reported_and_not_skipped` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::a_document_is_judged_against_the_supplied_tracked_set` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::a_fragment_link_is_judged_against_its_own_document` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::a_link_to_a_directory_resolves_and_its_anchor_is_not_read` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::a_symlink_the_caller_names_is_tracked_and_still_a_symlink` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::accepts_resolving_reference_and_attribute_links` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::an_anchor_in_a_non_markdown_file_is_not_judged` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::anchors_follow_github_rules` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::autolinks_are_external_and_not_judged` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::does_not_read_attributes_that_only_end_in_href_or_src` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::links_inside_documents_are_judged_wherever_the_document_is_valid_or_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::reads_an_attribute_value_that_starts_on_the_next_line` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::reads_attributes_with_spaces_around_the_equals_sign` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::rejects_a_link_whose_target_cannot_be_read_for_its_anchor` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::rejects_absolute_and_empty_link_targets_beside_relative_ones` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::rejects_an_empty_link_target` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::rejects_broken_anchor` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::rejects_broken_attributes_in_tags_split_across_lines` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::rejects_broken_href_and_src_attributes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::rejects_broken_link_outside_the_document_directories` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::rejects_broken_reference_definition` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::rejects_broken_relative_link` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::rejects_broken_unquoted_attribute_values` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::rejects_link_leaving_the_repository` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::rejects_link_to_a_tracked_symlink` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::tag_scan_spares_prose_autolinks_and_closed_tags` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::tag_state_does_not_survive_a_blank_line_or_a_fence` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::the_directories_of_a_named_symlink_are_tracked_directories` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::the_oracle_is_the_tracked_set_and_not_the_tree` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::the_symlinks_a_tree_lists_are_tracked_symlinks` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::the_tree_is_walked_only_when_a_relative_link_needs_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::parse_errors::every_reader_error_has_a_fixture_reported_with_file_and_line` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::a_broken_link_and_a_split_link_are_reported_together_for_a_plain_file` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::plain::a_claim_marker_outside_a_capability_is_reported_and_a_misspelt_marker_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::plain::accepts_one_line_links_and_links_in_fences_beside_the_split_rule` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::plain::an_index_in_a_document_directory_other_than_the_capability_index_is_read_as_markdown` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::plain::does_not_read_links_or_placeholders_inside_html_comments` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::plain::reads_a_proposed_block_in_plain_markdown_as_outside_a_capability` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::reads_markdown_outside_the_document_directories_with_or_without_frontmatter` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::plain::reads_placeholders_in_plain_markdown_outside_code` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::plain::rejects_a_link_split_across_lines_in_a_profile_document` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::plain::rejects_a_link_split_across_lines_in_any_tracked_markdown_file` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::plain::rejects_generated_marker_errors` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::plain::rejects_unclosed_frontmatter_in_plain_markdown` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::plain::reports_marker_errors_of_plain_markdown_once` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_broken_record_is_a_finding_and_not_in_the_model` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_claim_on_evidence_for_another_capability_is_a_finding` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_claim_on_unknown_evidence_names_the_file_and_the_line` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_hundred_thousand_claims_load_in_time_linear_in_their_number` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_record_at_the_size_bound_with_the_most_measures_loads` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_record_in_the_directory_of_another_type_is_wrong_directory` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_clean` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_record_that_would_not_load_clean_is_not_written` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_record_under_another_file_name_and_a_nested_record_are_refused` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_reference_that_does_not_resolve_makes_no_edge` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_repository_without_record_directories_has_no_records_and_no_new_findings` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_symbolic_link_on_the_way_to_the_record_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::claims_are_section_granular_and_one_edge_per_named_record` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::create_never_replaces_a_file` | test | [Verification](#verification) |
@@ -573,32 +882,65 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::records::each_record_type_loads_from_its_directory_into_the_model` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::replace_puts_new_text_in_place_of_an_existing_record_only` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::replace_renames_a_new_file_over_the_target_and_never_writes_into_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::the_record_directory_is_created_below_the_root_only` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::the_records_are_nodes_with_their_edges` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::work_coverage_holds_only_the_coverage_record` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::a_matching_kebab_slug_is_accepted` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::a_reference_to_a_broken_document_is_not_a_missing_one` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::a_reference_to_a_file_without_frontmatter_is_missing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::references::a_slug_id_that_differs_from_the_file_name_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::a_slug_that_is_not_kebab_case_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::references::accepts_a_depends_on_an_existing_capability_and_an_acyclic_graph` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::accepts_a_moved_outcome_that_names_an_existing_change` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::accepts_moved_outcome` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::every_reference_case_is_reported_exactly` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::references::rejects_changes_missing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::references::rejects_depends_cycles_once_for_each_group_naming_its_members` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::references::rejects_depends_missing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::references::rejects_moved_missing` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::two_separate_cycles_are_two_findings_and_a_cycle_with_a_tail_is_one` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::refs::a_banned_line_names_why` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::refs::a_reference_is_reported_once_for_a_stray_page_and_a_document_that_does_not_read` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::refs::every_document_type_and_the_frontmatter_are_scanned` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::refs::issue_token_scan_spares_hex_colours` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::refs::rejects_acceptance_label` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::refs::rejects_an_issue_url_a_pull_label_and_an_issue_label_in_documents` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::refs::rejects_issue_number_token` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::refs::rejects_process_wording` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::refs::the_matcher_bans_references_and_process_wording` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::refs::the_matcher_pins_its_edge_cases` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::refs::the_matcher_spares_colours_prose_numbers_and_near_misses` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::a_fully_bound_implementing_capability_has_no_gap` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::a_resolving_binding_of_the_wrong_role_is_not_a_gap` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::an_empty_repository_has_an_empty_roadmap` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::an_entry_carries_what_the_catalogue_row_needs` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::roadmap::an_implementing_capability_lists_its_gaps_exactly` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::only_an_implementing_capability_has_gaps` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::open_change_slugs_are_the_open_changes_without_their_prefix` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::open_changes_are_the_changes_that_list_the_capability` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::planned_is_designed_then_considered_and_not_a_state` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::slug_order_is_not_file_name_order` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::roadmap::the_groups_are_in_catalogue_order_and_sorted_by_slug` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::the_open_changes_are_sorted_by_slug_whatever_the_order_of_the_files` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::the_roadmap_does_not_depend_on_insertion_order_and_repeats` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::roadmap::this_repository_lists_every_capability_once_in_its_state_group` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::rules::every_rule_has_a_fixture_reported_with_file_and_location` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::a_block_that_names_a_broken_change_is_not_a_missing_change` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::a_broken_record_does_not_make_the_capabilities_it_lists_unlisted` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::a_marker_in_a_code_fence_is_not_read_as_a_block` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::a_record_that_lists_two_capabilities_must_affect_the_section_of_each` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::accepts_each_state_with_matching_content` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::rejects_considered_without_proposed_block` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::rejects_delivered_with_open_change_record` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::rejects_delivered_with_proposed_block` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::rejects_designed_with_proposed_block` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::rejects_each_non_delivered_state_without_an_open_record` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::rejects_open_capability_without_change_record` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::rejects_orphan_proposed_marker` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::rejects_proposed_change_that_does_not_list_the_capability` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::rejects_proposed_section_missing_from_affects` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::surfaces_the_single_document_state_rules_from_the_profile` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::the_blocks_of_a_capability_that_does_not_validate_still_name_a_record` | test | [Verification](#verification) |
 <!-- raf:generated:end -->
 
 <!-- raf:generated:relationships -->

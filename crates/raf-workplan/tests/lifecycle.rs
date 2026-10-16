@@ -523,7 +523,7 @@ fn work_changes_is_created_when_the_repository_has_none() {
     let mut repo = synced::base();
     repo.remove(GROW);
     write_repo(root, &repo);
-    assert!(!root.join("work").exists());
+    assert!(!root.join("work/changes").exists());
     let before = snapshot(root);
     created(
         root,
@@ -539,6 +539,8 @@ fn a_file_or_a_link_where_work_changes_belongs_is_refused() {
     let root = scratch.path();
     let mut repo = synced::base();
     repo.remove(GROW);
+    // `work` is a file here, so it holds no coverage record either.
+    repo.remove(support::COVERAGE);
     write_repo(root, &repo);
     put(root, "work", "a file\n");
     let before = snapshot(root);

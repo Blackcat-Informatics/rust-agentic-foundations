@@ -5,10 +5,48 @@ type: Capability
 id: cap:workplan-entity-history
 title: "Entity history"
 description: "A history command for a capability or decision and its bindings, built on git log --follow and -L."
-state: considered
+state: implementing
 bindings:
-  code: []
-  tests: []
+  code:
+    - raf_workplan::history
+    - raf_workplan::Workplan::history
+    - raf_workplan::git::document_log
+    - raf_workplan::git::symbol_log
+    - raf_workplan::git::last_change
+    - raf_workplan::git::is_shallow
+    - raf_workplan::git::resolve_commit
+    - raf_workplan::git::AuthorDate
+    - raf_workplan::git::LogEntry
+    - raf_workplan::git::LastChange
+  tests:
+    - raf_workplan::test_crate::history::a_binding_that_names_no_single_symbol_is_refused_before_any_process
+    - raf_workplan::test_crate::history::a_capability_history_holds_its_document_through_a_move_and_its_bound_code
+    - raf_workplan::test_crate::history::a_log_past_sixteen_mebibytes_is_an_error_and_the_bound_itself_is_read
+    - raf_workplan::test_crate::history::a_merge_whose_resolution_changed_the_document_is_in_its_history_and_a_clean_one_is_not
+    - raf_workplan::test_crate::history::a_root_commit_that_changed_the_identifier_has_no_parent
+    - raf_workplan::test_crate::history::a_shallow_clone_is_refused_with_the_missing_history_named_and_a_full_clone_is_not
+    - raf_workplan::test_crate::history::a_subject_with_unit_separators_and_a_hash_is_reported_whole
+    - raf_workplan::test_crate::history::an_id_or_a_date_that_cannot_be_asked_about_starts_no_process
+    - raf_workplan::test_crate::history::an_old_git_or_a_shallow_answer_stops_before_any_history_is_read
+    - raf_workplan::test_crate::history::each_kind_of_id_has_the_history_of_its_file
+    - raf_workplan::test_crate::history::every_question_is_asked_in_order_as_exactly_its_argv
+    - raf_workplan::test_crate::history::since_counts_from_the_start_of_the_day_in_utc_in_every_time_zone
+    - raf_workplan::test_crate::history::since_limits_the_logs_and_not_the_removal_lookup
+    - raf_workplan::test_crate::history::since_reaches_both_logs_before_the_last_separator
+    - raf_workplan::test_crate::history::stubs::a_git_reporting_2_29_stops_the_history_before_any_log
+    - raf_workplan::test_crate::history::stubs::a_path_named_like_an_option_reaches_git_after_the_separator_or_the_colon
+    - raf_workplan::test_crate::history::stubs::a_real_process_that_prints_past_the_bound_is_an_error
+    - raf_workplan::test_crate::history::the_table_and_the_json_carry_the_same_entries_in_the_same_order
+    - raf_workplan::git::log::tests::a_document_log_reads_each_record_with_its_paths
+    - raf_workplan::git::log::tests::a_log_past_the_bound_is_an_error_that_says_so
+    - raf_workplan::git::log::tests::a_strict_author_date_is_read_and_ordered_by_its_instant
+    - raf_workplan::git::log::tests::a_subject_keeps_every_byte_but_a_newline
+    - raf_workplan::git::log::tests::a_symbol_log_lists_no_path_and_refuses_any_other_line
+    - raf_workplan::git::log::tests::output_that_is_not_a_log_of_the_form_is_an_error
+    - raf_workplan::git::log::tests::the_pickaxe_answers_one_record_with_its_parent_or_none
+    - raf_workplan::git::log::tests::the_shallow_answer_is_true_or_false
+    - raf_workplan::history::render::tests::a_json_string_escapes_quotes_backslashes_and_every_control_character
+    - raf_workplan::history::render::tests::a_table_cell_cannot_break_the_table_or_reach_the_terminal
   examples: []
 depends: [cap:workplan-document-model, cap:source-index]
 ---

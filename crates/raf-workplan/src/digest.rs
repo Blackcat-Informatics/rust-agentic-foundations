@@ -40,7 +40,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use raf_okf::{Body, CapabilitySection};
-use raf_source::{ResolveError, Workspace};
+use raf_source::{Item, ResolveError, SymbolKind, Workspace};
 
 use crate::lifecycle::section_digest;
 
@@ -89,6 +89,15 @@ impl Digest {
     /// index reaches under several module paths, because its file is read by
     /// more than one target, has one source key and counts once. Each
     /// definition is the field `symbol NUL <path> NUL <length> NUL <text>`.
+    ///
+    /// A module stands for its whole content, as it does in coverage: after
+    /// the field of its own span (an inline module's braces, or the
+    /// declaration `mod name;`), each file of the module and of the modules
+    /// below it in the same target is one more field with the file's whole
+    /// text, the fields in the order of file and position. Editing any item inside a bound
+    /// module, in its own file or in a child module's file, moves the digest;
+    /// editing a sibling module does not. A crate root stands for nothing
+    /// below it, so only its own span is hashed.
     ///
     /// ```rust
     /// use raf_source::{MemoryTree, Workspace};
@@ -241,9 +250,9 @@ impl Error for SymbolDigestError {
     }
 }
 
-/// A definition of a symbol: its source key (file and start offset) and its
-/// source text.
-type Site<'w> = ((&'w str, usize), &'w str);
+/// A text of a symbol: its key (file, start offset, and whether it is a whole
+/// file of a module rather than an item's span) and the text.
+type Site<'w> = ((&'w str, usize, bool), &'w str);
 
 /// The definitions of the symbol `path`, each with its source key (file and
 /// start offset) and its source text, in no particular order and possibly
@@ -267,9 +276,35 @@ fn symbol_sites<'w>(source: &'w Workspace, path: &str) -> Result<Vec<Site<'w>>, 
             .and_then(|text| text.get(item.span.start_byte..item.span.end_byte))
             .ok_or_else(missing)?;
         let (file, start) = item.source_key();
-        sites.push(((file.as_str(), start), text));
+        sites.push(((file.as_str(), start, false), text));
+        if item.kind == SymbolKind::Mod {
+            module_files(source, item, &mut sites);
+        }
     }
     Ok(sites)
+}
+
+/// Add the whole text of each file of the module `module` and of the modules
+/// below it, in the module's target: the content a module binding stands
+/// for. A crate root stands for nothing below it, as in coverage, so only its
+/// own span is hashed.
+fn module_files<'w>(source: &'w Workspace, module: &Item, sites: &mut Vec<Site<'w>>) {
+    let is_root = source
+        .target(module.target)
+        .is_some_and(|target| *module.path == *target.crate_path);
+    if is_root {
+        return;
+    }
+    let below = format!("{}::", module.path);
+    for file in source.files() {
+        let reached = file.reached.iter().any(|reach| {
+            reach.target == module.target
+                && (*reach.module_path == *module.path || reach.module_path.starts_with(&below))
+        });
+        if reached {
+            sites.push(((file.path.as_str(), 0, true), file.text.as_str()));
+        }
+    }
 }
 
 /// The source text of each definition of the symbol `path`, as
@@ -284,14 +319,14 @@ pub(crate) fn symbol_texts(
     sites.dedup_by(|a, b| a.0 == b.0);
     Ok(sites
         .into_iter()
-        .map(|((file, _), text)| (file.to_string(), lf(text)))
+        .map(|((file, _, _), text)| (file.to_string(), lf(text)))
         .collect())
 }
 
 /// The digest of the symbol `path` from the texts of its definitions, each
 /// with its source key (file and start offset): one field per source key, in
 /// key order, so a definition listed twice counts once.
-fn symbol_of(path: &str, mut sites: Vec<((&str, usize), &str)>) -> Digest {
+fn symbol_of(path: &str, mut sites: Vec<Site<'_>>) -> Digest {
     sites.sort_by(|a, b| a.0.cmp(&b.0));
     sites.dedup_by(|a, b| a.0 == b.0);
     let mut hasher = Sha256::new();
@@ -610,17 +645,20 @@ mod tests {
     /// order the definitions are listed in does not matter.
     #[test]
     fn symbol_definitions_are_deduplicated_by_source_key_and_ordered() {
-        let one = symbol_of("demo::g", vec![(("src/x.rs", 0), "pub fn g() {}")]);
+        let one = symbol_of("demo::g", vec![(("src/x.rs", 0, false), "pub fn g() {}")]);
         let twice = symbol_of(
             "demo::g",
             vec![
-                (("src/x.rs", 0), "pub fn g() {}"),
-                (("src/x.rs", 0), "pub fn g() {}"),
+                (("src/x.rs", 0, false), "pub fn g() {}"),
+                (("src/x.rs", 0, false), "pub fn g() {}"),
             ],
         );
         assert_eq!(one, twice);
-        let a = (("src/lib.rs", 0), "#[cfg(unix)]\npub fn g() {}");
-        let b = (("src/lib.rs", 40), "#[cfg(not(unix))]\npub fn g() {}");
+        let a = (("src/lib.rs", 0, false), "#[cfg(unix)]\npub fn g() {}");
+        let b = (
+            ("src/lib.rs", 40, false),
+            "#[cfg(not(unix))]\npub fn g() {}",
+        );
         assert_eq!(
             symbol_of("demo::g", vec![a, b]),
             symbol_of("demo::g", vec![b, a, b])
