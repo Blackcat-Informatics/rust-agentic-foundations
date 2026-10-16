@@ -343,7 +343,7 @@ document and the change records may say.
 
 A change to a delivered capability puts the capability back under an open record,
 which moves it to `implementing`: the current account stays as written, and the
-proposed text sits beside it in PROPOSED blocks. Everything that moves a capability
+new text of the change sits beside it in PROPOSED blocks. Everything that moves a capability
 between states is a change.
 
 **PROPOSED blocks.** Text that a change proposes is written into the capability
@@ -395,20 +395,47 @@ every finding. A `Finding` has a stable kebab-case kind
 from `Finding::KINDS`, the file, a location (a key, a section or a line) and a fix;
 each rule of the profile and each reader error has its own kind.
 
+**Records.** `Workplan::load` also reads the records of the profile: the evidence
+records of `work/evidence`, the assessments of `work/assessments` and the coverage
+record `work/coverage/default.md`, each validated with the OKF reader and kept as a
+typed record (`Workplan::evidence`, `Workplan::assessments`, `Workplan::coverage`).
+A record directory holds its records directly, as a document directory does, and
+`work/coverage` holds only `default.md`: any other file there is
+`singleton-other-file` and is not read. A directory that does not exist holds
+nothing, so a repository without records loads and reports no finding of the record
+rules; that it has no coverage record is the one finding
+[two-way coverage](./workplan-two-way-coverage.md) gives it.
+
 **The graph.** `raf-workplan` builds a graph (`Workplan::graph`) from the documents
 and the source.
 
-- Nodes: capabilities, sections, changes, architecture pages, proposals, and the
-  code symbols, tests and examples that bindings name.
+- Nodes: capabilities, sections, changes, architecture pages, proposals, the
+  code symbols, tests and examples that bindings name, the records, the crates the
+  coverage record scopes and the symbols the inputs of records name.
 - Edges: bindings (capability to symbol, test or example), `depends`, `changes`,
   `affects` and Markdown links. A link runs from the section that holds it to the
   section its anchor names, or to the document when it has no anchor.
+- Record edges: `for` from an evidence record to each capability it covers; a claim
+  from the section of a capability that holds a claim marker to each evidence
+  record the marker names; the subject of an assessment, a section; `scope` from
+  the coverage record to each crate; and an input edge from a record to the
+  section, the definitions of the symbol or the evidence record each of its input
+  rows names. An input whose name resolves to nothing the repository holds makes no
+  edge and is no finding of the load: an input that moved is a matter of the
+  record's currency. A claim marker inside a PROPOSED block is not a claim until
+  the block is resolved.
 
 The graph must have no `depends` cycle. It answers questions in both directions:
 which code realises this capability (`Graph::code_of`), which capabilities a symbol
 is bound to (`Graph::capabilities_of`), which tests address a section
 (`Graph::tests_for`), which sections a change must update (`Graph::sections_of`),
-and which sections link to a section (`Graph::linking_sections`).
+and which sections link to a section (`Graph::linking_sections`). For the records it
+lists the `for` edges (`Graph::covers`) and the evidence that covers a capability
+(`Graph::evidence_of`), the claims (`Graph::claims`) and those on one evidence
+record (`Graph::claims_on`), the subjects of the assessments (`Graph::assesses`)
+and the assessments of a section (`Graph::assessments_of`), the `scope` edges
+(`Graph::scope`), and the input edges (`Graph::inputs`) and those of one record
+(`Graph::inputs_of`).
 
 **Binding resolution.** Each entry in `bindings.code` is a Rust path to a shipping
 item, each entry in `bindings.tests` a path to a function marked `#[test]`, and each
@@ -451,64 +478,43 @@ are empty and the bindings that do not resolve.
 - a `delivered` capability with no PROPOSED block, no open change record and no
   empty required section;
 - a `designed` capability with no PROPOSED block;
-- a `considered` capability with its candidate contract in PROPOSED blocks.
+- a `considered` capability with its candidate contract in PROPOSED blocks;
+- the references of the records and the claims, each with its file and, for a
+  claim, the line of its marker: a claim on evidence that does not exist
+  (`claim-evidence-missing`) or whose `for` does not list the capability
+  (`claim-evidence-not-for`); an evidence record whose `for` names no capability
+  document (`evidence-for-missing`); an assessment whose subject is a section of no
+  capability document (`assessment-subject-missing`); an assessment whose id is not
+  `assessment:<capability slug>-<section>` of its subject, the one id the
+  assessment of that section has (`assessment-id-mismatch`); and a `scope` entry
+  that is no package of the source workspace (`scope-crate-missing`). A name whose
+  document or record exists and is broken is explained by the findings of that
+  file.
 
 Markdown outside the document directories, such as a README, is judged by the same
 link, marker and reference rules through `raf_workplan::plain::check`.
 
-> [!PROPOSED change:workplan-document-model]
-> **Records.** `Workplan::load` also reads the records of the profile: the evidence
-> records of `work/evidence`, the assessments of `work/assessments` and the coverage
-> record `work/coverage/default.md`, each validated with the OKF reader and kept as a
-> typed record (`Workplan::evidence`, `Workplan::assessments`, `Workplan::coverage`).
-> A record directory holds its records directly, as a document directory does, and
-> `work/coverage` holds only `default.md`: any other file there is
-> `singleton-other-file` and is not read. A directory that does not exist holds
-> nothing, so a repository without records loads and checks as it did before.
->
-> The graph holds a node for each record, for each crate the coverage record
-> scopes and for each symbol an input names, and five more edges: `for` from an
-> evidence record to each capability it covers (`Graph::covers`,
-> `Graph::evidence_of`); a claim from the section of a capability that holds a claim
-> marker to each evidence record the marker names (`Graph::claims`,
-> `Graph::claims_on`); the subject of an assessment, a section (`Graph::assesses`,
-> `Graph::assessments_of`); `scope` from the coverage record to each crate
-> (`Graph::scope`); and an input edge from a record to the section, the definitions
-> of the symbol or the evidence record each of its input rows names
-> (`Graph::inputs`, `Graph::inputs_of`). An input whose name resolves to nothing
-> now makes no edge and is no finding of the load. A claim marker inside a PROPOSED block is not a
-> claim until the block is resolved. `check` reports a claim on evidence that does
-> not exist (`claim-evidence-missing`) or whose `for` does not list the capability
-> (`claim-evidence-not-for`), each with the file and the line of the marker; an
-> evidence record whose `for` names no capability document (`evidence-for-missing`);
-> an assessment whose subject is a section of no capability document
-> (`assessment-subject-missing`); an assessment whose id is not
-> `assessment:<capability slug>-<section>` of its subject, the one id the
-> assessment of that section has (`assessment-id-mismatch`); and a `scope` entry that is no package of the
-> source workspace (`scope-crate-missing`). A name whose document or record exists
-> and is broken is explained by the findings of that file.
->
-> **Digests.** `raf_workplan::digest::Digest` is the SHA-256 (FIPS 180-4, computed
-> in the crate) of a canonical encoding of a record input, one or more fields
-> `<kind> NUL <name> NUL <length> NUL <text>`: the kind (`section`, `symbol` or
-> `record`) keeps the domains apart and the decimal length ends each field. `Digest::section` hashes
-> the authored text of a section, with the content of its generated blocks left out;
-> `Digest::symbol` hashes the source span of each definition a path resolves to, once
-> per source item and in file order, and for a module below a crate root also the
-> whole text of each file of the module and of the modules below it, so a module
-> binding stands for the module's content as it does in coverage and an edit inside
-> the module moves the digest; `Digest::record` hashes the text of a record.
-> Every text has CRLF read as LF, so a digest is the same on every run and platform.
-> A digest is written and read as 64 lowercase hexadecimal digits.
->
-> **Writing records.** `raf_workplan::record::create` writes a new `Record` file
-> exclusively, never replacing a file, below the root, creating the directory of
-> its type when it is missing and refusing a link or a file on the way;
-> `record::replace` puts new text in place of an existing record file through a
-> temporary file and a rename. Both write the text the OKF writer renders for the
-> record, opened with the two SPDX comment lines of `RecordOptions` when both are
-> given, and refuse, before anything is written, a record whose text would not load
-> with no finding.
+**Digests.** `raf_workplan::digest::Digest` is the SHA-256 (FIPS 180-4, computed
+in the crate) of a canonical encoding of a record input, one or more fields
+`<kind> NUL <name> NUL <length> NUL <text>`: the kind (`section`, `symbol` or
+`record`) keeps the domains apart and the decimal length ends each field.
+`Digest::section` hashes the authored text of a section, with the content of its
+generated blocks left out; `Digest::symbol` hashes the source span of each
+definition a path resolves to, once per source item and in file order, and for a
+module below a crate root also the whole text of each file of the module and of the
+modules below it, so a module binding stands for the module's content as it does in
+coverage and an edit inside the module moves the digest; `Digest::record` hashes the
+text of a record. Every text has CRLF read as LF, so a digest is the same on every
+run and platform. A digest is written and read as 64 lowercase hexadecimal digits.
+
+**Writing records.** `raf_workplan::record::create` writes a new `Record` file
+exclusively, never replacing a file, below the root, creating the directory of
+its type when it is missing and refusing a link or a file on the way;
+`record::replace` puts new text in place of an existing record file through a
+temporary file and a rename. Both write the text the OKF writer renders for the
+record, opened with the two SPDX comment lines of `RecordOptions` when both are
+given, and refuse, before anything is written, a record whose text would not load
+with no finding.
 
 ## Usage
 
@@ -523,18 +529,15 @@ fn workplan() {
 ```
 
 `Gate::workspace` reads `docs/capabilities`, `docs/architecture` and `work/changes`
-under the directory, loads the workspace sources from the roots `["."]`
+under the directory, and the records of `work/evidence`, `work/assessments` and
+`work/coverage`, loads the workspace sources from the roots `["."]`
 (`Gate::source_roots` changes them), judges links against the paths `git ls-files`
 lists, and runs the checks; `assert_clean` panics with every finding, each with its
 location and fix, when there is one. A directory without a capability document is an
-error, not a clean verdict, and a missing `work/changes` is the empty set of changes.
+error, not a clean verdict, a missing `work/changes` is the empty set of changes, and
+a missing record directory holds no record.
 A command line is specified separately ([command line](./workplan-cli.md)) and is
 not part of this capability.
-
-> [!PROPOSED change:workplan-document-model]
-> `Gate::workspace` also reads the records of `work/evidence`, `work/assessments`
-> and `work/coverage`; a missing record directory holds no record, so a repository
-> with none checks as before.
 
 ## Examples
 
@@ -657,33 +660,35 @@ touches, and the obligations those sections receive are defined by
 - The dev-dependency API: `Gate::workspace(...).assert_clean()` passes on a clean
   fixture repository on disk, panics with every finding on a broken one, and is an
   error for a directory without capability documents.
+- The documentation example of `Gate` writes a repository of one package and one
+  delivered capability to a scratch directory and runs the gate over it with an
+  empty tracked set: the bindings resolve, and the one finding is `index-missing`.
 
-> [!PROPOSED change:workplan-document-model]
-> - Record fixtures in their directories: each record type loads into the model; a
->   record in the directory of another type, under another file name or below its
->   directory is refused; a file beside the coverage record is
->   `singleton-other-file`; a repository without record directories reports nothing
->   new.
-> - Reference fixtures for the records and the claims, each beside a neighbour that
->   passes: a capability in `for` with no document, a subject with no capability, a
->   `scope` crate that is no package, an assessment named otherwise than its
->   subject, a claim on unknown evidence with its line, and a claim on evidence for
->   another capability; a claim inside a PROPOSED block is
->   not read. An input of each kind that resolves is an edge, a re-exported symbol
->   leads to its definition, and an input of each kind that does not resolve is no
->   edge and no finding.
-> - Digest fixtures: the SHA-256 test vectors (the empty message, `abc`, the 448-bit
->   message and a million `a`), each encoding pinned against an independent SHA-256,
->   two runs equal, CRLF and LF equal, a regenerated block that leaves a section
->   digest, and each definition of a symbol counted once.
-> - Writer fixtures: a written record of each type reloads with no finding as the
->   same value; `create` never replaces a file; `replace` needs a record file that
->   exists, renames a new file over it, and in a directory that refuses a new file
->   fails with the target unchanged and no temporary file left; a record that would
->   not load clean, a bad slug and half an SPDX header are refused with nothing
->   written.
-> - Cost fixtures: a record at the size bound with the most measures, and a hundred
->   thousand claims, load in time linear in their size.
+- Record fixtures in their directories: each record type loads into the model; a
+  record in the directory of another type, under another file name or below its
+  directory is refused; a file beside the coverage record is
+  `singleton-other-file`; a repository without record directories reports nothing
+  new.
+- Reference fixtures for the records and the claims, each beside a neighbour that
+  passes: a capability in `for` with no document, a subject with no capability, a
+  `scope` crate that is no package, an assessment named otherwise than its
+  subject, a claim on unknown evidence with its line, and a claim on evidence for
+  another capability; a claim inside a PROPOSED block is
+  not read. An input of each kind that resolves is an edge, a re-exported symbol
+  leads to its definition, and an input of each kind that does not resolve is no
+  edge and no finding.
+- Digest fixtures: the SHA-256 test vectors (the empty message, `abc`, the 448-bit
+  message and a million `a`), each encoding pinned against an independent SHA-256,
+  two runs equal, CRLF and LF equal, a regenerated block that leaves a section
+  digest, and each definition of a symbol counted once.
+- Writer fixtures: a written record of each type reloads with no finding as the
+  same value; `create` never replaces a file; `replace` needs a record file that
+  exists, renames a new file over it, and in a directory that refuses a new file
+  fails with the target unchanged and no temporary file left; a record that would
+  not load clean, a bad slug and half an SPDX header are refused with nothing
+  written.
+- Cost fixtures: a record at the size bound with the most measures, and a hundred
+  thousand claims, load in time linear in their size.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |

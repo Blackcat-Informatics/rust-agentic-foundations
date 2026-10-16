@@ -100,12 +100,44 @@ impl Error for GateError {
 
 /// The checks of a repository on disk, for a test of the repository itself.
 ///
-/// ```rust,no_run
-/// // tests/workplan.rs
-/// #[test]
-/// fn workplan() {
-///     raf_workplan::Gate::workspace(env!("CARGO_MANIFEST_DIR")).assert_clean();
+/// A repository of one package and one delivered capability, written to a
+/// scratch directory, loads with its bindings resolved; its one finding is the
+/// capability catalogue that no sync has created yet:
+///
+/// ```rust
+/// use std::fs;
+///
+/// use raf_workplan::Gate;
+///
+/// let dir = std::env::temp_dir().join(format!("raf-workplan-gate-{}", std::process::id()));
+/// let sections: String = ["Purpose", "Contract", "Usage", "Examples", "Constraints", "Explanation", "Verification"]
+///     .iter()
+///     .map(|name| format!("## {name}\n\nThe {name} of the demo.\n\n"))
+///     .collect();
+/// let capability = format!(
+///     "---\ntype: Capability\nid: cap:demo\ntitle: \"Demo\"\ndescription: \"One line.\"\n\
+///      state: delivered\n\
+///      bindings:\n  code: [demo::run]\n  tests: [demo::tests::it_runs]\n  examples: []\n\
+///      depends: []\n---\n\n# Demo\n\n{sections}"
+/// );
+/// let files = [
+///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n".to_string()),
+///     ("src/lib.rs", "pub fn run() {}\n\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn it_runs() {\n        super::run();\n    }\n}\n".to_string()),
+///     ("docs/capabilities/demo.md", capability),
+///     ("work/coverage/default.md", "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n".to_string()),
+/// ];
+/// for (path, text) in files {
+///     let file = dir.join(path);
+///     fs::create_dir_all(file.parent().expect("a file has a directory"))?;
+///     fs::write(file, text)?;
 /// }
+///
+/// let findings = Gate::workspace(&dir).tracked_paths([]).try_check()?;
+/// fs::remove_dir_all(&dir)?;
+/// let kinds: Vec<&str> = findings.iter().map(|finding| finding.kind).collect();
+/// assert_eq!(kinds, ["index-missing"]);
+/// assert_eq!(findings[0].file, "docs/capabilities/index.md");
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 ///
 /// [`Gate::workspace`] names the directory. The gate reads `docs/capabilities`,
@@ -143,7 +175,17 @@ pub struct Gate {
 
 impl Gate {
     /// A gate over the checkout in `dir`: the directory that holds `docs/`
-    /// and `work/`, usually the manifest directory of the package.
+    /// and `work/`, usually the manifest directory of the package. A
+    /// repository runs it from a test of its own; the block is that test file,
+    /// so it is compiled and not run:
+    ///
+    /// ```rust,no_run
+    /// // tests/workplan.rs
+    /// #[test]
+    /// fn workplan() {
+    ///     raf_workplan::Gate::workspace(env!("CARGO_MANIFEST_DIR")).assert_clean();
+    /// }
+    /// ```
     #[must_use]
     pub fn workspace(dir: impl AsRef<Path>) -> Self {
         Self {
