@@ -165,7 +165,18 @@ guarantees are these, and no wider:
   root discovery (`cargo metadata --format-version 1 --no-deps --frozen`) and the
   `git` calls of the gate are made by `raf-workplan`, and a slug argument is checked
   against the slug pattern when the arguments are parsed, so one that starts with `-`
-  is a usage error before any process starts. The change commands add two kinds of
+  is a usage error before any process starts. So is every value of the record
+  commands that is not of its form or starts with `-`: the id of `history`,
+  `evidence claims` and `evidence for`, a `--since` day, the section of `assess`,
+  and the `--id`, `--for`, `--limit` and `--revision` of `evidence record`, and
+  the package of `coverage --crate`. The command of `evidence record` is every
+  word after the first `--` of the command line; the binary passes
+  `std::env::args_os()` itself to `TrustedArgv::from_command_line`, refuses the
+  run before the root is looked for when the parser's trailing words differ from
+  those words, and refuses an option whose value would be `--`, so no option can
+  move where the command starts. `history`, `evidence claims`, `evidence for`,
+  `assess --context`, `assess --list` and `coverage` write nothing; `assess
+  --verdict` writes the one assessment record. The change commands add two kinds of
   process, both started by `raf-workplan`: `git` (the default branch, the merge base
   and the file at the merge base, for `change reconcile` and `change complete`, which
   ask `git --version` before anything else, refuse a Git older than 2.30, and then

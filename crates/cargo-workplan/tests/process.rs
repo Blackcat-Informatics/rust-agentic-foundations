@@ -3,8 +3,10 @@
 
 //! The processes the binary starts, seen through stub programs: the exact
 //! command of root discovery from `$CARGO` and from `PATH`, a slug that starts
-//! with `-` refused before any process starts, a missing `git` and a
-//! `build.rustc` program that discovery does not run.
+//! with `-` refused before any process starts, an id, a day or a value of the
+//! history, evidence, assessment and coverage commands refused the same way,
+//! a missing `git`, a Git too old for the history, and a `build.rustc`
+//! program that discovery does not run.
 
 #![cfg(unix)]
 
@@ -513,4 +515,277 @@ fn cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back
         calls.contains("arg=workplan\narg=change\narg=reconcile\narg=grow\nend\n"),
         "{calls}"
     );
+}
+
+/// The words of a refused `evidence record` whose command would leave a
+/// marker file behind, with `options` before the separator.
+fn touching(options: &[&'static str]) -> Vec<&'static str> {
+    let mut args = vec!["evidence", "record"];
+    args.extend_from_slice(options);
+    args.extend(["--", "/bin/sh", "-c", "touch ran.txt"]);
+    args
+}
+
+#[test]
+fn an_id_a_day_or_a_value_of_the_record_commands_is_refused_before_any_process_starts() {
+    let _lock = serial();
+    let repo = Repo::synced("process-records", false);
+    let stubs = Stubs::new("process-records-stubs");
+    let target = repo.root().to_string_lossy().into_owned();
+    let before = repo.snapshot();
+    let refused: Vec<Vec<&str>> = vec![
+        vec!["history", "-rf"],
+        vec!["history", "--", "-rf"],
+        vec!["history", "--", "--output=x.rs"],
+        vec!["history", "cap:Bad"],
+        vec!["history", "coverage:default"],
+        vec!["history", "cap:alpha", "--since", "2026-02-30"],
+        vec!["history", "cap:alpha", "--since", "-1"],
+        vec!["history", "cap:alpha", "--since=--1"],
+        touching(&["--id", "-rf", "--for", "cap:alpha", "--by", "agent"]),
+        touching(&["--id", "peak", "--for", "alpha", "--by", "agent"]),
+        touching(&["--id", "peak", "--for", "cap:alpha"]),
+        touching(&[
+            "--id",
+            "peak",
+            "--for",
+            "cap:alpha",
+            "--by",
+            "agent",
+            "--limit",
+            "peak=1e-3",
+        ]),
+        touching(&[
+            "--id",
+            "peak",
+            "--for",
+            "cap:alpha",
+            "--by",
+            "agent",
+            "--revision",
+            "HEAD",
+        ]),
+        touching(&[
+            "--id",
+            "peak",
+            "--for",
+            "cap:alpha",
+            "--by",
+            "agent",
+            "--copyright=--",
+            "--licence",
+            "x",
+        ]),
+        touching(&[
+            "--id",
+            "peak",
+            "--for",
+            "cap:alpha",
+            "--by",
+            "agent",
+            "--from-binding",
+            "demo::test_crate::it::case",
+        ]),
+        vec!["evidence", "claims", "-rf"],
+        vec!["evidence", "claims", "--", "-rf"],
+        vec!["evidence", "for", "alpha"],
+        vec!["assess", "cap:alpha#intro", "--context"],
+        vec!["assess", "--", "-rf", "--context"],
+        vec!["assess", "cap:alpha#usage", "--verdict", "accepted"],
+        vec!["assess", "--list", "--by", "agent"],
+        vec!["coverage", "code", "--crate", "-x"],
+        vec!["coverage", "code", "--crate=--x"],
+        vec!["coverage", "tests", "--crate", "../demo"],
+    ];
+    for shape in [Shape::Direct, Shape::Cargo] {
+        for words in &refused {
+            // With a root given, git would be asked; without, cargo would.
+            for rooted in [false, true] {
+                let mut args: Vec<&str> = Vec::new();
+                if rooted {
+                    args.extend(["--root", &target]);
+                }
+                args.extend(words);
+                let run = stubs.run(repo.root(), shape, &args, true).expect(2);
+                assert_eq!(run.stdout, "", "{args:?}");
+                assert!(!run.stderr.is_empty(), "{args:?}");
+            }
+        }
+    }
+    refused_by_the_reading_of_the_command(&stubs, &repo);
+    assert_eq!(stubs.cargo_calls(), Vec::<Vec<String>>::new());
+    assert_eq!(stubs.git_calls(), Vec::<Vec<String>>::new());
+    assert_eq!(repo.snapshot(), before, "a refused command wrote or ran");
+    a_command_that_is_one_runs_after_discovery(&stubs, &repo);
+    allowed_values_start_a_process(&stubs, &repo, &target);
+}
+
+/// The neighbour of the refusals of the binary: the same line with a program
+/// that is one runs, after one root discovery.
+fn a_command_that_is_one_runs_after_discovery(stubs: &Stubs, repo: &Repo) {
+    let calls = stubs.cargo_calls().len();
+    let run = stubs.run(
+        repo.root(),
+        Shape::Direct,
+        &[
+            "evidence",
+            "record",
+            "--id",
+            "peak",
+            "--for",
+            "cap:alpha",
+            "--by",
+            "agent",
+            "--",
+            "/bin/sh",
+            "-c",
+            "echo peak=1",
+        ],
+        true,
+    );
+    assert_eq!(run.code, 0, "{run:#?}");
+    assert_eq!(stubs.cargo_calls().len(), calls + 1, "discovery ran once");
+}
+
+/// The refusals the binary makes itself after the parser accepted the line,
+/// each without `--root`, so a process started before them would be the
+/// `cargo` of root discovery: an empty program, a word that is not UTF-8, a
+/// program named `--`, and `--from-binding` beside a bare `--`.
+fn refused_by_the_reading_of_the_command(stubs: &Stubs, repo: &Repo) {
+    use std::os::unix::ffi::OsStringExt as _;
+    use std::os::unix::process::CommandExt as _;
+
+    let head = [
+        "evidence",
+        "record",
+        "--id",
+        "peak",
+        "--for",
+        "cap:alpha",
+        "--by",
+        "agent",
+    ];
+    let with = |tail: &[&'static str]| -> Vec<&str> { head.iter().chain(tail).copied().collect() };
+    for shape in [Shape::Direct, Shape::Cargo] {
+        let cases: Vec<(Command, &str)> = vec![
+            (
+                stubs.command(repo.root(), shape, &with(&["--", ""]), true),
+                "the empty word",
+            ),
+            (
+                {
+                    let mut command =
+                        stubs.command(repo.root(), shape, &with(&["--", "printf"]), true);
+                    command.arg(std::ffi::OsString::from_vec(vec![0x66, 0xff]));
+                    command
+                },
+                "not UTF-8",
+            ),
+            (
+                {
+                    let mut command = stubs.command(
+                        repo.root(),
+                        shape,
+                        &with(&["--", "/bin/sh", "-c", "touch ran.txt"]),
+                        true,
+                    );
+                    command.arg0("--");
+                    command
+                },
+                "program name of this process is `--`",
+            ),
+            (
+                stubs.command(
+                    repo.root(),
+                    shape,
+                    &with(&["--from-binding", "demo::test_crate::it::case", "--"]),
+                    true,
+                ),
+                "exclude each other",
+            ),
+        ];
+        for (mut command, says) in cases {
+            let run = support::finish(&mut command).expect(2);
+            assert_eq!(run.stdout, "", "{says}");
+            assert!(run.stderr.contains(says), "{says}: {run:#?}");
+        }
+    }
+}
+
+/// The neighbour of each record command: the values that are allowed start a
+/// process.
+fn allowed_values_start_a_process(stubs: &Stubs, repo: &Repo, target: &str) {
+    let ok = ["--id", "peak", "--for", "cap:alpha", "--by", "agent"];
+    let mut record = vec!["evidence", "record"];
+    record.extend(ok);
+    record.extend(["--", "/bin/sh", "-c", "echo peak=1"]);
+    for words in [
+        vec!["history", "cap:alpha", "--since", "2026-02-28"],
+        record,
+        vec!["evidence", "claims", "peak"],
+        vec!["evidence", "for", "cap:alpha"],
+        vec!["assess", "cap:alpha#usage", "--context"],
+        vec!["assess", "--list"],
+        vec!["coverage", "code", "--crate", "demo"],
+    ] {
+        let calls = stubs.git_calls().len();
+        let mut args = vec!["--root", &target];
+        args.extend(&words);
+        stubs.run(repo.root(), Shape::Direct, &args, true);
+        assert!(
+            stubs.git_calls().len() > calls,
+            "{words:?} started no process"
+        );
+    }
+}
+
+#[test]
+fn history_asks_the_git_version_before_its_log_and_refuses_a_git_older_than_2_30() {
+    let _lock = serial();
+    let repo = Repo::synced("process-history-git", false);
+    repo.checkout();
+    let target = repo.root().to_string_lossy().into_owned();
+    let real = support::stubs::which("git");
+    for (version, code) in [("2.29.2", 2), ("2.30.0", 0)] {
+        let scratch = Scratch::new("process-history-git-stub");
+        let record = scratch.path().join("git.record");
+        // A git that records each call and answers `--version` itself, and is
+        // the real git for everything else.
+        script(
+            &scratch.path().join("bin/git"),
+            &format!(
+                "{{ for a in \"$@\"; do printf 'arg=%s\\n' \"$a\"; done; printf 'end\\n'; }} >> '{}'\n\
+                 if [ \"$1\" = --version ]; then echo 'git version {version}'; exit 0; fi\n\
+                 exec '{}' \"$@\"",
+                record.display(),
+                real.display()
+            ),
+        );
+        let mut command = support::command(
+            &support::elsewhere(),
+            Shape::Direct,
+            &["--root", &target, "history", "cap:alpha"],
+        );
+        command.env("PATH", scratch.path().join("bin"));
+        let run = support::finish(&mut command).expect(code);
+        let calls = support::stubs::calls(&record);
+        let version = calls
+            .iter()
+            .position(|call| call == &["--version"])
+            .expect("the version is asked");
+        if code == 2 {
+            assert!(run.stderr.contains("2.30"), "{run:#?}");
+            assert_eq!(run.stdout, "");
+            // Nothing is asked after the version.
+            assert_eq!(version, calls.len() - 1, "{calls:?}");
+        } else {
+            // The shallow question and the logs follow it.
+            assert!(calls.len() > version + 2, "{calls:?}");
+            assert_eq!(
+                calls[version + 1],
+                ["rev-parse", "--is-shallow-repository"],
+                "{calls:?}"
+            );
+        }
+    }
 }

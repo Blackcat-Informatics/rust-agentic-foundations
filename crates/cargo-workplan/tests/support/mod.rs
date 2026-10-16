@@ -499,6 +499,11 @@ pub(crate) const BLOCKS: &str = "\n<!-- raf:generated:verification-matrix -->\n<
 /// command and the user's configuration out of the way. Returns standard
 /// output without its last line ending.
 pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
+    git_with(dir, args, &[])
+}
+
+/// [`git`] with these variables set as well, such as the dates of a commit.
+pub(crate) fn git_with(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> String {
     let mut command = Command::new("git");
     command
         .arg("-C")
@@ -521,6 +526,7 @@ pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
         .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
         .env("GIT_COMMITTER_NAME", "Fixture")
         .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid");
+    command.envs(env.iter().copied());
     for variable in [
         "GIT_DIR",
         "GIT_WORK_TREE",

@@ -77,9 +77,9 @@ Open questions:
 > the verdict, the measured values and their limits, the capabilities it covers, and
 > the digest of each input it was made against. Records are persisted as files in the
 > repository, one at `work/evidence/<id>.md` for each id, and are written by
-> `cargo workplan evidence record --id <id> --for cap:<slug>... [--limit name=number]...
-> [--revision <commit>] [--copyright <text> --licence <id>]` with one source of the
-> verdict:
+> `cargo workplan evidence record --id <id> --for cap:<slug>... --by human|agent
+> [--limit name=number]... [--revision <commit>] [--update] [--copyright <text>
+> --licence <id>]` with one source of the verdict:
 >
 > - `-- <program> <arg>...`: the command after `--` is run, exactly as given: with no
 >   shell, standard input closed, the workspace root as its directory, the caller's
@@ -136,10 +136,11 @@ Open questions:
 
 > [!PROPOSED change:workplan-evidence-claims]
 > - `cargo workplan evidence record --id memory-bound --for cap:streaming-parser
->   --limit peak=64 -- cargo bench parse` runs the command and persists the evidence.
+>   --by agent --limit peak=64 -- cargo bench parse` runs the command and persists the
+>   evidence.
 > - `cargo workplan evidence record --id parse-test --for cap:streaming-parser
->   --from-binding raf_parser::test_crate::bounds::stays_under_the_bound` takes the
->   verdict from a bound test.
+>   --by human --from-binding raf_parser::test_crate::bounds::stays_under_the_bound`
+>   takes the verdict from a bound test.
 > - A command whose standard output holds other `key=value` lines, such as
 >   `status=ok`, fails the recording, because each such line is read as a value; keep
 >   them on standard error or out of the output.

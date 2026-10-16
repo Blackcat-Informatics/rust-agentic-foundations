@@ -10,29 +10,47 @@ use raf_workplan::exec::{Programs, SystemRunner};
 use raf_workplan::{Gate, RoadmapEntry, SyncError, SyncOptions, Workplan, root};
 use serde_json::{Value, json};
 
-use crate::change;
-use crate::cli::{Args, Change, Command, Docs, SyncArgs};
+use raf_workplan::coverage::GapKind;
+
+use crate::cli::{Args, Change, Command, Coverage, Docs, Evidence, SyncArgs};
 use crate::exit::Failure;
 use crate::render::{Record, Report};
+use crate::{assess, change, coverage, evidence, history};
 
 /// Run the command of `args` and return what it produced.
 ///
 /// # Errors
 ///
 /// A [`Failure`] when the tool could not run: the root cannot be found, the
-/// repository cannot be opened, or the command's own input is refused.
+/// repository cannot be opened, or the command's own input is refused. The
+/// command of `evidence record` is checked before the root is looked for, so
+/// a refusal of it starts no process.
 pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
-    let root = workspace_root(args.root.as_deref())?;
+    let root = || workspace_root(args.root.as_deref());
     match &args.command {
-        Command::Check => check(&root),
-        Command::Status => status(&root),
-        Command::Docs(Docs::Sync(sync_args)) => sync(&root, sync_args),
-        Command::Docs(Docs::Preview(preview_args)) => preview(&root, &preview_args.slug),
-        Command::Change(Change::New(new_args)) => change::new(&root, new_args),
-        Command::Change(Change::Impact(slug)) => change::impact(&root, &slug.slug),
-        Command::Change(Change::Reconcile(slug)) => change::reconcile(&root, &slug.slug),
-        Command::Change(Change::Complete(slug)) => change::complete(&root, &slug.slug),
-        Command::Verify(verify_args) => change::verify(&root, verify_args.slug.as_deref()),
+        Command::Check => check(&root()?),
+        Command::Status => status(&root()?),
+        Command::Docs(Docs::Sync(sync_args)) => sync(&root()?, sync_args),
+        Command::Docs(Docs::Preview(preview_args)) => preview(&root()?, &preview_args.slug),
+        Command::Change(Change::New(new_args)) => change::new(&root()?, new_args),
+        Command::Change(Change::Impact(slug)) => change::impact(&root()?, &slug.slug),
+        Command::Change(Change::Reconcile(slug)) => change::reconcile(&root()?, &slug.slug),
+        Command::Change(Change::Complete(slug)) => change::complete(&root()?, &slug.slug),
+        Command::Verify(verify_args) => change::verify(&root()?, verify_args.slug.as_deref()),
+        Command::History(history_args) => history::history(&root()?, history_args),
+        Command::Evidence(Evidence::Record(record_args)) => {
+            let source = evidence::source(record_args)?;
+            evidence::record(&root()?, record_args, source)
+        }
+        Command::Evidence(Evidence::Claims(id)) => evidence::claims(&root()?, &id.id),
+        Command::Evidence(Evidence::For(cap)) => evidence::support(&root()?, &cap.capability),
+        Command::Assess(assess_args) => assess::assess(&root()?, assess_args),
+        Command::Coverage(Coverage::Code(coverage_args)) => {
+            coverage::coverage(&root()?, coverage_args, GapKind::PublicItem)
+        }
+        Command::Coverage(Coverage::Tests(coverage_args)) => {
+            coverage::coverage(&root()?, coverage_args, GapKind::Test)
+        }
     }
 }
 

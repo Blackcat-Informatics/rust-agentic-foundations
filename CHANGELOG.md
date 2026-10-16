@@ -110,7 +110,9 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   the argument variants and rows of the four commands; `git` gains
   `is_shallow`, `document_log`, `symbol_log` and `last_change` (`LastChange`).
   Table cells escape control and bidirectional formatting characters.
-  `Pattern::ALL`, `Arg` and `GitError` grow. The history writes nothing.
+  `Pattern::ALL`, `Arg` and `GitError` grow. A `git log -L` that `git` refuses,
+  as for a bound file that is not committed, is `HistoryError::SymbolLog`, which
+  names the binding and the file and says to commit it. The history writes nothing.
 - **`raf-workplan` evidence:** `Workplan::record_evidence(root, runner, request)`
   runs one execution and writes the evidence record `work/evidence/<id>.md`. The
   verdict comes from one `VerdictSource`: the caller's own command
@@ -212,6 +214,32 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   headings in fenced code and in PROPOSED blocks do not count. A condition is
   plain prose and nothing judges whether it has been met. A link to a page or a
   heading that does not exist stays `link-broken` or `anchor-broken`.
+- **`cargo-workplan` record commands:** `history <id> [--since <YYYY-MM-DD>]`
+  prints the table or the JSON of `Workplan::history` (exit 0, or 2 for an id no
+  document has, a shallow clone or a Git older than 2.30). `evidence record --id
+  <slug> --for cap:<slug>... --by human|agent [--limit name=number]... [--revision
+  <commit>] [--update] [--copyright <text> --licence <id>]` runs the command after
+  `--`, or the bound test or example of `--from-binding <path>`, and writes one
+  evidence record: exit 0 for `pass`, 1 for `fail`, 2 when no record is written.
+  Every word after the first `--` of the command line is the command, options
+  included; the parser's reading and the `TrustedArgv` of `std::env::args_os()`
+  must agree word by word, an option whose value would be `--` is a usage error,
+  and a program name of `--` and `--from-binding` beside a `--` are refused before
+  any process starts. A replacement holds only the SPDX lines its own run is
+  given. `evidence claims <evidence-id>` and `evidence for cap:<slug>` print what
+  rests on a record and what supports a capability. `assess cap:<slug>#<section>`
+  takes one of `--context` (the same for `--by human` and `--by agent`),
+  `--verdict accepted|rejected --by human|agent` (one record written, exit 0 for
+  either verdict) and `--list` (each assessment with its currency, exit 0; a
+  section given to it must exist).
+  `coverage code|tests [--crate <package>]` prints one direction of the coverage
+  report of the whole workspace or of one package, and exits 1 when it names a
+  gap. Each id, day, limit, revision, section and package is checked when the
+  arguments are parsed, before any process starts. The JSON kinds
+  `history-entry`, `history-removed`, `evidence-recorded`, `evidence-claim`,
+  `evidence-for`, `assess-context`, `assessment-recorded`, `assessment`,
+  `coverage-gap`, `coverage-excluded` and `coverage-error` are documented in the
+  crate documentation with their members in order.
 - **`raf-workplan`:** loads a repository's capability, change and architecture
   documents through a `raf-source` `Tree` into typed values with their bodies,
   validating each with `raf-okf`. `Workplan::load` never fails and never panics:

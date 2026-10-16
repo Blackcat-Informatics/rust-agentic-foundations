@@ -15,6 +15,14 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::exit::Exit
     - raf_workplan::root::discover
     - raf_workplan::root
+    - cargo_workplan::bin_crate::cargo_workplan::history::history
+    - cargo_workplan::bin_crate::cargo_workplan::evidence::source
+    - cargo_workplan::bin_crate::cargo_workplan::evidence::record
+    - cargo_workplan::bin_crate::cargo_workplan::evidence::claims
+    - cargo_workplan::bin_crate::cargo_workplan::evidence::support
+    - cargo_workplan::bin_crate::cargo_workplan::assess::assess
+    - cargo_workplan::bin_crate::cargo_workplan::coverage::coverage
+    - cargo_workplan::bin_crate::cargo_workplan::render::Report
   tests:
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::each_command_parses_in_both_shapes
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair
@@ -174,6 +182,45 @@ bindings:
     - raf_workplan::root::tests::cargo_that_cannot_run_or_writes_too_much_is_an_error
     - raf_workplan::root::tests::output_that_does_not_give_a_root_is_an_error
     - raf_workplan::root::tests::the_root_is_the_workspace_root_member_and_the_command_is_exactly_one
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_claims_and_for_take_one_id_each
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_reads_every_option_and_the_command_after_the_separator
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_refuses_a_separator_as_a_value_and_a_record_it_cannot_write
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_refuses_an_id_or_a_day_before_anything_runs
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_takes_an_id_of_each_kind_and_a_day
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::options_after_the_separator_belong_to_the_command
+    - cargo_workplan::bin_crate::cargo_workplan::evidence::tests::the_command_runs_only_when_both_readings_of_the_line_agree
+    - cargo_workplan::bin_crate::cargo_workplan::render::tests::a_rendered_block_is_printed_as_given_and_quiet_hides_only_an_outcome
+    - cargo_workplan::test_crate::assess::a_section_that_cannot_be_assessed_is_exit_two_and_writes_nothing
+    - cargo_workplan::test_crate::assess::a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero
+    - cargo_workplan::test_crate::assess::the_context_is_the_same_whoever_asks_and_writes_nothing
+    - cargo_workplan::test_crate::assess::the_list_shows_each_assessment_current_until_an_input_moves
+    - cargo_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero
+    - cargo_workplan::test_crate::coverage::crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there
+    - cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one
+    - cargo_workplan::test_crate::coverage::this_repository_names_the_gaps_outside_its_scope_and_none_in_it
+    - cargo_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing
+    - cargo_workplan::test_crate::evidence::a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves
+    - cargo_workplan::test_crate::evidence::a_command_that_passes_writes_exactly_one_record_and_exits_zero
+    - cargo_workplan::test_crate::evidence::a_failing_command_or_a_value_over_its_limit_records_fail_and_exits_one
+    - cargo_workplan::test_crate::evidence::a_request_that_cannot_be_recorded_runs_nothing
+    - cargo_workplan::test_crate::evidence::cargo_passes_the_command_after_the_separator_to_the_binary_unchanged
+    - cargo_workplan::test_crate::evidence::json_is_one_evidence_recorded_object_with_its_fields
+    - cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record
+    - cargo_workplan::test_crate::evidence::the_views_print_json_and_refuse_what_does_not_exist
+    - cargo_workplan::test_crate::evidence::the_words_after_the_separator_are_the_command_options_included
+    - cargo_workplan::test_crate::history::a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding
+    - cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers
+    - cargo_workplan::test_crate::history::json_holds_the_entries_of_the_table_in_the_same_order
+    - cargo_workplan::test_crate::history::quiet_prints_nothing_because_a_history_is_not_a_finding
+    - cargo_workplan::test_crate::history::since_limits_the_commits_and_a_change_or_an_unknown_id_is_answered_or_refused
+    - cargo_workplan::test_crate::process::an_id_a_day_or_a_value_of_the_record_commands_is_refused_before_any_process_starts
+    - cargo_workplan::test_crate::process::history_asks_the_git_version_before_its_log_and_refuses_a_git_older_than_2_30
+    - cargo_workplan::bin_crate::cargo_workplan::evidence::tests::a_program_named_the_separator_and_a_binding_beside_one_are_refused
+    - cargo_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only
+    - cargo_workplan::test_crate::evidence::a_replacement_holds_the_spdx_lines_of_its_own_run_only
+    - cargo_workplan::test_crate::history::a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is
   examples:
     - raf_workplan::Workplan::sync
     - raf_workplan::Workplan::preview
@@ -271,6 +318,71 @@ none of them equals the kind of a rule. Their fields are documented in the crate
 documentation of `cargo-workplan`. A run that could not run prints nothing on stdout,
 so stdout is either one complete array or empty.
 
+> [!PROPOSED change:workplan-cli]
+> **The record commands.** Four more commands read and write the records of the
+> workplan:
+>
+> | Command | Effect |
+> | --- | --- |
+> | `history <id> [--since <YYYY-MM-DD>]` | Print the commits that shaped a document or record ([entity history](./workplan-entity-history.md)) |
+> | `evidence record --id <slug> --for cap:<slug>... --by human\|agent [--limit <name>=<number>]... [--revision <commit>] [--update] [--copyright <text> --licence <id>]` and `-- <program> <arg>...` or `--from-binding <path>` | Run the command or the bound test and write its evidence record ([evidence claims](./workplan-evidence-claims.md)) |
+> | `evidence claims <evidence-id>` | Print the statements that rest on an evidence record |
+> | `evidence for cap:<slug>` | Print the evidence records that support a capability |
+> | `assess cap:<slug>#<section> --context` | Print what an assessor reads ([prose assessment](./workplan-prose-assessment.md)) |
+> | `assess cap:<slug>#<section> --verdict accepted\|rejected --by human\|agent [--copyright <text> --licence <id>]` | Record the assessment of the section |
+> | `assess [cap:<slug>#<section>] --list` | Print each assessment, or the one of the section, and whether it is current |
+> | `coverage code\|tests [--crate <package>]` | Print the public items or the tests that no capability binds ([two-way coverage](./workplan-two-way-coverage.md)) |
+>
+> Each value is checked when the arguments are parsed. A history id is `cap:`,
+> `change:`, `arch:`, `evidence:` or `assessment:` and a slug; an evidence id is
+> `evidence:<slug>` or the slug; a section is `cap:<slug>#<section>` with one of the
+> seven sections; `--since` is a day from 1970-01-01 to 2099-12-31; `--limit` is
+> `name=number` with no exponent; `--revision` is 40 or 64 lowercase hexadecimal
+> digits; `--crate` is a package name, given as cargo names it (`raf-okf`) or as its
+> crate is named (`raf_okf`). A value that is not one, or that starts with `-`, is a
+> usage error, exit 2, before any process starts.
+>
+> **The command of `evidence record`.** Every word after the first `--` of the
+> command line is the command: a `-q`, a `--format` or a second `--` after it is a
+> word of the command and not an option of the tool. `raf-workplan` builds the
+> command from the command line of the process
+> (`TrustedArgv::from_command_line(std::env::args_os())`) and never from the text of
+> a document or record; the parser reads the same words as the trailing arguments,
+> and a run whose two readings differ is refused before anything starts. An option
+> whose value would be `--` is a usage error, so no option can move the start of the
+> command, and so is a process whose program name is `--`. A command and
+> `--from-binding` exclude each other, a bare `--` beside `--from-binding`
+> included, and one of them is required. `--by` is required, since a record states
+> who made it. A replacement, by `--update` or by a verdict on a section that has an
+> assessment, holds only what its own run gives, its SPDX lines included: without
+> `--copyright` and `--licence` the new record has none.
+>
+> **Exit codes of the record commands.** `history`, `evidence claims`,
+> `evidence for` and `assess` exit 0 when they have an answer: a recorded `rejected`
+> verdict, and a stale or rejected assessment that `--list` shows, are results and
+> not findings, and `change reconcile` lists what they owe. `evidence record` exits 0
+> when it writes a `pass` record and 1 when it writes a `fail` record, a result the
+> repository owes; it exits 2 when it writes none: a printed value that is not a
+> number, a name printed twice, a limit the command never printed, output past its
+> bound, a command that cannot start, or a request refused before the run.
+> `coverage code` and `coverage tests` exit 1 when the report names a gap, or in the
+> code direction a surface that cannot be listed, and 0 otherwise. Each exits 2 when
+> the tool cannot run: an id or a capability that no loaded document has (for
+> `assess --list` with a section too), a shallow clone, a Git older than 2.30 or a
+> bound file whose lines are not committed for `history`, a package that `--crate`
+> does not name.
+>
+> **Output of the record commands.** `history` and `coverage` print the table and
+> the JSON array that `raf-workplan` renders, as one report: under `-q` a history
+> prints nothing (`[]` in JSON), and a coverage report is printed whole when it names
+> a gap and not at all when it names none. Under `-q` a `pass` record, a recorded
+> verdict, a context, a list and the two evidence views print nothing, and a `fail`
+> record stays. The JSON kinds are `history-entry`, `history-removed`,
+> `evidence-recorded`, `evidence-claim`, `evidence-for`, `assess-context`,
+> `assessment-recorded`, `assessment`, `coverage-gap`, `coverage-excluded` and
+> `coverage-error`; none equals the kind of a rule, and their members, in a fixed
+> order, are documented in the crate documentation of `cargo-workplan`.
+
 ## Usage
 
 ```sh
@@ -284,6 +396,17 @@ cargo-workplan --format json change reconcile incremental-parsing
 
 `make docs-sync` in this repository runs `cargo-workplan docs sync` with the SPDX text
 of a new index.
+
+> [!PROPOSED change:workplan-cli]
+> - `cargo workplan history cap:workplan-reconcile --since 2026-01-01` prints the
+>   commits of the capability and of its bound code.
+> - `cargo workplan evidence record --id peak-rss --for cap:streaming-parser --by agent --limit peak=64 -- cargo bench parse`
+>   runs the benchmark and writes `work/evidence/peak-rss.md`.
+> - `cargo workplan assess cap:streaming-parser#usage --context` prints what an
+>   assessor reads, and `cargo workplan assess cap:streaming-parser#usage --verdict accepted --by human`
+>   records the verdict.
+> - `cargo workplan --format json coverage code --crate raf-workplan` prints the
+>   public items of one package that no capability binds.
 
 ## Examples
 
@@ -308,6 +431,16 @@ $ cargo workplan --format json check
 ]
 ```
 
+> [!PROPOSED change:workplan-cli]
+> `evidence record` reports the record it wrote, and its exit code says whether the
+> result holds:
+>
+> | Command after `evidence record --id peak --for cap:alpha --by agent --limit peak=64 --` | Standard output | Exit |
+> | --- | --- | --- |
+> | `/bin/sh -c 'echo peak=41'` | `recorded: work/evidence/peak.md (pass)` | 0 |
+> | `/bin/sh -c 'echo peak=80'`, with `--update` | `recorded: work/evidence/peak.md (fail): over the limit: peak` | 1 |
+> | `/bin/sh -c 'echo peak=1e-3'` | nothing: the refusal is on standard error and no record is written | 2 |
+
 ## Constraints
 
 - The binary holds no logic of its own. Each command calls a function in
@@ -328,6 +461,19 @@ $ cargo workplan --format json check
 - A slug starts with a lowercase letter or digit; any other slug is a usage error.
 - A command that takes a slug fails with exit 2 when `work/changes/<slug>.md` does
   not exist, except `change new`.
+
+> [!PROPOSED change:workplan-cli]
+> - `history`, `evidence claims`, `evidence for`, `assess --context`, `assess --list`
+>   and `coverage` write nothing. `evidence record` writes one record,
+>   `work/evidence/<id>.md`, and only after the run; `assess --verdict` writes one
+>   record, `work/assessments/<capability slug>-<section>.md`; neither edits a
+>   document.
+> - The binary still starts no process of its own. The caller's command of
+>   `evidence record` is the one process whose argv comes from the command line, and
+>   `raf-workplan` runs it with no shell, exactly as given; no text of a document or
+>   record reaches it. The history adds a fourth form of a value from a document on a
+>   command line: a validated identifier inside one `-S<identifier>` argument (see
+>   [the security policy](../../SECURITY.md)).
 
 ## Explanation
 
@@ -369,6 +515,41 @@ rather than kept by hand.
   are not rules never equal to a rule name, and stdout empty for a run that could not
   run.
 
+> [!PROPOSED change:workplan-cli]
+> - Argument-parsing tests of the record commands in both shapes: each id, day,
+>   limit, revision, section and package refused when it is not one or starts with
+>   `-`; every word after the first `--` taken as the command, options and a second
+>   `--` included; an option whose value is `--` refused; exactly one mode of
+>   `assess`; exactly one source of the verdict of `evidence record`; and the two
+>   readings of the command compared word by word.
+> - A stub-recorded fixture asserting that each such refusal starts no `git` and no
+>   `cargo` and runs no command, with and without `--root`, beside a neighbour that
+>   starts a process; the refusals of the binary itself (an empty program, a word
+>   that is not UTF-8, a program name of `--`, `--from-binding` beside a bare `--`)
+>   included, without `--root`, so that root discovery would show; and that
+>   `history` asks `git --version` before its log and refuses 2.29.
+> - Fixtures through the built binary for each command. `history` on a real Git
+>   history: the document and symbol commits newest first, a removed binding with the
+>   commit that removed it and its parent, `--since`, the same entries in the table
+>   and in JSON, a shallow clone refused, and a bound file that is not committed
+>   refused naming it until it is. `evidence record` of a `/bin/sh -c`
+>   command: pass with exit 0; fail by its exit status and by a value over its limit
+>   with exit 1; each parse failure and a command that cannot start with exit 2 and
+>   no record; exactly one file written; a replacement with and without the SPDX
+>   pair; `--from-binding` with the real `cargo`; a
+>   real `cargo workplan` dispatch that passes the words after `--` unchanged; and a
+>   claim that reconciles clean until its bound code moves. `assess`: the context
+>   identical for `--by human` and `--by agent`, a verdict writing one file, and the
+>   list current and then stale naming the section, and an unknown capability exit
+>   2. `coverage`: gaps with exit 1, an exclusion with exit 0, a surface that cannot
+>   be listed with exit 1 for `coverage code` and 0 for `coverage tests`, `--crate`
+>   in both forms, and this repository, whose reports
+>   name the gaps of the crates outside the scope and none of `raf-workplan` and
+>   `cargo-workplan`.
+> - JSON pins of the members of each new kind in order, and every kind unequal to a
+>   rule name; `-q` hides each outcome and keeps a `fail` record and a coverage gap;
+>   the read-only commands leave the tree byte-identical.
+
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
@@ -377,21 +558,36 @@ rather than kept by hand.
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_must_be_a_slug` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::each_command_parses_in_both_shapes` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_claims_and_for_take_one_id_each` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_reads_every_option_and_the_command_after_the_separator` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_refuses_a_separator_as_a_value_and_a_record_it_cannot_write` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::help_and_version_exit_zero_in_both_shapes` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_refuses_an_id_or_a_day_before_anything_runs` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_takes_an_id_of_each_kind_and_a_day` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::options_after_the_separator_belong_to_the_command` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_default_and_parse_in_both_shapes` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_may_follow_the_command` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_sync_text_options_parse` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::evidence::tests::a_program_named_the_separator_and_a_binding_beside_one_are_refused` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::evidence::tests::the_command_runs_only_when_both_readings_of_the_line_agree` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::exit::tests::a_library_error_becomes_its_display_text` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::exit::tests::the_three_exits_have_the_documented_codes` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::render::tests::a_finding_makes_the_exit_one_and_an_outcome_does_not` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::render::tests::a_json_object_begins_with_its_kind_and_keeps_the_order_of_its_fields` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::render::tests::a_record_with_no_text_has_no_line_in_text_and_an_object_in_json` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::render::tests::a_rendered_block_is_printed_as_given_and_quiet_hides_only_an_outcome` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::render::tests::an_empty_report_is_nothing_in_text_and_an_empty_array_in_json` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::render::tests::quiet_prints_only_findings_and_keeps_the_exit` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::render::tests::text_with_quotes_and_control_characters_is_escaped` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::assess::a_section_that_cannot_be_assessed_is_exit_two_and_writes_nothing` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::assess::a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::assess::the_context_is_the_same_whoever_asks_and_writes_nothing` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::assess::the_list_shows_each_assessment_current_until_an_input_moves` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::a_clean_repository_exits_zero_and_prints_nothing` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::a_finding_is_gone_once_it_is_fixed` | test | [Verification](#verification) |
@@ -414,6 +610,28 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::complete::json_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::quiet_hides_a_completion_and_keeps_a_refusal` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::what_stops_it_looking_is_exit_two_and_the_record_stays` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::coverage::crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::coverage::this_repository_names_the_gaps_outside_its_scope_and_none_in_it` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::a_command_that_passes_writes_exactly_one_record_and_exits_zero` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::a_failing_command_or_a_value_over_its_limit_records_fail_and_exits_one` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::a_replacement_holds_the_spdx_lines_of_its_own_run_only` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::a_request_that_cannot_be_recorded_runs_nothing` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::cargo_passes_the_command_after_the_separator_to_the_binary_unchanged` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::json_is_one_evidence_recorded_object_with_its_fields` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::the_views_print_json_and_refuse_what_does_not_exist` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::the_words_after_the_separator_are_the_command_options_included` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::history::a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::history::a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::history::json_holds_the_entries_of_the_table_in_the_same_order` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::history::quiet_prints_nothing_because_a_history_is_not_a_finding` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::history::since_limits_the_commits_and_a_change_or_an_unknown_id_is_answered_or_refused` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::impact::a_change_that_reaches_dependants_and_linking_sections_lists_them_sorted` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::impact::a_record_that_does_not_load_is_exit_two_with_its_findings` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::impact::a_slug_with_no_record_is_exit_two_and_names_the_open_changes` | test | [Verification](#verification) |
@@ -461,10 +679,12 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::a_usage_error_of_the_change_commands_starts_no_process` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::a_usage_error_starts_no_process` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::process::an_id_a_day_or_a_value_of_the_record_commands_is_refused_before_any_process_starts` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::discovery_does_not_run_the_build_rustc_program_of_the_workspace` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::discovery_runs_exactly_cargo_metadata_from_the_cargo_variable` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::discovery_runs_the_cargo_on_path_when_the_variable_is_unset` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::process::history_asks_the_git_version_before_its_log_and_refuses_a_git_older_than_2_30` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::output_from_cargo_that_is_not_the_metadata_is_exit_two` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::root_starts_no_cargo_at_all` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::reconcile::a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree` | test | [Verification](#verification) |

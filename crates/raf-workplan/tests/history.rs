@@ -891,6 +891,62 @@ fn every_question_is_asked_in_order_as_exactly_its_argv() {
 }
 
 #[test]
+fn a_symbol_log_that_git_refuses_names_the_binding_and_the_file_to_commit() {
+    let (docs, source) = memory();
+    let plan = Workplan::load(&docs, &source);
+    let second =
+        format!("--no-pager log --no-show-signature -L5,7:src/alpha.rs --no-patch {FORMAT} --");
+    let refusing = scripted().on(
+        Program::Git,
+        &strs(&argv(&second)),
+        Ok(Output::new(
+            Some(128),
+            Vec::new(),
+            b"fatal: There is no path src/alpha.rs in the commit\n".to_vec(),
+        )),
+    );
+    let error = plan
+        .history("cap:alpha", &HistoryOptions::new(), &refusing)
+        .expect_err("git refused the span");
+    match &error {
+        HistoryError::SymbolLog {
+            binding,
+            file,
+            error,
+        } if matches!(**error, GitError::Failed { .. }) => assert_eq!(
+            (binding.as_str(), file.as_str()),
+            ("demo::alpha::second", "src/alpha.rs")
+        ),
+        other => panic!("{other:?}"),
+    }
+    let message = error.to_string();
+    assert!(
+        message.contains("There is no path src/alpha.rs"),
+        "{message}"
+    );
+    assert!(message.contains("commit `src/alpha.rs`"), "{message}");
+    // A failing log of the document stays a failure of `git`.
+    let doc = format!(
+        "--no-pager log --no-show-signature --follow --cc --root {FORMAT} --name-only -- docs/capabilities/alpha.md"
+    );
+    let failing = scripted().on(
+        Program::Git,
+        &strs(&argv(&doc)),
+        Ok(Output::new(Some(128), Vec::new(), b"fatal: bad\n".to_vec())),
+    );
+    let error = plan
+        .history("cap:alpha", &HistoryOptions::new(), &failing)
+        .expect_err("git failed");
+    assert!(
+        matches!(error, HistoryError::Git(GitError::Failed { .. })),
+        "{error:?}"
+    );
+    // The neighbour: the same history with every answer given.
+    plan.history("cap:alpha", &HistoryOptions::new(), &scripted())
+        .expect("a history");
+}
+
+#[test]
 fn since_reaches_both_logs_before_the_last_separator() {
     let (docs, source) = memory();
     let plan = Workplan::load(&docs, &source);

@@ -30,7 +30,8 @@
 //!   working tree, and `git log -L` traces it from `HEAD`: for a file whose
 //!   working copy differs from `HEAD` the lines are those numbers in `HEAD`,
 //!   and a bound file that is not committed, or is shorter in `HEAD`, makes
-//!   `git` fail and with it the whole history ([`HistoryError::Git`]).
+//!   `git` fail and with it the whole history
+//!   ([`HistoryError::SymbolLog`], which names the binding and the file).
 //!   `git` follows the lines through a rename it detects and stops where they
 //!   came from another file, so a symbol moved between files has its history
 //!   from the move on.
@@ -329,6 +330,16 @@ pub enum HistoryError {
     },
     /// The repository is a shallow clone.
     Shallow,
+    /// `git log -L` failed for the span of a bound symbol, as it does for a
+    /// file that is not committed or is shorter in `HEAD`.
+    SymbolLog {
+        /// The binding's path.
+        binding: String,
+        /// The file of the span.
+        file: String,
+        /// What `git` said.
+        error: Box<GitError>,
+    },
     /// `git` could not answer.
     Git(GitError),
 }
@@ -373,6 +384,14 @@ impl fmt::Display for HistoryError {
                 f,
                 "the repository is a shallow clone: the commits before its shallow boundary are missing, so a history would be partial; fetch them with `git fetch --unshallow`"
             ),
+            Self::SymbolLog {
+                binding,
+                file,
+                error,
+            } => write!(
+                f,
+                "the lines of the bound symbol `{binding}` in `{file}` have no history: {error}; `git log -L` reads them from `HEAD`, so commit `{file}` (with the symbol at the lines it has now) and ask again"
+            ),
             Self::Git(error) => write!(f, "{error}"),
         }
     }
@@ -382,6 +401,7 @@ impl Error for HistoryError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Pattern { error, .. } => Some(error),
+            Self::SymbolLog { error, .. } => Some(error.as_ref()),
             Self::Git(error) => Some(error),
             _ => None,
         }
@@ -527,7 +547,9 @@ impl Workplan<'_> {
     /// [`HistoryError::UnknownKind`], [`HistoryError::Unknown`],
     /// [`HistoryError::NotLoaded`], [`HistoryError::Binding`] and
     /// [`HistoryError::Pattern`] before any process starts;
-    /// [`HistoryError::Shallow`] for a shallow clone; [`HistoryError::Git`]
+    /// [`HistoryError::Shallow`] for a shallow clone;
+    /// [`HistoryError::SymbolLog`] for a `git log -L` of a bound symbol that
+    /// fails, as for a file that is not committed; [`HistoryError::Git`]
     /// for a Git older than 2.30, an output over 16 MiB, an output that is not
     /// a log of its form, and a `git` that fails or cannot run.
     pub fn history(
@@ -546,7 +568,17 @@ impl Workplan<'_> {
         let log = git::document_log(runner, &plan.document, since)?;
         merge(&mut entries, log, &Source::Document, None);
         for query in &plan.symbols {
-            let log = git::symbol_log(runner, query.lines, &query.file, since)?;
+            let log =
+                git::symbol_log(runner, query.lines, &query.file, since).map_err(|error| {
+                    match error {
+                        GitError::Failed { .. } => HistoryError::SymbolLog {
+                            binding: query.binding.clone(),
+                            file: query.file.as_str().to_string(),
+                            error: Box::new(error),
+                        },
+                        other => HistoryError::Git(other),
+                    }
+                })?;
             merge(
                 &mut entries,
                 log,

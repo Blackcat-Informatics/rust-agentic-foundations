@@ -20,6 +20,7 @@ bindings:
     - raf_workplan::git::LastChange
   tests:
     - raf_workplan::test_crate::history::a_binding_that_names_no_single_symbol_is_refused_before_any_process
+    - raf_workplan::test_crate::history::a_symbol_log_that_git_refuses_names_the_binding_and_the_file_to_commit
     - raf_workplan::test_crate::history::a_capability_history_holds_its_document_through_a_move_and_its_bound_code
     - raf_workplan::test_crate::history::a_log_past_sixteen_mebibytes_is_an_error_and_the_bound_itself_is_read
     - raf_workplan::test_crate::history::a_merge_whose_resolution_changed_the_document_is_in_its_history_and_a_clean_one_is_not
@@ -197,7 +198,8 @@ Open questions:
 >   and traced from `HEAD`, so for a file whose working copy differs from `HEAD`
 >   the lines are those numbers in `HEAD`. A bound file that is not committed, or
 >   is shorter in `HEAD`, makes `git log -L` fail, and the whole history fails with
->   it rather than leaving the binding out.
+>   it rather than leaving the binding out, with an error that names the binding
+>   and the file and says to commit it.
 > - The commit reported as removing a binding is a heuristic. The count is of the
 >   text anywhere below the crate's directory, which includes any package nested in
 >   it and, for a package at the root, the whole repository with its documents; so
@@ -260,4 +262,7 @@ sequence of proposals, discarded names and reversals that Git retains.
 > - An argument fixture: an `<id>` or `--since` value that begins with `-` or does not
 >   match its pattern is a usage error with exit 2, and no `git` process starts.
 > - A shallow clone: the command fails with an error that names the missing history.
+> - A bound file whose lines `git log -L` cannot read from `HEAD` (as for a file that
+>   is not committed): the error names the binding and the file and says to commit
+>   it, while a failing log of the document stays a failure of `git`.
 > - The JSON output and the table carry the same entries in the same order.

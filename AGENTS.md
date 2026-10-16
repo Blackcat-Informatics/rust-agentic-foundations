@@ -55,9 +55,11 @@ parse, package and target discovery, its module tree and its symbol and use-alia
 index. `raf-workplan` delivers the document model (loading, the graph, binding
 resolution, the check rules and the `Gate`), the generated blocks with their sync
 and preview, and the change lifecycle (`change new`, `impact`, `reconcile`,
-`complete` and `verify`). `cargo-workplan` is **delivered** with all of its
-commands: `check`, `status`, `docs sync|preview`,
-`change new|impact|reconcile|complete` and `verify`. Every other crate below is
+`complete` and `verify`). `cargo-workplan` is **delivered** with the commands
+`check`, `status`, `docs sync|preview`, `change new|impact|reconcile|complete` and
+`verify`; its commands `history`, `evidence record|claims|for`, `assess` and
+`coverage code|tests` are built and **implementing**, their contract still proposed
+in the command-line capability. Every other crate below is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
