@@ -45,6 +45,9 @@ kinds! {
     COVERAGE_REEXPORT_UNBOUND = "coverage-reexport-unbound";
     COVERAGE_EXCLUSION_UNMATCHED = "coverage-exclusion-unmatched";
     COVERAGE_SURFACE_UNREADABLE = "coverage-surface-unreadable";
+    ARCHITECTURE_PAGE_UNLINKED = "architecture-page-unlinked";
+    DECISION_CONDITIONS_MISSING = "decision-conditions-missing";
+    EXPLANATION_CONDITIONS_MISSING = "explanation-conditions-missing";
     DEPENDS_CYCLE = "depends-cycle";
     PROPOSED_MISSING_CHANGE = "proposed-missing-change";
     PROPOSED_CHANGE_NOT_LISTING = "proposed-change-not-listing";
@@ -245,6 +248,15 @@ impl Finding {
     ///   `assessment:<capability slug>-<section>` of its subject, the one id
     ///   an assessment of that section has, so a section has at most one
     ///   assessment.
+    /// * `architecture-page-unlinked`: an architecture page that no other
+    ///   capability, change or architecture document links to.
+    ///   `decision-conditions-missing`: an architecture page with a
+    ///   `## Decision` heading and no `## Conditions to revisit` heading, or a
+    ///   `## Conditions to revisit` heading with no list item.
+    ///   `explanation-conditions-missing`: a `### Decision` in the Explanation
+    ///   of a capability that no `### Conditions to revisit` follows before
+    ///   the next decision, or such a subheading with no list item. See
+    ///   [`crate::Workplan::check`].
     ///
     /// * `proposed-missing-change`, `proposed-change-not-listing` and
     ///   `proposed-section-not-affected`: a PROPOSED block names a change

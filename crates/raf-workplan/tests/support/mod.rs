@@ -246,6 +246,10 @@ pub(crate) mod fixtures {
     pub(crate) const GAMMA: &str = "docs/capabilities/gamma.md";
     pub(crate) const OVERVIEW: &str = "docs/architecture/overview.md";
     pub(crate) const CHANGE: &str = "work/changes/add-alpha.md";
+    /// The Explanation text of gamma in the valid repository: it links the
+    /// architecture page.
+    pub(crate) const OVERVIEW_LINK: &str =
+        "Text for Explanation. See [the overview](../architecture/overview.md).";
 
     pub(crate) fn valid() -> Repo {
         let mut repo = Repo::new();
@@ -254,9 +258,15 @@ pub(crate) mod fixtures {
         };
         put(ALPHA, capability("alpha", "designed", "[cap:beta]", ""));
         put(BETA, capability("beta", "considered", "[]", PROPOSED));
+        // Gamma's Explanation links the architecture page, so no page is
+        // unlinked.
         put(
             GAMMA,
-            capability("gamma", "delivered", "[cap:beta, cap:alpha]", ""),
+            capability("gamma", "delivered", "[cap:beta, cap:alpha]", "").replacen(
+                "Text for Explanation.",
+                OVERVIEW_LINK,
+                1,
+            ),
         );
         put(
             OVERVIEW,

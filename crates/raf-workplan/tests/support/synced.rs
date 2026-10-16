@@ -91,8 +91,8 @@ pub(crate) fn document(
 ///
 /// * `gamma`, delivered, binds a test and two examples (an example target and
 ///   a documented library item), names the test in its Contract and the target
-///   in its Usage and its Examples, and holds a matrix and a relationship
-///   table;
+///   in its Usage and its Examples, links the architecture page `overview`
+///   from its Explanation, and holds a matrix and a relationship table;
 /// * `beta`, implementing, binds one code item and nothing else, depends on `gamma`, and holds a relationship table and a matrix;
 /// * `alpha`, designed, depends on `beta` and `gamma` and holds a relationship
 ///   table;
@@ -125,6 +125,10 @@ pub(crate) fn unsynced() -> Repo {
                 (
                     "Examples",
                     "\nThe example `demo::example_crate::show` runs.\n",
+                ),
+                (
+                    "Explanation",
+                    "\nIt follows [the overview](../architecture/overview.md).\n",
                 ),
                 ("Verification", &format!("\n{MATRIX}\n{RELATIONSHIPS}")),
             ],

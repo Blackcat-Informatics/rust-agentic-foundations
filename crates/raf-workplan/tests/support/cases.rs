@@ -9,7 +9,7 @@ use std::fmt::Write as _;
 use raf_okf::{DocType, ErrorTag, Location, MAX_TEXT_BYTES, MAX_YAML_DEPTH, Rule, RuleTag};
 use raf_workplan::Finding;
 
-use super::fixtures::{ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, bound, mutate, valid};
+use super::fixtures::{ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, OVERVIEW_LINK, bound, mutate, valid};
 use super::synced::{self, check_all};
 use super::{COVERAGE, Repo, check_with_symlinks, key, line_of, section};
 
@@ -122,6 +122,20 @@ impl Case {
     }
 }
 
+/// Move the document at `from` of `repo` to `to`. Moving the architecture
+/// page also points gamma's link to it at its new path, so the move breaks
+/// only the rule its case is about.
+fn move_document(repo: &mut Repo, from: &str, to: &str) {
+    let text = repo.remove(from).expect("the fixture holds the document");
+    repo.insert(to.to_string(), text);
+    if from == OVERVIEW {
+        let target = to
+            .strip_prefix("docs/")
+            .map_or_else(|| format!("../../{to}"), |rest| format!("../{rest}"));
+        edit(repo, GAMMA, "../architecture/overview.md", &target);
+    }
+}
+
 fn architecture(front: &str, body: &str) -> String {
     format!(
         "---\ntype: Architecture\nid: arch:overview\ntitle: Overview\n\
@@ -231,9 +245,8 @@ fn rule_case_unplaced(tag: RuleTag) -> Case {
             // A well-formed architecture page in the capability directory: the
             // profile and the directory rule both see it.
             let mut repo = valid();
-            let text = repo.remove(OVERVIEW).expect("the fixture has an overview");
             let moved = "docs/capabilities/overview.md";
-            repo.insert(moved.to_string(), text);
+            move_document(&mut repo, OVERVIEW, moved);
             Case::new(&name, repo, &kind, moved, key("type")).also(&["wrong-directory"])
         }
         RuleTag::WrongShape => overview("type: Architecture", "type: [Architecture]", key("type")),
@@ -579,8 +592,7 @@ pub(crate) fn directory_cases() -> Vec<Case> {
     // A typed document in the directory of another type.
     let moved = |name: &str, from: &str, to: &str, also: &[&'static str]| {
         let mut repo = valid();
-        let text = repo.remove(from).expect("the fixture holds the document");
-        repo.insert(to.to_string(), text);
+        move_document(&mut repo, from, to);
         Case::new(name, repo, "wrong-directory", to, key("type")).also(also)
     };
     cases.push(moved(
@@ -1147,6 +1159,80 @@ pub(crate) fn all_cases() -> Vec<Case> {
     cases.extend(binding_cases());
     cases.extend(generated_cases());
     cases.extend(coverage_cases());
+    cases.extend(rationale_cases());
+    cases
+}
+
+/// The valid repository with gamma's link to the architecture page removed.
+pub(crate) fn unlinked() -> Repo {
+    let mut repo = valid();
+    edit(&mut repo, GAMMA, OVERVIEW_LINK, "Text for Explanation.");
+    repo
+}
+
+/// The valid repository with `text` added to the architecture page.
+pub(crate) fn with_page_text(text: &str) -> Repo {
+    mutate(OVERVIEW, "Body text.\n", &format!("Body text.\n\n{text}"))
+}
+
+/// The valid repository with `text` added to gamma's Explanation.
+pub(crate) fn with_explanation_text(text: &str) -> Repo {
+    mutate(GAMMA, OVERVIEW_LINK, &format!("{OVERVIEW_LINK}\n\n{text}"))
+}
+
+/// The cases for the rules of current rationale.
+pub(crate) fn rationale_cases() -> Vec<Case> {
+    let mut cases = vec![Case::new(
+        "architecture-page-unlinked",
+        unlinked(),
+        "architecture-page-unlinked",
+        OVERVIEW,
+        Location::Document,
+    )];
+    let mut own = unlinked();
+    edit(
+        &mut own,
+        OVERVIEW,
+        "Body text.",
+        "Body text. See [this page](overview.md#overview).",
+    );
+    cases.push(Case::new(
+        "architecture-page-unlinked-self-link",
+        own,
+        "architecture-page-unlinked",
+        OVERVIEW,
+        Location::Document,
+    ));
+    let page = |name: &str, text: &str, needle: &str| {
+        let repo = with_page_text(text);
+        let at = Location::Line(line_of(&repo[OVERVIEW], needle));
+        Case::new(name, repo, "decision-conditions-missing", OVERVIEW, at)
+    };
+    cases.push(page(
+        "decision-conditions-missing",
+        "## Decision\n\nThe pages are flat.\n",
+        "## Decision",
+    ));
+    cases.push(page(
+        "decision-conditions-missing-empty-list",
+        "## Decision\n\nThe pages are flat.\n\n## Conditions to revisit\n\nNone come to mind.\n",
+        "## Conditions to revisit",
+    ));
+    let explained = |name: &str, text: &str, needle: &str| {
+        let repo = with_explanation_text(text);
+        let at = Location::Line(line_of(&repo[GAMMA], needle));
+        Case::new(name, repo, "explanation-conditions-missing", GAMMA, at)
+    };
+    cases.push(explained(
+        "explanation-conditions-missing",
+        "### Decision\n\nGamma reads the whole input.\n",
+        "### Decision",
+    ));
+    cases.push(explained(
+        "explanation-conditions-missing-empty-list",
+        "### Decision\n\nGamma reads the whole input.\n\n### Conditions to revisit\n\n- \n",
+        "### Conditions to revisit",
+    ));
     cases
 }
 

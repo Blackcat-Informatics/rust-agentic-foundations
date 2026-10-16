@@ -199,6 +199,19 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   an edit inside a bound module makes its records stale while an edit of a
   sibling module does not. A digest recorded against a module before this change
   differs from the one computed now.
+- **`raf-workplan` current rationale:** `check` reports an architecture page that
+  no capability, change or other architecture page links to
+  (`architecture-page-unlinked`; a link from the page to itself does not count,
+  and no page is reported while a document that may hold the link does not load),
+  a decision page (an architecture page with a `## Decision` heading) without a
+  `## Conditions to revisit` heading and a `## Conditions to revisit` heading with
+  no list item (`decision-conditions-missing`), and a `### Decision` in the
+  Explanation of a capability that no `### Conditions to revisit` follows before
+  the next decision, or such a subheading with no list item
+  (`explanation-conditions-missing`). Headings match their exact text and level;
+  headings in fenced code and in PROPOSED blocks do not count. A condition is
+  plain prose and nothing judges whether it has been met. A link to a page or a
+  heading that does not exist stays `link-broken` or `anchor-broken`.
 - **`raf-workplan`:** loads a repository's capability, change and architecture
   documents through a `raf-source` `Tree` into typed values with their bodies,
   validating each with `raf-okf`. `Workplan::load` never fails and never panics:

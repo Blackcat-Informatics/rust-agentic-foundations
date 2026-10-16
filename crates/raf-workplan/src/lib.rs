@@ -24,6 +24,19 @@
 //! ([`refs`]). Markdown outside the document directories, such as the README,
 //! is judged by the same rules through [`plain::check`].
 //!
+//! The rules of current rationale are part of `check` too. An architecture
+//! page that no capability, change or other architecture page links to is
+//! `architecture-page-unlinked` (a link from the page to itself does not
+//! count). A decision page, an architecture page with a `## Decision`
+//! heading, needs a `## Conditions to revisit` heading, and a
+//! `### Decision` in the Explanation of a capability needs a
+//! `### Conditions to revisit` subheading after it, before the next decision
+//! (`decision-conditions-missing`, `explanation-conditions-missing`); a
+//! conditions heading with no list item is reported under the same kinds.
+//! Headings match their exact text and level, and headings in fenced code or
+//! PROPOSED blocks do not count. A condition is plain prose: whether it has
+//! been met is judged by a person, with [`Workplan::history`] of the page.
+//!
 //! The load also builds the [`Graph`] of the documents and the source they are
 //! bound to, available as [`Workplan::graph`], and reports the references that
 //! name a document that does not exist and the `depends` cycles. The records are
@@ -233,11 +246,19 @@
 //! use raf_source::{MemoryTree, Workspace};
 //! use raf_workplan::Workplan;
 //!
-//! let docs = MemoryTree::from([(
-//!     "docs/architecture/overview.md",
-//!     "---\ntype: Architecture\nid: arch:overview\ntitle: Overview\n\
-//!      description: How it fits.\n---\n\n# Overview\n\nBody text.\n",
-//! )]);
+//! // Two architecture pages that link each other: no page is unlinked.
+//! let docs = MemoryTree::from([
+//!     (
+//!         "docs/architecture/overview.md",
+//!         "---\ntype: Architecture\nid: arch:overview\ntitle: Overview\n\
+//!          description: How it fits.\n---\n\n# Overview\n\nSee [the layers](layers.md).\n",
+//!     ),
+//!     (
+//!         "docs/architecture/layers.md",
+//!         "---\ntype: Architecture\nid: arch:layers\ntitle: Layers\n\
+//!          description: The layers.\n---\n\n# Layers\n\nSee [the overview](overview.md).\n",
+//!     ),
+//! ]);
 //! let source = Workspace::load(
 //!     &MemoryTree::from([
 //!         ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
@@ -247,7 +268,7 @@
 //! )?;
 //! let plan = Workplan::load(&docs, &source);
 //! assert!(plan.check().is_empty());
-//! assert_eq!(plan.architecture().len(), 1);
+//! assert_eq!(plan.architecture().len(), 2);
 //!
 //! // A page that is not a document is a finding, not a skipped file.
 //! let docs = MemoryTree::from([("docs/architecture/notes.md", "# Notes\n")]);
@@ -279,6 +300,7 @@ mod model;
 pub mod obligation;
 pub mod plain;
 mod preview;
+mod rationale;
 pub mod record;
 pub mod refs;
 mod roadmap;

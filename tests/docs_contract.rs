@@ -87,7 +87,7 @@ const INVENTORY: Inventory = Inventory {
         ("source-index", "implementing"),
         ("workplan-cli", "implementing"),
         ("workplan-complete-gate", "implementing"),
-        ("workplan-current-rationale", "considered"),
+        ("workplan-current-rationale", "implementing"),
         ("workplan-document-model", "implementing"),
         ("workplan-entity-history", "implementing"),
         ("workplan-evidence-claims", "implementing"),
@@ -606,14 +606,22 @@ mod checkouts {
     pub(super) const README: &str = "README.md";
     pub(super) const TEMPLATE: &str = ".github/PULL_REQUEST_TEMPLATE.md";
 
-    /// A checkout of a few files: an architecture page, the README and a
+    pub(super) const LAYERS: &str = "docs/architecture/layers.md";
+
+    /// A checkout of a few files: two architecture pages, the README and a
     /// template that link to each other, and a manifest that is not Markdown.
     pub(super) fn files() -> Vec<(&'static str, String)> {
         vec![
             (
                 OVERVIEW,
                 "---\ntype: Architecture\nid: arch:overview\ntitle: Overview\n\
-                 description: How it fits.\n---\n\n# Overview\n\nBody text.\n"
+                 description: How it fits.\n---\n\n# Overview\n\nBody text. See [the layers](layers.md).\n"
+                    .to_string(),
+            ),
+            (
+                LAYERS,
+                "---\ntype: Architecture\nid: arch:layers\ntitle: Layers\n\
+                 description: The layers.\n---\n\n# Layers\n\nSee [the overview](overview.md).\n"
                     .to_string(),
             ),
             (
@@ -657,10 +665,10 @@ mod checkouts {
         }
     }
 
-    /// The inventory of the pages of `files`: the one architecture page.
+    /// The inventory of the pages of `files`: the two architecture pages.
     pub(super) const INVENTORY: Inventory = Inventory {
         capabilities: &[],
-        architecture: &["overview"],
+        architecture: &["layers", "overview"],
         records: &[],
         generated: &[],
     };
@@ -707,7 +715,7 @@ fn the_checker_accepts_a_valid_checkout() {
         &checkouts::checkout(&files(), &[], &[]),
         &checkouts::source(),
     );
-    assert_eq!(verdict.architecture, 1);
+    assert_eq!(verdict.architecture, 2);
     assert_eq!(verdict.capabilities, 0);
 }
 
@@ -970,9 +978,9 @@ fn inventory_table_has_the_documented_shape() {
             .count()
     };
     assert_eq!(count("designed"), 9);
-    assert_eq!(count("implementing"), 11);
+    assert_eq!(count("implementing"), 12);
     assert_eq!(count("delivered"), 0);
-    assert_eq!(count("considered"), 1);
+    assert_eq!(count("considered"), 0);
     assert_eq!(INVENTORY.architecture.len(), 2);
     assert_eq!(INVENTORY.records, ["coverage:default"]);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);

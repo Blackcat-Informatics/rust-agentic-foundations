@@ -18,6 +18,7 @@ use crate::generated;
 use crate::graph::{self, BindingKind, Graph};
 use crate::links::LinkContext;
 use crate::load;
+use crate::rationale;
 use crate::roadmap::{OpenChange, Roadmap};
 use crate::rules;
 
@@ -217,6 +218,29 @@ impl<'s> Workplan<'s> {
             .collect()
     }
 
+    /// Whether a capability, change or architecture document exists as a file
+    /// and did not load: its links are not in the graph, and its findings say
+    /// what is wrong with it.
+    pub(crate) fn has_unloaded_documents(&self) -> bool {
+        let loaded: BTreeSet<&str> = self
+            .capabilities
+            .iter()
+            .map(|cap| cap.value().header.id.as_str())
+            .chain(self.changes.iter().map(|c| c.value().header.id.as_str()))
+            .chain(
+                self.architecture
+                    .iter()
+                    .map(|a| a.value().header.id.as_str()),
+            )
+            .collect();
+        self.present.iter().any(|id| {
+            ["cap:", "change:", "arch:"]
+                .iter()
+                .any(|prefix| id.starts_with(prefix))
+                && !loaded.contains(id.as_str())
+        })
+    }
+
     /// Build the graph of the loaded documents and add the findings of the
     /// rules between documents.
     pub(crate) fn relate(&mut self) {
@@ -244,6 +268,8 @@ impl<'s> Workplan<'s> {
         ));
         let coverage = coverage::check(self);
         self.findings.extend(coverage);
+        let rationale = rationale::check(self);
+        self.findings.extend(rationale);
     }
 
     /// The graph of the documents and the source they are bound to.

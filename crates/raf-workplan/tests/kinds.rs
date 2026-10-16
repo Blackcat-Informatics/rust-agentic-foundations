@@ -14,7 +14,7 @@ use raf_workplan::Finding;
 use support::cases::all_cases;
 
 /// The kinds that name a rule of this crate.
-const OWN_KINDS: [&str; 45] = [
+const OWN_KINDS: [&str; 48] = [
     "wrong-directory",
     "nested-directory",
     "stray-markdown",
@@ -36,6 +36,9 @@ const OWN_KINDS: [&str; 45] = [
     "coverage-reexport-unbound",
     "coverage-exclusion-unmatched",
     "coverage-surface-unreadable",
+    "architecture-page-unlinked",
+    "decision-conditions-missing",
+    "explanation-conditions-missing",
     "depends-cycle",
     "proposed-missing-change",
     "proposed-change-not-listing",
