@@ -274,6 +274,14 @@ the processes of the command itself.
 | `change reconcile <slug>` | Print the obligation list ([reconcile](./workplan-reconcile.md)) |
 | `change complete <slug>` | Run the [completion gate](./workplan-complete-gate.md) and delete the record |
 | `verify [<slug>]` | Run the bound tests and examples |
+| `history <id> [--since <YYYY-MM-DD>]` | Print the commits that shaped a document or record ([entity history](./workplan-entity-history.md)) |
+| `evidence record --id <slug> --for cap:<slug>... --by human\|agent [--limit <name>=<number>]... [--revision <commit>] [--update] [--copyright <text> --licence <id>]` and `-- <program> <arg>...` or `--from-binding <path>` | Run the command or the bound test and write its evidence record ([evidence claims](./workplan-evidence-claims.md)) |
+| `evidence claims <evidence-id>` | Print the statements that rest on an evidence record |
+| `evidence for cap:<slug>` | Print the evidence records that support a capability |
+| `assess cap:<slug>#<section> --context` | Print what an assessor reads ([prose assessment](./workplan-prose-assessment.md)) |
+| `assess cap:<slug>#<section> --verdict accepted\|rejected --by human\|agent [--copyright <text> --licence <id>]` | Record the assessment of the section |
+| `assess [cap:<slug>#<section>] --list` | Print each assessment, or the one of the section, and whether it is current |
+| `coverage code\|tests [--crate <package>]` | Print the public items or the tests that no capability binds ([two-way coverage](./workplan-two-way-coverage.md)) |
 
 `status` groups capabilities by state, lists for each `implementing` capability the
 bindings that are missing or do not resolve, as gaps, and names the open changes. `docs preview` applies the
@@ -289,6 +297,31 @@ block to place and the state each listed capability needs. `change complete` pri
 blocks the removal rewrote, or `refused:` with the count of each kind of failure and a
 line for each failure that no other line repeats.
 
+**Values of the record commands.** Each value is checked when the arguments are
+parsed. A history id is `cap:`,
+`change:`, `arch:`, `evidence:` or `assessment:` and a slug; an evidence id is
+`evidence:<slug>` or the slug; a section is `cap:<slug>#<section>` with one of the
+seven sections; `--since` is a day from 1970-01-01 to 2099-12-31; `--limit` is
+`name=number` with no exponent; `--revision` is 40 or 64 lowercase hexadecimal
+digits; `--crate` is a package name, given as cargo names it (`raf-okf`) or as its
+crate is named (`raf_okf`). A value that is not one, or that starts with `-`, is a
+usage error, exit 2, before any process starts.
+
+**The command of `evidence record`.** Every word after the first `--` of the
+command line is the command: a `-q`, a `--format` or a second `--` after it is a
+word of the command and not an option of the tool. `raf-workplan` builds the
+command from the command line of the process
+(`TrustedArgv::from_command_line(std::env::args_os())`) and never from the text of
+a document or record; the parser reads the same words as the trailing arguments,
+and a run whose two readings differ is refused before anything starts. An option
+whose value would be `--` is a usage error, so no option can move the start of the
+command, and so is a process whose program name is `--`. A command and
+`--from-binding` exclude each other, a bare `--` beside `--from-binding`
+included, and one of them is required. `--by` is required, since a record states
+who made it. A replacement, by `--update` or by a verdict on a section that has an
+assessment, holds only what its own run gives, its SPDX lines included: without
+`--copyright` and `--licence` the new record has none.
+
 **Exit codes.** 0 means success: no violations, an empty obligation list, a completed
 change, or every binding passing. 1 means findings: violations, obligations, a refused
 completion or a failing binding. 2 means the tool could not run: a usage error, an
@@ -296,6 +329,24 @@ unreadable file, a missing `git`, a slug that does not exist. A Git older than 2
 exit 2 for `change reconcile` and `change complete`, a change record that does not
 load (an `outcome` that is not one of the three values, for instance) is exit 2, and
 `status` exits 0 whatever gaps it lists, since a gap is not a violation.
+
+**Exit codes of the record commands.** `history`, `evidence claims`,
+`evidence for` and `assess` exit 0 when they have an answer: a recorded `rejected`
+verdict, and a stale or rejected assessment that `--list` shows, are results and
+not findings, and `change reconcile` lists what they owe. `evidence record` exits 0
+when it writes a `pass` record and 1 when it writes a `fail` record, a result the
+repository owes; it exits 2 when it writes none: a printed value that is not a
+number, a name printed twice, a limit the command never printed, output past its
+bound, a command that cannot start, or a request refused before the run.
+`coverage code` and `coverage tests` exit 1 when the report names a gap, or in the
+code direction a surface that cannot be listed, and 0 otherwise. Each exits 2 when
+the tool cannot run: an id or a capability that no loaded document has, a shallow
+clone, a Git older than 2.30 or a bound file whose lines are not committed for
+`history`, a package that `--crate` does not name. A section given to `assess --list`
+must be one that `assess --context` answers for, so a named section that can no
+longer be assessed (its capability gone or not loading, or a bound symbol it reads no
+longer resolving, for instance) is exit 2, while a bare `--list` still shows an
+assessment of it.
 
 **Options.** `--root <dir>` sets the workspace root, `--format text|json` selects the
 output, and `-q` suppresses everything but findings. Findings are printed to stdout in
@@ -318,70 +369,16 @@ none of them equals the kind of a rule. Their fields are documented in the crate
 documentation of `cargo-workplan`. A run that could not run prints nothing on stdout,
 so stdout is either one complete array or empty.
 
-> [!PROPOSED change:workplan-cli]
-> **The record commands.** Four more commands read and write the records of the
-> workplan:
->
-> | Command | Effect |
-> | --- | --- |
-> | `history <id> [--since <YYYY-MM-DD>]` | Print the commits that shaped a document or record ([entity history](./workplan-entity-history.md)) |
-> | `evidence record --id <slug> --for cap:<slug>... --by human\|agent [--limit <name>=<number>]... [--revision <commit>] [--update] [--copyright <text> --licence <id>]` and `-- <program> <arg>...` or `--from-binding <path>` | Run the command or the bound test and write its evidence record ([evidence claims](./workplan-evidence-claims.md)) |
-> | `evidence claims <evidence-id>` | Print the statements that rest on an evidence record |
-> | `evidence for cap:<slug>` | Print the evidence records that support a capability |
-> | `assess cap:<slug>#<section> --context` | Print what an assessor reads ([prose assessment](./workplan-prose-assessment.md)) |
-> | `assess cap:<slug>#<section> --verdict accepted\|rejected --by human\|agent [--copyright <text> --licence <id>]` | Record the assessment of the section |
-> | `assess [cap:<slug>#<section>] --list` | Print each assessment, or the one of the section, and whether it is current |
-> | `coverage code\|tests [--crate <package>]` | Print the public items or the tests that no capability binds ([two-way coverage](./workplan-two-way-coverage.md)) |
->
-> Each value is checked when the arguments are parsed. A history id is `cap:`,
-> `change:`, `arch:`, `evidence:` or `assessment:` and a slug; an evidence id is
-> `evidence:<slug>` or the slug; a section is `cap:<slug>#<section>` with one of the
-> seven sections; `--since` is a day from 1970-01-01 to 2099-12-31; `--limit` is
-> `name=number` with no exponent; `--revision` is 40 or 64 lowercase hexadecimal
-> digits; `--crate` is a package name, given as cargo names it (`raf-okf`) or as its
-> crate is named (`raf_okf`). A value that is not one, or that starts with `-`, is a
-> usage error, exit 2, before any process starts.
->
-> **The command of `evidence record`.** Every word after the first `--` of the
-> command line is the command: a `-q`, a `--format` or a second `--` after it is a
-> word of the command and not an option of the tool. `raf-workplan` builds the
-> command from the command line of the process
-> (`TrustedArgv::from_command_line(std::env::args_os())`) and never from the text of
-> a document or record; the parser reads the same words as the trailing arguments,
-> and a run whose two readings differ is refused before anything starts. An option
-> whose value would be `--` is a usage error, so no option can move the start of the
-> command, and so is a process whose program name is `--`. A command and
-> `--from-binding` exclude each other, a bare `--` beside `--from-binding`
-> included, and one of them is required. `--by` is required, since a record states
-> who made it. A replacement, by `--update` or by a verdict on a section that has an
-> assessment, holds only what its own run gives, its SPDX lines included: without
-> `--copyright` and `--licence` the new record has none.
->
-> **Exit codes of the record commands.** `history`, `evidence claims`,
-> `evidence for` and `assess` exit 0 when they have an answer: a recorded `rejected`
-> verdict, and a stale or rejected assessment that `--list` shows, are results and
-> not findings, and `change reconcile` lists what they owe. `evidence record` exits 0
-> when it writes a `pass` record and 1 when it writes a `fail` record, a result the
-> repository owes; it exits 2 when it writes none: a printed value that is not a
-> number, a name printed twice, a limit the command never printed, output past its
-> bound, a command that cannot start, or a request refused before the run.
-> `coverage code` and `coverage tests` exit 1 when the report names a gap, or in the
-> code direction a surface that cannot be listed, and 0 otherwise. Each exits 2 when
-> the tool cannot run: an id or a capability that no loaded document has (for
-> `assess --list` with a section too), a shallow clone, a Git older than 2.30 or a
-> bound file whose lines are not committed for `history`, a package that `--crate`
-> does not name.
->
-> **Output of the record commands.** `history` and `coverage` print the table and
-> the JSON array that `raf-workplan` renders, as one report: under `-q` a history
-> prints nothing (`[]` in JSON), and a coverage report is printed whole when it names
-> a gap and not at all when it names none. Under `-q` a `pass` record, a recorded
-> verdict, a context, a list and the two evidence views print nothing, and a `fail`
-> record stays. The JSON kinds are `history-entry`, `history-removed`,
-> `evidence-recorded`, `evidence-claim`, `evidence-for`, `assess-context`,
-> `assessment-recorded`, `assessment`, `coverage-gap`, `coverage-excluded` and
-> `coverage-error`; none equals the kind of a rule, and their members, in a fixed
-> order, are documented in the crate documentation of `cargo-workplan`.
+**Output of the record commands.** `history` and `coverage` print the table and
+the JSON array that `raf-workplan` renders, as one report: under `-q` a history
+prints nothing (`[]` in JSON), and a coverage report is printed whole when it names
+a gap and not at all when it names none. Under `-q` a `pass` record, a recorded
+verdict, a context, a list and the two evidence views print nothing, and a `fail`
+record stays. The JSON kinds are `history-entry`, `history-removed`,
+`evidence-recorded`, `evidence-claim`, `evidence-for`, `assess-context`,
+`assessment-recorded`, `assessment`, `coverage-gap`, `coverage-excluded` and
+`coverage-error`; none equals the kind of a rule, and their members, in a fixed
+order, are documented in the crate documentation of `cargo-workplan`.
 
 ## Usage
 
@@ -397,16 +394,17 @@ cargo-workplan --format json change reconcile incremental-parsing
 `make docs-sync` in this repository runs `cargo-workplan docs sync` with the SPDX text
 of a new index.
 
-> [!PROPOSED change:workplan-cli]
-> - `cargo workplan history cap:workplan-reconcile --since 2026-01-01` prints the
->   commits of the capability and of its bound code.
-> - `cargo workplan evidence record --id peak-rss --for cap:streaming-parser --by agent --limit peak=64 -- cargo bench parse`
->   runs the benchmark and writes `work/evidence/peak-rss.md`.
-> - `cargo workplan assess cap:streaming-parser#usage --context` prints what an
->   assessor reads, and `cargo workplan assess cap:streaming-parser#usage --verdict accepted --by human`
->   records the verdict.
-> - `cargo workplan --format json coverage code --crate raf-workplan` prints the
->   public items of one package that no capability binds.
+The record commands are used the same way:
+
+- `cargo workplan history cap:workplan-reconcile --since 2026-01-01` prints the
+  commits of the capability and of its bound code.
+- `cargo workplan evidence record --id peak-rss --for cap:streaming-parser --by agent --limit peak=64 -- cargo bench parse`
+  runs the benchmark and writes `work/evidence/peak-rss.md`.
+- `cargo workplan assess cap:streaming-parser#usage --context` prints what an
+  assessor reads, and `cargo workplan assess cap:streaming-parser#usage --verdict accepted --by human`
+  records the verdict.
+- `cargo workplan --format json coverage code --crate raf-workplan` prints the
+  public items of one package that no capability binds.
 
 ## Examples
 
@@ -431,15 +429,14 @@ $ cargo workplan --format json check
 ]
 ```
 
-> [!PROPOSED change:workplan-cli]
-> `evidence record` reports the record it wrote, and its exit code says whether the
-> result holds:
->
-> | Command after `evidence record --id peak --for cap:alpha --by agent --limit peak=64 --` | Standard output | Exit |
-> | --- | --- | --- |
-> | `/bin/sh -c 'echo peak=41'` | `recorded: work/evidence/peak.md (pass)` | 0 |
-> | `/bin/sh -c 'echo peak=80'`, with `--update` | `recorded: work/evidence/peak.md (fail): over the limit: peak` | 1 |
-> | `/bin/sh -c 'echo peak=1e-3'` | nothing: the refusal is on standard error and no record is written | 2 |
+`evidence record` reports the record it wrote, and its exit code says whether the
+result holds:
+
+| Command after `evidence record --id peak --for cap:alpha --by agent --limit peak=64 --` | Standard output | Exit |
+| --- | --- | --- |
+| `/bin/sh -c 'echo peak=41'` | `recorded: work/evidence/peak.md (pass)` | 0 |
+| `/bin/sh -c 'echo peak=80'`, with `--update` | `recorded: work/evidence/peak.md (fail): over the limit: peak` | 1 |
+| `/bin/sh -c 'echo peak=1e-3'` | nothing: the refusal is on standard error and no record is written | 2 |
 
 ## Constraints
 
@@ -449,31 +446,28 @@ $ cargo workplan --format json check
   nothing. `docs sync` writes only generated blocks. `change new` writes one file.
   `change complete` deletes one file, and before it rewrites only the generated
   blocks that the deletion stales.
+- `history`, `evidence claims`, `evidence for`, `assess --context`, `assess --list`
+  and `coverage` write nothing. `evidence record` writes one record,
+  `work/evidence/<id>.md`, and only after the run; `assess --verdict` writes one
+  record, `work/assessments/<capability slug>-<section>.md`; neither edits a
+  document.
 - `verify` needs no Git beyond the listing of tracked paths and writes nothing in the
   repository; `status` exits 0 when it lists gaps.
 - Every process the binary starts, directly or through `raf-workplan`, is spawned
   with no shell and an argv vector. Each spec that spawns lists its exact
   invocation, and runs `cargo` with `--frozen`. A value taken from a document
   reaches a process only after resolution and a stated pattern, and then in one of
-  three forms: after `--`; inside a single `<rev>:<path>` or `-L<start>,<end>:<path>`
-  argument; or as a validated test filter (see
+  four forms: after `--`; inside a single `<rev>:<path>` or `-L<start>,<end>:<path>`
+  argument; as a validated identifier inside one `-S<identifier>` argument of the
+  history; or as a validated test filter (see
   [the security policy](../../SECURITY.md)).
+- The binary starts no process of its own: each process is started through
+  `raf-workplan`. The caller's command of `evidence record` is the one process whose
+  argv comes from the command line, and `raf-workplan` runs it with no shell,
+  exactly as given; no text of a document or record reaches it.
 - A slug starts with a lowercase letter or digit; any other slug is a usage error.
 - A command that takes a slug fails with exit 2 when `work/changes/<slug>.md` does
   not exist, except `change new`.
-
-> [!PROPOSED change:workplan-cli]
-> - `history`, `evidence claims`, `evidence for`, `assess --context`, `assess --list`
->   and `coverage` write nothing. `evidence record` writes one record,
->   `work/evidence/<id>.md`, and only after the run; `assess --verdict` writes one
->   record, `work/assessments/<capability slug>-<section>.md`; neither edits a
->   document.
-> - The binary still starts no process of its own. The caller's command of
->   `evidence record` is the one process whose argv comes from the command line, and
->   `raf-workplan` runs it with no shell, exactly as given; no text of a document or
->   record reaches it. The history adds a fourth form of a value from a document on a
->   command line: a validated identifier inside one `-S<identifier>` argument (see
->   [the security policy](../../SECURITY.md)).
 
 ## Explanation
 
@@ -515,40 +509,39 @@ rather than kept by hand.
   are not rules never equal to a rule name, and stdout empty for a run that could not
   run.
 
-> [!PROPOSED change:workplan-cli]
-> - Argument-parsing tests of the record commands in both shapes: each id, day,
->   limit, revision, section and package refused when it is not one or starts with
->   `-`; every word after the first `--` taken as the command, options and a second
->   `--` included; an option whose value is `--` refused; exactly one mode of
->   `assess`; exactly one source of the verdict of `evidence record`; and the two
->   readings of the command compared word by word.
-> - A stub-recorded fixture asserting that each such refusal starts no `git` and no
->   `cargo` and runs no command, with and without `--root`, beside a neighbour that
->   starts a process; the refusals of the binary itself (an empty program, a word
->   that is not UTF-8, a program name of `--`, `--from-binding` beside a bare `--`)
->   included, without `--root`, so that root discovery would show; and that
->   `history` asks `git --version` before its log and refuses 2.29.
-> - Fixtures through the built binary for each command. `history` on a real Git
->   history: the document and symbol commits newest first, a removed binding with the
->   commit that removed it and its parent, `--since`, the same entries in the table
->   and in JSON, a shallow clone refused, and a bound file that is not committed
->   refused naming it until it is. `evidence record` of a `/bin/sh -c`
->   command: pass with exit 0; fail by its exit status and by a value over its limit
->   with exit 1; each parse failure and a command that cannot start with exit 2 and
->   no record; exactly one file written; a replacement with and without the SPDX
->   pair; `--from-binding` with the real `cargo`; a
->   real `cargo workplan` dispatch that passes the words after `--` unchanged; and a
->   claim that reconciles clean until its bound code moves. `assess`: the context
->   identical for `--by human` and `--by agent`, a verdict writing one file, and the
->   list current and then stale naming the section, and an unknown capability exit
->   2. `coverage`: gaps with exit 1, an exclusion with exit 0, a surface that cannot
->   be listed with exit 1 for `coverage code` and 0 for `coverage tests`, `--crate`
->   in both forms, and this repository, whose reports
->   name the gaps of the crates outside the scope and none of `raf-workplan` and
->   `cargo-workplan`.
-> - JSON pins of the members of each new kind in order, and every kind unequal to a
->   rule name; `-q` hides each outcome and keeps a `fail` record and a coverage gap;
->   the read-only commands leave the tree byte-identical.
+- Argument-parsing tests of the record commands in both shapes: each id, day, limit,
+  revision, section and package refused when it is not one or starts with `-`; every
+  word after the first `--` taken as the command, options and a second `--` included;
+  an option whose value is `--` refused; exactly one mode of `assess`; exactly one
+  source of the verdict of `evidence record`; and the two readings of the command
+  compared word by word.
+- A fixture runs the binary with recording stubs of `git` and `cargo` first on `PATH`
+  and `$CARGO` naming the `cargo` stub, and asserts that each such refusal starts no
+  `git` and no `cargo` and runs no command, with and without `--root`, beside a
+  neighbour that starts a process; the refusals of the binary itself (an empty
+  program, a word that is not UTF-8, a program name of `--`, `--from-binding` beside
+  a bare `--`) are included, without `--root`, so that root discovery would show. A
+  recording `git` stub on `PATH` that answers the version shows that `history` asks
+  `git --version` before its log, refuses 2.29 and goes on at 2.30.
+- Fixtures through the built binary for each command. `history` on a real Git
+  history: the document and symbol commits newest first, a removed binding with the
+  commit that removed it and its parent, `--since`, the same entries in the table and
+  in JSON, a shallow clone refused, and a bound file that is not committed refused
+  naming it until it is. `evidence record` of a `/bin/sh -c` command: pass with exit
+  0; fail by its exit status and by a value over its limit with exit 1; each parse
+  failure and a command that cannot start with exit 2 and no record; exactly one file
+  written; a replacement with and without the SPDX pair; `--from-binding` with the
+  real `cargo`; a real `cargo workplan` dispatch that passes the words after `--`
+  unchanged; and a claim that reconciles clean until its bound code moves. `assess`:
+  the context identical for `--by human` and `--by agent`, a verdict writing one
+  file, the list current and then stale naming the section, and an unknown capability
+  exit 2. `coverage`: gaps with exit 1, an exclusion with exit 0, a surface that
+  cannot be listed with exit 1 for `coverage code` and 0 for `coverage tests`,
+  `--crate` in both forms, and this repository, whose reports name the gaps of the
+  crates outside the scope and none of `raf-workplan` and `cargo-workplan`.
+- JSON pins of the members of each kind of the record commands in order, and every
+  kind unequal to a rule name; `-q` hides each outcome and keeps a `fail` record and a
+  coverage gap; the read-only commands leave the tree byte-identical.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |

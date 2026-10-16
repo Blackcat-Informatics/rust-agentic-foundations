@@ -23,8 +23,8 @@ to fix the problem.
 reconcile step, `verify` and completion gate, and `cargo-workplan` runs `check`,
 `status`, `docs sync|preview`, `change new|impact|reconcile|complete` and
 `verify`. Its commands `history`, `evidence record|claims|for`, `assess` and
-`coverage code|tests` are built and **implementing**: their contract is still
-proposed in [workplan-cli](docs/capabilities/workplan-cli.md). The other crates are
+`coverage code|tests` are built and **implementing**: their contract is stated in
+[workplan-cli](docs/capabilities/workplan-cli.md). The other crates are
 **designed — not yet published**. The linked
 capability documents are the specification the crates are built against.
 

@@ -58,8 +58,8 @@ and preview, and the change lifecycle (`change new`, `impact`, `reconcile`,
 `complete` and `verify`). `cargo-workplan` is **delivered** with the commands
 `check`, `status`, `docs sync|preview`, `change new|impact|reconcile|complete` and
 `verify`; its commands `history`, `evidence record|claims|for`, `assess` and
-`coverage code|tests` are built and **implementing**, their contract still proposed
-in the command-line capability. Every other crate below is
+`coverage code|tests` are built and **implementing**, their contract stated in the
+command-line capability. Every other crate below is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
