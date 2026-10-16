@@ -33,7 +33,8 @@ bindings:
     - raf_workplan::test_crate::coverage::a_re_export_the_index_cannot_follow_is_reported_and_enforced_and_its_module_covers_it
     - raf_workplan::test_crate::coverage::an_item_bound_only_in_examples_is_a_gap
     - raf_workplan::test_crate::coverage::the_first_matching_exclusion_gives_the_reason
-  examples: []
+  examples:
+    - raf_workplan::Workplan::coverage_report
 depends: [cap:workplan-document-model, cap:source-index, cap:workplan-evidence-claims]
 ---
 
@@ -47,139 +48,140 @@ This capability adds code to documentation (public items that no capability expl
 and tests to claims (tests that support no documented guarantee), so that built
 functionality and its documentation stay aligned in both directions.
 
-Open questions:
-
-- Which items count as public surface when a crate re-exports from a private module.
-- Whether a test that supports no claim is a warning or an error, since some tests
-  guard internals.
-- Whether an item may be excluded with a recorded reason, and where that reason lives.
-
 ## Contract
 
-> [!PROPOSED change:workplan-two-way-coverage]
-> **The direction table.**
->
-> | Direction | Question | Check |
-> | --- | --- | --- |
-> | Documentation -> code | Where is this documented capability implemented? | Every code binding resolves (`workplan check`) |
-> | Code -> documentation | Where is this supported behaviour explained? | Every public item of a crate in the coverage `scope` is bound by a capability, or excluded with a reason |
-> | Documentation -> tests | Which tests address this guarantee? | Every test binding resolves (`workplan check`) |
-> | Tests -> claims | Which documented guarantees does this test support? | Every test of a crate in the coverage `scope` is bound by a capability, or excluded with a reason |
-> | Change -> documentation | Which explanations, examples and contracts must change? | The reconcile obligation list |
-> | Evidence -> claims | Which current statements depend on this result? | The [evidence](./workplan-evidence-claims.md) dependency view |
->
-> **The public surface.** The public items of a crate are the exported items of each
-> of its library and binary targets, as the [source index](./source-index.md) lists
-> them: what another crate can name through the crate root, a `pub` item of a private
-> module only through a `pub` re-export, and the members of an exported type or trait
-> under its path. An item that `#[doc(hidden)]` hides is not public surface. A
-> re-export of another crate is not an item of the re-exporting crate: an item of
-> another crate of the workspace counts in that crate, and a crate outside the
-> workspace is not counted. An item exported under several paths is one item and is
-> reported under the first of them. A binary's items are `pub(crate)` or private in
-> practice, since no other crate can name them, so a binary's public surface is empty
-> and the code direction asks nothing of it.
->
-> **Unresolved re-exports.** A public re-export of something of the workspace that the
-> source index cannot follow to an item, such as a type a macro generates, is reported
-> as an `unresolved re-export` with its exported path, the path it names and its
-> declaration's file and line. It cannot be bound itself; it is covered by a `code`
-> binding of a module that its exported path or the path it names is below, or it is
-> excluded with a reason.
->
-> **Covered.** A public item is covered when a `code` binding of a capability resolves
-> to it or to an item it is below: binding a type covers its methods and associated
-> items, binding a trait its members, and binding a module every item below it. A
-> binding is followed to the definition, so an item bound through a re-export is
-> covered under every path it is exported by. A crate root covers nothing below it.
-> A module binding means the same for the digests of evidence and assessment inputs:
-> it stands for the module's whole text, so an edit inside it moves them. Only `code`
-> bindings cover items: an item bound in `examples` alone is a gap. A
-> test is a function marked `#[test]` in any target, unit tests in `#[cfg(test)]`
-> modules included; a documentation test is bound in `examples` and is not a test of
-> this check. A test is covered when a `tests` binding resolves to it.
->
-> **Code to documentation.** `cargo workplan coverage code` lists, for every package
-> of the workspace, the public items that no capability binds and no exclusion takes
-> out, each with its crate, its path and its file and line, then the items the
-> exclusions take out with their reasons, then any surface that cannot be listed.
->
-> **Tests to claims.** `cargo workplan coverage tests` lists the tests that no
-> capability binds and no exclusion takes out, in the same form.
->
-> **The coverage record.** `work/coverage/default.md` names in `scope` the packages
-> whose coverage `check` enforces, and holds the exclusions. An exclusion is an
-> `item` and a non-empty `reason`: the item is an item path, which takes out the item
-> exported or defined there, or `<module>::*` below a crate root, which takes out
-> every item and test below the module and never one of a sibling module whose name
-> starts with the same text. When several exclusions match, the first in the record
-> gives the reason. A whole crate is never excluded: it is left out
-> of `scope`. An exclusion with an empty reason is an error of the record, and an
-> exclusion that matches no public item and no test of the workspace is an error
-> (`coverage-exclusion-unmatched`); each names the record.
->
-> **What `check` enforces.** For each crate of `scope`, an unbound public item is
-> `coverage-item-unbound` and an unbound test `coverage-test-unbound`, at the file and
-> line of the item, an unbound unresolved re-export is `coverage-reexport-unbound` at
-> its declaration, and a surface that cannot be listed is
-> `coverage-surface-unreadable`. A crate outside `scope` is not enforced, and its gaps
-> are in the reports. A repository with capability documents and no coverage record
-> has exactly one finding, `coverage-record-missing`, whose fix is to add the record;
-> `scope: []` enforces nothing and says so in the repository. These kinds are in the
-> closed list of finding kinds.
->
-> **The account.** For a repository revision the coverage reports name every gap in
-> either direction for the whole workspace, so the current account is complete or
-> states what is missing.
+**The direction table.**
+
+| Direction | Question | Check |
+| --- | --- | --- |
+| Documentation -> code | Where is this documented capability implemented? | Every code binding resolves (`workplan check`) |
+| Code -> documentation | Where is this supported behaviour explained? | Every public item of a crate in the coverage `scope` is bound by a capability, or excluded with a reason |
+| Documentation -> tests | Which tests address this guarantee? | Every test binding resolves (`workplan check`) |
+| Tests -> claims | Which documented guarantees does this test support? | Every test of a crate in the coverage `scope` is bound by a capability, or excluded with a reason |
+| Change -> documentation | Which explanations, examples and contracts must change? | The reconcile obligation list |
+| Evidence -> claims | Which current statements depend on this result? | The [evidence](./workplan-evidence-claims.md) dependency view |
+
+**The public surface.** The public items of a crate are the exported items of each
+of its library and binary targets, as the [source index](./source-index.md) lists
+them: what another crate can name through the crate root, a `pub` item of a private
+module only through a `pub` re-export, and the members of an exported type or trait
+under its path. An item that `#[doc(hidden)]` hides is not public surface. A
+re-export of another crate is not an item of the re-exporting crate: an item of
+another crate of the workspace counts in that crate, and a crate outside the
+workspace is not counted. An item exported under several paths is one item and is
+reported under the first of them. A binary's items are `pub(crate)` or private in
+practice, since no other crate can name them, so the public surface of a binary
+target is empty in practice and the code direction asks nothing of it; the tests
+of a binary package count in the tests direction like those of a library.
+
+**Unresolved re-exports.** A public re-export of something of the workspace that the
+source index cannot follow to an item, such as a type a macro generates, is reported
+as an `unresolved re-export` with its exported path, the path it names and its
+declaration's file and line. It cannot be bound itself; it is covered by a `code`
+binding of a module that its exported path or the path it names is below, or it is
+excluded with a reason.
+
+**Covered.** A public item is covered when a `code` binding of a capability resolves
+to it or to an item it is below: binding a type covers its methods and associated
+items, binding a trait its members, and binding a module every item below it. A
+binding is followed to the definition, so an item bound through a re-export is
+covered under every path it is exported by. A crate root covers nothing below it.
+A module binding means the same for the digests of evidence and assessment inputs:
+it stands for the module's whole text, so an edit inside it moves them. Only `code`
+bindings cover items: an item bound in `examples` alone is a gap. A
+test is a function marked `#[test]` in any target, unit tests in the `#[cfg(test)]`
+modules of a library or a binary included, which count like any other test; a
+documentation test is bound in `examples` and is not a test of this check. A test
+is covered when a `tests` binding resolves to it. A unit test that only guards
+internals is a gap like any other until it is bound or its module is excluded with
+the reason.
+
+**Code to documentation.** `cargo workplan coverage code` lists, for every package
+of the workspace, the public items that no capability binds and no exclusion takes
+out, each with its crate, its path and its file and line, then the items the
+exclusions take out with their reasons, then any surface that cannot be listed.
+
+**Tests to claims.** `cargo workplan coverage tests` lists the tests that no
+capability binds and no exclusion takes out, in the same form.
+
+**The coverage record.** `work/coverage/default.md` names in `scope` the packages
+whose coverage `check` enforces, by package name (`raf-okf`, not the crate name
+`raf_okf`), and holds the exclusions. A `scope` entry that is no package of the
+workspace is the finding `scope-crate-missing`, which names the package when the
+entry is its crate name. An exclusion is an `item` and a non-empty `reason`, and
+the item has one of two forms: an item path of two segments or more
+(`raf_okf::Body`), which takes out the item exported or defined there, or a prefix
+`<module>::*` below a crate root (`raf_okf::body::*`), which takes out every item
+and test below the module and never one of a sibling module whose name starts with
+the same text. When several exclusions match, the first in the record gives the
+reason. A whole crate is never excluded: an exclusion of a crate root (`raf_okf` or
+`raf_okf::*`) is refused when the record loads, and the crate is left out of
+`scope` instead. An exclusion with an empty reason is an error of the record, and an
+exclusion that matches no public item and no test of the workspace is an error
+(`coverage-exclusion-unmatched`); each names the record.
+
+**What `check` enforces.** For each crate of `scope`, an unbound public item is
+`coverage-item-unbound` and an unbound test `coverage-test-unbound`, at the file and
+line of the item, an unbound unresolved re-export is `coverage-reexport-unbound` at
+its declaration, and a surface that cannot be listed is
+`coverage-surface-unreadable`. A crate outside `scope` is not enforced, and its gaps
+are in the reports. A repository with capability documents and no coverage record
+has exactly one finding, `coverage-record-missing`, whose fix is to add the record;
+`scope: []` enforces nothing and says so in the repository. These kinds are in the
+closed list of finding kinds.
+
+**The account.** For a repository revision the coverage reports name every gap in
+either direction for the whole workspace, so the current account is complete or
+states what is missing.
 
 ## Usage
 
-> [!PROPOSED change:workplan-two-way-coverage]
-> - `cargo workplan coverage code` prints the public items without a capability.
-> - `cargo workplan coverage tests` prints the tests without a bound guarantee.
-> - `cargo workplan check` enforces both directions for the crates of the coverage
->   record's `scope`, and a gap there fails the check.
-> - `scope: []` in `work/coverage/default.md` enforces nothing; the reports still
->   name every gap.
+- `cargo workplan coverage code` prints the public items without a capability.
+- `cargo workplan coverage tests` prints the tests without a bound guarantee.
+- `cargo workplan check` enforces both directions for the crates of the coverage
+  record's `scope`, and a gap there fails the check.
+- `scope: []` in `work/coverage/default.md` enforces nothing, and the reports name
+  every gap all the same.
 
 ## Examples
 
-> [!PROPOSED change:workplan-two-way-coverage]
-> Adding a public function `parse_partial` to a crate and running the code report:
->
-> | Gap | Crate | Path | Location |
-> | --- | --- | --- | --- |
-> | public item | raf-okf | `raf_okf::parse_partial` | crates/raf-okf/src/lib.rs:120 |
->
-> The gap closes when a capability lists the path, or a module or type it is below,
-> in `bindings.code`, or when the coverage record lists it with a reason:
->
-> ```yaml
-> scope: [raf-okf]
-> exclusions:
->   - item: "raf_okf::body::tests::*"
->     reason: "Unit tests of the private functions of the module."
-> ```
+Adding a public function `parse_partial` to a crate and running the code report:
+
+| Gap | Crate | Path | Location |
+| --- | --- | --- | --- |
+| public item | raf-okf | `raf_okf::parse_partial` | crates/raf-okf/src/lib.rs:120 |
+
+The gap closes when a capability lists the path, or a module or type it is below,
+in `bindings.code`, or when the coverage record lists it with a reason, as it lists
+the prefix of a module of unit tests that guard internals:
+
+```yaml
+scope: [raf-okf]
+exclusions:
+  - item: "raf_okf::parse_partial"
+    reason: "A wrapper of parse that the parse capability explains with it."
+  - item: "raf_okf::body::tests::*"
+    reason: "Unit tests of the private functions of the module."
+```
 
 ## Constraints
 
-> [!PROPOSED change:workplan-two-way-coverage]
-> - Coverage only reports. It never edits a capability document or a binding.
-> - Visibility is read from the source index, not guessed from naming.
-> - Every exclusion carries a reason, and the reasons are readable in the repository.
-> - A capability still in `considered` or `designed` binds nothing, so the checks that
->   need bindings apply from `implementing` onward.
-> - The surface is the one the source index lists, with its stated limits. A surface
->   the index refuses to list (a public name that is ambiguous, an import cycle, a
->   glob of nothing, or the item-bytes budget passed, as by several binders of one
->   carried name) is an error of the report and, for a crate of `scope`, a finding;
->   it is never read as an empty surface. A name that a `pub(crate)` item and a
->   carried re-export of another crate share is listed as the re-export, so that item
->   is not counted.
-> - `check` lists the surface of each library and binary target of a crate of `scope`
->   or of a crate an exclusion names, once per load; the reports list every library
->   and binary target of the workspace once. The order is by crate and path, the same
->   on every run.
+- Coverage only reports. It never edits a capability document or a binding.
+- Visibility is read from the source index, not guessed from naming.
+- Every exclusion carries a reason, and the reasons are readable in the repository.
+- A capability in `considered` or `designed` binds nothing, so the checks that need
+  bindings apply from `implementing` onward.
+- The surface is the one the source index lists, with its stated limits. A surface
+  the index refuses to list (a public name that is ambiguous, an import cycle, a
+  glob of nothing, or the item-bytes budget passed, as by several binders of one
+  carried name) is an error of the report and, for a crate of `scope`, a finding;
+  it is never read as an empty surface. A name that a `pub(crate)` item and a
+  carried re-export of another crate share is listed as the re-export, so that item
+  is not counted.
+- `check` lists the surface of each library and binary target of a crate of `scope`
+  or of a crate an exclusion names, once per load; the reports list every library
+  and binary target of the workspace once. The order is by crate and path, the same
+  on every run.
 
 ## Explanation
 
@@ -200,28 +202,36 @@ stops compiling or running it receives an `example-failing` obligation.
 
 ## Verification
 
-> [!PROPOSED change:workplan-two-way-coverage]
-> - A fixture crate with one bound and one unbound public item: the code report lists
->   only the unbound item.
-> - A fixture with a private item, a `pub(crate)` item and a `#[doc(hidden)]` item:
->   none appears in the code report; a `pub` item re-exported through a private
->   module does.
-> - Binding a module or a type covers the items below it; binding a re-export covers
->   its definition under every path; a crate root covers nothing below it; an item
->   bound only in `examples` is a gap.
-> - A type a macro generates, re-exported, is an `unresolved re-export` in the report
->   and `coverage-reexport-unbound` in `scope`, closed by a binding of its module or an
->   exclusion; a re-export of a crate outside the workspace is not counted.
-> - A `<module>::*` exclusion takes out what is below the module and not a sibling
->   whose name shares its text; of two matching exclusions the first gives the reason.
-> - A test bound by a capability is absent from the tests report, and an unbound test
->   appears, a unit test included; a `<module>::tests::*` exclusion takes the unit tests
->   out with its reason shown.
-> - An exclusion with an empty reason, and an exclusion that matches nothing, each
->   fail with the file named, beside a passing neighbour.
-> - `check` reports the gaps of the crates of `scope` only; `scope: []` passes while the
->   reports list gaps; no record gives exactly one `coverage-record-missing`; a surface
->   that cannot be listed is an error of the report and a finding in `scope`.
-> - Reports are identical across two runs on the same tree, and a crate with thousands
->   of items and tests is judged in bounded time.
-> - This repository's `check` is clean with `scope: [raf-workplan, cargo-workplan]`.
+- A fixture crate with one bound and one unbound public item: the code report lists
+  only the unbound item.
+- A fixture with a private item, a `pub(crate)` item and a `#[doc(hidden)]` item:
+  none appears in the code report; a `pub` item re-exported through a private
+  module does.
+- Binding a module or a type covers the items below it; binding a re-export covers
+  its definition under every path; a crate root covers nothing below it; an item
+  bound only in `examples` is a gap.
+- A type a macro generates, re-exported, is an `unresolved re-export` in the report
+  and `coverage-reexport-unbound` in `scope`, closed by a binding of its module or an
+  exclusion; a re-export of a crate outside the workspace is not counted.
+- A `<module>::*` exclusion takes out what is below the module and not a sibling
+  whose name shares its text; of two matching exclusions the first gives the reason.
+- A test bound by a capability is absent from the tests report, and an unbound test
+  appears, a unit test included; a `<module>::tests::*` exclusion takes the unit tests
+  out with its reason shown.
+- An exclusion with an empty reason, and an exclusion that matches nothing, each
+  fail with the file named, beside a passing neighbour.
+- `check` reports the gaps of the crates of `scope` only; `scope: []` passes while the
+  reports list gaps; no record gives exactly one `coverage-record-missing`; a surface
+  that cannot be listed is an error of the report and a finding in `scope`.
+- Reports are identical across two runs on the same tree, and a crate with thousands
+  of items and tests is judged in bounded time.
+- A `scope` entry that is a crate name and not a package name is
+  `scope-crate-missing`, naming the package it means, and the package name is in
+  scope.
+- An item is excluded by its exported or its defining path; a surface over the item
+  budget is a budget error.
+- The table and the JSON of a report carry the same entries, escaped.
+- This repository's `check` is clean with `scope: [raf-workplan, cargo-workplan]`,
+  and both directions of those crates are covered.
+- The documentation example of `Workplan::coverage_report` runs: two unbound public
+  functions of a crate outside `scope` are the two gaps of the code direction.
