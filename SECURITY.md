@@ -138,10 +138,15 @@ guarantees are these, and no wider:
 - **Subprocesses.** Every spawned `cargo` or `git` process runs with no shell and
   takes its arguments as an argv vector, and `cargo` runs with `--frozen`. A value
   taken from a document reaches a process only after resolution against the loaded
-  documents or the source index and a stated pattern, and then in one of three
+  documents or the source index and a stated pattern, and then in one of four
   forms: after `--`; inside a single `<rev>:<path>` or `-L<start>,<end>:<path>`
-  argument; or, for a test name that the test harness reads, as a validated filter
-  after `-- --exact --`. The `cargo-workplan` binary starts no process of its own:
+  argument; for a test name that the test harness reads, as a validated filter
+  after `-- --exact --`; or, for the history command, as a Rust identifier (the
+  last segment of a binding's path, `[A-Za-z_][A-Za-z0-9_]*`) inside a single
+  `-S<identifier>` argument. A path in the first two forms may begin with `-`,
+  because neither place reads an option, and it holds no control character, no
+  `\`, `*`, `?` or `[`, no empty, `.` or `..` segment and no leading `/` or `:`,
+  so it is never a pathspec pattern or magic. The `cargo-workplan` binary starts no process of its own:
   root discovery (`cargo metadata --format-version 1 --no-deps --frozen`) and the
   `git` calls of the gate are made by `raf-workplan`, and a slug argument is checked
   against the slug pattern when the arguments are parsed, so one that starts with `-`
@@ -152,7 +157,21 @@ guarantees are these, and no wider:
   ask `git rev-parse --show-prefix` once to read each file at the workspace's place
   below the top of its work tree) and
   `cargo` (the bound tests and examples, for `verify`, `change complete` and the
-  examples of `change reconcile`). A bound value that does not resolve, or does not
+  examples of `change reconcile`). The history of a document (`Workplan::history`)
+  starts `git` only: `git --version`, `git rev-parse --is-shallow-repository`
+  (a shallow clone is refused), `git --no-pager log --no-show-signature --follow
+  --cc --root` on the document's path after `--`, `git --no-pager log
+  --no-show-signature -L<start>,<end>:<file>` for the span of each bound symbol,
+  and, for a binding that no longer resolves, `git --no-pager log
+  --no-show-signature --root -S<identifier> -n 1` over its crate's directory after
+  `--`, whose commit and parent ids are accepted only by the commit-id pattern and
+  reach no further process. Its id is matched against the loaded documents and
+  never reaches a process; a `--since` value reaches `git` only as the one argument
+  `--since=<YYYY-MM-DD> 00:00:00 +0000` (the start of that day in UTC) before the
+  last `--`, and only when it is a day from 1970-01-01 to 2099-12-31; each log is
+  read up to 16 MiB and more is an error; and the history reads Git and writes
+  nothing (in a partial clone Git itself may fetch missing objects into `.git`). A
+  bound value that does not resolve, or does not
   match its stated pattern, never reaches `cargo`; a process runs with its input
   closed, its output bounded and a wall-clock limit. `change new` writes one file,
   `change complete` the generated blocks it stales and then removes the one record,

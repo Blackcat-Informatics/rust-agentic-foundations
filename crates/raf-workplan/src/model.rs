@@ -177,6 +177,12 @@ impl<'s> Workplan<'s> {
             .insert(format!("{}{stem}", doc_type.id_prefix()));
     }
 
+    /// Whether a file of the document directories exists under the id, loaded
+    /// or not.
+    pub(crate) fn is_present(&self, id: &str) -> bool {
+        self.present.contains(id)
+    }
+
     /// Whether the repository has a capability document, loaded or not: the
     /// capability index is required exactly then.
     pub(crate) fn has_capability_files(&self) -> bool {

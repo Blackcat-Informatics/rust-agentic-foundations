@@ -138,6 +138,15 @@
 //! the workspace root with `cargo metadata --format-version 1 --no-deps
 //! --frozen`, reading nothing but its `workspace_root` field.
 //!
+//! [`Workplan::history`] answers how a document came to be what it is, from
+//! Git and on request: the commits of the document of a `cap:`, `change:`,
+//! `arch:`, `evidence:` or `assessment:` id through its moves, and for a
+//! capability the commits that changed the lines of each bound `code` symbol
+//! and, for a binding that no longer resolves, the commit that removed it and
+//! its parent ([`history`]). The id never reaches a process, a shallow clone is
+//! refused, and [`history::render`] writes the table and the JSON form of the
+//! same entries. It writes nothing.
+//!
 //! [`bound`] runs what a capability binds: the tests, documentation tests and
 //! examples of `tests` and `examples`, through a runner and only the argv forms of the
 //! completion gate. An [`bound::Executor`] decides from the source index what a
@@ -220,7 +229,9 @@ mod finding;
 mod gate;
 mod generated;
 pub mod git;
+
 mod graph;
+pub mod history;
 pub mod lifecycle;
 mod links;
 mod load;

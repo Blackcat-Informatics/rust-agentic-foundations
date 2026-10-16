@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The process layer: the four patterns (and the two for Git) accept and
+//! The process layer: the four patterns (and the five for Git) accept and
 //! refuse the values they state, the invocations are the rows of the argv
 //! tables, the in-process fake records and answers on every platform, and the
 //! real runner starts a process with no shell, null standard input, a stated
@@ -15,10 +15,10 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use raf_workplan::exec::{
-    Arg, BUILD_TIMEOUT, Commit, DEFAULT_OUTPUT_BOUND, DocFilter, EXAMPLE_TIMEOUT, ExampleName,
-    ExecError, FakeRunner, Filter, Invocation, Limits, METADATA_OUTPUT_BOUND, Output, Package,
-    Pattern, PatternError, Programs, RefName, Runner, SourcePath, Stream, SystemRunner, Target,
-    TargetName,
+    Arg, BUILD_TIMEOUT, Commit, DEFAULT_OUTPUT_BOUND, Date, DocFilter, EXAMPLE_TIMEOUT,
+    ExampleName, ExecError, FakeRunner, Filter, Identifier, Invocation, Limits, LineRange,
+    METADATA_OUTPUT_BOUND, Output, Package, Pattern, PatternError, Programs, RefName, Runner,
+    SourcePath, Stream, SystemRunner, Target, TargetName, TreePath,
 };
 use raf_workplan::exec::{Program, QUERY_TIMEOUT};
 
@@ -77,7 +77,7 @@ const HOSTILE: &[&str] = &[
     "a\u{ff1a}\u{ff1a}b",
 ];
 
-const TABLES: [Table; 6] = [
+const TABLES: [Table; 9] = [
     Table {
         pattern: Pattern::Name,
         accepted: &[
@@ -243,6 +243,71 @@ const TABLES: [Table; 6] = [
             "0123456789abcdef0123456789abcdef01234567:x",
         ],
     },
+    Table {
+        pattern: Pattern::TreePath,
+        accepted: &[
+            "a",
+            "src/lib.rs",
+            "-rf.rs",
+            "--output=x.rs",
+            "-",
+            "src/-rf.rs",
+            "a b.rs",
+            "src/\u{e9}t\u{e9}.rs",
+            "a:b",
+            "a=b",
+            "a..b",
+            "a;b",
+            ".hidden",
+        ],
+        refused: &[
+            "", ".", "..", "../a", "a/..", "a/../b", "a/./b", "a//b", "a/", "/a", ":a", ":(glob)*",
+            "a*", "a?", "a[1]", "a\\b", "a\nb", "a\rb", "a\tb", "a\0b", "a\u{1b}b", "a\u{7f}b",
+            "a\u{85}b",
+        ],
+    },
+    Table {
+        pattern: Pattern::Identifier,
+        accepted: &["a", "_", "_a", "gone", "Gone9", "snake_case"],
+        refused: &[
+            "", "1a", "-a", "a-b", "a::b", "a b", "a<T>", "r#type", "é", "-Sx", "a.b",
+        ],
+    },
+    Table {
+        pattern: Pattern::Date,
+        accepted: &[
+            "2026-01-01",
+            "2026-12-31",
+            "2028-02-29",
+            "2000-02-29",
+            "1970-01-01",
+            "2099-12-31",
+        ],
+        refused: &[
+            "",
+            "-2026-01-01",
+            "--all",
+            "2026-1-01",
+            "2026-01-1",
+            "26-01-01",
+            "2026/01/01",
+            "2026-00-01",
+            "2026-13-01",
+            "2026-01-00",
+            "2026-01-32",
+            "2026-02-29",
+            "1900-02-29",
+            "2026-04-31",
+            "2026-01-01 ",
+            "2026-01-01T00:00",
+            "yesterday",
+            "2026-0a-01",
+            "1969-12-31",
+            "2100-01-01",
+            "0001-01-01",
+            "2999-01-01",
+        ],
+    },
 ];
 
 #[test]
@@ -273,7 +338,14 @@ fn every_pattern_refuses_what_it_does_not_state() {
 
 #[test]
 fn every_pattern_refuses_hostile_values() {
-    for pattern in Pattern::ALL {
+    // The tree path is the one pattern that takes text that looks like an
+    // option or holds a shell character: it is placed only after `--` or
+    // after the colon of one `-L` argument (see the row tests below), and it
+    // still refuses every hostile value that is not printable path text.
+    for pattern in Pattern::ALL
+        .into_iter()
+        .filter(|pattern| *pattern != Pattern::TreePath)
+    {
         for text in HOSTILE {
             assert!(
                 !pattern.matches(text),
@@ -284,7 +356,28 @@ fn every_pattern_refuses_hostile_values() {
 }
 
 #[test]
+fn a_tree_path_refuses_every_hostile_value_that_is_not_printable_path_text() {
+    for text in HOSTILE {
+        let printable = !text.is_empty()
+            && !text
+                .chars()
+                .any(|c| c.is_control() || matches!(c, '\\' | '*'));
+        assert_eq!(
+            Pattern::TreePath.matches(text),
+            printable,
+            "the tree path and {text:?}"
+        );
+    }
+}
+
+#[test]
 fn the_patterns_are_the_ones_the_documents_state() {
+    assert_eq!(Pattern::TreePath.expression(), "[^/:][^/]*(/[^/]+)*");
+    assert_eq!(Pattern::Identifier.expression(), "[A-Za-z_][A-Za-z0-9_]*");
+    assert_eq!(
+        Pattern::Date.expression(),
+        "(19[7-9][0-9]|20[0-9][0-9])-[0-9]{2}-[0-9]{2}"
+    );
     assert_eq!(
         Pattern::Name.expression(),
         "[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)*"
@@ -369,7 +462,18 @@ fn a_refusal_names_the_pattern_and_shows_the_value_safely() {
 
 // ------------------------------------------------------------- argv tables
 
+/// A label, the invocation, its program and its argv: the elements separated
+/// by one space, and a space inside an element written as U+00A0 (see
+/// [`words`]).
 type Row = (&'static str, Invocation, Program, &'static str);
+
+/// The argv elements of a row's text: split at each space, then each U+00A0
+/// read as the space it stands for.
+fn words(text: &str) -> Vec<String> {
+    text.split(' ')
+        .map(|word| word.replace('\u{a0}', " "))
+        .collect()
+}
 
 /// The documented rows, with the placeholders filled and the program left off.
 fn rows() -> Vec<Row> {
@@ -493,15 +597,71 @@ fn git_rows() -> Vec<Row> {
             "cat-file blob 0123456789abcdef0123456789abcdef01234567:docs/capabilities/workplan-cli.md",
         ),
     ]
+    .into_iter()
+    .chain(history_rows())
+    .collect()
+}
+
+/// The rows of the history command.
+fn history_rows() -> Vec<Row> {
+    let dash = TreePath::new("-rf.rs").unwrap();
+    let output = TreePath::new("--output=x.rs").unwrap();
+    let since = Date::new("2026-01-01").unwrap();
+    let lines = LineRange::new(3, 9).unwrap();
+    let gone = Identifier::new("gone").unwrap();
+    vec![
+        (
+            "git shallow query",
+            Invocation::git_shallow(),
+            Program::Git,
+            "rev-parse --is-shallow-repository",
+        ),
+        (
+            "git document log",
+            Invocation::git_document_log(&dash, None),
+            Program::Git,
+            "--no-pager log --no-show-signature --follow --cc --root --format=%x1e%H%x1f%aI%x1f%s --name-only -- -rf.rs",
+        ),
+        (
+            "git document log since a date",
+            Invocation::git_document_log(&output, Some(&since)),
+            Program::Git,
+            "--no-pager log --no-show-signature --follow --cc --root --format=%x1e%H%x1f%aI%x1f%s --name-only --since=2026-01-01\u{a0}00:00:00\u{a0}+0000 -- --output=x.rs",
+        ),
+        (
+            "git symbol log",
+            Invocation::git_symbol_log(lines, &dash, None),
+            Program::Git,
+            "--no-pager log --no-show-signature -L3,9:-rf.rs --no-patch --format=%x1e%H%x1f%aI%x1f%s --",
+        ),
+        (
+            "git symbol log since a date",
+            Invocation::git_symbol_log(lines, &output, Some(&since)),
+            Program::Git,
+            "--no-pager log --no-show-signature -L3,9:--output=x.rs --no-patch --format=%x1e%H%x1f%aI%x1f%s --since=2026-01-01\u{a0}00:00:00\u{a0}+0000 --",
+        ),
+        (
+            "git pickaxe",
+            Invocation::git_pickaxe(&gone, &[TreePath::new("crates/a").unwrap()]),
+            Program::Git,
+            "--no-pager log --no-show-signature --root -Sgone -n 1 --format=%H%x1f%P%x1f%aI%x1f%s -- crates/a",
+        ),
+        (
+            "git pickaxe at the top",
+            Invocation::git_pickaxe(&gone, &[TreePath::top(), dash.clone()]),
+            Program::Git,
+            "--no-pager log --no-show-signature --root -Sgone -n 1 --format=%H%x1f%P%x1f%aI%x1f%s -- . -rf.rs",
+        ),
+    ]
 }
 
 #[test]
 fn every_invocation_is_the_row_of_its_table() {
     let rows = rows();
-    assert_eq!(rows.len(), 16);
+    assert_eq!(rows.len(), 23);
     for (label, invocation, program, expected) in rows {
         assert_eq!(invocation.program(), program, "{label}");
-        let expected: Vec<&str> = expected.split(' ').collect();
+        let expected = words(expected);
         assert_eq!(invocation.argv(), expected, "{label}");
         assert_eq!(
             invocation.to_string(),
@@ -518,6 +678,24 @@ fn a_test_filter_always_follows_a_separator_and_never_leads() {
         for (index, arg) in invocation.args().iter().enumerate() {
             if matches!(arg, Arg::Filter(_) | Arg::DocFilter(_)) {
                 assert_eq!(argv[index - 1].as_str(), "--", "{label}: {argv:?}");
+            }
+        }
+    }
+    // A tree path is only ever after a `--`, and a `--since` only before the
+    // last one.
+    for (label, invocation, _, _) in rows() {
+        let argv = invocation.argv();
+        let first = argv.iter().position(|arg| arg == "--");
+        let last = argv.iter().rposition(|arg| arg == "--");
+        for (index, arg) in invocation.args().iter().enumerate() {
+            match arg {
+                Arg::Path(_) => {
+                    assert!(first.is_some_and(|at| at < index), "{label}: {argv:?}");
+                }
+                Arg::Since(_) => {
+                    assert!(last.is_some_and(|at| index < at), "{label}: {argv:?}");
+                }
+                _ => {}
             }
         }
     }
@@ -1017,7 +1195,7 @@ echo to-stderr >&2"#;
                 .run(&invocation, &Limits::query())
                 .unwrap_or_else(|e| panic!("{label}: {e}"));
             assert!(output.success(), "{label}: {output:?}");
-            let expected: Vec<&str> = expected.split(' ').collect();
+            let expected = words(expected);
             assert_eq!(scratch.argv(), expected, "{label} ({program})");
             assert_eq!(output.stdout, b"to-stdout\n");
             assert_eq!(output.stderr, b"to-stderr\n");

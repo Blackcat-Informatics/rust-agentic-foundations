@@ -359,7 +359,7 @@ pub(crate) fn cell(text: &str) -> String {
 /// `text` as a code span in a table cell: escaped like any cell text, in a
 /// backtick fence longer than any backtick run inside, padded with a space
 /// when the text starts or ends with a backtick (`CommonMark`).
-fn code_span(text: &str) -> String {
+pub(crate) fn code_span(text: &str) -> String {
     let mut longest = 0;
     let mut run = 0;
     for c in text.chars() {

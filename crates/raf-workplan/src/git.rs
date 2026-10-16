@@ -24,6 +24,15 @@
 //!   like an option cannot reach `git` as an option. A path follows
 //!   `<merge-base>:` inside one argument.
 //!
+//! * [`is_shallow`], [`document_log`], [`symbol_log`] and [`last_change`] are
+//!   the questions of the history command: whether the repository is a
+//!   shallow clone, the commits of a document through its moves, the commits
+//!   that changed the lines of a symbol, and the newest commit that changed
+//!   how often an identifier occurs in a crate, with its parent. A path
+//!   reaches `git` after `--` or after the colon of one `-L` argument, an
+//!   identifier inside one `-S` argument and a date inside one `--since`
+//!   argument.
+//!
 //! Every failure is a [`GitError`]. None is a skip: a repository whose default
 //! branch is unknown, whose history has no merge base, or whose file is larger
 //! than the document bound has no answer.
@@ -287,6 +296,13 @@ pub enum GitError {
         /// The commit of the default branch.
         default: Commit,
     },
+    /// A log printed more than the bound on its output.
+    LogTooLarge {
+        /// The invocation, as text for the message.
+        command: String,
+        /// The bound, in bytes.
+        limit: usize,
+    },
     /// A file at the merge base is larger than the document bound.
     BlobTooLarge {
         /// The repository-relative path.
@@ -357,6 +373,10 @@ impl fmt::Display for GitError {
             Self::NoMergeBase { default } => write!(
                 f,
                 "the current commit and the default branch ({default}) have no common ancestor, so there is no merge base to compare with"
+            ),
+            Self::LogTooLarge { command, limit } => write!(
+                f,
+                "`{command}` printed more than {limit} bytes, the most of a log that is read; no part of it is used, and `--since` narrows it"
             ),
             Self::BlobTooLarge { path, limit } => write!(
                 f,
@@ -693,6 +713,12 @@ pub fn blob_at(
         Err(failed(&invocation, &output))
     }
 }
+
+mod log;
+
+pub use log::{
+    AuthorDate, LastChange, LogEntry, document_log, is_shallow, last_change, symbol_log,
+};
 
 #[cfg(test)]
 mod tests;

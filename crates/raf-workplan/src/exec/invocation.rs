@@ -7,7 +7,8 @@
 use std::fmt;
 
 use super::pattern::{
-    Commit, DocFilter, ExampleName, Filter, Package, RefName, SourcePath, Target,
+    Commit, Date, DocFilter, ExampleName, Filter, Identifier, LineRange, Package, RefName,
+    SourcePath, Target, TreePath,
 };
 
 /// Which program an invocation starts. The path of each is held by
@@ -91,6 +92,22 @@ pub enum Arg {
         /// The repository-relative path.
         path: SourcePath,
     },
+    /// A path of the workspace, always placed after `--`, so that a path that
+    /// begins with `-` is a path.
+    Path(TreePath),
+    /// `-L<start>,<end>:<file>` in one argument, so the file cannot be read
+    /// as an option.
+    LineLog {
+        /// The lines.
+        lines: LineRange,
+        /// The file.
+        file: TreePath,
+    },
+    /// `-S<identifier>` in one argument: the pickaxe of `git log`.
+    Pickaxe(Identifier),
+    /// `--since=<date> 00:00:00 +0000` in one argument: the start of the day
+    /// in UTC, so the limit depends on neither the clock nor the time zone.
+    Since(Date),
 }
 
 impl Arg {
@@ -112,6 +129,10 @@ impl fmt::Display for Arg {
             Self::RefCommit(name) => write!(f, "{name}^{{commit}}"),
             Self::Commit(commit) => write!(f, "{commit}"),
             Self::RevPath { rev, path } => write!(f, "{rev}:{path}"),
+            Self::Path(path) => write!(f, "{path}"),
+            Self::LineLog { lines, file } => write!(f, "-L{lines}:{file}"),
+            Self::Pickaxe(identifier) => write!(f, "-S{identifier}"),
+            Self::Since(date) => write!(f, "--since={date} 00:00:00 +0000"),
         }
     }
 }
@@ -334,6 +355,88 @@ impl Invocation {
                 path: path.clone(),
             },
         ])
+    }
+}
+
+/// The record format of the two history logs: a record separator, then the
+/// commit, the author date and the subject separated by unit separators.
+const HISTORY_FORMAT: &str = "--format=%x1e%H%x1f%aI%x1f%s";
+
+impl Invocation {
+    /// Whether the repository is a shallow clone:
+    /// `git rev-parse --is-shallow-repository`.
+    #[must_use]
+    pub fn git_shallow() -> Self {
+        Self::git(vec![
+            Arg::lit("rev-parse"),
+            Arg::lit("--is-shallow-repository"),
+        ])
+    }
+
+    /// The history of a document, through its moves, with the merges whose
+    /// resolution changed it and the first commit of the history:
+    /// `git --no-pager log --no-show-signature --follow --cc --root
+    /// --format=%x1e%H%x1f%aI%x1f%s --name-only
+    /// [--since=<date> 00:00:00 +0000] -- <doc-path>`.
+    #[must_use]
+    pub fn git_document_log(path: &TreePath, since: Option<&Date>) -> Self {
+        let mut args = vec![
+            Arg::lit("--no-pager"),
+            Arg::lit("log"),
+            Arg::lit("--no-show-signature"),
+            Arg::lit("--follow"),
+            Arg::lit("--cc"),
+            Arg::lit("--root"),
+            Arg::lit(HISTORY_FORMAT),
+            Arg::lit("--name-only"),
+        ];
+        args.extend(since.map(|date| Arg::Since(date.clone())));
+        args.push(Arg::lit("--"));
+        args.push(Arg::Path(path.clone()));
+        Self::git(args)
+    }
+
+    /// The history of the lines of a symbol:
+    /// `git --no-pager log --no-show-signature -L<start>,<end>:<file>
+    /// --no-patch --format=%x1e%H%x1f%aI%x1f%s [--since=<date> 00:00:00 +0000]
+    /// --`.
+    #[must_use]
+    pub fn git_symbol_log(lines: LineRange, file: &TreePath, since: Option<&Date>) -> Self {
+        let mut args = vec![
+            Arg::lit("--no-pager"),
+            Arg::lit("log"),
+            Arg::lit("--no-show-signature"),
+            Arg::LineLog {
+                lines,
+                file: file.clone(),
+            },
+            Arg::lit("--no-patch"),
+            Arg::lit(HISTORY_FORMAT),
+        ];
+        args.extend(since.map(|date| Arg::Since(date.clone())));
+        args.push(Arg::lit("--"));
+        Self::git(args)
+    }
+
+    /// The newest commit that changed how often `identifier` occurs in the
+    /// directories, with its parents: `git --no-pager log --no-show-signature
+    /// --root -S<identifier> -n 1 --format=%H%x1f%P%x1f%aI%x1f%s --
+    /// <crate-dir>...`.
+    #[must_use]
+    pub fn git_pickaxe(identifier: &Identifier, dirs: &[TreePath]) -> Self {
+        let mut args = vec![
+            Arg::lit("--no-pager"),
+            Arg::lit("log"),
+            Arg::lit("--no-show-signature"),
+            Arg::lit("--root"),
+            Arg::Pickaxe(identifier.clone()),
+            Arg::lit("-n"),
+            Arg::lit("1"),
+            Arg::lit("--format=%H%x1f%P%x1f%aI%x1f%s"),
+            Arg::lit("--"),
+        ];
+        args.extend(dirs.iter().cloned().map(Arg::Path));
+        Self::git(args)
     }
 }
 

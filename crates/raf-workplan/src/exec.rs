@@ -55,10 +55,12 @@ use std::time::Duration;
 pub use fake::{Call, FakeRunner};
 pub use invocation::{Arg, Invocation, Literal, Program};
 pub use pattern::{
-    Commit, DocFilter, ExampleName, Filter, Package, Pattern, PatternError, RefName, SourcePath,
-    Target, TargetName,
+    Commit, Date, DocFilter, ExampleName, Filter, Identifier, LineRange, Package, Pattern,
+    PatternError, RefName, SourcePath, Target, TargetName, TreePath,
 };
 pub use system::SystemRunner;
+
+pub(crate) use pattern::days_in_month;
 
 /// The bound on each of standard output and standard error: 16 MiB.
 pub const DEFAULT_OUTPUT_BOUND: usize = 16 * 1024 * 1024;
