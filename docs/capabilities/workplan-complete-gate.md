@@ -4,7 +4,7 @@
 type: Capability
 id: cap:workplan-complete-gate
 title: "Completion gate"
-description: "change complete and verify: the five completion conditions, lighter obligations for changes that leave the contract alone, deletion of the record, and the acceptance scenarios."
+description: "change complete and verify: the six completion conditions, lighter obligations for changes that leave the contract alone, deletion of the record, and the acceptance scenarios."
 state: implementing
 bindings:
   code:
@@ -240,7 +240,7 @@ checkbox that says "update docs".
 
 ## Contract
 
-**Conditions.** `change complete <slug>` succeeds only when all five hold:
+**Conditions.** `change complete <slug>` succeeds only when all six hold:
 
 1. The obligation list from [reconcile](./workplan-reconcile.md) is empty, with
    zero obligations.
@@ -251,6 +251,11 @@ checkbox that says "update docs".
 5. The bound tests and examples pass: `cargo test` filtered to the tests in
    `bindings.tests` of each listed capability, and the targets and documentation
    tests in `bindings.examples` built and run, through the invocations below.
+6. Each authored section in `affects` has a current assessment with the verdict
+   `accepted`, as the [prose assessment](./workplan-prose-assessment.md) records it:
+   the record `work/assessments/<capability slug>-<section>.md` exists, every input it
+   keeps (the section, the bound symbols, the evidence its claims name) has the digest
+   it keeps, and the section has no input the record lacks.
 
 A failing bound example also stands as an `example-failing` obligation, so conditions
 1 and 5 both report it. Condition 5 is the execution and condition 1 the record of it;
@@ -259,45 +264,30 @@ values is refused by the profile, so the record does not load and `complete` is 
 error (exit 2), not a refusal of condition 2. Condition 3 counts the blocks of every
 capability document, including one that failed to load.
 
-> [!PROPOSED change:workplan-complete-gate]
-> A sixth condition joins the five, and `change complete <slug>` succeeds only
-> when all six hold:
->
-> 6. Each authored section in `affects` has a current assessment with the verdict
->    `accepted`, as the [prose assessment](./workplan-prose-assessment.md) records
->    it: the record `work/assessments/<capability slug>-<section>.md` exists, every
->    input it keeps (the section, the bound symbols, the evidence its claims name)
->    has the digest it keeps, and the section has no input the record lacks.
->
-> A section with no assessment, one whose assessment has an input that moved, and
-> one whose current assessment is `rejected` each refuse. An assessment by an agent
-> satisfies the condition as one by a human does, and a `rejected` verdict never
-> does. A section with no text outside its generated blocks and comments would
-> hold nothing an author wrote, but the profile refuses such a section
-> (`okf-section-empty`), so its document does not load and `complete` is an error
-> before any condition is judged; every section of a capability that loads is
-> authored. Each section without a current accepted assessment is also
-> an `assessment-missing`, `assessment-stale` or `assessment-rejected` obligation,
-> so conditions 1 and 6 both report it, and the refusal prints the line once,
-> under its obligation, with the count `sections without a current accepted
-> assessment`. `complete` reads the assessment records and never writes one: they
-> stay as they are when the change record is removed.
+A section with no assessment, one whose assessment has an input that moved, and one
+whose current assessment is `rejected` each refuse condition 6. An assessment by an
+agent satisfies the condition as one by a human does, and a `rejected` verdict never
+does. A section with nothing outside its generated blocks and comments cannot occur:
+the profile refuses such a section (`okf-section-empty`), so its document does not
+load and `complete` is an error before any condition is judged, and every section of
+a capability that loads is authored. Each section without a current accepted
+assessment is also an `assessment-missing`, `assessment-stale` or
+`assessment-rejected` obligation, so conditions 1 and 6 both report it, and the
+refusal prints the line once, under its obligation, with the count
+`sections without a current accepted assessment`. `complete` reads the assessment
+records and never writes one: they stay as they are when the change record is
+removed.
 
 **Order.** The static conditions are judged first, every one of them and with no
 early exit: conditions 1 to 4 (the obligation list without `example-failing`, which
-needs a run) and the check of the repository once the record is removed, described
+needs a run), condition 6 (the currency of each assessment, from digests of the
+working tree) and the check of the repository once the record is removed, described
 below. Only when none fails are the bound tests and examples of condition 5 run, so a
-static failure starts no `cargo` process. The repository is then opened again and the
-static conditions are judged a second time, immediately before the writes, because the
-documents and the source can change while `cargo` runs; a failure, or a different set
-of bindings to run, refuses.
-
-> [!PROPOSED change:workplan-complete-gate]
-> Condition 6 is a static condition: the currency of each assessment is judged with
-> conditions 1 to 4 and the check of the repository once the record is removed,
-> from digests of the working tree, before any bound test or example runs, and it
-> is judged again with them immediately before the writes. A section without a
-> current accepted assessment therefore starts no `cargo` process.
+static failure, a section without a current accepted assessment among them, starts no
+`cargo` process. The repository is then opened again and the static conditions are
+judged a second time, immediately before the writes, because the documents and the
+source can change while `cargo` runs; a failure, or a different set of bindings to
+run, refuses.
 
 **The repository once the record is removed.** The state rules of the
 [document model](./workplan-document-model.md) are judged on the repository as it is
@@ -308,7 +298,7 @@ broken link or a link in prose to the record itself. The author, never `complete
 sets `state: delivered` before running it: in that repository a listed capability that
 is not `delivered` and that no other open record lists is a `no-open-record` finding.
 A `delivered` capability beside its still-open record is exactly what `complete`
-resolves, so the repository before the removal is judged by the five conditions only.
+resolves, so the repository before the removal is judged by the six conditions only.
 
 When any condition fails, the command prints the failures, changes nothing and exits
 with 1. When all hold, it rewrites the generated blocks that removing the record
@@ -319,19 +309,16 @@ the rewrite fails the record stays, and if the deletion fails after the rewrite 
 error names the files already rewritten, so a deleted record is never found beside
 stale blocks. Git holds the record's history.
 
-**Obligations by effect.** All five conditions apply to every change. The effect only
+**Obligations by effect.** All six conditions apply to every change. The effect only
 sets which obligations [reconcile](./workplan-reconcile.md) raises. A change with
 `contract_effect: changes` can owe an untouched-section obligation for each section in
 `affects`. A change with `contract_effect: none` records that the documented contract
 is unaffected, so reconcile raises no `section-untouched` obligation for the contract,
 usage and examples sections. Every other obligation kind still applies, and the
 obligation list must still be empty. A small internal change does not need a new
-tutorial.
-
-> [!PROPOSED change:workplan-complete-gate]
-> The effect does not change condition 6 either: under `contract_effect: none` each
-> authored section in `affects` still needs a current accepted assessment, since
-> the people the change reaches read it whether or not its contract moved.
+tutorial. The effect does not change condition 6 either: under `contract_effect: none`
+each authored section in `affects` still needs a current accepted assessment, since
+the people the change reaches read it whether or not its contract moved.
 
 **State.** Promotion to a stronger state requires reconciliation, not just a status
 change. The gate refuses a listed capability whose `state` the content does not
@@ -459,22 +446,21 @@ Each fault prints one line, under the count of its condition. The `rewrote` line
 relationship table of the capability, which no longer names the removed record as a
 change.
 
-> [!PROPOSED change:workplan-complete-gate]
-> A refusal on the sixth condition, where the Usage section was assessed before
-> the bound `push` changed:
->
-> ```text
-> $ cargo workplan change complete incremental-parsing
-> refused: 1 obligation, 1 section without a current accepted assessment
-> cap:streaming-parser  usage  assessment-stale  the section assessed again with assess (`assessment:streaming-parser-usage`: the symbol `raf_parser::Parser::push` has changed since)
-> ```
-
 A refusal on the fifth condition, where a bound example no longer builds:
 
 ```text
 $ cargo workplan change complete incremental-parsing
 refused: 1 obligation, 1 bound example failing
 cap:streaming-parser  examples  example-failing  a passing verify run for the change, or a binding edit that removes the broken example (`raf_parser::example_crate::chunked` fails to build or run (exit code 101))
+```
+
+A refusal on the sixth condition, where the Usage section was assessed before the
+bound `push` changed:
+
+```text
+$ cargo workplan change complete incremental-parsing
+refused: 1 obligation, 1 section without a current accepted assessment
+cap:streaming-parser  usage  assessment-stale  the section assessed again with assess (`assessment:streaming-parser-usage`: the symbol `raf_parser::Parser::push` has changed since)
 ```
 
 ## Constraints
@@ -560,10 +546,12 @@ Further checks:
 - Order fixtures: a static failure starts no `cargo` process; a document edited, a
   binding added and a test renamed while the bound tests ran each refuse with nothing
   written; a rewrite that fails leaves the record in place.
-- A binding fixture with a stub named by `$CARGO` (and one on `PATH` when `$CARGO` is
-  unset) records each argv and asserts it equals the matching row of the invocation
-  table with `--frozen`, `--package=` and the pinned target, and that no shell is
-  involved.
+- A binding fixture runs each row of the invocation table against a stub that the
+  library is given as the program `$CARGO` names; the stub records each argv, and the
+  fixture asserts it equals the row, with `--frozen`, `--package=` and the pinned
+  target, and with `Wrapper<T>::get` arriving as one word, so no shell is involved.
+  With `$CARGO` unset the program is `cargo`, and a stub named `cargo` in the
+  directories searched as `PATH` is the one that runs.
 - A hostile binding fixture: a `bindings.tests` entry `-Zunstable-options`, one
   `--include-ignored`, one `--exact`, and a path with a `;` or a space each yield an
   unresolved-binding finding, make `complete` refuse and `verify` exit 1, and are
@@ -587,19 +575,18 @@ Further checks:
 - A `verify` fixture with one passing and one failing bound test, asserting per-binding
   output and exit codes 0 and 1.
 
-> [!PROPOSED change:workplan-complete-gate]
-> - A refusal fixture for each way condition 6 fails, each beside its passing
->   neighbour: an affected section with no assessment, one edited after its
->   assessment, and one whose current assessment is `rejected` (by a human and by an
->   agent) each refuse with the failure counted under condition 6 and the tree
->   byte-identical, and each completes once the section is assessed and accepted.
-> - Every other fixture assesses the sections its change affects with one shared
->   helper, through the library, so it is judged on what it is about; Scenario B
->   gains the step where the account is implemented and settled and its sections
->   are not assessed, which refuses with condition 6 alone and completes once they
->   are.
-> - The completion writes only the rewrite and the removal: the assessment records
->   are left as they are.
+- A refusal fixture for each way condition 6 fails, each beside its passing
+  neighbour: an affected section with no assessment, one edited after its assessment,
+  and one whose current assessment is `rejected` (by a human and by an agent) each
+  refuse with the failure counted under condition 6 and the tree byte-identical, and
+  each completes once the section is assessed and accepted.
+- Every other fixture assesses the sections its change affects with one shared
+  helper, through the library, so it is judged on what it is about; a section whose
+  assessment cannot be recorded gets none, so what it owes stays visible. Scenario B
+  holds the step where the account is implemented and settled and its sections are
+  not assessed, which refuses with condition 6 alone and completes once they are.
+- The completion writes only the rewrite and the removal: the assessment records are
+  left as they are.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |

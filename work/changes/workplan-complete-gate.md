@@ -13,9 +13,13 @@ affects:
 contract_effect: changes
 items:
   - claim: "Lifecycle::complete refuses a change while an authored section in its affects has no assessment, has an assessment whose inputs moved, or has a current assessment with the verdict rejected, as Condition::Assessments (number 6) with one Failure::Assessment for each, whether the assessor was a human or an agent."
+    outcome: implemented
   - claim: "Every affected section of a capability that loads needs the assessment, since the profile refuses a section with only generated blocks as okf-section-empty, and contract_effect: none asks for the assessments as changes does."
+    outcome: implemented
   - claim: "Condition 6 is judged with the static conditions, before any bound test or example runs, and again before the writes; the refusal counts it as sections without a current accepted assessment and prints each fault once, under its obligation."
+    outcome: implemented
   - claim: "complete leaves the assessment records as they are: its writes are still the rewrite of the generated blocks the removal stales and the removal of the record."
+    outcome: implemented
 ---
 
 ## Summary
