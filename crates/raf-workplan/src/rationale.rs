@@ -43,6 +43,48 @@
 //! heading and each prose line of a document once, so a document of any
 //! size is judged in time linear in its length, and the findings come in
 //! the order of the documents' paths and lines.
+//!
+//! The rules run in [`Workplan::check`]. A decision page whose conditions
+//! list is empty is reported at that heading, and one condition is enough:
+//!
+//! ```rust
+//! use raf_source::{MemoryTree, Workspace};
+//! use raf_workplan::Workplan;
+//!
+//! let source = Workspace::load(
+//!     &MemoryTree::from([
+//!         ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+//!         ("src/lib.rs", ""),
+//!     ]),
+//!     &["."],
+//! )?;
+//! let overview = "---\ntype: Architecture\nid: arch:overview\ntitle: Overview\n\
+//!                 description: How it fits.\n---\n\n# Overview\n\nSee [the layers](layers.md).\n";
+//! let layers = |conditions: &str| {
+//!     format!(
+//!         "---\ntype: Architecture\nid: arch:layers\ntitle: Layers\n\
+//!          description: The layers.\n---\n\n# Layers\n\nSee [the overview](overview.md).\n\n\
+//!          {}\n\nThe core depends on no other layer.\n\n{}\n\n{conditions}",
+//!         "## Decision", "## Conditions to revisit"
+//!     )
+//! };
+//! let empty = layers("");
+//! let docs = MemoryTree::from([
+//!     ("docs/architecture/overview.md", overview),
+//!     ("docs/architecture/layers.md", empty.as_str()),
+//! ]);
+//! let findings = Workplan::load(&docs, &source).check();
+//! assert_eq!(findings.len(), 1, "{findings:?}");
+//! assert_eq!(findings[0].kind, "decision-conditions-missing");
+//!
+//! let listed = layers("- A layer needs another one to start.\n");
+//! let docs = MemoryTree::from([
+//!     ("docs/architecture/overview.md", overview),
+//!     ("docs/architecture/layers.md", listed.as_str()),
+//! ]);
+//! assert!(Workplan::load(&docs, &source).check().is_empty());
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
 
 use std::collections::BTreeSet;
 use std::ops::Range;

@@ -7,6 +7,7 @@ title: "Implement current rationale"
 description: "Delivers architecture page conventions and conditions to revisit."
 changes: [cap:workplan-current-rationale]
 affects:
+  - cap:workplan-current-rationale#purpose
   - cap:workplan-current-rationale#contract
   - cap:workplan-current-rationale#usage
   - cap:workplan-current-rationale#examples
@@ -15,10 +16,15 @@ affects:
 contract_effect: changes
 items:
   - claim: "A shared decision has one architecture page that states the resolved current decision."
+    outcome: implemented
   - claim: "Capabilities link to the architecture pages their decisions depend on."
-  - claim: "A decision page ends with a list of conditions to revisit."
+    outcome: implemented
+  - claim: "A decision page, an architecture page with a ## Decision heading, has a ## Conditions to revisit heading whose list holds at least one item."
+    outcome: implemented
   - claim: "Unlinked architecture pages are reported."
+    outcome: implemented
   - claim: "A decision page without conditions to revisit is reported."
+    outcome: implemented
 ---
 
 ## Summary
