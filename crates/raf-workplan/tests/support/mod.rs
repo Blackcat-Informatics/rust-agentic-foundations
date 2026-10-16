@@ -14,6 +14,7 @@ pub(crate) mod cases;
 pub(crate) mod changes;
 pub(crate) mod checkout;
 pub(crate) mod disk;
+pub(crate) mod evidence;
 pub(crate) mod project;
 pub(crate) mod story;
 pub(crate) mod streaming;

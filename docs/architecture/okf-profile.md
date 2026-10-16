@@ -120,9 +120,12 @@ in that type's directory. Each of these directories holds Markdown files only.
 - **`command`** (optional) is a non-empty string. **`revision`** (optional) is a
   commit id: 40 or 64 lowercase hexadecimal digits.
 - **`values`** and **`limits`** (optional) are maps of names to numbers, where a
-  number is an optional `-`, digits, and an optional `.` and digits. Each limit
-  names a value, and a record whose verdict is `pass` holds no value above its
-  limit. An absent map holds nothing.
+  number is an optional `-`, digits, and an optional `.` and digits. A limit of a
+  record whose verdict is `pass` names a value (a failing execution, such as one
+  killed at its time limit, may have printed none), and a record whose verdict is
+  `pass` holds no value above its limit. Values and limits are compared exactly on
+  their decimal text (`Number::compare`), never as floating-point numbers. An
+  absent map holds nothing.
 - **`scope`** is a list of crate package names, each once; the empty list `[]`
   names no crate.
 - **`exclusions`** is a list of maps with exactly the keys `item` and `reason`,

@@ -11,8 +11,9 @@ use raf_okf::{Body, CapabilitySection, ContractEffect};
 
 use super::tense::{self, PHRASES};
 use super::{
-    BindingWhy, Found, Needed, Obligation, ObligationKind, OutcomeProblem, Part, Place, Reconciled,
-    RunProblem, Subject, SyncProblem, suppressed,
+    BindingWhy, ClaimProblem, EvidenceChange, Found, InputMoved, Needed, Obligation,
+    ObligationKind, OutcomeProblem, OverLimit, Part, Place, Reconciled, RunProblem, Subject,
+    SyncProblem, suppressed,
 };
 use crate::BindingKind;
 
@@ -36,7 +37,7 @@ fn all_lists_every_kind_once_in_order_with_unique_kebab_names() {
 }
 
 #[test]
-fn the_kinds_are_the_seven_of_the_contract() {
+fn the_kinds_are_the_ten_of_the_contract() {
     let names: Vec<&str> = ObligationKind::ALL.iter().map(|kind| kind.name()).collect();
     assert_eq!(
         names,
@@ -48,12 +49,15 @@ fn the_kinds_are_the_seven_of_the_contract() {
             "example-failing",
             "generated-stale",
             "tense-mismatch",
+            "claim-unsupported",
+            "evidence-stale",
+            "evidence-changed",
         ]
     );
 }
 
 #[test]
-fn only_the_two_kinds_that_start_a_process_are_not_static() {
+fn only_the_three_kinds_that_start_a_process_are_not_static() {
     let dynamic: Vec<ObligationKind> = ObligationKind::ALL
         .into_iter()
         .filter(|kind| !kind.is_static())
@@ -62,7 +66,8 @@ fn only_the_two_kinds_that_start_a_process_are_not_static() {
         dynamic,
         [
             ObligationKind::SectionUntouched,
-            ObligationKind::ExampleFailing
+            ObligationKind::ExampleFailing,
+            ObligationKind::EvidenceChanged,
         ]
     );
 }
@@ -239,7 +244,9 @@ fn an_empty_list_prints_nothing() {
 
 /// The evidence of each kind, taken from the table of the reconcile contract
 /// in the capability document: backticks removed and the first letter in
-/// lower case.
+/// lower case. A row of a table inside a PROPOSED block (a line that starts
+/// with `>`) is a row too, so the kinds a change adds are pinned in the same
+/// commit as the code, while their text is still a proposal.
 fn contract_evidence() -> Vec<(String, String)> {
     let root = std::env::var_os("RAF_GATE_ROOT").map_or_else(
         || Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
@@ -250,6 +257,7 @@ fn contract_evidence() -> Vec<(String, String)> {
         .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
     let mut rows = Vec::new();
     for line in text.lines() {
+        let line = line.strip_prefix('>').map_or(line, str::trim_start);
         let cells: Vec<&str> = line.split('|').map(str::trim).collect();
         // `| `kind` | Raised when | Evidence |` splits into five parts.
         let [_, kind, _, evidence, _] = cells.as_slice() else {
@@ -287,6 +295,19 @@ fn evidence_of(kind: ObligationKind) -> Needed {
         },
         ObligationKind::GeneratedStale => Needed::SyncRun(SyncProblem::IndexMissing),
         ObligationKind::TenseMismatch => Needed::SupportedBehaviour(Found::Phrase("will")),
+        ObligationKind::ClaimUnsupported => Needed::SupportingEvidence {
+            evidence: "evidence:bound".to_string(),
+            problem: ClaimProblem::Fails,
+        },
+        ObligationKind::EvidenceStale => Needed::RecordedAgain {
+            evidence: "evidence:bound".to_string(),
+            input: "demo::run".to_string(),
+            moved: InputMoved::Moved,
+        },
+        ObligationKind::EvidenceChanged => Needed::ReviewedClaim {
+            evidence: "evidence:bound".to_string(),
+            change: EvidenceChange::Removed,
+        },
     }
 }
 
@@ -334,6 +355,86 @@ fn the_evidence_names_the_thing_it_is_about_in_parentheses() {
         Needed::SectionDiff.to_string(),
         Needed::SectionDiff.contract_text()
     );
+}
+
+#[test]
+fn the_trace_evidence_names_the_record_and_what_is_wrong_with_it() {
+    let over = || OverLimit {
+        name: "peak".to_string(),
+        value: "80".to_string(),
+        limit: "64".to_string(),
+    };
+    let supporting = |problem| {
+        Needed::SupportingEvidence {
+            evidence: "evidence:bound".to_string(),
+            problem,
+        }
+        .to_string()
+    };
+    let lead = Needed::SupportingEvidence {
+        evidence: String::new(),
+        problem: ClaimProblem::Missing,
+    }
+    .contract_text();
+    for (problem, detail) in [
+        (
+            ClaimProblem::Missing,
+            "`evidence:bound` is not a loaded evidence record",
+        ),
+        (ClaimProblem::Fails, "`evidence:bound` has the verdict fail"),
+        (
+            ClaimProblem::OverLimit(over()),
+            "`evidence:bound`: `peak` is 80, over its limit 64",
+        ),
+    ] {
+        assert_eq!(supporting(problem), format!("{lead} ({detail})"));
+    }
+    let again = |moved| {
+        Needed::RecordedAgain {
+            evidence: "evidence:bound".to_string(),
+            input: "demo::run".to_string(),
+            moved,
+        }
+        .to_string()
+    };
+    assert!(
+        again(InputMoved::Moved)
+            .ends_with("(`evidence:bound` was made against `demo::run`, which has changed since)")
+    );
+    assert!(
+        again(InputMoved::Unresolved("gone".to_string()))
+            .ends_with("which does not resolve now: gone)")
+    );
+    let reviewed = |change| {
+        Needed::ReviewedClaim {
+            evidence: "evidence:bound".to_string(),
+            change,
+        }
+        .to_string()
+    };
+    for (change, detail) in [
+        (
+            EvidenceChange::Failed,
+            "`evidence:bound` passed at the merge base and fails now",
+        ),
+        (
+            EvidenceChange::OverLimit(over()),
+            "`evidence:bound`: `peak` is 80, over its limit 64",
+        ),
+        (
+            EvidenceChange::LimitRemoved("peak".to_string()),
+            "`evidence:bound` no longer has the limit `peak` it had at the merge base",
+        ),
+        (
+            EvidenceChange::Removed,
+            "`evidence:bound` passed at the merge base and is not a loaded record now",
+        ),
+    ] {
+        assert!(
+            reviewed(change).ends_with(&format!("({detail})")),
+            "{detail}"
+        );
+    }
 }
 
 // --- tense -------------------------------------------------------------------

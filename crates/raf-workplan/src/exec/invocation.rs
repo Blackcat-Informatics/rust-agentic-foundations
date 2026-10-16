@@ -10,9 +10,11 @@ use super::pattern::{
     Commit, Date, DocFilter, ExampleName, Filter, Identifier, LineRange, Package, RefName,
     SourcePath, Target, TreePath,
 };
+use super::trusted::{TrustedArgv, TrustedWord};
 
-/// Which program an invocation starts. The path of each is held by
-/// [`Programs`](super::Programs).
+/// Which program an invocation starts. The paths of `cargo` and `git` are
+/// held by [`Programs`](super::Programs); the program of a
+/// [`Program::Trusted`] invocation is the first word of its argv.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Program {
@@ -20,6 +22,9 @@ pub enum Program {
     Cargo,
     /// `git`, from `PATH`.
     Git,
+    /// The caller's own command, a [`TrustedArgv`] from the command line of
+    /// the process (see [`Invocation::trusted`]).
+    Trusted,
 }
 
 impl fmt::Display for Program {
@@ -27,6 +32,7 @@ impl fmt::Display for Program {
         f.write_str(match self {
             Self::Cargo => "cargo",
             Self::Git => "git",
+            Self::Trusted => "the command of the command line",
         })
     }
 }
@@ -108,6 +114,8 @@ pub enum Arg {
     /// `--since=<date> 00:00:00 +0000` in one argument: the start of the day
     /// in UTC, so the limit depends on neither the clock nor the time zone.
     Since(Date),
+    /// A word of the caller's own command, which only a [`TrustedArgv`] holds.
+    Trusted(TrustedWord),
 }
 
 impl Arg {
@@ -133,6 +141,7 @@ impl fmt::Display for Arg {
             Self::LineLog { lines, file } => write!(f, "-L{lines}:{file}"),
             Self::Pickaxe(identifier) => write!(f, "-S{identifier}"),
             Self::Since(date) => write!(f, "--since={date} 00:00:00 +0000"),
+            Self::Trusted(word) => write!(f, "{word}"),
         }
     }
 }
@@ -141,9 +150,11 @@ impl fmt::Display for Arg {
 /// accepts.
 ///
 /// The constructors below are the argv tables of the capability documents, one
-/// function for each row. There is no public way to build any other invocation:
-/// the general constructor is private to the crate, and so is the constructor of
-/// [`Literal`], so a caller cannot assemble an argv of its own.
+/// function for each row, and [`Invocation::trusted`], the caller's own command
+/// from the command line of the process. There is no public way to build any
+/// other invocation: the general constructor is private to the crate, and so
+/// are the constructors of [`Literal`] and of a [`TrustedArgv`] from words, so a
+/// caller cannot assemble an argv of its own.
 ///
 /// ```compile_fail,E0624
 /// use raf_workplan::exec::{Invocation, Program};
@@ -184,10 +195,23 @@ impl Invocation {
     }
 
     /// The arguments as the process receives them, one string for each
-    /// element of the argv vector and without the program.
+    /// element of the argv vector and without the program. For a
+    /// [`Program::Trusted`] invocation the first element is the program the
+    /// caller named, and the rest are its arguments.
     #[must_use]
     pub fn argv(&self) -> Vec<String> {
         self.args.iter().map(ToString::to_string).collect()
+    }
+
+    /// The caller's own command: `<program> <arg>...`, exactly the words of
+    /// `argv`. The runner starts the first word as the program, with no shell
+    /// and with the environment of this process unchanged.
+    #[must_use]
+    pub fn trusted(argv: &TrustedArgv) -> Self {
+        Self::new(
+            Program::Trusted,
+            argv.words().iter().cloned().map(Arg::Trusted).collect(),
+        )
     }
 
     /// A cargo invocation of these literals, a package and the tail.
@@ -441,9 +465,12 @@ impl Invocation {
 }
 
 impl fmt::Display for Invocation {
-    /// `program arg arg ...`, for messages. The text is not a shell command
-    /// line and is never run.
+    /// `program arg arg ...`, for messages (for the caller's own command, its
+    /// words). The text is not a shell command line and is never run.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.program == Program::Trusted {
+            return f.write_str(&self.argv().join(" "));
+        }
         write!(f, "{}", self.program)?;
         for arg in &self.args {
             write!(f, " {arg}")?;

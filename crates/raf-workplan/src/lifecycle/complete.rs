@@ -6,7 +6,7 @@
 //! The order is the order of the Contract and is not interchangeable.
 //!
 //! 1. The static conditions are judged, all of them, and every failure is
-//!    collected: the obligation list of `reconcile` (all seven kinds except
+//!    collected: the obligation list of `reconcile` (every kind except
 //!    `example-failing`, which needs a run), the outcome of each item, the
 //!    PROPOSED blocks of the change, the generated blocks, and `check` of the
 //!    repository as it will be once the record is gone.
@@ -32,8 +32,8 @@ use crate::obligation::{ObligationKind, Reconciled};
 use crate::{Binding, BindingKind, Finding, Opened, SyncError, SyncOptions, SyncReport, Workplan};
 
 use super::completion::{Completion, Failure};
+use super::examples;
 use super::session::{Lifecycle, LifecycleError, Side};
-use super::{examples, untouched};
 
 /// The static conditions judged over one opening of the repository.
 struct Evaluation {
@@ -198,12 +198,11 @@ impl<R: Runner> Lifecycle<R> {
 
         // Condition 1, all kinds that need no run of `cargo`.
         let mut obligations = fixed.obligations().to_vec();
-        obligations.extend(untouched::raise(
+        obligations.extend(self.process_obligations(
             opened,
-            &self.runner,
-            &self.prefix,
             &impact,
             record.value().contract_effect,
+            false,
         )?);
         let owed = Reconciled::new(impact.change.clone(), obligations);
         let mut failures: Vec<Failure> = owed

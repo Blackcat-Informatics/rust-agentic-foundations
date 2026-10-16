@@ -18,6 +18,7 @@ use support::changes::{
     BOUND, DONE, OMEGA, SHAPE, base, capability, record, replaced, repo, without,
 };
 use support::disk::{Scratch, on_disk, snapshot, write_repo};
+use support::evidence::{Evidence, OTHER_DIGEST, claim, real_digest};
 use support::synced::{self, document, with_plan};
 use support::{Repo, line_of};
 
@@ -88,6 +89,8 @@ const OUTCOME_EVIDENCE: &str = "an outcome of implemented, dropped or moved:chan
 const BINDING_EVIDENCE: &str = "a binding that resolves through the source index";
 const SYNC_EVIDENCE: &str = "a docs sync run";
 const TENSE_EVIDENCE: &str = "text rewritten as the supported behaviour";
+const CLAIM_EVIDENCE: &str = "a passing record within its limits for each evidence id the claim names, or the claim reworded or removed";
+const STALE_EVIDENCE: &str = "the evidence recorded again with evidence record";
 
 const BLOCK: &str = "\n> [!PROPOSED change:shape]\n> The candidate contract.\n";
 
@@ -100,6 +103,7 @@ fn cases() -> Vec<Case> {
     stale_cases(&base, &mut cases);
     tense_cases(&base, &mut cases);
     unloaded_proposal_cases(&base, &mut cases);
+    trace_cases(&mut cases);
     cases
 }
 
@@ -351,6 +355,125 @@ fn stale_cases(base: &Repo, cases: &mut Vec<Case>) {
     }
 }
 
+/// `omega` with a claim on `bound` in its Contract, the record of `record`
+/// beside it when there is one, and the change `shape`.
+fn claimed(record: Option<&Evidence>) -> Repo {
+    let marker = claim("bound");
+    let mut files = vec![
+        (
+            OMEGA,
+            capability("omega", "implementing", BOUND, &[("Contract", &marker)]),
+        ),
+        (SHAPE, base()[SHAPE].clone()),
+    ];
+    let path;
+    if let Some(record) = record {
+        path = record.path();
+        files.push((path.as_str(), record.text()));
+    }
+    repo(&files)
+}
+
+fn trace_cases(cases: &mut Vec<Case>) {
+    let passing = Evidence::passing("bound", "[cap:omega]");
+    let fixed = claimed(Some(&passing));
+    let line = line_of(&fixed[OMEGA], "raf:claim");
+    let unsupported = |detail: &str| Want {
+        kind: ObligationKind::ClaimUnsupported,
+        path: OMEGA,
+        line: Some(line),
+        text: format!(
+            "cap:omega  contract  claim-unsupported  line {line}: {CLAIM_EVIDENCE} ({detail})"
+        ),
+    };
+    // claim-unsupported: no record, a failing record, and one over its limit.
+    cases.push(Case {
+        name: "claim-unsupported-missing",
+        broken: claimed(None),
+        fixed: fixed.clone(),
+        want: vec![unsupported(
+            "`evidence:bound` is not a loaded evidence record",
+        )],
+    });
+    cases.push(Case {
+        name: "claim-unsupported-failing",
+        broken: claimed(Some(&passing.clone().verdict("fail"))),
+        fixed: fixed.clone(),
+        want: vec![unsupported("`evidence:bound` has the verdict fail")],
+    });
+    cases.push(Case {
+        name: "claim-unsupported-over-limit",
+        broken: claimed(Some(
+            &passing
+                .clone()
+                .verdict("fail")
+                .values(&[("peak", "80")])
+                .limits(&[("peak", "64")]),
+        )),
+        fixed: claimed(Some(
+            &passing
+                .clone()
+                .values(&[("peak", "41")])
+                .limits(&[("peak", "64")]),
+        )),
+        // A record that fails and holds a value over its limit owes both.
+        want: vec![
+            unsupported("`evidence:bound` has the verdict fail"),
+            unsupported("`evidence:bound`: `peak` is 80, over its limit 64"),
+        ],
+    });
+    // evidence-stale: a record made against another text of `demo::real`,
+    // reached by a claim and by `for` alone.
+    let stale = passing
+        .clone()
+        .inputs(vec![("demo::real".to_string(), OTHER_DIGEST.to_string())]);
+    let stale_want = || Want {
+        kind: ObligationKind::EvidenceStale,
+        path: "work/evidence/bound.md",
+        line: None,
+        text: format!(
+            "cap:omega  document  evidence-stale  {STALE_EVIDENCE} (`evidence:bound` was made against `demo::real`, which has changed since)"
+        ),
+    };
+    cases.push(Case {
+        name: "evidence-stale-claimed",
+        broken: claimed(Some(&stale)),
+        fixed: fixed.clone(),
+        want: vec![stale_want()],
+    });
+    let by_for = |record: &Evidence| {
+        repo(&[
+            (OMEGA, capability("omega", "implementing", BOUND, &[])),
+            (SHAPE, base()[SHAPE].clone()),
+            (record.path().as_str(), record.text()),
+        ])
+    };
+    cases.push(Case {
+        name: "evidence-stale-by-for",
+        broken: by_for(&stale),
+        fixed: by_for(&passing),
+        want: vec![stale_want()],
+    });
+    // An input that resolves to nothing now.
+    let gone = passing.clone().inputs(vec![
+        ("demo::real".to_string(), real_digest()),
+        ("demo::vanished".to_string(), OTHER_DIGEST.to_string()),
+    ]);
+    cases.push(Case {
+        name: "evidence-stale-unresolved",
+        broken: by_for(&gone),
+        fixed: by_for(&passing),
+        want: vec![Want {
+            kind: ObligationKind::EvidenceStale,
+            path: "work/evidence/bound.md",
+            line: None,
+            text: format!(
+                "cap:omega  document  evidence-stale  {STALE_EVIDENCE} (`evidence:bound` was made against `demo::vanished`, which does not resolve now: `demo::vanished` names nothing in the workspace)"
+            ),
+        }],
+    });
+}
+
 fn tense_cases(base: &Repo, cases: &mut Vec<Case>) {
     // tense-mismatch
     {
@@ -557,7 +680,7 @@ fn the_baseline_owes_nothing_and_check_agrees() {
 // --- every kind, in both directions ------------------------------------------
 
 #[test]
-fn every_static_kind_is_raised_by_a_fixture_and_the_two_that_need_a_process_by_none() {
+fn every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by_none() {
     let mut raised: BTreeSet<&str> = BTreeSet::new();
     let mut names = BTreeSet::new();
     for case in cases() {
@@ -583,7 +706,7 @@ fn every_static_kind_is_raised_by_a_fixture_and_the_two_that_need_a_process_by_n
     let dynamic: BTreeSet<&str> = known.difference(&statics).copied().collect();
     assert_eq!(
         dynamic,
-        BTreeSet::from(["section-untouched", "example-failing"])
+        BTreeSet::from(["section-untouched", "example-failing", "evidence-changed"])
     );
     assert!(raised.is_disjoint(&dynamic), "{raised:?}");
 }
@@ -1002,7 +1125,17 @@ fn fixing_one_fault_removes_exactly_its_lines() {
 
 #[test]
 fn contract_effect_none_keeps_every_obligation_the_documents_can_show() {
-    let changes = untidy();
+    // The untidy repository, with a claim on evidence that is not there and a
+    // record that is stale.
+    let mut changes = replaced(
+        &untidy(),
+        SIGMA,
+        "This is proposed.\n",
+        &format!("This is proposed.\n{}", claim("ghost")),
+    );
+    let stale = Evidence::passing("bound", "[cap:sigma]")
+        .inputs(vec![("demo::real".to_string(), OTHER_DIGEST.to_string())]);
+    changes.insert(stale.path(), stale.text());
     let none = replaced(
         &changes,
         SHAPE,
@@ -1020,6 +1153,8 @@ fn contract_effect_none_keeps_every_obligation_the_documents_can_show() {
             ObligationKind::ItemWithoutOutcome,
             ObligationKind::BindingMissing,
             ObligationKind::TenseMismatch,
+            ObligationKind::ClaimUnsupported,
+            ObligationKind::EvidenceStale,
         ])
     );
 }

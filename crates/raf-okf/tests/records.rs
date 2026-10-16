@@ -582,6 +582,16 @@ fn values_and_limits_are_numbers_and_each_limit_names_a_value() {
             name: "peak_mib".to_string(),
         },
     );
+    // A failing execution, such as one killed at its time limit, may have
+    // printed none of the values its limits name.
+    clean(
+        &mutate(&bare, "verdict: pass", "verdict: fail"),
+        EVIDENCE_PATH,
+    );
+    clean(
+        &mutate(&orphan, "verdict: pass", "verdict: fail"),
+        EVIDENCE_PATH,
+    );
     // A negative number and a value equal to its limit are accepted.
     let edge = mutate(&evidence(), "peak_mib: 41", "peak_mib: 64")
         .replace("seconds: 0.5", "seconds: -0.25");
@@ -603,6 +613,89 @@ fn a_passing_record_holds_no_value_above_its_limit() {
         &mutate(&over, "verdict: pass", "verdict: fail"),
         EVIDENCE_PATH,
     );
+}
+
+/// The texts a floating-point comparison reads as equal or as infinite, each
+/// over its limit, and the neighbours equal to it or just under it.
+fn exact() -> [(&'static str, &'static str, &'static str); 4] {
+    [
+        ("9007199254740993", "9007199254740992", "9007199254740991"),
+        ("0.30000000000000001", "0.3", "0.29999999999999999"),
+        ("1.0000000000000000001", "1", "0.9999999999999999999"),
+        // `1` and 399 zeros: just under the limit, and infinite as an `f64`
+        // like both of the others.
+        (TWO_E400, ONE_E400, &ONE_E400[..400]),
+    ]
+}
+
+const TWO_E400: &str = concat!(
+    "2",
+    "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+);
+
+const ONE_E400: &str = concat!(
+    "1",
+    "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+);
+
+#[test]
+fn a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float() {
+    for (over, limit, under) in exact() {
+        let with = |value: &str| {
+            mutate(&evidence(), "peak_mib: 41", &format!("peak_mib: {value}")).replacen(
+                "peak_mib: 64",
+                &format!("peak_mib: {limit}"),
+                1,
+            )
+        };
+        assert_only(
+            &with(over),
+            EVIDENCE_PATH,
+            &key("verdict"),
+            &Rule::VerdictOverLimit {
+                name: "peak_mib".to_string(),
+            },
+        );
+        clean(&with(limit), EVIDENCE_PATH);
+        clean(&with(under), EVIDENCE_PATH);
+    }
+}
+
+#[test]
+fn numbers_compare_exactly_by_sign_whole_part_and_fraction() {
+    use std::cmp::Ordering::{Equal, Greater, Less};
+    let n = |text: &str| raf_okf::Number::parse(text).expect("a number");
+    for (left, right, order) in [
+        ("0", "-0", Equal),
+        ("-0.000", "0", Equal),
+        ("007", "7.000", Equal),
+        ("12", "9", Greater),
+        ("-12", "-9", Less),
+        ("-1", "0", Less),
+        ("0.5", "0.45", Greater),
+        ("0.05", "0.5", Less),
+        ("1.10", "1.1", Equal),
+        ("-0.30000000000000001", "-0.3", Less),
+        (TWO_E400, ONE_E400, Greater),
+    ] {
+        assert_eq!(n(left).compare(&n(right)), order, "{left} against {right}");
+        assert_eq!(
+            n(right).compare(&n(left)),
+            order.reverse(),
+            "{right} against {left}"
+        );
+    }
+    for (over, limit, under) in exact() {
+        assert!(n(over).exceeds(&n(limit)), "{over} over {limit}");
+        assert!(!n(limit).exceeds(&n(limit)));
+        assert!(!n(under).exceeds(&n(limit)), "{under} under {limit}");
+    }
 }
 
 #[test]

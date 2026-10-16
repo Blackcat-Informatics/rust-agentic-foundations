@@ -25,6 +25,8 @@ bindings:
     - raf_okf::AssessmentRecord::to_document
     - raf_okf::CoverageRecord::new
     - raf_okf::CoverageRecord::to_document
+    - raf_okf::Number::compare
+    - raf_okf::Number::exceeds
   tests:
     - raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests
     - raf_okf::test_crate::refusals::a_document_without_a_fence_on_line_one_is_refused
@@ -84,6 +86,8 @@ bindings:
     - raf_okf::test_crate::repo_markdown::no_tracked_markdown_file_holds_a_split_link_or_a_malformed_block
     - raf_okf::test_crate::schema::only_coverage_is_a_singleton_and_only_the_three_records_are_records
     - raf_okf::test_crate::records::a_valid_evidence_record_validates_to_its_typed_value
+    - raf_okf::test_crate::records::a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float
+    - raf_okf::test_crate::records::numbers_compare_exactly_by_sign_whole_part_and_fraction
     - raf_okf::test_crate::records::a_valid_assessment_validates_to_its_typed_value
     - raf_okf::test_crate::records::a_valid_coverage_record_validates_and_an_empty_scope_opts_out_visibly
     - raf_okf::test_crate::records::a_verdict_is_one_of_the_verdicts_of_its_type
@@ -284,8 +288,9 @@ replaces a block and refuses an edit that leaves anything but an index.
 >   is `human` or `agent` and never the name of a person;
 > - evidence names the capabilities it covers in `for`, takes `symbol` inputs
 >   only, and states `command` exactly when its subject is `command`; `revision`
->   is a full commit id; `values` and `limits` hold `Number`s, each limit names a
->   value, and evidence that passes holds no value above its limit;
+>   is a full commit id; `values` and `limits` hold `Number`s, each limit of
+>   evidence that passes names a value, and evidence that passes holds no value
+>   above its limit, compared exactly on the decimal texts (`Number::compare`);
 > - an assessment holds the `section` input of its subject;
 > - the coverage record is `coverage:default` at `work/coverage/default.md`. Its
 >   `scope` holds distinct crate package names, and each exclusion an

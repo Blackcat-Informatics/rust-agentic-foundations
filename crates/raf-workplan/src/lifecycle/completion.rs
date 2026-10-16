@@ -82,7 +82,7 @@ impl Condition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Failure {
-    /// Condition 1: one obligation of the list, of any of the seven kinds.
+    /// Condition 1: one obligation of the list, of any kind.
     Owed(Obligation),
     /// Condition 2: an item of the record with no valid outcome (an
     /// `item-without-outcome` obligation).

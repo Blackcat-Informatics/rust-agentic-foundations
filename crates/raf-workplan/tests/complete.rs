@@ -33,6 +33,7 @@ use raf_workplan::{ChangeLookupError, Gate, SyncOptions, Workplan};
 use support::changes::{DONE, capability, record};
 use support::checkout::git;
 use support::disk::{Scratch, put, read, snapshot};
+use support::evidence::{Evidence, digest_of};
 
 /// No fixture may take longer than this, builds included.
 const BUDGET: Duration = Duration::from_secs(300);
@@ -85,6 +86,37 @@ const BROKEN_EXAMPLE: &str = "fn main() {\n    let number: u32 = \"text\";\n    
 const EXITING_EXAMPLE: &str = "fn main() {\n    std::process::exit(3);\n}\n";
 
 const PASSES: &str = "[fx_life::tests::passes]";
+
+/// The evidence record of the trace cases, and the claim on it.
+const EVIDENCE: &str = "work/evidence/bound.md";
+const CLAIM: &str = "<!-- raf:claim evidence=bound -->\n";
+
+/// The digest of `fx_life::add` in the library `lib`.
+fn add_digest(lib: &str) -> String {
+    let source = raf_source::Workspace::load(
+        &raf_source::MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname = \"fx-life\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n",
+            ),
+            ("src/lib.rs", lib),
+        ]),
+        &["."],
+    )
+    .expect("the fixture library loads");
+    digest_of(&source, "fx_life::add")
+}
+
+/// The library with `add` edited.
+fn edited_lib() -> String {
+    LIB.replace("    a + b\n", "    b + a\n")
+}
+
+/// A passing record for `fixture`, made against `add` as `LIB` has it.
+fn evidence() -> Evidence {
+    Evidence::passing("bound", "[cap:fixture]")
+        .inputs(vec![("fx_life::add".to_string(), add_digest(LIB))])
+}
 
 /// An item with an outcome, and one without.
 const NO_OUTCOME: &str = "  - claim: \"fixture is shaped\"\n";
@@ -599,6 +631,13 @@ struct Case {
 fn nothing(_: &Fixture) {}
 
 fn cases() -> Vec<Case> {
+    let mut cases = document_cases();
+    cases.extend(trace_cases());
+    cases
+}
+
+/// The cases of the kinds the documents and the bound runs owe.
+fn document_cases() -> Vec<Case> {
     let implementing = || {
         Spec::default()
             .state("implementing")
@@ -675,6 +714,57 @@ fn cases() -> Vec<Case> {
     ]
 }
 
+/// The cases of the kinds the claims and the evidence records owe.
+fn trace_cases() -> Vec<Case> {
+    vec![
+        Case {
+            kind: ObligationKind::ClaimUnsupported,
+            spec: Spec::default()
+                .extra("Contract", CLAIM)
+                .doc(EVIDENCE, evidence().verdict("fail").text()),
+            fault: nothing,
+            repair: |fixture| fixture.edit(EVIDENCE, "verdict: fail", "verdict: pass"),
+        },
+        Case {
+            kind: ObligationKind::EvidenceStale,
+            spec: Spec::default()
+                .extra("Contract", CLAIM)
+                .doc(EVIDENCE, evidence().text()),
+            fault: |fixture| put(fixture.root(), "src/lib.rs", &edited_lib()),
+            repair: |fixture| {
+                fixture.edit(EVIDENCE, &add_digest(LIB), &add_digest(&edited_lib()));
+            },
+        },
+        Case {
+            kind: ObligationKind::EvidenceChanged,
+            spec: Spec::default().extra("Contract", CLAIM).doc(
+                EVIDENCE,
+                evidence()
+                    .values(&[("peak", "1")])
+                    .limits(&[("peak", "2")])
+                    .text(),
+            ),
+            fault: |fixture| {
+                put(
+                    fixture.root(),
+                    EVIDENCE,
+                    &evidence().values(&[("peak", "1")]).text(),
+                );
+            },
+            repair: |fixture| {
+                put(
+                    fixture.root(),
+                    EVIDENCE,
+                    &evidence()
+                        .values(&[("peak", "1")])
+                        .limits(&[("peak", "2")])
+                        .text(),
+                );
+            },
+        },
+    ]
+}
+
 /// The item of the fixtures' record once it has its outcome.
 const DONE_FIXTURE: &str = DONE;
 
@@ -732,12 +822,16 @@ fn each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_a
 /// whether it names a line.
 fn place_of(kind: ObligationKind) -> (&'static str, bool) {
     match kind {
-        ObligationKind::UnresolvedProposal | ObligationKind::TenseMismatch => (CAP, true),
+        ObligationKind::UnresolvedProposal
+        | ObligationKind::TenseMismatch
+        | ObligationKind::ClaimUnsupported
+        | ObligationKind::EvidenceChanged => (CAP, true),
         ObligationKind::ItemWithoutOutcome => (RECORD, false),
         ObligationKind::BindingMissing
         | ObligationKind::SectionUntouched
         | ObligationKind::ExampleFailing => (CAP, false),
         ObligationKind::GeneratedStale => (INDEX, true),
+        ObligationKind::EvidenceStale => (EVIDENCE, false),
         _ => unreachable!("every kind has a case"),
     }
 }

@@ -128,13 +128,15 @@ pub fn section_digest(body: &Body, section: CapabilitySection) -> Option<Section
 ///
 /// Nothing is asked of `git` when every section of `affects` is left out by
 /// the `effect` of the change. Otherwise the merge base is found once
-/// ([`git::default_merge_base`]) and each capability file is read once at it.
+/// ([`git::default_merge_base`], kept in `base` for the other process-backed
+/// kinds) and each capability file is read once at it.
 pub(super) fn raise(
     opened: &Opened,
     runner: &dyn Runner,
     prefix: &Prefix,
     impact: &Impact,
     effect: ContractEffect,
+    base: &mut Option<MergeBase>,
 ) -> Result<Vec<Obligation>, LifecycleError> {
     let wanted: Vec<&SectionId> = impact
         .sections
@@ -150,7 +152,7 @@ pub(super) fn raise(
     if wanted.is_empty() {
         return Ok(Vec::new());
     }
-    let base = git::default_merge_base(runner)?;
+    let base = merge_base(base, runner)?;
     let mut files: BTreeMap<String, Files> = BTreeMap::new();
     let mut owed = Vec::new();
     for id in wanted {
@@ -160,7 +162,7 @@ pub(super) fn raise(
             reason: "is not a capability id".to_string(),
         })?;
         if !files.contains_key(&path) {
-            let read = Files::read(opened, runner, &base, prefix, &path)?;
+            let read = Files::read(opened, runner, base, prefix, &path)?;
             files.insert(path.clone(), read);
         }
         let Some(file) = files.get(&path) else {
@@ -177,6 +179,45 @@ pub(super) fn raise(
         }
     }
     Ok(owed)
+}
+
+/// The merge base of `HEAD` and the default branch, asked of `git` the first
+/// time a kind needs it and kept in `slot` for the next.
+pub(super) fn merge_base<'b>(
+    slot: &'b mut Option<MergeBase>,
+    runner: &dyn Runner,
+) -> Result<&'b MergeBase, LifecycleError> {
+    let base = match slot.take() {
+        Some(base) => base,
+        None => git::default_merge_base(runner)?,
+    };
+    Ok(slot.insert(base))
+}
+
+/// The file `path` (repository-relative, as the loaded documents name it) at
+/// the merge base, named from the top of the work tree, or `None` when it is
+/// not there.
+pub(super) fn blob(
+    runner: &dyn Runner,
+    base: &MergeBase,
+    prefix: &Prefix,
+    path: &str,
+) -> Result<Option<Vec<u8>>, LifecycleError> {
+    let document = |reason: String| LifecycleError::Document {
+        path: path.to_string(),
+        side: Side::WorkingTree,
+        reason,
+    };
+    let source = SourcePath::new(path)
+        .map_err(|error| document(format!("is not a repository path: {error}")))?;
+    // `git` names the file from the top of the work tree.
+    let named = prefix.join(&source).map_err(|error| {
+        document(format!(
+            "cannot be named below `{}`: {error}",
+            prefix.as_str()
+        ))
+    })?;
+    Ok(git::blob_at(runner, base, &named)?)
 }
 
 /// One capability file at the merge base and in the working tree.
@@ -199,21 +240,7 @@ impl Files {
             side,
             reason,
         };
-        let source = SourcePath::new(path).map_err(|error| {
-            document(
-                Side::WorkingTree,
-                format!("is not a repository path: {error}"),
-            )
-        })?;
-        // `git` names the file from the top of the work tree.
-        let named = prefix.join(&source).map_err(|error| {
-            document(
-                Side::WorkingTree,
-                format!("cannot be named below `{}`: {error}", prefix.as_str()),
-            )
-        })?;
-        let blob = git::blob_at(runner, base, &named)?;
-        let base = blob
+        let base = blob(runner, base, prefix, path)?
             .map(|bytes| {
                 let text = String::from_utf8(bytes)
                     .map_err(|_| document(Side::MergeBase, "is not UTF-8 text".to_string()))?;

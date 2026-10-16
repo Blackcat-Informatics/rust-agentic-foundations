@@ -94,13 +94,23 @@
 //! of the graph, the items of the record, the gaps of the roadmap, the stale
 //! generated blocks of a sync) and from a fixed list of forward-looking
 //! phrases ([`obligation::tense::PHRASES`]) read in the prose of `implementing`
-//! and `delivered` capabilities. The list is sorted by subject, section, kind,
-//! line and evidence text; `contract_effect: none` suppresses
-//! `section-untouched` for `contract`, `usage` and `examples` and nothing else.
-//! The two kinds that need a process, `section-untouched` and
-//! `example-failing`, are in the closed set of [`obligation::ObligationKind`];
-//! `Workplan::reconcile` does not raise them, and [`lifecycle::Lifecycle::reconcile`]
-//! does.
+//! and `delivered` capabilities, and from the claims and evidence records the
+//! listed capabilities rest on: `claim-unsupported` for a claim whose evidence
+//! does not load, fails or holds a value over its limit, and `evidence-stale`
+//! for a record whose input symbol now has another digest. The list is sorted
+//! by subject, section, kind, line and evidence text; `contract_effect: none`
+//! suppresses `section-untouched` for `contract`, `usage` and `examples` and
+//! nothing else. The three kinds that need a process, `section-untouched`,
+//! `example-failing` and `evidence-changed`, are in the closed set of
+//! [`obligation::ObligationKind`]; `Workplan::reconcile` does not raise them,
+//! and [`lifecycle::Lifecycle::reconcile`] does.
+//!
+//! [`evidence`] records one execution as an evidence record: the caller's own
+//! command ([`exec::TrustedArgv`], from the command line after `--`, run with no
+//! shell and its verdict from its exit status and the `name=number` values it
+//! prints against the limits) or a bound test or example run by the executor of
+//! [`bound`]; [`Workplan::evidence_claims`] and [`Workplan::evidence_for`] are
+//! the dependency views of the claims and the records.
 //!
 //! [`lifecycle::Lifecycle::open`] is the entry point of the commands that start a
 //! process: it asks `git --version` before any other process, refuses a Git older
@@ -123,9 +133,10 @@
 //!
 //! # Processes
 //!
-//! [`exec`] is the one place a `cargo` or `git` process is started. A process is
-//! an [`exec::Invocation`] of fixed text and values validated by the patterns of
-//! the completion gate, started with no shell, null standard input, bounded
+//! [`exec`] is the one place a `cargo` or `git` process, or the caller's own
+//! command of [`Workplan::record_evidence`], is started. A process is an
+//! [`exec::Invocation`] of fixed text and values validated by the patterns of
+//! the completion gate (or the words of an [`exec::TrustedArgv`]), started with no shell, null standard input, bounded
 //! output and a wall-clock kill by an [`exec::Runner`]; [`exec::FakeRunner`]
 //! answers in process for tests.
 //!
@@ -223,6 +234,7 @@
 mod bindings;
 pub mod bound;
 pub mod digest;
+pub mod evidence;
 pub mod exec;
 mod files;
 mod finding;

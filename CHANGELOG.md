@@ -41,6 +41,12 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `EvidenceVerdict::name`, `AssessmentVerdict::name` and `EvidenceSubject::text`
   give the key values. The limits of an evidence record are judged against its
   values in time linear in their number.
+- **`raf-okf`:** `Number::compare` and `Number::exceeds` order two numbers
+  exactly on their decimal texts (sign, whole part without leading zeros,
+  fraction without trailing zeros, any length), and `Profile::validate` judges the
+  limits of a passing evidence record with them, so a value over its limit by less
+  than an `f64` tells apart is refused. A limit of a failing evidence record may
+  name no value, since a failing execution may have printed none.
 - **`raf-source`:** `Workspace::exported_items` lists the public surface of a
   library or a binary: the items another crate can name through its crate root,
   each as an `ExportedItem` with the path it is exported under and the item that
@@ -105,6 +111,38 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `is_shallow`, `document_log`, `symbol_log` and `last_change` (`LastChange`).
   Table cells escape control and bidirectional formatting characters.
   `Pattern::ALL`, `Arg` and `GitError` grow. The history writes nothing.
+- **`raf-workplan` evidence:** `Workplan::record_evidence(root, runner, request)`
+  runs one execution and writes the evidence record `work/evidence/<id>.md`. The
+  verdict comes from one `VerdictSource`: the caller's own command
+  (`exec::TrustedArgv`, the words after `--` of the command line of the running
+  process, which `TrustedArgv::from_command_line` takes from `std::env::ArgsOs`
+  and no document or record text can build; `Program::Trusted`,
+  `Invocation::trusted`, `Arg::Trusted` and `Limits::trusted`), run with no shell,
+  standard input null, the workspace root as its directory, the caller's
+  environment, 16 MiB per stream and 1800 seconds, its exit status deciding pass
+  or fail and its `name=number` output lines giving the values; or a bound test or
+  example of a capability of `for`, run by the `bound::Executor`. A value over its
+  limit (compared exactly on the decimal texts), a failing status and a signal
+  record `fail`, `Recorded::failed` naming each reason, and so does a kill at the
+  time limit, whatever the limits; a value that is not a number (an exponent
+  included), a name printed twice, more than `MAX_VALUES` (1024) values, a limit a
+  command that exited never printed and output past the bound are `MeasureError`s
+  or `EvidenceError`s and write nothing, and so does a command that cannot start. The
+  inputs are the `Digest::symbol` of each `code` binding of each capability of
+  `for`, which must be loaded and bind code that resolves. `parse_limit` reads a
+  `name=number` limit. `Workplan::evidence_claims` lists the statements resting on a
+  record (file, line, section and text), and `Workplan::evidence_for` the records
+  supporting a capability, by `for` and by claim. `Programs::path_of` returns an
+  `Option`, `None` for the caller's own command.
+- **`raf-workplan` claim and evidence obligations:** `ObligationKind` gains
+  `claim-unsupported` (a claim whose evidence does not load, fails or holds a value
+  over its limit, once for each that holds), `evidence-stale` (a record input whose digest now differs, or
+  that no longer resolves, named), both from `Workplan::reconcile`, and the process
+  kind `evidence-changed`, which `Lifecycle::reconcile` and `Lifecycle::complete`
+  raise by reading each record a claim names at the merge base: a pass that now
+  fails, a value over its limit or the merge base's, a limit gone, or the record
+  gone. `Needed` gains `SupportingEvidence`, `RecordedAgain` and `ReviewedClaim`,
+  with `ClaimProblem`, `OverLimit`, `InputMoved` and `EvidenceChange`.
 - **`raf-workplan`:** loads a repository's capability, change and architecture
   documents through a `raf-source` `Tree` into typed values with their bodies,
   validating each with `raf-okf`. `Workplan::load` never fails and never panics:

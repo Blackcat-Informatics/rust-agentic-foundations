@@ -27,7 +27,7 @@
 //! 2.30, then opens the repository ([`Gate::open`](crate::Gate::open)).
 //! [`Lifecycle::reconcile`] returns the whole obligation list of a change: the
 //! static kinds of [`Workplan::reconcile`](crate::Workplan::reconcile) and the
-//! two that need a process.
+//! three that need a process.
 //!
 //! * `section-untouched` compares each section in `affects` with the file at the
 //!   merge base of `HEAD` and the default branch of `origin`
@@ -44,6 +44,15 @@
 //!   asks `git rev-parse --show-prefix` and a workspace below the top of its
 //!   repository reads its documents at that prefix; a prefix the source-path
 //!   pattern cannot carry is an error, and a linked work tree is its own top.
+//! * `evidence-changed` reads, at the same merge base and with the same
+//!   `git cat-file blob` row, the evidence record of each id a claim of a listed
+//!   capability names. A record that passed there and now fails, holds a value
+//!   over its limit or the limit of the merge base, has lost a limit, or no
+//!   longer loads is owed at each claim that names it; a record there that does
+//!   not read as an evidence record is an error. The merge base is asked for
+//!   once, and only when a section or a claim needs it
+//!   (`Lifecycle::process_obligations` assembles the kinds that need a process
+//!   for both `reconcile` and `complete`).
 //! * `example-failing` builds and runs the example targets and documentation
 //!   tests of the capabilities the change lists, through the
 //!   [`Executor`](crate::bound::Executor); one that fails, runs zero tests or
@@ -93,6 +102,7 @@
 //!    [`LifecycleError::Remove`] names the files already rewritten. A removed
 //!    record is therefore never found beside stale blocks.
 
+mod changed;
 mod complete;
 mod completion;
 mod create;

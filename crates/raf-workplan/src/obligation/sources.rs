@@ -48,6 +48,7 @@ pub(super) fn reconcile(plan: &Workplan<'_>, change: &str) -> Result<Reconciled,
     bindings(plan, &impact, &listed, &mut found);
     stale_blocks(plan, &listed, &mut found);
     wording(&listed, &mut found);
+    super::trace::raise(plan, &listed, &mut found);
 
     let effect = record.value().contract_effect;
     found.retain(|obligation| !suppressed(obligation.kind, obligation.section, effect));

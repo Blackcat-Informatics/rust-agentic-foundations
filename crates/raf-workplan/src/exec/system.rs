@@ -13,7 +13,7 @@ use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use super::{ExecError, Invocation, Limits, Output, Programs, Runner, Stream};
+use super::{ExecError, Invocation, Limits, Output, Program, Programs, Runner, Stream};
 
 /// The longest pause between two looks at a running process.
 const POLL_CEILING: Duration = Duration::from_millis(20);
@@ -58,7 +58,12 @@ impl SystemRunner {
     /// The path to start for the invocation, or the error when a search path
     /// is set and the name is not in it.
     fn program_path(&self, invocation: &Invocation) -> Result<PathBuf, ExecError> {
-        let named = self.programs.path_of(invocation.program());
+        // The caller's own command names its program as its first word.
+        let first = PathBuf::from(invocation.argv().first().cloned().unwrap_or_default());
+        let named = self
+            .programs
+            .path_of(invocation.program())
+            .unwrap_or(first.as_path());
         let Some(directories) = &self.search_path else {
             return Ok(named.to_path_buf());
         };
@@ -81,14 +86,21 @@ impl Runner for SystemRunner {
     fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
         let command_text = invocation.to_string();
         let program = self.program_path(invocation)?;
+        let trusted = invocation.program() == Program::Trusted;
+        let mut argv = invocation.argv();
+        if trusted {
+            // The first word of the caller's own command is its program.
+            argv.remove(0);
+        }
         let mut command = Command::new(&program);
         command
-            .args(invocation.argv())
+            .args(argv)
             .current_dir(&self.programs.cwd)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        if limits.c_locale() {
+        // The caller's own command keeps the caller's environment.
+        if limits.c_locale() && !trusted {
             command.env("LC_ALL", "C");
         }
         #[cfg(unix)]

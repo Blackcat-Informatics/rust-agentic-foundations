@@ -28,11 +28,12 @@ fn variant(arg: &Arg) -> &'static str {
         Arg::LineLog { .. } => "line-log",
         Arg::Pickaxe(_) => "pickaxe",
         Arg::Since(_) => "since",
+        Arg::Trusted(_) => "trusted",
     }
 }
 
 /// Every name [`variant`] can return.
-const VARIANTS: [&str; 15] = [
+const VARIANTS: [&str; 16] = [
     "literal",
     "package",
     "target-lib",
@@ -48,6 +49,7 @@ const VARIANTS: [&str; 15] = [
     "line-log",
     "pickaxe",
     "since",
+    "trusted",
 ];
 
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -225,6 +227,12 @@ fn every_variant_is_walked() {
         },
         Arg::Pickaxe(Identifier::new("gone").unwrap()),
         Arg::Since(Date::new("2026-01-01").unwrap()),
+        Arg::Trusted(
+            super::TrustedArgv::new(vec!["true".to_string()])
+                .unwrap()
+                .words()[0]
+                .clone(),
+        ),
     ];
     let mut names: Vec<&str> = samples.iter().map(variant).collect();
     names.sort_unstable();
@@ -235,7 +243,9 @@ fn every_variant_is_walked() {
     let built: std::collections::BTreeSet<&str> =
         builders().iter().map(|(name, _, _)| *name).collect();
     for name in VARIANTS {
-        if !matches!(name, "literal" | "target-lib") {
+        // A literal is fixed text, `--lib` holds nothing, and a trusted word
+        // comes only from the command line of the process.
+        if !matches!(name, "literal" | "target-lib" | "trusted") {
             assert!(built.contains(name), "no builder for `{name}`");
         }
     }

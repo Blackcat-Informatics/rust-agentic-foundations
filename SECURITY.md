@@ -136,7 +136,22 @@ guarantees are these, and no wider:
   an overflow as a robustness bug: under the trust model above its impact is a failed
   run and not a breach. The parsers set no time bound.
 - **Subprocesses.** Every spawned `cargo` or `git` process runs with no shell and
-  takes its arguments as an argv vector, and `cargo` runs with `--frozen`. A value
+  takes its arguments as an argv vector, and `cargo` runs with `--frozen`. The one
+  further process is the caller's own command of `evidence record`: the words after
+  `--` on its command line, which only the command line of the running process can
+  supply (`raf_workplan::exec::TrustedArgv` is built from `std::env::args_os` and
+  from no text a document or record holds, which a compile-fail test pins). It is
+  trusted build input, as the workspace's own build commands are, and runs exactly as
+  given: no shell, argv words as typed (a word that is not UTF-8 is refused before it
+  runs), no `--frozen` added to a `cargo` inside it, standard input null, the
+  workspace root as its directory, the caller's environment unchanged (`LC_ALL=C` is
+  set only for `git` and the `cargo` passes whose output the tool parses), each
+  stream bounded to 16 MiB (more is an error and no record) and a 1800-second limit
+  (a kill there is recorded as `fail`, whatever its limits; a background process
+  that keeps its output open after it exits holds the run until then). Only the
+  `name=number` lines of its standard output are read, as values, at most 1024 of
+  them; no other output is kept. The `command` text a record stores
+  for its readers, and its `revision`, never reach a process. A value
   taken from a document reaches a process only after resolution against the loaded
   documents or the source index and a stated pattern, and then in one of four
   forms: after `--`; inside a single `<rev>:<path>` or `-L<start>,<end>:<path>`
@@ -157,7 +172,12 @@ guarantees are these, and no wider:
   ask `git rev-parse --show-prefix` once to read each file at the workspace's place
   below the top of its work tree) and
   `cargo` (the bound tests and examples, for `verify`, `change complete` and the
-  examples of `change reconcile`). The history of a document (`Workplan::history`)
+  examples of `change reconcile`). For a claim of a listed capability,
+  `change reconcile` and `change complete` also read each evidence record the claim
+  names at the same merge base with the same `git cat-file blob
+  <merge-base>:<prefix>work/evidence/<slug>.md` row, once per record, up to 1 MiB, the
+  slug being the claim's evidence id, which the profile holds to the slug pattern; a
+  record there that does not read is an error. The history of a document (`Workplan::history`)
   starts `git` only: `git --version`, `git rev-parse --is-shallow-repository`
   (a shallow clone is refused), `git --no-pager log --no-show-signature --follow
   --cc --root` on the document's path after `--`, `git --no-pager log
@@ -174,6 +194,9 @@ guarantees are these, and no wider:
   bound value that does not resolve, or does not
   match its stated pattern, never reaches `cargo`; a process runs with its input
   closed, its output bounded and a wall-clock limit. `change new` writes one file,
+  `evidence record` writes one record, `work/evidence/<id>.md` (created exclusively,
+  or replaced through a temporary file and a rename), and only after the run, and
+  never a document,
   `change complete` the generated blocks it stales and then removes the one record,
   and `change impact`, `change reconcile` and `verify` write nothing in the
   repository (a build goes to the cargo target directory).
@@ -205,9 +228,11 @@ the subprocess surface, and the rest apply as the other crates are built:
   local Cargo registry or git checkouts; a hostile manifest that redirects the
   scan. Resolution executes the workspace's cargo configuration (see the trust
   model above).
-- **Subprocesses** — the `cargo` and `git` processes the gates spawn: argument
-  injection through branch names, paths, package names or document fields,
-  and unintended inheritance or leakage of the environment.
+- **Subprocesses** — the `cargo` and `git` processes the gates spawn, and the
+  caller's own command that `evidence record` runs: argument injection through
+  branch names, paths, package names or document fields, a document or record
+  field reaching a command line, and unintended inheritance or leakage of the
+  environment.
 - **Supply chain** — the crates published on crates.io, their dependency tree,
   and the release automation that will publish them (none is published yet).
 

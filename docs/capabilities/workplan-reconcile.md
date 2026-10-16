@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-reconcile
 title: "Change reconciliation"
 description: "change new, change impact and change reconcile: opening a change, listing what it touches, and producing the documentation obligations."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_workplan::Workplan::new_change
@@ -29,6 +29,10 @@ bindings:
     - raf_workplan::git::default_merge_base
     - raf_workplan::git::blob_at
     - raf_workplan::git::MergeBase
+    - raf_workplan::obligation::ClaimProblem
+    - raf_workplan::obligation::OverLimit
+    - raf_workplan::obligation::InputMoved
+    - raf_workplan::obligation::EvidenceChange
   tests:
     - raf_workplan::test_crate::lifecycle::new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean
     - raf_workplan::test_crate::lifecycle::a_bad_slug_is_refused_before_anything_is_written_and_a_good_one_next_to_it_is_not
@@ -47,7 +51,7 @@ bindings:
     - raf_workplan::test_crate::lifecycle::impact_gives_the_capabilities_sections_bindings_dependants_and_linking_sections
     - raf_workplan::test_crate::lifecycle::impact_prints_each_part_in_a_fixed_order
     - raf_workplan::test_crate::obligations::each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line
-    - raf_workplan::test_crate::obligations::every_static_kind_is_raised_by_a_fixture_and_the_two_that_need_a_process_by_none
+    - raf_workplan::test_crate::obligations::every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by_none
     - raf_workplan::test_crate::obligations::the_binding_obligations_are_the_gaps_of_the_roadmap
     - raf_workplan::test_crate::obligations::contract_effect_none_keeps_every_obligation_the_documents_can_show
     - raf_workplan::test_crate::obligations::equal_inputs_print_equal_output
@@ -55,6 +59,13 @@ bindings:
     - raf_workplan::test_crate::obligations::text_of_a_proposed_block_is_not_read_for_wording
     - raf_workplan::test_crate::obligations::reconcile_writes_nothing
     - raf_workplan::test_crate::complete::each_kind_of_obligation_is_a_reconcile_line_in_a_git_repository_and_fixing_it_removes_the_line
+    - raf_workplan::test_crate::evidence::an_edit_of_a_bound_symbol_makes_its_record_stale_and_nothing_else_does
+    - raf_workplan::test_crate::evidence::a_stale_record_of_a_capability_the_change_does_not_list_is_not_owed
+    - raf_workplan::test_crate::evidence::each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim
+    - raf_workplan::test_crate::evidence::a_record_that_failed_at_the_merge_base_or_was_not_there_is_compared_with_nothing
+    - raf_workplan::test_crate::evidence::a_record_at_the_merge_base_that_does_not_read_is_an_error_and_not_a_pass
+    - raf_workplan::test_crate::evidence::with_no_default_branch_a_claim_is_an_error_and_no_claim_asks_git_nothing
+    - raf_workplan::test_crate::evidence::each_named_record_is_read_once_at_the_merge_base_with_the_blob_row
     - raf_workplan::test_crate::untouched::an_unchanged_affected_section_is_owed_with_the_line_the_contract_shows
     - raf_workplan::test_crate::untouched::a_section_edited_on_the_branch_is_not_reported_and_its_neighbour_is
     - raf_workplan::test_crate::untouched::an_edit_that_is_not_committed_counts_because_the_working_tree_is_compared
@@ -156,6 +167,25 @@ needed. The kinds are:
 | `generated-stale` | A generated block differs from what `docs sync` writes | A `docs sync` run |
 | `tense-mismatch` | Delivered or implementing contract text uses proposal or forward-looking wording, or a delivered capability has a PROPOSED block | Text rewritten as the supported behaviour |
 
+> [!PROPOSED change:workplan-reconcile]
+> Three kinds follow `tense-mismatch` in the table, and in the order of the list:
+>
+> | Kind | Raised when | Evidence that resolves it |
+> | --- | --- | --- |
+> | `claim-unsupported` | A claim of a listed capability names an evidence record that does not load, whose verdict is `fail`, or that holds a value over its limit | A passing record within its limits for each evidence id the claim names, or the claim reworded or removed |
+> | `evidence-stale` | An input of an evidence record that a listed capability's `for` list or claims reach has another digest now than the one the record keeps, or no longer resolves | The evidence recorded again with `evidence record` |
+> | `evidence-changed` | An evidence record a claim of a listed capability names passed at the merge base and now fails, holds a value over a limit (its own or the one at the merge base), has lost a limit it had there, or no longer loads | The claim reviewed against the new result: the evidence passes within the limits of the merge base again, or the claim no longer names it |
+>
+> `claim-unsupported` and `evidence-changed` are owed at the line of the claim
+> marker, in the section that holds it, once for each record the marker names
+> (and, for `evidence-changed`, once for each change). `evidence-stale` is owed
+> at the record, once for each input that moved, and names the input; it compares
+> the digest of the text of each input symbol now with the digest the record
+> keeps, so it reads no revision and asks Git nothing. A removed record is
+> both `claim-unsupported` and `evidence-changed`. The evidence names the record
+> and what is wrong, for example `` (`evidence:memory-bound`: `peak` is 80, over
+> its limit 64) ``.
+
 Each obligation line gives its subject (a capability, the change record or the
 capability index), the part it is about (the document, a section or an item of the
 record), the kind and the evidence, and for text findings `line <n>:` before the
@@ -211,6 +241,17 @@ its own top. The output of `cat-file blob` is read up to the 1 MiB document boun
 a larger blob is an error. The standard output and the standard error of every other
 `git` command are each read up to 16 MiB, and a command that writes more or runs past
 300 seconds is killed and is an error.
+
+> [!PROPOSED change:workplan-reconcile]
+> `evidence-changed` reads, with the same `git cat-file blob
+> <merge-base>:<prefix><path>` row and the same merge base, the record
+> `work/evidence/<slug>.md` of each evidence id a claim of a listed capability
+> names, once per record; `<slug>` is the id of the claim marker, which the profile
+> holds to the slug pattern. The merge base is asked for once, and only when a
+> section of `affects` or a claim needs it. A record that is not there at the merge
+> base, or whose verdict there is `fail`, is compared with nothing; a record there
+> that does not read as an evidence record is an error, and so is one over the
+> 1 MiB bound.
 
 `example-failing` builds and runs bound examples with the `--frozen` argv forms, the
 patterns, the stdin, timeout and output rules, and the proof-that-it-ran rule of the
@@ -329,6 +370,17 @@ in these two places, so update the usage example and the lifecycle explanation".
 - Scenario A and Scenario B are described in
   [the completion gate](./workplan-complete-gate.md) and use `reconcile` at each step.
 
+> [!PROPOSED change:workplan-reconcile]
+> - One fixture per new kind: a claim on a missing, a failing and an over-limit
+>   record is `claim-unsupported`, and a passing record clears it; an edit of a
+>   bound symbol makes its record `evidence-stale` naming the symbol, while an edit
+>   of another item and a CRLF-only change do not; and in a Git repository a
+>   record replaced by a failing one, by one over its limit, by one without a
+>   limit of the merge base, or removed, is `evidence-changed` at the claim, beside
+>   a record that did not change and owes nothing.
+> - The completion gate refuses each of the three kinds and completes once it is
+>   repaired.
+
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
@@ -342,6 +394,13 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::Workplan::reconcile` | doctest | [Verification](#verification) |
 | `raf_workplan::lifecycle::section_digest` | doctest | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::each_kind_of_obligation_is_a_reconcile_line_in_a_git_repository_and_fixing_it_removes_the_line` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::a_record_at_the_merge_base_that_does_not_read_is_an_error_and_not_a_pass` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::a_record_that_failed_at_the_merge_base_or_was_not_there_is_compared_with_nothing` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::a_stale_record_of_a_capability_the_change_does_not_list_is_not_owed` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::an_edit_of_a_bound_symbol_makes_its_record_stale_and_nothing_else_does` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::each_named_record_is_read_once_at_the_merge_base_with_the_blob_row` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::with_no_default_branch_a_claim_is_an_error_and_no_claim_asks_git_nothing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::git::stubs::every_question_reaches_git_as_exactly_its_argv_in_the_work_directory` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::a_bad_slug_is_refused_before_anything_is_written_and_a_good_one_next_to_it_is_not` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lifecycle::a_capability_that_does_not_exist_is_refused` | test | [Verification](#verification) |
@@ -362,7 +421,7 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::test_crate::obligations::contract_effect_none_keeps_every_obligation_the_documents_can_show` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::equal_inputs_print_equal_output` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::obligations::every_static_kind_is_raised_by_a_fixture_and_the_two_that_need_a_process_by_none` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by_none` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::reconcile_writes_nothing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::text_of_a_proposed_block_is_not_read_for_wording` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::the_binding_obligations_are_the_gaps_of_the_roadmap` | test | [Verification](#verification) |
@@ -403,4 +462,5 @@ in these two places, so update the usage example and the lifecycle explanation".
 | Depended on by | [workplan-cli](./workplan-cli.md) |
 | Depended on by | [workplan-complete-gate](./workplan-complete-gate.md) |
 | Depended on by | [workplan-evidence-claims](./workplan-evidence-claims.md) |
+| Changed by | [workplan-reconcile](../../work/changes/workplan-reconcile.md) |
 <!-- raf:generated:end -->

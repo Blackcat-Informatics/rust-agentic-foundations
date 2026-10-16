@@ -3,6 +3,8 @@
 
 //! The typed form of a document that satisfies the profile.
 
+use std::cmp::Ordering;
+
 use crate::profile::schema::{COVERAGE_SLUG, DocType};
 
 /// The lifecycle state of a capability.
@@ -481,10 +483,83 @@ impl Number {
         &self.text
     }
 
-    /// The value.
+    /// The value, as the nearest `f64`. It is for display: two numbers are
+    /// compared by [`Number::compare`], which reads the text exactly, since
+    /// texts such as `9007199254740993` and `9007199254740992` round to one
+    /// `f64`.
     #[must_use]
     pub fn value(&self) -> f64 {
         self.value
+    }
+
+    /// The order of the values of `self` and `other`, decided on the decimal
+    /// texts and exact for every length: the sign first (`-0` is `0`), then
+    /// the whole part without its leading zeros (a longer one is larger, then
+    /// digit by digit), then the fraction without its trailing zeros, digit by
+    /// digit. No floating-point value is read.
+    ///
+    /// ```rust
+    /// use std::cmp::Ordering;
+    /// use raf_okf::Number;
+    ///
+    /// let n = |text| Number::parse(text).expect("a number");
+    /// assert_eq!(n("9007199254740993").compare(&n("9007199254740992")), Ordering::Greater);
+    /// assert_eq!(n("0.30000000000000001").compare(&n("0.3")), Ordering::Greater);
+    /// assert_eq!(n("1.50").compare(&n("01.5")), Ordering::Equal);
+    /// assert_eq!(n("-0").compare(&n("0.0")), Ordering::Equal);
+    /// assert_eq!(n("-2").compare(&n("-1.5")), Ordering::Less);
+    /// ```
+    #[must_use]
+    pub fn compare(&self, other: &Self) -> Ordering {
+        let (left, right) = (Decimal::of(&self.text), Decimal::of(&other.text));
+        match (left.negative, right.negative) {
+            (false, true) => Ordering::Greater,
+            (true, false) => Ordering::Less,
+            (false, false) => left.magnitude(&right),
+            (true, true) => right.magnitude(&left),
+        }
+    }
+
+    /// Whether the value of `self` is above the value of `limit`, by
+    /// [`Number::compare`].
+    #[must_use]
+    pub fn exceeds(&self, limit: &Self) -> bool {
+        self.compare(limit) == Ordering::Greater
+    }
+}
+
+/// The parts of the text of a [`Number`]: the sign, the whole digits without
+/// leading zeros and the fraction digits without trailing zeros. Zero, `-0`
+/// included, has no digits and no sign.
+struct Decimal<'a> {
+    negative: bool,
+    whole: &'a str,
+    fraction: &'a str,
+}
+
+impl<'a> Decimal<'a> {
+    fn of(text: &'a str) -> Self {
+        let (negative, unsigned) = match text.strip_prefix('-') {
+            Some(rest) => (true, rest),
+            None => (false, text),
+        };
+        let (whole, fraction) = unsigned.split_once('.').unwrap_or((unsigned, ""));
+        let whole = whole.trim_start_matches('0');
+        let fraction = fraction.trim_end_matches('0');
+        Self {
+            negative: negative && !(whole.is_empty() && fraction.is_empty()),
+            whole,
+            fraction,
+        }
+    }
+
+    /// The order of the magnitudes.
+    fn magnitude(&self, other: &Self) -> Ordering {
+        self.whole
+            .len()
+            .cmp(&other.whole.len())
+            .then_with(|| self.whole.cmp(other.whole))
+            .then_with(|| self.fraction.cmp(other.fraction))
     }
 }
 

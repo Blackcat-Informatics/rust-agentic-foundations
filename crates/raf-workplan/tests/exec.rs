@@ -11,7 +11,7 @@
 //! written to a scratch directory, on Unix; a smoke test starts the real `git`
 //! and `cargo` everywhere.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use raf_workplan::exec::{
@@ -978,13 +978,15 @@ fn the_programs_come_from_cargo_and_the_path_and_can_be_replaced() {
     assert_eq!(set.cargo, PathBuf::from("/opt/stub/cargo"));
     assert_eq!(
         set.path_of(Program::Cargo),
-        PathBuf::from("/opt/stub/cargo")
+        Some(Path::new("/opt/stub/cargo"))
     );
-    assert_eq!(set.path_of(Program::Git), PathBuf::from("git"));
+    assert_eq!(set.path_of(Program::Git), Some(Path::new("git")));
+    // The caller's own command names its program in its argv.
+    assert_eq!(set.path_of(Program::Trusted), None);
 
     let replaced = set.with_cargo("c").with_git("g");
-    assert_eq!(replaced.path_of(Program::Cargo), PathBuf::from("c"));
-    assert_eq!(replaced.path_of(Program::Git), PathBuf::from("g"));
+    assert_eq!(replaced.path_of(Program::Cargo), Some(Path::new("c")));
+    assert_eq!(replaced.path_of(Program::Git), Some(Path::new("g")));
 }
 
 // ------------------------------------------------ the real runner, anywhere

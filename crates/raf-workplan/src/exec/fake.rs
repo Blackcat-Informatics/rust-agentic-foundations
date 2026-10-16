@@ -34,9 +34,13 @@ impl Call {
         &self.limits
     }
 
-    /// `program arg arg ...`, as the invocation reads in a message.
+    /// `program arg arg ...`, as the invocation reads in a message; for the
+    /// caller's own command, its words.
     #[must_use]
     pub fn command(&self) -> String {
+        if self.program == Program::Trusted {
+            return self.args.join(" ");
+        }
         let mut text = self.program.to_string();
         for arg in &self.args {
             text.push(' ');

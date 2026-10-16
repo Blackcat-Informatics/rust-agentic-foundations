@@ -14,11 +14,11 @@ use crate::bound::Executor;
 use crate::exec::{ExecError, Programs, Runner, SystemRunner};
 use crate::git::{self, GitError, Prefix};
 use crate::lookup::{ChangeLookupError, write_findings};
-use crate::obligation::{ReconcileError, Reconciled};
+use crate::obligation::{Obligation, ReconcileError, Reconciled};
 use crate::{Finding, Gate, GateError, Opened, SyncError};
 
 use super::verification::{VerifyReport, verify};
-use super::{examples, untouched};
+use super::{Impact, changed, examples, untouched};
 
 /// Which version of a document a [`LifecycleError::Document`] is about.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -310,7 +310,7 @@ impl<R: Runner> Lifecycle<R> {
     }
 
     /// The full obligation list of the change `change`: the static kinds of
-    /// [`Workplan::reconcile`](crate::Workplan::reconcile) and the two that
+    /// [`Workplan::reconcile`](crate::Workplan::reconcile) and the three that
     /// need a process.
     ///
     /// * `section-untouched`: for each section in `affects`, the section at
@@ -319,38 +319,73 @@ impl<R: Runner> Lifecycle<R> {
     ///   with the same authored text is owed. `contract_effect: none` leaves
     ///   out `contract`, `usage` and `examples`. A repository with no default
     ///   branch is an error, so is a merge-base file that does not parse.
+    /// * `evidence-changed`: each evidence record a claim of a listed
+    ///   capability names is read at the same merge base; one that passed
+    ///   there and now fails, holds a value over a limit (its own or the merge
+    ///   base's), has lost a limit of the merge base, or no longer loads is
+    ///   owed at each claim that names it. A record there that does not read
+    ///   as an evidence record is an error.
     /// * `example-failing`: the example targets and documentation tests that
     ///   the capabilities of the change bind and that resolve are built and
     ///   run ([`Executor`]); one that fails, runs no test or proves nothing is
     ///   owed. Test bindings are not run here, and the examples of a binding
     ///   that does not resolve are not either (it is `binding-missing`).
     ///
-    /// The documents are loaded as they are on disk at the call. Nothing in
-    /// the repository is written.
+    /// The merge base is asked for once, and only when a section or a claim
+    /// needs it. The documents are loaded as they are on disk at the call.
+    /// Nothing in the repository is written.
     ///
     /// # Errors
     ///
     /// [`LifecycleError::Change`] and [`LifecycleError::Reconcile`] as for
     /// [`Workplan::reconcile`](crate::Workplan::reconcile);
     /// [`LifecycleError::Git`] and [`LifecycleError::Document`] when a section
-    /// cannot be compared; [`LifecycleError::Exec`] when a process of an
-    /// example cannot be started or read to its end.
+    /// or a record cannot be compared; [`LifecycleError::Exec`] when a process
+    /// of an example cannot be started or read to its end.
     pub fn reconcile(&self, change: &str) -> Result<Reconciled, LifecycleError> {
         let plan = self.opened.workplan();
         let fixed = plan.reconcile(change)?;
         let impact = plan.impact(change)?;
         let effect = plan.change(change)?.value().contract_effect;
         let mut owed = fixed.obligations().to_vec();
-        owed.extend(untouched::raise(
-            &self.opened,
+        owed.extend(self.process_obligations(&self.opened, &impact, effect, true)?);
+        Ok(Reconciled::new(fixed.change().to_string(), owed))
+    }
+
+    /// The obligations of a change that need a process, over `opened`:
+    /// `section-untouched` and `evidence-changed` from `git` at one merge base,
+    /// and, when `examples` is set, `example-failing` from the executor. It is
+    /// the one place [`Lifecycle::reconcile`] and
+    /// [`Lifecycle::complete`](Lifecycle::complete) (which judges the examples
+    /// by running them under condition 5) assemble them.
+    pub(super) fn process_obligations(
+        &self,
+        opened: &Opened,
+        impact: &Impact,
+        effect: raf_okf::ContractEffect,
+        examples: bool,
+    ) -> Result<Vec<Obligation>, LifecycleError> {
+        let mut base = None;
+        let mut owed = untouched::raise(
+            opened,
             &self.runner,
             &self.prefix,
-            &impact,
+            impact,
             effect,
+            &mut base,
+        )?;
+        owed.extend(changed::raise(
+            opened,
+            &self.runner,
+            &self.prefix,
+            impact,
+            &mut base,
         )?);
-        let executor = Executor::new(self.opened.workspace(), &self.runner)?;
-        owed.extend(examples::raise(&executor, &impact)?);
-        Ok(Reconciled::new(fixed.change().to_string(), owed))
+        if examples {
+            let executor = Executor::new(opened.workspace(), &self.runner)?;
+            owed.extend(examples::raise(&executor, impact)?);
+        }
+        Ok(owed)
     }
 
     /// Run the bound tests and examples of the change `change`, or of every

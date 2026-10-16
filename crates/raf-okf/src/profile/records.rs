@@ -595,6 +595,11 @@ pub(super) fn check_between(check: &mut Check<'_>, keys: &Keys<'_>) -> bool {
             .collect();
         for limit in limits {
             let Some(value) = by_name.get(limit.name.as_str()) else {
+                // A failing execution, such as one killed at its time limit,
+                // may have printed none of its values.
+                if matches!(keys.verdict, Some(Verdict::Evidence(EvidenceVerdict::Fail))) {
+                    continue;
+                }
                 check.key(
                     "limits",
                     Rule::LimitWithoutValue {
@@ -605,7 +610,7 @@ pub(super) fn check_between(check: &mut Check<'_>, keys: &Keys<'_>) -> bool {
                 continue;
             };
             if matches!(keys.verdict, Some(Verdict::Evidence(EvidenceVerdict::Pass)))
-                && value.value.value() > limit.value.value()
+                && value.value.exceeds(&limit.value)
             {
                 check.key(
                     "verdict",

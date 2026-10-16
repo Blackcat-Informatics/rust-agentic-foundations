@@ -20,7 +20,9 @@
 //! | `binding-missing` | the gaps of [`Workplan::status`] for each listed `implementing` or `delivered` capability (a `delivered` one owes `code` and `tests` only), and the bindings that resolve to an item their list does not take |
 //! | `generated-stale` | the stale and missing generated blocks of a sync, in the listed capabilities and the index |
 //! | `tense-mismatch` | the fixed [`tense::PHRASES`] list in the prose of a listed `implementing` or `delivered` capability, and a PROPOSED block in a `delivered` one |
-//! | `section-untouched`, `example-failing` | the merge base and the bound examples, which need a process; `Workplan::reconcile` does not raise them (see [`ObligationKind::is_static`]) and [`Lifecycle::reconcile`](crate::lifecycle::Lifecycle::reconcile) does, from `git` and from the executor of [`bound`](crate::bound) |
+//! | `claim-unsupported` | the claim markers of each listed capability ([`Body::claims`](raf_okf::Body::claims)) against the loaded evidence records: one for each named record that does not load, fails, or holds a value over its limit, at the line of the marker |
+//! | `evidence-stale` | the `inputs` of each evidence record whose `for` lists a listed capability or that one of its claims names, against [`Digest::symbol`](crate::digest::Digest::symbol) of the source now: one for each input whose digest differs or that does not resolve, at the record |
+//! | `section-untouched`, `example-failing`, `evidence-changed` | the merge base and the bound examples, which need a process; `Workplan::reconcile` does not raise them (see [`ObligationKind::is_static`]) and [`Lifecycle::reconcile`](crate::lifecycle::Lifecycle::reconcile) does, from `git` and from the executor of [`bound`](crate::bound) |
 //!
 //! The list is sorted by subject (capabilities, then change records, then the
 //! index, each by id), part, kind, line and then evidence text, so equal
@@ -45,6 +47,7 @@
 
 mod sources;
 pub mod tense;
+pub(crate) mod trace;
 
 #[cfg(test)]
 mod tests;
@@ -62,9 +65,9 @@ use crate::{Finding, Workplan};
 
 /// What an obligation is about.
 ///
-/// The seven kinds of the reconcile contract, in the order of its table. The
-/// set is closed: a finding about the documents is one of these kinds or it
-/// is not an obligation.
+/// The kinds of the reconcile contract, in the order of its table. The set is
+/// closed: a finding about the documents is one of these kinds or it is not an
+/// obligation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ObligationKind {
@@ -86,12 +89,22 @@ pub enum ObligationKind {
     /// Delivered or implementing text uses proposal or forward-looking
     /// wording, or a delivered capability has a PROPOSED block.
     TenseMismatch,
+    /// A claim of a listed capability names an evidence record that does not
+    /// load, whose verdict is `fail`, or that holds a value over its limit.
+    ClaimUnsupported,
+    /// An input of an evidence record that supports a listed capability has
+    /// another digest now than the one the record keeps.
+    EvidenceStale,
+    /// An evidence record a claim of a listed capability names passed at the
+    /// merge base and has changed since: it fails, a value is over a limit, a
+    /// limit is gone, or the record is gone.
+    EvidenceChanged,
 }
 
 impl ObligationKind {
     /// Every kind, in the order of the table in the reconcile contract. The
     /// order is the order of [`Ord`] and of the sort of a [`Reconciled`] list.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 10] = [
         Self::UnresolvedProposal,
         Self::ItemWithoutOutcome,
         Self::BindingMissing,
@@ -99,6 +112,9 @@ impl ObligationKind {
         Self::ExampleFailing,
         Self::GeneratedStale,
         Self::TenseMismatch,
+        Self::ClaimUnsupported,
+        Self::EvidenceStale,
+        Self::EvidenceChanged,
     ];
 
     /// The stable kebab-case name printed on an obligation line.
@@ -112,15 +128,21 @@ impl ObligationKind {
             Self::ExampleFailing => "example-failing",
             Self::GeneratedStale => "generated-stale",
             Self::TenseMismatch => "tense-mismatch",
+            Self::ClaimUnsupported => "claim-unsupported",
+            Self::EvidenceStale => "evidence-stale",
+            Self::EvidenceChanged => "evidence-changed",
         }
     }
 
     /// Whether the kind comes from the loaded documents alone. The other
-    /// kinds need a process: `git` for `section-untouched` and `cargo` for
-    /// `example-failing`.
+    /// kinds need a process: `git` for `section-untouched` and
+    /// `evidence-changed`, and `cargo` for `example-failing`.
     #[must_use]
     pub const fn is_static(self) -> bool {
-        !matches!(self, Self::SectionUntouched | Self::ExampleFailing)
+        !matches!(
+            self,
+            Self::SectionUntouched | Self::ExampleFailing | Self::EvidenceChanged
+        )
     }
 
     /// The place of the kind in [`ObligationKind::ALL`]. The `match` has no
@@ -135,12 +157,15 @@ impl ObligationKind {
             Self::ExampleFailing => 4,
             Self::GeneratedStale => 5,
             Self::TenseMismatch => 6,
+            Self::ClaimUnsupported => 7,
+            Self::EvidenceStale => 8,
+            Self::EvidenceChanged => 9,
         }
     }
 }
 
 /// The last rank plus one is the number of kinds, which `ALL` must list.
-const _: () = assert!(ObligationKind::TenseMismatch.rank() + 1 == ObligationKind::ALL.len());
+const _: () = assert!(ObligationKind::EvidenceChanged.rank() + 1 == ObligationKind::ALL.len());
 
 impl PartialOrd for ObligationKind {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -328,6 +353,66 @@ pub enum Found {
     ProposedBlock(String),
 }
 
+/// Why a claim is not supported by one evidence record it names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ClaimProblem {
+    /// No evidence record with the id loaded: there is none, or its file does
+    /// not validate.
+    Missing,
+    /// The record's verdict is `fail`.
+    Fails,
+    /// The record holds a value over its limit.
+    OverLimit(OverLimit),
+}
+
+/// A measured value over a limit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct OverLimit {
+    /// The name of the value.
+    pub name: String,
+    /// The value, as written.
+    pub value: String,
+    /// The limit, as written.
+    pub limit: String,
+}
+
+impl fmt::Display for OverLimit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "`{}` is {}, over its limit {}",
+            self.name, self.value, self.limit
+        )
+    }
+}
+
+/// Why an input of an evidence record is stale.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum InputMoved {
+    /// The text the input names has another digest now.
+    Moved,
+    /// The input names nothing that resolves now; what the source index says.
+    Unresolved(String),
+}
+
+/// How an evidence record changed since the merge base, where it passed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum EvidenceChange {
+    /// The verdict went from `pass` to `fail`.
+    Failed,
+    /// A value is over a limit the record or the record at the merge base
+    /// states.
+    OverLimit(OverLimit),
+    /// A limit of the record at the merge base is gone.
+    LimitRemoved(String),
+    /// No record with the id loads now.
+    Removed,
+}
+
 /// The evidence that settles an obligation.
 ///
 /// `Display` renders the evidence column of the reconcile contract, and where
@@ -366,6 +451,31 @@ pub enum Needed {
     SyncRun(SyncProblem),
     /// Text rewritten as the supported behaviour.
     SupportedBehaviour(Found),
+    /// A passing record within its limits for each evidence id the claim
+    /// names, or the claim reworded or removed.
+    SupportingEvidence {
+        /// The id of the record, `evidence:<slug>`.
+        evidence: String,
+        /// What is wrong with it.
+        problem: ClaimProblem,
+    },
+    /// The evidence recorded again with `evidence record`.
+    RecordedAgain {
+        /// The id of the record.
+        evidence: String,
+        /// The name of the input that moved.
+        input: String,
+        /// How it moved.
+        moved: InputMoved,
+    },
+    /// The claim reviewed against the new result: the evidence passes within
+    /// the limits of the merge base again, or the claim no longer names it.
+    ReviewedClaim {
+        /// The id of the record.
+        evidence: String,
+        /// How it changed.
+        change: EvidenceChange,
+    },
 }
 
 impl Needed {
@@ -386,6 +496,13 @@ impl Needed {
             }
             Self::SyncRun(_) => "a docs sync run",
             Self::SupportedBehaviour(_) => "text rewritten as the supported behaviour",
+            Self::SupportingEvidence { .. } => {
+                "a passing record within its limits for each evidence id the claim names, or the claim reworded or removed"
+            }
+            Self::RecordedAgain { .. } => "the evidence recorded again with evidence record",
+            Self::ReviewedClaim { .. } => {
+                "the claim reviewed against the new result: the evidence passes within the limits of the merge base again, or the claim no longer names it"
+            }
         }
     }
 
@@ -440,6 +557,35 @@ impl Needed {
             Self::SupportedBehaviour(Found::ProposedBlock(change)) => Some(format!(
                 "a PROPOSED block of change:{change} stands in a delivered capability"
             )),
+            Self::SupportingEvidence { evidence, problem } => Some(match problem {
+                ClaimProblem::Missing => format!("`{evidence}` is not a loaded evidence record"),
+                ClaimProblem::Fails => format!("`{evidence}` has the verdict fail"),
+                ClaimProblem::OverLimit(over) => format!("`{evidence}`: {over}"),
+            }),
+            Self::RecordedAgain {
+                evidence,
+                input,
+                moved,
+            } => Some(match moved {
+                InputMoved::Moved => {
+                    format!("`{evidence}` was made against `{input}`, which has changed since")
+                }
+                InputMoved::Unresolved(reason) => format!(
+                    "`{evidence}` was made against `{input}`, which does not resolve now: {reason}"
+                ),
+            }),
+            Self::ReviewedClaim { evidence, change } => Some(match change {
+                EvidenceChange::Failed => {
+                    format!("`{evidence}` passed at the merge base and fails now")
+                }
+                EvidenceChange::OverLimit(over) => format!("`{evidence}`: {over}"),
+                EvidenceChange::LimitRemoved(name) => format!(
+                    "`{evidence}` no longer has the limit `{name}` it had at the merge base"
+                ),
+                EvidenceChange::Removed => {
+                    format!("`{evidence}` passed at the merge base and is not a loaded record now")
+                }
+            }),
         }
     }
 }
@@ -507,8 +653,8 @@ impl fmt::Display for Obligation {
 /// `contract_effect: none` records that the contract, usage and examples are
 /// unaffected, so `section-untouched` is not raised for those three sections.
 /// Nothing else is suppressed: stale bindings, stale generated blocks, open
-/// proposals, items without outcome and tense are errors whatever the effect
-/// says.
+/// proposals, items without outcome, tense and the claims and evidence the
+/// documents rest on are owed whatever the effect says.
 #[must_use]
 pub fn suppressed(kind: ObligationKind, section: Part, effect: ContractEffect) -> bool {
     effect == ContractEffect::None
@@ -647,8 +793,8 @@ impl Workplan<'_> {
     ///
     /// `change` is the slug of a change record, with or without the `change:`
     /// prefix. The list is empty exactly when the change owes nothing that
-    /// the loaded documents can show; `section-untouched` and
-    /// `example-failing` need a process and are not part of it (see
+    /// the loaded documents can show; `section-untouched`, `example-failing`
+    /// and `evidence-changed` need a process and are not part of it (see
     /// [`ObligationKind::is_static`]). Nothing is written and no process is
     /// started.
     ///

@@ -16,6 +16,7 @@ items:
   - claim: "Body::claims reads each claim marker with the evidence it names and the paragraph or list item it supports, outside fenced code, code spans and PROPOSED blocks."
   - claim: "A malformed or unattached claim marker, and any other raf: comment that is not a raf:generated: comment, is a parse error with its line, and a claim outside a capability document is a violation."
   - claim: "Each record type is built with its constructor and written by to_document as a document whose rendering Profile::validate reads back as an equal record."
+  - claim: "Number::compare orders two numbers exactly on their decimal texts, and Profile::validate judges the limits of a passing evidence record with it; a limit of a failing record may name no value."
 ---
 
 ## Summary

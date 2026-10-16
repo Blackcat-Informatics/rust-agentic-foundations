@@ -4,7 +4,9 @@
 //! The one place a process is started.
 //!
 //! Every `cargo` and `git` process of the workplan is an [`Invocation`] given to
-//! a [`Runner`]. The invocation is a [`Program`] and a list of [`Arg`]s; an
+//! a [`Runner`], and so is the one further process, the caller's own command of
+//! `evidence record` ([`Invocation::trusted`] of a [`TrustedArgv`], which only
+//! the command line of the running process can give). The invocation is a [`Program`] and a list of [`Arg`]s; an
 //! argument is fixed text or a validated value, and a value can be built only
 //! through one of the patterns of the completion gate (see [`Pattern`]), so text
 //! from a document cannot reach a command line by any other route.
@@ -12,7 +14,8 @@
 //! [`SystemRunner`] starts the process directly with no shell and the argv
 //! vector as given, with its working directory set to [`Programs::cwd`] and its
 //! standard input null. The environment is the caller's, plus `LC_ALL=C` for a
-//! process whose output is parsed ([`Limits::c_locale`]). Standard output and
+//! `cargo` or `git` process whose output is parsed ([`Limits::c_locale`]); the
+//! caller's own command always runs in the caller's environment unchanged. Standard output and
 //! standard error are captured, each up to a bound; a process that writes more,
 //! or runs longer than its wall-clock limit, is killed and the run is an
 //! [`ExecError`]. On Unix the process leads a process group of its own and a
@@ -44,6 +47,7 @@ mod fake;
 mod invocation;
 mod pattern;
 mod system;
+mod trusted;
 
 use std::error::Error;
 use std::ffi::OsString;
@@ -59,6 +63,7 @@ pub use pattern::{
     PatternError, RefName, SourcePath, Target, TargetName, TreePath,
 };
 pub use system::SystemRunner;
+pub use trusted::{TrustedArgv, TrustedArgvError, TrustedWord};
 
 pub(crate) use pattern::days_in_month;
 
@@ -126,12 +131,14 @@ impl Programs {
         self
     }
 
-    /// The program an invocation starts.
+    /// The program an invocation of `program` starts, or `None` for
+    /// [`Program::Trusted`], whose program is the first word of its argv.
     #[must_use]
-    pub fn path_of(&self, program: Program) -> &Path {
+    pub fn path_of(&self, program: Program) -> Option<&Path> {
         match program {
-            Program::Cargo => &self.cargo,
-            Program::Git => &self.git,
+            Program::Cargo => Some(&self.cargo),
+            Program::Git => Some(&self.git),
+            Program::Trusted => None,
         }
     }
 }
@@ -181,6 +188,13 @@ impl Limits {
     #[must_use]
     pub fn example() -> Self {
         Self::new(DEFAULT_OUTPUT_BOUND, EXAMPLE_TIMEOUT, false)
+    }
+
+    /// The caller's own command of `evidence record`: 16 MiB per stream, the
+    /// 1800 seconds of a build, and the caller's locale (no `LC_ALL=C`).
+    #[must_use]
+    pub fn trusted() -> Self {
+        Self::new(DEFAULT_OUTPUT_BOUND, BUILD_TIMEOUT, false)
     }
 
     /// The same limits with another output bound.
