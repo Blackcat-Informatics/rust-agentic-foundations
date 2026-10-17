@@ -33,6 +33,8 @@ bindings:
     - raf_workplan::test_crate::coverage::a_re_export_the_index_cannot_follow_is_reported_and_enforced_and_its_module_covers_it
     - raf_workplan::test_crate::coverage::an_item_bound_only_in_examples_is_a_gap
     - raf_workplan::test_crate::coverage::the_first_matching_exclusion_gives_the_reason
+    - raf_workplan::test_crate::coverage::a_capability_that_does_not_load_gives_its_own_findings_and_no_cascade_of_gaps
+    - raf_workplan::test_crate::coverage::a_re_export_written_through_super_names_the_path_super_reaches
   examples:
     - raf_workplan::Workplan::coverage_report
 depends: [cap:workplan-document-model, cap:source-index, cap:workplan-evidence-claims]
@@ -81,6 +83,20 @@ as an `unresolved re-export` with its exported path, the path it names and its
 declaration's file and line. It cannot be bound itself; it is covered by a `code`
 binding of a module that its exported path or the path it names is below, or it is
 excluded with a reason.
+
+> [!PROPOSED change:workplan-two-way-coverage]
+> **Unresolved re-exports.** A public re-export of something of the workspace that the
+> source index cannot follow to an item, such as a type a macro generates, is reported
+> as an `unresolved re-export` with its exported path, the path it names and its
+> declaration's file and line. It cannot be bound itself; it is covered by a `code`
+> binding of a module that its exported path or the path it names is below, or it is
+> excluded with a reason. The path it names is read from the module that declares it,
+> the innermost inline module whose braces hold the declaration or else the module of
+> its file, as `rustc` reads a `use` path: `crate::` from the crate root, `self::` and
+> a bare path from that module, and each `super::` one module up. So
+> `pub use super::gen::Made;` in `src/api.rs` names `made::gen::Made`: a binding of
+> `made::gen` covers it, and a binding of `made::api`, which the path leaves, does
+> not.
 
 **Covered.** A public item is covered when a `code` binding of a capability resolves
 to it or to an item it is below: binding a type covers its methods and associated
@@ -131,6 +147,24 @@ no coverage record has one coverage finding and no other, `coverage-record-missi
 whose fix is to add the record; a record that does not load is reported by its own
 findings and not as missing. `scope: []` enforces no crate and says so in the
 repository. These kinds are in the closed list of finding kinds.
+
+> [!PROPOSED change:workplan-two-way-coverage]
+> **What `check` enforces.** For each crate of `scope`, an unbound public item is
+> `coverage-item-unbound` and an unbound test `coverage-test-unbound`, at the file and
+> line of the item, an unbound unresolved re-export is `coverage-reexport-unbound` at
+> its declaration, and a surface that cannot be listed is
+> `coverage-surface-unreadable` at the record's `scope`. A crate outside `scope` is not
+> enforced, and its gaps are in the reports. While a capability document exists and
+> does not load, `check` reports none of the three unbound kinds: what that document
+> binds is not in the graph, so every item and test it binds would read as bound by no
+> capability, and its own findings already say what is wrong and fail the check; the
+> gaps are judged once it loads. A change record that does not load binds nothing and
+> leaves the gaps reported, and a surface that cannot be listed and an exclusion that
+> matches nothing are reported either way. A repository with capability documents and
+> no coverage record has one coverage finding and no other, `coverage-record-missing`,
+> whose fix is to add the record; a record that does not load is reported by its own
+> findings and not as missing. `scope: []` enforces no crate and says so in the
+> repository. These kinds are in the closed list of finding kinds.
 
 **The account.** For a repository revision the coverage reports name every gap in
 either direction for the whole workspace, so the current account is complete or
@@ -245,3 +279,17 @@ stops compiling or running it receives an `example-failing` obligation.
   `raf-okf` and `raf-source`, outside the scope, are reported with their gaps.
 - The documentation example of `Workplan::coverage_report` runs: two unbound public
   functions of a crate outside `scope` are the two gaps of the code direction.
+
+> [!PROPOSED change:workplan-two-way-coverage]
+> - While a second capability that binds part of a crate of `scope` does not load,
+>   `check` reports its load finding and no `coverage-item-unbound`,
+>   `coverage-test-unbound` or `coverage-reexport-unbound`, and still reports an
+>   exclusion that matches nothing; beside it a change record that does not load
+>   leaves the gaps reported, and the capability loaded with one binding dropped
+>   gives that one gap.
+> - A re-export the index cannot follow, written with `super::`: in a module file
+>   one `super::` names the item of the parent module, covered by a binding of that
+>   module and not by one of the declaring module; in inline modules two levels below
+>   the root, two `super::` reach the root, and a glob of an inline module is read
+>   from the module that holds it and counted; `self::` in a module file is read from
+>   that module.

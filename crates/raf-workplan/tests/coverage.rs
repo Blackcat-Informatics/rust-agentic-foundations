@@ -933,3 +933,194 @@ fn the_first_matching_exclusion_gives_the_reason() {
         ["coverage-item-unbound"]
     );
 }
+
+#[test]
+fn a_capability_that_does_not_load_gives_its_own_findings_and_no_cascade_of_gaps() {
+    let source = load(&files());
+    let coverage = || {
+        coverage_with(
+            "[cov-demo]",
+            &[("cov_demo::tests::*", "Unit tests of internals.")],
+        )
+    };
+    // `omega` binds part of the crate and `zeta` the rest.
+    let mut clean = docs(
+        "[cov_demo::tools, cov_demo::Shown]",
+        "[cov_demo::test_crate::it::bound_test]",
+        Some(coverage()),
+    );
+    let zeta = "docs/capabilities/zeta.md";
+    clean.insert(
+        zeta.to_string(),
+        capability(
+            "zeta",
+            "implementing",
+            [
+                "[cov_demo::bound, cov_demo::open]",
+                "[cov_demo::test_crate::it::open_test]",
+                "[]",
+            ],
+            &[],
+        ),
+    );
+    let is_gap = |f: &Finding| f.kind.starts_with("coverage-") && f.kind.ends_with("-unbound");
+    assert!(
+        findings_of(&clean, &source).iter().all(|f| !is_gap(f)),
+        "{:#?}",
+        findings_of(&clean, &source)
+    );
+    // `zeta` does not load: its own finding, and not one gap for what it binds
+    // or for what nothing binds.
+    let mut broken = clean.clone();
+    let text = broken[zeta].replacen("state: implementing", "state: unknown", 1);
+    broken.insert(zeta.to_string(), text);
+    let findings = findings_of(&broken, &source);
+    assert!(findings.iter().any(|f| f.file == zeta), "{findings:#?}");
+    assert!(findings.iter().all(|f| !is_gap(f)), "{findings:#?}");
+    // An exclusion that matches nothing is still reported meanwhile.
+    let mut unmatched = broken.clone();
+    unmatched.insert(
+        COVERAGE.to_string(),
+        coverage_with(
+            "[cov-demo]",
+            &[
+                ("cov_demo::tests::*", "Unit tests of internals."),
+                ("cov_demo::gone", "It was removed."),
+            ],
+        ),
+    );
+    let findings = findings_of(&unmatched, &source);
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.kind == "coverage-exclusion-unmatched"),
+        "{findings:#?}"
+    );
+    // The neighbours: a change record that does not load binds nothing, so the
+    // gaps of a capability that is missing its bindings stay; and once `zeta`
+    // loads with one binding dropped, that item is a gap again.
+    let mut change = docs(
+        "[cov_demo::tools, cov_demo::Shown]",
+        "[cov_demo::test_crate::it::bound_test]",
+        Some(coverage()),
+    );
+    let text = change[SHAPE].replacen("contract_effect: changes", "contract_effect: maybe", 1);
+    change.insert(SHAPE.to_string(), text);
+    let findings = findings_of(&change, &source);
+    assert!(findings.iter().any(|f| f.file == SHAPE), "{findings:#?}");
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.kind == "coverage-item-unbound" && f.message.contains("`cov_demo::open`")),
+        "{findings:#?}"
+    );
+    let mut dropped = clean;
+    let text = dropped[zeta].replacen("[cov_demo::bound, cov_demo::open]", "[cov_demo::bound]", 1);
+    dropped.insert(zeta.to_string(), text);
+    let gaps: Vec<String> = findings_of(&dropped, &source)
+        .into_iter()
+        .filter(|f| is_gap(f))
+        .map(|f| f.message)
+        .collect();
+    assert_eq!(gaps.len(), 1, "{gaps:#?}");
+    assert!(gaps[0].contains("`cov_demo::open`"), "{gaps:#?}");
+}
+
+#[test]
+fn a_re_export_written_through_super_names_the_path_super_reaches() {
+    let made = |lib: &str, api: Option<&str>| {
+        let mut files = vec![
+            (
+                "crates/made/Cargo.toml".to_string(),
+                "[package]\nname = \"made\"\nversion = \"0.1.0\"\n".to_string(),
+            ),
+            (
+                "crates/made/src/lib.rs".to_string(),
+                format!(
+                    "mod gen {{\n    macro_rules! make {{\n        () => {{\n            pub struct Made;\n        }};\n    }}\n    make!();\n}}\n{lib}/// Documented.\npub fn shown() {{}}\n"
+                ),
+            ),
+        ];
+        if let Some(api) = api {
+            files.push(("crates/made/src/api.rs".to_string(), api.to_string()));
+        }
+        load(&files)
+    };
+    // In a module file, one `super::` is one module up from the module that
+    // declares the re-export: the module the path reaches covers it, and the
+    // module that declares it, which the path leaves, does not.
+    let scoped = |code: &str| docs(code, "[]", Some(coverage_with("[made]", &[])));
+    let file = made(
+        "mod api;\npub use api::*;\n",
+        Some("pub use super::gen::Made;\n"),
+    );
+    let report = report_of(&scoped("[made::shown]"), &file);
+    let [gap] = report.code() else {
+        panic!("{:#?}", report.code());
+    };
+    assert_eq!(
+        (gap.kind(), gap.path(), gap.item(), gap.file()),
+        (
+            GapKind::Reexport,
+            "made::Made",
+            "made::gen::Made",
+            "crates/made/src/api.rs"
+        )
+    );
+    assert_eq!(findings_of(&scoped("[made::shown, made::gen]"), &file), []);
+    let findings = findings_of(&scoped("[made::shown, made::api]"), &file);
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.kind == "coverage-reexport-unbound"
+                && f.message.contains("`made::gen::Made`")),
+        "{findings:#?}"
+    );
+    // In an inline module two levels below the root, two `super::` reach the
+    // root, and a glob of an inline module is read from the module that holds
+    // it, so it is counted as a re-export of the workspace.
+    let inline = made(
+        "pub mod api {\n    pub mod deep {\n        pub use super::super::gen::Made;\n    }\n}\nmod outer {\n    mod deep {\n        pub use super::super::gen::Made;\n    }\n    pub use deep::*;\n}\npub use outer::*;\n",
+        None,
+    );
+    let report = report_of(&scoped("[made::shown, made::api]"), &inline);
+    let gaps: Vec<(&str, &str)> = report.code().iter().map(|g| (g.path(), g.item())).collect();
+    assert_eq!(
+        gaps,
+        [("made::*", "made::outer::deep::*")],
+        "{:#?}",
+        report.code()
+    );
+    assert_eq!(
+        findings_of(&scoped("[made::shown, made::api, made::outer]"), &inline),
+        []
+    );
+    let report = report_of(&scoped("[made::shown, made::outer]"), &inline);
+    let gaps: Vec<(&str, &str)> = report.code().iter().map(|g| (g.path(), g.item())).collect();
+    assert_eq!(
+        gaps,
+        [
+            ("made::api", "made::api"),
+            ("made::api::deep", "made::api::deep"),
+            ("made::api::deep::Made", "made::gen::Made"),
+        ],
+        "{:#?}",
+        report.code()
+    );
+    // The neighbour: `self::` in a module file is read from that module.
+    let own = made(
+        "mod api;\npub use api::*;\n",
+        Some(
+            "mod gen {\n    macro_rules! make {\n        () => {\n            pub struct Other;\n        };\n    }\n    make!();\n}\npub use self::gen::Other;\n",
+        ),
+    );
+    let report = report_of(&scoped("[made::shown, made::gen]"), &own);
+    let [gap] = report.code() else {
+        panic!("{:#?}", report.code());
+    };
+    assert_eq!(gap.item(), "made::api::gen::Other");
+    assert_eq!(
+        findings_of(&scoped("[made::shown, made::gen, made::api::gen]"), &own),
+        []
+    );
+}

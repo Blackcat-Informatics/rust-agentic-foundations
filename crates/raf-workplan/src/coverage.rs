@@ -31,7 +31,11 @@
 //! [`GapKind::Reexport`]: it is never skipped. It is covered when a `code`
 //! binding covers a module that its exported path, or the path it names from
 //! the declaring module, is below, since the re-export itself resolves to no
-//! item a binding could name.
+//! item a binding could name. The declaring module is the innermost inline
+//! module whose braces hold the declaration, or else the module of its file,
+//! and the path is read from it as `rustc` reads a `use` path: `crate::` from
+//! the crate root, `self::` and a bare path from the module, and each
+//! `super::` one module up.
 //!
 //! A surface that cannot be listed is a [`SurfaceError`] of the report, never
 //! an empty surface: the item-bytes budget of the load passed by the listing
@@ -83,7 +87,11 @@
 //! loads. A repository with capability documents and no coverage record has
 //! one `coverage-record-missing` finding: the record states what is enforced,
 //! and `scope: []` enforces nothing, visibly. Crates outside `scope` are not
-//! enforced and their gaps are in the report.
+//! enforced and their gaps are in the report. While a capability document
+//! exists and does not load, `check` reports no gap: what that document binds
+//! is not in the graph, so each item and test it binds would read as unbound,
+//! and its own findings already fail the check; the surfaces that cannot be
+//! listed and the exclusions that match nothing are still reported.
 //!
 //! `check` lists the surface of each library and binary target of a crate of
 //! `scope`, and of a crate that an exclusion names by its first path segment
@@ -99,9 +107,10 @@ pub mod render;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use raf_okf::{CoverageRecord, Exclusion, ExclusionItem, Location};
+use raf_okf::{CoverageRecord, DocType, Exclusion, ExclusionItem, Location};
 use raf_source::{
-    ExportError, ItemId, Reexport, ResolveError, Target, TargetId, TargetKind, TestRole, Workspace,
+    ExportError, ItemId, Reexport, ResolveError, SymbolKind, Target, TargetId, TargetKind,
+    TestRole, Workspace,
 };
 
 use crate::finding::kind;
@@ -582,13 +591,24 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
         }
     }
     let computed = compute(plan.source(), plan.graph(), Some(record), &needed);
-    findings(loaded, &scope, &computed)
+    // A capability document that did not load binds nothing in the graph, so
+    // every item and test it binds would read as a gap. Its own findings say
+    // what is wrong with it, and the gaps are judged once it loads.
+    let capability_unloaded = plan
+        .unloaded()
+        .iter()
+        .any(|id| id.starts_with(DocType::Capability.id_prefix()));
+    findings(loaded, &scope, &computed, !capability_unloaded)
 }
 
+/// The findings of the computed coverage: the gaps of the crates of `scope`
+/// when `gaps` holds, and always the surfaces that cannot be listed and the
+/// exclusions that match nothing.
 fn findings(
     loaded: &Loaded<CoverageRecord>,
     scope: &BTreeSet<&str>,
     computed: &Computed,
+    gaps: bool,
 ) -> Vec<Finding> {
     let report = &computed.report;
     let mut out = Vec::new();
@@ -609,7 +629,7 @@ fn findings(
         .code
         .iter()
         .chain(&report.tests)
-        .filter(|g| scope.contains(g.package.as_str()))
+        .filter(|g| gaps && scope.contains(g.package.as_str()))
     {
         let (kind, fix) = match gap.kind {
             GapKind::PublicItem => (
@@ -917,16 +937,13 @@ impl Judge<'_> {
 }
 
 impl Judge<'_> {
-    /// Whether a re-export the index cannot follow names something of the
-    /// workspace: its written path starts with `crate`, `self` or `super`,
-    /// with a name the module that declares it can resolve, or with the crate
-    /// name of a target of the workspace. Anything else names a crate outside
-    /// the workspace, whose items are not counted.
     /// The paths the written path of a re-export names from the module that
-    /// declares it, one for each module path its file is reached under in the
-    /// target: `crate::` read as the crate path, `self::` as the module, a
-    /// path that starts with a crate of the workspace as written, and any
-    /// other path below the module.
+    /// declares it, one for each module path that module is reached under in
+    /// the target, read as `rustc` reads a `use` path: `crate::` from the crate
+    /// path, a path that starts with a crate of the workspace as written,
+    /// `self::` and any other path from the declaring module, and each
+    /// `super::` one module up from there. A path whose `super::` climbs
+    /// above the crate root names nothing of the target and gives no path.
     fn named_paths(&self, id: TargetId, target: &Target, reexport: &Reexport) -> Vec<String> {
         let written = reexport.written.as_str();
         if let Some(rest) = written.strip_prefix("crate::") {
@@ -940,20 +957,70 @@ impl Judge<'_> {
         {
             return vec![written.to_string()];
         }
-        let rest = written.strip_prefix("self::").unwrap_or(written);
+        let mut rest = written.strip_prefix("self::").unwrap_or(written);
+        let mut up = 0;
+        while let Some(below) = rest.strip_prefix("super::") {
+            up += 1;
+            rest = below;
+        }
         let mut paths: Vec<String> = self
-            .source
-            .file(&reexport.file)
+            .declaring_modules(id, reexport)
             .into_iter()
-            .flat_map(|file| &file.reached)
-            .filter(|reach| reach.target == id)
-            .map(|reach| format!("{}::{rest}", reach.module_path))
+            .filter_map(|module| {
+                let mut base = module.as_str();
+                for _ in 0..up {
+                    base = base.rsplit_once("::")?.0;
+                }
+                Some(format!("{base}::{rest}"))
+            })
             .collect();
         paths.sort();
         paths.dedup();
         paths
     }
 
+    /// The paths of the module that holds the declaration of a re-export, in
+    /// the target, one for each path its file is reached under: the innermost
+    /// inline module of the file whose braces hold the declaration's line, or
+    /// the module of the file itself.
+    fn declaring_modules(&self, id: TargetId, reexport: &Reexport) -> Vec<String> {
+        let Some(file) = self.source.file(&reexport.file) else {
+            return Vec::new();
+        };
+        file.reached
+            .iter()
+            .filter(|reach| reach.target == id)
+            .map(|reach| {
+                let below = format!("{}::", reach.module_path);
+                self.source
+                    .items_in(&reexport.file)
+                    .filter(|item| {
+                        item.kind == SymbolKind::Mod
+                            && item.target == id
+                            && item.path.starts_with(&below)
+                            && item
+                                .body
+                                .as_ref()
+                                .is_some_and(|body| body.lines.contains(&reexport.line))
+                    })
+                    .min_by_key(|item| {
+                        item.body
+                            .as_ref()
+                            .map_or(usize::MAX, |body| body.end_byte - body.start_byte)
+                    })
+                    .map_or_else(
+                        || reach.module_path.to_string(),
+                        |item| item.path.to_string(),
+                    )
+            })
+            .collect()
+    }
+
+    /// Whether a re-export the index cannot follow names something of the
+    /// workspace: its written path starts with `crate`, `self` or `super`,
+    /// with a name the module that declares it ([`Self::declaring_modules`])
+    /// can resolve, or with the crate name of a target of the workspace. Anything else names a crate outside
+    /// the workspace, whose items are not counted.
     fn is_local(&self, id: TargetId, target: &Target, reexport: &Reexport) -> bool {
         if reexport.written.starts_with("::") {
             return false;
@@ -967,17 +1034,12 @@ impl Judge<'_> {
         {
             return true;
         }
-        self.source.file(&reexport.file).is_some_and(|file| {
-            file.reached.iter().any(|reach| {
-                reach.target == id
-                    && !matches!(
-                        self.source.resolve_in_package(
-                            &target.package,
-                            &format!("{}::{first}", reach.module_path)
-                        ),
-                        Err(ResolveError::NotFound(_))
-                    )
-            })
+        self.declaring_modules(id, reexport).iter().any(|module| {
+            !matches!(
+                self.source
+                    .resolve_in_package(&target.package, &format!("{module}::{first}")),
+                Err(ResolveError::NotFound(_))
+            )
         })
     }
 }

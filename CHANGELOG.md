@@ -251,6 +251,15 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   such a document may hold, so `evidence claims` exits 2 as `evidence for` does. A
   change record or an evidence record that does not load leaves the answer as it
   is.
+- **`raf-workplan` coverage of unresolved re-exports and unloaded
+  capabilities:** the path an unresolved re-export names is read from the module
+  that declares it, the innermost inline module whose braces hold the declaration
+  or else the module of its file, with each `super::` one module up, so a binding
+  of the module it reaches covers it and a binding of the declaring module that
+  the path leaves no longer does. While a capability document exists and does
+  not load, `check` reports its own findings and no `coverage-item-unbound`,
+  `coverage-test-unbound` or `coverage-reexport-unbound`, in place of one finding
+  for every item and test that document binds.
 - **`raf-workplan` the caller's command in messages:** the text of a trusted
   `Invocation`, which the messages of `ExecError` quote, is the command as
   `TrustedArgv::text` writes it and the evidence record stores it, each word a
