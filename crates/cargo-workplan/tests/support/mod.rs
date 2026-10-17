@@ -424,7 +424,15 @@ pub(crate) fn snapshot(root: &Path) -> BTreeMap<String, Vec<u8>> {
                 into.insert(format!("{name}/"), Vec::new());
                 walk(root, &path, into);
             } else {
-                into.insert(name, fs::read(&path).expect("file bytes"));
+                // A file that Git removed between listing and reading (a lock or a
+                // temporary file) is not part of the tree a test compares.
+                match fs::read(&path) {
+                    Ok(bytes) => {
+                        into.insert(name, bytes);
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => panic!("cannot read {}: {e}", path.display()),
+                }
             }
         }
     }
@@ -515,6 +523,12 @@ pub(crate) fn git_with(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Strin
             "core.hooksPath=/dev/null",
             "-c",
             "core.excludesFile=",
+            // No background maintenance: it can create and remove files under
+            // `.git` while a test reads the tree.
+            "-c",
+            "gc.auto=0",
+            "-c",
+            "maintenance.auto=false",
         ])
         .args(args)
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
