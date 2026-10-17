@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-current-rationale
 title: "Current rationale"
 description: "Shared architecture pages that state resolved decisions, and the conditions to revisit them."
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_workplan::rationale
