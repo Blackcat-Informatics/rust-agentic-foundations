@@ -285,29 +285,18 @@ generated block and an end marker without a start are parse errors with line num
 So are block quotes and list items nested over 64 levels and, outside fenced code,
 code spans and PROPOSED blocks, a malformed claim marker, a claim marker with no
 statement directly above it, and a `raf:` comment that is neither a `raf:generated:`
-comment nor a claim marker, so a misspelt claim marker never reads as a plain comment. `Body::replace_spans` applies non-overlapping byte-range edits in
-one pass and reads the model again; it is all or nothing, and it fails with a typed
-error for a range outside the body, a range inside a character, two ranges that
-overlap, or a result that no longer parses. `Document` and `Index` delegate to it.
-
-> [!PROPOSED change:okf-profile]
-> A malformed PROPOSED marker in any spelling, an unclosed generated block, a nested
-> generated block and an end marker without a start are parse errors with line numbers.
-> So are block quotes and list items nested over 64 levels and, outside fenced code,
-> code spans and PROPOSED blocks, a malformed claim marker, a claim marker with no
-> statement directly above it, and a `raf:` comment that is neither a `raf:generated:`
-> comment nor a claim marker, so a misspelt claim marker never reads as a plain comment.
-> A marker is one line: an HTML comment that `<!--` opens at the end of a line, outside
-> its code spans, and whose first non-blank text on the lines below is `raf:` in any
-> letter case and not `raf:generated:`, is the same error at the line of `<!--`,
-> `okf-parse-malformed-claim` for `raf:claim` and `okf-parse-unknown-marker` for
-> another word, so a claim marker split over lines never reads as a plain comment
-> either. A multi-line `raf:generated:` comment, an SPDX header written over several
-> lines and every other multi-line comment are plain comments. `Body::replace_spans`
-> applies non-overlapping byte-range edits in one pass and reads the model again; it
-> is all or nothing, and it fails with a typed error for a range outside the body, a
-> range inside a character, two ranges that overlap, or a result that no longer
-> parses. `Document` and `Index` delegate to it.
+comment nor a claim marker, so a misspelt claim marker never reads as a plain comment.
+A marker is one line: an HTML comment that `<!--` opens at the end of a line, outside
+its code spans, and whose first non-blank text on the lines below is `raf:` in any
+letter case and not `raf:generated:`, is the same error at the line of `<!--`,
+`okf-parse-malformed-claim` for `raf:claim` and `okf-parse-unknown-marker` for
+another word, so a claim marker split over lines never reads as a plain comment
+either. A multi-line `raf:generated:` comment, an SPDX header written over several
+lines and every other multi-line comment are plain comments. `Body::replace_spans`
+applies non-overlapping byte-range edits in one pass and reads the model again; it
+is all or nothing, and it fails with a typed error for a range outside the body, a
+range inside a character, two ranges that overlap, or a result that no longer
+parses. `Document` and `Index` delegate to it.
 
 **Write.** `Document::render` writes a document back. The writer is deterministic
 and round-trips: parsing the output yields an equal document, and rendering a
@@ -482,18 +471,17 @@ would produce noise in the diff, and a clean check could not be told from a stal
   frontmatter cannot hold by the writer.
 - A `raf:generated:` comment in another letter case or spacing is text, beside
   an unknown `raf:` comment that is refused.
-
-> [!PROPOSED change:okf-profile]
-> - Split-marker fixtures of the body model: `<!--`, `raf:claim evidence=x` and `-->`
->   on three lines, the same with a blank line and `  RAF:Claim` below `<!--`, and a
->   comment opened after a statement on its line are each a malformed claim marker at
->   the line of `<!--`, and `<!--`, `raf:foo`, `-->` is an unknown marker; beside them
->   a split `raf:generated:` comment in two spellings, an SPDX header over several
->   lines, an ordinary multi-line comment, an empty one and one opened in a code span
->   are plain, and nothing is read in fenced code or a PROPOSED block. Through
->   `check`, the first two in a capability are `okf-parse-malformed-claim` and the
->   third `okf-parse-unknown-marker`, each exit 1 with nothing written, and the split
->   `raf:generated:` comment, the SPDX header and the ordinary comment exit 0.
+- Split-marker fixtures of the body model: `<!--`, `raf:claim evidence=x` and `-->`
+  on three lines, the same with a blank line and `  RAF:Claim` below `<!--`, and a
+  comment opened after a statement on its line are each a malformed claim marker at
+  the line of `<!--`, and `<!--`, `raf:foo`, `-->` is an unknown marker; beside them
+  a split `raf:generated:` comment in two spellings, an SPDX header over several
+  lines, an ordinary multi-line comment, an empty one and one opened in a code span
+  are plain, and nothing is read in fenced code or a PROPOSED block. Through
+  `check`, the three-line claim marker and the one with a blank line in a
+  capability are `okf-parse-malformed-claim` and the `raf:foo` comment
+  `okf-parse-unknown-marker`, each exit 1 with nothing written, and the split
+  `raf:generated:` comment, the SPDX header and the ordinary comment exit 0.
 
 - Cost fixture: an evidence record at the 1 MiB cap with the most `values` and
   `limits` validates within 100 ms in a release build.

@@ -12,7 +12,9 @@ affects:
 contract_effect: changes
 items:
   - claim: "A claim marker split over lines is an error: a multi-line HTML comment whose first text after its opening is raf:claim in any letter case is okf-parse-malformed-claim."
+    outcome: implemented
   - claim: "A multi-line HTML comment whose first text is another raf: marker, other than raf:generated:, is okf-parse-unknown-marker, while multi-line raf:generated: comments, SPDX headers and ordinary multi-line comments stay plain."
+    outcome: implemented
 ---
 
 ## Summary
