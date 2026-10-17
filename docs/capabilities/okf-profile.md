@@ -5,7 +5,7 @@ type: Capability
 id: cap:okf-profile
 title: "OKF profile reader and writer"
 description: "The raf-okf crate: parse OKF Markdown, validate the RAF profile with closed key sets, and write documents back deterministically."
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_okf::Document
