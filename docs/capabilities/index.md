@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | [okf-profile](./okf-profile.md) | The raf-okf crate: parse OKF Markdown, validate the RAF profile with closed key sets, and write documents back deterministically. |  |
 | [source-index](./source-index.md) | The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #\[path\], and a symbol and use-alias index. |  |
+| [workplan-cli](./workplan-cli.md) | The cargo workplan subcommands, options and exit codes. |  |
 | [workplan-complete-gate](./workplan-complete-gate.md) | change complete and verify: the six completion conditions, lighter obligations for changes that leave the contract alone, deletion of the record, and the acceptance scenarios. |  |
 | [workplan-current-rationale](./workplan-current-rationale.md) | Shared architecture pages that state resolved decisions, and the conditions to revisit them. |  |
 | [workplan-document-model](./workplan-document-model.md) | Capability and change documents, the four states, PROPOSED blocks, the graph, binding resolution and the check rules. |  |
@@ -17,12 +18,6 @@
 | [workplan-prose-assessment](./workplan-prose-assessment.md) | Recorded assessments of explanatory prose by humans and agents, invalidated when their inputs change. |  |
 | [workplan-reconcile](./workplan-reconcile.md) | change new, change impact and change reconcile: opening a change, listing what it touches, and producing the documentation obligations. |  |
 | [workplan-two-way-coverage](./workplan-two-way-coverage.md) | Checks from code to documentation and from tests to claims, complementing the documentation-to-code and documentation-to-tests checks. |  |
-
-## Implementing
-
-| Capability | Description | Gaps |
-| --- | --- | --- |
-| [workplan-cli](./workplan-cli.md) | The cargo workplan subcommands, options and exit codes. |  |
 
 ## Designed
 
