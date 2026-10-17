@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-two-way-coverage
 title: "Two-way coverage"
 description: "Checks from code to documentation and from tests to claims, complementing the documentation-to-code and documentation-to-tests checks."
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_workplan::coverage

@@ -94,7 +94,7 @@ const INVENTORY: Inventory = Inventory {
         ("workplan-generated-docs", "delivered"),
         ("workplan-prose-assessment", "delivered"),
         ("workplan-reconcile", "delivered"),
-        ("workplan-two-way-coverage", "implementing"),
+        ("workplan-two-way-coverage", "delivered"),
     ],
     architecture: &["normal-form", "okf-profile"],
     records: &[
@@ -1035,8 +1035,8 @@ fn inventory_table_has_the_documented_shape() {
             .count()
     };
     assert_eq!(count("designed"), 9);
-    assert_eq!(count("implementing"), 2);
-    assert_eq!(count("delivered"), 10);
+    assert_eq!(count("implementing"), 1);
+    assert_eq!(count("delivered"), 11);
     assert_eq!(count("considered"), 0);
     assert_eq!(INVENTORY.architecture.len(), 2);
     assert!(
