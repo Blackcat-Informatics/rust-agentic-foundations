@@ -490,18 +490,56 @@ fn this_repository_lists_every_capability_once_in_its_state_group() {
             assert!(entry.gaps().is_empty(), "{}", header.id);
         }
     }
-    // The load found the built capabilities: the first two are listed, each
-    // in the group of the state its document declares (checked above), and
-    // some capability is built, delivered or being changed while implementing;
-    // the rest is planned work.
-    for slug in ["okf-profile", "source-index"] {
-        assert!(roadmap.get(slug).is_some(), "{slug} is not in the roadmap");
+    // The load found the built capabilities: each capability this repository
+    // has delivered is listed in the delivered group, so the group is never
+    // empty. The census capabilities are listed too, in whatever group their
+    // documents declare (checked above); the rest is planned work.
+    let delivered = [
+        "okf-profile",
+        "source-index",
+        "workplan-cli",
+        "workplan-complete-gate",
+        "workplan-current-rationale",
+        "workplan-document-model",
+        "workplan-entity-history",
+        "workplan-evidence-claims",
+        "workplan-generated-docs",
+        "workplan-prose-assessment",
+        "workplan-reconcile",
+        "workplan-two-way-coverage",
+    ];
+    for slug in delivered {
+        let entry = roadmap
+            .get(slug)
+            .unwrap_or_else(|| panic!("{slug} is not in the roadmap"));
+        assert_eq!(entry.state(), State::Delivered, "{slug} is not delivered");
+        assert!(entry.gaps().is_empty(), "{slug}: {:?}", entry.gaps());
+        assert!(
+            roadmap
+                .group(State::Delivered)
+                .iter()
+                .any(|e| e.slug() == slug),
+            "{slug} is not in the delivered group"
+        );
     }
     assert_ne!(
-        roadmap.group(State::Delivered).len() + roadmap.group(State::Implementing).len(),
+        roadmap.group(State::Delivered).len(),
         0,
-        "nothing is built"
+        "nothing is delivered"
     );
+    for slug in [
+        "census-cli",
+        "census-debt-ratchet",
+        "census-detectors",
+        "census-ledger",
+        "census-migration",
+        "census-normal-form",
+        "census-patterns",
+        "census-reference-scan",
+        "census-rule-api",
+    ] {
+        assert!(roadmap.get(slug).is_some(), "{slug} is not in the roadmap");
+    }
     assert_eq!(
         roadmap.planned().len(),
         roadmap.group(State::Designed).len() + roadmap.group(State::Considered).len()
