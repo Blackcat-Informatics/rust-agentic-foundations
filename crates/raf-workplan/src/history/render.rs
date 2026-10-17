@@ -24,38 +24,15 @@
 use std::fmt::Write as _;
 
 use super::{Entry, History, Removal, RemovedBinding, Source};
+use crate::escape::shown;
 use crate::generated::{cell, code_span};
 
 /// The digits of an abbreviated commit id.
 const SHORT: usize = 7;
 
-/// Whether `c` changes how a terminal shows the text around it: a control
-/// character, or a bidirectional formatting character (the marks U+061C,
-/// U+200E and U+200F, the embeddings and overrides U+202A to U+202E, and the
-/// isolates U+2066 to U+2069).
-fn hidden(c: char) -> bool {
-    c.is_control()
-        || matches!(
-            c,
-            '\u{61c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'
-        )
-}
-
-/// `text` with each [`hidden`] character as its `\u{..}` escape.
-fn shown(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for c in text.chars() {
-        if hidden(c) {
-            let _ = write!(out, "\\u{{{:x}}}", u32::from(c));
-        } else {
-            out.push(c);
-        }
-    }
-    out
-}
-
 /// `text` as a table cell: the generated-table rule, then each control or
-/// bidirectional formatting character that rule leaves as its escape.
+/// bidirectional formatting character that rule leaves as its escape
+/// ([`crate::escape`]).
 pub(crate) fn table_cell(text: &str) -> String {
     shown(&cell(text))
 }

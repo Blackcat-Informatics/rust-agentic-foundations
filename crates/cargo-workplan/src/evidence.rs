@@ -17,6 +17,7 @@ use std::path::Path;
 
 use raf_okf::{CapabilitySection, DocType, EvidenceVerdict, Measure};
 use raf_workplan::Gate;
+use raf_workplan::escape::shown_lines;
 use raf_workplan::evidence::{
     ClaimStatement, EvidenceRequest, Failed, Recorded, Support, VerdictSource, WriteMode,
 };
@@ -205,7 +206,10 @@ fn evidence_id(id: &str) -> String {
 }
 
 /// The record of one claim: `<path>:<line>: <capability>#<section>` and the
-/// statement below it, each line indented by four spaces.
+/// statement below it, each line indented by four spaces, with each control
+/// and bidirectional formatting character but the line feed and the tab as
+/// its escape
+/// (`raf_workplan::escape::shown_lines`); the JSON form escapes as JSON does.
 fn claim_record(evidence: &str, claim: &ClaimStatement) -> Record {
     let section = claim.section.map(CapabilitySection::slug);
     let at = section.map_or_else(
@@ -217,6 +221,8 @@ fn claim_record(evidence: &str, claim: &ClaimStatement) -> Record {
         text.push_str("\n    ");
         text.push_str(line);
     }
+    // The statement is document text: no control of it reaches the terminal.
+    let text = shown_lines(&text);
     Record::outcome(
         "evidence-claim",
         vec![

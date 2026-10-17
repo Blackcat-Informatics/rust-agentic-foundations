@@ -261,3 +261,60 @@ fn a_section_that_cannot_be_assessed_is_exit_two_and_writes_nothing() {
         assert_eq!(repo.snapshot(), before, "{args:?}");
     }
 }
+
+/// Text a terminal acts on: a clear-screen sequence, a title (OSC ... BEL)
+/// and a right-to-left override.
+const HOSTILE: &str = "\u{1b}[2J\u{1b}]0;PWNED\u{7} \u{202e}tfel";
+
+#[test]
+fn the_text_of_a_section_reaches_the_terminal_escaped_and_json_escapes_it_as_json() {
+    let repo = Repo::synced("assess-context-escaped", false);
+    repo.edit(
+        "docs/capabilities/alpha.md",
+        "Text for Contract of alpha.",
+        &format!("Text for Contract of alpha.{HOSTILE}"),
+    );
+    let run = repo.both(&["assess", SUBJECT, "--context"]).expect(0);
+    assert!(
+        !run.stdout
+            .chars()
+            .any(|c| c == '\u{1b}' || c == '\u{7}' || c == '\u{202e}'),
+        "{run:#?}"
+    );
+    assert!(
+        run.stdout
+            .contains("Text for Contract of alpha.\\u{1b}[2J\\u{1b}]0;PWNED\\u{7} \\u{202e}tfel"),
+        "{run:#?}"
+    );
+    // Only the hidden characters change: lines and indentation stay.
+    assert_eq!(
+        run.stdout,
+        raf_workplan::escape::shown_lines(&library_context(&repo))
+    );
+    assert_eq!(
+        run.stdout.lines().count(),
+        library_context(&repo).lines().count()
+    );
+    // JSON escapes the controls as JSON does and keeps the text.
+    let json = repo
+        .both(&["--format", "json", "assess", SUBJECT, "--context"])
+        .expect(0);
+    assert!(
+        !json.stdout.contains('\u{1b}') && json.stdout.contains("\\u001b"),
+        "{json:#?}"
+    );
+    let section = array(&json)[0]["section"]
+        .as_str()
+        .expect("a section")
+        .to_string();
+    assert!(section.contains(HOSTILE), "{section:?}");
+    // The neighbour: plain text is printed as it is.
+    let plain = Repo::synced("assess-context-plain", false);
+    assert_eq!(
+        plain
+            .both(&["assess", SUBJECT, "--context"])
+            .expect(0)
+            .stdout,
+        library_context(&plain)
+    );
+}

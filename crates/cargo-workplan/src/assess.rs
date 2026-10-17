@@ -13,6 +13,7 @@ use raf_workplan::assessment::{
     AssessContext, Assessed, AssessmentRequest, AssessmentState, Currency, InputChange, InputNow,
     MovedInput,
 };
+use raf_workplan::escape::shown_lines;
 use raf_workplan::record::RecordOptions;
 use serde_json::{Value, json};
 
@@ -73,7 +74,11 @@ pub(crate) fn assess(root: &Path, args: &AssessArgs) -> Result<Report, Failure> 
     Ok(Report::of([assessed_record(&assessed)]))
 }
 
-/// The record of the context of a section. Its text is the library's.
+/// The record of the context of a section. Its text is the library's, with
+/// each control and bidirectional formatting character but the line feed and
+/// the tab as its escape (`raf_workplan::escape::shown_lines`), since it holds
+/// the text of the section and of the bound code; the JSON form escapes as
+/// JSON does.
 fn context_record(context: &AssessContext) -> Record {
     let symbols: Vec<Value> = context
         .symbols
@@ -139,7 +144,7 @@ fn context_record(context: &AssessContext) -> Record {
             ("evidence", Value::Array(evidence)),
             ("inputs", Value::Array(inputs)),
         ],
-        context.to_string(),
+        shown_lines(&context.to_string()),
     )
 }
 

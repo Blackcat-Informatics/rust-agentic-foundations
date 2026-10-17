@@ -23,6 +23,7 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::assess::assess
     - cargo_workplan::bin_crate::cargo_workplan::coverage::coverage
     - cargo_workplan::bin_crate::cargo_workplan::render::Report
+    - raf_workplan::escape
   tests:
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::each_command_parses_in_both_shapes
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair
@@ -210,6 +211,10 @@ bindings:
     - cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record
     - cargo_workplan::test_crate::evidence::the_views_print_json_and_refuse_what_does_not_exist
     - cargo_workplan::test_crate::evidence::claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records
+    - cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_json_escapes_it_as_json
+    - cargo_workplan::test_crate::assess::the_text_of_a_section_reaches_the_terminal_escaped_and_json_escapes_it_as_json
+    - raf_workplan::escape::tests::each_control_and_bidirectional_formatting_character_is_escaped
+    - raf_workplan::escape::tests::lines_keep_their_line_feeds_and_tabs_and_lose_every_other_control
     - cargo_workplan::test_crate::evidence::the_words_after_the_separator_are_the_command_options_included
     - cargo_workplan::test_crate::history::a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding
     - cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers
@@ -227,6 +232,7 @@ bindings:
     - raf_workplan::Workplan::preview
     - raf_workplan::Workplan::new_change
     - raf_workplan::Workplan::impact
+    - raf_workplan::escape::shown_lines
 depends: [cap:workplan-complete-gate, cap:workplan-reconcile, cap:workplan-generated-docs]
 ---
 
@@ -499,6 +505,17 @@ result holds:
   `work/changes/<slug>.md` does not exist; `change new` fails with exit 2 when it
   exists.
 
+> [!PROPOSED change:workplan-cli]
+> - Document text reaches the terminal escaped. The text output of `evidence claims`
+>   (each statement) and of `assess --context` (the section and the bound code)
+>   writes each control character other than the line feed and the tab, a carriage
+>   return, an escape and a bell included, and each bidirectional formatting
+>   character (U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069) as its
+>   `\u{..}` escape (`raf_workplan::escape::shown_lines`), as the history and
+>   coverage tables escape their cells, so a document cannot clear the screen, set the
+>   title of a terminal or reorder a line. The JSON form carries the text itself,
+>   with its control characters escaped as JSON escapes them.
+
 ## Explanation
 
 Library and binary are separate so that the check runs where it cannot be skipped, in
@@ -574,6 +591,12 @@ rather than kept by hand.
   coverage gap; the read-only commands leave the tree byte-identical.
 
 > [!PROPOSED change:workplan-cli]
+> - An escape sequence that clears the screen, an OSC title ended by a bell and a
+>   right-to-left override in a claimed statement and in a section: the text output
+>   of `evidence claims` and of `assess --context` holds none of them raw and shows
+>   each as its `\u{..}` escape, keeping the line feeds and the tabs, and the
+>   context equals the library's text escaped; the JSON form escapes them as JSON
+>   does and reads back as the text; plain text is printed unchanged.
 > - `evidence claims` while a capability document does not load: exit 2 in text and
 >   JSON, naming the document on standard error, with nothing on standard output and
 >   nothing written, for an id with claims and for one without; a change record or
@@ -618,6 +641,7 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::assess::a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::assess::the_context_is_the_same_whoever_asks_and_writes_nothing` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::assess::the_list_shows_each_assessment_current_until_an_input_moves` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::assess::the_text_of_a_section_reaches_the_terminal_escaped_and_json_escapes_it_as_json` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::a_clean_repository_exits_zero_and_prints_nothing` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::a_finding_is_gone_once_it_is_fixed` | test | [Verification](#verification) |
@@ -647,6 +671,7 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::coverage::this_repository_names_the_gaps_outside_its_scope_and_none_in_it` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_json_escapes_it_as_json` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::a_command_that_passes_writes_exactly_one_record_and_exits_zero` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::a_failing_command_or_a_value_over_its_limit_records_fail_and_exits_one` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::a_replacement_holds_the_spdx_lines_of_its_own_run_only` | test | [Verification](#verification) |
@@ -758,6 +783,9 @@ rather than kept by hand.
 | `raf_workplan::Workplan::new_change` | doctest | [Verification](#verification) |
 | `raf_workplan::Workplan::preview` | doctest | [Verification](#verification) |
 | `raf_workplan::Workplan::sync` | doctest | [Verification](#verification) |
+| `raf_workplan::escape::shown_lines` | doctest | [Verification](#verification) |
+| `raf_workplan::escape::tests::each_control_and_bidirectional_formatting_character_is_escaped` | test | [Verification](#verification) |
+| `raf_workplan::escape::tests::lines_keep_their_line_feeds_and_tabs_and_lose_every_other_control` | test | [Verification](#verification) |
 | `raf_workplan::root::json::tests::a_large_text_is_scanned_to_its_end` | test | [Verification](#verification) |
 | `raf_workplan::root::json::tests::a_member_that_is_only_nested_is_not_the_member` | test | [Verification](#verification) |
 | `raf_workplan::root::json::tests::a_member_twice_is_refused_even_when_the_values_agree` | test | [Verification](#verification) |

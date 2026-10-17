@@ -741,3 +741,41 @@ fn cargo_passes_the_command_after_the_separator_to_the_binary_unchanged() {
     assert_eq!(run.stdout, format!("recorded: {RECORD} (pass)\n"));
     assert_eq!(repo.read("argv.txt"), "--\n-q\n");
 }
+
+#[test]
+fn a_claimed_statement_reaches_the_terminal_escaped_and_json_escapes_it_as_json() {
+    let hostile = "\u{1b}[2J\u{1b}]0;PWNED\u{7} \u{202e}tfel";
+    let repo = Repo::synced("evidence-claims-escaped", false);
+    repo.edit(
+        "docs/capabilities/alpha.md",
+        "Text for Contract of alpha.",
+        &format!(
+            "Text for Contract of alpha.{hostile}\n\tIndented.\n<!-- raf:claim evidence=peak -->"
+        ),
+    );
+    repo.sync();
+    let line = repo
+        .read("docs/capabilities/alpha.md")
+        .lines()
+        .position(|l| l.starts_with("<!-- raf:claim"))
+        .expect("the marker")
+        + 1;
+    let run = repo.both(&["evidence", "claims", "peak"]).expect(0);
+    assert_eq!(
+        run.stdout,
+        format!(
+            "docs/capabilities/alpha.md:{line}: cap:alpha#contract\n    Text for Contract of alpha.\\u{{1b}}[2J\\u{{1b}}]0;PWNED\\u{{7}} \\u{{202e}}tfel\n    \tIndented.\n"
+        )
+    );
+    let json = repo
+        .both(&["--format", "json", "evidence", "claims", "peak"])
+        .expect(0);
+    assert!(
+        !json.stdout.contains('\u{1b}') && json.stdout.contains("\\u001b"),
+        "{json:#?}"
+    );
+    assert_eq!(
+        array(&json)[0]["statement"],
+        format!("Text for Contract of alpha.{hostile}\n\tIndented.\n")
+    );
+}

@@ -251,6 +251,12 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   such a document may hold, so `evidence claims` exits 2 as `evidence for` does. A
   change record or an evidence record that does not load leaves the answer as it
   is.
+- **Escaped document text on a terminal:** `raf_workplan::escape::shown_lines`
+  writes each control character but the line feed and the tab, and each
+  bidirectional formatting character, as its `\u{..}` escape, the rule the history
+  and coverage tables apply to their cells. The text output of `evidence claims`
+  and `assess --context` goes through it, so a document cannot clear the screen,
+  set the title of a terminal or reorder a line; the JSON forms are unchanged.
 - **`cargo-workplan` record commands:** `history <id> [--since <YYYY-MM-DD>]`
   prints the table or the JSON of `Workplan::history` (exit 0, or 2 for an id no
   document has, a shallow clone or a Git older than 2.30). `evidence record --id

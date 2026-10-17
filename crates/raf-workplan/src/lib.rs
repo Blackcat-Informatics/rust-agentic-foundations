@@ -194,7 +194,9 @@
 //! and, for a binding that no longer resolves, the commit that removed it and
 //! its parent ([`history`]). The id never reaches a process, a shallow clone is
 //! refused, and [`history::render`] writes the table and the JSON form of the
-//! same entries. It writes nothing.
+//! same entries. It writes nothing. Text from a document, a record or a commit
+//! that a table or the command line prints is escaped by [`escape`] first, so
+//! no control or bidirectional formatting character reaches a terminal.
 //!
 //! [`bound`] runs what a capability binds: the tests, documentation tests and
 //! examples of `tests` and `examples`, through a runner and only the argv forms of the
@@ -282,6 +284,7 @@ mod bindings;
 pub mod bound;
 pub mod coverage;
 pub mod digest;
+pub mod escape;
 pub mod evidence;
 pub mod exec;
 mod files;
