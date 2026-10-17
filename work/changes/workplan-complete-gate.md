@@ -14,8 +14,11 @@ affects:
 contract_effect: changes
 items:
   - claim: "The refusal headline counts sections: a section without a current accepted assessment is counted once, however many assessment obligations it has."
+    outcome: implemented
   - claim: "A kill for too much output records the time it ran and the output limit in the reason of the failing binding, as a kill at the timeout records the time it ran and the time limit."
+    outcome: implemented
   - claim: "change complete refuses a linked work directory before it runs or writes anything, and a linked work/changes holds no change record, so the record it removes is the file at work/changes/<slug>.md."
+    outcome: implemented
 ---
 
 ## Summary

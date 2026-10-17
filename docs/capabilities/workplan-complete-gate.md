@@ -274,30 +274,15 @@ agent satisfies the condition as one by a human does, and a `rejected` verdict n
 does. A section with nothing outside its generated blocks and comments cannot occur:
 the profile refuses such a section (`okf-section-empty`), so its document does not
 load and `complete` is an error before any condition is judged, and every section of
-a capability that loads is authored. Each section without a current accepted
-assessment is also an `assessment-missing`, `assessment-stale` or
-`assessment-rejected` obligation, so conditions 1 and 6 both report it, and the
-refusal prints the line once, under its obligation, with the count
-`sections without a current accepted assessment`. `complete` reads the assessment
-records and never writes one: they stay as they are when the change record is
-removed.
-
-> [!PROPOSED change:workplan-complete-gate]
-> A section with no assessment, one whose assessment has an input that moved, and one
-> whose current assessment is `rejected` each refuse condition 6. An assessment by an
-> agent satisfies the condition as one by a human does, and a `rejected` verdict never
-> does. A section with nothing outside its generated blocks and comments cannot occur:
-> the profile refuses such a section (`okf-section-empty`), so its document does not
-> load and `complete` is an error before any condition is judged, and every section of
-> a capability that loads is authored. A section without a current accepted
-> assessment is one or more `assessment-missing`, `assessment-stale` or
-> `assessment-rejected` obligations, one `assessment-stale` for each input that moved,
-> so conditions 1 and 6 both report it. The refusal prints each of those lines once,
-> under its obligation, and its headline counts the section once, as
-> `sections without a current accepted assessment`, however many obligations it has:
-> one section with three moved inputs is `3 obligations, 1 section without a current
-> accepted assessment`. `complete` reads the assessment records and never writes one:
-> they stay as they are when the change record is removed.
+a capability that loads is authored. A section without a current accepted
+assessment is one or more `assessment-missing`, `assessment-stale` or
+`assessment-rejected` obligations, one `assessment-stale` for each input that moved,
+so conditions 1 and 6 both report it. The refusal prints each of those lines once,
+under its obligation, and its headline counts the section once, as
+`sections without a current accepted assessment`, however many obligations it has:
+one section with three moved inputs is `3 obligations, 1 section without a current
+accepted assessment`. `complete` reads the assessment records and never writes one:
+they stay as they are when the change record is removed.
 
 **Order.** The static conditions are judged first, every one of them and with no
 early exit: conditions 1 to 4 (the obligation list without `example-failing`, which
@@ -330,14 +315,13 @@ the rewrite fails the record stays, and if the deletion fails after the rewrite 
 error names the files already rewritten, so a deleted record is never found beside
 stale blocks. Git holds the record's history.
 
-> [!PROPOSED change:workplan-complete-gate]
-> The record is deleted only through real directories. With the static conditions,
-> before any `cargo` process or write, `complete` judges the way to
-> `work/changes/<slug>.md`: `work` and `work/changes` must each be a directory and not
-> a symbolic link, and the record a regular file there. Otherwise it is an error
-> (exit 2) that names the refused directory, and nothing is run or written. A linked
-> `work/changes` is never read as the directory of change records, so its change is
-> not found.
+The record is deleted only through real directories. With the static conditions,
+before any `cargo` process or write, `complete` judges the way to
+`work/changes/<slug>.md`: `work` and `work/changes` must each be a directory and not
+a symbolic link, and the record a regular file there. Otherwise it is an error
+(exit 2) that names the refused path, and nothing is run or written. A linked
+`work/changes` is never read as the directory of change records, so its change is
+not found.
 
 **Obligations by effect.** All six conditions apply to every change. The effect only
 sets which obligations [reconcile](./workplan-reconcile.md) raises. A change with
@@ -432,23 +416,16 @@ cargo configuration as `cargo test` would, so the workspace is trusted build inp
 timeout of 1800 seconds. The standard output and the standard error of every process
 of a bound run are each read up to 16 MiB. A process that runs past its timeout or
 writes more than the bound is killed, its process group with it on Unix, and the
-binding counts as failing; a process that cannot be started is an error and not a
-verdict.
+binding counts as failing with the time it ran; a process that cannot be started is
+an error and not a verdict.
 
 A bound test that runs past its timeout is killed and fails its binding, and the
 reason says that it was killed, with the time it ran and its limit.
 <!-- raf:claim evidence=gate-kills-a-test-past-its-timeout -->
 
-> [!PROPOSED change:workplan-complete-gate]
-> **Bounds.** Each list pass and run pass of `cargo test` may compile first and has a
-> timeout of 1800 seconds. The standard output and the standard error of every process
-> of a bound run are each read up to 16 MiB. A process that runs past its timeout or
-> writes more than the bound is killed, its process group with it on Unix, and the
-> binding counts as failing with the time it ran; a process that cannot be started is
-> an error and not a verdict. A bound test that writes more than the bound is killed
-> and fails its binding, and the reason says that it was killed, with the time it ran
-> and the bound, as the reason of a kill at the timeout gives the time it ran and the
-> timeout.
+A bound test that writes more than the bound is killed and fails its binding in
+the same way, and the reason says that it was killed, with the time it ran and the
+bound.
 
 **`verify [<slug>]`** runs the bound tests and the bound examples of the named change's
 capabilities, or of every capability when no slug is given, and prints pass or fail for
@@ -508,11 +485,10 @@ refused: 1 obligation, 1 section without a current accepted assessment
 cap:streaming-parser  usage  assessment-stale  the section assessed again with assess (`assessment:streaming-parser-usage`: the symbol `raf_parser::Parser::push` has changed since)
 ```
 
-> [!PROPOSED change:workplan-complete-gate]
-> When the Usage section itself was also edited after it was assessed, its
-> assessment has two moved inputs: the refusal prints two `assessment-stale` lines,
-> one naming the section and one naming `raf_parser::Parser::push`, and its headline
-> reads `refused: 2 obligations, 1 section without a current accepted assessment`.
+When the Usage section itself was also edited after it was assessed, its
+assessment has two moved inputs: the refusal prints two `assessment-stale` lines,
+one naming the section and one naming `raf_parser::Parser::push`, and its headline
+reads `refused: 2 obligations, 1 section without a current accepted assessment`.
 
 ## Constraints
 
@@ -535,9 +511,11 @@ cap:streaming-parser  usage  assessment-stale  the section assessed again with a
 - `complete` never edits prose. It rewrites only the generated blocks that removing
   the record stales; the prose, and the `state: delivered` that the post-removal
   check requires, are written by a person or an agent before the command runs.
-- A document edited between the second judgement and the writes is not detected: the
-  rewrite replaces a file without comparing it with the text it was computed from,
-  which is sound only because the workspace is trusted input.
+- A document edited, or a directory on the way to the record replaced by a link,
+  between the second judgement and the writes is not detected: the rewrite replaces
+  a file without comparing it with the text it was computed from, and the removal
+  goes by the path judged, which is sound only because the workspace is trusted
+  input.
 
 ## Explanation
 
@@ -642,22 +620,20 @@ Further checks:
   are.
 - The completion writes only the rewrite and the removal: the assessment records are
   left as they are.
-
-> [!PROPOSED change:workplan-complete-gate]
-> - A kill at the timeout and a kill for too much output each fail the binding with
->   a reason that gives the time it ran and the limit it passed, pinned word for
->   word, and the run keeps that time; the real runner gives the time of an output
->   kill, more than zero and no more than the call took.
-> - The headline counts sections for condition 6: one section whose assessment has
->   three moved inputs (its text and two bound symbols) prints three
->   `assessment-stale` lines under `3 obligations, 1 section without a current
->   accepted assessment`, and two sections with one moved input each are two
->   sections; a unit fixture pins the same counts and that the same section of
->   another capability is another section.
-> - A directory link inside the root at `work`, made after the repository is opened,
->   is refused before any `cargo` process or write, with the record behind it kept;
->   a linked `work/changes` leaves the change not found, with nothing run; the same
->   completion through the real directories completes.
+- A kill at the timeout and a kill for too much output each fail the binding with
+  a reason that gives the time it ran and the limit it passed, pinned word for
+  word, and the run keeps that time; the real runner gives the time of an output
+  kill, more than zero and no more than the call took.
+- The headline counts sections for condition 6: one section whose assessment has
+  three moved inputs (its text and two bound symbols) prints three
+  `assessment-stale` lines under `3 obligations, 1 section without a current
+  accepted assessment`, and two sections with one moved input each are two
+  sections; a unit fixture pins the same counts and that the same section of
+  another capability is another section.
+- A directory link inside the root at `work`, made after the repository is opened,
+  is refused before any `cargo` process or write, with the record behind it kept;
+  a linked `work/changes` leaves the change not found, with nothing run; the same
+  completion through the real directories completes.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
