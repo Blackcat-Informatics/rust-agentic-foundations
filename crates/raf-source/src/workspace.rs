@@ -30,7 +30,7 @@ use crate::tree::Tree;
 /// The facts the index is built from stay inside the crate; the items of a
 /// file are read through [`Workspace::items_in`] and the other accessors.
 ///
-/// The struct is `#[non_exhaustive]`: a later field is not a breaking change,
+/// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
 /// so a pattern names the fields it reads and ends in `..`.
 ///
 /// ```compile_fail,E0638

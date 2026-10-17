@@ -16,7 +16,7 @@ pub const DEFAULT_MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
 /// [`LoadErrorKind::Budget`](crate::LoadErrorKind::Budget), naming the budget,
 /// the limit that applied and the file.
 ///
-/// The options are `Clone` and not `Copy`, so a later option that is not
+/// The options are `Clone` and not `Copy`, so adding an option that is not
 /// `Copy`, such as a per-file hook, is not a breaking change.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]

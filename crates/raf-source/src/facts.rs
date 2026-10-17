@@ -27,7 +27,7 @@ use crate::verbatim::{self, Bodiless, Verbatim};
 /// Line ranges are 1-based and half-open, as in `raf_okf::Span`: an item on
 /// line `n` alone has the lines `n..n + 1`.
 ///
-/// The struct is `#[non_exhaustive]`: a later field is not a breaking change,
+/// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
 /// so a pattern names the fields it reads and ends in `..`.
 ///
 /// ```compile_fail,E0638
