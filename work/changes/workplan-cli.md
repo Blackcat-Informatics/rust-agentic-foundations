@@ -13,7 +13,9 @@ affects:
 contract_effect: changes
 items:
   - claim: "evidence claims exits 2 naming each capability document that does not load, and exits 0 while only a change or evidence record fails to load."
-  - claim: "The text output of evidence claims and assess --context shows each control and bidirectional formatting character of a document escaped, as the history and coverage tables do."
+    outcome: implemented
+  - claim: "The text output of evidence claims and assess --context shows each control character of a document other than the line feed and the tab, and each bidirectional formatting character, escaped, as the history and coverage tables escape their cells."
+    outcome: implemented
 ---
 
 ## Summary

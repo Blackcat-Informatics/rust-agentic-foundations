@@ -350,34 +350,15 @@ bound, a command that cannot start, or a request refused before the run.
 code direction a surface that cannot be listed, and 0 otherwise. Each exits 2 when
 the tool cannot run: an id or a capability that no loaded document has, a shallow
 clone, a Git older than 2.30 or a bound file whose lines are not committed for
-`history`, a package that `--crate` does not name. A section given to `assess --list`
-must be one that `assess --context` answers for, so a named section that can no
-longer be assessed (its capability gone or not loading, or a bound symbol it reads no
-longer resolving, for instance) is exit 2, while a bare `--list` still shows an
-assessment of it.
-
-> [!PROPOSED change:workplan-cli]
-> **Exit codes of the record commands.** `history`, `evidence claims`,
-> `evidence for` and `assess` exit 0 when they have an answer: a recorded `rejected`
-> verdict, and a stale or rejected assessment that `--list` shows, are results and
-> not findings, and `change reconcile` lists what they owe. `evidence record` exits 0
-> when it writes a `pass` record and 1 when it writes a `fail` record, a result the
-> repository owes; it exits 2 when it writes none: a printed value that is not a
-> number, a name printed twice, a limit the command never printed, output past its
-> bound, a command that cannot start, or a request refused before the run.
-> `coverage code` and `coverage tests` exit 1 when the report names a gap, or in the
-> code direction a surface that cannot be listed, and 0 otherwise. Each exits 2 when
-> the tool cannot run: an id or a capability that no loaded document has, a shallow
-> clone, a Git older than 2.30 or a bound file whose lines are not committed for
-> `history`, a package that `--crate` does not name. `evidence claims` also exits 2,
-> naming each capability document that exists and does not load, with nothing on
-> standard output, because a claim in such a document may name the record; a change
-> record or an evidence record that does not load holds no claim and leaves its
-> answer and exit 0 as they are. A section given to `assess --list` must be one that
-> `assess --context` answers for, so a named section that can no longer be assessed
-> (its capability gone or not loading, or a bound symbol it reads no longer
-> resolving, for instance) is exit 2, while a bare `--list` still shows an assessment
-> of it.
+`history`, a package that `--crate` does not name. `evidence claims` also exits 2,
+naming each capability document that exists and does not load, with nothing on
+standard output, because a claim in such a document may name the record; a change
+record or an evidence record that does not load holds no claim and leaves its
+answer and exit 0 as they are. A section given to `assess --list` must be one that
+`assess --context` answers for, so a named section that can no longer be assessed
+(its capability gone or not loading, or a bound symbol it reads no longer
+resolving, for instance) is exit 2, while a bare `--list` still shows an assessment
+of it.
 
 **Options.** `--root <dir>` sets the workspace root, `--format text|json` selects the
 output, and `-q` suppresses everything but findings. Findings are printed to stdout in
@@ -504,17 +485,15 @@ result holds:
   `change reconcile`, `change complete` and `verify <slug>`) fails with exit 2 when
   `work/changes/<slug>.md` does not exist; `change new` fails with exit 2 when it
   exists.
-
-> [!PROPOSED change:workplan-cli]
-> - Document text reaches the terminal escaped. The text output of `evidence claims`
->   (each statement) and of `assess --context` (the section and the bound code)
->   writes each control character other than the line feed and the tab, a carriage
->   return, an escape and a bell included, and each bidirectional formatting
->   character (U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069) as its
->   `\u{..}` escape (`raf_workplan::escape::shown_lines`), as the history and
->   coverage tables escape their cells, so a document cannot clear the screen, set the
->   title of a terminal or reorder a line. The JSON form carries the text itself,
->   with its control characters escaped as JSON escapes them.
+- Document text reaches the terminal escaped. The text output of `evidence claims`
+  (each statement) and of `assess --context` (the section and the bound code)
+  writes each control character other than the line feed and the tab, a carriage
+  return, an escape and a bell included, and each bidirectional formatting
+  character (U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069) as its
+  `\u{..}` escape (`raf_workplan::escape::shown_lines`), as the history and
+  coverage tables escape their cells, so a document cannot clear the screen, set the
+  title of a terminal or reorder a line. The JSON form carries the text itself,
+  with its control characters escaped as JSON escapes them.
 
 ## Explanation
 
@@ -589,19 +568,17 @@ rather than kept by hand.
 - JSON pins of the members of each kind of the record commands in order, and every
   kind unequal to a rule name; `-q` hides each outcome and keeps a `fail` record and a
   coverage gap; the read-only commands leave the tree byte-identical.
-
-> [!PROPOSED change:workplan-cli]
-> - An escape sequence that clears the screen, an OSC title ended by a bell and a
->   right-to-left override in a claimed statement and in a section: the text output
->   of `evidence claims` and of `assess --context` holds none of them raw and shows
->   each as its `\u{..}` escape, keeping the line feeds and the tabs, and the
->   context equals the library's text escaped; the JSON form escapes them as JSON
->   does and reads back as the text; plain text is printed unchanged.
-> - `evidence claims` while a capability document does not load: exit 2 in text and
->   JSON, naming the document on standard error, with nothing on standard output and
->   nothing written, for an id with claims and for one without; a change record or
->   an evidence record that does not load leaves the answer, exit 0, while `check`
->   reports it; the clean neighbour answers.
+- An escape sequence that clears the screen, an OSC title ended by a bell and a
+  right-to-left override in a claimed statement and in a section: the text output
+  of `evidence claims` and of `assess --context` holds none of them raw and shows
+  each as its `\u{..}` escape, keeping the line feeds and the tabs, and the
+  context equals the library's text escaped; the JSON form escapes them as JSON
+  does and reads back as the text; plain text is printed unchanged.
+- `evidence claims` while a capability document does not load: exit 2 in text and
+  JSON, naming the document on standard error, with nothing on standard output and
+  nothing written, for an id with claims and for one without; a change record or
+  an evidence record that does not load leaves the answer, exit 0, while `check`
+  reports it; the clean neighbour answers.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
@@ -783,7 +760,7 @@ rather than kept by hand.
 | `raf_workplan::Workplan::new_change` | doctest | [Verification](#verification) |
 | `raf_workplan::Workplan::preview` | doctest | [Verification](#verification) |
 | `raf_workplan::Workplan::sync` | doctest | [Verification](#verification) |
-| `raf_workplan::escape::shown_lines` | doctest | [Verification](#verification) |
+| `raf_workplan::escape::shown_lines` | doctest | [Constraints](#constraints) |
 | `raf_workplan::escape::tests::each_control_and_bidirectional_formatting_character_is_escaped` | test | [Verification](#verification) |
 | `raf_workplan::escape::tests::lines_keep_their_line_feeds_and_tabs_and_lose_every_other_control` | test | [Verification](#verification) |
 | `raf_workplan::root::json::tests::a_large_text_is_scanned_to_its_end` | test | [Verification](#verification) |
