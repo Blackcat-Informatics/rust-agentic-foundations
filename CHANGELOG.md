@@ -251,6 +251,16 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   such a document may hold, so `evidence claims` exits 2 as `evidence for` does. A
   change record or an evidence record that does not load leaves the answer as it
   is.
+- **`raf-workplan` the caller's command in messages:** the text of a trusted
+  `Invocation`, which the messages of `ExecError` quote, is the command as
+  `TrustedArgv::text` writes it and the evidence record stores it, each word a
+  shell would split or expand in single quotes, so `sh -c 'yes >&2'` and
+  `sh -c yes '>&2'` no longer read the same. `SECURITY.md` states the limits of
+  the trusted command: an interrupt of `cargo-workplan` does not reach it, a
+  descendant that leaves its process group escapes the kill, a relative program
+  resolves against the workspace root, a hand-written record may hold more than
+  1024 values, the write checks judge paths and not handles, and the time the
+  exported-items listing may take before its budget stops it.
 - **Escaped document text on a terminal:** `raf_workplan::escape::shown_lines`
   writes each control character but the line feed and the tab, and each
   bidirectional formatting character, as its `\u{..}` escape, the rule the history

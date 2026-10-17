@@ -50,6 +50,7 @@ bindings:
     - raf_workplan::exec::trusted::tests::a_word_that_is_not_utf8_is_refused_by_its_place
     - raf_workplan::exec::trusted::tests::the_command_is_every_word_after_the_first_separator
     - raf_workplan::exec::trusted::tests::the_text_quotes_each_word_a_shell_would_split_or_expand
+    - raf_workplan::exec::trusted::tests::an_error_about_the_command_quotes_its_words_as_the_record_stores_them
     - raf_workplan::test_crate::evidence::an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not
   examples:
     - raf_workplan::Workplan::record_evidence
@@ -212,6 +213,31 @@ base: the bound is documented and no longer supported.
 >   binding runs, `work` and `work/evidence` must each be a directory, and a symbolic
 >   link there, inside the root or out of it, or a file is refused with nothing run
 >   and nothing written, so a record never lands on a document through a link.
+> - The command is supervised only while `cargo-workplan` runs. On Unix it leads a
+>   process group of its own, so an interrupt or a hang-up from the terminal, such
+>   as Ctrl-C, reaches `cargo-workplan` and not the command: once `cargo-workplan`
+>   has died the command runs on with no time limit and no record is written. A
+>   descendant that leaves the group, as one that calls `setsid` or `setpgid` does,
+>   is not reached by the kill at the time limit and may outlive it; elsewhere than
+>   Unix only the process itself is killed.
+> - The command runs with the workspace root as its directory, so a relative
+>   program, such as `./tool.sh` typed in a directory below the root, resolves
+>   against the root and not the caller's directory, and with `.` on `PATH` a bare
+>   name is looked for in the root as well. The record keeps the command as it was
+>   typed, so name a program by an absolute path, or by a path from the root, to be
+>   sure of the one it names.
+> - An error message about the command, such as the kill for too much output or a
+>   program that cannot start, quotes its words as `TrustedArgv::text` writes them
+>   and the record stores them: a word that a shell would split or expand is in
+>   single quotes, so `sh -c 'yes >&2'` and `sh -c yes '>&2'` read apart.
+> - At most 1024 values is a bound on what `evidence record` writes. A record
+>   written by hand may hold more; it is bounded only by the 1 MiB bound of a
+>   document, and it loads and is judged as a written one is.
+> - The judgement of the way to a record is made by path, not through a held
+>   handle of each directory: a local writer that swaps a directory for a link
+>   between the judgement and the write is not stopped. Such a writer can already
+>   edit the workspace, which the trust model of the
+>   [security policy](../../SECURITY.md) places outside what the tool defends.
 
 ## Explanation
 
@@ -294,6 +320,10 @@ staleness reads no revision and asks Git nothing.
 >   real directories; through the gate, with `work/evidence` a link to
 >   `docs/capabilities`, a replacement of the evidence named as a capability document
 >   is refused before anything runs and the document keeps its text.
+> - An error about the caller's command names it as its record does: the message of
+>   a kill for too much output and of a program that cannot start (a real run of a
+>   program named with a space) quote each word a shell would split or expand,
+>   beside a command of plain words that reads as its words.
 > - While a second capability document does not load, the claims of a record are
 >   refused naming it, for a record with claims and for an id no claim names, while
 >   a malformed id is still refused as one; beside it a change record and an

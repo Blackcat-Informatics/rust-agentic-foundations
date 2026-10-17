@@ -122,7 +122,15 @@ guarantees are these, and no wider:
   the imports are settled, and the time to decide them grows faster than their size
   (200 modules that glob the crate root, which globs each, each importing a name
   nothing defines, settle in 613 s at a peak of 555 MiB resident, with 9.7 MB charged
-  to the glob tables).
+  to the glob tables). Listing the exported items (`Workspace::exported_items`, which
+  `check` runs for the crates in the coverage scope) carries each re-export through
+  the globs that reach it and charges what it keeps, and the work of deciding a
+  carry, to the item-bytes budget left after the load, so it ends in a typed error
+  and never in a wrong list, but it sets no time bound, and the
+  time before the budget stops it grows faster than the source: a glob chain of 200
+  modules, each with 40 re-exports of another crate, is refused by the budget after
+  75 s at a peak of 138 MB in a release build, and 500 such modules (about 0.5 MB of
+  source) had no answer after 4 minutes of CPU at 53 MB.
   The source index parses on a
   dedicated 64 MiB stack on a thread named after the file, and is fuzzed through a
   target (`parse-source`) whose committed corpus `cargo test` replays in child
@@ -149,9 +157,20 @@ guarantees are these, and no wider:
   stream bounded to 16 MiB (more is an error that says the time it ran, and no
   record) and a 1800-second limit
   (a kill there is recorded as `fail`, whatever its limits; a background process
-  that keeps its output open after it exits holds the run until then). Only the
+  that keeps its output open after it exits holds the run until then). The limit
+  holds only while `cargo-workplan` runs: on Unix the command leads a process group
+  of its own, so an interrupt or a hang-up from the terminal (Ctrl-C) reaches
+  `cargo-workplan` and not the command, which then runs on with no limit and leaves
+  no record; and a descendant that leaves the group (`setsid`, `setpgid`) is not
+  reached by the kill at the limit, as it is not for a bound test. With the root as
+  its directory, a relative program (`./tool.sh` typed below the root) resolves
+  against the root, not the caller's directory, and with `.` on `PATH` a bare name
+  is looked for in the root, while the record keeps the command as typed. A message
+  about the command quotes its words as the record stores them
+  (`TrustedArgv::text`), so two commands never read the same. Only the
   `name=number` lines of its standard output are read, as values, at most 1024 of
-  them; no other output is kept. The `command` text a record stores
+  them, a bound on what `evidence record` writes: a record written by hand may hold
+  more and is bounded by the 1 MiB bound of a document; no other output is kept. The `command` text a record stores
   for its readers, and its `revision`, never reach a process. A value
   taken from a document reaches a process only after resolution against the loaded
   documents or the source index and a stated pattern, and then in one of four
@@ -219,7 +238,11 @@ guarantees are these, and no wider:
   each directory on the way (`work` and `work/<type>`, or `docs` and
   `docs/capabilities`) and refuses one that is a symbolic link, whether it leads
   inside the root or out of it, or that is not a directory, before anything runs or
-  is written, so no write lands on another file through a directory link;
+  is written, so no write lands on another file through a directory link (the
+  judgement goes by path, not through held directory handles, so a local writer
+  that swaps a directory for a link between the judgement and the write is not
+  stopped; such a writer can already edit the workspace, which this trust model
+  does not defend against);
   `change complete` the generated blocks it stales and then removes the one record
   (the assessment records are read and left as they are),
   and `change impact`, `change reconcile` and `verify` write nothing in the

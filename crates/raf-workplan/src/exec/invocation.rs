@@ -10,7 +10,7 @@ use super::pattern::{
     Commit, DocFilter, ExampleName, Filter, Identifier, LineRange, Package, RefName, SourcePath,
     Target, TreePath,
 };
-use super::trusted::{TrustedArgv, TrustedWord};
+use super::trusted::{TrustedArgv, TrustedWord, text_of};
 
 /// Which program an invocation starts. The paths of `cargo` and `git` are
 /// held by [`Programs`](super::Programs); the program of a
@@ -456,11 +456,13 @@ impl Invocation {
 }
 
 impl fmt::Display for Invocation {
-    /// `program arg arg ...`, for messages (for the caller's own command, its
-    /// words). The text is not a shell command line and is never run.
+    /// `program arg arg ...`, for messages. The caller's own command is its
+    /// words as [`TrustedArgv::text`] writes them, each that a shell would
+    /// split or expand in single quotes, so a message names the command
+    /// unambiguously and as its record stores it. The text is never run.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.program == Program::Trusted {
-            return f.write_str(&self.argv().join(" "));
+            return f.write_str(&text_of(self.argv().iter().map(String::as_str)));
         }
         write!(f, "{}", self.program)?;
         for arg in &self.args {

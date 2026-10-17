@@ -136,12 +136,16 @@ impl TrustedArgv {
     /// would read the text back. It is never run: the workplan starts no shell.
     #[must_use]
     pub fn text(&self) -> String {
-        self.words
-            .iter()
-            .map(|word| quote(word.as_str()))
-            .collect::<Vec<_>>()
-            .join(" ")
+        text_of(self.words.iter().map(TrustedWord::as_str))
     }
+}
+
+/// The words as [`TrustedArgv::text`] writes them, each quoted as a POSIX
+/// shell reads it back and joined by one space. The message of an error about
+/// the caller's command quotes it with this, so it reads as the record stores
+/// it.
+pub(crate) fn text_of<'a>(words: impl IntoIterator<Item = &'a str>) -> String {
+    words.into_iter().map(quote).collect::<Vec<_>>().join(" ")
 }
 
 /// `word` as a POSIX shell reads it back.
@@ -278,6 +282,58 @@ mod tests {
         assert_eq!(
             argv.text(),
             "cargo bench --bench=parse 'a b' '' 'it'\\''s' '$HOME' 'x;y'"
+        );
+    }
+
+    #[test]
+    fn an_error_about_the_command_quotes_its_words_as_the_record_stores_them() {
+        use crate::exec::{
+            ExecError, Invocation, Limits, Programs, Runner as _, Stream, SystemRunner,
+        };
+        let words = |words: &[&str]| {
+            TrustedArgv::new(words.iter().map(ToString::to_string).collect()).expect("a command")
+        };
+        // Joined unquoted, these two commands would read the same.
+        let one = words(&["sh", "-c", "yes >&2"]);
+        let other = words(&["sh", "-c", "yes", ">&2"]);
+        assert_eq!(Invocation::trusted(&one).to_string(), "sh -c 'yes >&2'");
+        assert_eq!(Invocation::trusted(&other).to_string(), "sh -c yes '>&2'");
+        for argv in [&one, &other] {
+            assert_eq!(Invocation::trusted(argv).to_string(), argv.text());
+        }
+        let error = ExecError::OutputTooLarge {
+            command: Invocation::trusted(&one).to_string(),
+            stream: Stream::Stderr,
+            limit: 16,
+            elapsed: std::time::Duration::from_millis(1500),
+        };
+        assert!(
+            error
+                .to_string()
+                .starts_with("`sh -c 'yes >&2'` wrote more than 16 bytes"),
+            "{error}"
+        );
+        // A real run of a program that cannot start names it the same way.
+        let missing = words(&["./no such tool", "a b", ""]);
+        let runner = SystemRunner::new(Programs::new(std::env::temp_dir()));
+        let error = runner
+            .run(&Invocation::trusted(&missing), &Limits::trusted())
+            .expect_err("no such program");
+        assert!(
+            matches!(&error, ExecError::Spawn { command, .. } if *command == missing.text()),
+            "{error:?}"
+        );
+        assert!(
+            error
+                .to_string()
+                .starts_with("cannot start `'./no such tool' 'a b' ''`"),
+            "{error}"
+        );
+        // The neighbour: a command of plain words reads as its words.
+        let plain = words(&["cargo", "bench", "--bench=parse"]);
+        assert_eq!(
+            Invocation::trusted(&plain).to_string(),
+            "cargo bench --bench=parse"
         );
     }
 }
