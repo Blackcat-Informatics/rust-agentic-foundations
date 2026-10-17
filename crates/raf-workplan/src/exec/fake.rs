@@ -145,6 +145,7 @@ impl Runner for FakeRunner {
                     command,
                     stream,
                     limit: limits.max_output(),
+                    elapsed: output.elapsed,
                 });
             }
         }

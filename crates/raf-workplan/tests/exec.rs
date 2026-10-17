@@ -1599,6 +1599,7 @@ echo to-stderr >&2"#;
                 stream: seen,
                 limit,
                 command,
+                elapsed,
             } = &error
             else {
                 panic!("not an output error: {error:?}");
@@ -1607,6 +1608,14 @@ echo to-stderr >&2"#;
             assert_eq!(*limit, 1000);
             assert_eq!(command, "git --version");
             assert!(error.to_string().contains("1000 bytes"), "{error}");
+            // The kill records the time the process ran.
+            assert!(*elapsed > Duration::ZERO, "{error:?}");
+            assert!(
+                error
+                    .to_string()
+                    .contains(&format!("in {:.1} s and was killed", elapsed.as_secs_f64())),
+                "{error}"
+            );
         }
     }
 
@@ -1623,13 +1632,15 @@ echo to-stderr >&2"#;
             .runner(&stub)
             .run(&Invocation::git_version(), &limits)
             .unwrap_err();
+        let ran = started.elapsed();
         assert!(
             matches!(
                 error,
                 ExecError::OutputTooLarge {
                     stream: Stream::Stdout,
+                    elapsed,
                     ..
-                }
+                } if elapsed > Duration::ZERO && elapsed <= ran
             ),
             "{error:?}"
         );

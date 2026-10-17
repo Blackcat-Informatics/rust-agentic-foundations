@@ -338,6 +338,8 @@ pub enum ExecError {
         stream: Stream,
         /// The bound, in bytes.
         limit: usize,
+        /// How long it had run when it was killed.
+        elapsed: Duration,
     },
     /// Reading the output or waiting for the process failed, or a process that
     /// had to be killed could not be.
@@ -380,9 +382,11 @@ impl fmt::Display for ExecError {
                 command,
                 stream,
                 limit,
+                elapsed,
             } => write!(
                 f,
-                "`{command}` wrote more than {limit} bytes to {stream} and was killed; the run has no verdict"
+                "`{command}` wrote more than {limit} bytes to {stream} in {:.1} s and was killed; the run has no verdict",
+                elapsed.as_secs_f64()
             ),
             Self::Io { command, message } => {
                 write!(f, "`{command}` could not be read to its end: {message}")

@@ -132,6 +132,7 @@ fn every_way_a_run_can_fail_is_a_problem_and_a_pass_is_none() {
             command: "cargo run".to_string(),
             stream: Stream::Stdout,
             limit: 1,
+            elapsed: Duration::from_millis(40),
         })),
         Some(RunProblem::Overflowed)
     );

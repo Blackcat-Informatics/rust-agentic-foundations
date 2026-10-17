@@ -615,6 +615,7 @@ fn a_blob_over_one_mebibyte_is_an_error_and_never_cut() {
         command: "git cat-file".to_string(),
         stream: Stream::Stdout,
         limit: MAX_TEXT_BYTES,
+        elapsed: std::time::Duration::from_millis(40),
     }));
     assert!(matches!(
         blob_at(&overflow, &MergeBase(commit(COMMIT)), &at),
@@ -625,6 +626,7 @@ fn a_blob_over_one_mebibyte_is_an_error_and_never_cut() {
         command: "git cat-file".to_string(),
         stream: Stream::Stderr,
         limit: MAX_TEXT_BYTES,
+        elapsed: std::time::Duration::from_millis(40),
     }));
     assert!(matches!(
         blob_at(&noisy, &MergeBase(commit(COMMIT)), &at),

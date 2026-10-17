@@ -123,12 +123,9 @@ impl<'a, R: Runner> Executor<'a, R> {
                 run.fail(error.to_string());
                 Ok(None)
             }
-            Err(error @ ExecError::OutputTooLarge { .. }) => {
-                run.runs.push(Run::new(
-                    invocation,
-                    Ended::Overflowed,
-                    std::time::Duration::ZERO,
-                ));
+            Err(error @ ExecError::OutputTooLarge { elapsed, .. }) => {
+                run.runs
+                    .push(Run::new(invocation, Ended::Overflowed, elapsed));
                 run.fail(error.to_string());
                 Ok(None)
             }

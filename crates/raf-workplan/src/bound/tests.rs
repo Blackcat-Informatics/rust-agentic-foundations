@@ -1484,6 +1484,47 @@ fn a_killed_test_is_a_failed_binding_that_reports_the_time() {
     assert!(evidence.wall() >= Duration::from_millis(5100));
 }
 
+/// Either kill fails the binding with a reason that says it was killed, with
+/// the time it ran and the limit it passed, and the run keeps that time.
+#[test]
+fn a_kill_at_either_limit_fails_the_binding_with_the_time_it_ran_and_its_limit() {
+    let cases = [
+        (
+            ExecError::Timeout {
+                command: "cargo test".to_string(),
+                timeout: Duration::from_secs(5),
+                elapsed: Duration::from_millis(5100),
+            },
+            "`cargo test` ran 5.1 s of its 5 s limit and was killed; the run has no verdict",
+            super::Ended::TimedOut,
+            Duration::from_millis(5100),
+        ),
+        (
+            ExecError::OutputTooLarge {
+                command: "cargo test".to_string(),
+                stream: crate::exec::Stream::Stdout,
+                limit: 16_777_216,
+                elapsed: Duration::from_millis(2300),
+            },
+            "`cargo test` wrote more than 16777216 bytes to standard output in 2.3 s and was killed; the run has no verdict",
+            super::Ended::Overflowed,
+            Duration::from_millis(2300),
+        ),
+    ];
+    for (error, expected, ended, elapsed) in cases {
+        let runner = test_runner("--lib", NAME, "documents::x: test\n", Err(error));
+        let evidence = run("tests", PATH, &runner, None).unwrap();
+        let BoundOutcome::Failed { reason } = evidence.outcome() else {
+            panic!("{evidence}");
+        };
+        assert_eq!(reason, expected);
+        let last = evidence.runs().last().expect("the killed run");
+        assert_eq!(last.ended(), ended);
+        assert_eq!(last.elapsed(), elapsed);
+        assert!(evidence.wall() >= elapsed);
+    }
+}
+
 #[test]
 fn a_run_that_cannot_start_is_an_error_and_not_a_verdict() {
     let spawn = ExecError::Spawn {

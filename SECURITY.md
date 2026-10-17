@@ -146,7 +146,8 @@ guarantees are these, and no wider:
   runs), no `--frozen` added to a `cargo` inside it, standard input null, the
   workspace root as its directory, the caller's environment unchanged (`LC_ALL=C` is
   set only for `git` and the `cargo` passes whose output the tool parses), each
-  stream bounded to 16 MiB (more is an error and no record) and a 1800-second limit
+  stream bounded to 16 MiB (more is an error that says the time it ran, and no
+  record) and a 1800-second limit
   (a kill there is recorded as `fail`, whatever its limits; a background process
   that keeps its output open after it exits holds the run until then). Only the
   `name=number` lines of its standard output are read, as values, at most 1024 of
@@ -204,7 +205,8 @@ guarantees are these, and no wider:
   nothing (in a partial clone Git itself may fetch missing objects into `.git`). A
   bound value that does not resolve, or does not
   match its stated pattern, never reaches `cargo`; a process runs with its input
-  closed, its output bounded and a wall-clock limit. `change new` writes one file,
+  closed, its output bounded and a wall-clock limit, and a bound test or example
+  killed at either limit fails its binding with the time it ran and the limit. `change new` writes one file,
   `evidence record` writes one record, `work/evidence/<id>.md` (created exclusively,
   or replaced through a temporary file and a rename), and only after the run, and
   never a document, recording an assessment (`Workplan::record_assessment`) writes

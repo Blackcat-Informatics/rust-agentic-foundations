@@ -25,6 +25,7 @@ bindings:
     - raf_workplan::bound
     - raf_workplan::lifecycle::Lifecycle
   tests:
+    - raf_workplan::bound::tests::a_kill_at_either_limit_fails_the_binding_with_the_time_it_ran_and_its_limit
     - raf_workplan::test_crate::complete::a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline
     - raf_workplan::lifecycle::completion::tests::a_section_with_three_moved_inputs_is_one_section_in_the_headline
     - raf_workplan::test_crate::complete::a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_completes
@@ -438,6 +439,17 @@ A bound test that runs past its timeout is killed and fails its binding, and the
 reason says that it was killed, with the time it ran and its limit.
 <!-- raf:claim evidence=gate-kills-a-test-past-its-timeout -->
 
+> [!PROPOSED change:workplan-complete-gate]
+> **Bounds.** Each list pass and run pass of `cargo test` may compile first and has a
+> timeout of 1800 seconds. The standard output and the standard error of every process
+> of a bound run are each read up to 16 MiB. A process that runs past its timeout or
+> writes more than the bound is killed, its process group with it on Unix, and the
+> binding counts as failing with the time it ran; a process that cannot be started is
+> an error and not a verdict. A bound test that writes more than the bound is killed
+> and fails its binding, and the reason says that it was killed, with the time it ran
+> and the bound, as the reason of a kill at the timeout gives the time it ran and the
+> timeout.
+
 **`verify [<slug>]`** runs the bound tests and the bound examples of the named change's
 capabilities, or of every capability when no slug is given, and prints pass or fail for
 each binding. Examples run as their target or documentation test. Evidence is not
@@ -632,6 +644,10 @@ Further checks:
   left as they are.
 
 > [!PROPOSED change:workplan-complete-gate]
+> - A kill at the timeout and a kill for too much output each fail the binding with
+>   a reason that gives the time it ran and the limit it passed, pinned word for
+>   word, and the run keeps that time; the real runner gives the time of an output
+>   kill, more than zero and no more than the call took.
 > - The headline counts sections for condition 6: one section whose assessment has
 >   three moved inputs (its text and two bound symbols) prints three
 >   `assessment-stale` lines under `3 obligations, 1 section without a current
@@ -670,6 +686,7 @@ Further checks:
 | `raf_workplan::bound::tests::a_function_that_is_not_a_test_is_refused_by_name` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_hostile_example_name_and_package_never_reach_the_runner` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_hostile_name_in_the_manifest_never_reaches_the_runner` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_kill_at_either_limit_fails_the_binding_with_the_time_it_ran_and_its_limit` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_killed_test_is_a_failed_binding_that_reports_the_time` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_list_pass_that_does_not_build_fails_the_binding` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_list_with_no_entry_has_none` | test | [Verification](#verification) |

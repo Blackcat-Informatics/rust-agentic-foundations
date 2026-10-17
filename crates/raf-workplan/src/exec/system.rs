@@ -139,6 +139,7 @@ impl Runner for SystemRunner {
                 command: command_text.clone(),
                 stream,
                 limit: bound,
+                elapsed: started.elapsed(),
             },
             Wait::Late => ExecError::Timeout {
                 command: command_text.clone(),

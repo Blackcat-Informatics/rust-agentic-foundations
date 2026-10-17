@@ -220,6 +220,13 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   headings in fenced code and in PROPOSED blocks do not count. A condition is
   plain prose and nothing judges whether it has been met. A link to a page or a
   heading that does not exist stays `link-broken` or `anchor-broken`.
+- **`raf-workplan` the time of an output kill:** `ExecError::OutputTooLarge`
+  gains `elapsed`, the time the process had run when it was killed for writing
+  more than the bound, and its message gives it, so a bound test or example killed
+  for too much output fails its binding with the time it ran and the bound, as a
+  kill at the timeout does, and its run keeps that time in place of zero. A
+  pattern outside the crate that names the fields of `OutputTooLarge` without `..`
+  names `elapsed` too.
 - **`raf-workplan` writes through real directories:** `record::create`,
   `record::replace`, the checks `Workplan::record_evidence` and
   `Workplan::record_assessment` make before they write, `Workplan::write` and the
