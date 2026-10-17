@@ -54,8 +54,8 @@ use crate::settle::slot;
 /// lists.
 ///
 /// The options are `#[non_exhaustive]`: a caller starts from
-/// `ExportOptions::default()` and sets the fields it needs, so a later option
-/// is not a breaking change.
+/// `ExportOptions::default()` and sets the fields it needs, so adding an
+/// option is not a breaking change.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ExportOptions {
@@ -68,7 +68,7 @@ pub struct ExportOptions {
 /// One item of a target's public surface, under one path that another crate
 /// can name it by.
 ///
-/// The struct is `#[non_exhaustive]`: a later field is not a breaking change,
+/// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
 /// so a pattern names the fields it reads and ends in `..`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -100,7 +100,7 @@ pub struct ExportedItem {
 /// re-export of a module it reaches into the module that reads it, under the
 /// reader's path.
 ///
-/// The struct is `#[non_exhaustive]`: a later field is not a breaking change.
+/// The struct is `#[non_exhaustive]`: adding a field is not a breaking change.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Reexport {
@@ -126,7 +126,7 @@ pub struct Reexport {
 /// The public surface of a target, as
 /// [`Workspace::exported_items`](crate::Workspace::exported_items) returns it.
 ///
-/// The struct is `#[non_exhaustive]`: a later field is not a breaking change.
+/// The struct is `#[non_exhaustive]`: adding a field is not a breaking change.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Exports {

@@ -327,6 +327,7 @@ bindings:
     - raf_source::test_crate::exported_items::a_carried_re_export_is_listed_hidden_or_absent_exactly_as_an_item_of_the_same_shape
     - raf_source::test_crate::exported_items::only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_and_re_exports
     - raf_source::test_crate::exported_items::in_random_small_crates_a_carried_re_export_is_listed_hidden_or_absent_as_the_item_is
+    - raf_source::test_crate::exported_items::a_re_export_two_globs_carry_is_written_as_the_first_glob_that_carries_it
     - raf_source::test_crate::this_repository::the_surface_of_each_library_and_binary_of_this_repository_lists_its_public_items
   examples:
     - raf_source::Workspace::exported_items
@@ -2367,6 +2368,11 @@ duplicates.
   `pub` items and re-exports its library's, and a test target, refused as
   `NotLibraryOrBinary`; a module reached by two `pub` paths and a cycle of globs,
   each read once.
+> [!PROPOSED change:source-index]
+> - A re-export of an item of another crate of the workspace that two `pub` globs
+>   bring in is written as the glob that comes first, with its line, in either order
+>   of the two, beside one glob alone, written as that glob.
+
 - Re-exports of a crate outside the workspace that a `pub` glob carries: from a
   private module and from a `pub` one (listed under both paths), renamed, through
   two globs, hidden by a hidden glob of the reader and not by one further on, each

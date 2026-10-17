@@ -1601,3 +1601,68 @@ fn in_random_small_crates_a_carried_re_export_is_listed_hidden_or_absent_as_the_
         );
     }
 }
+
+#[test]
+fn a_re_export_two_globs_carry_is_written_as_the_first_glob_that_carries_it() {
+    let mut manifest = DEMO.to_owned();
+    manifest.push_str("[dependencies]\np_one = { path = \"p_one\" }\n");
+    let site = |lib: &str| {
+        let tree: MemoryTree = [
+            ("Cargo.toml", manifest.as_str()),
+            ("src/lib.rs", lib),
+            (
+                "p_one/Cargo.toml",
+                "[package]\nname = \"p_one\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "p_one/src/lib.rs",
+                "pub mod inner { pub fn f() {} }\npub mod again { pub use crate::inner::f; }\n",
+            ),
+        ]
+        .into_iter()
+        .collect();
+        let ws = Workspace::load(&tree, &[".", "p_one"]).unwrap_or_else(|e| panic!("{e}"));
+        exports(&ws, TargetKind::Lib, false)
+            .reexports
+            .iter()
+            .map(|reexport| {
+                let item = reexport
+                    .item
+                    .and_then(|id| ws.item(id))
+                    .map(|item| item.path.to_string());
+                (
+                    reexport.path.clone(),
+                    reexport.written.clone(),
+                    item,
+                    reexport.line,
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let f = Some("p_one::inner::f".to_owned());
+    // Both globs bring in the same `f`: the re-export is written as the glob
+    // that comes first, whichever of the two it is.
+    assert_eq!(
+        site("pub fn own() {}\npub use p_one::inner::*;\npub use p_one::again::*;\n"),
+        [(
+            "demo::f".to_owned(),
+            "p_one::inner::*".to_owned(),
+            f.clone(),
+            2
+        )]
+    );
+    assert_eq!(
+        site("pub fn own() {}\npub use p_one::again::*;\npub use p_one::inner::*;\n"),
+        [(
+            "demo::f".to_owned(),
+            "p_one::again::*".to_owned(),
+            f.clone(),
+            2
+        )]
+    );
+    // The neighbour with one glob is written as that glob.
+    assert_eq!(
+        site("pub fn own() {}\n\npub use p_one::again::*;\n"),
+        [("demo::f".to_owned(), "p_one::again::*".to_owned(), f, 3)]
+    );
+}
