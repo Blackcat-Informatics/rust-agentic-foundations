@@ -177,8 +177,8 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   gains condition 6 (`Condition::Assessments`, `Failure::Assessment`): each
   authored section in `affects` needs a current assessment with the verdict
   `accepted`, by a human or an agent, judged with the static conditions before any
-  bound run; a refusal counts the sections without one. `complete` leaves the
-  assessment records as they are.
+  bound run; a refusal counts the sections without one, each section once however
+  many of its inputs moved. `complete` leaves the assessment records as they are.
 - **`raf-workplan` two-way coverage:** the `coverage` module judges the public
   items and the tests of the workspace against the bindings of the capabilities.
   `Workplan::coverage_report` returns a `CoverageReport` of every package: the

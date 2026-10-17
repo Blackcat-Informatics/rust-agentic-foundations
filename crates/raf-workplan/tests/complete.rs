@@ -1397,6 +1397,59 @@ fn an_item_without_outcome_and_a_stale_block_print_the_counts_of_the_contract() 
     );
 }
 
+/// The headline counts sections for condition 6: one section whose
+/// assessment has three moved inputs (its own text and two bound symbols) is
+/// three obligations, each printed once, and one section; two sections with
+/// one moved input each are two.
+#[test]
+fn a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline() {
+    let spec = Spec {
+        code: "[fx_life::add, fx_life::plain]",
+        ..Spec::default()
+    }
+    .extra("Contract", "\nThe fixture adds.\n");
+    let fixture = Fixture::scripted(&spec);
+    fixture.edit(CAP, "The fixture adds.", "The fixture adds two numbers.");
+    fixture.edit("src/lib.rs", "    a + b\n", "    b + a\n");
+    fixture.edit(
+        "src/lib.rs",
+        "pub fn plain() {}",
+        "pub fn plain() {\n    drop(());\n}",
+    );
+    let before = fixture.snapshot();
+    let refused = fixture
+        .over(git_answers())
+        .complete("shape")
+        .expect("answers");
+    assert_eq!(
+        refused.headline(),
+        "refused: 3 obligations, 1 section without a current accepted assessment",
+        "{refused}"
+    );
+    assert_eq!(kinds(&refused), [ObligationKind::AssessmentStale]);
+    assert_eq!(count(&refused, Condition::Assessments), 3);
+    assert_eq!(refused.to_string().lines().count(), 4, "{refused}");
+    assert_eq!(fixture.snapshot(), before);
+
+    // The neighbour: two sections, each with its own text moved.
+    let two = Spec::default()
+        .extra("Contract", "\nThe fixture adds.\n")
+        .extra("Usage", "\nCall it.\n")
+        .effect("none", &["cap:fixture#contract", "cap:fixture#usage"]);
+    let fixture = Fixture::scripted(&two);
+    fixture.edit(CAP, "The fixture adds.", "The fixture adds two numbers.");
+    fixture.edit(CAP, "Call it.", "Call it twice.");
+    let refused = fixture
+        .over(git_answers())
+        .complete("shape")
+        .expect("answers");
+    assert_eq!(
+        refused.headline(),
+        "refused: 2 obligations, 2 sections without a current accepted assessment",
+        "{refused}"
+    );
+}
+
 // --- the state of a listed capability -----------------------------------------------
 
 #[test]

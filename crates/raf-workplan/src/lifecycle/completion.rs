@@ -4,6 +4,7 @@
 //! What `complete` returns: the removal that happened, or every reason it did
 //! not.
 
+use std::collections::BTreeSet;
 use std::fmt;
 
 use raf_okf::Location;
@@ -116,7 +117,9 @@ pub enum Failure {
     Example(Evidence),
     /// Condition 6: an authored section in `affects` with no current
     /// assessment whose verdict is `accepted` (an `assessment-missing`,
-    /// `assessment-stale` or `assessment-rejected` obligation).
+    /// `assessment-stale` or `assessment-rejected` obligation). A section has
+    /// one for each such obligation, one `assessment-stale` for each input
+    /// that moved, and the headline counts the section once.
     Assessment(Obligation),
     /// A finding of `check` over the repository without the record. The state
     /// rules are judged here: a capability that is not `delivered` and is
@@ -309,6 +312,20 @@ fn counted(count: usize, one: &str, many: &str) -> Option<String> {
     }
 }
 
+/// The sections that condition 6 refuses: one for each capability and
+/// section, however many `assessment-*` obligations it has (one
+/// `assessment-stale` for each input that moved).
+fn sections_without_assessment(failures: &[Failure]) -> usize {
+    failures
+        .iter()
+        .filter_map(|failure| match failure {
+            Failure::Assessment(owed) => Some((&owed.subject, owed.section)),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>()
+        .len()
+}
+
 /// The counts of a refusal, in the order of the conditions.
 fn summary(failures: &[Failure]) -> String {
     let count = |wanted: fn(&Failure) -> bool| failures.iter().filter(|f| wanted(f)).count();
@@ -345,7 +362,7 @@ fn summary(failures: &[Failure]) -> String {
             "bound examples failing",
         ),
         counted(
-            count(|f| matches!(f, Failure::Assessment(_))),
+            sections_without_assessment(failures),
             "section without a current accepted assessment",
             "sections without a current accepted assessment",
         ),
@@ -568,6 +585,61 @@ mod tests {
         );
         assert_eq!(one.failures()[0].name(), "assessment-missing");
         assert_eq!(one.failures()[0].condition().number(), Some(6));
+    }
+
+    #[test]
+    fn a_section_with_three_moved_inputs_is_one_section_in_the_headline() {
+        let stale = |section, input: &str| Obligation {
+            kind: ObligationKind::AssessmentStale,
+            subject: Subject::Capability("cap:shape".to_string()),
+            section: Part::Section(section),
+            location: Place {
+                path: "docs/capabilities/shape.md".to_string(),
+                line: None,
+            },
+            evidence: Needed::Assessed {
+                subject: "cap:shape#usage".to_string(),
+                assessment: format!("assessment:shape-usage ({input} moved)"),
+            },
+        };
+        let refusal = |obligations: Vec<Obligation>| Completion::Refused {
+            failures: obligations
+                .iter()
+                .cloned()
+                .map(Failure::Owed)
+                .chain(obligations.iter().cloned().map(Failure::Assessment))
+                .collect(),
+        };
+        // One section, three moved inputs: three obligations and lines, one
+        // section.
+        let one = refusal(vec![
+            stale(CapabilitySection::Usage, "section"),
+            stale(CapabilitySection::Usage, "shape::push"),
+            stale(CapabilitySection::Usage, "shape::finish"),
+        ]);
+        assert_eq!(
+            one.headline(),
+            "refused: 3 obligations, 1 section without a current accepted assessment"
+        );
+        assert_eq!(one.to_string().lines().count(), 4, "{one}");
+        assert_eq!(one.of_condition(Condition::Assessments).count(), 3);
+        // The neighbour: two sections, one moved input each.
+        let two = refusal(vec![
+            stale(CapabilitySection::Usage, "section"),
+            stale(CapabilitySection::Contract, "section"),
+        ]);
+        assert_eq!(
+            two.headline(),
+            "refused: 2 obligations, 2 sections without a current accepted assessment"
+        );
+        // The same section of another capability is another section.
+        let mut other = stale(CapabilitySection::Usage, "section");
+        other.subject = Subject::Capability("cap:other".to_string());
+        let apart = refusal(vec![stale(CapabilitySection::Usage, "section"), other]);
+        assert_eq!(
+            apart.headline(),
+            "refused: 2 obligations, 2 sections without a current accepted assessment"
+        );
     }
 
     #[test]

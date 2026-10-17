@@ -25,6 +25,8 @@ bindings:
     - raf_workplan::bound
     - raf_workplan::lifecycle::Lifecycle
   tests:
+    - raf_workplan::test_crate::complete::a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline
+    - raf_workplan::lifecycle::completion::tests::a_section_with_three_moved_inputs_is_one_section_in_the_headline
     - raf_workplan::test_crate::complete::a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_completes
     - raf_workplan::test_crate::scenarios::several_redesigns_leave_one_readable_present
     - raf_workplan::test_crate::scenarios::planning_produces_the_documentation
@@ -279,6 +281,23 @@ refusal prints the line once, under its obligation, with the count
 records and never writes one: they stay as they are when the change record is
 removed.
 
+> [!PROPOSED change:workplan-complete-gate]
+> A section with no assessment, one whose assessment has an input that moved, and one
+> whose current assessment is `rejected` each refuse condition 6. An assessment by an
+> agent satisfies the condition as one by a human does, and a `rejected` verdict never
+> does. A section with nothing outside its generated blocks and comments cannot occur:
+> the profile refuses such a section (`okf-section-empty`), so its document does not
+> load and `complete` is an error before any condition is judged, and every section of
+> a capability that loads is authored. A section without a current accepted
+> assessment is one or more `assessment-missing`, `assessment-stale` or
+> `assessment-rejected` obligations, one `assessment-stale` for each input that moved,
+> so conditions 1 and 6 both report it. The refusal prints each of those lines once,
+> under its obligation, and its headline counts the section once, as
+> `sections without a current accepted assessment`, however many obligations it has:
+> one section with three moved inputs is `3 obligations, 1 section without a current
+> accepted assessment`. `complete` reads the assessment records and never writes one:
+> they stay as they are when the change record is removed.
+
 **Order.** The static conditions are judged first, every one of them and with no
 early exit: conditions 1 to 4 (the obligation list without `example-failing`, which
 needs a run), condition 6 (the currency of each assessment, from digests of the
@@ -477,6 +496,12 @@ refused: 1 obligation, 1 section without a current accepted assessment
 cap:streaming-parser  usage  assessment-stale  the section assessed again with assess (`assessment:streaming-parser-usage`: the symbol `raf_parser::Parser::push` has changed since)
 ```
 
+> [!PROPOSED change:workplan-complete-gate]
+> When the Usage section itself was also edited after it was assessed, its
+> assessment has two moved inputs: the refusal prints two `assessment-stale` lines,
+> one naming the section and one naming `raf_parser::Parser::push`, and its headline
+> reads `refused: 2 obligations, 1 section without a current accepted assessment`.
+
 ## Constraints
 
 - `complete` runs only bindings that resolve in the source index and match their
@@ -607,6 +632,12 @@ Further checks:
   left as they are.
 
 > [!PROPOSED change:workplan-complete-gate]
+> - The headline counts sections for condition 6: one section whose assessment has
+>   three moved inputs (its text and two bound symbols) prints three
+>   `assessment-stale` lines under `3 obligations, 1 section without a current
+>   accepted assessment`, and two sections with one moved input each are two
+>   sections; a unit fixture pins the same counts and that the same section of
+>   another capability is another section.
 > - A directory link inside the root at `work`, made after the repository is opened,
 >   is refused before any `cargo` process or write, with the record behind it kept;
 >   a linked `work/changes` leaves the change not found, with nothing run; the same
@@ -694,6 +725,7 @@ Further checks:
 | `raf_workplan::exec::tests::every_variant_is_walked` | test | [Verification](#verification) |
 | `raf_workplan::exec::tests::no_shell::every_argument_is_one_element_and_no_shell_reads_it` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::completion::tests::a_completion_prints_the_removal_and_each_rewritten_file` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::completion::tests::a_section_with_three_moved_inputs_is_one_section_in_the_headline` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::completion::tests::a_section_without_an_accepted_assessment_counts_under_condition_six_and_prints_once` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::completion::tests::a_stale_block_prints_a_line_unless_an_obligation_already_does` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::completion::tests::conditions_are_numbered_as_the_contract_numbers_them` | test | [Verification](#verification) |
@@ -736,6 +768,7 @@ Further checks:
 | `raf_workplan::test_crate::complete::a_proposed_block_of_the_change_refuses_condition_three_in_a_loaded_and_in_an_unloaded_document` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_record_removed_while_the_tests_ran_is_an_error_and_nothing_is_written` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_after_the_static_checks` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_test_renamed_while_the_tests_ran_refuses` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does` | test | [Verification](#verification) |

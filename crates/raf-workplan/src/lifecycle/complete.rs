@@ -119,8 +119,9 @@ impl<R: Runner> Lifecycle<R> {
     ///
     /// A failing example is both an `example-failing` obligation (condition 1)
     /// and a failure of condition 5, and a section without a current accepted
-    /// assessment is both an `assessment-*` obligation (condition 1) and a
-    /// failure of condition 6.
+    /// assessment is one or more `assessment-*` obligations (condition 1), one
+    /// `assessment-stale` for each input that moved, each also a failure of
+    /// condition 6; the headline of the refusal counts the section once.
     ///
     /// The repository without the record must also pass `check`, apart from
     /// the generated blocks the removal stales (the `Changed by` rows of the
