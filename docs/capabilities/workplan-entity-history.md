@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-entity-history
 title: "Entity history"
 description: "A history command for a capability or decision and its bindings, built on git log --follow and -L."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_workplan::history

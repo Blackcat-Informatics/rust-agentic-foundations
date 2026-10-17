@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-prose-assessment
 title: "Prose assessment"
 description: "Recorded assessments of explanatory prose by humans and agents, invalidated when their inputs change."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_workplan::assessment

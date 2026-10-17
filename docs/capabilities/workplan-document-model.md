@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-document-model
 title: "Workplan document model"
 description: "Capability and change documents, the four states, PROPOSED blocks, the graph, binding resolution and the check rules."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_workplan::Workplan
@@ -111,6 +111,7 @@ bindings:
     - raf_workplan::test_crate::roadmap::the_groups_are_in_catalogue_order_and_sorted_by_slug
     - raf_workplan::test_crate::roadmap::an_implementing_capability_lists_its_gaps_exactly
     - raf_workplan::test_crate::roadmap::this_repository_lists_every_capability_once_in_its_state_group
+    - raf_workplan::test_crate::roadmap::a_built_capability_is_delivered_or_reopened_under_its_own_change_and_has_no_gap
     - raf_workplan::test_crate::gate::a_clean_repository_passes
     - raf_workplan::test_crate::gate::a_broken_repository_panics_listing_every_finding
     - raf_workplan::test_crate::gate::a_missing_capabilities_directory_is_an_error
@@ -660,6 +661,16 @@ touches, and the obligations those sections receive are defined by
   the wrong role fail with the capability, the list and the binding named.
 - Roadmap fixtures: the group and slug order, the gaps of an `implementing`
   capability, and this repository with every capability once.
+
+> [!PROPOSED change:workplan-document-model]
+> - Roadmap fixtures: the group and slug order, the gaps of an `implementing`
+>   capability, and this repository with every capability once and each capability
+>   it has built either `delivered`, or `implementing` with the open change record
+>   named after it, with no gap in either case. The rule refuses a built capability
+>   that is `implementing` with no record of its name or with only a record of
+>   another name, one with a gap, one in another state and one that is absent, and
+>   accepts it `delivered` with no record or reopened under its own record.
+
 - The dev-dependency API: `Gate::workspace(...).assert_clean()` passes on a clean
   fixture repository on disk, panics with every finding on a broken one, and is an
   error for a directory without capability documents.
@@ -918,6 +929,7 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::refs::the_matcher_bans_references_and_process_wording` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::refs::the_matcher_pins_its_edge_cases` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::refs::the_matcher_spares_colours_prose_numbers_and_near_misses` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::a_built_capability_is_delivered_or_reopened_under_its_own_change_and_has_no_gap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::roadmap::a_fully_bound_implementing_capability_has_no_gap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::roadmap::a_resolving_binding_of_the_wrong_role_is_not_a_gap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::roadmap::an_empty_repository_has_an_empty_roadmap` | test | [Verification](#verification) |
@@ -963,4 +975,5 @@ touches, and the obligations those sections receive are defined by
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
 | Depended on by | [workplan-reconcile](./workplan-reconcile.md) |
 | Depended on by | [workplan-two-way-coverage](./workplan-two-way-coverage.md) |
+| Changed by | [workplan-document-model](../../work/changes/workplan-document-model.md) |
 <!-- raf:generated:end -->

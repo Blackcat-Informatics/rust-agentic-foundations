@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-cli
 title: "cargo workplan command line"
 description: "The cargo workplan subcommands, options and exit codes."
-state: delivered
+state: implementing
 bindings:
   code:
     - cargo_workplan::bin_crate::cargo_workplan::main
@@ -761,4 +761,5 @@ rather than kept by hand.
 | Depends on | [workplan-complete-gate](./workplan-complete-gate.md) |
 | Depends on | [workplan-generated-docs](./workplan-generated-docs.md) |
 | Depends on | [workplan-reconcile](./workplan-reconcile.md) |
+| Changed by | [workplan-cli](../../work/changes/workplan-cli.md) |
 <!-- raf:generated:end -->

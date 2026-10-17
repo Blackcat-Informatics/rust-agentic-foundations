@@ -448,6 +448,124 @@ fn capability_files(root: &Path) -> usize {
         .count()
 }
 
+/// The capabilities this repository has built.
+const BUILT: [&str; 12] = [
+    "okf-profile",
+    "source-index",
+    "workplan-cli",
+    "workplan-complete-gate",
+    "workplan-current-rationale",
+    "workplan-document-model",
+    "workplan-entity-history",
+    "workplan-evidence-claims",
+    "workplan-generated-docs",
+    "workplan-prose-assessment",
+    "workplan-reconcile",
+    "workplan-two-way-coverage",
+];
+
+/// Whether each of `slugs` is built in `roadmap`: delivered, or implementing
+/// with an open change record named after it, which is how a delivered
+/// capability is reopened; with no gap in either case. Every slug that does
+/// not hold is named with the reason.
+fn built_capabilities_hold(roadmap: &Roadmap, slugs: &[&str]) -> Result<(), Vec<String>> {
+    let mut problems = Vec::new();
+    for slug in slugs {
+        let Some(entry) = roadmap.get(slug) else {
+            problems.push(format!("{slug} is not in the roadmap"));
+            continue;
+        };
+        match entry.state() {
+            State::Delivered => {}
+            State::Implementing => {
+                if !entry.open_change_slugs().contains(slug) {
+                    problems.push(format!(
+                        "{slug} is implementing with no open change named after it (open: {:?})",
+                        entry.open_changes()
+                    ));
+                }
+            }
+            other => problems.push(format!(
+                "{slug} is {other:?}, neither delivered nor reopened"
+            )),
+        }
+        if !entry.gaps().is_empty() {
+            problems.push(format!("{slug} has gaps: {:?}", entry.gaps()));
+        }
+        if !roadmap
+            .group(entry.state())
+            .iter()
+            .any(|e| e.slug() == *slug)
+        {
+            problems.push(format!("{slug} is not in the group of its state"));
+        }
+    }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(problems)
+    }
+}
+
+/// A roadmap of the one fully bound capability `built` in `state`, with the
+/// change records `changes` (slug, the capabilities it lists).
+fn built_roadmap(state: &str, bindings: [&str; 3], changes: &[(&str, &str)]) -> Roadmap {
+    let tree: MemoryTree = std::iter::once(capability("built", state, bindings))
+        .chain(changes.iter().map(|(slug, lists)| change(slug, lists)))
+        .collect();
+    let workspace = demo_workspace();
+    Workplan::load(&tree, &workspace).status()
+}
+
+const BOUND: [&str; 3] = ["[demo::real]", "[demo::real]", "[demo::real]"];
+
+#[test]
+fn a_built_capability_is_delivered_or_reopened_under_its_own_change_and_has_no_gap() {
+    // Delivered, with no record: holds.
+    let delivered = built_roadmap("delivered", BOUND, &[]);
+    assert_eq!(built_capabilities_hold(&delivered, &["built"]), Ok(()));
+    // Reopened with no record: refused.
+    let unrecorded = built_roadmap("implementing", BOUND, &[]);
+    let problems = built_capabilities_hold(&unrecorded, &["built"]).expect_err("no record");
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(
+        problems[0].starts_with("built is implementing with no open change named after it"),
+        "{problems:?}"
+    );
+    // Reopened under a record of another name only: refused.
+    let other = built_roadmap("implementing", BOUND, &[("grow-built", "[cap:built]")]);
+    let problems = built_capabilities_hold(&other, &["built"]).expect_err("not its own record");
+    assert!(
+        problems[0].contains("no open change named after it"),
+        "{problems:?}"
+    );
+    // Reopened under its own record: holds, beside another record.
+    let reopened = built_roadmap(
+        "implementing",
+        BOUND,
+        &[("built", "[cap:built]"), ("grow-built", "[cap:built]")],
+    );
+    assert_eq!(built_capabilities_hold(&reopened, &["built"]), Ok(()));
+    // Reopened under its own record but with a gap: refused for the gap.
+    let gap = built_roadmap(
+        "implementing",
+        ["[demo::real]", "[]", "[demo::real]"],
+        &[("built", "[cap:built]")],
+    );
+    let problems = built_capabilities_hold(&gap, &["built"]).expect_err("a gap");
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].starts_with("built has gaps"), "{problems:?}");
+    // Designed, and absent: refused.
+    let designed = built_roadmap("designed", ["[]", "[]", "[]"], &[("built", "[cap:built]")]);
+    let problems = built_capabilities_hold(&designed, &["built"]).expect_err("not built");
+    assert_eq!(
+        problems,
+        ["built is Designed, neither delivered nor reopened"]
+    );
+    let problems = built_capabilities_hold(&delivered, &["missing"]).expect_err("absent");
+    assert_eq!(problems, ["missing is not in the roadmap"]);
+}
+
 #[test]
 fn this_repository_lists_every_capability_once_in_its_state_group() {
     let root = repo_root();
@@ -491,41 +609,16 @@ fn this_repository_lists_every_capability_once_in_its_state_group() {
         }
     }
     // The load found the built capabilities: each capability this repository
-    // has delivered is listed in the delivered group, so the group is never
-    // empty. The census capabilities are listed too, in whatever group their
+    // has built is delivered, or reopened under its own open change, and has
+    // no gap. The census capabilities are listed too, in whatever group their
     // documents declare (checked above); the rest is planned work.
-    let delivered = [
-        "okf-profile",
-        "source-index",
-        "workplan-cli",
-        "workplan-complete-gate",
-        "workplan-current-rationale",
-        "workplan-document-model",
-        "workplan-entity-history",
-        "workplan-evidence-claims",
-        "workplan-generated-docs",
-        "workplan-prose-assessment",
-        "workplan-reconcile",
-        "workplan-two-way-coverage",
-    ];
-    for slug in delivered {
-        let entry = roadmap
-            .get(slug)
-            .unwrap_or_else(|| panic!("{slug} is not in the roadmap"));
-        assert_eq!(entry.state(), State::Delivered, "{slug} is not delivered");
-        assert!(entry.gaps().is_empty(), "{slug}: {:?}", entry.gaps());
-        assert!(
-            roadmap
-                .group(State::Delivered)
-                .iter()
-                .any(|e| e.slug() == slug),
-            "{slug} is not in the delivered group"
-        );
+    if let Err(problems) = built_capabilities_hold(&roadmap, &BUILT) {
+        panic!("{}", problems.join("\n"));
     }
     assert_ne!(
-        roadmap.group(State::Delivered).len(),
+        roadmap.group(State::Delivered).len() + roadmap.group(State::Implementing).len(),
         0,
-        "nothing is delivered"
+        "nothing is built"
     );
     for slug in [
         "census-cli",

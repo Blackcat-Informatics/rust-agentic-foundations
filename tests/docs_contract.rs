@@ -83,18 +83,18 @@ const INVENTORY: Inventory = Inventory {
         ("census-patterns", "designed"),
         ("census-reference-scan", "designed"),
         ("census-rule-api", "designed"),
-        ("okf-profile", "delivered"),
-        ("source-index", "delivered"),
-        ("workplan-cli", "delivered"),
-        ("workplan-complete-gate", "delivered"),
+        ("okf-profile", "implementing"),
+        ("source-index", "implementing"),
+        ("workplan-cli", "implementing"),
+        ("workplan-complete-gate", "implementing"),
         ("workplan-current-rationale", "delivered"),
-        ("workplan-document-model", "delivered"),
-        ("workplan-entity-history", "delivered"),
-        ("workplan-evidence-claims", "delivered"),
-        ("workplan-generated-docs", "delivered"),
-        ("workplan-prose-assessment", "delivered"),
+        ("workplan-document-model", "implementing"),
+        ("workplan-entity-history", "implementing"),
+        ("workplan-evidence-claims", "implementing"),
+        ("workplan-generated-docs", "implementing"),
+        ("workplan-prose-assessment", "implementing"),
         ("workplan-reconcile", "delivered"),
-        ("workplan-two-way-coverage", "delivered"),
+        ("workplan-two-way-coverage", "implementing"),
     ],
     architecture: &["normal-form", "okf-profile"],
     records: &[
@@ -1035,8 +1035,8 @@ fn inventory_table_has_the_documented_shape() {
             .count()
     };
     assert_eq!(count("designed"), 9);
-    assert_eq!(count("implementing"), 0);
-    assert_eq!(count("delivered"), 12);
+    assert_eq!(count("implementing"), 10);
+    assert_eq!(count("delivered"), 2);
     assert_eq!(count("considered"), 0);
     assert_eq!(INVENTORY.architecture.len(), 2);
     assert!(
