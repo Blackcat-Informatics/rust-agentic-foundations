@@ -196,7 +196,13 @@ guarantees are these, and no wider:
   those words, and refuses an option whose value would be `--`, so no option can
   move where the command starts. `history`, `evidence claims`, `evidence for`,
   `assess --context`, `assess --list` and `coverage` write nothing; `assess
-  --verdict` writes the one assessment record. The change commands add two kinds of
+  --verdict` writes the one assessment record. The text output of `history`,
+  `coverage`, `evidence claims` and `assess --context` writes each control
+  character and each bidirectional formatting character of a document, a record
+  or a commit as its `\u{..}` escape (a line break in a table cell is a space,
+  and the multi-line text of the last two keeps its line feeds and tabs), so no
+  such text reaches a terminal as a control; the JSON forms escape control
+  characters as JSON does. The change commands add two kinds of
   process, both started by `raf-workplan`: `git` (the default branch, the merge base
   and the file at the merge base, for `change reconcile` and `change complete`, which
   ask `git --version` before anything else, refuse a Git older than 2.30, and then
