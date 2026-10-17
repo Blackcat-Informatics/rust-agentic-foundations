@@ -178,14 +178,16 @@ impl<R: Runner> Lifecycle<R> {
     /// [`LifecycleError::Exec`] when a process of a bound run cannot be
     /// started or read to its end; [`LifecycleError::RecordRefused`] when
     /// `work` or `work/changes` is a symbolic link or not a directory, or the
-    /// record is not a regular file there, judged before anything runs; [`LifecycleError::Gate`] when the
+    /// record is not a regular file there, judged with each evaluation, the
+    /// first before anything runs and the second after the bound runs and
+    /// before the writes; [`LifecycleError::Gate`] when the
     /// repository cannot be opened again; [`LifecycleError::Rewrite`] and
     /// [`LifecycleError::Remove`] when a write fails. Each is the tool being
     /// unable to give an answer, which is not a refusal.
     pub fn complete(&self, change: &str) -> Result<Completion, LifecycleError> {
         let slug = bare_slug(change);
 
-        let before = self.evaluate(&self.opened, slug)?;
+        let before = self.evaluate(&self.opened, slug, false)?;
         if !before.failures.is_empty() {
             return Ok(Completion::Refused {
                 failures: before.failures,
@@ -200,7 +202,7 @@ impl<R: Runner> Lifecycle<R> {
         // The documents and the source can change while `cargo` runs, and
         // `Opened` holds the source as it was.
         let opened = self.gate.open()?;
-        let after = self.evaluate(&opened, slug)?;
+        let after = self.evaluate(&opened, slug, true)?;
         let different = run_keys(&after.runs) != run_keys(&before.runs);
         if different || !after.failures.is_empty() {
             let what = if different {
@@ -218,8 +220,15 @@ impl<R: Runner> Lifecycle<R> {
         Self::write(&opened, &after.record, &after.rewrite)
     }
 
-    /// Judge the static conditions over `opened`.
-    fn evaluate(&self, opened: &Opened, slug: &str) -> Result<Evaluation, LifecycleError> {
+    /// Judge the static conditions over `opened`; `ran` says whether the
+    /// bound tests and examples have run, which a refused way to the record
+    /// reports.
+    fn evaluate(
+        &self,
+        opened: &Opened,
+        slug: &str,
+        ran: bool,
+    ) -> Result<Evaluation, LifecycleError> {
         let plan = opened.workplan();
         let record = plan.change(slug)?;
         let fixed = plan.reconcile(slug)?;
@@ -231,8 +240,9 @@ impl<R: Runner> Lifecycle<R> {
                 reason: error.to_string(),
             })?;
         // The record is removed as the last step, so the way to it is judged
-        // as every write of the crate judges it, before anything runs.
-        Self::judge_record(opened, &record_path)?;
+        // as every write of the crate judges it, before anything runs and
+        // again before the writes.
+        Self::judge_record(opened, &record_path, ran)?;
 
         // Condition 1, all kinds that need no run of `cargo`.
         let mut obligations = fixed.obligations().to_vec();
@@ -389,9 +399,10 @@ impl<R: Runner> Lifecycle<R> {
     /// Require that the record is a regular file directly in a `work/changes`
     /// that is a directory below a `work` that is a directory, neither a link,
     /// so the removal removes the record and no other file.
-    fn judge_record(opened: &Opened, record: &RelPath) -> Result<(), LifecycleError> {
+    fn judge_record(opened: &Opened, record: &RelPath, ran: bool) -> Result<(), LifecycleError> {
         let refused = |path: String, reason: &str| LifecycleError::RecordRefused {
             path,
+            ran,
             source: io::Error::new(io::ErrorKind::InvalidInput, reason.to_string()),
         };
         match files::target(opened.dir(), DocType::Change.directory(), record) {
@@ -405,6 +416,7 @@ impl<R: Runner> Lifecycle<R> {
             )),
             Err(error) => Err(LifecycleError::RecordRefused {
                 path: error.path,
+                ran,
                 source: error.source,
             }),
         }

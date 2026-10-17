@@ -1155,7 +1155,7 @@ fn a_symbol_log_that_git_refuses_names_the_binding_and_the_file_to_commit() {
     // not as the cause.
     assert!(
         message.ends_with(
-            "; when `src/alpha.rs` is not committed, or `HEAD` holds fewer of its lines than the working copy, one way to read them is to commit `src/alpha.rs` with the symbol at the lines it has now and ask again"
+            "; when `src/alpha.rs` is not committed, or its copy in `HEAD` ends before the line the symbol starts at in the working copy, one way to read them is to commit `src/alpha.rs` with the symbol at the lines it has now and ask again"
         ),
         "{message}"
     );

@@ -27,8 +27,9 @@
 //!   [`Source`] and the file as their path. The span is the one in the
 //!   working tree, and `git log -L` traces it from `HEAD`: for a file whose
 //!   working copy differs from `HEAD` the lines are those numbers in `HEAD`,
-//!   and a bound file that is not committed, or is shorter in `HEAD`, makes
-//!   `git` fail and with it the whole history
+//!   and a bound file that is not committed, or whose copy in `HEAD` ends
+//!   before the line the symbol starts at in the working copy, makes `git`
+//!   fail and with it the whole history
 //!   ([`HistoryError::SymbolLog`], which names the binding and the file).
 //!   `git` follows the lines through a rename it detects and stops where they
 //!   came from another file, so a symbol moved between files has its history
@@ -349,8 +350,9 @@ pub enum HistoryError {
     /// The repository is a shallow clone.
     Shallow,
     /// `git log -L` failed for the span of a bound symbol, as it does for a
-    /// file that is not committed or is shorter in `HEAD`. The message says
-    /// that `git log -L` could not read the lines from `HEAD`, with what `git`
+    /// file that is not committed or whose copy in `HEAD` ends before the line
+    /// the symbol starts at in the working copy. The message says that
+    /// `git log -L` could not read the lines from `HEAD`, quoting what `git`
     /// said, and names committing the file as one way to read them, not as the
     /// cause.
     SymbolLog {
@@ -419,7 +421,7 @@ impl fmt::Display for HistoryError {
                 error,
             } => write!(
                 f,
-                "`git log -L` could not read the lines of the bound symbol `{binding}` in `{file}` from `HEAD`: {error}; when `{file}` is not committed, or `HEAD` holds fewer of its lines than the working copy, one way to read them is to commit `{file}` with the symbol at the lines it has now and ask again"
+                "`git log -L` could not read the lines of the bound symbol `{binding}` in `{file}` from `HEAD`: {error}; when `{file}` is not committed, or its copy in `HEAD` ends before the line the symbol starts at in the working copy, one way to read them is to commit `{file}` with the symbol at the lines it has now and ask again"
             ),
             Self::Uncommitted { binding, file } => write!(
                 f,

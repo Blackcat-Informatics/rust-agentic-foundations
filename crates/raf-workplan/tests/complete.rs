@@ -648,8 +648,14 @@ fn a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_comple
                 "{error:?}"
             );
             assert!(
-                error.to_string().contains("nothing was run or written"),
-                "{error}"
+                matches!(&error, LifecycleError::RecordRefused { ran: false, .. }),
+                "{error:?}"
+            );
+            let text = error.to_string();
+            assert!(
+                text.contains("at the first judgement, before anything ran: ")
+                    && text.contains("; nothing was written, so make"),
+                "{text}"
             );
         } else {
             assert!(
@@ -675,6 +681,56 @@ fn a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_comple
     let completion = lifecycle.complete("shape").expect("complete answers");
     assert!(completion.is_completed(), "{completion}");
     assert!(!fixture.exists(RECORD));
+}
+
+/// A change record that becomes a symbolic link while the bound tests run is
+/// refused by the second judgement, after the tests ran: the change still
+/// loads through the link, the error names the record and says the tests
+/// ran, and nothing is written, the link and the file behind it kept. The
+/// neighbour, whose run changes nothing, completes.
+#[cfg(unix)]
+#[test]
+fn a_record_linked_while_the_tests_ran_is_refused_at_the_second_judgement() {
+    let fixture = Fixture::scripted(&Spec::default());
+    let root = fixture.root();
+    let runner = AfterCargo::new(passing(git_answers(), "passes"), || {
+        std::fs::rename(root.join(RECORD), root.join("moved.md")).expect("moves");
+        std::os::unix::fs::symlink("../../moved.md", root.join(RECORD)).expect("links");
+    });
+    let lifecycle = fixture.over(runner);
+    let cap = fixture.text(CAP);
+    let error = lifecycle.complete("shape").expect_err("refused");
+    assert_eq!(fixture.text(CAP), cap, "no generated block is rewritten");
+    assert!(
+        matches!(&error, LifecycleError::RecordRefused { path, ran: true, .. } if path == RECORD),
+        "{error:?}"
+    );
+    let text = error.to_string();
+    assert!(
+        text.contains("at the second judgement, after the bound tests and examples ran: ")
+            && text.contains("; nothing was written, so make"),
+        "{text}"
+    );
+    assert!(
+        programs_of(&lifecycle.runner().commands()).contains(&"cargo"),
+        "the bound tests ran"
+    );
+    assert!(
+        std::fs::symlink_metadata(root.join(RECORD))
+            .expect("the link is kept")
+            .file_type()
+            .is_symlink()
+    );
+    assert!(
+        fixture.exists("moved.md"),
+        "the file behind the link is kept"
+    );
+
+    let neighbour = Fixture::scripted(&Spec::default());
+    let runner = AfterCargo::new(passing(git_answers(), "passes"), || {});
+    let completion = neighbour.over(runner).complete("shape").expect("answers");
+    assert!(completion.is_completed(), "{completion}");
+    assert!(!neighbour.exists(RECORD));
 }
 
 // --- condition 6 ---------------------------------------------------------------------

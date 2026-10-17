@@ -117,8 +117,10 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `is_shallow`, `document_log`, `symbol_log` and `last_change` (`LastChange`).
   Table cells escape control and bidirectional formatting characters.
   `Pattern::ALL`, `Arg` and `GitError` grow. A `git log -L` that `git` refuses,
-  as for a bound file that is not committed, is `HistoryError::SymbolLog`, which
-  names the binding and the file and says to commit it. The history writes nothing.
+  as for a bound file that is not committed or whose copy in `HEAD` ends before
+  the line the symbol starts at, is `HistoryError::SymbolLog`, which names the
+  binding and the file, quotes `git` and names committing the file as one way to
+  read the lines. The history writes nothing.
 - **`raf-workplan` evidence:** `Workplan::record_evidence(root, runner, request)`
   runs one execution and writes the evidence record `work/evidence/<id>.md`. The
   verdict comes from one `VerdictSource`: the caller's own command
@@ -237,7 +239,9 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   runs or is written. A directory link inside the root no longer lets a
   replacement land on another file, such as a capability document.
   `LifecycleError` gains `RecordRefused`, which `Lifecycle::complete` returns for
-  a refused way to the record before any condition runs a process.
+  a refused way to the record at either judgement of the static conditions, the
+  first before any process runs and the second after the bound tests and
+  examples ran; its `ran` field and its message say which.
 - **`raf-okf` a marker split over lines:** a comment that `<!--` opens at the
   end of a line and whose first non-blank text below is `raf:` in any letter case,
   other than `raf:generated:`, is a malformed claim marker for `raf:claim` and an

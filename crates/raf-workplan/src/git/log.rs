@@ -396,8 +396,8 @@ pub fn document_log(runner: &dyn Runner, path: &TreePath) -> Result<Vec<LogEntry
 ///
 /// # Errors
 ///
-/// As [`document_log`]; a file that is not in `HEAD`, or has fewer lines there,
-/// is [`GitError::Failed`].
+/// As [`document_log`]; a file that is not in `HEAD`, or whose copy there ends
+/// before the first line of `lines`, is [`GitError::Failed`].
 pub fn symbol_log(
     runner: &dyn Runner,
     lines: LineRange,

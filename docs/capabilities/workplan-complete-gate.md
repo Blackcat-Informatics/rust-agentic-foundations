@@ -29,6 +29,7 @@ bindings:
     - raf_workplan::test_crate::complete::a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline
     - raf_workplan::lifecycle::completion::tests::a_section_with_three_moved_inputs_is_one_section_in_the_headline
     - raf_workplan::test_crate::complete::a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_completes
+    - raf_workplan::test_crate::complete::a_record_linked_while_the_tests_ran_is_refused_at_the_second_judgement
     - raf_workplan::test_crate::scenarios::several_redesigns_leave_one_readable_present
     - raf_workplan::test_crate::scenarios::planning_produces_the_documentation
     - raf_workplan::test_crate::scenarios::a_document_that_merely_exists_does_not_satisfy_the_scenario
@@ -319,10 +320,11 @@ The record is deleted only through real directories. With each judgement of the
 static conditions, the first before any `cargo` process and the second immediately
 before the writes, `complete` judges the way to `work/changes/<slug>.md`: `work` and
 `work/changes` must each be a directory and not a symbolic link, and the record a
-regular file there. Otherwise it is an error (exit 2) that names the refused path,
-and nothing is written; refused at the first judgement, nothing has run either. A
-linked `work/changes` is never read as the directory of change records, so its
-change is not found.
+regular file there. Otherwise it is an error (exit 2) that names the refused path
+and the judgement that refused it, and nothing is written; refused at the first
+judgement, nothing has run either, and refused at the second, the error says that
+the bound tests and examples ran. A linked `work/changes` is never read as the
+directory of change records, so its change is not found.
 
 **Obligations by effect.** All six conditions apply to every change. The effect only
 sets which obligations [reconcile](./workplan-reconcile.md) raises. A change with
@@ -638,7 +640,13 @@ Further checks:
 - A directory link inside the root at `work`, made after the repository is opened,
   is refused before any `cargo` process or write, with the record behind it kept;
   a linked `work/changes` leaves the change not found, with nothing run; the same
-  completion through the real directories completes.
+  completion through the real directories completes. The refusal names the first
+  judgement and says that nothing was written.
+- A change record replaced by a symbolic link to a file in the root while the bound
+  tests run still loads, and is refused by the second judgement: the error names
+  the record, says that the bound tests and examples ran and that nothing was
+  written, and the link and the file behind it are kept; the same completion with
+  a run that changes nothing completes.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
@@ -764,6 +772,7 @@ Further checks:
 | `raf_workplan::test_crate::complete::a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_prefixed_slug_names_the_same_change` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_proposed_block_of_the_change_refuses_condition_three_in_a_loaded_and_in_an_unloaded_document` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::a_record_linked_while_the_tests_ran_is_refused_at_the_second_judgement` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_record_removed_while_the_tests_ran_is_an_error_and_nothing_is_written` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline` | test | [Verification](#verification) |

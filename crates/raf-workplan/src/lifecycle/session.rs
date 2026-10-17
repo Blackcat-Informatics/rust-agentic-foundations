@@ -103,11 +103,16 @@ pub enum LifecycleError {
     },
     /// The way to the record is refused: `work` or `work/changes` is a
     /// symbolic link or not a directory, or the record is not a regular file
-    /// there, so removing it could remove another file. Judged with the static
-    /// conditions, before anything runs or is written; nothing was.
+    /// there, so removing it could remove another file. Judged with each
+    /// judgement of the static conditions: the first before anything runs,
+    /// the second after the bound tests and examples ran and before the
+    /// writes. Nothing was written in either case.
     RecordRefused {
         /// The refused directory, or the path of the record.
         path: String,
+        /// Whether the bound tests and examples had run: `false` when the
+        /// first judgement refused, `true` when the second did.
+        ran: bool,
         /// Why it is refused.
         source: io::Error,
     },
@@ -163,9 +168,14 @@ impl fmt::Display for LifecycleError {
                     rewritten.join(", ")
                 }
             ),
-            Self::RecordRefused { path, source } => write!(
+            Self::RecordRefused { path, ran, source } => write!(
                 f,
-                "`{path}` is refused on the way to the change record: {source}; nothing was run or written, so make `work` and `work/changes` plain directories that hold the record"
+                "`{path}` is refused on the way to the change record at the {}: {source}; nothing was written, so make `work` and `work/changes` plain directories that hold the record",
+                if *ran {
+                    "second judgement, after the bound tests and examples ran"
+                } else {
+                    "first judgement, before anything ran"
+                }
             ),
         }
     }
