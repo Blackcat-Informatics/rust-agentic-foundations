@@ -41,8 +41,8 @@
 //!   log a document has ([`git::document_log`]), with the binding's path as
 //!   its [`Source`] and the names `git` lists as its paths. A crate root
 //!   stands for nothing below it, so it has the log of its span only, as
-//!   every other item does. A file of the module that no commit holds (one
-//!   not yet committed) has an empty log, and the whole history fails rather
+//!   every other item does. A file of the module that no commit holds (a new
+//!   file never committed) has an empty log, and the whole history fails rather
 //!   than show it as a file with no change ([`HistoryError::Uncommitted`],
 //!   which names the binding and the file).
 //! * A binding that no longer resolves (the index has nothing at its path) is

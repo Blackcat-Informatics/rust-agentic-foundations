@@ -132,8 +132,10 @@ git --no-pager log --no-show-signature --root -S<identifier> -n 1 --format=%H%x1
 ```
 
 The first form runs once for the document and once for each file of a bound
-module, which is then its `<doc-path>`; the logs of a module's files follow the
-log of its span. `<doc-path>`, `<file>` and `<crate-dir>` are
+module, which is then its `<doc-path>`. The questions run in this order: the log
+of the document, the log of each span, by binding path, the log of each file of
+a bound module, by binding path and then file path, and the lookup of each
+binding that no longer resolves. `<doc-path>`, `<file>` and `<crate-dir>` are
 paths relative to the workspace root that the command takes from the loaded
 document set and the [source index](./source-index.md), never from the raw command
 line; `<crate-dir>` is `.` for a package at the root. In the first and third forms
@@ -235,7 +237,7 @@ the document and the method, so it is one entry with both sources:
   as the module's digest moves with that edit. The log of each file holds its
   committed versions and follows the file through a rename that Git detects; a
   working copy that differs from `HEAD` is in no commit. A file of the module that
-  no commit holds, such as one not yet added, makes the whole history fail with an
+  no commit holds, such as a new file never committed, makes the whole history fail with an
   error that names the binding and the file and says to commit it, because `git
   log` answers such a file with no commit and no error.
 - The commit reported as removing a binding is a heuristic. The count is of the

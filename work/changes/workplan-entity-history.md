@@ -14,7 +14,9 @@ affects:
 contract_effect: changes
 items:
   - claim: "The history of a code binding that resolves to a module below its crate root lists the commits that changed any file the digest of the binding reads: the module's own file and the file of every module below it, each through the document log of that file, besides the line log of the module's own span; a crate root and every other item keep the line log of their span, and a file of such a module that has no commit is an error that names the binding and the file."
+    outcome: implemented
   - claim: "--since selects by author date: every entry shown has an author date at or after 00:00:00 UTC of the day, because no date reaches git and the logs are filtered in process by the date each entry shows."
+    outcome: implemented
 ---
 
 ## Summary
