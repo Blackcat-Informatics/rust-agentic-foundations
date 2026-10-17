@@ -13,10 +13,15 @@ affects:
 contract_effect: changes
 items:
   - claim: "evidence record refuses a linked work or work/evidence directory before the command or the binding runs, and writes nothing."
+    outcome: implemented
   - claim: "evidence claims exits 2 naming each capability document that does not load, and an unloaded change or evidence record leaves its answer as it is."
+    outcome: implemented
   - claim: "The Constraints state that an interrupt of cargo-workplan does not reach the process group of the trusted command, that a descendant that starts a session of its own escapes the kill, and that a relative program resolves against the workspace root while the record keeps the command as typed."
+    outcome: implemented
   - claim: "An error message about a trusted command quotes its words as the record stores them."
+    outcome: implemented
   - claim: "The Constraints state that a hand-written evidence record may hold more than 1024 values, bounded by the document size bound, and that the write checks judge paths, not open handles."
+    outcome: implemented
 ---
 
 ## Summary

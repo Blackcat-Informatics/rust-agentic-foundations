@@ -127,19 +127,13 @@ document (`evidence-for-missing`).
 
 **The dependency view.** The graph holds an edge from each claim to the evidence it
 rests on. `cargo workplan evidence claims <evidence-id>` answers which current
-statements depend on this result. `cargo workplan evidence for <cap:slug>` answers
-which results support a capability.
-
-> [!PROPOSED change:workplan-evidence-claims]
-> **The dependency view.** The graph holds an edge from each claim to the evidence it
-> rests on. `cargo workplan evidence claims <evidence-id>` answers which current
-> statements depend on this result. While a capability document exists and does not
-> load, the claims it holds are unknown, so `evidence claims` gives no answer and is
-> an error (`EvidenceLookupError::UnloadedCapabilities`, exit 2) naming each such
-> document, as `evidence for` is for a capability that does not load; a change
-> record or an evidence record that does not load holds no claim and leaves the
-> answer as it is. `cargo workplan evidence for <cap:slug>` answers which results
-> support a capability.
+statements depend on this result. While a capability document exists and does not
+load, the claims it holds are unknown, so `evidence claims` gives no answer and is
+an error (`EvidenceLookupError::UnloadedCapabilities`, exit 2) naming each such
+document, as `evidence for` is for a capability that does not load; a change
+record or an evidence record that does not load holds no claim and leaves the
+answer as it is. `cargo workplan evidence for <cap:slug>` answers which results
+support a capability.
 
 **Invalidation.** When a record that passed at the merge base is replaced by one that
 fails, holds a value over its limit or the limit of the merge base, or has lost a limit
@@ -207,37 +201,35 @@ base: the bound is documented and no longer supported.
 - A run lasts until the command exits and its standard output and standard error are
   closed: a background process that keeps them open after the command exits holds
   the run until the time limit, which records `fail`.
-
-> [!PROPOSED change:workplan-evidence-claims]
-> - Evidence is written only through real directories: before the command or the
->   binding runs, `work` and `work/evidence` must each be a directory, and a symbolic
->   link there, inside the root or out of it, or a file is refused with nothing run
->   and nothing written, so a record never lands on a document through a link.
-> - The command is supervised only while `cargo-workplan` runs. On Unix it leads a
->   process group of its own, so an interrupt or a hang-up from the terminal, such
->   as Ctrl-C, reaches `cargo-workplan` and not the command: once `cargo-workplan`
->   has died the command runs on with no time limit and no record is written. A
->   descendant that leaves the group, as one that calls `setsid` or `setpgid` does,
->   is not reached by the kill at the time limit and may outlive it; elsewhere than
->   Unix only the process itself is killed.
-> - The command runs with the workspace root as its directory, so a relative
->   program, such as `./tool.sh` typed in a directory below the root, resolves
->   against the root and not the caller's directory, and with `.` on `PATH` a bare
->   name is looked for in the root as well. The record keeps the command as it was
->   typed, so name a program by an absolute path, or by a path from the root, to be
->   sure of the one it names.
-> - An error message about the command, such as the kill for too much output or a
->   program that cannot start, quotes its words as `TrustedArgv::text` writes them
->   and the record stores them: a word that a shell would split or expand is in
->   single quotes, so `sh -c 'yes >&2'` and `sh -c yes '>&2'` read apart.
-> - At most 1024 values is a bound on what `evidence record` writes. A record
->   written by hand may hold more; it is bounded only by the 1 MiB bound of a
->   document, and it loads and is judged as a written one is.
-> - The judgement of the way to a record is made by path, not through a held
->   handle of each directory: a local writer that swaps a directory for a link
->   between the judgement and the write is not stopped. Such a writer can already
->   edit the workspace, which the trust model of the
->   [security policy](../../SECURITY.md) places outside what the tool defends.
+- Evidence is written only through real directories: before the command or the
+  binding runs, `work` and `work/evidence` must each be a directory, and a symbolic
+  link there, inside the root or out of it, or a file is refused with nothing run
+  and nothing written, so a record never lands on a document through a link.
+- The command is supervised only while `cargo-workplan` runs. On Unix it leads a
+  process group of its own, so an interrupt or a hang-up from the terminal, such
+  as Ctrl-C, reaches `cargo-workplan` and not the command: once `cargo-workplan`
+  has died the command runs on with no time limit and no record is written. A
+  descendant that leaves the group, as one that calls `setsid` or `setpgid` does,
+  is not reached by the kill at the time limit and may outlive it; elsewhere than
+  Unix only the process itself is killed.
+- The command runs with the workspace root as its directory, so a relative
+  program, such as `./tool.sh` typed in a directory below the root, resolves
+  against the root and not the caller's directory, and with `.` on `PATH` a bare
+  name is looked for in the root as well. The record keeps the command as it was
+  typed, so name a program by an absolute path, or by a path from the root, to be
+  sure of the one it names.
+- An error message about the command, such as the kill for too much output or a
+  program that cannot start, quotes its words as `TrustedArgv::text` writes them
+  and the record stores them: a word that a shell would split or expand is in
+  single quotes, so `sh -c 'yes >&2'` and `sh -c yes '>&2'` read apart.
+- At most 1024 values is a bound on what `evidence record` writes. A record
+  written by hand may hold more; it is bounded only by the 1 MiB bound of a
+  document, and it loads and is judged as a written one is.
+- The judgement of the way to a record is made by path, not through a held
+  handle of each directory: a local writer that swaps a directory for a link
+  between the judgement and the write is not stopped. Such a writer can already
+  edit the workspace, which the trust model of the
+  [security policy](../../SECURITY.md) places outside what the tool defends.
 
 ## Explanation
 
@@ -312,19 +304,17 @@ staleness reads no revision and asks Git nothing.
   not exist is refused before anything starts or is written) and
   `evidence::parse_limit` (a limit is a name and a number; an exponent is refused)
   run.
-
-> [!PROPOSED change:workplan-evidence-claims]
-> - A directory link inside the root at `work` or at `work/evidence`, with a file of
->   the record's name behind it, is refused before the command runs, for a new record
->   and for a replacement, with nothing written, beside the same requests through the
->   real directories; through the gate, with `work/evidence` a link to
->   `docs/capabilities`, a replacement of the evidence named as a capability document
->   is refused before anything runs and the document keeps its text.
-> - An error about the caller's command names it as its record does: the message of
->   a kill for too much output and of a program that cannot start (a real run of a
->   program named with a space) quote each word a shell would split or expand,
->   beside a command of plain words that reads as its words.
-> - While a second capability document does not load, the claims of a record are
->   refused naming it, for a record with claims and for an id no claim names, while
->   a malformed id is still refused as one; beside it a change record and an
->   evidence record that do not load leave the answer, as the clean repository does.
+- A directory link inside the root at `work` or at `work/evidence`, with a file of
+  the record's name behind it, is refused before the command runs, for a new record
+  and for a replacement, with nothing written, beside the same requests through the
+  real directories; through the gate, with `work/evidence` a link to
+  `docs/capabilities`, a replacement of the evidence named as a capability document
+  is refused before anything runs and the document keeps its text.
+- An error about the caller's command names it as its record does: the message of
+  a kill for too much output and of a program that cannot start (a real run of a
+  program named with a space) quote each word a shell would split or expand,
+  beside a command of plain words that reads as its words.
+- While a second capability document does not load, the claims of a record are
+  refused naming it, for a record with claims and for an id no claim names, while
+  a malformed id is refused as malformed first; beside it a change record and an
+  evidence record that do not load leave the answer, as the clean repository does.
