@@ -41,6 +41,7 @@ bindings:
     - raf_workplan::assessment::tests::the_record_slug_is_the_capability_slug_and_the_section_and_no_two_sections_share_one
     - raf_workplan::assessment::tests::widening_a_section_with_weak_names_never_removes_an_input
     - raf_workplan::test_crate::assessments::an_edit_inside_a_bound_module_moves_the_assessment_and_a_sibling_edit_does_not
+    - raf_workplan::test_crate::digest::a_crate_root_stands_for_its_own_file_and_an_edit_below_it_leaves_its_digest
   examples:
     - raf_workplan::Workplan::assess_context
     - raf_workplan::assessment::record_slug
@@ -186,6 +187,14 @@ cap:streaming-parser#usage  assessment:streaming-parser-usage  accepted  agent  
 >   `work/assessments` must each be a directory, and a symbolic link there, inside
 >   the root or out of it, or a file is refused before anything is written, so the
 >   record replaced is the record of the section and never another file.
+> - The digest of a bound symbol is the text of its own item: the binding of a type
+>   covers the type's definition and not the bodies of its methods, so a section
+>   that describes a method names the method, and the capability binds it. The
+>   binding of a module below a crate root stands for the module's whole content,
+>   its files and those of the modules below it, so any edit inside it moves the
+>   input. The binding of a crate root stands for its own span, the whole of its
+>   file, and for nothing below it, so an edit of a module file below the root
+>   leaves the input and an edit of the root's own file moves it.
 
 ## Explanation
 
@@ -258,3 +267,7 @@ sections to rewrite and the evidence still missing, and an assessor resolves the
 >   record of the section behind it, and a file where `work/assessments` belongs, are
 >   each refused with the tree byte-identical, and the same assessment through the
 >   real directories replaces the record.
+> - The digest of a crate-root binding is unchanged by an edit in the file of a
+>   module below the root and in the file of a module below that, while each edit
+>   moves the digest of the module it is in, and an edit of the root's own file
+>   moves the root's digest.

@@ -323,3 +323,51 @@ fn a_module_stands_for_its_files_and_the_modules_below_it_and_a_sibling_does_not
         digest(&workspace(&files), "demo::tools")
     );
 }
+
+#[test]
+fn a_crate_root_stands_for_its_own_file_and_an_edit_below_it_leaves_its_digest() {
+    let files = [
+        ("src/lib.rs", "pub mod tools;\npub fn r() {}\n"),
+        ("src/tools.rs", "pub mod deep;\npub fn t() {}\n"),
+        ("src/tools/deep.rs", "pub fn d() {}\n"),
+    ];
+    let edited = |path: &str, from: &str, to: &str| {
+        let changed: Vec<(&str, String)> = files
+            .iter()
+            .map(|(file, text)| {
+                let text = if *file == path {
+                    assert!(text.contains(from), "{file} has no `{from}`");
+                    text.replacen(from, to, 1)
+                } else {
+                    (*text).to_string()
+                };
+                (*file, text)
+            })
+            .collect();
+        let borrowed: Vec<(&str, &str)> = changed.iter().map(|(f, t)| (*f, t.as_str())).collect();
+        workspace(&borrowed)
+    };
+    let digest = |source: &Workspace, path: &str| Digest::symbol(source, path).expect(path);
+    let base = workspace(&files);
+    // An edit in a module file below the root, the module's own or a child's,
+    // leaves the digest of the root binding, and moves the module's.
+    for (file, from, to) in [
+        ("src/tools.rs", "pub fn t() {}", "pub fn t() { let _ = 1; }"),
+        (
+            "src/tools/deep.rs",
+            "pub fn d() {}",
+            "pub fn d() { let _ = 2; }",
+        ),
+    ] {
+        let below = edited(file, from, to);
+        assert_eq!(digest(&base, "demo"), digest(&below, "demo"), "{file}");
+        assert_ne!(
+            digest(&base, "demo::tools"),
+            digest(&below, "demo::tools"),
+            "{file}"
+        );
+    }
+    // The neighbour: an edit of the root's own file moves it.
+    let own = edited("src/lib.rs", "pub fn r() {}", "pub fn r() { let _ = 3; }");
+    assert_ne!(digest(&base, "demo"), digest(&own, "demo"));
+}
