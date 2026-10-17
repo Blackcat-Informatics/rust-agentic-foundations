@@ -12,7 +12,9 @@ affects:
 contract_effect: changes
 items:
   - claim: "Workplan::write refuses a target below a directory on its way that is a symbolic link, inside the root or out of it, before anything is written."
-  - claim: "The test that runs the docs sync example takes the lock the other process tests of the crate take, so no other test rewrites the executable while it runs."
+    outcome: implemented
+  - claim: "The four tests that run the docs_sync example hold one lock of their test binary from their first process to their last, as the other process tests of the crate hold the lock of theirs, so no test of that binary rewrites the example while another starts it."
+    outcome: implemented
 ---
 
 ## Summary
