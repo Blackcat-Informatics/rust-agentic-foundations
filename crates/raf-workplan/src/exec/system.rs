@@ -331,10 +331,9 @@ fn group_signal_outcome(
 mod tests {
     use rustix::io::Errno;
 
+    use rustix::process::{Pid, WaitId, WaitIdOptions, waitid};
     use std::os::unix::process::CommandExt as _;
     use std::process::{Command, Stdio};
-    use std::thread;
-    use std::time::Duration;
 
     use super::{group_signal_outcome, kill_group, terminate};
 
@@ -348,9 +347,14 @@ mod tests {
             .stderr(Stdio::null())
             .process_group(0);
         let child = command.spawn().expect("sh starts");
-        // Long enough for the shell to exit; if it has not yet, the group is
-        // still signalled, so the test holds either way.
-        thread::sleep(Duration::from_millis(300));
+        // Block until the shell has exited without collecting it, so the group
+        // holds only an exited, unreaped process whatever the host's speed.
+        let pid = Pid::from_raw(i32::try_from(child.id()).expect("a pid")).expect("a pid");
+        waitid(
+            WaitId::Pid(pid),
+            WaitIdOptions::EXITED | WaitIdOptions::NOWAIT,
+        )
+        .expect("the shell exits");
         child
     }
 
