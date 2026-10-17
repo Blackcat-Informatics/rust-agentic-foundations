@@ -57,8 +57,8 @@ make help    # list every target
 
 - **`make check` is the gate.** It stops at the first failure and CI runs the same
   gates. The pre-commit hook runs fmt and reuse on a checkout of the staged
-  index, plus the `repo_gates` and `docs_contract` test binaries over that
-  checkout. The binaries are compiled from the working tree, not the index.
+  index, plus the `repo_gates`, `docs_contract` and `self_workplan` test binaries over
+  that checkout. The binaries are compiled from the working tree, not the index.
   A `pre-merge-commit` hook runs the same gates on merge commits. Never bypass a
   hook.
 - **Hooks follow the checkout.** With `core.hooksPath` set to `.githooks`,

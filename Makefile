@@ -7,7 +7,8 @@
 # Both run the whole `repo_gates` binary (under a second) with no name filter,
 # so a renamed test can never leave a target running zero tests.
 # `.githooks/pre-commit` runs fmt and reuse on a checkout of the staged index,
-# plus the `repo_gates` and `docs_contract` test binaries over that checkout.
+# plus the `repo_gates`, `docs_contract` and `self_workplan` test binaries over that
+# checkout.
 #
 # Gates beyond the workspace tests:
 #   test-release  the raf-source tests again in release mode, because the parse

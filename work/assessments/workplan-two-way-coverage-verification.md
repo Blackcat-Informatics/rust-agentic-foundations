@@ -7,7 +7,7 @@ subject: cap:workplan-two-way-coverage#verification
 inputs:
   - kind: section
     name: cap:workplan-two-way-coverage#verification
-    digest: a8c35b9365194abe72ca416cf6aace75f8f45430a879971743afa378cf6c0560
+    digest: 61fe3a2d35ecf14d7c128e8f57f837936f99ca49c2883433b206b915c1bfc190
   - kind: symbol
     name: raf_workplan::Workplan::coverage_report
     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7

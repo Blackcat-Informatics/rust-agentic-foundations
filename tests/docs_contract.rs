@@ -9,8 +9,8 @@
 //! symlinks, resolves the bindings of the capability documents against the
 //! source index of the whole repository, and requires `Workplan::check` to
 //! report nothing. `raf_workplan::plain::check` judges the tracked Markdown
-//! outside the document directories (README, AGENTS.md, templates), and
-//! `Gate::workspace` runs the same checks from disk.
+//! outside the document directories (README, AGENTS.md, templates). The
+//! `Gate::workspace` run of the same checks from disk is `tests/self_workplan.rs`.
 //!
 //! What stays here is this repository's own policy, which no model rule
 //! states:
@@ -25,6 +25,8 @@
 //!   with a frontmatter block at all, whatever its `type`, because the model
 //!   reads such a page as plain Markdown and would never validate it (a page
 //!   with a document type is told where that type lives);
+//! * the verification matrix of every delivered capability of the inventory:
+//!   the document holds the generated block;
 //! * the equality of the Usage and Examples blocks of two capability documents
 //!   with the crate documentation tests;
 //! * the helpers that read tracked files safely, and the guards that keep these
@@ -41,7 +43,7 @@ use std::path::{Path, PathBuf};
 
 use raf_okf::{Body, DocType, Document, ErrorKind, FencedBlock};
 use raf_source::{DiskTree, MemoryTree, RelPath, Workspace};
-use raf_workplan::{Finding, Gate, LinkContext, Workplan, plain};
+use raf_workplan::{Finding, LinkContext, Workplan, plain};
 
 mod support;
 
@@ -326,6 +328,32 @@ fn check_inventory(repo: &Repo, inventory: &Inventory) -> Vec<String> {
     out
 }
 
+/// The line that opens the generated verification matrix of a capability.
+const MATRIX_MARKER: &str = "<!-- raf:generated:verification-matrix -->";
+
+/// A delivered capability of the inventory holds a generated verification
+/// matrix: its document has the marker line of the block. A missing document
+/// is reported by the inventory check, not here.
+fn matrix_violations(repo: &Repo, inventory: &Inventory) -> Vec<String> {
+    let mut out = Vec::new();
+    for (slug, _) in inventory
+        .capabilities
+        .iter()
+        .filter(|(_, state)| *state == "delivered")
+    {
+        let path = PathBuf::from(format!("docs/capabilities/{slug}.md"));
+        if let Some(text) = repo.get(&path)
+            && !text.lines().any(|line| line.trim_end() == MATRIX_MARKER)
+        {
+            out.push(violation(
+                &path,
+                "a delivered capability holds a `verification-matrix` generated block",
+            ));
+        }
+    }
+    out
+}
+
 // ---------------------------------------------------------------------------
 // Repository policy over tracked paths
 // ---------------------------------------------------------------------------
@@ -523,7 +551,8 @@ fn judge(checkout: &Checkout, source: &Workspace) -> Verdict {
 /// Every rule family over a checkout, as one list of violations: the model
 /// (`Workplan::check` and `plain::check`), the refusal of tracked symlinks, the
 /// Markdown-only document directories, the pages with frontmatter outside the
-/// document directories, and the inventory table.
+/// document directories, the inventory table, and the verification matrix of
+/// every delivered capability.
 fn violations(checkout: &Checkout, source: &Workspace, inventory: &Inventory) -> Vec<String> {
     let mut out: Vec<String> = judge(checkout, source)
         .findings
@@ -534,6 +563,7 @@ fn violations(checkout: &Checkout, source: &Workspace, inventory: &Inventory) ->
     out.extend(layout_violations(&checkout.paths));
     out.extend(outside_violations(&checkout.markdown));
     out.extend(check_inventory(&checkout.markdown, inventory));
+    out.extend(matrix_violations(&checkout.markdown, inventory));
     out
 }
 
@@ -577,14 +607,6 @@ fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
         "every capability of the inventory loads into the model"
     );
     Ok(())
-}
-
-#[test]
-fn repository_documents_satisfy_the_document_model() {
-    // The documented dev-dependency usage over the gate root. Inside the
-    // commit hook the root is a checkout of the index without `.git`, and the
-    // gate takes every file of it for a tracked path.
-    Gate::workspace(gate_root()).assert_clean();
 }
 
 #[test]
@@ -648,6 +670,7 @@ fn repository_bindings_resolve_in_the_source_index() -> Result<(), Box<dyn Error
 mod checkouts {
     use super::{Checkout, Inventory, PathBuf, Repo, Workspace, violations};
     use raf_source::MemoryTree;
+    use std::fmt::Write as _;
 
     /// A one-package source workspace for the checkouts to bind to.
     pub(super) fn source() -> Workspace {
@@ -657,6 +680,7 @@ mod checkouts {
                 "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
             ),
             ("src/lib.rs", "pub fn real() {}\n"),
+            ("tests/it.rs", "#[test]\nfn case() {}\n"),
         ]);
         Workspace::load(&tree, &["."]).expect("the demo workspace loads")
     }
@@ -666,6 +690,38 @@ mod checkouts {
     pub(super) const TEMPLATE: &str = ".github/PULL_REQUEST_TEMPLATE.md";
 
     pub(super) const LAYERS: &str = "docs/architecture/layers.md";
+    pub(super) const DEMO: &str = "docs/capabilities/demo.md";
+    const COVERAGE: &str = "work/coverage/default.md";
+    const INDEX: &str = "docs/capabilities/index.md";
+
+    /// The line the generated verification matrix opens with, and the block.
+    pub(super) const MATRIX_BLOCK: &str = "<!-- raf:generated:verification-matrix -->\n\
+         | Item | Kind | Section |\n| --- | --- | --- |\n\
+         | `demo::test_crate::it::case` | test | [Verification](#verification) |\n\
+         <!-- raf:generated:end -->\n";
+
+    /// A delivered capability page bound to the code and the test of
+    /// `source()`, with its generated verification matrix.
+    fn demo_page() -> String {
+        let mut sections = String::new();
+        for name in [
+            "Purpose",
+            "Contract",
+            "Usage",
+            "Examples",
+            "Constraints",
+            "Explanation",
+            "Verification",
+        ] {
+            let _ = write!(sections, "## {name}\n\nText for {name}.\n\n");
+        }
+        format!(
+            "---\ntype: Capability\nid: cap:demo\ntitle: Demo\n\
+             description: The demo.\nstate: delivered\n\
+             depends: []\nbindings:\n  code:\n    - demo::real\n  tests:\n    - demo::test_crate::it::case\n  examples: []\n---\n\n\
+             # Demo\n\n{sections}{MATRIX_BLOCK}"
+        )
+    }
 
     /// A checkout of a few files: two architecture pages, the README and a
     /// template that link to each other, and a manifest that is not Markdown.
@@ -681,6 +737,19 @@ mod checkouts {
                 LAYERS,
                 "---\ntype: Architecture\nid: arch:layers\ntitle: Layers\n\
                  description: The layers.\n---\n\n# Layers\n\nSee [the overview](overview.md).\n"
+                    .to_string(),
+            ),
+            (DEMO, demo_page()),
+            (
+                COVERAGE,
+                "---\ntype: Coverage\nid: coverage:default\nscope: [demo]\nexclusions: []\n---\n"
+                    .to_string(),
+            ),
+            (
+                INDEX,
+                "<!-- raf:generated:catalogue -->\n## Delivered\n\n\
+                 | Capability | Description | Gaps |\n| --- | --- | --- |\n\
+                 | [demo](./demo.md) | The demo. |  |\n<!-- raf:generated:end -->\n"
                     .to_string(),
             ),
             (
@@ -724,12 +793,13 @@ mod checkouts {
         }
     }
 
-    /// The inventory of the pages of `files`: the two architecture pages.
+    /// The inventory of the pages of `files`: the two architecture pages and
+    /// the delivered capability.
     pub(super) const INVENTORY: Inventory = Inventory {
-        capabilities: &[],
+        capabilities: &[("demo", "delivered")],
         architecture: &["layers", "overview"],
-        records: &[],
-        generated: &[],
+        records: &["coverage:default"],
+        generated: &[INDEX],
     };
 
     /// Every violation of the checkout of `files` with these tracked symlinks
@@ -755,7 +825,7 @@ mod checkouts {
     }
 }
 
-use checkouts::{OVERVIEW, README, TEMPLATE, files, found, mutated};
+use checkouts::{DEMO, OVERVIEW, README, TEMPLATE, files, found, mutated};
 
 /// The violations that are about `file` and carry the finding kind `kind`.
 fn about(found: &[String], file: &str, kind: &str) -> usize {
@@ -775,7 +845,36 @@ fn the_checker_accepts_a_valid_checkout() {
         &checkouts::source(),
     );
     assert_eq!(verdict.architecture, 2);
-    assert_eq!(verdict.capabilities, 0);
+    assert_eq!(verdict.capabilities, 1);
+}
+
+#[test]
+fn a_delivered_capability_holds_a_verification_matrix() {
+    let without = mutated(DEMO, checkouts::MATRIX_BLOCK, "");
+    let found_without = found(&without, &[], &[]);
+    assert_eq!(found_without.len(), 1, "{found_without:#?}");
+    assert!(
+        found_without[0].starts_with(&format!("{DEMO}: "))
+            && found_without[0].contains("verification-matrix"),
+        "{found_without:#?}"
+    );
+    // The marker inside the text of a line is not the block.
+    let quoted = mutated(
+        DEMO,
+        checkouts::MATRIX_BLOCK,
+        "Text `<!-- raf:generated:verification-matrix -->` here.\n",
+    );
+    let found_quoted = found(&quoted, &[], &[]);
+    assert_eq!(
+        found_quoted
+            .iter()
+            .filter(|line| line.contains("verification-matrix"))
+            .count(),
+        1,
+        "{found_quoted:#?}"
+    );
+    // The clean twin passes.
+    assert_eq!(found(&files(), &[], &[]), Vec::<String>::new());
 }
 
 #[test]
@@ -967,6 +1066,12 @@ fn inventory_repo() -> Repo {
             PathBuf::from(format!("docs/capabilities/{slug}.md")),
             page("Capability", &format!("cap:{slug}"), Some(state)),
         );
+        // The delivered capability holds its generated verification matrix.
+        if state == "delivered"
+            && let Some(text) = repo.get_mut(Path::new(&format!("docs/capabilities/{slug}.md")))
+        {
+            text.push_str(checkouts::MATRIX_BLOCK);
+        }
     }
     for slug in ["alpha", "beta"] {
         repo.insert(

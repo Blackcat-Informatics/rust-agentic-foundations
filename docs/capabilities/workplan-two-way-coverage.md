@@ -271,3 +271,33 @@ stops compiling or running it receives an `example-failing` obligation.
   the root, two `super::` reach the root, and a glob of an inline module is read
   from the module that holds it and counted; `self::` in a module file is read from
   that module.
+
+<!-- raf:generated:verification-matrix -->
+| Item | Kind | Section |
+| --- | --- | --- |
+| `raf_workplan::Workplan::coverage_report` | doctest | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::a_bound_item_is_covered_and_its_unbound_neighbour_is_a_gap` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::a_bound_test_is_covered_and_every_unbound_test_unit_tests_included_is_a_gap` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::a_capability_that_does_not_load_gives_its_own_findings_and_no_cascade_of_gaps` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::a_crate_with_thousands_of_items_and_tests_is_judged_in_bounded_time` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::a_prefix_matches_below_its_module_and_never_a_sibling_that_shares_its_text` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::a_re_export_the_index_cannot_follow_is_reported_and_enforced_and_its_module_covers_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::a_re_export_written_through_super_names_the_path_super_reaches` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::a_scope_entry_is_a_package_name_and_a_crate_name_says_which_package_it_means` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::a_surface_over_the_item_budget_is_a_budget_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_an_error_of_the_report_and_a_finding_in_scope` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::a_unit_test_module_is_excluded_by_its_prefix_with_the_reason_shown` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::an_empty_scope_enforces_nothing_and_the_report_still_names_every_gap` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::an_exclusion_without_a_reason_or_that_matches_nothing_fails_naming_the_file` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::an_item_bound_only_in_examples_is_a_gap` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::an_item_bound_through_a_re_export_or_its_definition_is_covered_under_its_exported_path` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::an_item_is_excluded_by_its_exported_or_its_defining_path` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::binding_an_item_covers_what_is_below_it_and_nothing_beside_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::the_code_report_lists_every_public_item_and_no_private_or_hidden_one` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::the_first_matching_exclusion_gives_the_reason` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::the_report_and_its_two_forms_are_the_same_on_every_run` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::the_report_of_check_and_its_findings_follow_the_scope` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::the_table_and_the_json_carry_the_same_entries_escaped` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::this_repository_enforces_the_workplan_crates_and_they_are_covered` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::without_a_record_check_has_exactly_one_finding_that_says_to_add_it` | test | [Verification](#verification) |
+<!-- raf:generated:end -->

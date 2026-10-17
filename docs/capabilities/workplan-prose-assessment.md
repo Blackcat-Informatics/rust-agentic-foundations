@@ -262,3 +262,38 @@ sections to rewrite and the evidence still missing, and an assessor resolves the
   module below the root and by one in the file of a module below that, while both
   edits move the digest of the module below the root, whose content holds both
   files, and an edit of the root's own file moves the root's digest.
+
+<!-- raf:generated:verification-matrix -->
+| Item | Kind | Section |
+| --- | --- | --- |
+| `raf_workplan::Workplan::assess_context` | doctest | [Verification](#verification) |
+| `raf_workplan::assessment::record_slug` | doctest | [Verification](#verification) |
+| `raf_workplan::assessment::tests::a_moved_input_names_its_kind_its_name_and_how_it_moved` | test | [Verification](#verification) |
+| `raf_workplan::assessment::tests::a_section_of_generated_blocks_and_comments_only_is_not_authored_and_one_word_is` | test | [Verification](#verification) |
+| `raf_workplan::assessment::tests::a_subject_is_a_capability_and_one_of_the_seven_sections` | test | [Verification](#verification) |
+| `raf_workplan::assessment::tests::a_weak_name_adds_an_input_and_never_ends_the_every_binding_rule` | test | [Verification](#verification) |
+| `raf_workplan::assessment::tests::a_whole_path_or_a_suffix_of_two_segments_is_strong_and_the_last_segment_alone_is_weak` | test | [Verification](#verification) |
+| `raf_workplan::assessment::tests::authored_text_is_what_the_profile_calls_a_section_that_is_not_empty` | test | [Verification](#verification) |
+| `raf_workplan::assessment::tests::the_record_slug_is_the_capability_slug_and_the_section_and_no_two_sections_share_one` | test | [Verification](#verification) |
+| `raf_workplan::assessment::tests::widening_a_section_with_weak_names_never_removes_an_input` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::a_bound_symbol_named_by_its_last_segment_is_an_input_beside_one_named_in_full` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::a_capability_that_does_not_load_is_refused_and_a_section_of_generated_blocks_only_does_not_load` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::a_common_word_that_is_the_last_segment_of_a_binding_does_not_narrow_the_inputs` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged_within_bounds` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::a_method_named_by_its_type_and_name_is_an_input_and_its_sibling_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::a_rejected_assessment_is_current_and_owes_an_acceptance_whoever_gave_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::a_suffix_two_bindings_end_in_names_both` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::a_symbol_the_section_names_is_an_input_and_a_bound_symbol_it_does_not_name_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_records` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::an_edit_inside_a_bound_module_moves_the_assessment_and_a_sibling_edit_does_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::an_evidence_record_a_claim_of_the_section_names_is_an_input` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::crlf_line_endings_in_the_document_and_the_source_leave_an_assessment_current` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::each_refusal_writes_nothing_and_its_neighbour_records` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::the_context_is_the_same_for_a_human_and_an_agent_and_holds_what_the_assessor_reads` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::with_no_bound_symbol_named_every_bound_symbol_is_an_input` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::digest::a_crate_root_stands_for_its_own_file_and_an_edit_below_it_leaves_its_digest` | test | [Verification](#verification) |
+<!-- raf:generated:end -->

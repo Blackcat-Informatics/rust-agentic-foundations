@@ -186,3 +186,25 @@ history in their working context.
 - The documentation example of the rules runs: a decision page whose conditions
   list is empty is `decision-conditions-missing`, and with one condition the
   repository checks clean.
+
+<!-- raf:generated:verification-matrix -->
+| Item | Kind | Section |
+| --- | --- | --- |
+| `raf_workplan::rationale` | doctest | [Verification](#verification) |
+| `raf_workplan::rationale::tests::a_line_without_a_marker_or_without_text_is_no_list_item` | test | [Verification](#verification) |
+| `raf_workplan::rationale::tests::a_list_item_is_a_marker_a_space_and_text_with_a_letter_or_a_digit` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::a_capability_link_to_a_missing_page_or_heading_fails_the_link_check` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::a_decision_page_linked_from_a_capability_with_its_conditions_passes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::a_decision_page_without_conditions_to_revisit_is_reported_by_name` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::a_hundred_thousand_headings_and_an_unterminated_fence_are_judged_in_bounded_time` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::a_link_from_a_capability_a_change_or_another_page_links_the_page` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::an_empty_conditions_list_is_reported_and_a_list_item_with_text_passes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::an_explanation_decision_without_conditions_is_reported_and_with_them_passes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::an_unlinked_page_is_reported_by_name_and_a_link_to_itself_does_not_count` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::headings_and_list_items_in_fenced_code_or_proposed_blocks_do_not_count` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::headings_match_exactly_at_their_level` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::no_page_is_reported_unlinked_while_a_document_that_may_link_it_does_not_load` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::the_findings_are_the_same_on_every_run_in_file_and_line_order` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::the_valid_fixture_links_its_page_from_gamma` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::this_repository_links_each_architecture_page_from_a_capability` | test | [Verification](#verification) |
+<!-- raf:generated:end -->

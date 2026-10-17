@@ -7,7 +7,7 @@ subject: cap:workplan-current-rationale#verification
 inputs:
   - kind: section
     name: cap:workplan-current-rationale#verification
-    digest: 5d576e302662285b95040028d33e660f26cb6489a117ccfd83966bb6cbf6741a
+    digest: 061f16e3caa6153a15ce5e79ed93fe787da4c81c651dd18261dd34e451fba66a
   - kind: symbol
     name: raf_workplan::rationale
     digest: f1c23d01088375b617b4c2566048838705f333d863f353b2dd26402541eb6325
