@@ -15,8 +15,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use raf_workplan::exec::{
-    Arg, BUILD_TIMEOUT, Commit, DEFAULT_OUTPUT_BOUND, Date, DocFilter, EXAMPLE_TIMEOUT,
-    ExampleName, ExecError, FakeRunner, Filter, Identifier, Invocation, Limits, LineRange,
+    Arg, BUILD_TIMEOUT, Commit, DEFAULT_OUTPUT_BOUND, DocFilter, EXAMPLE_TIMEOUT, ExampleName,
+    ExecError, FakeRunner, Filter, Identifier, Invocation, Limits, LineRange,
     METADATA_OUTPUT_BOUND, Output, Package, Pattern, PatternError, Programs, RefName, Runner,
     SourcePath, Stream, SystemRunner, Target, TargetName, TreePath,
 };
@@ -606,7 +606,6 @@ fn git_rows() -> Vec<Row> {
 fn history_rows() -> Vec<Row> {
     let dash = TreePath::new("-rf.rs").unwrap();
     let output = TreePath::new("--output=x.rs").unwrap();
-    let since = Date::new("2026-01-01").unwrap();
     let lines = LineRange::new(3, 9).unwrap();
     let gone = Identifier::new("gone").unwrap();
     vec![
@@ -618,27 +617,27 @@ fn history_rows() -> Vec<Row> {
         ),
         (
             "git document log",
-            Invocation::git_document_log(&dash, None),
+            Invocation::git_document_log(&dash),
             Program::Git,
             "--no-pager log --no-show-signature --follow --cc --root --format=%x1e%H%x1f%aI%x1f%s --name-only -- -rf.rs",
         ),
         (
-            "git document log since a date",
-            Invocation::git_document_log(&output, Some(&since)),
+            "git document log of a path named like an option",
+            Invocation::git_document_log(&output),
             Program::Git,
-            "--no-pager log --no-show-signature --follow --cc --root --format=%x1e%H%x1f%aI%x1f%s --name-only --since=2026-01-01\u{a0}00:00:00\u{a0}+0000 -- --output=x.rs",
+            "--no-pager log --no-show-signature --follow --cc --root --format=%x1e%H%x1f%aI%x1f%s --name-only -- --output=x.rs",
         ),
         (
             "git symbol log",
-            Invocation::git_symbol_log(lines, &dash, None),
+            Invocation::git_symbol_log(lines, &dash),
             Program::Git,
             "--no-pager log --no-show-signature -L3,9:-rf.rs --no-patch --format=%x1e%H%x1f%aI%x1f%s --",
         ),
         (
-            "git symbol log since a date",
-            Invocation::git_symbol_log(lines, &output, Some(&since)),
+            "git symbol log of a path named like an option",
+            Invocation::git_symbol_log(lines, &output),
             Program::Git,
-            "--no-pager log --no-show-signature -L3,9:--output=x.rs --no-patch --format=%x1e%H%x1f%aI%x1f%s --since=2026-01-01\u{a0}00:00:00\u{a0}+0000 --",
+            "--no-pager log --no-show-signature -L3,9:--output=x.rs --no-patch --format=%x1e%H%x1f%aI%x1f%s --",
         ),
         (
             "git pickaxe",
@@ -681,23 +680,20 @@ fn a_test_filter_always_follows_a_separator_and_never_leads() {
             }
         }
     }
-    // A tree path is only ever after a `--`, and a `--since` only before the
-    // last one.
+    // A tree path is only ever after a `--`, and no row carries a date: the
+    // history compares `--since` with the author dates in process.
     for (label, invocation, _, _) in rows() {
         let argv = invocation.argv();
         let first = argv.iter().position(|arg| arg == "--");
-        let last = argv.iter().rposition(|arg| arg == "--");
         for (index, arg) in invocation.args().iter().enumerate() {
-            match arg {
-                Arg::Path(_) => {
-                    assert!(first.is_some_and(|at| at < index), "{label}: {argv:?}");
-                }
-                Arg::Since(_) => {
-                    assert!(last.is_some_and(|at| index < at), "{label}: {argv:?}");
-                }
-                _ => {}
+            if matches!(arg, Arg::Path(_)) {
+                assert!(first.is_some_and(|at| at < index), "{label}: {argv:?}");
             }
         }
+        assert!(
+            !argv.iter().any(|arg| arg.starts_with("--since")),
+            "{label}: {argv:?}"
+        );
     }
     // The cargo rows carry --frozen; the git rows have none to carry.
     for (label, invocation, program, _) in rows() {

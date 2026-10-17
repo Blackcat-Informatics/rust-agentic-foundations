@@ -139,6 +139,20 @@ impl fmt::Display for AuthorDate {
     }
 }
 
+/// The instant 00:00:00 UTC of `date` names, in seconds since
+/// 1970-01-01T00:00:00Z: the start of a `--since` day, which the history
+/// compares with [`AuthorDate::seconds`]. The pattern of [`Date`] holds its
+/// text to `YYYY-MM-DD` digits.
+pub(crate) fn start_of_day(date: &Date) -> i64 {
+    let bytes = date.as_str().as_bytes();
+    let number = |range: std::ops::Range<usize>| {
+        bytes[range]
+            .iter()
+            .fold(0, |total, b| total * 10 + i64::from(b - b'0'))
+    };
+    days_from_civil(number(0..4), number(5..7), number(8..10)) * 86_400
+}
+
 /// The days from 1970-01-01 to a day of the Gregorian calendar.
 fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
     let year = if month <= 2 { year - 1 } else { year };
@@ -344,16 +358,17 @@ pub fn is_shallow(runner: &dyn Runner) -> Result<bool, GitError> {
     }
 }
 
-/// The commits of a document, newest first as `git` lists them, through the
-/// moves `git` detects, each with the name the document had at that commit:
+/// The commits of a file, newest first as `git` lists them, through the
+/// moves `git` detects, each with the name the file had at that commit:
 /// `git --no-pager log --no-show-signature --follow --cc --root
-/// --format=%x1e%H%x1f%aI%x1f%s --name-only [--since=<date> 00:00:00 +0000] --
-/// <doc-path>`. `--cc` lists a merge whose resolution changed the document (a
-/// merge that took one side unchanged is not listed, as it changed nothing),
-/// and `--root` keeps a user's `log.showRoot=false` from hiding the commit
-/// that created it. A commit that lists no path, as `--follow` lists a merge
-/// that changed nothing in the document, is left out. `--since` counts from
-/// 00:00:00 UTC of the day, whatever the clock and the time zone.
+/// --format=%x1e%H%x1f%aI%x1f%s --name-only -- <doc-path>`. The history asks
+/// it of a document and of each file of a bound module. `--cc` lists a merge
+/// whose resolution changed the file (a merge that took one side unchanged is
+/// not listed, as it changed nothing), and `--root` keeps a user's
+/// `log.showRoot=false` from hiding the commit that created it. A commit that
+/// lists no path, as `--follow` lists a merge that changed nothing in the
+/// file, is left out. A file that no commit holds has an empty log. The whole
+/// log is read: no date limits it.
 ///
 /// # Errors
 ///
@@ -361,12 +376,8 @@ pub fn is_shallow(runner: &dyn Runner) -> Result<bool, GitError> {
 /// or [`GitError::NotUtf8`] for an output that is not a log of this form;
 /// [`GitError::Failed`] when the command fails; [`GitError::Exec`] when it
 /// cannot run.
-pub fn document_log(
-    runner: &dyn Runner,
-    path: &TreePath,
-    since: Option<&Date>,
-) -> Result<Vec<LogEntry>, GitError> {
-    let invocation = Invocation::git_document_log(path, since);
+pub fn document_log(runner: &dyn Runner, path: &TreePath) -> Result<Vec<LogEntry>, GitError> {
+    let invocation = Invocation::git_document_log(path);
     let output = log_query(runner, &invocation)?;
     if !output.success() {
         return Err(failed(&invocation, &output));
@@ -380,8 +391,8 @@ pub fn document_log(
 
 /// The commits that changed the lines of a file, newest first, traced back
 /// from `HEAD`: `git --no-pager log --no-show-signature -L<start>,<end>:<file>
-/// --no-patch --format=%x1e%H%x1f%aI%x1f%s [--since=<date> 00:00:00 +0000]
-/// --`. The entries list no path.
+/// --no-patch --format=%x1e%H%x1f%aI%x1f%s --`. The entries list no path. The
+/// whole log is read: no date limits it.
 ///
 /// # Errors
 ///
@@ -391,9 +402,8 @@ pub fn symbol_log(
     runner: &dyn Runner,
     lines: LineRange,
     file: &TreePath,
-    since: Option<&Date>,
 ) -> Result<Vec<LogEntry>, GitError> {
-    let invocation = Invocation::git_symbol_log(lines, file, since);
+    let invocation = Invocation::git_symbol_log(lines, file);
     let output = log_query(runner, &invocation)?;
     if !output.success() {
         return Err(failed(&invocation, &output));
@@ -499,14 +509,14 @@ mod tests {
     }
 
     fn doc_argv(path: &str) -> Vec<String> {
-        Invocation::git_document_log(&TreePath::new(path).unwrap(), None).argv()
+        Invocation::git_document_log(&TreePath::new(path).unwrap()).argv()
     }
 
     fn run_doc(stdout: &[u8]) -> Result<Vec<LogEntry>, GitError> {
         let owned = doc_argv("docs/a.md");
         let args: Vec<&str> = owned.iter().map(String::as_str).collect();
         let runner = FakeRunner::new().on(Program::Git, &args, ok(stdout));
-        document_log(&runner, &path("docs/a.md"), None)
+        document_log(&runner, &path("docs/a.md"))
     }
 
     #[test]
@@ -543,6 +553,28 @@ mod tests {
         ] {
             assert!(AuthorDate::parse(refused).is_none(), "{refused:?}");
         }
+    }
+
+    #[test]
+    fn a_since_day_starts_at_midnight_utc_on_the_scale_of_an_author_date() {
+        let day = |text: &str| start_of_day(&Date::new(text).unwrap());
+        assert_eq!(day("1970-01-01"), 0);
+        assert_eq!(day("2000-03-01"), 951_868_800);
+        for (since, date) in [
+            ("2026-10-15", "2026-10-15T00:00:00Z"),
+            ("2026-10-15", "2026-10-15T02:00:00+02:00"),
+            ("2028-02-29", "2028-02-28T19:00:00-05:00"),
+            ("2099-12-31", "2099-12-31T00:00:00+00:00"),
+        ] {
+            assert_eq!(
+                day(since),
+                AuthorDate::parse(date).unwrap().seconds(),
+                "{since} {date}"
+            );
+        }
+        // The neighbours: one second before the day is before it.
+        let before = AuthorDate::parse("2026-10-14T23:59:59Z").unwrap();
+        assert_eq!(before.seconds() + 1, day("2026-10-15"));
     }
 
     #[test]
@@ -602,18 +634,18 @@ mod tests {
     #[test]
     fn a_symbol_log_lists_no_path_and_refuses_any_other_line() {
         let lines = LineRange::new(3, 9).unwrap();
-        let owned = Invocation::git_symbol_log(lines, &path("src/lib.rs"), None).argv();
+        let owned = Invocation::git_symbol_log(lines, &path("src/lib.rs")).argv();
         let args: Vec<&str> = owned.iter().map(String::as_str).collect();
         let good = format!("\x1e{A}\x1f2026-05-02T10:00:00Z\x1fs\n");
         let runner = FakeRunner::new().on(Program::Git, &args, ok(good.as_bytes()));
-        let entries = symbol_log(&runner, lines, &path("src/lib.rs"), None).unwrap();
+        let entries = symbol_log(&runner, lines, &path("src/lib.rs")).unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].paths(), [] as [String; 0]);
         // A patch printed despite `--no-patch` is not read as a path.
         let patch = format!("{good}\ndiff --git a/src/lib.rs b/src/lib.rs\n");
         let runner = FakeRunner::new().on(Program::Git, &args, ok(patch.as_bytes()));
         assert!(matches!(
-            symbol_log(&runner, lines, &path("src/lib.rs"), None),
+            symbol_log(&runner, lines, &path("src/lib.rs")),
             Err(GitError::Answer { .. })
         ));
     }
@@ -624,7 +656,7 @@ mod tests {
         let args: Vec<&str> = owned.iter().map(String::as_str).collect();
         let big = vec![b'a'; crate::exec::DEFAULT_OUTPUT_BOUND + 1];
         let runner = FakeRunner::new().on(Program::Git, &args, ok(&big));
-        let error = document_log(&runner, &path("docs/a.md"), None).expect_err("too large");
+        let error = document_log(&runner, &path("docs/a.md")).expect_err("too large");
         assert!(
             matches!(&error, GitError::LogTooLarge { limit, .. } if *limit == crate::exec::DEFAULT_OUTPUT_BOUND),
             "{error:?}"
@@ -636,12 +668,7 @@ mod tests {
         exact.resize(crate::exec::DEFAULT_OUTPUT_BOUND - tail.len(), b's');
         exact.extend(tail);
         let runner = FakeRunner::new().on(Program::Git, &args, ok(&exact));
-        assert_eq!(
-            document_log(&runner, &path("docs/a.md"), None)
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_eq!(document_log(&runner, &path("docs/a.md")).unwrap().len(), 1);
     }
 
     #[test]

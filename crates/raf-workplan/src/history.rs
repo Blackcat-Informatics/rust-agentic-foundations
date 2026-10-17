@@ -18,10 +18,8 @@
 //! a boundary and would be reported in part; the document's own log follows
 //! its moves, lists the merges whose resolution changed it and the first
 //! commit of the history whatever `log.showRoot` says, and gives the name the
-//! document had at each commit ([`git::document_log`]). `--since` counts from
-//! 00:00:00 UTC of its day, so the same date selects the same commits on every
-//! clock and in every time zone. For a capability, each `code` binding is read
-//! from the source index:
+//! document had at each commit ([`git::document_log`]). For a capability,
+//! each `code` binding is read from the source index:
 //!
 //! * A binding that resolves has each definition's span (file and lines) run
 //!   through `git log -L` ([`git::symbol_log`]), so only the commits that
@@ -35,6 +33,18 @@
 //!   `git` follows the lines through a rename it detects and stops where they
 //!   came from another file, so a symbol moved between files has its history
 //!   from the move on.
+//! * A binding that resolves to a module below its crate root stands for the
+//!   files of the module, as its digest does ([`crate::digest::Digest::symbol`]):
+//!   besides the log of its own span (the declaration `mod name;`, or an
+//!   inline module's braces), each file the digest reads, the module's own
+//!   file and the file of every module below it in the same target, has the
+//!   log a document has ([`git::document_log`]), with the binding's path as
+//!   its [`Source`] and the names `git` lists as its paths. A crate root
+//!   stands for nothing below it, so it has the log of its span only, as
+//!   every other item does. A file of the module that no commit holds (one
+//!   not yet committed) has an empty log, and the whole history fails rather
+//!   than show it as a file with no change ([`HistoryError::Uncommitted`],
+//!   which names the binding and the file).
 //! * A binding that no longer resolves (the index has nothing at its path) is
 //!   a [`RemovedBinding`]: the newest commit that changed how often the last
 //!   segment of its path occurs in the directory of its crate (`git log -S`,
@@ -60,6 +70,11 @@
 //! A commit that several sources list is one [`Entry`] with every source and
 //! every path. Entries are newest first: by the instant of the author date
 //! each shows, then by commit id, so the order is the same on every run.
+//! `--since` keeps the entries whose author date is at or after 00:00:00 UTC
+//! of its day, so the same date selects the same commits on every clock and
+//! in every time zone, and every entry shown satisfies it by the date it
+//! shows. The date is compared in process and never reaches `git`, whose own
+//! `--since` reads the committer date: every log is read whole and filtered.
 //! [`render`] writes the table and the JSON form of the same entries.
 //!
 //! Nothing is written: the history reads Git and the loaded documents only.
@@ -74,8 +89,9 @@ use std::error::Error;
 use std::fmt;
 
 use raf_okf::DocType;
-use raf_source::{ResolveError, Workspace};
+use raf_source::{ResolveError, SymbolKind, Workspace};
 
+use crate::digest;
 use crate::exec::{Commit, Date, Identifier, LineRange, PatternError, Runner, TreePath};
 use crate::git::{self, AuthorDate, GitError, LogEntry};
 use crate::graph::BindingKind;
@@ -105,7 +121,8 @@ impl HistoryOptions {
         Self::default()
     }
 
-    /// Only the commits `git log --since=<date>` lists.
+    /// Only the commits whose author date is at or after 00:00:00 UTC of
+    /// `since`.
     #[must_use]
     pub fn with_since(mut self, since: Date) -> Self {
         self.since = Some(since);
@@ -125,8 +142,8 @@ impl HistoryOptions {
 pub enum Source {
     /// The log of the document.
     Document,
-    /// The log of the lines of a bound symbol: the binding's path as the
-    /// document writes it.
+    /// The log of the lines of a bound symbol, or of a file of a bound
+    /// module: the binding's path as the document writes it.
     Symbol(String),
 }
 
@@ -175,9 +192,10 @@ impl Entry {
         &self.sources
     }
 
-    /// The paths the commit touched, sorted: for the document, as the
-    /// document log names them (the name the document had then, from the top
-    /// of the work tree); for a symbol, the file of its span.
+    /// The paths the commit touched, sorted: for the document and for a file
+    /// of a bound module, as the document log names them (the name the file
+    /// had then, from the top of the work tree); for a symbol, the file of
+    /// its span.
     #[must_use]
     pub fn paths(&self) -> &[String] {
         &self.paths
@@ -340,6 +358,14 @@ pub enum HistoryError {
         /// What `git` said.
         error: Box<GitError>,
     },
+    /// `git log --follow` lists no commit for a file of a bound module: the
+    /// file is in the working tree, and no commit holds it.
+    Uncommitted {
+        /// The binding's path.
+        binding: String,
+        /// The file, relative to the workspace root.
+        file: String,
+    },
     /// `git` could not answer.
     Git(GitError),
 }
@@ -392,6 +418,10 @@ impl fmt::Display for HistoryError {
                 f,
                 "the lines of the bound symbol `{binding}` in `{file}` have no history: {error}; `git log -L` reads them from `HEAD`, so commit `{file}` (with the symbol at the lines it has now) and ask again"
             ),
+            Self::Uncommitted { binding, file } => write!(
+                f,
+                "the file `{file}` of the bound module `{binding}` has no commit: `git log --follow` lists none for it, so its history would be reported as empty; commit `{file}` and ask again"
+            ),
             Self::Git(error) => write!(f, "{error}"),
         }
     }
@@ -421,6 +451,12 @@ struct SymbolQuery {
     file: TreePath,
 }
 
+/// A `git log --follow` to run: one file of a bound module.
+struct FileQuery {
+    binding: String,
+    file: TreePath,
+}
+
 /// A pickaxe lookup to run for a binding that no longer resolves.
 struct RemovalQuery {
     binding: String,
@@ -433,6 +469,7 @@ struct Plan {
     id: String,
     document: TreePath,
     symbols: Vec<SymbolQuery>,
+    files: Vec<FileQuery>,
     removals: Vec<RemovalQuery>,
 }
 
@@ -549,7 +586,9 @@ impl Workplan<'_> {
     /// [`HistoryError::Pattern`] before any process starts;
     /// [`HistoryError::Shallow`] for a shallow clone;
     /// [`HistoryError::SymbolLog`] for a `git log -L` of a bound symbol that
-    /// fails, as for a file that is not committed; [`HistoryError::Git`]
+    /// fails, as for a file that is not committed;
+    /// [`HistoryError::Uncommitted`] for a file of a bound module that no
+    /// commit holds; [`HistoryError::Git`]
     /// for a Git older than 2.30, an output over 16 MiB, an output that is not
     /// a log of its form, and a `git` that fails or cannot run.
     pub fn history(
@@ -563,27 +602,39 @@ impl Workplan<'_> {
         if git::is_shallow(runner)? {
             return Err(HistoryError::Shallow);
         }
-        let since = options.since();
         let mut entries = BTreeMap::new();
-        let log = git::document_log(runner, &plan.document, since)?;
+        let log = git::document_log(runner, &plan.document)?;
         merge(&mut entries, log, &Source::Document, None);
         for query in &plan.symbols {
             let log =
-                git::symbol_log(runner, query.lines, &query.file, since).map_err(|error| {
-                    match error {
-                        GitError::Failed { .. } => HistoryError::SymbolLog {
-                            binding: query.binding.clone(),
-                            file: query.file.as_str().to_string(),
-                            error: Box::new(error),
-                        },
-                        other => HistoryError::Git(other),
-                    }
+                git::symbol_log(runner, query.lines, &query.file).map_err(|error| match error {
+                    GitError::Failed { .. } => HistoryError::SymbolLog {
+                        binding: query.binding.clone(),
+                        file: query.file.as_str().to_string(),
+                        error: Box::new(error),
+                    },
+                    other => HistoryError::Git(other),
                 })?;
             merge(
                 &mut entries,
                 log,
                 &Source::Symbol(query.binding.clone()),
                 Some(&query.file),
+            );
+        }
+        for query in &plan.files {
+            let log = git::document_log(runner, &query.file)?;
+            if log.is_empty() {
+                return Err(HistoryError::Uncommitted {
+                    binding: query.binding.clone(),
+                    file: query.file.as_str().to_string(),
+                });
+            }
+            merge(
+                &mut entries,
+                log,
+                &Source::Symbol(query.binding.clone()),
+                None,
             );
         }
         let mut removed = Vec::new();
@@ -613,6 +664,12 @@ impl Workplan<'_> {
             });
         }
         let mut entries: Vec<Entry> = entries.into_values().collect();
+        if let Some(since) = options.since() {
+            // Git's `--since` reads the committer date; the filter is by the
+            // author date each entry shows, so it is applied here.
+            let start = git::start_of_day(since);
+            entries.retain(|entry| entry.date.seconds() >= start);
+        }
         for entry in &mut entries {
             entry.sources.sort();
             entry.paths.sort();
@@ -647,6 +704,7 @@ impl Workplan<'_> {
             id: id.to_string(),
             document,
             symbols: Vec::new(),
+            files: Vec::new(),
             removals: Vec::new(),
         };
         if kind != DocType::Capability {
@@ -663,6 +721,9 @@ impl Workplan<'_> {
             match binding.resolution() {
                 Ok(sites) => {
                     let mut seen = BTreeSet::new();
+                    // The files of a bound module, sorted and each once, as
+                    // its digest orders them.
+                    let mut files = BTreeSet::new();
                     for item in sites.iter().filter_map(|site| source.item(*site)) {
                         let (file, start) = item.source_key();
                         if !seen.insert((file.as_str().to_string(), start)) {
@@ -684,6 +745,22 @@ impl Workplan<'_> {
                             binding: binding.path().to_string(),
                             lines,
                             file,
+                        });
+                        if item.kind == SymbolKind::Mod {
+                            files.extend(
+                                digest::module_files(source, item)
+                                    .into_iter()
+                                    .map(|(file, _)| file),
+                            );
+                        }
+                    }
+                    for file in files {
+                        plan.files.push(FileQuery {
+                            binding: binding.path().to_string(),
+                            file: checked(
+                                || format!("the file of the binding `{}`", binding.path()),
+                                TreePath::new(file),
+                            )?,
                         });
                     }
                 }

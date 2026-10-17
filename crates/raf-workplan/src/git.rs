@@ -26,12 +26,12 @@
 //!
 //! * [`is_shallow`], [`document_log`], [`symbol_log`] and [`last_change`] are
 //!   the questions of the history command: whether the repository is a
-//!   shallow clone, the commits of a document through its moves, the commits
-//!   that changed the lines of a symbol, and the newest commit that changed
-//!   how often an identifier occurs in a crate, with its parent. A path
-//!   reaches `git` after `--` or after the colon of one `-L` argument, an
-//!   identifier inside one `-S` argument and a date inside one `--since`
-//!   argument.
+//!   shallow clone, the commits of a file (a document, or a file of a bound
+//!   module) through its moves, the commits that changed the lines of a
+//!   symbol, and the newest commit that changed how often an identifier
+//!   occurs in a crate, with its parent. A path reaches `git` after `--` or
+//!   after the colon of one `-L` argument and an identifier inside one `-S`
+//!   argument; no date reaches `git`, and each log is read whole.
 //!
 //! Every failure is a [`GitError`]. None is a skip: a repository whose default
 //! branch is unknown, whose history has no merge base, or whose file is larger
@@ -376,7 +376,7 @@ impl fmt::Display for GitError {
             ),
             Self::LogTooLarge { command, limit } => write!(
                 f,
-                "`{command}` printed more than {limit} bytes, the most of a log that is read; no part of it is used, and `--since` narrows it"
+                "`{command}` printed more than {limit} bytes, the most of a log that is read; no part of it is used"
             ),
             Self::BlobTooLarge { path, limit } => write!(
                 f,
@@ -716,6 +716,7 @@ pub fn blob_at(
 
 mod log;
 
+pub(crate) use log::start_of_day;
 pub use log::{
     AuthorDate, LastChange, LogEntry, document_log, is_shallow, last_change, symbol_log,
 };

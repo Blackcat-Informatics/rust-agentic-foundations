@@ -102,7 +102,7 @@ pub(crate) struct HistoryArgs {
     #[arg(value_name = "id", value_parser = history_id)]
     pub(crate) id: String,
 
-    /// Only the commits from 00:00:00 UTC of this day on.
+    /// Only the commits whose author date is from 00:00:00 UTC of this day on.
     #[arg(long, value_name = "YYYY-MM-DD", value_parser = since)]
     pub(crate) since: Option<Date>,
 }

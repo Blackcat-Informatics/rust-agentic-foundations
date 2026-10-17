@@ -15,7 +15,7 @@ use support::{Repo, Scratch, array, capability, change, git, git_with, member_na
 const ALPHA: &str = "docs/capabilities/alpha.md";
 
 /// Commit everything with an author and a committer date of `day` at noon
-/// UTC (`--since` reads the committer date).
+/// UTC (`--since` reads the author date).
 fn commit_on(repo: &Repo, message: &str, day: &str) {
     repo.git(&["add", "-A"]);
     let date = format!("{day}T12:00:00+00:00");

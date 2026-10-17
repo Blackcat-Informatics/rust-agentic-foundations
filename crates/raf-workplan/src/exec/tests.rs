@@ -5,8 +5,8 @@
 //! a value that fails its pattern never becomes an argument.
 
 use super::{
-    Arg, Commit, Date, DocFilter, ExampleName, Filter, Identifier, LineRange, Literal, Package,
-    Pattern, PatternError, RefName, SourcePath, Target, TargetName, TreePath,
+    Arg, Commit, DocFilter, ExampleName, Filter, Identifier, LineRange, Literal, Package, Pattern,
+    PatternError, RefName, SourcePath, Target, TargetName, TreePath,
 };
 
 /// The name of a variant. The match has no wildcard arm, so a variant added to
@@ -27,13 +27,12 @@ fn variant(arg: &Arg) -> &'static str {
         Arg::Path(_) => "path",
         Arg::LineLog { .. } => "line-log",
         Arg::Pickaxe(_) => "pickaxe",
-        Arg::Since(_) => "since",
         Arg::Trusted(_) => "trusted",
     }
 }
 
 /// Every name [`variant`] can return.
-const VARIANTS: [&str; 16] = [
+const VARIANTS: [&str; 15] = [
     "literal",
     "package",
     "target-lib",
@@ -48,7 +47,6 @@ const VARIANTS: [&str; 16] = [
     "path",
     "line-log",
     "pickaxe",
-    "since",
     "trusted",
 ];
 
@@ -107,7 +105,6 @@ fn builders() -> Vec<(&'static str, Pattern, Make)> {
         ("pickaxe", Pattern::Identifier, |v| {
             Identifier::new(v).map(Arg::Pickaxe)
         }),
-        ("since", Pattern::Date, |v| Date::new(v).map(Arg::Since)),
     ]
 }
 
@@ -226,7 +223,6 @@ fn every_variant_is_walked() {
             file: TreePath::new("src/lib.rs").unwrap(),
         },
         Arg::Pickaxe(Identifier::new("gone").unwrap()),
-        Arg::Since(Date::new("2026-01-01").unwrap()),
         Arg::Trusted(
             super::TrustedArgv::new(vec!["true".to_string()])
                 .unwrap()

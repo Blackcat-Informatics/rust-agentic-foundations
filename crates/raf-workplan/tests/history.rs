@@ -121,11 +121,17 @@ impl Repo {
     /// Add everything and commit with `message`, authored and committed at
     /// `date`.
     fn commit_at(&self, message: &str, date: &str) -> String {
+        self.commit_dated(message, date, date)
+    }
+
+    /// Add everything and commit with `message`, authored at `author` and
+    /// committed at `committer`, as a rebase or an amend leaves a commit.
+    fn commit_dated(&self, message: &str, author: &str, committer: &str) -> String {
         self.git(&["add", "-A"]);
         let output = git_command(&self.root)
             .args(["commit", "-q", "-m", message])
-            .env("GIT_AUTHOR_DATE", date)
-            .env("GIT_COMMITTER_DATE", date)
+            .env("GIT_AUTHOR_DATE", author)
+            .env("GIT_COMMITTER_DATE", committer)
             .output()
             .expect("git runs");
         assert!(
@@ -715,6 +721,221 @@ fn since_counts_from_the_start_of_the_day_in_utc_in_every_time_zone() {
     assert_eq!(history.entries().len(), 3);
 }
 
+/// A workspace of nested file modules beside an inline module and a function
+/// of the crate root, with the capability `alpha` bound to `bindings`.
+fn modules(tag: &str, bindings: &str) -> Repo {
+    let repo = Repo::new(tag);
+    repo.put("Cargo.toml", MANIFEST);
+    repo.put(
+        "lib.rs",
+        "pub mod outer;\npub mod sibling;\n\npub mod inline {\n    pub fn d() {}\n}\n\npub fn top() {}\n",
+    );
+    repo.put("outer.rs", "pub mod inner;\n\npub fn a() {}\n");
+    repo.put("outer/inner.rs", "pub fn b() {}\n");
+    repo.put("sibling.rs", "pub fn c() {}\n");
+    repo.put(
+        "docs/capabilities/alpha.md",
+        &document(
+            "alpha",
+            "Alpha.",
+            "implementing",
+            [bindings, "[]", "[]"],
+            "[]",
+            &[],
+        ),
+    );
+    repo
+}
+
+/// Replace `from` with `to` in the file `path` of `repo`.
+fn edit(repo: &Repo, path: &str, from: &str, to: &str) {
+    let text = fs::read_to_string(repo.root.join(path)).expect("the file");
+    assert!(text.contains(from), "{path}: {from}");
+    repo.put(path, &text.replacen(from, to, 1));
+}
+
+#[test]
+fn a_module_binding_lists_the_commits_of_its_files_and_not_of_a_sibling() {
+    let _lock = serial();
+    let mut repo = modules("history-modules", "[demo::outer, demo::inline, demo]");
+    let added = repo.commit("add the modules");
+    edit(
+        &repo,
+        "outer.rs",
+        "pub fn a() {}",
+        "pub fn a() {\n    let _ = 1;\n}",
+    );
+    let own = repo.commit("edit the module's own file");
+    edit(
+        &repo,
+        "outer/inner.rs",
+        "pub fn b() {}",
+        "pub fn b() {\n    let _ = 2;\n}",
+    );
+    let child = repo.commit("edit a child module's file");
+    edit(
+        &repo,
+        "sibling.rs",
+        "pub fn c() {}",
+        "pub fn c() {\n    let _ = 3;\n}",
+    );
+    let sibling = repo.commit("edit a sibling module");
+    edit(
+        &repo,
+        "lib.rs",
+        "    pub fn d() {}",
+        "    pub fn d() {\n        let _ = 4;\n    }",
+    );
+    let inline = repo.commit("edit the inline module");
+    edit(
+        &repo,
+        "lib.rs",
+        "pub fn top() {}",
+        "pub fn top() {\n    let _ = 5;\n}",
+    );
+    let top = repo.commit("edit a function of the crate root");
+    let history = repo
+        .history("cap:alpha", &HistoryOptions::new())
+        .expect("a history");
+    let paths = |commit: &str| {
+        history
+            .entries()
+            .iter()
+            .find(|entry| entry.commit().as_str() == commit)
+            .map(|entry| entry.paths().to_vec())
+            .expect("an entry")
+    };
+
+    // The module stands for its own file and the file of the module below
+    // it, as its digest does: an edit in either is listed, an edit of a
+    // sibling module or of the crate root is not.
+    let outer = commits_of(&history, &symbol("demo::outer"));
+    assert_eq!(outer, [&child, &own, &added]);
+    assert!(!outer.contains(&sibling.as_str()));
+    assert!(!outer.contains(&top.as_str()));
+    assert!(!outer.contains(&inline.as_str()));
+    assert_eq!(paths(&own), ["outer.rs"]);
+    assert_eq!(paths(&child), ["outer/inner.rs"]);
+    // The commit that wrote the declaration and the files lists all three.
+    for path in ["lib.rs", "outer.rs", "outer/inner.rs"] {
+        assert!(paths(&added).contains(&path.to_string()), "{path}");
+    }
+    assert!(!paths(&added).contains(&"sibling.rs".to_string()));
+
+    // An inline module has no file of its own: its span is its history.
+    assert_eq!(
+        commits_of(&history, &symbol("demo::inline")),
+        [&inline, &added]
+    );
+    // The crate root stands for nothing below it: the log of its span
+    // lists the edits of `lib.rs` and none of the files of its modules.
+    let root = commits_of(&history, &symbol("demo"));
+    assert!(root.contains(&top.as_str()), "{root:?}");
+    assert!(root.contains(&added.as_str()), "{root:?}");
+    for commit in [&own, &child, &sibling] {
+        assert!(!root.contains(&commit.as_str()), "{root:?}");
+    }
+    // No entry is listed twice.
+    let mut all: Vec<&str> = history
+        .entries()
+        .iter()
+        .map(|entry| entry.commit().as_str())
+        .collect();
+    let count = all.len();
+    all.sort_unstable();
+    all.dedup();
+    assert_eq!(all.len(), count);
+}
+
+#[test]
+fn a_module_file_that_is_not_committed_names_the_binding_and_the_file_until_it_is() {
+    let _lock = serial();
+    let mut repo = modules("history-module-uncommitted", "[demo::outer, demo::sibling]");
+    // Everything but the module's child file is committed; that file is in
+    // the working tree only, so `git log --follow` lists nothing for it.
+    repo.put(".gitignore", "outer/\n");
+    repo.commit("add all but the child module");
+    let error = repo
+        .history("cap:alpha", &HistoryOptions::new())
+        .expect_err("a file with no commit");
+    match &error {
+        HistoryError::Uncommitted { binding, file } => assert_eq!(
+            (binding.as_str(), file.as_str()),
+            ("demo::outer", "outer/inner.rs")
+        ),
+        other => panic!("{other:?}"),
+    }
+    let message = error.to_string();
+    assert!(
+        message.contains("the file `outer/inner.rs` of the bound module `demo::outer`"),
+        "{message}"
+    );
+    assert!(message.contains("commit `outer/inner.rs`"), "{message}");
+    // The neighbour: once the file is committed, the module has its history.
+    repo.put(".gitignore", "");
+    let added = repo.commit("add the child module");
+    let history = repo
+        .history("cap:alpha", &HistoryOptions::new())
+        .expect("a history");
+    let outer = commits_of(&history, &symbol("demo::outer"));
+    assert_eq!(outer[0], added);
+}
+
+#[test]
+fn since_selects_by_the_author_date_and_not_by_the_committer_date() {
+    let _lock = serial();
+    let repo = Repo::new("history-author-date");
+    repo.put("Cargo.toml", MANIFEST);
+    repo.put("lib.rs", "pub fn alpha() {}\n");
+    repo.put("docs/capabilities/alpha.md", &capability("Version 0.\n"));
+    let base = repo.commit_at("base", "2025-06-01T12:00:00+00:00");
+    // Authored long before the day, committed on it, as a rebase leaves a
+    // commit: Git's own `--since` would list it.
+    repo.put("docs/capabilities/alpha.md", &capability("Version 1.\n"));
+    let rebased = repo.commit_dated(
+        "authored before, committed on the day",
+        "2026-01-01T12:00:00+00:00",
+        "2026-10-16T09:00:00+00:00",
+    );
+    // Authored on the day, committed before it: Git's own `--since` would
+    // leave it out.
+    repo.put("docs/capabilities/alpha.md", &capability("Version 2.\n"));
+    let late = repo.commit_dated(
+        "authored on the day, committed before",
+        "2026-10-15T00:30:00+00:00",
+        "2026-01-02T12:00:00+00:00",
+    );
+    let since = |day: &str| HistoryOptions::new().with_since(Date::new(day).expect("a date"));
+    let history = repo
+        .history("cap:alpha", &since("2026-10-15"))
+        .expect("a history");
+    let commits: Vec<&str> = history
+        .entries()
+        .iter()
+        .map(|entry| entry.commit().as_str())
+        .collect();
+    assert_eq!(commits, [&late], "{:#?}", history.entries());
+    // Every entry shown satisfies the filter by the date it shows.
+    for entry in history.entries() {
+        assert!(entry.date().as_str() >= "2026-10-15", "{entry:?}");
+    }
+    // The neighbours: a day before the oldest author date takes all three,
+    // newest first by author date; a day after the newest takes none.
+    let history = repo
+        .history("cap:alpha", &since("2025-06-01"))
+        .expect("a history");
+    let commits: Vec<&str> = history
+        .entries()
+        .iter()
+        .map(|entry| entry.commit().as_str())
+        .collect();
+    assert_eq!(commits, [&late, &rebased, &base]);
+    let history = repo
+        .history("cap:alpha", &since("2026-10-16"))
+        .expect("a history");
+    assert_eq!(history.entries().len(), 0, "{:#?}", history.entries());
+}
+
 // ------------------------------------------------------- in-process fake
 
 /// A workspace in memory: the story's files at its last commit.
@@ -947,7 +1168,7 @@ fn a_symbol_log_that_git_refuses_names_the_binding_and_the_file_to_commit() {
 }
 
 #[test]
-fn since_reaches_both_logs_before_the_last_separator() {
+fn since_reaches_no_process_and_keeps_each_entry_by_its_author_date() {
     let (docs, source) = memory();
     let plan = Workplan::load(&docs, &source);
     let runner = FakeRunner::new()
@@ -955,16 +1176,159 @@ fn since_reaches_both_logs_before_the_last_separator() {
         .on(Program::Git, &["rev-parse", "--is-shallow-repository"], ok("false\n"))
         .on(
             Program::Git,
-            &strs(&argv(&format!("--no-pager log --no-show-signature --follow --cc --root {FORMAT} --name-only --since=2026-02-01\u{a0}00:00:00\u{a0}+0000 -- docs/architecture/overview.md"))),
-            ok(""),
+            &strs(&argv(&format!("--no-pager log --no-show-signature --follow --cc --root {FORMAT} --name-only -- docs/architecture/overview.md"))),
+            ok(&format!(
+                "\x1e{B}\x1f2026-02-01T01:00:00+02:00\x1fbefore the day in UTC\n\ndocs/architecture/overview.md\n\
+                 \x1e{A}\x1f2026-01-31T19:00:00-05:00\x1fat the start of the day in UTC\n\ndocs/architecture/overview.md\n\
+                 \x1e{C}\x1f2026-01-31T23:59:59Z\x1fthe second before\n\ndocs/architecture/overview.md\n"
+            )),
         );
     let options = HistoryOptions::new().with_since(Date::new("2026-02-01").expect("a date"));
     let history = plan
         .history("arch:overview", &options, &runner)
         .expect("a history");
-    assert_eq!(history.entries().len(), 0);
-    assert_eq!(render::json(&history), "[]\n");
+    // The log is asked for whole, with no date in its argv, and filtered by
+    // the instant of each author date: 2026-02-01T00:00:00Z and after.
     assert_eq!(runner.calls().len(), 3);
+    assert!(
+        runner
+            .calls()
+            .iter()
+            .all(|call| !call.command().contains("--since")),
+        "{:?}",
+        runner.calls()
+    );
+    let subjects: Vec<&str> = history
+        .entries()
+        .iter()
+        .map(raf_workplan::history::Entry::subject)
+        .collect();
+    assert_eq!(subjects, ["at the start of the day in UTC"]);
+    // The neighbour: the day before keeps all three.
+    let options = HistoryOptions::new().with_since(Date::new("2026-01-31").expect("a date"));
+    let history = plan
+        .history("arch:overview", &options, &runner)
+        .expect("a history");
+    assert_eq!(history.entries().len(), 3);
+}
+
+/// A workspace in memory with a file module `outer`, its child `inner` and
+/// a sibling, and the capability `alpha` bound to `outer`.
+fn module_workspace() -> (MemoryTree, Workspace) {
+    let source = Workspace::load(
+        &MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+            ),
+            ("src/lib.rs", "pub mod outer;\npub mod sibling;\n"),
+            ("src/outer.rs", "pub mod inner;\n"),
+            ("src/outer/inner.rs", "pub fn b() {}\n"),
+            ("src/sibling.rs", "pub fn c() {}\n"),
+        ]),
+        &["."],
+    )
+    .expect("the workspace loads");
+    let capability = document(
+        "alpha",
+        "Alpha.",
+        "implementing",
+        ["[demo::outer]", "[]", "[]"],
+        "[]",
+        &[],
+    );
+    let docs = MemoryTree::from([("docs/capabilities/alpha.md", capability.as_str())]);
+    (docs, source)
+}
+
+#[test]
+fn a_module_binding_asks_its_span_and_then_the_log_of_each_of_its_files_in_order() {
+    let (docs, source) = module_workspace();
+    let plan = Workplan::load(&docs, &source);
+    let file_log = |path: &str| {
+        format!(
+            "--no-pager log --no-show-signature --follow --cc --root {FORMAT} --name-only -- {path}"
+        )
+    };
+    let span =
+        format!("--no-pager log --no-show-signature -L1,1:src/lib.rs --no-patch {FORMAT} --");
+    let answered = |inner: &str| {
+        FakeRunner::new()
+            .on(Program::Git, &["--version"], ok(VERSION))
+            .on(
+                Program::Git,
+                &["rev-parse", "--is-shallow-repository"],
+                ok("false\n"),
+            )
+            .on(
+                Program::Git,
+                &strs(&argv(&file_log("docs/capabilities/alpha.md"))),
+                ok(""),
+            )
+            .on(
+                Program::Git,
+                &strs(&argv(&span)),
+                ok(&format!("\x1e{A}\x1f2026-01-01T12:00:00Z\x1fadd\n")),
+            )
+            .on(
+                Program::Git,
+                &strs(&argv(&file_log("src/outer.rs"))),
+                ok(&format!(
+                    "\x1e{A}\x1f2026-01-01T12:00:00Z\x1fadd\n\nsrc/outer.rs\n"
+                )),
+            )
+            .on(
+                Program::Git,
+                &strs(&argv(&file_log("src/outer/inner.rs"))),
+                ok(inner),
+            )
+    };
+    let runner = answered(&format!(
+        "\x1e{B}\x1f2026-01-02T12:00:00Z\x1fedit inner\n\nsrc/outer/inner.rs\n\
+         \x1e{A}\x1f2026-01-01T12:00:00Z\x1fadd\n\nsrc/outer/inner.rs\n"
+    ));
+    let history = plan
+        .history("cap:alpha", &HistoryOptions::new(), &runner)
+        .expect("a history");
+    let calls: Vec<String> = runner
+        .calls()
+        .iter()
+        .map(raf_workplan::exec::Call::command)
+        .collect();
+    assert_eq!(
+        calls,
+        [
+            "git --version".to_string(),
+            "git rev-parse --is-shallow-repository".to_string(),
+            format!("git {}", file_log("docs/capabilities/alpha.md")),
+            format!("git {span}"),
+            format!("git {}", file_log("src/outer.rs")),
+            format!("git {}", file_log("src/outer/inner.rs")),
+        ]
+    );
+    // The sibling module's file is never asked about; each commit is one
+    // entry with every path.
+    assert!(calls.iter().all(|call| !call.contains("sibling")));
+    let commits: Vec<&str> = history
+        .entries()
+        .iter()
+        .map(|e| e.commit().as_str())
+        .collect();
+    assert_eq!(commits, [B, A]);
+    assert_eq!(history.entries()[0].sources(), [symbol("demo::outer")]);
+    assert_eq!(
+        history.entries()[1].paths(),
+        ["src/lib.rs", "src/outer.rs", "src/outer/inner.rs"]
+    );
+    // A file of the module with an empty log has no commit: the history
+    // fails and names it.
+    let error = plan
+        .history("cap:alpha", &HistoryOptions::new(), &answered(""))
+        .expect_err("an uncommitted file");
+    assert!(
+        matches!(&error, HistoryError::Uncommitted { binding, file } if binding == "demo::outer" && file == "src/outer/inner.rs"),
+        "{error:?}"
+    );
 }
 
 #[test]
@@ -1234,9 +1598,9 @@ mod stubs {
         let expected: Vec<Vec<String>> = [
             "--version".to_string(),
             "rev-parse\u{1f}--is-shallow-repository".to_string(),
-            format!("--no-pager\u{1f}log\u{1f}--no-show-signature\u{1f}--follow\u{1f}--cc\u{1f}--root\u{1f}{FORMAT}\u{1f}--name-only\u{1f}--since=2026-01-01 00:00:00 +0000\u{1f}--\u{1f}docs/capabilities/alpha.md"),
-            format!("--no-pager\u{1f}log\u{1f}--no-show-signature\u{1f}-L1,1:--output=x.rs\u{1f}--no-patch\u{1f}{FORMAT}\u{1f}--since=2026-01-01 00:00:00 +0000\u{1f}--"),
-            format!("--no-pager\u{1f}log\u{1f}--no-show-signature\u{1f}-L1,1:-rf.rs\u{1f}--no-patch\u{1f}{FORMAT}\u{1f}--since=2026-01-01 00:00:00 +0000\u{1f}--"),
+            format!("--no-pager\u{1f}log\u{1f}--no-show-signature\u{1f}--follow\u{1f}--cc\u{1f}--root\u{1f}{FORMAT}\u{1f}--name-only\u{1f}--\u{1f}docs/capabilities/alpha.md"),
+            format!("--no-pager\u{1f}log\u{1f}--no-show-signature\u{1f}-L1,1:--output=x.rs\u{1f}--no-patch\u{1f}{FORMAT}\u{1f}--"),
+            format!("--no-pager\u{1f}log\u{1f}--no-show-signature\u{1f}-L1,1:-rf.rs\u{1f}--no-patch\u{1f}{FORMAT}\u{1f}--"),
         ]
         .iter()
         .map(|line| line.split('\u{1f}').map(str::to_string).collect())
@@ -1248,7 +1612,7 @@ mod stubs {
         // module: the path is the one word after `--`.
         fs::remove_file(bin.join("argv")).expect("a fresh record");
         let dash = raf_workplan::exec::TreePath::new("-rf.rs").expect("a tree path");
-        raf_workplan::git::document_log(&runner, &dash, None).expect("a log");
+        raf_workplan::git::document_log(&runner, &dash).expect("a log");
         assert_eq!(
             calls(&bin),
             [[

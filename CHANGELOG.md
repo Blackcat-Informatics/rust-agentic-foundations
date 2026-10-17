@@ -88,14 +88,20 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   commits of its document through its moves (`git log --follow --cc --root
   --name-only`, with the name it had at each, the merges whose resolution changed
   it and the first commit whatever `log.showRoot` says) and, for a capability, of each resolved `code` binding's
-  span (`git log -L<start>,<end>:<file>`), each commit once with all its `Source`s
-  and paths, newest first by author date and then by commit id. A `code` binding
+  span (`git log -L<start>,<end>:<file>`) and, for a binding of a module below its
+  crate root, of each file its digest reads (the module's own file and the file of
+  every module below it, with the document's `git log --follow` row), each commit
+  once with all its `Source`s and paths, newest first by author date and then by
+  commit id. A file of a bound module that no commit holds is
+  `HistoryError::Uncommitted`, which names the binding and the file. A `code` binding
   that no longer resolves is a `RemovedBinding`: the newest commit that changed how
   often the last segment of its path occurs in its crate's directory
   (`git log --root -S<identifier> -n 1`) as the commit that removed it, and its
   first parent (`%P` of the same query) as the last commit in which it resolved.
-  `--since` reaches `git` as `--since=<date> 00:00:00 +0000`, so a date selects the
-  same commits on every clock and in every time zone. The id is
+  `--since` keeps the entries whose author date is at or after 00:00:00 UTC of its
+  day, so a date selects the same commits on every clock and in every time zone; it
+  is compared in process and reaches no `git` process, whose own `--since` reads
+  the committer date. The id is
   matched against the loaded documents and never reaches a process; an unknown,
   unloaded or wrong-kind id, a binding that names no single symbol and any value
   that fails its pattern are refused before any process starts. Then `git
@@ -106,7 +112,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `history::render::json` write the same entries in the same order. `exec` gains
   the patterns `TreePath` (a path given only after `--` or after the colon of one
   `-L` argument, so it may begin with `-`), `Identifier` (one `-S` argument) and
-  `Date` (`YYYY-MM-DD` from 1970 to 2099, one `--since` argument), `LineRange`, and
+  `Date` (`YYYY-MM-DD` from 1970 to 2099, the `--since` day), `LineRange`, and
   the argument variants and rows of the four commands; `git` gains
   `is_shallow`, `document_log`, `symbol_log` and `last_change` (`LastChange`).
   Table cells escape control and bidirectional formatting characters.

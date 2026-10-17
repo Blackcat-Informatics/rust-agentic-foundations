@@ -7,8 +7,8 @@
 use std::fmt;
 
 use super::pattern::{
-    Commit, Date, DocFilter, ExampleName, Filter, Identifier, LineRange, Package, RefName,
-    SourcePath, Target, TreePath,
+    Commit, DocFilter, ExampleName, Filter, Identifier, LineRange, Package, RefName, SourcePath,
+    Target, TreePath,
 };
 use super::trusted::{TrustedArgv, TrustedWord};
 
@@ -111,9 +111,6 @@ pub enum Arg {
     },
     /// `-S<identifier>` in one argument: the pickaxe of `git log`.
     Pickaxe(Identifier),
-    /// `--since=<date> 00:00:00 +0000` in one argument: the start of the day
-    /// in UTC, so the limit depends on neither the clock nor the time zone.
-    Since(Date),
     /// A word of the caller's own command, which only a [`TrustedArgv`] holds.
     Trusted(TrustedWord),
 }
@@ -140,7 +137,6 @@ impl fmt::Display for Arg {
             Self::Path(path) => write!(f, "{path}"),
             Self::LineLog { lines, file } => write!(f, "-L{lines}:{file}"),
             Self::Pickaxe(identifier) => write!(f, "-S{identifier}"),
-            Self::Since(date) => write!(f, "--since={date} 00:00:00 +0000"),
             Self::Trusted(word) => write!(f, "{word}"),
         }
     }
@@ -400,11 +396,11 @@ impl Invocation {
     /// The history of a document, through its moves, with the merges whose
     /// resolution changed it and the first commit of the history:
     /// `git --no-pager log --no-show-signature --follow --cc --root
-    /// --format=%x1e%H%x1f%aI%x1f%s --name-only
-    /// [--since=<date> 00:00:00 +0000] -- <doc-path>`.
+    /// --format=%x1e%H%x1f%aI%x1f%s --name-only -- <doc-path>`. The same row
+    /// reads the log of each file of a bound module.
     #[must_use]
-    pub fn git_document_log(path: &TreePath, since: Option<&Date>) -> Self {
-        let mut args = vec![
+    pub fn git_document_log(path: &TreePath) -> Self {
+        Self::git(vec![
             Arg::lit("--no-pager"),
             Arg::lit("log"),
             Arg::lit("--no-show-signature"),
@@ -413,20 +409,17 @@ impl Invocation {
             Arg::lit("--root"),
             Arg::lit(HISTORY_FORMAT),
             Arg::lit("--name-only"),
-        ];
-        args.extend(since.map(|date| Arg::Since(date.clone())));
-        args.push(Arg::lit("--"));
-        args.push(Arg::Path(path.clone()));
-        Self::git(args)
+            Arg::lit("--"),
+            Arg::Path(path.clone()),
+        ])
     }
 
     /// The history of the lines of a symbol:
     /// `git --no-pager log --no-show-signature -L<start>,<end>:<file>
-    /// --no-patch --format=%x1e%H%x1f%aI%x1f%s [--since=<date> 00:00:00 +0000]
-    /// --`.
+    /// --no-patch --format=%x1e%H%x1f%aI%x1f%s --`.
     #[must_use]
-    pub fn git_symbol_log(lines: LineRange, file: &TreePath, since: Option<&Date>) -> Self {
-        let mut args = vec![
+    pub fn git_symbol_log(lines: LineRange, file: &TreePath) -> Self {
+        Self::git(vec![
             Arg::lit("--no-pager"),
             Arg::lit("log"),
             Arg::lit("--no-show-signature"),
@@ -436,10 +429,8 @@ impl Invocation {
             },
             Arg::lit("--no-patch"),
             Arg::lit(HISTORY_FORMAT),
-        ];
-        args.extend(since.map(|date| Arg::Since(date.clone())));
-        args.push(Arg::lit("--"));
-        Self::git(args)
+            Arg::lit("--"),
+        ])
     }
 
     /// The newest commit that changed how often `identifier` occurs in the

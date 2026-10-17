@@ -16,7 +16,8 @@
 //! Five further validators serve the Git commands: a full reference name, a
 //! commit id, a tree path (a file or directory of the workspace as the
 //! history command names it), an identifier (the text of a `-S` pickaxe) and a
-//! date (the value of `--since`). Each newtype keeps its text private, so a
+//! date (the value of `--since`, which the history compares with the author
+//! date of each commit and gives to no process). Each newtype keeps its text private, so a
 //! value of the type is proof that the text matched.
 
 use std::error::Error;
@@ -60,10 +61,9 @@ pub enum Pattern {
     /// `<identifier>`: a Rust identifier, the text of a `-S` argument.
     Identifier,
     /// `<date>`: `YYYY-MM-DD`, a day of the Gregorian calendar from
-    /// 1970-01-01 to 2099-12-31, the value of `--since`, which reaches `git`
-    /// as `--since=<date> 00:00:00 +0000`: the start of that day in UTC. Git's
-    /// date reader takes a year in that range only and reads any other as a
-    /// different date, so one outside it is refused.
+    /// 1970-01-01 to 2099-12-31, the value of `--since`. It reaches no
+    /// process: the history compares the start of that day in UTC with the
+    /// author date of each commit, in process.
     Date,
 }
 
@@ -441,8 +441,8 @@ validated!(
     Pattern::Identifier
 );
 validated!(
-    /// A day, `YYYY-MM-DD`: the value of one `--since=<date> 00:00:00 +0000`
-    /// argument, the start of the day in UTC.
+    /// A day, `YYYY-MM-DD`: the value of `--since`, which the history compares,
+    /// as the start of the day in UTC, with the author date of each commit.
     Date,
     Pattern::Date
 );

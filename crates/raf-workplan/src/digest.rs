@@ -278,33 +278,40 @@ fn symbol_sites<'w>(source: &'w Workspace, path: &str) -> Result<Vec<Site<'w>>, 
         let (file, start) = item.source_key();
         sites.push(((file.as_str(), start, false), text));
         if item.kind == SymbolKind::Mod {
-            module_files(source, item, &mut sites);
+            sites.extend(
+                module_files(source, item)
+                    .into_iter()
+                    .map(|(file, text)| ((file, 0, true), text)),
+            );
         }
     }
     Ok(sites)
 }
 
-/// Add the whole text of each file of the module `module` and of the modules
-/// below it, in the module's target: the content a module binding stands
-/// for. A crate root stands for nothing below it, as in coverage, so only its
-/// own span is hashed.
-fn module_files<'w>(source: &'w Workspace, module: &Item, sites: &mut Vec<Site<'w>>) {
+/// The path and the whole text of each file of the module `module` and of
+/// the modules below it, in the module's target, in the order of the files
+/// of the index: the content a module binding stands for. A crate root
+/// stands for nothing below it, as in coverage, so it has no file here and
+/// only its own span is hashed. The history of a module binding reads the
+/// log of each of these files.
+pub(crate) fn module_files<'w>(source: &'w Workspace, module: &Item) -> Vec<(&'w str, &'w str)> {
     let is_root = source
         .target(module.target)
         .is_some_and(|target| *module.path == *target.crate_path);
     if is_root {
-        return;
+        return Vec::new();
     }
     let below = format!("{}::", module.path);
-    for file in source.files() {
-        let reached = file.reached.iter().any(|reach| {
-            reach.target == module.target
-                && (*reach.module_path == *module.path || reach.module_path.starts_with(&below))
-        });
-        if reached {
-            sites.push(((file.path.as_str(), 0, true), file.text.as_str()));
-        }
-    }
+    source
+        .files()
+        .filter(|file| {
+            file.reached.iter().any(|reach| {
+                reach.target == module.target
+                    && (*reach.module_path == *module.path || reach.module_path.starts_with(&below))
+            })
+        })
+        .map(|file| (file.path.as_str(), file.text.as_str()))
+        .collect()
 }
 
 /// The source text of each definition of the symbol `path`, as
