@@ -361,3 +361,87 @@ fn a_path_of_fifty_thousand_segments_resolves_in_linear_time() {
     };
     assert!(took < bound, "took {took:?}");
 }
+
+/// The path the answer names, or the error.
+fn from(ws: &Workspace, module: &str, path: &str) -> Result<String, ResolveError> {
+    ws.resolve_from(module, path).map(|found| found.path)
+}
+
+#[test]
+fn a_use_path_counts_only_what_the_reading_module_can_access() {
+    let ws = lib(
+        "mod a { pub fn open() {} fn closed() {} mod inner { pub fn deep() {} } }\n\
+                  mod b { pub(crate) fn sibling() {} }\n",
+    );
+    // The neighbour that reads: the module itself, a child of it, and a
+    // public item from a sibling.
+    assert_eq!(
+        from(&ws, "demo::a", "self::closed"),
+        Ok("demo::a::closed".to_owned())
+    );
+    assert_eq!(
+        from(&ws, "demo::a::inner", "super::closed"),
+        Ok("demo::a::closed".to_owned())
+    );
+    assert_eq!(
+        from(&ws, "demo::b", "crate::a::open"),
+        Ok("demo::a::open".to_owned())
+    );
+    assert_eq!(
+        from(&ws, "demo::a", "crate::b::sibling"),
+        Ok("demo::b::sibling".to_owned())
+    );
+    // The refusals: a private item of a module read from outside it, and a
+    // module that is private to the one that declares it.
+    assert_eq!(
+        from(&ws, "demo::b", "crate::a::closed"),
+        Err(ResolveError::NotFound("crate::a::closed".to_owned()))
+    );
+    assert_eq!(
+        from(&ws, "demo::b", "crate::a::inner::deep"),
+        Err(ResolveError::NotFound("crate::a::inner::deep".to_owned()))
+    );
+}
+
+#[test]
+fn a_use_path_is_read_in_one_name_space_or_in_each_in_turn() {
+    let ws = lib("mod a { pub struct Both {} pub fn Both() {} pub fn only() {} }\nmod b {}\n");
+    assert_eq!(
+        ws.resolve_from_in("demo::b", "crate::a::Both", Namespace::Type)
+            .map(|found| found.sites.len()),
+        Ok(1)
+    );
+    let value = ws
+        .resolve_from_in("demo::b", "crate::a::Both", Namespace::Value)
+        .expect("the function");
+    let ty = ws
+        .resolve_from_in("demo::b", "crate::a::Both", Namespace::Type)
+        .expect("the struct");
+    assert_ne!(value.sites, ty.sites);
+    assert_eq!(
+        from(&ws, "demo::b", "crate::a::only"),
+        Ok("demo::a::only".to_owned())
+    );
+}
+
+#[test]
+fn a_module_that_is_not_in_the_workspace_and_a_text_that_is_no_path_are_refused() {
+    let ws = lib("mod a { pub fn go() {} }\n");
+    assert_eq!(
+        ws.resolve_from("demo::gone", "crate::a::go"),
+        Err(ResolveError::UnknownModule("demo::gone".to_owned()))
+    );
+    assert_eq!(
+        ws.resolve_from("demo::a", "crate::a::"),
+        Err(ResolveError::Invalid("crate::a::".to_owned()))
+    );
+    assert_eq!(
+        ws.resolve_from("demo::a", "super::super::go"),
+        Err(ResolveError::Invalid("super::super::go".to_owned()))
+    );
+    // The neighbour: the same module reads a real path.
+    assert_eq!(
+        from(&ws, "demo::a", "self::go"),
+        Ok("demo::a::go".to_owned())
+    );
+}

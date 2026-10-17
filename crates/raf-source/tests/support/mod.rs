@@ -9,6 +9,10 @@
 )]
 
 pub(crate) mod child;
+pub(crate) mod json;
+pub(crate) mod program;
+pub(crate) mod random;
+pub(crate) mod rustc;
 pub(crate) mod shapes;
 
 use std::fs;

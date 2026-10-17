@@ -15,7 +15,7 @@ use std::fmt;
 
 use crate::error::Esc;
 use crate::index::{Index, UseKind};
-use crate::item::{ItemId, Namespace, SymbolKind};
+use crate::item::{ItemId, Namespace, SharedStr, SymbolKind};
 use crate::modtree::TargetId;
 use crate::settle::{Source, slot};
 
@@ -189,6 +189,9 @@ pub enum ResolveError {
     /// The package named to qualify the path is not a package of the
     /// workspace.
     UnknownPackage(String),
+    /// The module named to read a `use` path from is not a module of the
+    /// workspace.
+    UnknownModule(String),
     /// A lookup on the way of the path reads the names a glob import brings
     /// in, and the glob's path names nothing in the workspace past its first
     /// segment (`use self::missing::*;`, `use crate::a::gone::*;`). rustc
@@ -222,6 +225,9 @@ impl fmt::Display for ResolveError {
             ),
             Self::UnknownPackage(package) => {
                 write!(f, "`{}` is not a package of the workspace", Esc(package))
+            }
+            Self::UnknownModule(module) => {
+                write!(f, "`{}` is not a module of the workspace", Esc(module))
             }
             Self::UnresolvedGlob { path, glob, module } => write!(
                 f,
@@ -1256,8 +1262,24 @@ impl Index {
                 }
             }
         }
+        self.conclude(&found, &missing, &reads, text, ns, from_keys)
+    }
+
+    /// What a walk found, as the answer: the unbound error when it found
+    /// nothing, ambiguity when it found several symbols, and the symbol
+    /// otherwise. `from_keys` is true when the items come from the foreign
+    /// keys and not from a walk.
+    fn conclude(
+        &self,
+        found: &BTreeMap<ItemId, Hit>,
+        missing: &[Source],
+        reads: &[Source],
+        text: &str,
+        ns: Namespace,
+        from_keys: bool,
+    ) -> Result<Resolution, ResolveError> {
         if found.is_empty() {
-            return Err(self.unbound(&missing, &reads, text));
+            return Err(self.unbound(missing, reads, text));
         }
         // One symbol is one path and kind in one crate. Items of two targets
         // at one path are two symbols, whatever order they were found in; the
@@ -1274,7 +1296,7 @@ impl Index {
         }
         // A lookup on the way that read a glob whose path names nothing past
         // its first segment may have missed what the glob would bring in.
-        if let Some(glob) = self.unresolved_glob_read(&reads) {
+        if let Some(glob) = self.unresolved_glob_read(reads) {
             return Err(self.glob_error(glob, text));
         }
         let sites = self.sorted(found.keys().copied());
@@ -1287,6 +1309,66 @@ impl Index {
             chain: self.chain_for(text, hit, first),
             sites,
         })
+    }
+
+    /// The module whose canonical path is `path`, such as `demo::inner`.
+    fn module_named(&self, path: &str) -> Option<usize> {
+        let first = path.split("::").next()?;
+        let key = SharedStr::from(path);
+        self.crate_roots
+            .get(first)?
+            .iter()
+            .find_map(|root| self.module_by_path.get(&(*root, key.clone())).copied())
+    }
+
+    /// Resolve the path of a `use` declaration written in the module
+    /// `module`, in `ns` or in each name space in turn.
+    pub(crate) fn resolve_from(
+        &self,
+        module: &str,
+        path: &str,
+        ns: Option<Namespace>,
+    ) -> Result<Resolution, ResolveError> {
+        let from = self
+            .module_named(module)
+            .ok_or_else(|| ResolveError::UnknownModule(module.to_owned()))?;
+        let (leading_colon, written) = path.strip_prefix("::").map_or((false, path), |p| (true, p));
+        let segs: Vec<String> = written
+            .split("::")
+            .map(|s| strip_raw(s).to_owned())
+            .collect();
+        let valid = |s: &String| {
+            !s.is_empty() && s != "Self" && s.chars().all(|c| c.is_alphanumeric() || c == '_')
+        };
+        if !segs.iter().all(valid) {
+            return Err(ResolveError::Invalid(path.to_owned()));
+        }
+        let text = segs.join("::");
+        let spaces: Vec<Namespace> = ns.map_or_else(|| Namespace::ALL.to_vec(), |one| vec![one]);
+        let heads = Heads::Use {
+            test: false,
+            own: None,
+        };
+        for space in spaces {
+            let mut reads = Vec::new();
+            let walk = self.walk_noting(from, &segs, leading_colon, space, heads, Some(&mut reads));
+            if walk.is_ok() && reads.iter().any(|source| self.bound_by_undecided(source)) {
+                return Err(ResolveError::Cyclic(text));
+            }
+            let outcome = match walk {
+                Ok(walked) => self.conclude(&walked.items, &[], &reads, &text, space, false),
+                Err(Fail::Missing(missing)) => Err(self.unbound(&missing, &reads, &text)),
+                Err(Fail::SeveralCrates { roots: ids, .. } | Fail::Ambiguous(ids)) => {
+                    Err(ResolveError::Ambiguous(ids))
+                }
+                Err(Fail::SuperAboveRoot) => Err(ResolveError::Invalid(path.to_owned())),
+            };
+            match outcome {
+                Err(ResolveError::NotFound(_)) => {}
+                other => return other,
+            }
+        }
+        Err(ResolveError::NotFound(text))
     }
 
     /// True when a proper prefix of `segs` is the self path of an inherent
@@ -1372,6 +1454,7 @@ mod tests {
             ResolveError::Invalid(hostile()),
             ResolveError::UnresolvedSelf(hostile()),
             ResolveError::UnknownPackage(hostile()),
+            ResolveError::UnknownModule(hostile()),
             ResolveError::UnresolvedGlob {
                 path: hostile(),
                 glob: hostile(),
@@ -1386,6 +1469,7 @@ mod tests {
                 | ResolveError::Invalid(_)
                 | ResolveError::UnresolvedSelf(_)
                 | ResolveError::UnknownPackage(_)
+                | ResolveError::UnknownModule(_)
                 | ResolveError::UnresolvedGlob { .. } => {}
             }
         }

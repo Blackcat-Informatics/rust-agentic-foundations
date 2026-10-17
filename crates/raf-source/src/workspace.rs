@@ -400,6 +400,56 @@ impl Workspace {
         self.index.resolve(path, None, Some(package))
     }
 
+    /// Resolve the path of a `use` declaration written in the module `module`
+    /// (a canonical module path such as `demo::inner`), trying the type, value
+    /// and macro name spaces in that order. The reading module is the viewer:
+    /// the path starts as code of that module starts it (`crate`, `self`,
+    /// `super`, a name the module binds, or a crate of the extern prelude)
+    /// and each segment counts only the bindings the module can access, as
+    /// rustc settles an import.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ResolveError::UnknownModule`] when `module` is not a module
+    /// of the workspace, and otherwise as [`Workspace::resolve`]: a path
+    /// that names nothing the module can access is
+    /// [`ResolveError::NotFound`], and one that names several symbols is
+    /// [`ResolveError::Ambiguous`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use raf_source::{MemoryTree, Workspace};
+    ///
+    /// let tree: MemoryTree = [
+    ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+    ///     ("src/lib.rs", "mod a { pub fn go() {} fn hidden() {} }\nmod b {}\n"),
+    /// ]
+    /// .into_iter()
+    /// .collect();
+    /// let ws = Workspace::load(&tree, &["."])?;
+    /// assert_eq!(ws.resolve_from("demo::b", "crate::a::go")?.path, "demo::a::go");
+    /// assert!(ws.resolve_from("demo::b", "crate::a::hidden").is_err());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn resolve_from(&self, module: &str, path: &str) -> Result<Resolution, ResolveError> {
+        self.index.resolve_from(module, path, None)
+    }
+
+    /// [`Workspace::resolve_from`] in one name space.
+    ///
+    /// # Errors
+    ///
+    /// As [`Workspace::resolve_from`].
+    pub fn resolve_from_in(
+        &self,
+        module: &str,
+        path: &str,
+        namespace: Namespace,
+    ) -> Result<Resolution, ResolveError> {
+        self.index.resolve_from(module, path, Some(namespace))
+    }
+
     /// The inherent impl blocks whose self type names no struct, enum or
     /// union the index can see, once for each module path their file is
     /// reached under, sorted by path, file and position. Their members are
