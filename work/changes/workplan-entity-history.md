@@ -13,6 +13,7 @@ affects:
 contract_effect: changes
 items:
   - claim: "The error of a line history git cannot read says that git log -L could not read the lines from HEAD, and names committing the file as one way to fix it, not as the cause."
+    outcome: implemented
 ---
 
 ## Summary
