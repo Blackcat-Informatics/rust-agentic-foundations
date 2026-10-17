@@ -1,0 +1,35 @@
+{
+  "paths": [
+    {
+      "ref": "tests/self_workplan.rs",
+      "path": "/home/paudley/Active/rust-agentic-foundations/tests/self_workplan.rs",
+      "where": "repo",
+      "exists": false,
+      "kind": "",
+      "lines": null,
+      "licence": "",
+      "commits": []
+    }
+  ],
+  "identifiers": [
+    {
+      "name": "considered",
+      "files": 51
+    },
+    {
+      "name": "complete",
+      "files": 70
+    },
+    {
+      "name": "delivered",
+      "files": 81
+    },
+    {
+      "name": "raf_workplan::Gate",
+      "files": 15
+    }
+  ],
+  "packages": [],
+  "urls": [],
+  "truncated": []
+}

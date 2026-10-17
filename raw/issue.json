@@ -1,0 +1,38 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "## Context\nThese are the crate's two flagship acceptance tests, taken straight from the planning essay. Once they pass, the workplan gate is turned on for this repo and milestone 1's own change records are completed **with the tool itself**.\n\n## Scope\n### Scenario A: several redesigns, one readable present\n- [ ] Fixture git repo, built in a temp dir: one capability redesigned 4 times through successive changes (decisions amended and reversed, interfaces and constraints evolving), modelled on the \"Amended YYYY-MM-DD\" ADR pattern\n- [ ] At the end:\n  - the capability states the active contract directly;\n  - no PROPOSED blocks or change files remain on the reading path;\n  - all links resolve;\n  - the current rationale is retained;\n  - every earlier state can be recovered with `git show`.\n\n### Scenario B: planning produces actual docs\n- [ ] The fixture capability starts `considered`, with open questions; the implementation renames the API and drops one guarantee\n- [ ] `complete` refuses until Usage, Examples and the bindings match the real API and the dropped claim has an outcome\n- [ ] It then succeeds, leaving the capability `delivered` with a real usage example, current API references, explicit limitations and a test-traceability table\n\n### Dogfood\n- [ ] `tests/self_workplan.rs` runs `raf_workplan::Gate` on this repo, wired into `make check` and the pre-commit hook\n- [ ] Advance this repo's capability states with `cargo workplan status` and `change complete` for every M1 change record\n\n## Acceptance criteria\n- [ ] Both scenarios pass as integration tests\n- [ ] Self-workplan and self-census gates both pass in CI\n- [ ] Every M1 capability is `delivered`, with resolved bindings and a generated verification matrix\n\n## Depends on\n- #6\n- #8",
+  "closedAt": null,
+  "comments": [],
+  "createdAt": "2026-10-12T04:28:25Z",
+  "labels": [
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bfyfQ",
+      "name": "crate:raf-workplan",
+      "description": "",
+      "color": "0e8a16"
+    },
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bfzOw",
+      "name": "dogfood",
+      "description": "",
+      "color": "fbca04"
+    }
+  ],
+  "milestone": {
+    "number": 3,
+    "title": "M1 Workplan",
+    "description": "raf-workplan + cargo-workplan milestone 1: model, check, reconcile, complete gate, scenarios A/B",
+    "dueOn": null
+  },
+  "number": 9,
+  "state": "OPEN",
+  "title": "Acceptance scenarios A & B + workplan self-gate",
+  "updatedAt": "2026-10-12T04:28:25Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/9"
+}

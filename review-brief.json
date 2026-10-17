@@ -1,0 +1,40 @@
+{
+  "issue": 9,
+  "branch": "paudley/9-acceptance-scenarios-a-b-workplan-self",
+  "base": "origin/main",
+  "commits": [
+    {
+      "oid": "1da058c798b28616c6dbe6d5d7d32cbf80ab2d78",
+      "subject": "test: run the workplan gate on this repository from its own test binary",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "202392621fa52b771eced0fea3b9d7edfa07770d",
+      "subject": "docs(capabilities): every delivered capability holds a generated verification matrix",
+      "date": "2026-10-17"
+    }
+  ],
+  "files": [
+    ".githooks/pre-commit",
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "Makefile",
+    "docs/capabilities/okf-profile.md",
+    "docs/capabilities/source-index.md",
+    "docs/capabilities/workplan-current-rationale.md",
+    "docs/capabilities/workplan-entity-history.md",
+    "docs/capabilities/workplan-evidence-claims.md",
+    "docs/capabilities/workplan-prose-assessment.md",
+    "docs/capabilities/workplan-two-way-coverage.md",
+    "tests/docs_contract.rs",
+    "tests/self_workplan.rs",
+    "work/assessments/okf-profile-verification.md",
+    "work/assessments/source-index-verification.md",
+    "work/assessments/workplan-current-rationale-verification.md",
+    "work/assessments/workplan-entity-history-verification.md",
+    "work/assessments/workplan-evidence-claims-verification.md",
+    "work/assessments/workplan-prose-assessment-verification.md",
+    "work/assessments/workplan-two-way-coverage-verification.md"
+  ],
+  "adrs_touched": []
+}
