@@ -296,14 +296,57 @@ fn terminate(child: &mut Child) -> io::Result<()> {
 /// holds what `cargo` started, such as a test binary that keeps the output
 /// pipes open. A group with no member left is not an error.
 #[cfg(unix)]
-fn kill_group(child: &Child) -> io::Result<()> {
-    use rustix::io::Errno;
+fn kill_group(child: &mut Child) -> io::Result<()> {
     use rustix::process::{Pid, Signal, kill_process_group};
 
     let raw = i32::try_from(child.id()).map_err(io::Error::other)?;
     let pid = Pid::from_raw(raw).ok_or_else(|| io::Error::other("the process id is not valid"))?;
-    match kill_process_group(pid, Signal::KILL) {
+    let signalled = kill_process_group(pid, Signal::KILL);
+    // macOS answers EPERM, not ESRCH, when the group holds only processes that
+    // have already exited but are not reaped yet. The leader having exited is
+    // what tells that case from a group that cannot be signalled.
+    let leader_exited = matches!(child.try_wait(), Ok(Some(_)));
+    group_signal_outcome(signalled, leader_exited)
+}
+
+/// What a failed or successful group signal means. A group with no live member
+/// (`ESRCH`) is done; so is one that answers `EPERM` while its leader has
+/// already exited, because only unreaped processes are left (macOS). Any other
+/// failure means the group may still be running and is reported.
+#[cfg(unix)]
+fn group_signal_outcome(
+    signalled: Result<(), rustix::io::Errno>,
+    leader_exited: bool,
+) -> io::Result<()> {
+    use rustix::io::Errno;
+
+    match signalled {
         Ok(()) | Err(Errno::SRCH) => Ok(()),
+        Err(Errno::PERM) if leader_exited => Ok(()),
         Err(errno) => Err(errno.into()),
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use rustix::io::Errno;
+
+    use super::group_signal_outcome;
+
+    #[test]
+    fn a_group_that_already_exited_is_done() {
+        assert!(group_signal_outcome(Ok(()), false).is_ok());
+        assert!(group_signal_outcome(Err(Errno::SRCH), false).is_ok());
+    }
+
+    #[test]
+    fn a_refused_signal_is_done_only_when_the_leader_has_exited() {
+        assert!(group_signal_outcome(Err(Errno::PERM), true).is_ok());
+        assert!(group_signal_outcome(Err(Errno::PERM), false).is_err());
+    }
+
+    #[test]
+    fn any_other_failure_is_reported_even_after_the_leader_exited() {
+        assert!(group_signal_outcome(Err(Errno::INVAL), true).is_err());
     }
 }
