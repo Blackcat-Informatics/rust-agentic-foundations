@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-evidence-claims
 title: "Evidence and claims"
 description: "Persisted execution evidence, the claims that depend on each result, and invalidation when the evidence changes."
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_workplan::evidence
