@@ -11,6 +11,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use raf_source::{DiskTree, RelPath, Workspace};
 use raf_workplan::{Finding, LinkContext, SyncError, SyncReport, Workplan};
@@ -354,6 +355,18 @@ fn write_creates_the_index_only_where_the_directory_exists() {
 
 // --- the example ---------------------------------------------------------------
 
+/// The tests that run the `docs_sync` example each start `cargo run`, which may
+/// build the example and then starts it, while the others do the same: an
+/// executable that one `cargo` is still writing when another starts it makes
+/// the start fail with "text file busy". Every test that runs the example holds
+/// this lock from its first process to its last, as the other process tests of
+/// the crate hold theirs.
+static EXAMPLE: Mutex<()> = Mutex::new(());
+
+fn serial() -> MutexGuard<'static, ()> {
+    EXAMPLE.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
 /// Run the `docs_sync` example with `args`, from the crate directory.
 fn docs_sync(args: &[&str]) -> Output {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
@@ -382,6 +395,7 @@ fn text(bytes: &[u8]) -> String {
 
 #[test]
 fn the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_run() {
+    let _serial = serial();
     let scratch = Scratch::new("example");
     let root = scratch.path();
     write_repo(root, &unsynced());
@@ -443,6 +457,7 @@ fn the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_
 
 #[test]
 fn the_docs_sync_example_in_a_git_checkout_and_with_bad_arguments() {
+    let _serial = serial();
     let scratch = Scratch::new("example-git");
     let root = scratch.path();
     write_repo(root, &unsynced());
@@ -679,6 +694,7 @@ fn sync_is_pure(plan: &Workplan<'_>) -> bool {
 
 #[test]
 fn the_docs_sync_example_asks_for_the_spdx_flags_only_when_the_index_must_be_created() {
+    let _serial = serial();
     let scratch = Scratch::new("example-flags");
     write_repo(scratch.path(), &unsynced());
     let root_arg = scratch.path().to_str().expect("a UTF-8 path");
@@ -700,6 +716,7 @@ fn the_docs_sync_example_asks_for_the_spdx_flags_only_when_the_index_must_be_cre
 
 #[test]
 fn the_docs_sync_example_opens_the_repository_as_the_gate_does() {
+    let _serial = serial();
     // A root that holds no capability document is not a repository to sync:
     // the example exits 2 with the gate's message and writes nothing.
     let empty = Scratch::new("example-empty");

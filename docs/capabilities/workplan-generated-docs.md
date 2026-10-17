@@ -340,6 +340,10 @@ than written.
 >   the report was computed, is refused by `Workplan::write` before anything is
 >   written, though the files behind it are regular files, and the same report
 >   through the real directories is written.
+> - The four tests that run the `docs_sync` example hold one lock of their test
+>   binary from their first process to their last, as the other process tests of the
+>   crate hold theirs, so no run of the example starts it while another `cargo`
+>   writes it.
 - Preview fixtures: a change with two blocks in one capability and a block of another
   change that stays, line endings kept, a tab after `>` kept, a fenced code block and
   a misindented line refused with their lines, an unknown slug, and a disk fixture
