@@ -513,27 +513,17 @@ run and platform. A digest is written and read as 64 lowercase hexadecimal digit
 
 **Writing records.** `raf_workplan::record::create` writes a new `Record` file
 exclusively, never replacing a file, below the root, creating the directory of
-its type when it is missing and refusing a link or a file on the way;
-`record::replace` puts new text in place of an existing record file through a
-temporary file and a rename. Both write the text the OKF writer renders for the
-record, opened with the two SPDX comment lines of `RecordOptions` when both are
-given, and refuse, before anything is written, one of the two lines given without
-the other and a record whose text would not read back as a record with no finding.
-
-> [!PROPOSED change:workplan-document-model]
-> **Writing records.** `raf_workplan::record::create` writes a new `Record` file
-> exclusively, never replacing a file, below the root, creating the directory of
-> its type when it is missing; `record::replace` puts new text in place of an
-> existing record file through a temporary file and a rename. Each judges the way to
-> the record before anything is written, as every write of a record does: `work` and
-> the directory of the record type must each be a directory, and a symbolic link
-> there, whether it leads inside the root or out of it, a file or anything else is
-> refused, naming that directory. A record is therefore written in the record
-> directory of the root and never through a link onto another file, such as a
-> document. Both write the text the OKF writer renders for the record, opened with
-> the two SPDX comment lines of `RecordOptions` when both are given, and refuse,
-> before anything is written, one of the two lines given without the other and a
-> record whose text would not read back as a record with no finding.
+its type when it is missing; `record::replace` puts new text in place of an
+existing record file through a temporary file and a rename. Each judges the way to
+the record before anything is written, as every write of a record does: `work` and
+the directory of the record type must each be a directory, and a symbolic link
+there, whether it leads inside the root or out of it, a file or anything else is
+refused, naming that directory. A record is therefore written in the record
+directory of the root and never through a link onto another file, such as a
+document. Both write the text the OKF writer renders for the record, opened with
+the two SPDX comment lines of `RecordOptions` when both are given, and refuse,
+before anything is written, one of the two lines given without the other and a
+record whose text would not read back as a record with no finding.
 
 ## Usage
 
@@ -677,17 +667,12 @@ touches, and the obligations those sections receive are defined by
   ambiguous path, a macro-generated symbol, a missing example target and an item of
   the wrong role fail with the capability, the list and the binding named.
 - Roadmap fixtures: the group and slug order, the gaps of an `implementing`
-  capability, and this repository with every capability once.
-
-> [!PROPOSED change:workplan-document-model]
-> - Roadmap fixtures: the group and slug order, the gaps of an `implementing`
->   capability, and this repository with every capability once and each capability
->   it has built either `delivered`, or `implementing` with the open change record
->   named after it, with no gap in either case. The rule refuses a built capability
->   that is `implementing` with no record of its name or with only a record of
->   another name, one with a gap, one in another state and one that is absent, and
->   accepts it `delivered` with no record or reopened under its own record.
-
+  capability, and this repository with every capability once and each capability
+  it has built either `delivered`, or `implementing` with the open change record
+  named after it, with no gap in either case. The rule refuses a built capability
+  that is `implementing` with no record of its name or with only a record of
+  another name, one with a gap, one in another state and one that is absent, and
+  accepts it `delivered` with no record or reopened under its own record.
 - The dev-dependency API: `Gate::workspace(...).assert_clean()` passes on a clean
   fixture repository on disk, panics with every finding on a broken one, and is an
   error for a directory without capability documents.
@@ -718,14 +703,12 @@ touches, and the obligations those sections receive are defined by
   fails with the target unchanged and no temporary file left; a record that would
   not load clean, a bad slug and half an SPDX header are refused with nothing
   written.
-
-> [!PROPOSED change:workplan-document-model]
-> - Link fixtures for the writer: a directory link inside the root at `work`, at
->   `work/evidence`, at `work/assessments` and at `work/coverage`, with the record's
->   own file behind it, is refused by `create` and by `replace`, naming the link, with
->   the tree byte-identical, and the same writes through the real directory go
->   through; with `work/coverage` a link to `docs` and `docs/default.md` there,
->   `replace` of the coverage record is refused and the document keeps its text.
+- Link fixtures for the writer: a directory link inside the root at `work`, at
+  `work/evidence`, at `work/assessments` and at `work/coverage`, with the record's
+  own file behind it, is refused by `create` and by `replace`, naming the link, with
+  the tree byte-identical, and the same writes through the real directory go
+  through; with `work/coverage` a link to `docs` and `docs/default.md` there,
+  `replace` of the coverage record is refused and the document keeps its text.
 - Cost fixtures: a record at the size bound with the most measures, and a hundred
   thousand claims, load in time linear in their size.
 
