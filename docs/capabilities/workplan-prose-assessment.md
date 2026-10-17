@@ -162,9 +162,10 @@ cap:streaming-parser#usage  assessment:streaming-parser-usage  accepted  agent  
 - An assessment never edits the section it assesses; recording writes only its
   own record.
 - An assessment is written only through real directories: `work` and
-  `work/assessments` must each be a directory, and a symbolic link there, inside
-  the root or out of it, or a file is refused before anything is written, so the
-  record replaced is the record of the section and never another file.
+  `work/assessments` must each be a directory, or be missing and then be created,
+  and a symbolic link there, inside the root or out of it, a file or anything else
+  that is not a directory is refused before anything is written, so the record
+  replaced or created is the record of the section and never another file.
 - Generated blocks are excluded from assessment, so a regenerated table does not
   invalidate the assessment of the prose around it.
 - The digest is deterministic: the same inputs always produce the same digest,
@@ -258,6 +259,6 @@ sections to rewrite and the evidence still missing, and an assessor resolves the
   each refused with the tree byte-identical, and the same assessment through the
   real directories replaces the record.
 - The digest of a crate-root binding is unchanged by an edit in the file of a
-  module below the root and in the file of a module below that, while each edit
-  moves the digest of the module it is in, and an edit of the root's own file
-  moves the root's digest.
+  module below the root and by one in the file of a module below that, while both
+  edits move the digest of the module below the root, whose content holds both
+  files, and an edit of the root's own file moves the root's digest.

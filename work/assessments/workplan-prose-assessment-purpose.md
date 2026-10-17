@@ -19,10 +19,10 @@ inputs:
     digest: 4caeaed4de776e9011875e46e8298d6b2482a504ece8af8ba57119f6224c2962
   - kind: symbol
     name: raf_workplan::Workplan::record_assessment
-    digest: 6a4769311c7518844b602edf2be6afca5bb0f63d4c169dfe08f953dff9caf1fb
+    digest: 19614e8e7f9dfa456aa4bd50e4b8458bd6d9fcd00e00b3452330ef82b61e77bd
   - kind: symbol
     name: raf_workplan::assessment
-    digest: bbc32ddf67541753e44e64f6869fb8f3a536be3cd3c7cf29a07223d037c8a521
+    digest: 277b5940e69a2a7ab3aaba440d6fb0db3ad6547506ff4c1ee650938fb7df8b90
 verdict: accepted
 by: agent
 ---

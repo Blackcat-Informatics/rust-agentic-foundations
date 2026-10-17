@@ -492,8 +492,10 @@ result holds:
   character (U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069) as its
   `\u{..}` escape (`raf_workplan::escape::shown_lines`), as the history and
   coverage tables escape their cells, so a document cannot clear the screen, set the
-  title of a terminal or reorder a line. The JSON form carries the text itself,
-  with its control characters escaped as JSON escapes them.
+  title of a terminal or reorder a line. The JSON form carries the text itself:
+  JSON escapes the control characters U+0000 to U+001F, and every other
+  character, a bidirectional formatting character included, is written as it is,
+  for the reader of the JSON to show safely.
 
 ## Explanation
 
@@ -572,13 +574,14 @@ rather than kept by hand.
   right-to-left override in a claimed statement and in a section: the text output
   of `evidence claims` and of `assess --context` holds none of them raw and shows
   each as its `\u{..}` escape, keeping the line feeds and the tabs, and the
-  context equals the library's text escaped; the JSON form escapes them as JSON
-  does and reads back as the text; plain text is printed unchanged.
+  context equals the library's text escaped; the JSON form holds no raw escape,
+  which it writes as JSON escapes a control character, and reads back as the text;
+  plain text is printed unchanged.
 - `evidence claims` while a capability document does not load: exit 2 in text and
-  JSON, naming the document on standard error, with nothing on standard output and
-  nothing written, for an id with claims and for one without; a change record or
-  an evidence record that does not load leaves the answer, exit 0, while `check`
-  reports it; the clean neighbour answers.
+  JSON, naming the document on standard error, in text with nothing on standard
+  output, and nothing written, for an id with claims and for one without; a change
+  record or an evidence record that does not load leaves the answer, exit 0, while
+  `check` reports it; the clean neighbour answers.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |

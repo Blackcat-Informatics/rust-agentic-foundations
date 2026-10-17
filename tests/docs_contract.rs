@@ -110,6 +110,7 @@ const INVENTORY: Inventory = Inventory {
         "assessment:workplan-cli-examples",
         "assessment:workplan-cli-usage",
         "assessment:workplan-cli-verification",
+        "assessment:workplan-complete-gate-constraints",
         "assessment:workplan-complete-gate-contract",
         "assessment:workplan-complete-gate-examples",
         "assessment:workplan-complete-gate-verification",
@@ -136,6 +137,7 @@ const INVENTORY: Inventory = Inventory {
         "assessment:workplan-evidence-claims-purpose",
         "assessment:workplan-evidence-claims-usage",
         "assessment:workplan-evidence-claims-verification",
+        "assessment:workplan-generated-docs-constraints",
         "assessment:workplan-generated-docs-verification",
         "assessment:workplan-prose-assessment-constraints",
         "assessment:workplan-prose-assessment-contract",
@@ -1050,10 +1052,10 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|id| id.starts_with(prefix))
             .count()
     };
-    assert_eq!(records("assessment:"), 54);
+    assert_eq!(records("assessment:"), 56);
     assert_eq!(records("coverage:"), 1);
     assert_eq!(records("evidence:"), 1);
-    assert_eq!(INVENTORY.records.len(), 56);
+    assert_eq!(INVENTORY.records.len(), 58);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 

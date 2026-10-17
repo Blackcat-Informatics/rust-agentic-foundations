@@ -516,9 +516,9 @@ exclusively, never replacing a file, below the root, creating the directory of
 its type when it is missing; `record::replace` puts new text in place of an
 existing record file through a temporary file and a rename. Each judges the way to
 the record before anything is written, as every write of a record does: `work` and
-the directory of the record type must each be a directory, and a symbolic link
-there, whether it leads inside the root or out of it, a file or anything else is
-refused, naming that directory. A record is therefore written in the record
+the directory of the record type must each be a directory (`create` makes one that
+is missing), and a symbolic link there, whether it leads inside the root or out of
+it, a file or anything else is refused, naming that directory. A record is therefore written in the record
 directory of the root and never through a link onto another file, such as a
 document. Both write the text the OKF writer renders for the record, opened with
 the two SPDX comment lines of `RecordOptions` when both are given, and refuse,
@@ -679,7 +679,6 @@ touches, and the obligations those sections receive are defined by
 - The documentation example of `Gate` writes a repository of one package and one
   delivered capability to a scratch directory and runs the gate over it with an
   empty tracked set: the bindings resolve, and the one finding is `index-missing`.
-
 - Record fixtures in their directories: each record type loads into the model; a
   record in the directory of another type, under another file name or below its
   directory is refused; a file beside the coverage record is

@@ -7,7 +7,7 @@ subject: cap:workplan-entity-history#constraints
 inputs:
   - kind: section
     name: cap:workplan-entity-history#constraints
-    digest: 2bcc3a53a9084caed8d1e984fef7745e3ccb1d1401dbb5cb6390e43d29bc771a
+    digest: d585508b9e0b3f5f424927053662d3672d55dc7d1a2600d7542c35004b9d2742
   - kind: symbol
     name: raf_workplan::Workplan::history
     digest: 54ca67c0bc29309bda8c5b64782cda013825c20a1538b9c12f3c5ea65914c616
@@ -31,10 +31,10 @@ inputs:
     digest: 5a3f5c5081907c2186f3f84659a5eaa97355624b376de7710994497a577e95e7
   - kind: symbol
     name: raf_workplan::git::symbol_log
-    digest: 6b4945c60d0cf394cdfd4f3dbab23a07b3f8eaae46246fdc644812b801fb59c9
+    digest: 853875fe786b71bfd840a9ade05db8af62d937fa5dcfbd0ff4756891afc90495
   - kind: symbol
     name: raf_workplan::history
-    digest: a21edd6a1c4ba2435f189df03df52800fad997ecd2348314e76d907204117777
+    digest: 9106bb277e9a9c7f607755446c1a6e0da19334743550f25aea4982ec0bbc2622
 verdict: accepted
 by: agent
 ---

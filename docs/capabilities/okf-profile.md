@@ -482,7 +482,6 @@ would produce noise in the diff, and a clean check could not be told from a stal
   capability are `okf-parse-malformed-claim` and the `raf:foo` comment
   `okf-parse-unknown-marker`, each exit 1 with nothing written, and the split
   `raf:generated:` comment, the SPDX header and the ordinary comment exit 0.
-
 - Cost fixture: an evidence record at the 1 MiB cap with the most `values` and
   `limits` validates within 100 ms in a release build.
 - The documentation examples of `EvidenceRecord::to_document` (a record built,

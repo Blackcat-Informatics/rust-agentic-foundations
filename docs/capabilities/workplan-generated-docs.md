@@ -253,12 +253,14 @@ A relationship table after a sync:
   not count toward its being non-empty.
 - Editing inside a block by hand produces a stale block, so the edit is overwritten by
   the next sync and reported by `check` first.
-- Sync is idempotent: running it twice changes nothing the second time.
+- Sync is idempotent: once the report of `Workplan::sync` is written, a second
+  `Workplan::sync` reports nothing, so running it twice changes nothing the second
+  time.
 - `Workplan::write` writes only to a regular file that already exists or to the new
   index in an existing `docs/capabilities`, below directories that are each a
   directory and not a symbolic link, and refuses a symbolic link, a directory, a
-  path outside the root, a path below a linked directory, inside the root or out of
-  it, and a path listed twice. Every target is judged before the first byte is
+  path outside the root, a path below a directory link, whether the link leads
+  inside the root or out of it, and a path listed twice. Every target is judged before the first byte is
   written. Every text goes to a temporary file first and is renamed into place once
   all are written. A rename that fails after earlier ones succeeded leaves those
   files with their new text, and the next sync writes the rest.
@@ -327,9 +329,9 @@ than written.
   without its value and an extra argument with exit 2 and nothing on standard
   output.
 - A directory link inside the root at `docs` or at `docs/capabilities`, made after
-  the report was computed, is refused by `Workplan::write` before anything is
-  written, though the files behind it are regular files, and the same report
-  through the real directories is written.
+  the report was computed, is refused when the report is written, with nothing
+  written, though the files behind it are regular files; the same report through
+  the real directories is written.
 - The four tests that run the `docs_sync` example hold one lock of their test
   binary from their first process to their last, as the other process tests of the
   crate hold theirs, so no run of the example starts it while another `cargo`

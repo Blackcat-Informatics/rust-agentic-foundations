@@ -2340,7 +2340,6 @@ duplicates.
   and CRLF text and after a mark. A one-line item on line `n` has the lines
   `n..n+1`, one over three lines ends before the line after its last, and a crate root
   spans every line of its file.
-
 - Exported-item fixtures, each beside a neighbour that lists: a `pub fn` beside
   private, `pub(crate)`, `pub(super)`, `pub(self)` and `pub(in path)` items; a `pub`
   item of a private module, absent until `pub use` exports it under its name and
@@ -2369,9 +2368,9 @@ duplicates.
   `NotLibraryOrBinary`; a module reached by two `pub` paths and a cycle of globs,
   each read once.
 - A re-export of an item of another crate of the workspace that two `pub` globs
-  bring in is written as the glob that comes first, with its line, in either order
-  of the two, beside one glob alone, written as that glob.
-
+  bring in is written as the glob that comes first in the file, with its line,
+  whichever of the two that is; beside it, the re-export that one glob alone
+  brings in is written as that glob.
 - Re-exports of a crate outside the workspace that a `pub` glob carries: from a
   private module and from a `pub` one (listed under both paths), renamed, through
   two globs, hidden by a hidden glob of the reader and not by one further on, each

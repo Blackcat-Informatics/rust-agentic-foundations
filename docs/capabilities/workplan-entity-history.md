@@ -92,11 +92,12 @@ report lists the commits that changed that symbol and not the whole file. Their
 source is the binding's path and their path is the file. A binding that names
 more than one symbol, or that the index cannot decide, is an error and no
 process starts. When `git log -L` cannot read the lines of a symbol from `HEAD`,
-as for a bound file that is not committed or that `HEAD` holds fewer lines of,
-the whole history fails with an error (`HistoryError::SymbolLog`) that names the
-binding and the file, says that `git log -L` could not read the lines from `HEAD`
-with what `git` said, and names committing the file with the symbol at the lines
-it has now as one way to read them, not as the cause.
+as for a bound file that is not committed or whose copy in `HEAD` ends before the
+line the symbol starts at in the working copy, the whole history fails with an error
+(`HistoryError::SymbolLog`) that names the binding and the file, says that
+`git log -L` could not read the lines from `HEAD`, quoting what `git` said, and
+names committing the file with the symbol at the lines it has now as one way to
+read them, not as the cause.
 
 A binding that resolves to a module below its crate root stands for the files of
 the module, as its digest does for the evidence and assessments that rest on it
@@ -234,7 +235,8 @@ the document and the method, so it is one entry with both sources:
   moved between files starts at the move. The span is read from the working tree
   and traced from `HEAD`, so for a file whose working copy differs from `HEAD`
   the lines are those numbers in `HEAD`. A bound file that is not committed, or
-  is shorter in `HEAD`, makes `git log -L` fail, and the whole history fails with
+  whose copy in `HEAD` ends before the line the symbol starts at in the working
+  copy, makes `git log -L` fail, and the whole history fails with
   it rather than leaving the binding out, with an error that names the binding
   and the file, says that `git log -L` could not read the lines from `HEAD`, and
   names committing the file as one way to read them.

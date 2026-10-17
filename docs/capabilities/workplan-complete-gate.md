@@ -315,13 +315,14 @@ the rewrite fails the record stays, and if the deletion fails after the rewrite 
 error names the files already rewritten, so a deleted record is never found beside
 stale blocks. Git holds the record's history.
 
-The record is deleted only through real directories. With the static conditions,
-before any `cargo` process or write, `complete` judges the way to
-`work/changes/<slug>.md`: `work` and `work/changes` must each be a directory and not
-a symbolic link, and the record a regular file there. Otherwise it is an error
-(exit 2) that names the refused path, and nothing is run or written. A linked
-`work/changes` is never read as the directory of change records, so its change is
-not found.
+The record is deleted only through real directories. With each judgement of the
+static conditions, the first before any `cargo` process and the second immediately
+before the writes, `complete` judges the way to `work/changes/<slug>.md`: `work` and
+`work/changes` must each be a directory and not a symbolic link, and the record a
+regular file there. Otherwise it is an error (exit 2) that names the refused path,
+and nothing is written; refused at the first judgement, nothing has run either. A
+linked `work/changes` is never read as the directory of change records, so its
+change is not found.
 
 **Obligations by effect.** All six conditions apply to every change. The effect only
 sets which obligations [reconcile](./workplan-reconcile.md) raises. A change with
@@ -503,10 +504,14 @@ reads `refused: 2 obligations, 1 section without a current accepted assessment`.
   workspace code and trusted build input, so output from it that is shaped like a
   result, such as a test that prints its own `test result:` line and exits with
   status 0, is read as the run reports it.
-- `complete` runs the bound tests and examples with `cargo`, so a repository whose
-  tests or examples cannot compile cannot complete a change.
-- A capability with empty `bindings.tests` and `bindings.examples` lists satisfies
-  the fifth condition only while it is `designed` or `considered`.
+- `complete` runs the bound tests and examples with `cargo`, which builds each of
+  them first, so a bound test or example that cannot compile fails its binding and
+  the change that lists its capability cannot complete.
+- A capability with empty `bindings.tests` and `bindings.examples` lists gives the
+  fifth condition nothing to run, which suffices only while it is `designed` or
+  `considered`: in `implementing` and `delivered` an empty list is a
+  `binding-missing` obligation of condition 1 (the `examples` list only in
+  `implementing`).
 - The record is deleted and not archived. Recovering it is a Git operation.
 - `complete` never edits prose. It rewrites only the generated blocks that removing
   the record stales; the prose, and the `state: delivered` that the post-removal

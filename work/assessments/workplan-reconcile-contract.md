@@ -19,7 +19,7 @@ inputs:
     digest: 0c3f46f0e8b0d0f38ee66eccb226f909ed9bf78bde660f9c52b1555edb3722ad
   - kind: symbol
     name: raf_workplan::git
-    digest: 495f295e21d903d277c501079b3d75dd9b527c17a4dbc0486f3b6bf29c09cf4d
+    digest: fe63af4a005336157f88cda77a561d1744f06c4e0ae11080d29a06008b1b23d0
   - kind: symbol
     name: raf_workplan::git::MergeBase
     digest: af01b2d2d9725516e94d6cf5edb9a459b254976e25e4b4c812aa6d8e614bab3d
@@ -37,7 +37,7 @@ inputs:
     digest: c76430b86eec0d5f69a21cab58487a83f02da7c7f14416f4e30ce4afac0b7a95
   - kind: symbol
     name: raf_workplan::lifecycle
-    digest: 1bb88aec40876769cd9cbf270bcc20555df1b2d70bfa869db7dabc0f78a9a637
+    digest: f7fa3ee4da0e2f0e9655f922ebb2491e136eb00ea8482912a2b1cc189f830295
   - kind: symbol
     name: raf_workplan::lifecycle::Impact
     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935

@@ -7,7 +7,7 @@ subject: cap:workplan-cli#constraints
 inputs:
   - kind: section
     name: cap:workplan-cli#constraints
-    digest: 5cd727e4d703f2d86d8fb822944b16944f8d01c3b335b114d318d3e9ffd8926d
+    digest: 9ce61b8a4b59931ea2692ea9171eb7744ad0a61f69e3fa4e365a02a445c114ea
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::assess::assess
     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
@@ -47,6 +47,9 @@ inputs:
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::render::Report
     digest: dab53ae11963070bd29d72666a59a4ae47bc5840283d1a28304f7f1120a444e7
+  - kind: symbol
+    name: raf_workplan::escape
+    digest: 652b550815b3496adfaceff0e308c64e0a5da4bd015131f3f8622c40afe85492
   - kind: symbol
     name: raf_workplan::root
     digest: a1c58d0670756165083ca5de437a1e4646d29f895c043ee2c5acecbe02bf0437

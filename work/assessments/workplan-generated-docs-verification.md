@@ -7,7 +7,7 @@ subject: cap:workplan-generated-docs#verification
 inputs:
   - kind: section
     name: cap:workplan-generated-docs#verification
-    digest: 1ab8b2a5b8005aa380b6352ed1ad7244ee772fcf159941bece39208d111ab73d
+    digest: d4fa521e95de3ab5d8ed08346cdb685c758d266f4907c25f97a972808455bf09
   - kind: symbol
     name: raf_workplan::ChangeLookupError
     digest: 459b574b27a4df1e272bcae550119b42a7ce8ee9b12d1a0fd17155ae14c2185b
@@ -34,7 +34,7 @@ inputs:
     digest: 8719e564a33f0c74a475611c7158419988b930829e648c98d122be6f04d09669
   - kind: symbol
     name: raf_workplan::Workplan::write
-    digest: da6f27462ccc7cd6e04bbdafadac28bc28d31acc47b5241f7ec06ab8b028b027
+    digest: d2774ab87e1165f6040f86d79aaa8f95f048bf1ba54b6b32e660689f1a1613a3
 verdict: accepted
 by: agent
 ---

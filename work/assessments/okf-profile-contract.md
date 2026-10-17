@@ -7,7 +7,7 @@ subject: cap:okf-profile#contract
 inputs:
   - kind: section
     name: cap:okf-profile#contract
-    digest: 64c8ad7ae175c4d21fe040f6c6f71295df439d568975f9f7b0adbc4ed38688eb
+    digest: 703f20cbbc1838c56916a68635d0cd7378444f93bd89204c3929f2fee7cab61f
   - kind: symbol
     name: raf_okf::AssessmentRecord
     digest: e2544d04538334c12e007895f8ce5bb62d872af8632307fbf3e555002a2f1fba
