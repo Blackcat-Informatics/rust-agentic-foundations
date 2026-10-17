@@ -12,7 +12,9 @@ affects:
 contract_effect: changes
 items:
   - claim: "The path an unresolved re-export names is read from the module that declares it, the innermost inline module or else the module of its file, with each super:: one module up, so a binding of the module it reaches covers it and a binding of the declaring module the path leaves does not."
+    outcome: implemented
   - claim: "While a capability document does not load, check reports its own findings and no coverage-item-unbound, coverage-test-unbound or coverage-reexport-unbound, and still reports an exclusion that matches nothing."
+    outcome: implemented
 ---
 
 ## Summary
