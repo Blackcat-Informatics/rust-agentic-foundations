@@ -51,7 +51,7 @@ const PROGRAMS_VARIABLE: &str = "RAF_ORACLE_PROGRAMS";
 /// The classes of disagreement that are known to occur and are counted and
 /// printed, not failed. A class leaves this list in the commit that fixes it,
 /// together with its corpus entries.
-const KNOWN: [Class; 3] = [Class::Rule1, Class::Rule2, Class::Documented];
+const KNOWN: [Class; 2] = [Class::Rule2, Class::Documented];
 
 /// How the two sides can disagree about a probe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,7 +68,8 @@ enum Kind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Class {
     /// A `pub use` of a binding its module reaches only through a private
-    /// glob stays no more visible than that binding.
+    /// glob stays no more visible than that binding. The index models it, so
+    /// a disagreement of this class is a failure.
     Rule1,
     /// A name the globs of a module bring in ambiguously, one item through a
     /// glob the reading module cannot access, is refused.
@@ -197,13 +198,16 @@ fn compare(rustc: &Verdict, index: &IndexVerdict) -> Option<Kind> {
 }
 
 /// Which class a disagreement is. `when_visible` is whether the two sides
-/// agree on the probe once nothing in the program is hidden.
+/// agree on the probe once nothing in the program is hidden;
+/// `ambiguous_in_a_module` is whether the index finds the probed name
+/// ambiguous in some module of the program when that module reads it.
 fn classify(
     kind: Kind,
     rustc: &Verdict,
     index: &IndexVerdict,
     when_visible: impl FnOnce() -> bool,
     warned_when_exported: impl FnOnce() -> bool,
+    ambiguous_in_a_module: impl FnOnce() -> bool,
 ) -> Class {
     if kind == Kind::AcceptedButRefused {
         // The index refuses a name that rustc resolves. The documented case
@@ -212,11 +216,13 @@ fn classify(
         if ambiguous && warned_when_exported() {
             return Class::Documented;
         }
-        // Otherwise the index counts a binding that rustc does not see as a
-        // second candidate or as a cycle, which a binding hidden from the
-        // reader does: the reach of a re-export (rule 1).
-        return if when_visible() {
-            Class::Rule1
+        // Otherwise the index counts an item that rustc does not see as a
+        // second candidate: the name is ambiguous in a module whose glob the
+        // reader cannot access, and rustc hides the name whole (rule 2).
+        // Rule 1 only hides, it never makes a name ambiguous or cyclic, so
+        // a refusal that no ambiguity explains is not one of the two rules.
+        return if when_visible() && ambiguous_in_a_module() {
+            Class::Rule2
         } else {
             Class::Unclassified
         };
@@ -228,10 +234,18 @@ fn classify(
     if !when_visible() {
         return Class::Unclassified;
     }
+    // A name two globs of one module bring in as different items is
+    // ambiguous there. A reader that cannot access one of the globs gets the
+    // other item from the index, and from rustc a refusal that is E0659 when
+    // the glob of the first binding is accessible, and otherwise a name it
+    // does not find (E0432) or finds in fewer name spaces. That is rule 2
+    // whatever the error, and a binding capped by a hidden route (rule 1)
+    // does not need an ambiguity to show.
     match rustc {
         Verdict::Rejected(codes) if codes.iter().any(|code| code == "E0659" || code == "E0573") => {
             Class::Rule2
         }
+        _ if ambiguous_in_a_module() => Class::Rule2,
         _ => Class::Rule1,
     }
 }
@@ -245,6 +259,31 @@ fn warns_of_ambiguous_re_export(program: &Program, probe: usize) -> bool {
     rustc::judge(&exported).is_some_and(|judged| {
         judged.warnings.iter().any(|warning| {
             warning.lint == "ambiguous_glob_reexports" && warning.text.contains(&name)
+        })
+    })
+}
+
+/// Whether the index finds some name of `program` ambiguous in some module
+/// of it that has a `use`, when that module reads the name itself: a name
+/// that two globs of the module bring in as different items.
+fn ambiguous_in_a_module(ws: &Workspace, program: &Program, probe: usize) -> bool {
+    let mut names: std::collections::BTreeSet<String> = program
+        .decls()
+        .into_iter()
+        .map(|decl| decl.name)
+        .chain(program.uses().into_iter().filter_map(|decl| decl.binding))
+        .collect();
+    names.insert(program.probes[probe].name().to_owned());
+    let modules: std::collections::BTreeSet<String> =
+        program.uses().into_iter().map(|decl| decl.module).collect();
+    modules.iter().any(|module| {
+        names.iter().any(|name| {
+            [Namespace::Type, Namespace::Value].into_iter().any(|ns| {
+                matches!(
+                    ws.resolve_from_in(module, &format!("self::{name}"), ns),
+                    Err(ResolveError::Ambiguous(_))
+                )
+            })
         })
     })
 }
@@ -346,6 +385,7 @@ fn evaluate_with(program: &Program, tamper: &dyn Fn(IndexVerdict) -> IndexVerdic
                     &index,
                     || agree_when_visible(&program, at, tamper),
                     || warns_of_ambiguous_re_export(&program, at),
+                    || ambiguous_in_a_module(&ws, &program, at),
                 ),
                 rustc: verdict.clone(),
                 index,
@@ -755,7 +795,7 @@ fn write_corpus() {
                 .map(|d| (&result.program, d.probe))
         })
     };
-    for class in [Class::Rule1, Class::Rule2, Class::Documented] {
+    for class in KNOWN {
         let Some((program, probe)) = first(&|d| d.class == class) else {
             println!("no divergence of class {}", class.name());
             continue;

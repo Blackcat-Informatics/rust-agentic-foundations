@@ -1567,3 +1567,77 @@ fn a_re_export_two_globs_carry_is_written_as_the_first_glob_that_carries_it() {
         [("demo::f".to_owned(), "p_one::again::*".to_owned(), f, 3)]
     );
 }
+
+/// Every order of `items`.
+fn orders(items: &[String]) -> Vec<Vec<String>> {
+    if items.len() <= 1 {
+        return vec![items.to_vec()];
+    }
+    let mut all = Vec::new();
+    for position in 0..items.len() {
+        let mut rest = items.to_vec();
+        let head = rest.remove(position);
+        for mut tail in orders(&rest) {
+            tail.insert(0, head.clone());
+            all.push(tail);
+        }
+    }
+    all
+}
+
+/// The surface of the crate made of `outer` and of `mod m` holding `inner`,
+/// in every order of both, which is the same in each. Returns it and the
+/// number of loads.
+fn surface_in_every_order(outer: &[&str], inner: &[&str]) -> (Vec<(String, String)>, usize) {
+    let mut found: Option<Vec<(String, String)>> = None;
+    let mut loads = 0;
+    let inner: Vec<String> = inner.iter().map(|d| (*d).to_owned()).collect();
+    for inside in orders(&inner) {
+        let mut blocks: Vec<String> = outer.iter().map(|d| (*d).to_owned()).collect();
+        blocks.push(format!("mod m {{ {} }}", inside.join(" ")));
+        for order in orders(&blocks) {
+            let text = order.join("\n");
+            let listed = surface(&load(&[("src/lib.rs", text.as_str())]));
+            match &found {
+                None => found = Some(listed),
+                Some(first) => assert_eq!(&listed, first, "{text}"),
+            }
+            loads += 1;
+        }
+    }
+    (found.expect("loaded"), loads)
+}
+
+#[test]
+fn an_item_reached_only_by_a_pub_use_of_a_private_glob_binding_is_not_exported_in_every_order() {
+    // `m` reads the struct `A` of the private module `x` through a private
+    // glob, and `c` re-exports `super::A` with the function `A` that `m`
+    // defines: rustc keeps the struct no more visible than the glob, so the
+    // crate's `pub use` of `c` exports the function and not the struct.
+    let (listed, loads) = surface_in_every_order(
+        &["mod x { pub struct A {} }", "pub use m::c::*;"],
+        &[
+            "use crate::x::*;",
+            "pub fn A() {}",
+            "pub mod c { pub use super::A; }",
+        ],
+    );
+    assert_eq!(listed, pairs(&[("demo::A", "demo::m::A")]));
+    assert_eq!(loads, 36);
+
+    // Neighbour: with a `pub` glob in `m` the struct is exported beside the
+    // function.
+    let (listed, loads) = surface_in_every_order(
+        &["mod x { pub struct A {} }", "pub use m::c::*;"],
+        &[
+            "pub use crate::x::*;",
+            "pub fn A() {}",
+            "pub mod c { pub use super::A; }",
+        ],
+    );
+    assert_eq!(
+        listed,
+        pairs(&[("demo::A", "demo::m::A"), ("demo::A", "demo::x::A")])
+    );
+    assert_eq!(loads, 36);
+}

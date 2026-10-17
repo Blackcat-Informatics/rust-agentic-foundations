@@ -5,10 +5,14 @@
 //!
 //! What a glob import brings in from its target depends on the target and on
 //! what the importer can access there, and on nothing else about the
-//! importer. Every visibility a binding of the target carries is one of the
-//! target's own (those of its items and of its `use` declarations), so the
-//! importers that can access the same of those visibilities see the same of
-//! the target: they form a class. What a module exports to globs (its bindings
+//! importer. A binding is accessible within a module that is the target
+//! itself or one of its ancestors (its level), or everywhere; so the
+//! importers that lie within the same ancestors of the target see the same of
+//! the target: they form a class. A glob import brings a binding in no more
+//! visibly than the binding it reads, as rustc does: the level of what a view
+//! holds is the narrower of the glob's own and the level the binding has in
+//! the module it is read from, and so is the level of an explicit import of a
+//! binding reached through a glob. What a module exports to globs (its bindings
 //! that shadow globs, and what its own globs bring in where none does) is kept
 //! once for each class of its importers, as a shared table, a view, and every
 //! glob of the module from an importer of that class reads that view: no
@@ -53,22 +57,55 @@ use crate::cost::{btree_entry, btree_map, hash_entry, hash_map, shared_text, vec
 use crate::error::LoadError;
 use crate::facts::Vis;
 use crate::index::Index;
-use crate::item::{ItemId, SharedStr, SymbolKind};
+use crate::item::{ItemId, Namespace, SharedStr};
 use crate::meter::Meter;
-use crate::settle::{Bound, vis_key};
+use crate::resolve::Heads;
+use crate::settle::Bound;
+
+/// How far a binding is accessible: everywhere, within one module (which is
+/// the module the binding is in or one of its ancestors) and so by every
+/// module inside it, or nowhere.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct Level(usize);
+
+impl Level {
+    /// Accessible everywhere.
+    pub(crate) const PUBLIC: Self = Self(usize::MAX);
+    /// Accessible nowhere: a restriction that names no module.
+    pub(crate) const NOBODY: Self = Self(usize::MAX - 1);
+
+    /// Accessible within `module`.
+    pub(crate) const fn within(module: usize) -> Self {
+        Self(module)
+    }
+
+    /// The module the level is within, if it is one.
+    const fn module(self) -> Option<usize> {
+        if self.0 >= Self::NOBODY.0 {
+            None
+        } else {
+            Some(self.0)
+        }
+    }
+}
+
+/// An item a view holds under a name, with the widest level at which the
+/// module the view is of binds it, as far as the class of the view can access
+/// it.
+type Held = (ItemId, Level);
 
 /// The items a name of a view stands for, in each name space, each list
-/// sorted.
-type Lists = Box<[Vec<ItemId>; 3]>;
+/// sorted by item, one entry for each item.
+type Lists = Box<[Vec<Held>; 3]>;
 
 /// What one module exports to the globs of one class of importers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct View {
     /// The module the view exports.
     target: usize,
-    /// For each visibility of the target, in the order of
-    /// [`GlobTables::vis_of`], whether the importers of the class can access a
-    /// binding that carries it.
+    /// For each ancestor of the target and the target itself, from the crate
+    /// root down, whether the importers of the class lie within it, which
+    /// is whether they can access a binding at that level.
     class: Box<[bool]>,
     /// The items each name stands for.
     names: BTreeMap<SharedStr, Lists>,
@@ -106,14 +143,12 @@ pub(crate) struct GlobTables {
     reads: Vec<Vec<GlobRead>>,
     /// Each glob import and the view it reads, once read.
     read_by: BTreeSet<(usize, usize)>,
-    /// For each module, view and visibility of the module, whether a glob of
-    /// the module with that visibility already reads the view: another such
-    /// glob brings in nothing the first does not, and passes nothing on.
-    passing: BTreeSet<(usize, usize, usize)>,
-    /// The visibilities the bindings of each module can carry, sorted by
-    /// [`vis_key`] with no repeats: those of its items (a `macro_rules!`
-    /// macro is public) and of its `use` declarations.
-    vis_of: Vec<Box<[Vis]>>,
+    /// For each module, view and level of a glob of the module, whether a
+    /// glob of the module with that level already reads the view: another
+    /// such glob brings in nothing the first does not, and passes nothing on.
+    passing: BTreeSet<(usize, usize, Level)>,
+    /// How many ancestors each module has.
+    depth: Vec<usize>,
     /// Whether a visibility of each module is `pub(in path)`, which reads
     /// the tables: what such a module exports to an importer can change as
     /// they settle, so its globs are tried again whenever it changes.
@@ -145,13 +180,13 @@ struct Grown {
     view: usize,
     name: SharedStr,
     at: usize,
-    ids: Vec<ItemId>,
+    ids: Vec<Held>,
 }
 
 impl Grown {
     /// What the change's list of items allocates at most.
     const fn bytes(&self) -> usize {
-        vec_first::<ItemId>() + self.ids.len() * vec_slot::<ItemId>()
+        vec_first::<Held>() + self.ids.len() * vec_slot::<Held>()
     }
 }
 
@@ -169,7 +204,7 @@ const VIEW_BYTES: usize = vec_slot::<View>()
 
 /// What a name of a view allocates at most beyond its text: its entry and its
 /// lists.
-const NAME_BYTES: usize = btree_entry::<SharedStr, Lists>() + size_of::<[Vec<ItemId>; 3]>();
+const NAME_BYTES: usize = btree_entry::<SharedStr, Lists>() + size_of::<[Vec<Held>; 3]>();
 
 /// What a glob's read of a view allocates at most: its place among its
 /// module's reads (with their first room) and among the view's readers, as
@@ -226,66 +261,48 @@ impl Waiters for Nobody {
 }
 
 impl Index {
-    /// Record the visibilities each module's bindings can carry, once for the
-    /// load, and charge them. Nothing is recorded for a load without glob
-    /// imports, which builds no glob tables.
+    /// Record how deep each module lies and whether a visibility of it reads
+    /// the tables, once for the load, and charge them. Nothing is recorded
+    /// for a load without glob imports, which builds no glob tables.
     pub(crate) fn glob_visibilities(&mut self, meter: &Meter) -> Result<(), LoadError> {
         let Some(&first) = self.glob_imports.first() else {
             return Ok(());
         };
-        if !self.globs.vis_of.is_empty() {
+        if !self.globs.depth.is_empty() {
             return Ok(());
         }
-        let mut vis_of: Vec<Vec<Vis>> = vec![Vec::new(); self.modules.len()];
+        let in_path_text =
+            |vis: &Vis| matches!(vis, Vis::Restricted(text) if text.starts_with("in "));
+        let mut in_path = vec![false; self.modules.len()];
         for (module, record) in self.modules.iter().enumerate() {
-            for id in &record.defs {
-                let item = &self.items[id.0];
-                vis_of[module].push(if item.kind == SymbolKind::MacroRules {
-                    Vis::Public
-                } else {
-                    item.visibility.clone()
-                });
-            }
+            in_path[module] = record
+                .defs
+                .iter()
+                .any(|id| in_path_text(&self.items[id.0].visibility));
         }
         for decl in &self.uses {
-            vis_of[decl.module].push(decl.vis.clone());
+            in_path[decl.module] |= in_path_text(&decl.vis);
         }
-        let mut bytes = vec_first::<Box<[Vis]>>() + vec_first::<bool>();
-        let mut kept = Vec::with_capacity(vis_of.len());
-        let mut in_path = Vec::with_capacity(vis_of.len());
-        for mut list in vis_of {
-            list.sort_by(|left, right| vis_key(left).cmp(&vis_key(right)));
-            list.dedup();
-            bytes += vec_slot::<Box<[Vis]>>()
-                + vec_slot::<bool>()
-                + size_of::<Vis>() * list.len()
-                + list
-                    .iter()
-                    .map(|vis| match vis {
-                        Vis::Restricted(text) => text.capacity(),
-                        Vis::Inherited | Vis::Public => 0,
-                    })
-                    .sum::<usize>();
-            in_path.push(
-                list.iter()
-                    .any(|vis| matches!(vis, Vis::Restricted(text) if text.starts_with("in "))),
-            );
-            kept.push(list.into_boxed_slice());
-        }
+        let depth: Vec<usize> = (0..self.modules.len())
+            .map(|module| self.module_depth(module))
+            .collect();
+        let bytes = vec_first::<usize>()
+            + vec_first::<bool>()
+            + self.modules.len() * (vec_slot::<usize>() + vec_slot::<bool>());
         let decl = &self.uses[first];
         meter.globs(bytes, &decl.file, Some(decl.line))?;
-        self.globs.vis_of = kept;
+        self.globs.depth = depth;
         self.globs.in_path = in_path;
         Ok(())
     }
 
-    /// Drop the glob tables, keeping the visibilities of the modules. What
-    /// they were charged is the caller's to release.
+    /// Drop the glob tables, keeping the depths and the `pub(in path)` flags
+    /// of the modules. What they were charged is the caller's to release.
     pub(crate) fn clear_globs(&mut self) {
-        let vis_of = std::mem::take(&mut self.globs.vis_of);
+        let depth = std::mem::take(&mut self.globs.depth);
         let in_path = std::mem::take(&mut self.globs.in_path);
         self.globs = GlobTables {
-            vis_of,
+            depth,
             in_path,
             ..GlobTables::default()
         };
@@ -310,21 +327,130 @@ impl Index {
         Ok(())
     }
 
-    /// True when a binding of `module` with visibility `vis` can be named by
-    /// importers of `class`.
-    fn allowed(&self, module: usize, class: &[bool], vis: &Vis) -> bool {
-        let at = self.globs.vis_of[module]
-            .binary_search_by(|known| vis_key(known).cmp(&vis_key(vis)))
-            .expect("every visibility a binding of a module carries is one of the module's");
-        class[at]
+    /// How many ancestors `module` has.
+    fn depth_of(&self, module: usize) -> usize {
+        self.globs
+            .depth
+            .get(module)
+            .copied()
+            .unwrap_or_else(|| self.module_depth(module))
     }
 
-    /// The class of `importer` for globs of `target`: which of the target's
-    /// visibilities it can access.
+    /// How wide a level is, smaller for a level that more modules can
+    /// access: public first, then the shallower modules, and last nobody.
+    fn width(&self, level: Level) -> usize {
+        match level.module() {
+            Some(module) => 1 + self.depth_of(module),
+            None if level == Level::PUBLIC => 0,
+            None => usize::MAX,
+        }
+    }
+
+    /// Of two levels of one chain of ancestors the one more modules can
+    /// access.
+    pub(crate) fn wider(&self, left: Level, right: Level) -> Level {
+        if self.width(right) < self.width(left) {
+            right
+        } else {
+            left
+        }
+    }
+
+    /// Of two levels of one chain of ancestors the one fewer modules can
+    /// access: what a binding is accessible at when it is imported at one
+    /// level a binding that is accessible at the other.
+    pub(crate) fn meet(&self, left: Level, right: Level) -> Level {
+        if self.width(right) > self.width(left) {
+            right
+        } else {
+            left
+        }
+    }
+
+    /// The level a binding with the visibility `vis` in `home` is accessible
+    /// at: `pub(in path)` names an ancestor of `home` or `home` itself.
+    pub(crate) fn level_of(&self, vis: &Vis, home: usize) -> Level {
+        match vis {
+            Vis::Public => Level::PUBLIC,
+            Vis::Inherited => Level::within(home),
+            Vis::Restricted(text) => match text.as_str() {
+                "crate" => Level::within(self.modules[home].root),
+                "self" => Level::within(home),
+                "super" => self.modules[home]
+                    .parent
+                    .map_or(Level::NOBODY, Level::within),
+                other => other
+                    .strip_prefix("in ")
+                    .map_or(Level::NOBODY, |written| self.level_in(written, home)),
+            },
+        }
+    }
+
+    /// The level of `pub(in written)` in `home`.
+    fn level_in(&self, written: &str, home: usize) -> Level {
+        let segs: Vec<String> = written
+            .split_whitespace()
+            .collect::<String>()
+            .split("::")
+            .map(str::to_owned)
+            .collect();
+        let Ok(walked) = self.walk(home, &segs, false, Namespace::Type, Heads::Local) else {
+            return Level::NOBODY;
+        };
+        let mut modules = walked.modules;
+        modules.extend(walked.items.keys().flat_map(|id| self.modules_for(*id)));
+        modules
+            .into_iter()
+            .filter(|ancestor| self.within(home, *ancestor))
+            .map(Level::within)
+            .reduce(|left, right| self.wider(left, right))
+            .unwrap_or(Level::NOBODY)
+    }
+
+    /// The visibility, written in `home`, of a binding of `home` accessible
+    /// at `level`, which is public, nobody, `home` or one of its ancestors.
+    pub(crate) fn vis_at(&self, level: Level, home: usize) -> Vis {
+        let Some(module) = level.module() else {
+            return if level == Level::PUBLIC {
+                Vis::Public
+            } else {
+                Vis::Restricted("in ".to_owned())
+            };
+        };
+        let root = self.modules[home].root;
+        if module == home {
+            Vis::Inherited
+        } else if module == root {
+            Vis::Restricted("crate".to_owned())
+        } else {
+            let (path, base) = (&self.modules[module].path, &self.modules[root].path);
+            Vis::Restricted(format!("in crate{}", &path[base.len()..]))
+        }
+    }
+
+    /// True when a binding of `module` accessible at `level` can be named by
+    /// importers of `class`.
+    fn allowed(&self, module: usize, class: &[bool], level: Level) -> bool {
+        match level.module() {
+            Some(within) => {
+                debug_assert!(self.within(module, within), "a level is an ancestor's");
+                class.get(self.depth_of(within)).copied().unwrap_or(false)
+            }
+            None => level == Level::PUBLIC,
+        }
+    }
+
+    /// The class of `importer` for globs of `target`: which of the ancestors
+    /// of the target, and the target, it lies within.
     fn class_for(&self, target: usize, importer: usize) -> Box<[bool]> {
-        self.globs.vis_of[target]
+        let mut chain = vec![target];
+        while let Some(parent) = self.modules[*chain.last().expect("one module")].parent {
+            chain.push(parent);
+        }
+        chain
             .iter()
-            .map(|vis| self.is_visible(vis, target, importer))
+            .rev()
+            .map(|ancestor| self.within(importer, *ancestor))
             .collect()
     }
 
@@ -360,15 +486,22 @@ impl Index {
         self.globs.views[view]
             .names
             .get(name)
-            .is_some_and(|lists| lists[at].binary_search(&id).is_ok())
+            .is_some_and(|lists| lists[at].binary_search_by_key(&id, |held| held.0).is_ok())
     }
 
     /// The items `view` holds under `name` in the name space at `at`, sorted.
-    pub(crate) fn view_ids(&self, view: usize, name: &str, at: usize) -> &[ItemId] {
+    pub(crate) fn view_ids(
+        &self,
+        view: usize,
+        name: &str,
+        at: usize,
+    ) -> impl Iterator<Item = ItemId> + '_ {
         self.globs.views[view]
             .names
             .get(name)
             .map_or(&[][..], |lists| lists[at].as_slice())
+            .iter()
+            .map(|held| held.0)
     }
 
     /// The names `view` holds, in order.
@@ -378,17 +511,27 @@ impl Index {
 
     /// The items the globs of `module` bring in under `name` in the name
     /// space at `at`, each with the route of the glob and target that rank
-    /// first and the visibilities of every glob that brings it in.
+    /// first and the visibilities of every glob that brings it in: no wider
+    /// than the glob, nor than the binding it reads.
     pub(crate) fn globbed(&self, module: usize, name: &str, at: usize) -> Bound {
         let mut bound = Bound::new();
         for read in self.reads_of(module) {
-            if let Some(lists) = self.globs.views[read.view].names.get(name) {
-                for id in &lists[at] {
-                    bound.offer(
-                        *id,
-                        Self::glob_origin(&self.uses[read.glob], read.target, at, name),
-                    );
-                }
+            let Some(lists) = self.globs.views[read.view].names.get(name) else {
+                continue;
+            };
+            if lists[at].is_empty() {
+                continue;
+            }
+            let decl = &self.uses[read.glob];
+            let own = self.level_of(&decl.vis, module);
+            for (id, level) in &lists[at] {
+                let met = self.meet(own, *level);
+                let vis = if met == own {
+                    decl.vis.clone()
+                } else {
+                    self.vis_at(met, module)
+                };
+                bound.offer(*id, Self::glob_origin(decl, vis, read.target, at, name));
             }
         }
         bound
@@ -414,8 +557,54 @@ impl Index {
     fn blocked_class(&self, module: usize, name: &str, at: usize, class: &[bool]) -> bool {
         self.imports_of(module, name).iter().any(|position| {
             (!self.use_free[*position][at] || self.left_to_globs(*position, at))
-                && self.allowed(module, class, &self.uses[*position].vis)
+                && self.allowed(
+                    module,
+                    class,
+                    self.level_of(&self.uses[*position].vis, module),
+                )
         })
+    }
+
+    /// The items of a binding list of `module` that importers of `class` can
+    /// access, each at the widest level of its routes they can access.
+    fn defs_held(&self, module: usize, class: &[bool], defs: &Bound) -> Vec<Held> {
+        defs.iter()
+            .filter_map(|(id, origin)| {
+                origin
+                    .visibilities()
+                    .map(|vis| self.level_of(vis, module))
+                    .filter(|level| self.allowed(module, class, *level))
+                    .reduce(|left, right| self.wider(left, right))
+                    .map(|level| (*id, level))
+            })
+            .collect()
+    }
+
+    /// Of the items `held`, sorted by item, with repeats, keep each item once
+    /// at its widest level.
+    fn widest(&self, held: &mut Vec<Held>) {
+        held.sort_unstable_by(|left, right| {
+            left.0
+                .cmp(&right.0)
+                .then(self.width(left.1).cmp(&self.width(right.1)))
+        });
+        held.dedup_by_key(|held| held.0);
+    }
+
+    /// What the glob at `glob` of `module` brings in of the items `held` of
+    /// a view it reads, for importers of `class`: no wider than the glob.
+    fn glob_held(
+        &self,
+        module: usize,
+        class: &[bool],
+        glob: Level,
+        held: &[Held],
+        into: &mut Vec<Held>,
+    ) {
+        into.extend(held.iter().filter_map(|(id, level)| {
+            let met = self.meet(glob, *level);
+            self.allowed(module, class, met).then_some((*id, met))
+        }));
     }
 
     /// What `target` exports under `name` in the name space at `at` to the
@@ -423,63 +612,73 @@ impl Index {
     /// any, and those importers can access; else, when no explicit import
     /// they can name keeps the name from the globs, what the globs they can
     /// access bring in. Sorted.
-    fn export_ids(&self, target: usize, class: &[bool], name: &str, at: usize) -> Vec<ItemId> {
+    fn export_ids(&self, target: usize, class: &[bool], name: &str, at: usize) -> Vec<Held> {
         if let Some(defs) = self.scopes[target]
             .get(name)
             .map(|entry| &entry.defs[at])
             .filter(|defs| !defs.is_empty())
         {
-            return defs
-                .iter()
-                .filter(|(_, origin)| {
-                    origin
-                        .visibilities()
-                        .any(|vis| self.allowed(target, class, vis))
-                })
-                .map(|(id, _)| *id)
-                .collect();
+            return self.defs_held(target, class, defs);
         }
         if self.blocked_class(target, name, at, class) {
             return Vec::new();
         }
-        let mut ids = Vec::new();
+        let mut held = Vec::new();
         for read in self.reads_of(target) {
-            if self.allowed(target, class, &self.uses[read.glob].vis)
+            let glob = self.level_of(&self.uses[read.glob].vis, target);
+            if self.allowed(target, class, glob)
                 && let Some(lists) = self.globs.views[read.view].names.get(name)
             {
-                ids.extend_from_slice(&lists[at]);
+                self.glob_held(target, class, glob, &lists[at], &mut held);
             }
         }
-        ids.sort_unstable();
-        ids.dedup();
-        ids
+        self.widest(&mut held);
+        held
     }
 
-    /// Add `ids` to the items of `name` in the name space at `at` of `view`,
-    /// charging what that allocates. Returns the items that were not there.
+    /// Add `ids`, sorted by item with one entry for each, to the items of
+    /// `name` in the name space at `at` of `view`, charging what that
+    /// allocates. An item already held is taken again only at a wider level.
+    /// Returns the entries that were new or wider.
     fn add_to_view(
         &mut self,
         view: usize,
         name: &str,
         at: usize,
-        ids: &[ItemId],
+        ids: &[Held],
         meter: &Meter,
-    ) -> Result<Vec<ItemId>, LoadError> {
+    ) -> Result<Vec<Held>, LoadError> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
         let held = self.globs.views[view].names.get(name);
-        let fresh: Vec<ItemId> = ids
+        let fresh: Vec<Held> = ids
             .iter()
             .copied()
-            .filter(|id| held.is_none_or(|lists| lists[at].binary_search(id).is_err()))
+            .filter(|(id, level)| {
+                held.is_none_or(|lists| {
+                    lists[at]
+                        .binary_search_by_key(id, |known| known.0)
+                        .map_or(true, |place| {
+                            self.width(*level) < self.width(lists[at][place].1)
+                        })
+                })
+            })
             .collect();
         if fresh.is_empty() {
             return Ok(fresh);
         }
-        let mut bytes = fresh.len() * vec_slot::<ItemId>();
+        let new = fresh
+            .iter()
+            .filter(|(id, _)| {
+                held.is_none_or(|lists| {
+                    lists[at].binary_search_by_key(id, |known| known.0).is_err()
+                })
+            })
+            .count();
+        let mut bytes = new * vec_slot::<Held>();
         if held.is_none_or(|lists| lists[at].is_empty()) {
-            bytes += vec_first::<ItemId>();
+            bytes += vec_first::<Held>();
         }
         // A name new to the view takes an entry, and its text the first time
         // any view holds it.
@@ -504,9 +703,10 @@ impl Index {
                 .get_mut(name)
                 .expect("the name is held"),
         };
-        for id in &fresh {
-            if let Err(place) = lists[at].binary_search(id) {
-                lists[at].insert(place, *id);
+        for entry in &fresh {
+            match lists[at].binary_search_by_key(&entry.0, |known| known.0) {
+                Ok(place) => lists[at][place] = *entry,
+                Err(place) => lists[at].insert(place, *entry),
             }
         }
         Ok(fresh)
@@ -557,7 +757,8 @@ impl Index {
                 view: read_view,
                 ..
             } = self.globs.reads[target][read].clone();
-            if !self.allowed(target, class, &self.uses[glob].vis) {
+            let level = self.level_of(&self.uses[glob].vis, target);
+            if !self.allowed(target, class, level) {
                 continue;
             }
             let readers = &mut self.globs.views[read_view];
@@ -579,40 +780,35 @@ impl Index {
         // it is allocated, as a change waiting to be passed on, and released
         // once it is added.
         let reads = self.reads_of(target).len();
-        let listed = vec_first::<usize>() + reads * vec_slot::<usize>();
+        let listed = vec_first::<(usize, Level)>() + reads * vec_slot::<(usize, Level)>();
         self.charge_work(listed, site, meter)?;
-        let mut sources: Vec<usize> = self
+        let mut sources: Vec<(usize, Level)> = self
             .reads_of(target)
             .iter()
-            .filter(|read| self.allowed(target, class, &self.uses[read.glob].vis))
-            .map(|read| read.view)
+            .filter_map(|read| {
+                let glob = self.level_of(&self.uses[read.glob].vis, target);
+                self.allowed(target, class, glob)
+                    .then_some((read.view, glob))
+            })
             .collect();
         sources.sort_unstable();
         sources.dedup();
         let gathered = self.gather_bytes(target, &sources);
         self.charge_work(gathered, site, meter)?;
-        let mut content: BTreeMap<&str, [Vec<ItemId>; 3]> = BTreeMap::new();
+        let mut content: BTreeMap<&str, [Vec<Held>; 3]> = BTreeMap::new();
         let mut blocked: BTreeMap<(&str, usize), bool> = BTreeMap::new();
         for (name, entry) in &self.scopes[target] {
             for (at, defs) in entry.defs.iter().enumerate() {
-                let ids: Vec<ItemId> = defs
-                    .iter()
-                    .filter(|(_, origin)| {
-                        origin
-                            .visibilities()
-                            .any(|vis| self.allowed(target, class, vis))
-                    })
-                    .map(|(id, _)| *id)
-                    .collect();
-                if !ids.is_empty() {
-                    content.entry(name.as_str()).or_default()[at] = ids;
+                let held = self.defs_held(target, class, defs);
+                if !held.is_empty() {
+                    content.entry(name.as_str()).or_default()[at] = held;
                 }
             }
         }
-        for source in &sources {
+        for (source, glob) in &sources {
             for (name, lists) in &self.globs.views[*source].names {
-                for (at, ids) in lists.iter().enumerate() {
-                    if ids.is_empty()
+                for (at, held) in lists.iter().enumerate() {
+                    if held.is_empty()
                         || self.scopes[target]
                             .get(name.as_str())
                             .is_some_and(|entry| !entry.defs[at].is_empty())
@@ -622,11 +818,17 @@ impl Index {
                     {
                         continue;
                     }
-                    content.entry(name.as_str()).or_default()[at].extend_from_slice(ids);
+                    self.glob_held(
+                        target,
+                        class,
+                        *glob,
+                        held,
+                        &mut content.entry(name.as_str()).or_default()[at],
+                    );
                 }
             }
         }
-        let content: Vec<(String, [Vec<ItemId>; 3])> = content
+        let content: Vec<(String, [Vec<Held>; 3])> = content
             .into_iter()
             .map(|(name, lists)| (name.to_owned(), lists))
             .collect();
@@ -635,8 +837,7 @@ impl Index {
         meter.release_globs(listed);
         for (name, mut lists) in content {
             for (at, ids) in lists.iter_mut().enumerate() {
-                ids.sort_unstable();
-                ids.dedup();
+                self.widest(ids);
                 self.add_to_view(view, &name, at, ids, meter)?;
             }
         }
@@ -650,10 +851,10 @@ impl Index {
     /// of its text, the first room of its three lists and a slot for each
     /// item, and an entry for whether an import keeps it from the globs in
     /// each name space.
-    fn gather_bytes(&self, target: usize, sources: &[usize]) -> usize {
-        const NAME: usize = btree_entry::<&str, [Vec<ItemId>; 3]>()
-            + vec_slot::<(String, [Vec<ItemId>; 3])>()
-            + 3 * vec_first::<ItemId>();
+    fn gather_bytes(&self, target: usize, sources: &[(usize, Level)]) -> usize {
+        const NAME: usize = btree_entry::<&str, [Vec<Held>; 3]>()
+            + vec_slot::<(String, [Vec<Held>; 3])>()
+            + 3 * vec_first::<Held>();
         let own: usize = self.scopes[target]
             .iter()
             .map(|(name, entry)| {
@@ -661,25 +862,25 @@ impl Index {
                     + entry
                         .defs
                         .iter()
-                        .map(|defs| defs.iter().count() * vec_slot::<ItemId>())
+                        .map(|defs| defs.iter().count() * vec_slot::<Held>())
                         .sum::<usize>()
             })
             .sum();
         let globbed: usize = sources
             .iter()
-            .flat_map(|source| &self.globs.views[*source].names)
+            .flat_map(|(source, _)| &self.globs.views[*source].names)
             .map(|(name, lists)| {
                 NAME + name.len()
                     + 3 * btree_entry::<(&str, usize), bool>()
                     + lists
                         .iter()
-                        .map(|ids| ids.len() * vec_slot::<ItemId>())
+                        .map(|ids| ids.len() * vec_slot::<Held>())
                         .sum::<usize>()
             })
             .sum();
-        btree_map::<&str, [Vec<ItemId>; 3]>()
+        btree_map::<&str, [Vec<Held>; 3]>()
             + btree_map::<(&str, usize), bool>()
-            + vec_first::<(String, [Vec<ItemId>; 3])>()
+            + vec_first::<(String, [Vec<Held>; 3])>()
             + own
             + globbed
     }
@@ -710,18 +911,17 @@ impl Index {
         let read = self.globs.reads[module].len();
         self.globs.reads[module].push(GlobRead { glob, target, view });
         self.globs.read_by.insert((glob, view));
-        let vis = self.globs.vis_of[module]
-            .binary_search_by(|known| vis_key(known).cmp(&vis_key(&self.uses[glob].vis)))
-            .expect("the visibility of a glob import is one of its module's");
-        // A glob of the module with the same visibility already reads the
-        // view: this one passes on nothing more, so it is neither an active
-        // nor a passive reader, and a module that reads one table through
-        // many such globs passes on what the table holds once.
-        let first = self.globs.passing.insert((module, view, vis));
+        let level = self.level_of(&self.uses[glob].vis, module);
+        // A glob of the module with the same level already reads the view:
+        // this one passes on nothing more, so it is neither an active nor a
+        // passive reader, and a module that reads one table through many
+        // such globs passes on what the table holds once.
+        let first = self.globs.passing.insert((module, view, level));
         let passes = first
-            && self.exports_of(module).iter().any(|own| {
-                self.allowed(module, &self.globs.views[*own].class, &self.uses[glob].vis)
-            });
+            && self
+                .exports_of(module)
+                .iter()
+                .any(|own| self.allowed(module, &self.globs.views[*own].class, level));
         if !passes {
             if first {
                 self.globs.views[view]
@@ -882,7 +1082,7 @@ impl Index {
         read: usize,
         name: &SharedStr,
         at: usize,
-        ids: &[ItemId],
+        ids: &[Held],
         work: &mut Vec<Grown>,
         waiters: &mut dyn Waiters,
         meter: &Meter,
@@ -895,14 +1095,16 @@ impl Index {
             return Ok(());
         }
         let glob = self.globs.reads[module][read].glob;
+        let level = self.level_of(&self.uses[glob].vis, module);
         for view in self.exports_of(module).to_vec() {
             let class = self.globs.views[view].class.clone();
-            if !self.allowed(module, &class, &self.uses[glob].vis)
-                || self.blocked_class(module, name, at, &class)
+            if !self.allowed(module, &class, level) || self.blocked_class(module, name, at, &class)
             {
                 continue;
             }
-            let fresh = self.add_to_view(view, name, at, ids, meter)?;
+            let mut passed = Vec::new();
+            self.glob_held(module, &class, level, ids, &mut passed);
+            let fresh = self.add_to_view(view, name, at, &passed, meter)?;
             if !fresh.is_empty() {
                 work.push(Grown {
                     view,

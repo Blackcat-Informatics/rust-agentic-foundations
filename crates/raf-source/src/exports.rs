@@ -1350,7 +1350,7 @@ impl<'a> Surface<'a> {
             .get(name)
             .into_iter()
             .flatten()
-            .flat_map(|view| index.view_ids(*view, name, at).iter().copied())
+            .flat_map(|view| index.view_ids(*view, name, at))
             .collect();
         ids.sort_unstable();
         ids.dedup();

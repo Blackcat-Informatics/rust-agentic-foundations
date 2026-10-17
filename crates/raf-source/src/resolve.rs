@@ -1101,7 +1101,7 @@ impl Index {
             .min()
     }
 
-    fn origin_of(&self, source: &Source, id: ItemId) -> Option<crate::settle::Origin> {
+    pub(crate) fn origin_of(&self, source: &Source, id: ItemId) -> Option<crate::settle::Origin> {
         let ns = slot(source.ns);
         let defs = self.scopes[source.module]
             .get(&source.name)

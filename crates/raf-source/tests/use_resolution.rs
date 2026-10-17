@@ -3195,3 +3195,317 @@ fn a_crate_root_inside_a_group_under_a_path_is_a_syntax_error() {
     );
     assert_eq!((error.file.as_str(), error.line), ("src/lib.rs", Some(2)));
 }
+
+/// What `module` reads `path` as in `ns` when it writes it in a `use`: the
+/// canonical path, or the kind of refusal.
+fn read_as(ws: &Workspace, module: &str, path: &str, ns: Namespace) -> String {
+    match ws.resolve_from_in(module, path, ns) {
+        Ok(found) => found.path,
+        Err(ResolveError::NotFound(_)) => "not found".to_owned(),
+        Err(ResolveError::Ambiguous(_)) => "ambiguous".to_owned(),
+        Err(other) => format!("{other:?}"),
+    }
+}
+
+/// A question to a reader: the module, the `use` path and the name space.
+type Read = (&'static str, &'static str, Namespace);
+
+/// Load the crate in every order of its top-level modules, `others` and the
+/// `modules` of `(header, declarations)`, with the declarations inside each
+/// of those modules in every order too, and assert that every reader's
+/// answer to `reads` is the same in each. Returns the answers and the number
+/// of loads.
+fn reads_in_every_order(
+    others: &[&str],
+    modules: &[(&str, &[&str])],
+    reads: &[Read],
+) -> (Vec<String>, usize) {
+    let mut expected: Option<Vec<String>> = None;
+    let mut loads = 0;
+    let insides: Vec<Vec<Vec<String>>> = modules
+        .iter()
+        .map(|(_, inner)| permutations(&inner.iter().map(|d| (*d).to_owned()).collect::<Vec<_>>()))
+        .collect();
+    let mut choice = vec![0; modules.len()];
+    loop {
+        let mut blocks: Vec<String> = others.iter().map(|b| (*b).to_owned()).collect();
+        for (at, (header, _)) in modules.iter().enumerate() {
+            blocks.push(format!(
+                "{header} {{ {} }}",
+                insides[at][choice[at]].join(" ")
+            ));
+        }
+        for order in permutations(&blocks) {
+            let ws = lib(&order.join("\n"));
+            let results: Vec<String> = reads
+                .iter()
+                .map(|(module, path, ns)| read_as(&ws, module, path, *ns))
+                .collect();
+            match &expected {
+                None => expected = Some(results),
+                Some(first) => assert_eq!(&results, first, "{order:?}"),
+            }
+            loads += 1;
+        }
+        // The next combination of orders inside the modules.
+        let mut at = 0;
+        while at < choice.len() {
+            choice[at] += 1;
+            if choice[at] < insides[at].len() {
+                break;
+            }
+            choice[at] = 0;
+            at += 1;
+        }
+        if at == choice.len() {
+            break;
+        }
+    }
+    (expected.expect("loaded"), loads)
+}
+
+const TYPE: Namespace = Namespace::Type;
+const VALUE: Namespace = Namespace::Value;
+
+#[test]
+fn a_pub_use_of_a_name_read_through_a_private_glob_is_seen_no_wider_than_the_glob_in_every_order() {
+    // `m` reads the struct `A` of `x` through a private glob and defines the
+    // function `A`. `c` re-exports `super::A`: rustc keeps the struct `A` of
+    // `c` visible within `m` only, and the function `pub`. `r` globs `c`, so
+    // it reads the function and not the struct, and `m` reads both through
+    // `c`. The module `m` is a struct and a function of one name apart.
+    let reads: &[Read] = &[
+        ("demo::r", "self::A", TYPE),
+        ("demo::r", "self::A", VALUE),
+        ("demo::r", "crate::m::c::A", TYPE),
+        ("demo::r", "crate::m::c::A", VALUE),
+        ("demo::m", "self::c::A", TYPE),
+        ("demo::m", "self::c::A", VALUE),
+        ("demo::m::c", "self::A", TYPE),
+        ("demo::m::c", "self::A", VALUE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod x { pub struct A {} }",
+            "pub mod r { pub use crate::m::c::*; }",
+        ],
+        &[(
+            "mod m",
+            &[
+                "use crate::x::*;",
+                "pub fn A() {}",
+                "pub mod c { pub use super::A; }",
+            ],
+        )],
+        reads,
+    );
+    assert_eq!(
+        found,
+        [
+            "not found",
+            "demo::m::A",
+            "not found",
+            "demo::m::A",
+            "demo::x::A",
+            "demo::m::A",
+            "demo::x::A",
+            "demo::m::A",
+        ]
+    );
+    assert_eq!(loads, 36);
+
+    // Neighbours: the same re-export of a binding the glob makes accessible
+    // as widely as the re-export stays as visible as it, for a `pub` glob and
+    // for a `pub(crate)` glob read from inside the crate.
+    for glob in ["pub use crate::x::*;", "pub(crate) use crate::x::*;"] {
+        let (found, loads) = reads_in_every_order(
+            &[
+                "pub mod x { pub struct A {} }",
+                "pub mod r { pub use crate::m::c::*; }",
+            ],
+            &[(
+                "mod m",
+                &[glob, "pub fn A() {}", "pub mod c { pub use super::A; }"],
+            )],
+            reads,
+        );
+        assert_eq!(
+            found,
+            [
+                "demo::x::A",
+                "demo::m::A",
+                "demo::x::A",
+                "demo::m::A",
+                "demo::x::A",
+                "demo::m::A",
+                "demo::x::A",
+                "demo::m::A",
+            ],
+            "{glob}"
+        );
+        assert_eq!(loads, 36);
+    }
+}
+
+#[test]
+fn a_chain_of_two_re_exports_through_two_private_globs_is_capped_twice_in_every_order() {
+    // `c1` re-exports what `m1` reads of `x` through a private glob; `m2`
+    // reads `c1` through a private glob and defines the struct `A`, so `c2`
+    // re-exports its own struct, which is `pub`, and the function `m2`
+    // reads through the glob, which is visible within `m2` only. `r` reads
+    // the struct and not the function.
+    let reads: &[Read] = &[
+        ("demo::r", "self::A", TYPE),
+        ("demo::r", "self::A", VALUE),
+        ("demo::m2", "self::c2::A", TYPE),
+        ("demo::m2", "self::c2::A", VALUE),
+        ("demo::m2", "self::A", TYPE),
+        ("demo::m2", "self::A", VALUE),
+        ("demo::m1", "self::c1::A", TYPE),
+        ("demo::m1", "self::c1::A", VALUE),
+        ("demo::m2::c2", "self::A", VALUE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod x { pub struct A {} }",
+            "pub mod r { pub use crate::m2::c2::*; }",
+        ],
+        &[
+            (
+                "mod m1",
+                &[
+                    "use crate::x::*;",
+                    "pub fn A() {}",
+                    "pub mod c1 { pub use super::A; }",
+                ],
+            ),
+            (
+                "mod m2",
+                &[
+                    "use crate::m1::c1::*;",
+                    "pub struct A {}",
+                    "pub mod c2 { pub use super::A; }",
+                ],
+            ),
+        ],
+        reads,
+    );
+    assert_eq!(
+        found,
+        [
+            "demo::m2::A",
+            "not found",
+            "demo::m2::A",
+            "demo::m1::A",
+            "demo::m2::A",
+            "demo::m1::A",
+            "demo::x::A",
+            "demo::m1::A",
+            "demo::m1::A",
+        ]
+    );
+    assert_eq!(loads, 864);
+}
+
+#[test]
+fn an_item_reached_by_a_capped_re_export_and_by_a_wider_glob_is_seen_as_widely_as_the_wider_in_every_order()
+ {
+    // `n` reads the struct `A` through `c`'s re-export, visible within `m`,
+    // and through a glob of `x` of its own. With a `pub(crate)` glob the item
+    // is visible in the crate, the wider of the two, whichever is met first;
+    // with a private glob, the wider is `m`, and a reader outside `m` finds
+    // no struct. The function reaches `n` through `c` only and is `pub`.
+    let reads: &[Read] = &[
+        ("demo::r", "self::A", TYPE),
+        ("demo::r", "self::A", VALUE),
+        ("demo::m::n", "self::A", TYPE),
+        ("demo::m", "self::n::A", TYPE),
+    ];
+    let wide = [
+        "pub mod n { pub use super::c::*; pub(crate) use crate::x::*; }",
+        "pub mod n { pub(crate) use crate::x::*; pub use super::c::*; }",
+    ];
+    for n in wide {
+        let (found, loads) = reads_in_every_order(
+            &[
+                "pub mod x { pub struct A {} }",
+                "pub mod r { pub use crate::m::n::*; }",
+            ],
+            &[(
+                "mod m",
+                &[
+                    "use crate::x::*;",
+                    "pub fn A() {}",
+                    "pub mod c { pub use super::A; }",
+                    n,
+                ],
+            )],
+            reads,
+        );
+        assert_eq!(
+            found,
+            ["demo::x::A", "demo::m::A", "demo::x::A", "demo::x::A"],
+            "{n}"
+        );
+        assert_eq!(loads, 144);
+    }
+    let narrow = [
+        "pub mod n { pub use super::c::*; use crate::x::*; }",
+        "pub mod n { use crate::x::*; pub use super::c::*; }",
+    ];
+    for n in narrow {
+        let (found, loads) = reads_in_every_order(
+            &[
+                "pub mod x { pub struct A {} }",
+                "pub mod r { pub use crate::m::n::*; }",
+            ],
+            &[(
+                "mod m",
+                &[
+                    "use crate::x::*;",
+                    "pub fn A() {}",
+                    "pub mod c { pub use super::A; }",
+                    n,
+                ],
+            )],
+            reads,
+        );
+        assert_eq!(
+            found,
+            ["not found", "demo::m::A", "demo::x::A", "demo::x::A"],
+            "{n}"
+        );
+        assert_eq!(loads, 144);
+    }
+}
+
+#[test]
+fn a_glob_re_export_of_a_private_item_is_seen_no_wider_than_the_item_in_every_order() {
+    // `s0` globs its parent, whose private struct `B` it may read; its glob
+    // is `pub` and the binding it makes is visible within `m0` only, so a
+    // glob of `s0` from outside `m0` brings in nothing, and a glob from
+    // inside brings in the struct.
+    let reads: &[Read] = &[
+        ("demo", "self::m2::B", TYPE),
+        ("demo::m0::s0", "self::B", TYPE),
+        ("demo::m0::s1", "crate::m0::s0::B", TYPE),
+        ("demo::m0::s1", "self::B", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &["pub mod m2 { pub use crate::m0::s0::*; }"],
+        &[(
+            "pub mod m0",
+            &[
+                "pub mod s0 { pub use super::*; }",
+                "pub mod s1 { pub use super::s0::*; }",
+                "struct B {}",
+            ],
+        )],
+        reads,
+    );
+    assert_eq!(
+        found,
+        ["not found", "demo::m0::B", "demo::m0::B", "demo::m0::B"]
+    );
+    assert_eq!(loads, 12);
+}

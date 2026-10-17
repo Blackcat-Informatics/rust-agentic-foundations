@@ -349,7 +349,7 @@ impl Index {
     }
 
     /// True when `module` is `ancestor` or lies inside it.
-    fn within(&self, mut module: usize, ancestor: usize) -> bool {
+    pub(crate) fn within(&self, mut module: usize, ancestor: usize) -> bool {
         loop {
             if module == ancestor {
                 return true;
@@ -832,11 +832,18 @@ impl Index {
     }
 
     /// The route of a binding that the glob import `decl` brings in from
-    /// `name` of `target` in the name space at `ns`.
-    pub(crate) fn glob_origin(decl: &UseDecl, target: usize, ns: usize, name: &str) -> Origin {
+    /// `name` of `target` in the name space at `ns`, with the visibility `vis`
+    /// the glob gives it, the glob's own or the narrower one of the binding.
+    pub(crate) fn glob_origin(
+        decl: &UseDecl,
+        vis: Vis,
+        target: usize,
+        ns: usize,
+        name: &str,
+    ) -> Origin {
         Origin {
             via_glob: true,
-            vis: decl.vis.clone(),
+            vis,
             link: Some(Link {
                 module: decl.module,
                 name: "*".to_owned(),
@@ -2227,9 +2234,10 @@ impl Index {
                 self.use_resolved[position] = true;
                 self.use_bound[position][slot(ns)] = true;
                 self.use_decided[position][slot(ns)] = true;
+                let vis = self.import_vis(decl, &hit, id);
                 let origin = Origin {
                     via_glob: hit.via_glob,
-                    vis: decl.vis.clone(),
+                    vis,
                     link: Some(Link {
                         module: decl.module,
                         name: name.to_owned(),
@@ -2249,7 +2257,7 @@ impl Index {
                         .and_then(|link| link.source.as_ref())
                         .map_or(0, |last| last.name.capacity());
                     meter.items(
-                        binding_bytes(name, &decl.vis, source),
+                        binding_bytes(name, &origin.vis, source),
                         &decl.file,
                         Some(decl.line),
                     )?;
@@ -2275,6 +2283,37 @@ impl Index {
             }
         }
         Ok(bound)
+    }
+
+    /// The visibility of the binding the named import `decl` makes of `id`,
+    /// reached by `hit`: no wider than the binding it re-exports, as in
+    /// rustc, which keeps `pub use` of a name its module reads through a
+    /// private glob no more visible than the glob made it. The cap is the
+    /// widest level at which the importing module can name the binding in the
+    /// place the path ended; there is none for a path that ends at an
+    /// associated item or at a module (`hit.last` is `None`).
+    fn import_vis(&self, decl: &UseDecl, hit: &Hit, id: ItemId) -> Vis {
+        let Some(last) = &hit.last else {
+            return decl.vis.clone();
+        };
+        let Some(origin) = self.origin_of(last, id) else {
+            return decl.vis.clone();
+        };
+        let Some(cap) = origin
+            .visibilities()
+            .filter(|vis| self.is_visible(vis, last.module, decl.module))
+            .map(|vis| self.level_of(vis, last.module))
+            .reduce(|left, right| self.wider(left, right))
+        else {
+            return decl.vis.clone();
+        };
+        let own = self.level_of(&decl.vis, decl.module);
+        let met = self.meet(own, cap);
+        if met == own {
+            decl.vis.clone()
+        } else {
+            self.vis_at(met, decl.module)
+        }
     }
 
     /// True when every place in `reads`, read by the path of the named import
