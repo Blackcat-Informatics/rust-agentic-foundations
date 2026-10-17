@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-complete-gate
 title: "Completion gate"
 description: "change complete and verify: the six completion conditions, lighter obligations for changes that leave the contract alone, deletion of the record, and the acceptance scenarios."
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_workplan::lifecycle::Lifecycle::complete
@@ -808,5 +808,4 @@ Further checks:
 | Depends on | [workplan-reconcile](./workplan-reconcile.md) |
 | Depended on by | [workplan-cli](./workplan-cli.md) |
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
-| Changed by | [workplan-complete-gate](../../work/changes/workplan-complete-gate.md) |
 <!-- raf:generated:end -->
