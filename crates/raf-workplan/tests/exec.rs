@@ -12,6 +12,7 @@
 //! and `cargo` everywhere.
 
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use raf_workplan::exec::{
@@ -991,8 +992,20 @@ fn here() -> PathBuf {
     std::env::current_dir().expect("a current directory")
 }
 
+/// Writing an executable and starting a process from another thread at once
+/// can fail with "text file busy", because a forked child briefly holds the
+/// descriptor that wrote the file. Every test of this file that writes a stub
+/// holds this lock from the write to the end of its runs, and so does every
+/// test that starts a real process, so that no fork overlaps a write.
+static SPAWN: Mutex<()> = Mutex::new(());
+
+fn serial() -> MutexGuard<'static, ()> {
+    SPAWN.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
 #[test]
 fn the_real_git_and_cargo_start() {
+    let _lock = serial();
     let runner = SystemRunner::new(Programs::new(here()));
     let git = runner
         .run(&Invocation::git_version(), &Limits::query())
@@ -1016,6 +1029,7 @@ fn the_real_git_and_cargo_start() {
 
 #[test]
 fn a_program_that_does_not_exist_is_a_spawn_error() {
+    let _lock = serial();
     let programs = Programs::new(here()).with_git("raf-workplan-no-such-program");
     let runner = SystemRunner::new(programs);
     let error = runner
@@ -1045,6 +1059,7 @@ fn a_program_that_does_not_exist_is_a_spawn_error() {
 
 #[test]
 fn a_directory_that_does_not_exist_is_a_spawn_error() {
+    let _lock = serial();
     let missing = std::env::temp_dir().join("raf-workplan-exec-no-such-directory");
     let runner = SystemRunner::new(Programs::new(&missing));
     let error = runner
@@ -1055,6 +1070,7 @@ fn a_directory_that_does_not_exist_is_a_spawn_error() {
 
 #[test]
 fn a_name_missing_from_the_search_path_is_a_spawn_error() {
+    let _lock = serial();
     let empty = std::env::temp_dir().join("raf-workplan-exec-empty-search-path");
     let runner = SystemRunner::new(Programs::new(here())).search_path(&empty);
     let error = runner
@@ -1076,20 +1092,9 @@ mod stubs {
     use std::os::unix::fs::OpenOptionsExt as _;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::{Mutex, MutexGuard, PoisonError};
     use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
     use super::*;
-
-    /// Writing an executable and starting a process from another thread at
-    /// once can fail with "text file busy", because a forked child briefly
-    /// holds the descriptor that wrote the file. Every test that writes a stub
-    /// holds this lock from the write to the end of its runs.
-    static SPAWN: Mutex<()> = Mutex::new(());
-
-    fn serial() -> MutexGuard<'static, ()> {
-        SPAWN.lock().unwrap_or_else(PoisonError::into_inner)
-    }
 
     /// A scratch directory with a `bin` directory for stubs and a `work`
     /// directory to run in, removed on drop.

@@ -271,6 +271,16 @@ impl Repo {
         run_both(self.root(), args)
     }
 
+    /// Run the binary in the root in both shapes and require equal results
+    /// once the run time of a kill (`in <seconds> s and was killed`), which two
+    /// runs of the same command measure apart, is written `<t>` in each.
+    pub(crate) fn both_timed(&self, args: &[&str]) -> Run {
+        let direct = run_in(self.root(), Shape::Direct, args).without_run_time();
+        let cargo = run_in(self.root(), Shape::Cargo, args).without_run_time();
+        assert_eq!(direct, cargo, "the two shapes of {args:?} differ");
+        direct
+    }
+
     /// Run a command that writes in both shapes, each from the same starting
     /// tree, and require the same result and the same tree afterwards. The
     /// tree is left as the command made it.
@@ -357,6 +367,33 @@ impl Run {
         assert_eq!(self.code, code, "{self:#?}");
         self
     }
+
+    /// The run with the seconds of each `in <seconds> s and was killed` in
+    /// its output written `<t>`.
+    pub(crate) fn without_run_time(self) -> Self {
+        Self {
+            code: self.code,
+            stdout: without_run_time(&self.stdout),
+            stderr: without_run_time(&self.stderr),
+        }
+    }
+}
+
+/// `text` with the seconds before each ` s and was killed` written `<t>`.
+fn without_run_time(text: &str) -> String {
+    const KILLED: &str = " s and was killed";
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(at) = rest.find(KILLED) {
+        let head = &rest[..at];
+        let seconds = head.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.');
+        out.push_str(seconds);
+        out.push_str("<t>");
+        out.push_str(KILLED);
+        rest = &rest[at + KILLED.len()..];
+    }
+    out.push_str(rest);
+    out
 }
 
 /// The command for the binary: closed standard input, the environment of the

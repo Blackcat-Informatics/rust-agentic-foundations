@@ -532,7 +532,9 @@ rather than kept by hand.
 - An equivalence test: the violations from `check` equal those of
   `Gate::workspace(...).assert_clean()` on the same fixtures.
 - Both argument shapes, `cargo workplan <command>` through a real `cargo` dispatch
-  and `cargo-workplan <command>`, give the same output and exit code.
+  and `cargo-workplan <command>`, give the same output and exit code; when a
+  command is killed for writing too much output, the two runs can measure a
+  different time, so the seconds of that message are left out of the comparison.
 - JSON fixtures: one array per run with a `kind` first in each object, the kinds that
   are not rules never equal to a rule name, and stdout empty for a run that could not
   run.

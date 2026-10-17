@@ -214,16 +214,26 @@ fn output_the_tool_cannot_read_is_exit_two_and_writes_no_record() {
             "-c",
             script,
         ];
-        let run = repo.both(&args).expect(2);
+        // The kill for too much output gives the time the command ran, which
+        // differs between the two shapes.
+        let run = repo.both_timed(&args).expect(2);
         assert_eq!(run.stdout, "", "{script}");
         assert!(
             run.stderr.contains("no record was written")
                 || run.stderr.contains("nothing was recorded"),
             "{script}: {run:#?}"
         );
+        if script.starts_with("head") {
+            assert!(
+                run.stderr.contains(
+                    "wrote more than 16777216 bytes to standard output in <t> s and was killed"
+                ),
+                "{run:#?}"
+            );
+        }
         assert_eq!(repo.snapshot(), before, "{script}");
         args.insert(0, "--format=json");
-        assert_eq!(repo.both(&args).expect(2).stdout, "", "{script}");
+        assert_eq!(repo.both_timed(&args).expect(2).stdout, "", "{script}");
     }
     // A program that cannot be started.
     let run = repo
