@@ -1,0 +1,3 @@
+branch     /home/paudley/Active/rust-agentic-foundations/.worktrees/10-m2-rest-of-the-planning-essay-entity/.stage/m2-rest-of-the-planning-essay-entity/branch-under-review.md
+machine    /home/paudley/Active/rust-agentic-foundations/.worktrees/10-m2-rest-of-the-planning-essay-entity/.stage/m2-rest-of-the-planning-essay-entity/review-brief.json
+  42 commit(s), 204 file(s), 0 ADR(s) cited by the changed files

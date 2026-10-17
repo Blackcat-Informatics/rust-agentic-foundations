@@ -1,0 +1,424 @@
+{
+  "issue": 10,
+  "branch": "paudley/10-m2-rest-of-the-planning-essay-entity",
+  "base": "origin/main",
+  "commits": [
+    {
+      "oid": "43c7e020c611fe458e545ae9ea20b911f03fc1b5",
+      "subject": "test(cargo-workplan): keep git maintenance and vanished files out of the tree snapshot",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "8e5f568d1f1e2357313a13a9122f19068550795f",
+      "subject": "docs: record the assessments and evidence that the history change made stale",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "09a2c8dca20e796f751ae6fcec533e8825223f4f",
+      "subject": "docs(capabilities): deliver the workplan-entity-history capability again",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "b4ca6c87ac91d8a7cf03f6c86f185896a42cfffe",
+      "subject": "docs(workplan-entity-history): assess the sections again for module history and the author-date filter",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "bc3f15f8cf5de39b49239182363f288609dbeb7c",
+      "subject": "fix(raf-workplan): history of a module binding covers its files and --since filters by author date",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "a51977f377d7614bed0a02f71bb9863f04780752",
+      "subject": "test(raf-workplan): require the delivered capabilities in the roadmap guard",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "1c2f6a68d31e628e17150ebdcac3bb24fa38f2fd",
+      "subject": "docs: state the workplan commands and capabilities as delivered",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "023df72f943967b3bb6c73bee34e3d283daf6f2b",
+      "subject": "docs(capabilities): deliver the workplan-current-rationale capability",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "68a3342cae91d92c6998a10a3ef2efb4807df9e8",
+      "subject": "docs(capabilities): deliver the workplan-two-way-coverage capability",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "7b8ae50eb5d66e231e068d2b53e7b74f7bda82ff",
+      "subject": "docs(capabilities): deliver the workplan-prose-assessment capability",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "fcd69d1d9b3e8951937880500648fa0625985cc4",
+      "subject": "docs(capabilities): deliver the workplan-evidence-claims capability",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "d561881e584da4e254fef6ab685baee8c9165ea5",
+      "subject": "docs(capabilities): deliver the entity-history capability",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "11ce02d06df06becaeaf47ca691a95d7486b4f18",
+      "subject": "docs(capabilities): deliver the workplan-cli capability",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "ba34ce9c5b7c3801d22d7e197dc7300366f154ae",
+      "subject": "docs(capabilities): deliver the workplan-complete-gate capability",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "e22ac7dfd787077f9f8ad25dc9986f3e965951c4",
+      "subject": "docs(capabilities): deliver the workplan-reconcile capability",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "0b88c66013191ecbe2e42101962f887a8abd8679",
+      "subject": "docs(capabilities): deliver the workplan-generated-docs capability",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "6a132df12a4767168605a783d5a9391e24ab75c7",
+      "subject": "docs(capabilities): deliver the workplan-document-model capability",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "a8bd498b3939ee1d141d6c85198b6f071585c0a7",
+      "subject": "docs(capabilities): deliver the source-index capability",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "ef62049470b097d10fcfe45141ef29053f130ed2",
+      "subject": "docs(capabilities): deliver the okf-profile capability",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "f88d1dd2d1768735212cec5731c7f23cefa13a97",
+      "subject": "docs: fix statements found false when assessing the workplan capabilities",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "d6f88048e2a2a33faa9662f9e343c054645bcb0d",
+      "subject": "docs(workplan-current-rationale): state decision pages, conditions to revisit and their checks as the current contract",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "6a9c116b8971187c034bb17a4fadc5fa5c86e7e0",
+      "subject": "docs(workplan-two-way-coverage): state the public surface, the coverage record and what check enforces as the current contract",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "180ec0027343024cda7b6125d4b37715d7828933",
+      "subject": "docs(workplan-prose-assessment): state assessment records, their inputs and the gate as the current contract",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "5536582e0c60d206496e17309ec104219ac9311f",
+      "subject": "docs(workplan-evidence-claims): state evidence records, claim markers and their invalidation as the current contract",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "74783a059402c2a32db8649fb6e0675dd658dd15",
+      "subject": "docs(workplan-entity-history): state the history command, its git rows and their limits as the current contract",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "1a5b28e7e1b3c2788704d41132202b53fd62c7ad",
+      "subject": "docs(workplan-cli): state the history, evidence, assess and coverage commands as the current contract",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "511d27a22a232909139a760b557947666fcf9099",
+      "subject": "docs(workplan-complete-gate): state the sixth completion condition and its order as the current contract",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "cfec99feefe24357fc72c279a369ce118719b5dc",
+      "subject": "docs(workplan-reconcile): state the trace and assessment obligations as the current contract",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "928ca4dba1e23b229c9a81d036cf5d3c69f96ac7",
+      "subject": "docs(workplan-generated-docs): describe every bound test of the generated blocks, sync and preview",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "e76c4cfcf66ce3262f7a0693b76d8b936a2e46b2",
+      "subject": "docs(workplan-document-model): state the records, digests and record writer as the current contract",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "dbc26f719d1a6b7cbfba33697e7d91d82d9143e7",
+      "subject": "docs(source-index): state the exported items of a target as the current contract",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "3bd9e56d6381e87ccfef0f09255fee34f13d27c2",
+      "subject": "docs(okf-profile): state the record types, claim markers and record writer as the current contract",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "21499bcf678e26c113801545dd750f6182cff2a2",
+      "subject": "docs: cite recorded evidence for the time limit of a bound test and assess a rationale section",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "6f7afe14336a61891c9a62c64a253c08beb595c7",
+      "subject": "feat(cargo-workplan): history, evidence, assess and coverage commands",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "c54db19d2b20d4dc7b874e7f0038b48be6b561ef",
+      "subject": "feat(raf-workplan): check current rationale pages and decisions",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "6b317fc6b144a9a5ab450081bb0f9a25e52caf89",
+      "subject": "feat(raf-workplan): two-way coverage of public items and tests",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "bb415d37cf3300c855ca91a9eb8340e20849c806",
+      "subject": "feat(raf-workplan): prose assessments, their obligations and a sixth completion condition",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "9bacdb380f532b806aad530e34bc822a67008431",
+      "subject": "feat(raf-workplan): evidence records, claims and their obligations",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "73662ab8228a7100f3a886bd84c91edaf72200d3",
+      "subject": "feat(raf-workplan): history of a capability, change or architecture page from git",
+      "date": "2026-10-16"
+    },
+    {
+      "oid": "de0b842d2b161925b2a8bcf8ed9e0ffde541e8c8",
+      "subject": "feat(raf-workplan): load evidence, assessment and coverage records with a shared digest",
+      "date": "2026-10-15"
+    },
+    {
+      "oid": "8844239eaa0ca2d28275fcdc8760cac74f456fc2",
+      "subject": "feat(raf-source): list the exported items of a target",
+      "date": "2026-10-15"
+    },
+    {
+      "oid": "6e75ac7155d96244942972449e02b8c98997cb02",
+      "subject": "feat(raf-okf): evidence, assessment and coverage records and claim markers",
+      "date": "2026-10-15"
+    }
+  ],
+  "files": [
+    "AGENTS.md",
+    "CHANGELOG.md",
+    "README.md",
+    "SECURITY.md",
+    "crates/cargo-workplan/Cargo.toml",
+    "crates/cargo-workplan/src/assess.rs",
+    "crates/cargo-workplan/src/cli.rs",
+    "crates/cargo-workplan/src/command.rs",
+    "crates/cargo-workplan/src/coverage.rs",
+    "crates/cargo-workplan/src/evidence.rs",
+    "crates/cargo-workplan/src/history.rs",
+    "crates/cargo-workplan/src/main.rs",
+    "crates/cargo-workplan/src/render.rs",
+    "crates/cargo-workplan/tests/assess.rs",
+    "crates/cargo-workplan/tests/complete.rs",
+    "crates/cargo-workplan/tests/coverage.rs",
+    "crates/cargo-workplan/tests/evidence.rs",
+    "crates/cargo-workplan/tests/history.rs",
+    "crates/cargo-workplan/tests/json.rs",
+    "crates/cargo-workplan/tests/process.rs",
+    "crates/cargo-workplan/tests/reconcile.rs",
+    "crates/cargo-workplan/tests/support/mod.rs",
+    "crates/raf-okf/src/body/blocks.rs",
+    "crates/raf-okf/src/body/marker.rs",
+    "crates/raf-okf/src/body/mod.rs",
+    "crates/raf-okf/src/error.rs",
+    "crates/raf-okf/src/lib.rs",
+    "crates/raf-okf/src/profile/body_rules.rs",
+    "crates/raf-okf/src/profile/mod.rs",
+    "crates/raf-okf/src/profile/records.rs",
+    "crates/raf-okf/src/profile/schema.rs",
+    "crates/raf-okf/src/profile/typed.rs",
+    "crates/raf-okf/src/profile/violation.rs",
+    "crates/raf-okf/src/profile/write.rs",
+    "crates/raf-okf/tests/claims.rs",
+    "crates/raf-okf/tests/fixtures/assessment.md",
+    "crates/raf-okf/tests/fixtures/coverage.md",
+    "crates/raf-okf/tests/fixtures/evidence.md",
+    "crates/raf-okf/tests/profile.rs",
+    "crates/raf-okf/tests/record_writer.rs",
+    "crates/raf-okf/tests/records.rs",
+    "crates/raf-okf/tests/render.rs",
+    "crates/raf-okf/tests/schema.rs",
+    "crates/raf-okf/tests/validate_cost.rs",
+    "crates/raf-source/src/exports.rs",
+    "crates/raf-source/src/facts.rs",
+    "crates/raf-source/src/glob_scope.rs",
+    "crates/raf-source/src/index.rs",
+    "crates/raf-source/src/item.rs",
+    "crates/raf-source/src/lib.rs",
+    "crates/raf-source/src/resolve.rs",
+    "crates/raf-source/src/workspace.rs",
+    "crates/raf-source/tests/exported_items.rs",
+    "crates/raf-source/tests/this_repository.rs",
+    "crates/raf-workplan/src/assessment.rs",
+    "crates/raf-workplan/src/assessment/tests.rs",
+    "crates/raf-workplan/src/coverage.rs",
+    "crates/raf-workplan/src/coverage/render.rs",
+    "crates/raf-workplan/src/digest.rs",
+    "crates/raf-workplan/src/evidence.rs",
+    "crates/raf-workplan/src/evidence/measure.rs",
+    "crates/raf-workplan/src/evidence/tests.rs",
+    "crates/raf-workplan/src/exec.rs",
+    "crates/raf-workplan/src/exec/fake.rs",
+    "crates/raf-workplan/src/exec/invocation.rs",
+    "crates/raf-workplan/src/exec/pattern.rs",
+    "crates/raf-workplan/src/exec/system.rs",
+    "crates/raf-workplan/src/exec/tests.rs",
+    "crates/raf-workplan/src/exec/trusted.rs",
+    "crates/raf-workplan/src/files.rs",
+    "crates/raf-workplan/src/finding.rs",
+    "crates/raf-workplan/src/gate.rs",
+    "crates/raf-workplan/src/generated.rs",
+    "crates/raf-workplan/src/git.rs",
+    "crates/raf-workplan/src/git/log.rs",
+    "crates/raf-workplan/src/graph.rs",
+    "crates/raf-workplan/src/history.rs",
+    "crates/raf-workplan/src/history/render.rs",
+    "crates/raf-workplan/src/lib.rs",
+    "crates/raf-workplan/src/lifecycle.rs",
+    "crates/raf-workplan/src/lifecycle/changed.rs",
+    "crates/raf-workplan/src/lifecycle/complete.rs",
+    "crates/raf-workplan/src/lifecycle/completion.rs",
+    "crates/raf-workplan/src/lifecycle/create.rs",
+    "crates/raf-workplan/src/lifecycle/session.rs",
+    "crates/raf-workplan/src/lifecycle/untouched.rs",
+    "crates/raf-workplan/src/load.rs",
+    "crates/raf-workplan/src/model.rs",
+    "crates/raf-workplan/src/obligation.rs",
+    "crates/raf-workplan/src/obligation/sources.rs",
+    "crates/raf-workplan/src/obligation/tests.rs",
+    "crates/raf-workplan/src/obligation/trace.rs",
+    "crates/raf-workplan/src/plain.rs",
+    "crates/raf-workplan/src/rationale.rs",
+    "crates/raf-workplan/src/record.rs",
+    "crates/raf-workplan/src/spdx.rs",
+    "crates/raf-workplan/src/sync.rs",
+    "crates/raf-workplan/tests/assessments.rs",
+    "crates/raf-workplan/tests/complete.rs",
+    "crates/raf-workplan/tests/coverage.rs",
+    "crates/raf-workplan/tests/digest.rs",
+    "crates/raf-workplan/tests/documents.rs",
+    "crates/raf-workplan/tests/evidence.rs",
+    "crates/raf-workplan/tests/exec.rs",
+    "crates/raf-workplan/tests/gate.rs",
+    "crates/raf-workplan/tests/generated.rs",
+    "crates/raf-workplan/tests/graph.rs",
+    "crates/raf-workplan/tests/history.rs",
+    "crates/raf-workplan/tests/kinds.rs",
+    "crates/raf-workplan/tests/lifecycle.rs",
+    "crates/raf-workplan/tests/links.rs",
+    "crates/raf-workplan/tests/obligations.rs",
+    "crates/raf-workplan/tests/plain.rs",
+    "crates/raf-workplan/tests/rationale.rs",
+    "crates/raf-workplan/tests/records.rs",
+    "crates/raf-workplan/tests/roadmap.rs",
+    "crates/raf-workplan/tests/scenarios.rs",
+    "crates/raf-workplan/tests/support/assessed.rs",
+    "crates/raf-workplan/tests/support/cases.rs",
+    "crates/raf-workplan/tests/support/changes.rs",
+    "crates/raf-workplan/tests/support/evidence.rs",
+    "crates/raf-workplan/tests/support/mod.rs",
+    "crates/raf-workplan/tests/support/project.rs",
+    "crates/raf-workplan/tests/support/synced.rs",
+    "crates/raf-workplan/tests/untouched.rs",
+    "crates/raf-workplan/tests/verify.rs",
+    "docs/architecture/normal-form.md",
+    "docs/architecture/okf-profile.md",
+    "docs/capabilities/index.md",
+    "docs/capabilities/okf-profile.md",
+    "docs/capabilities/source-index.md",
+    "docs/capabilities/workplan-cli.md",
+    "docs/capabilities/workplan-complete-gate.md",
+    "docs/capabilities/workplan-current-rationale.md",
+    "docs/capabilities/workplan-document-model.md",
+    "docs/capabilities/workplan-entity-history.md",
+    "docs/capabilities/workplan-evidence-claims.md",
+    "docs/capabilities/workplan-generated-docs.md",
+    "docs/capabilities/workplan-prose-assessment.md",
+    "docs/capabilities/workplan-reconcile.md",
+    "docs/capabilities/workplan-two-way-coverage.md",
+    "fuzz/fuzz_targets/workspace_input.rs",
+    "tests/docs_contract.rs",
+    "work/assessments/okf-profile-contract.md",
+    "work/assessments/okf-profile-verification.md",
+    "work/assessments/source-index-constraints.md",
+    "work/assessments/source-index-contract.md",
+    "work/assessments/source-index-examples.md",
+    "work/assessments/source-index-usage.md",
+    "work/assessments/source-index-verification.md",
+    "work/assessments/workplan-cli-constraints.md",
+    "work/assessments/workplan-cli-contract.md",
+    "work/assessments/workplan-cli-examples.md",
+    "work/assessments/workplan-cli-usage.md",
+    "work/assessments/workplan-cli-verification.md",
+    "work/assessments/workplan-complete-gate-contract.md",
+    "work/assessments/workplan-complete-gate-examples.md",
+    "work/assessments/workplan-complete-gate-verification.md",
+    "work/assessments/workplan-current-rationale-constraints.md",
+    "work/assessments/workplan-current-rationale-contract.md",
+    "work/assessments/workplan-current-rationale-examples.md",
+    "work/assessments/workplan-current-rationale-explanation.md",
+    "work/assessments/workplan-current-rationale-purpose.md",
+    "work/assessments/workplan-current-rationale-usage.md",
+    "work/assessments/workplan-current-rationale-verification.md",
+    "work/assessments/workplan-document-model-contract.md",
+    "work/assessments/workplan-document-model-usage.md",
+    "work/assessments/workplan-document-model-verification.md",
+    "work/assessments/workplan-entity-history-constraints.md",
+    "work/assessments/workplan-entity-history-contract.md",
+    "work/assessments/workplan-entity-history-examples.md",
+    "work/assessments/workplan-entity-history-purpose.md",
+    "work/assessments/workplan-entity-history-usage.md",
+    "work/assessments/workplan-entity-history-verification.md",
+    "work/assessments/workplan-evidence-claims-constraints.md",
+    "work/assessments/workplan-evidence-claims-contract.md",
+    "work/assessments/workplan-evidence-claims-examples.md",
+    "work/assessments/workplan-evidence-claims-explanation.md",
+    "work/assessments/workplan-evidence-claims-purpose.md",
+    "work/assessments/workplan-evidence-claims-usage.md",
+    "work/assessments/workplan-evidence-claims-verification.md",
+    "work/assessments/workplan-generated-docs-verification.md",
+    "work/assessments/workplan-prose-assessment-constraints.md",
+    "work/assessments/workplan-prose-assessment-contract.md",
+    "work/assessments/workplan-prose-assessment-examples.md",
+    "work/assessments/workplan-prose-assessment-purpose.md",
+    "work/assessments/workplan-prose-assessment-usage.md",
+    "work/assessments/workplan-prose-assessment-verification.md",
+    "work/assessments/workplan-reconcile-constraints.md",
+    "work/assessments/workplan-reconcile-contract.md",
+    "work/assessments/workplan-reconcile-verification.md",
+    "work/assessments/workplan-two-way-coverage-constraints.md",
+    "work/assessments/workplan-two-way-coverage-contract.md",
+    "work/assessments/workplan-two-way-coverage-examples.md",
+    "work/assessments/workplan-two-way-coverage-purpose.md",
+    "work/assessments/workplan-two-way-coverage-usage.md",
+    "work/assessments/workplan-two-way-coverage-verification.md",
+    "work/changes/workplan-current-rationale.md",
+    "work/changes/workplan-entity-history.md",
+    "work/changes/workplan-evidence-claims.md",
+    "work/changes/workplan-prose-assessment.md",
+    "work/changes/workplan-two-way-coverage.md",
+    "work/coverage/default.md",
+    "work/evidence/gate-kills-a-test-past-its-timeout.md"
+  ],
+  "adrs_touched": []
+}

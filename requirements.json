@@ -1,0 +1,363 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "line": 5,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `cap:workplan-entity-history`: history of a capability and its bindings (`git log --follow`, `-L`), so how a design evolved can be investigated on purpose without loading everyone's working context",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B2",
+      "line": 6,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `cap:workplan-evidence-claims`: persisted execution evidence, and which current statements depend on which result; evidence changes invalidate the claims that depend on it",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B3",
+      "line": 7,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `cap:workplan-prose-assessment`: recorded human/agent assessments of explanatory prose, invalidated when their inputs change",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B4",
+      "line": 8,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `cap:workplan-two-way-coverage`: code\u2192docs (public items no capability explains) and tests\u2192claims, alongside the M1 docs\u2192code and docs\u2192tests checks",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B5",
+      "line": 9,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `cap:workplan-current-rationale`: shared architecture pages that state resolved current decisions, plus the \"conditions that would justify revisiting\" structure",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B6",
+      "line": 12,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Each capability reaches `delivered` through `cargo workplan change complete`",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B7",
+      "line": 13,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Its change record is deleted on completion; the history is in Git",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B8",
+      "line": 14,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] No deferrals: any scope that leaves an item is `moved:` to a tracked change",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "C1.1",
+      "line": 18,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "* AGENTS.md / CLAUDE.md: floating nightly in hosted CI, MSRV 1.98.1, workspace lints, no `#![feature]`, no",
+      "source": "comment 1",
+      "author": "paudley",
+      "date": "2026-10-15T08:16:26Z"
+    },
+    {
+      "id": "C1.2",
+      "line": 22,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "* SECURITY.md trust model: workspace is trusted build input; no shell; argv vectors; document text reaches a",
+      "source": "comment 1",
+      "author": "paudley",
+      "date": "2026-10-15T08:16:26Z"
+    },
+    {
+      "id": "C1.3",
+      "line": 25,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "* Reused, not duplicated: `exec` typed invocations (new rows only), `git` module, `Gate::open`,",
+      "source": "comment 1",
+      "author": "paudley",
+      "date": "2026-10-15T08:16:26Z"
+    },
+    {
+      "id": "C1.4",
+      "line": 28,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "* **Owner decision on the record (coverage scope): \"Workplan crates only (Recommended)\".** Reading applied:",
+      "source": "comment 1",
+      "author": "paudley",
+      "date": "2026-10-15T08:16:26Z"
+    },
+    {
+      "id": "C1.5",
+      "line": 35,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "* **Standing owner decision:** hosted CI counts as the evidence for `cross-check`; every other `make` gate is",
+      "source": "comment 1",
+      "author": "paudley",
+      "date": "2026-10-15T08:16:26Z"
+    },
+    {
+      "id": "C1.6",
+      "line": 37,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "* The nominal dependency on the self-gate issue is not waited for: the tool this work needs (`change reconcile`,",
+      "source": "comment 1",
+      "author": "paudley",
+      "date": "2026-10-15T08:16:26Z"
+    },
+    {
+      "id": "C1.7",
+      "line": 72,
+      "rules": [
+        "modal"
+      ],
+      "text": "fixes what the evidence covers; the claim marker is the citation; both are required and a mismatch is a",
+      "source": "comment 1",
+      "author": "paudley",
+      "date": "2026-10-15T08:16:26Z"
+    },
+    {
+      "id": "C1.8",
+      "line": 74,
+      "rules": [
+        "modal"
+      ],
+      "text": "results per claim: all must hold (D2).",
+      "source": "comment 1",
+      "author": "paudley",
+      "date": "2026-10-15T08:16:26Z"
+    },
+    {
+      "id": "C1.9",
+      "line": 100,
+      "rules": [
+        "modal"
+      ],
+      "text": "* **D10 Current rationale.** A decision page is an architecture page with a `## Decision` heading; it must have",
+      "source": "comment 1",
+      "author": "paudley",
+      "date": "2026-10-15T08:16:26Z"
+    },
+    {
+      "id": "C1.10",
+      "line": 102,
+      "rules": [
+        "modal"
+      ],
+      "text": "must be followed by `### Conditions to revisit`. An architecture page no document links to is reported.",
+      "source": "comment 1",
+      "author": "paudley",
+      "date": "2026-10-15T08:16:26Z"
+    },
+    {
+      "id": "C3.1",
+      "line": 18,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "* AGENTS.md / CLAUDE.md: floating nightly in hosted CI, MSRV 1.98.1, workspace lints, no `#![feature]`, no",
+      "source": "comment 3",
+      "author": "paudley",
+      "date": "2026-10-17T02:54:07Z"
+    },
+    {
+      "id": "C3.2",
+      "line": 22,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "* SECURITY.md trust model: workspace is trusted build input; no shell; argv vectors; document text reaches a",
+      "source": "comment 3",
+      "author": "paudley",
+      "date": "2026-10-17T02:54:07Z"
+    },
+    {
+      "id": "C3.3",
+      "line": 25,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "* Reused, not duplicated: `exec` typed invocations (new rows only), `git` module, `Gate::open`,",
+      "source": "comment 3",
+      "author": "paudley",
+      "date": "2026-10-17T02:54:07Z"
+    },
+    {
+      "id": "C3.4",
+      "line": 28,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "* **Owner decision on the record (coverage scope): \"Workplan crates only (Recommended)\".** Reading applied:",
+      "source": "comment 3",
+      "author": "paudley",
+      "date": "2026-10-17T02:54:07Z"
+    },
+    {
+      "id": "C3.5",
+      "line": 35,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "* **Standing owner decision:** hosted CI counts as the evidence for `cross-check`; every other `make` gate is",
+      "source": "comment 3",
+      "author": "paudley",
+      "date": "2026-10-17T02:54:07Z"
+    },
+    {
+      "id": "C3.6",
+      "line": 37,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "* The nominal dependency on the self-gate issue is not waited for: the tool this work needs (`change reconcile`,",
+      "source": "comment 3",
+      "author": "paudley",
+      "date": "2026-10-17T02:54:07Z"
+    },
+    {
+      "id": "C3.7",
+      "line": 72,
+      "rules": [
+        "modal"
+      ],
+      "text": "fixes what the evidence covers; the claim marker is the citation; both are required and a mismatch is a",
+      "source": "comment 3",
+      "author": "paudley",
+      "date": "2026-10-17T02:54:07Z"
+    },
+    {
+      "id": "C3.8",
+      "line": 74,
+      "rules": [
+        "modal"
+      ],
+      "text": "results per claim: all must hold (D2).",
+      "source": "comment 3",
+      "author": "paudley",
+      "date": "2026-10-17T02:54:07Z"
+    },
+    {
+      "id": "C3.9",
+      "line": 100,
+      "rules": [
+        "modal"
+      ],
+      "text": "* **D10 Current rationale.** A decision page is an architecture page with a `## Decision` heading; it must have",
+      "source": "comment 3",
+      "author": "paudley",
+      "date": "2026-10-17T02:54:07Z"
+    },
+    {
+      "id": "C3.10",
+      "line": 102,
+      "rules": [
+        "modal"
+      ],
+      "text": "must be followed by `### Conditions to revisit`. An architecture page no document links to is reported.",
+      "source": "comment 3",
+      "author": "paudley",
+      "date": "2026-10-17T02:54:07Z"
+    },
+    {
+      "id": "C3.11",
+      "line": 283,
+      "rules": [
+        "modal"
+      ],
+      "text": "* Task 1 reviewer: narrow the architecture-page sentence \"a misspelt marker is never read as a plain comment\" to non-`raf:generated:` comments (done in the Task 3 commit that touches that page, or earlier); Task 3 moves the record fixtures to their real directories; Task 5 states that `Number` accepts no exponent (a printed `1e-3` fails hard under D12) and refuses a `--for` capability with no code binding clearly; Task 7 maps crate names (`raf-okf` and `raf_okf`); Task 11 must handle `reconcile okf-profile` reporting an empty `bindings.examples` and the `verify` failure of the `no_run` `raf_workplan::Gate` example in `workplan-document-model` (tracked by issue 17).",
+      "source": "comment 3",
+      "author": "paudley",
+      "date": "2026-10-17T02:54:07Z"
+    },
+    {
+      "id": "C3.12",
+      "line": 284,
+      "rules": [
+        "modal"
+      ],
+      "text": "* Task 2 reviewer (advisory): add a fixture pinning `binding_site` to the first carrying glob; Task 7 coverage must treat the loud differences of `exported_items` (the several-binder carry refusal, the `pub(crate)` item next to a carried re-export, the unmodelled visibility rule) as documented limits of the surface it reads; Task 11: empty `bindings.examples` on source-index and okf-profile, the line-1254 tense wording, and the doctest order.",
+      "source": "comment 3",
+      "author": "paudley",
+      "date": "2026-10-17T02:54:07Z"
+    },
+    {
+      "id": "C3.13",
+      "line": 285,
+      "rules": [
+        "modal"
+      ],
+      "text": "* Task 4 reviewer (advisory, carry to the Task 4 text edits in Task 11 and Task 9): the Contract should say \"a merge whose result equals one of its parents is not an entry\"; the mixed path bases (document paths relative to the repository top, symbol files relative to the workspace) belong in the Contract Constraints; partial (blobless) clones fetch objects lazily, which contradicts \"reads Git and writes nothing\" \u2014 state it; the \"stub git on PATH\" Verification wording is rechecked when the command lands in Task 9.",
+      "source": "comment 3",
+      "author": "paudley",
+      "date": "2026-10-17T02:54:07Z"
+    },
+    {
+      "id": "C3.14",
+      "line": 286,
+      "rules": [
+        "modal"
+      ],
+      "text": "* Task 5 reviewer (carry to Task 9): clap must take the words after `--` as trailing arguments consistently with `TrustedArgv::from_command_line` (pass `std::env::args_os()` itself) and refuse an option whose value is `--`; test the command runs through the binary. `Number::value()` stays public for display only \u2014 never compare with it.",
+      "source": "comment 3",
+      "author": "paudley",
+      "date": "2026-10-17T02:54:07Z"
+    }
+  ],
+  "silent_comments": [
+    {
+      "comment": 2,
+      "author": "paudley",
+      "date": "2026-10-17T02:54:03Z"
+    }
+  ]
+}

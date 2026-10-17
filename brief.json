@@ -1,0 +1,48 @@
+{
+  "issue": 10,
+  "repo": "Blackcat-Informatics/rust-agentic-foundations",
+  "forge": "github",
+  "title": "M2: rest of the planning essay (entity history, evidence-claims, prose assessment, two-way coverage, current rationale)",
+  "state": "OPEN",
+  "adrs": [],
+  "linked_issues": {
+    "9": "Acceptance scenarios A & B + workplan self-gate",
+    "10": "M2: rest of the planning essay (entity history, evidence-claims, prose assessment, two-way coverage, current rationale)",
+    "6": "cargo-census CLI, census self-gate, read-only trial vs purrdf/katamari",
+    "8": "raf-workplan change lifecycle + cargo-workplan CLI"
+  },
+  "link_relations": {
+    "9": "mentions",
+    "10": "closes",
+    "6": "2-hop",
+    "8": "2-hop"
+  },
+  "related": [],
+  "defect_classes": {
+    "none": 4
+  },
+  "prior_attempts": {
+    "commits": [],
+    "branches": [],
+    "prs": [
+      {
+        "number": 20,
+        "title": "raf-workplan: entity history, evidence and claims, prose assessment, two-way coverage and current rationale",
+        "state": "OPEN",
+        "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/20",
+        "this_stage": true
+      }
+    ],
+    "own_branch": "paudley/10-m2-rest-of-the-planning-essay-entity"
+  },
+  "coverage": [
+    "issue #10 + 3 comment(s) via github",
+    "link crawl: 4 issue(s) within 2 hop(s) of `#N` references",
+    "forge search on ['planning', 'essay', '(entity']: 0 other item(s)",
+    "GhpRsq-Defect-Class trailers: 1 distinct class(es) in the last 200 commits",
+    "prior attempts: 0 commit(s) citing #10 (second parents walked), 0 other branch(es) named for it",
+    "PRs citing #10: 1",
+    "requirement candidates: 32 line(s); 1 comment(s) matched no rule",
+    "referenced artifacts: 17 path(s) (6 on disk), 75 identifier(s), 4 workspace package(s), 0 URL(s)"
+  ]
+}

@@ -1,0 +1,542 @@
+{
+  "paths": [
+    {
+      "ref": ".stage/m2-rest-of-the-planning-essay-entity",
+      "path": "/home/paudley/Active/rust-agentic-foundations/.stage/m2-rest-of-the-planning-essay-entity",
+      "where": "repo",
+      "exists": false,
+      "kind": "",
+      "lines": null,
+      "licence": "",
+      "commits": []
+    },
+    {
+      "ref": "work/changes/",
+      "path": "/home/paudley/Active/rust-agentic-foundations/work/changes",
+      "where": "repo",
+      "exists": true,
+      "kind": "dir",
+      "lines": null,
+      "licence": "",
+      "commits": [
+        "92e4de8d3 docs(workplan): deliver the reconcile, completion gate and command line capabilities",
+        "41eba8226 docs(workplan): state the built contract of the lifecycle capabilities",
+        "a3d60dd0a docs(capabilities): deliver the workplan document model and generated docs",
+        "d65e9f4b8 docs(changes): record the outcomes of the workplan model and generated docs",
+        "6c744af63 docs(capabilities): deliver the OKF profile and source index",
+        "376baf93b docs(changes): record the outcomes of the raf-okf and raf-source items",
+        "1a67fa3e5 feat(raf-okf): profile validation with typed documents",
+        "80c14d720 docs(census): map fingerprints through the index report at a normal-form bump",
+        "edf93d5b5 docs: resolve contradictions in the census and workplan contracts",
+        "6120029a9 docs(security): state the trust model and harden the designed parsing and subprocess contracts"
+      ]
+    },
+    {
+      "ref": "work/coverage/default.md",
+      "path": "/home/paudley/Active/rust-agentic-foundations/work/coverage/default.md",
+      "where": "repo",
+      "exists": false,
+      "kind": "",
+      "lines": null,
+      "licence": "",
+      "commits": []
+    },
+    {
+      "ref": "work/",
+      "path": "/home/paudley/Active/rust-agentic-foundations/work",
+      "where": "repo",
+      "exists": true,
+      "kind": "dir",
+      "lines": null,
+      "licence": "",
+      "commits": [
+        "92e4de8d3 docs(workplan): deliver the reconcile, completion gate and command line capabilities",
+        "41eba8226 docs(workplan): state the built contract of the lifecycle capabilities",
+        "a3d60dd0a docs(capabilities): deliver the workplan document model and generated docs",
+        "d65e9f4b8 docs(changes): record the outcomes of the workplan model and generated docs",
+        "6c744af63 docs(capabilities): deliver the OKF profile and source index",
+        "376baf93b docs(changes): record the outcomes of the raf-okf and raf-source items",
+        "1a67fa3e5 feat(raf-okf): profile validation with typed documents",
+        "80c14d720 docs(census): map fingerprints through the index report at a normal-form bump",
+        "edf93d5b5 docs: resolve contradictions in the census and workplan contracts",
+        "6120029a9 docs(security): state the trust model and harden the designed parsing and subprocess contracts"
+      ]
+    },
+    {
+      "ref": "docs/architecture/okf-profile.md",
+      "path": "/home/paudley/Active/rust-agentic-foundations/docs/architecture/okf-profile.md",
+      "where": "repo",
+      "exists": true,
+      "kind": "file",
+      "lines": 216,
+      "licence": "SPDX: CC-BY-4.0",
+      "commits": [
+        "a3d60dd0a docs(capabilities): deliver the workplan document model and generated docs",
+        "4e9c2f397 test(docs-contract): read documents through raf-okf and resolve bindings",
+        "1a67fa3e5 feat(raf-okf): profile validation with typed documents",
+        "e94cd8df8 feat(raf-okf): body model, transactional splicing and capability index",
+        "3f8697b35 feat(raf-okf): bounded frontmatter reader and deterministic writer",
+        "edf93d5b5 docs: resolve contradictions in the census and workplan contracts",
+        "dba307fae test(docs): harden the document contract",
+        "6120029a9 docs(security): state the trust model and harden the designed parsing and subprocess contracts",
+        "f711aa29e docs(workplan): define the seven sections and close the workplan contract gaps",
+        "9ce066f56 docs(capabilities): add workplan capability specs"
+      ]
+    },
+    {
+      "ref": "body/marker.rs",
+      "path": "/home/paudley/Active/rust-agentic-foundations/body/marker.rs",
+      "where": "repo",
+      "exists": false,
+      "kind": "",
+      "lines": null,
+      "licence": "",
+      "commits": []
+    },
+    {
+      "ref": "tests/docs_contract.rs::check_inventory",
+      "path": "/home/paudley/Active/rust-agentic-foundations/tests/docs_contract.rs::check_inventory",
+      "where": "repo",
+      "exists": false,
+      "kind": "",
+      "lines": null,
+      "licence": "",
+      "commits": []
+    },
+    {
+      "ref": "-rf.rs",
+      "path": "/home/paudley/Active/rust-agentic-foundations/-rf.rs",
+      "where": "repo",
+      "exists": false,
+      "kind": "",
+      "lines": null,
+      "licence": "",
+      "commits": []
+    },
+    {
+      "ref": "docs/",
+      "path": "/home/paudley/Active/rust-agentic-foundations/docs",
+      "where": "repo",
+      "exists": true,
+      "kind": "dir",
+      "lines": null,
+      "licence": "",
+      "commits": [
+        "a72c5f51d docs(capabilities): name the git commands of the default-branch lookup",
+        "92e4de8d3 docs(workplan): deliver the reconcile, completion gate and command line capabilities",
+        "41eba8226 docs(workplan): state the built contract of the lifecycle capabilities",
+        "ed5ec735a docs(workplan): propose the contract edits of the lifecycle capabilities",
+        "0e999a1ab docs(workplan): bind the reconcile, completion gate and command line capabilities",
+        "68fb6e9ca docs(capabilities): keep the command line out of the delivered workplan contracts",
+        "a3d60dd0a docs(capabilities): deliver the workplan document model and generated docs",
+        "45ff25260 test(docs-contract): check the repository through raf-workplan",
+        "5bcd7411b fix(raf-source): index verbatim use groups and bodiless items",
+        "bf08e459e feat(raf-source)!: seal the public types consumers bind to"
+      ]
+    },
+    {
+      "ref": "validation.md",
+      "path": "/home/paudley/Active/rust-agentic-foundations/validation.md",
+      "where": "repo",
+      "exists": false,
+      "kind": "",
+      "lines": null,
+      "licence": "",
+      "commits": []
+    },
+    {
+      "ref": "tasks/TN-review.md",
+      "path": "/home/paudley/Active/rust-agentic-foundations/tasks/TN-review.md",
+      "where": "repo",
+      "exists": false,
+      "kind": "",
+      "lines": null,
+      "licence": "",
+      "commits": []
+    },
+    {
+      "ref": "work/evidence",
+      "path": "/home/paudley/Active/rust-agentic-foundations/work/evidence",
+      "where": "repo",
+      "exists": false,
+      "kind": "",
+      "lines": null,
+      "licence": "",
+      "commits": []
+    },
+    {
+      "ref": "work/assessments",
+      "path": "/home/paudley/Active/rust-agentic-foundations/work/assessments",
+      "where": "repo",
+      "exists": false,
+      "kind": "",
+      "lines": null,
+      "licence": "",
+      "commits": []
+    },
+    {
+      "ref": "work/coverage",
+      "path": "/home/paudley/Active/rust-agentic-foundations/work/coverage",
+      "where": "repo",
+      "exists": false,
+      "kind": "",
+      "lines": null,
+      "licence": "",
+      "commits": []
+    },
+    {
+      "ref": "tests/docs_contract.rs",
+      "path": "/home/paudley/Active/rust-agentic-foundations/tests/docs_contract.rs",
+      "where": "repo",
+      "exists": true,
+      "kind": "file",
+      "lines": 1355,
+      "licence": "SPDX: MIT OR Apache-2.0 OR MulanPSL-2.0",
+      "commits": [
+        "92e4de8d3 docs(workplan): deliver the reconcile, completion gate and command line capabilities",
+        "0e999a1ab docs(workplan): bind the reconcile, completion gate and command line capabilities",
+        "c0685a4c2 feat(cargo-workplan): check, status and docs commands over raf-workplan",
+        "a3d60dd0a docs(capabilities): deliver the workplan document model and generated docs",
+        "45ff25260 test(docs-contract): check the repository through raf-workplan",
+        "bf08e459e feat(raf-source)!: seal the public types consumers bind to",
+        "df71a428c fix(raf-source): match items_under by whole segment and check binding roles",
+        "20b59c5d1 test(raf-source): exercise caps, spawn failure and source text through a load",
+        "d89b78f3d feat(raf-okf): expose a fenced block's content and whether it is closed",
+        "061798548 fix(raf-source): place a module under its declared path"
+      ]
+    },
+    {
+      "ref": "tests/roadmap.rs",
+      "path": "/home/paudley/Active/rust-agentic-foundations/tests/roadmap.rs",
+      "where": "repo",
+      "exists": false,
+      "kind": "",
+      "lines": null,
+      "licence": "",
+      "commits": []
+    },
+    {
+      "ref": "docs/capabilities/workplan-two-way-coverage.md",
+      "path": "/home/paudley/Active/rust-agentic-foundations/docs/capabilities/workplan-two-way-coverage.md",
+      "where": "repo",
+      "exists": true,
+      "kind": "file",
+      "lines": 117,
+      "licence": "SPDX: CC-BY-4.0",
+      "commits": [
+        "f711aa29e docs(workplan): define the seven sections and close the workplan contract gaps",
+        "9f93e5de0 docs(capabilities): add considered workplan capabilities and retire the essay"
+      ]
+    }
+  ],
+  "identifiers": [
+    {
+      "name": "reconcile",
+      "files": 51
+    },
+    {
+      "name": "complete",
+      "files": 57
+    },
+    {
+      "name": "delivered",
+      "files": 71
+    },
+    {
+      "name": "considered",
+      "files": 52
+    },
+    {
+      "name": "exec",
+      "files": 62
+    },
+    {
+      "name": "git",
+      "files": 105
+    },
+    {
+      "name": "Gate::open",
+      "files": 8
+    },
+    {
+      "name": "Workplan",
+      "files": 62
+    },
+    {
+      "name": "Graph",
+      "files": 10
+    },
+    {
+      "name": "section_digest",
+      "files": 7
+    },
+    {
+      "name": "Lifecycle",
+      "files": 21
+    },
+    {
+      "name": "obligation",
+      "files": 46
+    },
+    {
+      "name": "Workplan::write",
+      "files": 15
+    },
+    {
+      "name": "check",
+      "files": 166
+    },
+    {
+      "name": "scope",
+      "files": 30
+    },
+    {
+      "name": "make",
+      "files": 91
+    },
+    {
+      "name": "Evidence",
+      "files": 21
+    },
+    {
+      "name": "Assessment",
+      "files": 0
+    },
+    {
+      "name": "subject",
+      "files": 28
+    },
+    {
+      "name": "inputs",
+      "files": 18
+    },
+    {
+      "name": "verdict",
+      "files": 25
+    },
+    {
+      "name": "Coverage",
+      "files": 1
+    },
+    {
+      "name": "exclusions",
+      "files": 1
+    },
+    {
+      "name": "DocType",
+      "files": 16
+    },
+    {
+      "name": "Rule::ALL",
+      "files": 6
+    },
+    {
+      "name": "ErrorKind::ALL",
+      "files": 6
+    },
+    {
+      "name": "section_of",
+      "files": 10
+    },
+    {
+      "name": "raf_workplan::digest",
+      "files": 0
+    },
+    {
+      "name": "section",
+      "files": 104
+    },
+    {
+      "name": "symbol",
+      "files": 74
+    },
+    {
+      "name": "record",
+      "files": 147
+    },
+    {
+      "name": "Program::Trusted",
+      "files": 0
+    },
+    {
+      "name": "bound::Executor",
+      "files": 5
+    },
+    {
+      "name": "EvidenceRecord",
+      "files": 0
+    },
+    {
+      "name": "bound::Evidence",
+      "files": 4
+    },
+    {
+      "name": "revision",
+      "files": 14
+    },
+    {
+      "name": "trace",
+      "files": 3
+    },
+    {
+      "name": "Workplan::reconcile",
+      "files": 7
+    },
+    {
+      "name": "accepted",
+      "files": 54
+    },
+    {
+      "name": "affects",
+      "files": 75
+    },
+    {
+      "name": "assess",
+      "files": 12
+    },
+    {
+      "name": "true",
+      "files": 136
+    },
+    {
+      "name": "exec::Invocation",
+      "files": 4
+    },
+    {
+      "name": "cargo",
+      "files": 114
+    },
+    {
+      "name": "fail",
+      "files": 176
+    },
+    {
+      "name": "command",
+      "files": 80
+    },
+    {
+      "name": "create_new",
+      "files": 9
+    },
+    {
+      "name": "implemented",
+      "files": 49
+    },
+    {
+      "name": "dropped",
+      "files": 57
+    },
+    {
+      "name": "changes",
+      "files": 123
+    },
+    {
+      "name": "implementing",
+      "files": 57
+    },
+    {
+      "name": "Lifecycle::process_obligations",
+      "files": 0
+    },
+    {
+      "name": "DocType::ALL",
+      "files": 4
+    },
+    {
+      "name": "human",
+      "files": 10
+    },
+    {
+      "name": "agent",
+      "files": 29
+    },
+    {
+      "name": "records",
+      "files": 79
+    },
+    {
+      "name": "ObligationKind::ALL",
+      "files": 4
+    },
+    {
+      "name": "claims",
+      "files": 27
+    },
+    {
+      "name": "none",
+      "files": 117
+    },
+    {
+      "name": "digest",
+      "files": 19
+    },
+    {
+      "name": "history",
+      "files": 22
+    },
+    {
+      "name": "INVENTORY",
+      "files": 3
+    },
+    {
+      "name": "Number",
+      "files": 10
+    },
+    {
+      "name": "raf_okf",
+      "files": 80
+    },
+    {
+      "name": "bindings.examples",
+      "files": 18
+    },
+    {
+      "name": "verify",
+      "files": 41
+    },
+    {
+      "name": "no_run",
+      "files": 16
+    },
+    {
+      "name": "raf_workplan::Gate",
+      "files": 8
+    },
+    {
+      "name": "binding_site",
+      "files": 0
+    },
+    {
+      "name": "exported_items",
+      "files": 0
+    },
+    {
+      "name": "TrustedArgv::from_command_line",
+      "files": 0
+    },
+    {
+      "name": "rust",
+      "files": 100
+    },
+    {
+      "name": "super::X",
+      "files": 0
+    },
+    {
+      "name": "has_unloaded_documents",
+      "files": 0
+    },
+    {
+      "name": "HistoryError::SymbolLog",
+      "files": 0
+    }
+  ],
+  "packages": [
+    "cargo-workplan",
+    "raf-okf",
+    "raf-source",
+    "raf-workplan"
+  ],
+  "urls": [],
+  "truncated": []
+}
