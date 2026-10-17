@@ -15,6 +15,9 @@ Quick orientation:
   fallback where the design says fail hard, change what a census fingerprint
   hashes without bumping `normal_form`, or write issue or pull request numbers
   or development-process wording into any committed file.
+* **No timing runs**: time-based testing is forbidden. Write no timing runs,
+  wall-clock benchmarks, sleep-based waits or timing assertions. Measure with
+  `perf` or by counting allocations, and tell every agent you start this rule.
 * **Naming**: the project is **RAF** (Rust Agentic Foundations) in prose; crate
   and binary names are lowercase `raf-*` and `cargo-*`.
 * **No deferrals**: finish the work, or move the scope to another tracked change.

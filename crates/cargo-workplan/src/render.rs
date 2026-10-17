@@ -11,6 +11,11 @@
 //! that did not find anything wrong). `-q` prints only the findings. The run
 //! exits 1 exactly when the report holds a finding, whatever `-q` hides.
 //!
+//! A report the library renders itself (the table and the JSON array of a
+//! history or of a coverage report) is one rendered block instead: its text
+//! and its JSON are the library's, printed as they are, and it is a finding or
+//! an outcome as a whole.
+//!
 //! The JSON encoding of a record is described in the crate documentation of
 //! the binary (`src/main.rs`), and `tests/json.rs` pins it.
 
@@ -118,11 +123,21 @@ fn member(object: &mut String, name: &str, value: &Value) {
     object.push_str(&value.to_string());
 }
 
-/// What a command produced: its records, in print order, and the notes it has
-/// for standard error.
+/// A report the library rendered: its text form and its JSON array, each
+/// printed exactly as the library wrote it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Rendered {
+    class: Class,
+    text: String,
+    json: String,
+}
+
+/// What a command produced: its records, in print order, or one block the
+/// library rendered, and the notes it has for standard error.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct Report {
     records: Vec<Record>,
+    rendered: Option<Rendered>,
     notes: Vec<String>,
 }
 
@@ -131,6 +146,19 @@ impl Report {
     pub(crate) fn of(records: impl IntoIterator<Item = Record>) -> Self {
         Self {
             records: records.into_iter().collect(),
+            rendered: None,
+            notes: Vec::new(),
+        }
+    }
+
+    /// A report of one block the library rendered: `text` for the text form
+    /// and `json`, one JSON array, for the JSON form. A finding block makes
+    /// the run exit 1 and stays under `-q`; an outcome block is hidden by
+    /// `-q`, which then prints nothing in text and `[]` in JSON.
+    pub(crate) fn rendered(class: Class, text: String, json: String) -> Self {
+        Self {
+            records: Vec::new(),
+            rendered: Some(Rendered { class, text, json }),
             notes: Vec::new(),
         }
     }
@@ -143,10 +171,15 @@ impl Report {
 
     /// The exit of the run: 1 when any record is a finding, else 0.
     pub(crate) fn exit(&self) -> Exit {
-        if self
-            .records
-            .iter()
-            .any(|record| record.class == Class::Finding)
+        let rendered = self
+            .rendered
+            .as_ref()
+            .is_some_and(|block| block.class == Class::Finding);
+        if rendered
+            || self
+                .records
+                .iter()
+                .any(|record| record.class == Class::Finding)
         {
             Exit::Findings
         } else {
@@ -168,6 +201,16 @@ impl Report {
         out: &mut dyn Write,
         diagnostics: &mut dyn Write,
     ) -> io::Result<()> {
+        if let Some(block) = &self.rendered {
+            let shown = !quiet || block.class == Class::Finding;
+            match (format, shown) {
+                (Format::Text, true) => out.write_all(block.text.as_bytes())?,
+                (Format::Json, true) => out.write_all(block.json.as_bytes())?,
+                (Format::Text, false) => {}
+                (Format::Json, false) => out.write_all(b"[]\n")?,
+            }
+            return self.finish(quiet, out, diagnostics);
+        }
         let shown: Vec<&Record> = self
             .records
             .iter()
@@ -193,6 +236,16 @@ impl Report {
                 }
             }
         }
+        self.finish(quiet, out, diagnostics)
+    }
+
+    /// Flush the report and write the notes, unless `quiet`.
+    fn finish(
+        &self,
+        quiet: bool,
+        out: &mut dyn Write,
+        diagnostics: &mut dyn Write,
+    ) -> io::Result<()> {
         out.flush()?;
         if !quiet {
             for note in &self.notes {
@@ -293,6 +346,22 @@ mod tests {
         let parsed: Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(parsed.as_array().map(Vec::len), Some(2));
         assert_eq!(report.exit(), Exit::Findings);
+    }
+
+    #[test]
+    fn a_rendered_block_is_printed_as_given_and_quiet_hides_only_an_outcome() {
+        let table = "| Gap |\n| --- |\n".to_string();
+        let json = "[\n{\"kind\":\"coverage-gap\"}\n]\n".to_string();
+        let gaps = Report::rendered(Class::Finding, table.clone(), json.clone());
+        assert_eq!(printed(&gaps, Format::Text, false).0, table);
+        assert_eq!(printed(&gaps, Format::Json, false).0, json);
+        assert_eq!(printed(&gaps, Format::Text, true).0, table);
+        assert_eq!(gaps.exit(), Exit::Findings);
+        let history = Report::rendered(Class::Outcome, table.clone(), json.clone());
+        assert_eq!(printed(&history, Format::Text, false).0, table);
+        assert_eq!(printed(&history, Format::Text, true).0, "");
+        assert_eq!(printed(&history, Format::Json, true).0, "[]\n");
+        assert_eq!(history.exit(), Exit::Clean);
     }
 
     #[test]

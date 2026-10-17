@@ -20,9 +20,12 @@ to fix the problem.
 
 `raf-okf`, `raf-source`, `raf-workplan` and `cargo-workplan` are **delivered**.
 `raf-workplan` delivers its document model, generated documentation blocks,
-reconcile step, `verify` and completion gate, and `cargo-workplan` runs `check`,
-`status`, `docs sync|preview`, `change new|impact|reconcile|complete` and
-`verify`. The other crates are
+reconcile step, `verify` and completion gate, entity history, execution evidence
+and its claims, prose assessments, two-way coverage and the current-rationale
+check, and `cargo-workplan` runs `check`, `status`, `docs sync|preview`,
+`change new|impact|reconcile|complete`, `verify`, `history`,
+`evidence record|claims|for`, `assess` and `coverage code|tests`: their contract
+is stated in [workplan-cli](docs/capabilities/workplan-cli.md). The other crates are
 **designed — not yet published**. The linked
 capability documents are the specification the crates are built against.
 
@@ -32,7 +35,7 @@ capability documents are the specification the crates are built against.
 | `raf-source` | library | Indexes Rust source so tools can bind documents to code. | **delivered** | [source-index](docs/capabilities/source-index.md) |
 | `raf-census` | library | The duplicate-helper census, ledger and debt ratchet, with a test gate. | **designed — not yet published** | [census-normal-form](docs/capabilities/census-normal-form.md) |
 | `cargo-census` | cargo subcommand | Runs the census from the command line. | **designed — not yet published** | [census-cli](docs/capabilities/census-cli.md) |
-| `raf-workplan` | library | The workplan document model, generated documentation blocks, reconcile step and completion gate. | **delivered** for the capabilities listed — not yet published | [workplan-document-model](docs/capabilities/workplan-document-model.md), [workplan-generated-docs](docs/capabilities/workplan-generated-docs.md), [workplan-reconcile](docs/capabilities/workplan-reconcile.md), [workplan-complete-gate](docs/capabilities/workplan-complete-gate.md) |
+| `raf-workplan` | library | The workplan document model, generated documentation blocks, reconcile step, completion gate, entity history, evidence and claims, prose assessments, two-way coverage and current rationale. | **delivered** for the capabilities listed — not yet published | [workplan-document-model](docs/capabilities/workplan-document-model.md), [workplan-generated-docs](docs/capabilities/workplan-generated-docs.md), [workplan-reconcile](docs/capabilities/workplan-reconcile.md), [workplan-complete-gate](docs/capabilities/workplan-complete-gate.md), [workplan-entity-history](docs/capabilities/workplan-entity-history.md), [workplan-evidence-claims](docs/capabilities/workplan-evidence-claims.md), [workplan-prose-assessment](docs/capabilities/workplan-prose-assessment.md), [workplan-two-way-coverage](docs/capabilities/workplan-two-way-coverage.md), [workplan-current-rationale](docs/capabilities/workplan-current-rationale.md) |
 | `cargo-workplan` | cargo subcommand | Runs the workplan from the command line. | **delivered** — not yet published | [workplan-cli](docs/capabilities/workplan-cli.md) |
 
 ## Usage

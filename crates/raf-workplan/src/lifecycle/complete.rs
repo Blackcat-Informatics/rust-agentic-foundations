@@ -6,10 +6,11 @@
 //! The order is the order of the Contract and is not interchangeable.
 //!
 //! 1. The static conditions are judged, all of them, and every failure is
-//!    collected: the obligation list of `reconcile` (all seven kinds except
+//!    collected: the obligation list of `reconcile` (every kind except
 //!    `example-failing`, which needs a run), the outcome of each item, the
-//!    PROPOSED blocks of the change, the generated blocks, and `check` of the
-//!    repository as it will be once the record is gone.
+//!    PROPOSED blocks of the change, the generated blocks, the assessment of
+//!    each authored section in `affects`, and `check` of the repository as it
+//!    will be once the record is gone.
 //! 2. Only when none failed are the bound tests and examples run, so a
 //!    repository with a documentation fault spends no process on `cargo`.
 //! 3. The repository is opened again and the static conditions are judged
@@ -19,12 +20,14 @@
 //!    very last step, the record is removed.
 
 use std::fs;
+use std::io;
 
-use raf_okf::Location;
-use raf_source::RelPath;
+use raf_okf::{DocType, Location};
+use raf_source::{EntryKind, RelPath};
 
 use crate::bound::{Evidence, Executor};
 use crate::exec::Runner;
+use crate::files::{self, Target};
 use crate::finding::kind;
 use crate::generated;
 use crate::lookup::bare_slug;
@@ -32,8 +35,8 @@ use crate::obligation::{ObligationKind, Reconciled};
 use crate::{Binding, BindingKind, Finding, Opened, SyncError, SyncOptions, SyncReport, Workplan};
 
 use super::completion::{Completion, Failure};
+use super::examples;
 use super::session::{Lifecycle, LifecycleError, Side};
-use super::{examples, untouched};
 
 /// The static conditions judged over one opening of the repository.
 struct Evaluation {
@@ -65,12 +68,30 @@ fn run_keys(runs: &[Binding]) -> Vec<RunKey> {
         .collect()
 }
 
+/// Condition 6: an `assessment-missing`, `assessment-stale` or
+/// `assessment-rejected` obligation of `owed` is a section without a current
+/// accepted assessment.
+fn assessment_failures(owed: &Reconciled) -> impl Iterator<Item = Failure> + '_ {
+    owed.obligations()
+        .iter()
+        .filter(|owed| {
+            matches!(
+                owed.kind,
+                ObligationKind::AssessmentMissing
+                    | ObligationKind::AssessmentStale
+                    | ObligationKind::AssessmentRejected
+            )
+        })
+        .cloned()
+        .map(Failure::Assessment)
+}
+
 impl<R: Runner> Lifecycle<R> {
     /// Complete the change `change`: refuse with every reason it cannot be
     /// completed, or rewrite the generated blocks the removal stales and
     /// remove `work/changes/<slug>.md`.
     ///
-    /// `change` is the slug, with or without the `change:` prefix. The five
+    /// `change` is the slug, with or without the `change:` prefix. The six
     /// conditions of the completion gate are judged as the module documents:
     ///
     /// 1. the obligation list of [`Lifecycle::reconcile`](Lifecycle::reconcile)
@@ -85,10 +106,22 @@ impl<R: Runner> Lifecycle<R> {
     ///    `bindings.examples` of a listed capability passes, by the proof its
     ///    kind requires ([`Executor`]). A capability with empty lists satisfies
     ///    this only while it is `designed` or `considered`; in any other state
-    ///    the empty list is a `binding-missing` obligation of condition 1.
+    ///    the empty list is a `binding-missing` obligation of condition 1;
+    /// 6. each authored section in `affects` has a current assessment with the
+    ///    verdict `accepted` ([`assessment`](crate::assessment)): a section
+    ///    with no assessment, one whose inputs moved, and one that is current
+    ///    and `rejected` each refuse, whether the assessor was a human or an
+    ///    agent. A section that holds only generated blocks would need none,
+    ///    but the profile refuses one, so every section of a loaded capability
+    ///    is authored.
+    ///    This is judged with the other static conditions, before any bound
+    ///    test or example runs.
     ///
     /// A failing example is both an `example-failing` obligation (condition 1)
-    /// and a failure of condition 5.
+    /// and a failure of condition 5, and a section without a current accepted
+    /// assessment is one or more `assessment-*` obligations (condition 1), one
+    /// `assessment-stale` for each input that moved, each also a failure of
+    /// condition 6; the headline of the refusal counts the section once.
     ///
     /// The repository without the record must also pass `check`, apart from
     /// the generated blocks the removal stales (the `Changed by` rows of the
@@ -143,14 +176,18 @@ impl<R: Runner> Lifecycle<R> {
     /// record or a listed capability does not load; [`LifecycleError::Git`]
     /// and [`LifecycleError::Document`] when a section cannot be compared;
     /// [`LifecycleError::Exec`] when a process of a bound run cannot be
-    /// started or read to its end; [`LifecycleError::Gate`] when the
+    /// started or read to its end; [`LifecycleError::RecordRefused`] when
+    /// `work` or `work/changes` is a symbolic link or not a directory, or the
+    /// record is not a regular file there, judged with each evaluation, the
+    /// first before anything runs and the second after the bound runs and
+    /// before the writes; [`LifecycleError::Gate`] when the
     /// repository cannot be opened again; [`LifecycleError::Rewrite`] and
     /// [`LifecycleError::Remove`] when a write fails. Each is the tool being
     /// unable to give an answer, which is not a refusal.
     pub fn complete(&self, change: &str) -> Result<Completion, LifecycleError> {
         let slug = bare_slug(change);
 
-        let before = self.evaluate(&self.opened, slug)?;
+        let before = self.evaluate(&self.opened, slug, false)?;
         if !before.failures.is_empty() {
             return Ok(Completion::Refused {
                 failures: before.failures,
@@ -165,7 +202,7 @@ impl<R: Runner> Lifecycle<R> {
         // The documents and the source can change while `cargo` runs, and
         // `Opened` holds the source as it was.
         let opened = self.gate.open()?;
-        let after = self.evaluate(&opened, slug)?;
+        let after = self.evaluate(&opened, slug, true)?;
         let different = run_keys(&after.runs) != run_keys(&before.runs);
         if different || !after.failures.is_empty() {
             let what = if different {
@@ -183,8 +220,15 @@ impl<R: Runner> Lifecycle<R> {
         Self::write(&opened, &after.record, &after.rewrite)
     }
 
-    /// Judge the static conditions over `opened`.
-    fn evaluate(&self, opened: &Opened, slug: &str) -> Result<Evaluation, LifecycleError> {
+    /// Judge the static conditions over `opened`; `ran` says whether the
+    /// bound tests and examples have run, which a refused way to the record
+    /// reports.
+    fn evaluate(
+        &self,
+        opened: &Opened,
+        slug: &str,
+        ran: bool,
+    ) -> Result<Evaluation, LifecycleError> {
         let plan = opened.workplan();
         let record = plan.change(slug)?;
         let fixed = plan.reconcile(slug)?;
@@ -195,15 +239,18 @@ impl<R: Runner> Lifecycle<R> {
                 side: Side::WorkingTree,
                 reason: error.to_string(),
             })?;
+        // The record is removed as the last step, so the way to it is judged
+        // as every write of the crate judges it, before anything runs and
+        // again before the writes.
+        Self::judge_record(opened, &record_path, ran)?;
 
         // Condition 1, all kinds that need no run of `cargo`.
         let mut obligations = fixed.obligations().to_vec();
-        obligations.extend(untouched::raise(
+        obligations.extend(self.process_obligations(
             opened,
-            &self.runner,
-            &self.prefix,
             &impact,
             record.value().contract_effect,
+            false,
         )?);
         let owed = Reconciled::new(impact.change.clone(), obligations);
         let mut failures: Vec<Failure> = owed
@@ -244,6 +291,10 @@ impl<R: Runner> Lifecycle<R> {
                 .into_iter()
                 .map(|(file, reason)| Failure::Rewrite { file, reason }),
         );
+
+        // Condition 6: the affected authored sections without a current
+        // accepted assessment, from the obligations that state it.
+        failures.extend(assessment_failures(&owed));
 
         // The repository as it will be once the writes are done, judged by
         // `check`.
@@ -343,6 +394,32 @@ impl<R: Runner> Lifecycle<R> {
         owed.extend(tests);
         owed.extend(examples);
         Ok(owed)
+    }
+
+    /// Require that the record is a regular file directly in a `work/changes`
+    /// that is a directory below a `work` that is a directory, neither a link,
+    /// so the removal removes the record and no other file.
+    fn judge_record(opened: &Opened, record: &RelPath, ran: bool) -> Result<(), LifecycleError> {
+        let refused = |path: String, reason: &str| LifecycleError::RecordRefused {
+            path,
+            ran,
+            source: io::Error::new(io::ErrorKind::InvalidInput, reason.to_string()),
+        };
+        match files::target(opened.dir(), DocType::Change.directory(), record) {
+            Ok(Target {
+                kind: Some(EntryKind::File),
+                ..
+            }) => Ok(()),
+            Ok(_) => Err(refused(
+                record.as_str().to_string(),
+                "it is not a regular file",
+            )),
+            Err(error) => Err(LifecycleError::RecordRefused {
+                path: error.path,
+                ran,
+                source: error.source,
+            }),
+        }
     }
 
     /// The writes, in their fixed order: the generated blocks, and then, as the

@@ -10,10 +10,12 @@
     reason = "each test binary uses a part of the shared support"
 )]
 
+pub(crate) mod assessed;
 pub(crate) mod cases;
 pub(crate) mod changes;
 pub(crate) mod checkout;
 pub(crate) mod disk;
+pub(crate) mod evidence;
 pub(crate) mod project;
 pub(crate) mod story;
 pub(crate) mod streaming;
@@ -104,6 +106,25 @@ pub(crate) fn demo_files() -> Vec<(&'static str, &'static str)> {
     ]
 }
 
+/// The source workspace of `files`.
+pub(crate) fn workspace_of(files: &[(&'static str, String)]) -> Workspace {
+    let tree: MemoryTree = files
+        .iter()
+        .map(|(path, text)| (*path, text.as_str()))
+        .collect();
+    match Workspace::load(&tree, &["."]) {
+        Ok(workspace) => workspace,
+        Err(error) => panic!("the workspace loads: {error}"),
+    }
+}
+
+/// Load `repo` through a memory tree against `workspace` and return every
+/// finding but those that only say the repository is not synced.
+pub(crate) fn check_in(repo: &Repo, workspace: &Workspace) -> Vec<Finding> {
+    let tree: MemoryTree = repo.iter().collect();
+    without_sync_findings(Workplan::load(&tree, workspace).check())
+}
+
 /// Load `repo` through a memory tree and return every finding.
 pub(crate) fn check(repo: &Repo) -> Vec<Finding> {
     check_with_symlinks(repo, &[])
@@ -163,6 +184,24 @@ pub(crate) fn with_file(path: &str, text: &str) -> Vec<Finding> {
     plain_check(&repo, path, &[])
 }
 
+/// Where the coverage record lives.
+pub(crate) const COVERAGE: &str = "work/coverage/default.md";
+
+/// The coverage record that enforces nothing: `scope: []` and no exclusion.
+/// Every fixture repository holds it, so none relies on a repository without
+/// a record, which `check` reports as `coverage-record-missing`.
+pub(crate) fn open_coverage() -> String {
+    "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n".to_string()
+}
+
+/// `repo` with the coverage record of [`open_coverage`] at its home, unless
+/// it holds one.
+pub(crate) fn with_open_coverage(mut repo: Repo) -> Repo {
+    repo.entry(COVERAGE.to_string())
+        .or_insert_with(open_coverage);
+    repo
+}
+
 pub(crate) mod fixtures {
     use super::{Repo, check};
     use raf_workplan::Finding;
@@ -207,6 +246,10 @@ pub(crate) mod fixtures {
     pub(crate) const GAMMA: &str = "docs/capabilities/gamma.md";
     pub(crate) const OVERVIEW: &str = "docs/architecture/overview.md";
     pub(crate) const CHANGE: &str = "work/changes/add-alpha.md";
+    /// The Explanation text of gamma in the valid repository: it links the
+    /// architecture page.
+    pub(crate) const OVERVIEW_LINK: &str =
+        "Text for Explanation. See [the overview](../architecture/overview.md).";
 
     pub(crate) fn valid() -> Repo {
         let mut repo = Repo::new();
@@ -215,9 +258,15 @@ pub(crate) mod fixtures {
         };
         put(ALPHA, capability("alpha", "designed", "[cap:beta]", ""));
         put(BETA, capability("beta", "considered", "[]", PROPOSED));
+        // Gamma's Explanation links the architecture page, so no page is
+        // unlinked.
         put(
             GAMMA,
-            capability("gamma", "delivered", "[cap:beta, cap:alpha]", ""),
+            capability("gamma", "delivered", "[cap:beta, cap:alpha]", "").replacen(
+                "Text for Explanation.",
+                OVERVIEW_LINK,
+                1,
+            ),
         );
         put(
             OVERVIEW,
@@ -238,6 +287,7 @@ pub(crate) mod fixtures {
             "README.md",
             "# Readme\n\nSee [alpha](docs/capabilities/alpha.md#purpose).\n".to_string(),
         );
+        put(super::COVERAGE, super::open_coverage());
         repo
     }
 

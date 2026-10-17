@@ -288,7 +288,7 @@ fn a_missing_changes_directory_is_the_empty_set_of_changes() {
         only_gamma.remove(path);
     }
     scratch.repository(&synced(&only_gamma));
-    assert!(!scratch.path().join("work").exists());
+    assert!(!scratch.path().join("work/changes").exists());
     scratch.gate().assert_clean();
 
     // A capability that is not delivered is reported by its state rule.
@@ -298,7 +298,7 @@ fn a_missing_changes_directory_is_the_empty_set_of_changes() {
         with_beta.remove(path);
     }
     other.repository(&synced(&with_beta));
-    assert!(!other.path().join("work").exists());
+    assert!(!other.path().join("work/changes").exists());
     let findings = other.gate().check();
     assert_eq!(kinds(&findings), ["no-open-record"], "{findings:#?}");
 }

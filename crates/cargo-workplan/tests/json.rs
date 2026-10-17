@@ -248,6 +248,17 @@ fn the_kinds_that_are_not_rules_are_not_rule_names() {
         "refusal",
         "completed",
         "binding",
+        "history-entry",
+        "history-removed",
+        "evidence-recorded",
+        "evidence-claim",
+        "evidence-for",
+        "assess-context",
+        "assessment-recorded",
+        "assessment",
+        "coverage-gap",
+        "coverage-excluded",
+        "coverage-error",
     ] {
         assert!(!Finding::KINDS.contains(&kind), "{kind} is also a rule");
     }

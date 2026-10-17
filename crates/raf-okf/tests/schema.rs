@@ -3,10 +3,56 @@
 
 //! The schema table and the timestamp rule.
 
+use std::path::{Path, PathBuf};
+
 use raf_okf::{DocType, TimestampError, ValueKind, validate_timestamp};
 
 fn keys(doc_type: DocType) -> Vec<&'static str> {
     doc_type.keys().iter().map(|spec| spec.key).collect()
+}
+
+/// The architecture page, from the gate root when it is set.
+fn architecture_page() -> String {
+    let root = std::env::var_os("RAF_GATE_ROOT").map_or_else(
+        || Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
+        PathBuf::from,
+    );
+    std::fs::read_to_string(root.join("docs/architecture/okf-profile.md")).expect("the page")
+}
+
+/// A row of the type table: the type, its directory, and each key with
+/// whether the page marks it optional.
+type PageRow = (String, String, Vec<(String, bool)>);
+
+/// The rows of the type table of the architecture page.
+fn page_rows(page: &str) -> Vec<PageRow> {
+    let table = page
+        .split("| Type | Directory | Keys, in writing order |")
+        .nth(1)
+        .expect("the page has the type table");
+    table
+        .lines()
+        .skip(2)
+        .take_while(|line| line.starts_with('|'))
+        .map(|line| {
+            let cells: Vec<&str> = line.split('|').map(str::trim).collect();
+            let keys = cells[3]
+                .split(", ")
+                .map(|key| {
+                    let (optional, key) = match key.strip_prefix("optional ") {
+                        Some(key) => (true, key),
+                        None => (false, key),
+                    };
+                    (key.trim_matches('`').to_string(), optional)
+                })
+                .collect();
+            (
+                cells[1].to_string(),
+                cells[2].trim_matches('`').to_string(),
+                keys,
+            )
+        })
+        .collect()
 }
 
 #[test]
@@ -44,13 +90,67 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
         keys(DocType::Architecture),
         ["type", "id", "title", "description", "tags", "timestamp"]
     );
+    assert_eq!(
+        keys(DocType::Evidence),
+        [
+            "type",
+            "id",
+            "tags",
+            "timestamp",
+            "subject",
+            "inputs",
+            "verdict",
+            "by",
+            "for",
+            "command",
+            "revision",
+            "values",
+            "limits"
+        ]
+    );
+    assert_eq!(
+        keys(DocType::Assessment),
+        [
+            "type",
+            "id",
+            "tags",
+            "timestamp",
+            "subject",
+            "inputs",
+            "verdict",
+            "by"
+        ]
+    );
+    assert_eq!(
+        keys(DocType::Coverage),
+        ["type", "id", "tags", "timestamp", "scope", "exclusions"]
+    );
+    // The page states the same table: one row per type, in the order of
+    // `DocType::ALL`, with the directory, the keys in order and which of them
+    // are optional.
+    let rows = page_rows(&architecture_page());
+    assert_eq!(rows.len(), DocType::ALL.len(), "{rows:#?}");
+    for (doc_type, (name, directory, page_keys)) in DocType::ALL.into_iter().zip(rows) {
+        assert_eq!(name, doc_type.name());
+        assert_eq!(directory, doc_type.directory(), "{name}");
+        let table: Vec<(String, bool)> = doc_type
+            .keys()
+            .iter()
+            .map(|spec| (spec.key.to_string(), !spec.required))
+            .collect();
+        assert_eq!(page_keys, table, "{name}");
+    }
 }
 
 #[test]
 fn tags_and_timestamp_are_optional_and_every_other_key_is_required() {
     for doc_type in DocType::ALL {
         for spec in doc_type.keys() {
-            let optional = matches!(spec.key, "tags" | "timestamp");
+            // Evidence also leaves out what a run may not have: the command
+            // of a bound test, the revision, and the measures.
+            let optional = matches!(spec.key, "tags" | "timestamp")
+                || (doc_type == DocType::Evidence
+                    && matches!(spec.key, "command" | "revision" | "values" | "limits"));
             assert_eq!(spec.required, !optional, "{} {}", doc_type.name(), spec.key);
         }
         let tags = doc_type
@@ -80,9 +180,35 @@ fn a_type_is_found_by_its_exact_name_only() {
     assert_eq!(DocType::Capability.directory(), "docs/capabilities");
     assert_eq!(DocType::Change.directory(), "work/changes");
     assert_eq!(DocType::Architecture.directory(), "docs/architecture");
+    assert_eq!(DocType::Evidence.directory(), "work/evidence");
+    assert_eq!(DocType::Assessment.directory(), "work/assessments");
+    assert_eq!(DocType::Coverage.directory(), "work/coverage");
     assert_eq!(DocType::Capability.id_prefix(), "cap:");
     assert_eq!(DocType::Change.id_prefix(), "change:");
     assert_eq!(DocType::Architecture.id_prefix(), "arch:");
+    assert_eq!(DocType::Evidence.id_prefix(), "evidence:");
+    assert_eq!(DocType::Assessment.id_prefix(), "assessment:");
+    assert_eq!(DocType::Coverage.id_prefix(), "coverage:");
+}
+
+#[test]
+fn only_coverage_is_a_singleton_and_only_the_three_records_are_records() {
+    for doc_type in DocType::ALL {
+        let record = matches!(
+            doc_type,
+            DocType::Evidence | DocType::Assessment | DocType::Coverage
+        );
+        assert_eq!(doc_type.is_record(), record, "{}", doc_type.name());
+        // A record has no title or description; a document has both.
+        let titled = doc_type.keys().iter().any(|spec| spec.key == "title");
+        assert_eq!(titled, !record, "{}", doc_type.name());
+        let singleton = (doc_type == DocType::Coverage).then_some("default");
+        assert_eq!(doc_type.singleton(), singleton, "{}", doc_type.name());
+    }
+    assert_eq!(
+        DocType::listed("or"),
+        "Capability, Change, Architecture, Evidence, Assessment or Coverage"
+    );
 }
 
 #[test]

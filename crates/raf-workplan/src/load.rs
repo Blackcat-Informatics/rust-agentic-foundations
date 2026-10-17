@@ -4,7 +4,7 @@
 //! Reading the document directories through a tree.
 
 use raf_okf::{
-    DocType, Document, ErrorTag, Index, Location, MAX_TEXT_BYTES, Profile, RafDocument, Rule,
+    Body, DocType, Document, ErrorTag, Index, Location, MAX_TEXT_BYTES, Profile, RafDocument, Rule,
     Violation, is_capability_index,
 };
 use raf_source::{EntryKind, RelPath, Tree, TreeError, Workspace};
@@ -22,13 +22,18 @@ const READ_LIMIT: u64 = MAX_TEXT_BYTES as u64 + 1;
 /// The file name of the navigation file of a directory.
 const INDEX: &str = "index.md";
 
+/// The document types the load reads, each from its directory: the
+/// documents people write and the records. A directory that does not exist
+/// holds nothing, so a repository without records loads as before.
+const LOADED: [DocType; 6] = DocType::ALL;
+
 pub(crate) fn load<'s>(
     docs: &dyn Tree,
     source: &'s Workspace,
     links: &LinkContext<'_>,
 ) -> Workplan<'s> {
     let mut plan = Workplan::empty(source);
-    for doc_type in DocType::ALL {
+    for doc_type in LOADED {
         scan_directory(docs, doc_type, links, &mut plan);
     }
     plan.relate();
@@ -74,6 +79,10 @@ fn scan_directory(
             let path = format!("{directory}/{}", entry.name);
             if entry.kind == EntryKind::Dir {
                 subdirectories.push((path, depth + 1));
+            } else if let Some(only) = doc_type.singleton().filter(|_| depth == 0)
+                && entry.name != format!("{only}.md")
+            {
+                plan.findings.push(other_file(&path, doc_type, only));
             } else if is_markdown(&entry.name) {
                 if depth == 0 {
                     read_file(docs, doc_type, &path, links, plan);
@@ -120,6 +129,25 @@ fn nested(path: &str, home: &str) -> Finding {
         Location::Document,
         format!("a document sits below {home}; documents sit directly in their directory"),
         format!("move the file directly into {home}"),
+    )
+}
+
+/// A file in the directory of a type a repository holds once, other than its
+/// one file.
+fn other_file(path: &str, doc_type: DocType, only: &str) -> Finding {
+    let home = doc_type.directory();
+    Finding::new(
+        kind::SINGLETON_OTHER_FILE,
+        path,
+        Location::Document,
+        format!(
+            "{home} holds only {only}.md, the one {} record of the repository; this file is not read",
+            doc_type.name()
+        ),
+        format!(
+            "keep the {} record at {home}/{only}.md and remove this file; a hidden `.{only}.md.*.tmp` file is the temporary of a write that was interrupted, and is removed the same way",
+            doc_type.name()
+        ),
     )
 }
 
@@ -195,7 +223,8 @@ fn read_file(
             path,
             Location::Key("type".to_string()),
             format!(
-                "a {} document sits in {}",
+                "{} {} document sits in {}",
+                declared.article(),
                 declared.name(),
                 dir_type.directory()
             ),
@@ -203,23 +232,7 @@ fn read_file(
         ));
     }
     match Profile.validate(&document, path) {
-        Ok(typed) => {
-            let body = document.body().clone();
-            let path = path.to_string();
-            match typed {
-                RafDocument::Capability(value) => {
-                    plan.capabilities
-                        .push(Loaded::new(path, value, body, &text));
-                }
-                RafDocument::Change(value) => {
-                    plan.changes.push(Loaded::new(path, value, body, &text));
-                }
-                RafDocument::Architecture(value) => {
-                    plan.architecture
-                        .push(Loaded::new(path, value, body, &text));
-                }
-            }
-        }
+        Ok(typed) => admit(plan, path, typed, document.body().clone(), &text),
         Err(violations) => {
             // The blocks of a document that does not validate still name
             // change records; the rules between documents judge them once
@@ -239,6 +252,34 @@ fn read_file(
             }
             plan.findings
                 .extend(violations.iter().map(Finding::from_violation));
+        }
+    }
+}
+
+/// Add a document that satisfies the profile to the model.
+fn admit(plan: &mut Workplan<'_>, path: &str, typed: RafDocument, body: Body, text: &str) {
+    let path = path.to_string();
+    match typed {
+        RafDocument::Capability(value) => {
+            plan.capabilities.push(Loaded::new(path, value, body, text));
+        }
+        RafDocument::Change(value) => {
+            plan.changes.push(Loaded::new(path, value, body, text));
+        }
+        RafDocument::Architecture(value) => {
+            plan.architecture.push(Loaded::new(path, value, body, text));
+        }
+        RafDocument::Evidence(value) => {
+            plan.evidence.push(Loaded::new(path, value, body, text));
+        }
+        RafDocument::Assessment(value) => {
+            plan.assessments.push(Loaded::new(path, value, body, text));
+        }
+        // The profile validates a coverage record only as
+        // `work/coverage/default.md`, the one file of its directory the load
+        // reads, so at most one is admitted.
+        RafDocument::Coverage(value) => {
+            plan.coverage = Some(Loaded::new(path, value, body, text));
         }
     }
 }

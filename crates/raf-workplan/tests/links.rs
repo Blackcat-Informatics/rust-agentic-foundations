@@ -14,7 +14,7 @@ use raf_source::{
     Entry, EntryKind, FileId, MemoryTree, Opened, RelPath, Tree, TreeError, Workspace,
 };
 use raf_workplan::{Finding, LinkContext, Workplan};
-use support::fixtures::{OVERVIEW, mutate, valid};
+use support::fixtures::{GAMMA, OVERVIEW, OVERVIEW_LINK, mutate, valid};
 use support::{
     assert_clean, check, demo_workspace, line_of, path_of, plain_check, with_file,
     without_sync_findings,
@@ -335,9 +335,14 @@ fn a_directory_the_walk_cannot_list_is_reported_and_not_skipped() {
 
 #[test]
 fn the_tree_is_walked_only_when_a_relative_link_needs_it() {
-    // The repository has no relative link in a document, so the directory the
-    // walk could not list is never reached.
-    let tree = Flaky(valid().iter().collect());
+    // Without the architecture page and gamma's link to it, the repository
+    // has no relative link in a document, so the directory the walk could
+    // not list is never reached.
+    let mut repo = valid();
+    repo.remove(OVERVIEW);
+    let gamma = repo.get_mut(GAMMA).expect("the fixture has gamma");
+    *gamma = gamma.replacen(OVERVIEW_LINK, "Text for Explanation.", 1);
+    let tree = Flaky(repo.iter().collect());
     let workspace = demo_workspace();
     assert_clean(&without_sync_findings(
         Workplan::load(&tree, &workspace).check(),

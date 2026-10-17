@@ -3,9 +3,10 @@
 
 //! The findings of the workplan checks: one vocabulary for every rule.
 
+use std::borrow::Cow;
 use std::fmt;
 
-use raf_okf::{ErrorTag, Location, ParseError, Rule, RuleTag, Violation};
+use raf_okf::{DocType, ErrorTag, Location, ParseError, Rule, RuleTag, Violation};
 
 /// Declare the finding kinds as `const` members of [`kind`] and list them, in
 /// declaration order, as the one slice [`Finding::KINDS`] names. A finding is
@@ -31,6 +32,22 @@ kinds! {
     DEPENDS_MISSING = "depends-missing";
     CHANGES_MISSING = "changes-missing";
     MOVED_MISSING = "moved-missing";
+    SINGLETON_OTHER_FILE = "singleton-other-file";
+    CLAIM_EVIDENCE_MISSING = "claim-evidence-missing";
+    CLAIM_EVIDENCE_NOT_FOR = "claim-evidence-not-for";
+    EVIDENCE_FOR_MISSING = "evidence-for-missing";
+    ASSESSMENT_SUBJECT_MISSING = "assessment-subject-missing";
+    ASSESSMENT_ID_MISMATCH = "assessment-id-mismatch";
+    SCOPE_CRATE_MISSING = "scope-crate-missing";
+    COVERAGE_RECORD_MISSING = "coverage-record-missing";
+    COVERAGE_ITEM_UNBOUND = "coverage-item-unbound";
+    COVERAGE_TEST_UNBOUND = "coverage-test-unbound";
+    COVERAGE_REEXPORT_UNBOUND = "coverage-reexport-unbound";
+    COVERAGE_EXCLUSION_UNMATCHED = "coverage-exclusion-unmatched";
+    COVERAGE_SURFACE_UNREADABLE = "coverage-surface-unreadable";
+    ARCHITECTURE_PAGE_UNLINKED = "architecture-page-unlinked";
+    DECISION_CONDITIONS_MISSING = "decision-conditions-missing";
+    EXPLANATION_CONDITIONS_MISSING = "explanation-conditions-missing";
     DEPENDS_CYCLE = "depends-cycle";
     PROPOSED_MISSING_CHANGE = "proposed-missing-change";
     PROPOSED_CHANGE_NOT_LISTING = "proposed-change-not-listing";
@@ -91,6 +108,29 @@ kinds! {
     OKF_PROPOSED_OUTSIDE_SECTION = "okf-proposed-outside-section";
     OKF_PLACEHOLDER = "okf-placeholder";
     OKF_SPLIT_LINK = "okf-split-link";
+    OKF_CLAIM_OUTSIDE_CAPABILITY = "okf-claim-outside-capability";
+    OKF_BODY_NOT_EMPTY = "okf-body-not-empty";
+    OKF_SINGLETON_ID = "okf-singleton-id";
+    OKF_BAD_SUBJECT = "okf-bad-subject";
+    OKF_COMMAND_SUBJECT = "okf-command-subject";
+    OKF_ROW_UNKNOWN_KEY = "okf-row-unknown-key";
+    OKF_ROW_MISSING_KEY = "okf-row-missing-key";
+    OKF_BAD_INPUT_KIND = "okf-bad-input-kind";
+    OKF_BAD_INPUT_NAME = "okf-bad-input-name";
+    OKF_BAD_DIGEST = "okf-bad-digest";
+    OKF_DUPLICATE_ENTRY = "okf-duplicate-entry";
+    OKF_EMPTY_LIST = "okf-empty-list";
+    OKF_SUBJECT_INPUT_MISSING = "okf-subject-input-missing";
+    OKF_BAD_VERDICT = "okf-bad-verdict";
+    OKF_BAD_ACTOR = "okf-bad-actor";
+    OKF_BAD_REVISION = "okf-bad-revision";
+    OKF_BAD_MEASURE = "okf-bad-measure";
+    OKF_LIMIT_WITHOUT_VALUE = "okf-limit-without-value";
+    OKF_VERDICT_OVER_LIMIT = "okf-verdict-over-limit";
+    OKF_BAD_CRATE_NAME = "okf-bad-crate-name";
+    OKF_BAD_EXCLUSION_ITEM = "okf-bad-exclusion-item";
+    OKF_CRATE_ROOT_EXCLUSION = "okf-crate-root-exclusion";
+    OKF_EMPTY_REASON = "okf-empty-reason";
     OKF_PARSE_UNCLOSED_FENCE = "okf-parse-unclosed-fence";
     OKF_PARSE_TOO_LARGE = "okf-parse-too-large";
     OKF_PARSE_MIXED_LINE_ENDINGS = "okf-parse-mixed-line-endings";
@@ -128,6 +168,9 @@ kinds! {
     OKF_PARSE_NESTED_GENERATED = "okf-parse-nested-generated";
     OKF_PARSE_ORPHAN_GENERATED_END = "okf-parse-orphan-generated-end";
     OKF_PARSE_UNCLOSED_GENERATED = "okf-parse-unclosed-generated";
+    OKF_PARSE_MALFORMED_CLAIM = "okf-parse-malformed-claim";
+    OKF_PARSE_UNATTACHED_CLAIM = "okf-parse-unattached-claim";
+    OKF_PARSE_UNKNOWN_MARKER = "okf-parse-unknown-marker";
     OKF_PARSE_LINK_PART_TOO_LONG = "okf-parse-link-part-too-long";
     OKF_PARSE_INDEX_HEADER = "okf-parse-index-header";
     OKF_PARSE_INDEX_MARKER = "okf-parse-index-marker";
@@ -176,6 +219,44 @@ impl Finding {
     ///   is wrong with it.
     /// * `depends-cycle`: capabilities that depend on each other, once for
     ///   each group, a capability that depends on itself included.
+    /// * `singleton-other-file`: a file other than `default.md` in
+    ///   `work/coverage`, the directory of the one coverage record.
+    /// * `claim-evidence-missing` and `claim-evidence-not-for`: a claim marker
+    ///   of a capability names an evidence record that does not exist, or one
+    ///   whose `for` does not list the capability; the finding names the
+    ///   capability document and the line of the marker.
+    /// * `evidence-for-missing`, `assessment-subject-missing` and
+    ///   `scope-crate-missing`: an evidence record's `for` names a capability
+    ///   with no document, an assessment's subject is a section of a
+    ///   capability with no document, or the coverage record's `scope` names
+    ///   a crate that is no package of the source workspace. As for the
+    ///   documents, a name whose record or document exists but is broken is
+    ///   not missing.
+    /// * `coverage-record-missing`: a repository with capability documents
+    ///   has no coverage record `work/coverage/default.md` (`scope: []`
+    ///   enforces nothing, visibly). `coverage-item-unbound` and
+    ///   `coverage-test-unbound`: a public item or a test of a crate of the
+    ///   record's `scope` that no capability binds and no exclusion matches,
+    ///   at the file and line of the item; `coverage-reexport-unbound`: a
+    ///   public re-export of such a crate that the source index cannot follow
+    ///   to an item (a type a macro generates, an enum variant) and that no
+    ///   module binding covers, at its declaration. `coverage-surface-unreadable`: the
+    ///   public surface of a crate of `scope` cannot be listed.
+    ///   `coverage-exclusion-unmatched`: an exclusion that matches no public
+    ///   item and no test of the workspace. See [`crate::coverage`].
+    /// * `assessment-id-mismatch`: an assessment whose id is not
+    ///   `assessment:<capability slug>-<section>` of its subject, the one id
+    ///   an assessment of that section has, so a section has at most one
+    ///   assessment.
+    /// * `architecture-page-unlinked`: an architecture page that no other
+    ///   capability, change or architecture document links to.
+    ///   `decision-conditions-missing`: an architecture page with a
+    ///   `## Decision` heading and no `## Conditions to revisit` heading, or a
+    ///   `## Conditions to revisit` heading with no list item.
+    ///   `explanation-conditions-missing`: a `### Decision` in the Explanation
+    ///   of a capability that no `### Conditions to revisit` follows before
+    ///   the next decision, or such a subheading with no list item. See
+    ///   [`crate::Workplan::check`].
     ///
     /// * `proposed-missing-change`, `proposed-change-not-listing` and
     ///   `proposed-section-not-affected`: a PROPOSED block names a change
@@ -306,8 +387,8 @@ impl fmt::Display for Finding {
 
 /// The kind and the fix of a profile rule.
 #[allow(clippy::too_many_lines, reason = "one arm per rule of the profile")]
-fn rule_entry(tag: RuleTag) -> (&'static str, &'static str) {
-    match tag {
+fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
+    let (kind, fix) = match tag {
         RuleTag::MissingKey => (
             kind::OKF_MISSING_KEY,
             "add the required key to the frontmatter",
@@ -320,10 +401,12 @@ fn rule_entry(tag: RuleTag) -> (&'static str, &'static str) {
             kind::OKF_RESOURCE_KEY,
             "remove the `resource` key; the profile closes the key set",
         ),
-        RuleTag::UnknownType => (
-            kind::OKF_UNKNOWN_TYPE,
-            "set `type` to Capability, Change or Architecture",
-        ),
+        RuleTag::UnknownType => {
+            return (
+                kind::OKF_UNKNOWN_TYPE,
+                Cow::Owned(format!("set `type` to {}", DocType::listed("or"))),
+            );
+        }
         RuleTag::WrongDirectory => (
             kind::OKF_WRONG_DIRECTORY,
             "move the file directly into the directory of its type",
@@ -434,7 +517,79 @@ fn rule_entry(tag: RuleTag) -> (&'static str, &'static str) {
             "replace the placeholder with the resolved text",
         ),
         RuleTag::SplitLink => (kind::OKF_SPLIT_LINK, "write the link on one line"),
-    }
+        RuleTag::ClaimOutsideCapability => (
+            kind::OKF_CLAIM_OUTSIDE_CAPABILITY,
+            "move the statement and its claim marker into a capability document",
+        ),
+        RuleTag::BodyNotEmpty => (
+            kind::OKF_BODY_NOT_EMPTY,
+            "remove the body; a record states its result in the frontmatter",
+        ),
+        RuleTag::SingletonId => (
+            kind::OKF_SINGLETON_ID,
+            "name the record `coverage:default` at work/coverage/default.md",
+        ),
+        RuleTag::BadSubject => (
+            kind::OKF_BAD_SUBJECT,
+            "write the subject in the form of the record type",
+        ),
+        RuleTag::CommandSubject => (
+            kind::OKF_COMMAND_SUBJECT,
+            "state the `command` exactly when the subject is `command`",
+        ),
+        RuleTag::RowUnknownKey => (kind::OKF_ROW_UNKNOWN_KEY, "keep only the keys of the row"),
+        RuleTag::RowMissingKey => (kind::OKF_ROW_MISSING_KEY, "add the missing key to the row"),
+        RuleTag::BadInputKind => (
+            kind::OKF_BAD_INPUT_KIND,
+            "use an input kind the record type takes",
+        ),
+        RuleTag::BadInputName => (
+            kind::OKF_BAD_INPUT_NAME,
+            "write the input name in the form of its kind",
+        ),
+        RuleTag::BadDigest => (
+            kind::OKF_BAD_DIGEST,
+            "write the digest as 64 lowercase hexadecimal digits",
+        ),
+        RuleTag::DuplicateEntry => (kind::OKF_DUPLICATE_ENTRY, "remove the repeated entry"),
+        RuleTag::EmptyList => (kind::OKF_EMPTY_LIST, "list at least one entry"),
+        RuleTag::SubjectInputMissing => (
+            kind::OKF_SUBJECT_INPUT_MISSING,
+            "add the `section` input row of the subject",
+        ),
+        RuleTag::BadVerdict => (
+            kind::OKF_BAD_VERDICT,
+            "set `verdict` to one of the verdicts of the record type",
+        ),
+        RuleTag::BadActor => (kind::OKF_BAD_ACTOR, "set `by` to human or agent"),
+        RuleTag::BadRevision => (
+            kind::OKF_BAD_REVISION,
+            "write the revision as a full commit id",
+        ),
+        RuleTag::BadMeasure => (kind::OKF_BAD_MEASURE, "write the measure as a number"),
+        RuleTag::LimitWithoutValue => (
+            kind::OKF_LIMIT_WITHOUT_VALUE,
+            "remove the limit, or record the value it bounds",
+        ),
+        RuleTag::VerdictOverLimit => (
+            kind::OKF_VERDICT_OVER_LIMIT,
+            "record the verdict as fail, or correct the value",
+        ),
+        RuleTag::BadCrateName => (
+            kind::OKF_BAD_CRATE_NAME,
+            "write the crate by its package name",
+        ),
+        RuleTag::BadExclusionItem => (
+            kind::OKF_BAD_EXCLUSION_ITEM,
+            "write the item as a path or a `<module>::*` prefix",
+        ),
+        RuleTag::CrateRootExclusion => (
+            kind::OKF_CRATE_ROOT_EXCLUSION,
+            "remove the crate from `scope` instead of excluding it",
+        ),
+        RuleTag::EmptyReason => (kind::OKF_EMPTY_REASON, "give the exclusion its reason"),
+    };
+    (kind, Cow::Borrowed(fix))
 }
 
 /// The kind and the fix of a reader error.
@@ -576,6 +731,18 @@ fn error_entry(tag: ErrorTag) -> (&'static str, &'static str) {
         ErrorTag::UnclosedGenerated => (
             kind::OKF_PARSE_UNCLOSED_GENERATED,
             "close the generated block with its end marker",
+        ),
+        ErrorTag::MalformedClaim => (
+            kind::OKF_PARSE_MALFORMED_CLAIM,
+            "write exactly `<!-- raf:claim evidence=<slug>[,<slug>...] -->` on its own line",
+        ),
+        ErrorTag::UnattachedClaim => (
+            kind::OKF_PARSE_UNATTACHED_CLAIM,
+            "put the claim marker directly after the paragraph or list item it supports",
+        ),
+        ErrorTag::UnknownMarker => (
+            kind::OKF_PARSE_UNKNOWN_MARKER,
+            "remove the comment, or write it as a generated or claim marker",
         ),
         ErrorTag::LinkPartTooLong => (
             kind::OKF_PARSE_LINK_PART_TOO_LONG,

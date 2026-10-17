@@ -2,12 +2,17 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
 //! Loads the capability, change and architecture documents of a repository
-//! into a typed model and reports what is wrong with them.
+//! and its evidence, assessment and coverage records into a typed model and
+//! reports what is wrong with them.
 //!
 //! [`Workplan::load`] reads `docs/capabilities`, `docs/architecture` and
 //! `work/changes` through a [`Tree`](raf_source::Tree), parses and validates
 //! each document with `raf-okf`, and keeps the typed documents and their bodies.
-//! Everything that goes wrong is a [`Finding`] with a stable kind from
+//! It reads the records of `work/evidence`, `work/assessments` and
+//! `work/coverage` the same way ([`Workplan::evidence`],
+//! [`Workplan::assessments`], [`Workplan::coverage`]); `work/coverage` holds only
+//! `default.md`, and a repository without these directories loads as one with
+//! no record. Everything that goes wrong is a [`Finding`] with a stable kind from
 //! [`Finding::KINDS`], a location and a fix; nothing is skipped and nothing
 //! panics. [`Workplan::check`] returns the findings.
 //!
@@ -19,9 +24,37 @@
 //! ([`refs`]). Markdown outside the document directories, such as the README,
 //! is judged by the same rules through [`plain::check`].
 //!
+//! The rules of current rationale are part of `check` too. An architecture
+//! page that no capability, change or other architecture page links to is
+//! `architecture-page-unlinked` (a link from the page to itself does not
+//! count). A decision page, an architecture page with a `## Decision`
+//! heading, needs a `## Conditions to revisit` heading, and a
+//! `### Decision` in the Explanation of a capability needs a
+//! `### Conditions to revisit` subheading after it, before the next decision
+//! (`decision-conditions-missing`, `explanation-conditions-missing`); a
+//! conditions heading with no list item is reported under the same kinds.
+//! Headings match their exact text and level, and headings in fenced code or
+//! PROPOSED blocks do not count. A condition is plain prose: whether it has
+//! been met is judged by a person, with [`Workplan::history`] of the page.
+//!
 //! The load also builds the [`Graph`] of the documents and the source they are
 //! bound to, available as [`Workplan::graph`], and reports the references that
-//! name a document that does not exist and the `depends` cycles.
+//! name a document that does not exist and the `depends` cycles. The records are
+//! nodes of the graph too: an evidence record covers the capabilities of its
+//! `for` ([`CoversEdge`]), a claim marker of a capability names the evidence its
+//! statement rests on ([`ClaimEdge`], from the section that holds it), an
+//! assessment assesses a section ([`AssessesEdge`]), the coverage record
+//! scopes crates ([`ScopeEdge`]), and each input row of a record leads to the
+//! section, symbol or evidence record it names when that resolves
+//! ([`InputEdge`]). A claim on evidence that does not exist, or
+//! that does not cover the capability, is a finding with the file and line of
+//! its marker.
+//!
+//! [`digest`] gives the SHA-256 digest of a record input (a section, a symbol
+//! or a record) over a domain-separated, length-prefixed encoding, the same on
+//! every run and platform. [`record`] writes a new record exclusively, or
+//! replaces one through a temporary file and a rename, as the text the
+//! `raf-okf` writer renders, refusing a record that would not load clean.
 //!
 //! Each entry of a capability's `bindings` is resolved through the source
 //! index once, when the graph is built, and the result is kept on its
@@ -74,13 +107,47 @@
 //! of the graph, the items of the record, the gaps of the roadmap, the stale
 //! generated blocks of a sync) and from a fixed list of forward-looking
 //! phrases ([`obligation::tense::PHRASES`]) read in the prose of `implementing`
-//! and `delivered` capabilities. The list is sorted by subject, section, kind,
-//! line and evidence text; `contract_effect: none` suppresses
-//! `section-untouched` for `contract`, `usage` and `examples` and nothing else.
-//! The two kinds that need a process, `section-untouched` and
-//! `example-failing`, are in the closed set of [`obligation::ObligationKind`];
-//! `Workplan::reconcile` does not raise them, and [`lifecycle::Lifecycle::reconcile`]
-//! does.
+//! and `delivered` capabilities, and from the claims and evidence records the
+//! listed capabilities rest on: `claim-unsupported` for a claim whose evidence
+//! does not load, fails or holds a value over its limit, and `evidence-stale`
+//! for a record whose input symbol now has another digest. The list is sorted
+//! by subject, section, kind, line and evidence text; `contract_effect: none`
+//! suppresses `section-untouched` for `contract`, `usage` and `examples` and
+//! nothing else. The three kinds that need a process, `section-untouched`,
+//! `example-failing` and `evidence-changed`, are in the closed set of
+//! [`obligation::ObligationKind`]; `Workplan::reconcile` does not raise them,
+//! and [`lifecycle::Lifecycle::reconcile`] does.
+//!
+//! [`assessment`] records the verdict of a human or an agent on one authored
+//! section, against the digests of its inputs (the section, the bound symbols
+//! it names, the evidence its claims name): [`Workplan::assess_context`] gives
+//! the assessor the same context whoever assesses,
+//! [`Workplan::record_assessment`] writes the one record of the section, and
+//! [`Workplan::list_assessments`] says which are current. Reconcile owes
+//! `assessment-missing`, `assessment-stale` and `assessment-rejected` for the
+//! authored sections in `affects`, and the completion gate requires a current
+//! accepted assessment of each (condition 6).
+//!
+//! [`evidence`] records one execution as an evidence record: the caller's own
+//! command ([`exec::TrustedArgv`], from the command line after `--`, run with no
+//! shell and its verdict from its exit status and the `name=number` values it
+//! prints against the limits) or a bound test or example run by the executor of
+//! [`bound`]; [`Workplan::evidence_claims`] and [`Workplan::evidence_for`] are
+//! the dependency views of the claims and the records.
+//!
+//! [`coverage`] is two-way coverage: [`Workplan::coverage_report`] lists, for
+//! every package of the workspace, the public items (the exported items of each
+//! library and binary target, `#[doc(hidden)]` left out) that no `code` binding
+//! covers, binding an item covering the items below it, and the tests, unit tests
+//! included, that no `tests` binding names, beside what the exclusions of the
+//! coverage record take out and each surface that cannot be listed.
+//! [`coverage::render`] writes each direction as a table and as JSON. `check`
+//! enforces the crates of the record's `scope` (`coverage-item-unbound`,
+//! `coverage-reexport-unbound` for a public re-export the index cannot follow,
+//! `coverage-test-unbound`, `coverage-surface-unreadable`), refuses an exclusion
+//! that matches nothing (`coverage-exclusion-unmatched`), and reports a repository
+//! with capability documents and no coverage record once
+//! (`coverage-record-missing`); `scope: []` enforces nothing.
 //!
 //! [`lifecycle::Lifecycle::open`] is the entry point of the commands that start a
 //! process: it asks `git --version` before any other process, refuses a Git older
@@ -92,7 +159,8 @@
 //! executor of [`bound`]). [`lifecycle::verify`] runs the bound tests and examples
 //! of a change, or of every capability, and returns a [`lifecycle::VerifyReport`]
 //! of per-binding evidence; it needs no Git. [`lifecycle::Lifecycle::complete`]
-//! judges the static conditions of the completion gate first and collects every
+//! judges the static conditions of the completion gate first, a current accepted
+//! assessment of each affected authored section among them, and collects every
 //! failure, runs the bound tests and examples only when none failed, judges the
 //! static conditions again immediately before it writes, and then writes the
 //! generated blocks that removing the record stales and, as the very last step,
@@ -103,9 +171,10 @@
 //!
 //! # Processes
 //!
-//! [`exec`] is the one place a `cargo` or `git` process is started. A process is
-//! an [`exec::Invocation`] of fixed text and values validated by the patterns of
-//! the completion gate, started with no shell, null standard input, bounded
+//! [`exec`] is the one place a `cargo` or `git` process, or the caller's own
+//! command of [`Workplan::record_evidence`], is started. A process is an
+//! [`exec::Invocation`] of fixed text and values validated by the patterns of
+//! the completion gate (or the words of an [`exec::TrustedArgv`]), started with no shell, null standard input, bounded
 //! output and a wall-clock kill by an [`exec::Runner`]; [`exec::FakeRunner`]
 //! answers in process for tests.
 //!
@@ -117,6 +186,17 @@
 //! [`git::MergeBase`], which only [`git::merge_base`] makes). [`root::discover`] finds
 //! the workspace root with `cargo metadata --format-version 1 --no-deps
 //! --frozen`, reading nothing but its `workspace_root` field.
+//!
+//! [`Workplan::history`] answers how a document came to be what it is, from
+//! Git and on request: the commits of the document of a `cap:`, `change:`,
+//! `arch:`, `evidence:` or `assessment:` id through its moves, and for a
+//! capability the commits that changed the lines of each bound `code` symbol
+//! and, for a binding that no longer resolves, the commit that removed it and
+//! its parent ([`history`]). The id never reaches a process, a shallow clone is
+//! refused, and [`history::render`] writes the table and the JSON form of the
+//! same entries. It writes nothing. Text from a document, a record or a commit
+//! that a table or the command line prints is escaped by [`escape`] first, so
+//! no control or bidirectional formatting character reaches a terminal.
 //!
 //! [`bound`] runs what a capability binds: the tests, documentation tests and
 //! examples of `tests` and `examples`, through a runner and only the argv forms of the
@@ -168,11 +248,19 @@
 //! use raf_source::{MemoryTree, Workspace};
 //! use raf_workplan::Workplan;
 //!
-//! let docs = MemoryTree::from([(
-//!     "docs/architecture/overview.md",
-//!     "---\ntype: Architecture\nid: arch:overview\ntitle: Overview\n\
-//!      description: How it fits.\n---\n\n# Overview\n\nBody text.\n",
-//! )]);
+//! // Two architecture pages that link each other: no page is unlinked.
+//! let docs = MemoryTree::from([
+//!     (
+//!         "docs/architecture/overview.md",
+//!         "---\ntype: Architecture\nid: arch:overview\ntitle: Overview\n\
+//!          description: How it fits.\n---\n\n# Overview\n\nSee [the layers](layers.md).\n",
+//!     ),
+//!     (
+//!         "docs/architecture/layers.md",
+//!         "---\ntype: Architecture\nid: arch:layers\ntitle: Layers\n\
+//!          description: The layers.\n---\n\n# Layers\n\nSee [the overview](overview.md).\n",
+//!     ),
+//! ]);
 //! let source = Workspace::load(
 //!     &MemoryTree::from([
 //!         ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
@@ -182,7 +270,7 @@
 //! )?;
 //! let plan = Workplan::load(&docs, &source);
 //! assert!(plan.check().is_empty());
-//! assert_eq!(plan.architecture().len(), 1);
+//! assert_eq!(plan.architecture().len(), 2);
 //!
 //! // A page that is not a document is a finding, not a skipped file.
 //! let docs = MemoryTree::from([("docs/architecture/notes.md", "# Notes\n")]);
@@ -191,14 +279,22 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+pub mod assessment;
 mod bindings;
 pub mod bound;
+pub mod coverage;
+pub mod digest;
+pub mod escape;
+pub mod evidence;
 pub mod exec;
+mod files;
 mod finding;
 mod gate;
 mod generated;
 pub mod git;
+
 mod graph;
+pub mod history;
 pub mod lifecycle;
 mod links;
 mod load;
@@ -207,10 +303,13 @@ mod model;
 pub mod obligation;
 pub mod plain;
 mod preview;
+mod rationale;
+pub mod record;
 pub mod refs;
 mod roadmap;
 pub mod root;
 mod rules;
+mod spdx;
 mod staged;
 mod sync;
 
@@ -218,8 +317,9 @@ pub use bindings::ExampleKind;
 pub use finding::Finding;
 pub use gate::{Gate, GateError, Opened};
 pub use graph::{
-    AffectsEdge, Binding, BindingKind, ChangesEdge, DependsEdge, Edge, EdgeKind, Graph, LinkEdge,
-    LinkEnd, Node, NodeKind, Proposal, SectionId,
+    AffectsEdge, AssessesEdge, Binding, BindingKind, ChangesEdge, ClaimEdge, CoversEdge,
+    DependsEdge, Edge, EdgeKind, Graph, InputEdge, InputTarget, LinkEdge, LinkEnd, Node, NodeKind,
+    Proposal, ScopeEdge, SectionId,
 };
 pub use links::LinkContext;
 pub use lookup::ChangeLookupError;

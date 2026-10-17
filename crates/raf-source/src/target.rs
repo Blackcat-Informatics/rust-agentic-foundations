@@ -40,7 +40,7 @@ impl TargetKind {
 
 /// A package found under a root.
 ///
-/// The struct is `#[non_exhaustive]`: a later field is not a breaking change,
+/// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
 /// so a pattern names the fields it reads and ends in `..`.
 ///
 /// ```compile_fail,E0638
@@ -67,7 +67,7 @@ pub struct Package {
 /// table. The build script has no table and is never tested: its `harness`,
 /// `test` and `doctest` are false and it requires no feature.
 ///
-/// The struct is `#[non_exhaustive]`: a later field is not a breaking change,
+/// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
 /// so a pattern names the fields it reads and ends in `..`.
 ///
 /// ```compile_fail,E0638

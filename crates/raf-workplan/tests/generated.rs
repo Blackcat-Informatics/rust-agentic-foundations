@@ -968,10 +968,21 @@ fn an_existing_index_keeps_its_own_header_and_a_stale_catalogue_is_rewritten_in_
 
 #[test]
 fn a_repository_without_capabilities_needs_no_index() {
+    // Two architecture pages that link each other, and no capability.
     let mut repo = Repo::new();
     repo.insert(
         OVERVIEW.to_string(),
-        support::fixtures::valid()[OVERVIEW].clone(),
+        support::fixtures::valid()[OVERVIEW].replacen(
+            "Body text.",
+            "Body text. See [the layers](layers.md).",
+            1,
+        ),
+    );
+    repo.insert(
+        "docs/architecture/layers.md".to_string(),
+        "---\ntype: Architecture\nid: arch:layers\ntitle: Layers\n\
+         description: The layers.\n---\n\n# Layers\n\nSee [the overview](overview.md).\n"
+            .to_string(),
     );
     assert!(check_all(&repo).is_empty(), "unexpected");
     assert!(

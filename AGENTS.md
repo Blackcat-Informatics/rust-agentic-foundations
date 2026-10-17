@@ -54,10 +54,13 @@ the body model and the profile validation of `raf-okf`, and the `Tree` trait of
 parse, package and target discovery, its module tree and its symbol and use-alias
 index. `raf-workplan` delivers the document model (loading, the graph, binding
 resolution, the check rules and the `Gate`), the generated blocks with their sync
-and preview, and the change lifecycle (`change new`, `impact`, `reconcile`,
-`complete` and `verify`). `cargo-workplan` is **delivered** with all of its
-commands: `check`, `status`, `docs sync|preview`,
-`change new|impact|reconcile|complete` and `verify`. Every other crate below is
+and preview, the change lifecycle (`change new`, `impact`, `reconcile`,
+`complete` and `verify`), entity history, execution evidence and its claims,
+prose assessments, two-way coverage and the current-rationale check of the
+architecture pages. `cargo-workplan` is **delivered** with the commands `check`,
+`status`, `docs sync|preview`, `change new|impact|reconcile|complete`, `verify`,
+`history`, `evidence record|claims|for`, `assess` and `coverage code|tests`, their
+contract stated in the command-line capability. Every other crate below is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |

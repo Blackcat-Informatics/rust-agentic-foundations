@@ -888,7 +888,7 @@ impl Index {
 
     /// The error of a path `text` whose lookups read the glob import at
     /// `position`, whose path names nothing past its first segment.
-    fn glob_error(&self, position: usize, text: &str) -> ResolveError {
+    pub(crate) fn glob_error(&self, position: usize, text: &str) -> ResolveError {
         let decl = &self.uses[position];
         let (UseKind::Glob { segs } | UseKind::Named { segs, .. }) = &decl.kind;
         ResolveError::UnresolvedGlob {
@@ -1028,6 +1028,53 @@ impl Index {
                 .collect();
             GlobFacts { reach, broken }
         })
+    }
+
+    /// The failure that [`Index::resolve`] reports for a path `text` whose
+    /// last segment reads `name` in `module` in `ns`, where the module binds
+    /// it to `bound` (what [`Index::lookup_in`] answers there), as far as
+    /// that last place decides it: `Cyclic` when an import that never
+    /// settled bound it there, `Ambiguous` when it binds several symbols
+    /// there, and `UnresolvedGlob` when the lookup reads a glob whose path
+    /// names nothing past its first segment. The places before the last are
+    /// the caller's to have checked, each as the last place of its own
+    /// prefix, so a path is checked once for each of its segments however
+    /// long the chain of imports behind each one.
+    pub(crate) fn binding_failure(
+        &self,
+        module: usize,
+        ns: Namespace,
+        name: &str,
+        bound: &[ItemId],
+        text: &str,
+    ) -> Option<ResolveError> {
+        let source = Source {
+            module,
+            ns,
+            name: name.to_owned(),
+        };
+        if self.bound_by_undecided(&source) {
+            return Some(ResolveError::Cyclic(text.to_owned()));
+        }
+        let groups: BTreeSet<(TargetId, &str, SymbolKind)> = bound
+            .iter()
+            .map(|id| {
+                let item = &self.items[id.0];
+                (item.target, item.path.as_str(), item.kind)
+            })
+            .collect();
+        if groups.len() > 1 {
+            return Some(ResolveError::Ambiguous(self.sorted(bound.iter().copied())));
+        }
+        self.unresolved_glob_read(std::slice::from_ref(&source))
+            .map(|glob| self.glob_error(glob, text))
+    }
+
+    /// True when the path of the glob import at `position` names nothing in
+    /// the workspace past its first segment, so a lookup that reads it fails
+    /// with [`ResolveError::UnresolvedGlob`].
+    pub(crate) fn glob_broken(&self, position: usize) -> bool {
+        self.glob_facts().broken.contains(&position)
     }
 
     /// The first of the glob imports a walk read, at the places `reads`,

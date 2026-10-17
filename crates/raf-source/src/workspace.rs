@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use crate::discovery::discover;
 use crate::error::{LoadError, LoadErrorKind, Origin};
+use crate::exports::{ExportError, ExportOptions, Exports, Surface};
 use crate::facts::{FileFacts, TestRole};
 use crate::index::{DependencyInfo, Index, LOAD_BASE_BYTES, PackageInfo};
 use crate::item::{Item, ItemId, Namespace, UnresolvedImpl};
@@ -29,7 +30,7 @@ use crate::tree::Tree;
 /// The facts the index is built from stay inside the crate; the items of a
 /// file are read through [`Workspace::items_in`] and the other accessors.
 ///
-/// The struct is `#[non_exhaustive]`: a later field is not a breaking change,
+/// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
 /// so a pattern names the fields it reads and ends in `..`.
 ///
 /// ```compile_fail,E0638
@@ -79,6 +80,9 @@ pub struct Workspace {
     files: BTreeMap<RelPath, SourceFile>,
     index: Index,
     usage: Usage,
+    /// The options of the load, whose item-bytes budget also bounds what a
+    /// query such as [`Workspace::exported_items`] holds.
+    options: LoadOptions,
 }
 
 impl PartialEq for Workspace {
@@ -220,6 +224,7 @@ impl Workspace {
             files,
             index,
             usage: meter.usage(),
+            options: options.clone(),
         })
     }
 
@@ -422,6 +427,102 @@ impl Workspace {
             .by_source
             .get(&(item.file.clone(), item.span.start_byte))
             .map_or(&[][..], Vec::as_slice)
+    }
+
+    /// The public surface of a library or binary target, with the items that
+    /// `#[doc(hidden)]` hides left out: see [`Workspace::exported_items_with`].
+    ///
+    /// ```rust
+    /// use raf_source::{MemoryTree, Workspace};
+    ///
+    /// let tree = MemoryTree::from([
+    ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+    ///     ("src/lib.rs", "mod inner;\npub use inner::go as run;\npub(crate) fn helper() {}\n"),
+    ///     ("src/inner.rs", "pub fn go() {}\npub fn unused() {}\n"),
+    /// ]);
+    /// let ws = Workspace::load(&tree, &["."])?;
+    /// let lib = ws.target_ids().next().expect("the library");
+    /// let exports = ws.exported_items(lib)?;
+    /// let paths: Vec<(&str, &str)> = exports
+    ///     .items
+    ///     .iter()
+    ///     .map(|export| (export.path.as_str(), ws.item(export.item).map_or("", |item| item.path.as_str())))
+    ///     .collect();
+    /// assert_eq!(paths, [("demo::run", "demo::inner::go")]);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// As [`Workspace::exported_items_with`].
+    pub fn exported_items(&self, target: TargetId) -> Result<Exports, ExportError> {
+        self.exported_items_with(target, &ExportOptions::default())
+    }
+
+    /// The public surface of a library or binary target: the items another
+    /// crate can name through its crate root, each under the path it is
+    /// named by, and the public re-exports that name nothing the target
+    /// defines.
+    ///
+    /// An item is exported when a chain of `pub` declarations reaches it from
+    /// the crate root: `pub` modules, and `pub use` re-exports, named or glob,
+    /// renamed or not, through modules of any visibility. A `pub` item of a
+    /// private module is exported only through such a re-export, and a
+    /// `pub(crate)`, `pub(super)`, `pub(in path)` or private item never is,
+    /// nor is one that a re-export that is not `pub` carries on the way.
+    /// Test code is never exported. The members of an exported type or trait
+    /// are listed under its path: each member of a trait, and each `pub`
+    /// member of an inherent impl of a type; the members of trait impls are
+    /// not. A binary's surface is read the same way from its crate root; no
+    /// other crate can name it. A re-export of another crate, of an enum
+    /// variant or of a path the index cannot follow is a
+    /// [`Reexport`](crate::Reexport) and not an item, also where a `pub` glob
+    /// carries it from a module it reaches.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExportError::NotLibraryOrBinary`] for a target id that names
+    /// no library or binary of the workspace, [`ExportError::Resolve`] when a
+    /// public name is ambiguous, goes through a cycle of imports or reads a
+    /// glob whose path names nothing in the workspace, and
+    /// [`ExportError::Budget`] when what the surface holds passes the
+    /// item-bytes budget left after the load, and
+    /// [`ExportError::CarryBudget`], naming the re-export, when the work of
+    /// deciding whether the public globs carry a re-export passes it.
+    pub fn exported_items_with(
+        &self,
+        target: TargetId,
+        options: &ExportOptions,
+    ) -> Result<Exports, ExportError> {
+        let Some(found) = self
+            .targets
+            .get(target.index())
+            .filter(|found| matches!(found.kind, TargetKind::Lib | TargetKind::Bin))
+        else {
+            return Err(ExportError::NotLibraryOrBinary(target));
+        };
+        let meter = Meter::new(&self.options);
+        meter
+            .items(self.usage.item_bytes, &found.root, None)
+            .map_err(ExportError::Budget)?;
+        // The modules of the target whose own file has `#![doc(hidden)]`.
+        let hidden_files: BTreeSet<&str> = self
+            .files
+            .values()
+            .filter(|file| file.facts.doc_hidden)
+            .flat_map(|file| &file.reached)
+            .filter(|reach| reach.target == target)
+            .map(|reach| reach.module_path.as_str())
+            .collect();
+        Surface::new(
+            &self.index,
+            target,
+            &found.crate_path,
+            options,
+            &meter,
+            &hidden_files,
+        )
+        .list()
     }
 
     /// The test functions: the data a caller needs to run one with

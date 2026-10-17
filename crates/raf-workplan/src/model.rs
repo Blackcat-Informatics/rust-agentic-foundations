@@ -5,15 +5,20 @@
 
 use std::collections::BTreeSet;
 
-use raf_okf::{Architecture, Body, Capability, Change, DocType, Index};
+use raf_okf::{
+    Architecture, AssessmentRecord, Body, Capability, Change, CoverageRecord, DocType,
+    EvidenceRecord, Index,
+};
 use raf_source::Workspace;
 
 use crate::Finding;
 use crate::bindings;
+use crate::coverage;
 use crate::generated;
 use crate::graph::{self, BindingKind, Graph};
 use crate::links::LinkContext;
 use crate::load;
+use crate::rationale;
 use crate::roadmap::{OpenChange, Roadmap};
 use crate::rules;
 
@@ -47,6 +52,12 @@ impl<T> Loaded<T> {
         &self.head
     }
 
+    /// The whole text of the file as it was read: the frontmatter and the
+    /// body, byte for byte.
+    pub(crate) fn text(&self) -> String {
+        format!("{}{}", self.head, self.body.text())
+    }
+
     /// The repository-relative path of the file, with `/` separators.
     #[must_use]
     pub fn path(&self) -> &str {
@@ -78,8 +89,9 @@ pub(crate) enum IndexSlot {
     Invalid(Finding),
 }
 
-/// The capability, change and architecture documents of a repository, loaded
-/// through a [`Tree`](raf_source::Tree), with every finding the load made.
+/// The capability, change and architecture documents of a repository and its
+/// evidence, assessment and coverage records, loaded through a
+/// [`Tree`](raf_source::Tree), with every finding the load made.
 ///
 /// A document that breaks the profile is not part of the model; its findings
 /// are. A file the tree refuses to give is a finding that names it.
@@ -88,6 +100,11 @@ pub struct Workplan<'s> {
     pub(crate) capabilities: Vec<Loaded<Capability>>,
     pub(crate) changes: Vec<Loaded<Change>>,
     pub(crate) architecture: Vec<Loaded<Architecture>>,
+    pub(crate) evidence: Vec<Loaded<EvidenceRecord>>,
+    pub(crate) assessments: Vec<Loaded<AssessmentRecord>>,
+    /// The coverage record: only `work/coverage/default.md` is read, so there
+    /// is at most one.
+    pub(crate) coverage: Option<Loaded<CoverageRecord>>,
     pub(crate) findings: Vec<Finding>,
     /// The ids of the documents that exist as files, loaded or not.
     present: BTreeSet<String>,
@@ -104,7 +121,9 @@ pub struct Workplan<'s> {
 
 impl<'s> Workplan<'s> {
     /// Load the documents under `docs/capabilities`, `docs/architecture` and
-    /// `work/changes` of `docs`, and relate them to the source index `source`.
+    /// `work/changes` of `docs` and the records under `work/evidence`,
+    /// `work/assessments` and `work/coverage`, and relate them to the source
+    /// index `source`.
     ///
     /// The load never fails and never panics: every problem is a [`Finding`].
     /// Each directory holds its documents directly. A typed document in the
@@ -112,7 +131,10 @@ impl<'s> Workplan<'s> {
     /// document directory is `nested-directory`, a Markdown file other than
     /// `index.md` that has no frontmatter is `stray-markdown`, and a file or a
     /// directory the tree refuses is `unreadable-file` or
-    /// `unreadable-directory`. A directory that does not exist holds nothing.
+    /// `unreadable-directory`. `work/coverage` holds the one coverage record,
+    /// `default.md`, and any other file there is `singleton-other-file` and is
+    /// not read. A directory that does not exist holds nothing, so a
+    /// repository without records loads as it did before they existed.
     ///
     /// Links are judged against every file `docs` lists, which is the set of
     /// tracked paths only for a tree that holds nothing else. On a disk tree
@@ -142,6 +164,9 @@ impl<'s> Workplan<'s> {
             capabilities: Vec::new(),
             changes: Vec::new(),
             architecture: Vec::new(),
+            evidence: Vec::new(),
+            assessments: Vec::new(),
+            coverage: None,
             findings: Vec::new(),
             present: BTreeSet::new(),
             unvalidated_blocks: Vec::new(),
@@ -158,6 +183,12 @@ impl<'s> Workplan<'s> {
         let stem = name.strip_suffix(".md").unwrap_or(name);
         self.present
             .insert(format!("{}{stem}", doc_type.id_prefix()));
+    }
+
+    /// Whether a file of the document directories exists under the id, loaded
+    /// or not.
+    pub(crate) fn is_present(&self, id: &str) -> bool {
+        self.present.contains(id)
     }
 
     /// Whether the repository has a capability document, loaded or not: the
@@ -187,6 +218,36 @@ impl<'s> Workplan<'s> {
             .collect()
     }
 
+    /// Whether a capability, change or architecture document exists as a file
+    /// and did not load: its links are not in the graph, and its findings say
+    /// what is wrong with it.
+    ///
+    /// A file is noted under the id of its type's prefix and its file stem
+    /// ([`Self::note_present`]), and that id is compared with the header ids of
+    /// the loaded documents. The comparison is exact because the profile rule
+    /// `okf-id-file-name` refuses a document whose id is not its file stem: a
+    /// loaded document is always noted under its own id, and a file whose
+    /// header names another id does not load, so it counts as unloaded.
+    pub(crate) fn has_unloaded_documents(&self) -> bool {
+        let loaded: BTreeSet<&str> = self
+            .capabilities
+            .iter()
+            .map(|cap| cap.value().header.id.as_str())
+            .chain(self.changes.iter().map(|c| c.value().header.id.as_str()))
+            .chain(
+                self.architecture
+                    .iter()
+                    .map(|a| a.value().header.id.as_str()),
+            )
+            .collect();
+        self.present.iter().any(|id| {
+            ["cap:", "change:", "arch:"]
+                .iter()
+                .any(|prefix| id.starts_with(prefix))
+                && !loaded.contains(id.as_str())
+        })
+    }
+
     /// Build the graph of the loaded documents and add the findings of the
     /// rules between documents.
     pub(crate) fn relate(&mut self) {
@@ -194,6 +255,11 @@ impl<'s> Workplan<'s> {
             &self.capabilities,
             &self.changes,
             &self.architecture,
+            &graph::Records {
+                evidence: &self.evidence,
+                assessments: &self.assessments,
+                coverage: self.coverage.as_ref(),
+            },
             &self.present,
             self.source,
         );
@@ -207,6 +273,10 @@ impl<'s> Workplan<'s> {
             &self.present,
             &self.unvalidated_blocks,
         ));
+        let coverage = coverage::check(self);
+        self.findings.extend(coverage);
+        let rationale = rationale::check(self);
+        self.findings.extend(rationale);
     }
 
     /// The graph of the documents and the source they are bound to.
@@ -237,6 +307,25 @@ impl<'s> Workplan<'s> {
     #[must_use]
     pub fn architecture(&self) -> &[Loaded<Architecture>] {
         &self.architecture
+    }
+
+    /// The evidence records of `work/evidence`, in directory order.
+    #[must_use]
+    pub fn evidence(&self) -> &[Loaded<EvidenceRecord>] {
+        &self.evidence
+    }
+
+    /// The assessment records of `work/assessments`, in directory order.
+    #[must_use]
+    pub fn assessments(&self) -> &[Loaded<AssessmentRecord>] {
+        &self.assessments
+    }
+
+    /// The coverage record `work/coverage/default.md`, when it is there and
+    /// loaded.
+    #[must_use]
+    pub fn coverage(&self) -> Option<&Loaded<CoverageRecord>> {
+        self.coverage.as_ref()
     }
 
     /// The findings the load made.

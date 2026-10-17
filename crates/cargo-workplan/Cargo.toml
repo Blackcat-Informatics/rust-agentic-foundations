@@ -3,7 +3,7 @@
 
 [package]
 name = "cargo-workplan"
-description = "The cargo workplan subcommand: check, status and the generated documents of a repository's capability documents."
+description = "The cargo workplan subcommand: check, status, the generated documents, the change lifecycle, history, evidence, assessments and coverage of a repository's capability documents."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

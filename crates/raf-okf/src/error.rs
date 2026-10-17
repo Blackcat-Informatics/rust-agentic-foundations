@@ -132,6 +132,16 @@ pub enum ErrorKind {
         /// The kind of the block.
         kind: String,
     },
+    /// A comment that begins a claim marker in some spelling but is not
+    /// `<!-- raf:claim evidence=<slug>[,<slug>...] -->` alone on its line.
+    MalformedClaim,
+    /// A claim marker that does not directly follow the paragraph or list
+    /// item it supports: it comes first in the body, or after a blank line, a
+    /// heading, a fence, a marker or a PROPOSED block.
+    UnattachedClaim,
+    /// A `<!-- raf:` comment that is neither a generated marker nor a claim
+    /// marker.
+    UnknownMarker,
     /// A link destination or title is longer than the bound.
     LinkPartTooLong {
         /// The bound in bytes.
@@ -224,6 +234,15 @@ impl fmt::Display for ErrorKind {
             Self::UnclosedGenerated { kind } => {
                 write!(f, "the generated block `{kind}` is never closed")
             }
+            Self::MalformedClaim => f.write_str(
+                "malformed claim marker; write exactly `<!-- raf:claim evidence=<slug>[,<slug>...] -->` on its own line",
+            ),
+            Self::UnattachedClaim => f.write_str(
+                "a claim marker follows directly the paragraph or list item it supports, with no blank line between",
+            ),
+            Self::UnknownMarker => f.write_str(
+                "unknown `raf:` marker; the markers are `raf:generated:<kind>` and `raf:claim`",
+            ),
             Self::LinkPartTooLong { max } => {
                 write!(f, "a link destination or title is longer than {max} bytes")
             }
@@ -538,6 +557,12 @@ pub enum ErrorTag {
     OrphanGeneratedEnd,
     /// [`ErrorKind::UnclosedGenerated`].
     UnclosedGenerated,
+    /// [`ErrorKind::MalformedClaim`].
+    MalformedClaim,
+    /// [`ErrorKind::UnattachedClaim`].
+    UnattachedClaim,
+    /// [`ErrorKind::UnknownMarker`].
+    UnknownMarker,
     /// [`ErrorKind::LinkPartTooLong`].
     LinkPartTooLong,
     /// [`ErrorKind::IndexHeader`].
@@ -593,6 +618,9 @@ impl ErrorTag {
             Self::NestedGenerated => "nested-generated",
             Self::OrphanGeneratedEnd => "orphan-generated-end",
             Self::UnclosedGenerated => "unclosed-generated",
+            Self::MalformedClaim => "malformed-claim",
+            Self::UnattachedClaim => "unattached-claim",
+            Self::UnknownMarker => "unknown-marker",
             Self::LinkPartTooLong => "link-part-too-long",
             Self::IndexHeader => "index-header",
             Self::IndexText => "index-text",
@@ -610,7 +638,7 @@ impl fmt::Display for ErrorTag {
 
 impl ErrorKind {
     /// Every tag, in the order of the variants of [`ErrorKind`].
-    pub const ALL: [ErrorTag; 43] = [
+    pub const ALL: [ErrorTag; 46] = [
         ErrorTag::MissingFence,
         ErrorTag::UnclosedFence,
         ErrorTag::TooLarge,
@@ -649,6 +677,9 @@ impl ErrorKind {
         ErrorTag::NestedGenerated,
         ErrorTag::OrphanGeneratedEnd,
         ErrorTag::UnclosedGenerated,
+        ErrorTag::MalformedClaim,
+        ErrorTag::UnattachedClaim,
+        ErrorTag::UnknownMarker,
         ErrorTag::LinkPartTooLong,
         ErrorTag::IndexHeader,
         ErrorTag::IndexText,
@@ -698,6 +729,9 @@ impl ErrorKind {
             Self::NestedGenerated { .. } => ErrorTag::NestedGenerated,
             Self::OrphanGeneratedEnd => ErrorTag::OrphanGeneratedEnd,
             Self::UnclosedGenerated { .. } => ErrorTag::UnclosedGenerated,
+            Self::MalformedClaim => ErrorTag::MalformedClaim,
+            Self::UnattachedClaim => ErrorTag::UnattachedClaim,
+            Self::UnknownMarker => ErrorTag::UnknownMarker,
             Self::LinkPartTooLong { .. } => ErrorTag::LinkPartTooLong,
             Self::IndexHeader => ErrorTag::IndexHeader,
             Self::IndexText => ErrorTag::IndexText,
@@ -765,6 +799,9 @@ mod tag_tests {
             ErrorTag::UnclosedGenerated => ErrorKind::UnclosedGenerated {
                 kind: String::new(),
             },
+            ErrorTag::MalformedClaim => ErrorKind::MalformedClaim,
+            ErrorTag::UnattachedClaim => ErrorKind::UnattachedClaim,
+            ErrorTag::UnknownMarker => ErrorKind::UnknownMarker,
             ErrorTag::LinkPartTooLong => ErrorKind::LinkPartTooLong { max: 0 },
             ErrorTag::IndexHeader => ErrorKind::IndexHeader,
             ErrorTag::IndexText => ErrorKind::IndexText,
@@ -816,16 +853,19 @@ mod tag_tests {
             ErrorKind::NestedGenerated { .. } => 35,
             ErrorKind::OrphanGeneratedEnd => 36,
             ErrorKind::UnclosedGenerated { .. } => 37,
-            ErrorKind::LinkPartTooLong { .. } => 38,
-            ErrorKind::IndexHeader => 39,
-            ErrorKind::IndexText => 40,
-            ErrorKind::IndexMarker => 41,
-            ErrorKind::IndexEmpty => 42,
+            ErrorKind::MalformedClaim => 38,
+            ErrorKind::UnattachedClaim => 39,
+            ErrorKind::UnknownMarker => 40,
+            ErrorKind::LinkPartTooLong { .. } => 41,
+            ErrorKind::IndexHeader => 42,
+            ErrorKind::IndexText => 43,
+            ErrorKind::IndexMarker => 44,
+            ErrorKind::IndexEmpty => 45,
         }
     }
 
     /// How many variants `ErrorKind` has.
-    const VARIANTS: usize = 43;
+    const VARIANTS: usize = 46;
 
     #[test]
     fn all_lists_every_error_kind_once_in_variant_order() {

@@ -11,7 +11,7 @@
 //! dependencies, members or a `[workspace]` table. Each later piece is one
 //! file: its first line is the key and the rest is the text.
 
-use raf_source::{MemoryTree, Namespace, RelPath, Workspace};
+use raf_source::{ExportOptions, MemoryTree, Namespace, RelPath, Workspace};
 
 /// The start of the root manifest; the first piece of the input follows it.
 const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
@@ -42,8 +42,9 @@ pub(crate) fn tree(data: &[u8]) -> Option<MemoryTree> {
 }
 
 /// Ask the index what a tool asks: every query and every item path in each
-/// namespace and package, the items of each file and under each query, and
-/// the test functions. Returns the number of items.
+/// namespace and package, the items of each file and under each query, the
+/// public surface of each target, hidden items included, and the test
+/// functions. Returns the number of items.
 pub(crate) fn exercise(workspace: &Workspace) -> usize {
     let packages: Vec<String> = workspace
         .packages()
@@ -65,6 +66,12 @@ pub(crate) fn exercise(workspace: &Workspace) -> usize {
     let files: Vec<RelPath> = workspace.files().map(|file| file.path.clone()).collect();
     for file in &files {
         std::hint::black_box(workspace.items_in(file).count());
+    }
+    let mut hidden = ExportOptions::default();
+    hidden.include_hidden = true;
+    let targets: Vec<_> = workspace.target_ids().collect();
+    for target in targets {
+        drop(workspace.exported_items_with(target, &hidden));
     }
     drop(workspace.test_fns());
     workspace.items().count()

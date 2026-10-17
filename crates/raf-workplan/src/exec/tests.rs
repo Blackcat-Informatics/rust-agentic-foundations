@@ -5,8 +5,8 @@
 //! a value that fails its pattern never becomes an argument.
 
 use super::{
-    Arg, Commit, DocFilter, ExampleName, Filter, Literal, Package, Pattern, PatternError, RefName,
-    SourcePath, Target, TargetName,
+    Arg, Commit, DocFilter, ExampleName, Filter, Identifier, LineRange, Literal, Package, Pattern,
+    PatternError, RefName, SourcePath, Target, TargetName, TreePath,
 };
 
 /// The name of a variant. The match has no wildcard arm, so a variant added to
@@ -24,11 +24,15 @@ fn variant(arg: &Arg) -> &'static str {
         Arg::RefCommit(_) => "ref-commit",
         Arg::Commit(_) => "commit",
         Arg::RevPath { .. } => "rev-path",
+        Arg::Path(_) => "path",
+        Arg::LineLog { .. } => "line-log",
+        Arg::Pickaxe(_) => "pickaxe",
+        Arg::Trusted(_) => "trusted",
     }
 }
 
 /// Every name [`variant`] can return.
-const VARIANTS: [&str; 11] = [
+const VARIANTS: [&str; 15] = [
     "literal",
     "package",
     "target-lib",
@@ -40,6 +44,10 @@ const VARIANTS: [&str; 11] = [
     "ref-commit",
     "commit",
     "rev-path",
+    "path",
+    "line-log",
+    "pickaxe",
+    "trusted",
 ];
 
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -85,68 +93,106 @@ fn builders() -> Vec<(&'static str, Pattern, Make)> {
                 path: SourcePath::new("docs/a.md").expect("a valid path"),
             })
         }),
+        ("path", Pattern::TreePath, |v| {
+            TreePath::new(v).map(Arg::Path)
+        }),
+        ("line-log", Pattern::TreePath, |v| {
+            TreePath::new(v).map(|file| Arg::LineLog {
+                lines: LineRange::new(1, 2).expect("a valid range"),
+                file,
+            })
+        }),
+        ("pickaxe", Pattern::Identifier, |v| {
+            Identifier::new(v).map(Arg::Pickaxe)
+        }),
     ]
 }
 
 /// Text to build an argument from, with every pattern it matches.
 fn corpus() -> Vec<(String, Vec<Pattern>)> {
-    use Pattern::{Commit, ItemPath, Name, RefName, SourcePath, TargetName};
+    use Pattern::{
+        Commit, Date, Identifier, ItemPath, Name, RefName, SourcePath, TargetName, TreePath,
+    };
     let all = |patterns: &[Pattern]| patterns.to_vec();
     let mut values: Vec<(String, Vec<Pattern>)> = vec![
         (
             "alpha".into(),
-            all(&[Name, TargetName, ItemPath, SourcePath]),
+            all(&[Name, TargetName, ItemPath, SourcePath, TreePath, Identifier]),
         ),
-        ("a_b".into(), all(&[Name, TargetName, ItemPath, SourcePath])),
-        ("_x".into(), all(&[Name, TargetName, ItemPath, SourcePath])),
-        ("9lives".into(), all(&[TargetName, SourcePath])),
-        ("my-crate".into(), all(&[TargetName, SourcePath])),
-        ("a::b::c".into(), all(&[Name, ItemPath])),
-        ("Wrapper<T>::get".into(), all(&[ItemPath])),
-        ("Wrapper<&'a T>::get".into(), all(&[])),
-        ("Wrapper<&'a_T>::get".into(), all(&[ItemPath])),
-        ("src/lib.rs".into(), all(&[SourcePath])),
-        ("docs/capabilities/a-b.md".into(), all(&[SourcePath])),
+        (
+            "a_b".into(),
+            all(&[Name, TargetName, ItemPath, SourcePath, TreePath, Identifier]),
+        ),
+        (
+            "_x".into(),
+            all(&[Name, TargetName, ItemPath, SourcePath, TreePath, Identifier]),
+        ),
+        ("9lives".into(), all(&[TargetName, SourcePath, TreePath])),
+        ("my-crate".into(), all(&[TargetName, SourcePath, TreePath])),
+        ("a::b::c".into(), all(&[Name, ItemPath, TreePath])),
+        ("Wrapper<T>::get".into(), all(&[ItemPath, TreePath])),
+        ("Wrapper<&'a T>::get".into(), all(&[TreePath])),
+        ("Wrapper<&'a_T>::get".into(), all(&[ItemPath, TreePath])),
+        ("src/lib.rs".into(), all(&[SourcePath, TreePath])),
+        (
+            "docs/capabilities/a-b.md".into(),
+            all(&[SourcePath, TreePath]),
+        ),
         (
             "refs/remotes/origin/main".into(),
-            all(&[RefName, SourcePath]),
+            all(&[RefName, SourcePath, TreePath]),
         ),
-        ("refs/remotes/origin/--output=x".into(), all(&[RefName])),
-        (COMMIT.into(), all(&[Commit, TargetName, SourcePath])),
-        // Hostile and malformed.
+        (
+            "refs/remotes/origin/--output=x".into(),
+            all(&[RefName, TreePath]),
+        ),
+        (
+            COMMIT.into(),
+            all(&[Commit, TargetName, SourcePath, TreePath]),
+        ),
+        (
+            "2026-02-28".into(),
+            all(&[Date, TargetName, SourcePath, TreePath]),
+        ),
+        (
+            "2026-02-30".into(),
+            all(&[TargetName, SourcePath, TreePath]),
+        ),
+        // Hostile and malformed. A tree path takes many of them, because it
+        // is only ever placed after `--` or after the colon of `-L`.
         (String::new(), all(&[])),
-        ("-Zunstable-options".into(), all(&[])),
-        ("--exact".into(), all(&[])),
-        ("--include-ignored".into(), all(&[])),
-        ("-rf".into(), all(&[])),
-        ("-".into(), all(&[])),
-        ("a;b".into(), all(&[])),
-        ("a b".into(), all(&[])),
-        (" a".into(), all(&[])),
-        ("a ".into(), all(&[])),
+        ("-Zunstable-options".into(), all(&[TreePath])),
+        ("--exact".into(), all(&[TreePath])),
+        ("--include-ignored".into(), all(&[TreePath])),
+        ("-rf".into(), all(&[TreePath])),
+        ("-".into(), all(&[TreePath])),
+        ("a;b".into(), all(&[TreePath])),
+        ("a b".into(), all(&[TreePath])),
+        (" a".into(), all(&[TreePath])),
+        ("a ".into(), all(&[TreePath])),
         ("a\nb".into(), all(&[])),
         ("a\0b".into(), all(&[])),
-        ("a=b".into(), all(&[])),
-        ("$(touch x)".into(), all(&[])),
-        ("`id`".into(), all(&[])),
-        ("a|b".into(), all(&[])),
-        ("a&b".into(), all(&[])),
+        ("a=b".into(), all(&[TreePath])),
+        ("$(touch x)".into(), all(&[TreePath])),
+        ("`id`".into(), all(&[TreePath])),
+        ("a|b".into(), all(&[TreePath])),
+        ("a&b".into(), all(&[TreePath])),
         ("*".into(), all(&[])),
-        ("a::".into(), all(&[])),
+        ("a::".into(), all(&[TreePath])),
         ("::a".into(), all(&[])),
-        ("a:::b".into(), all(&[])),
-        ("a:b".into(), all(&[])),
-        ("é".into(), all(&[])),
-        ("naïve".into(), all(&[])),
-        ("名前".into(), all(&[])),
-        ("a\u{202e}b".into(), all(&[])),
+        ("a:::b".into(), all(&[TreePath])),
+        ("a:b".into(), all(&[TreePath])),
+        ("é".into(), all(&[TreePath])),
+        ("naïve".into(), all(&[TreePath])),
+        ("名前".into(), all(&[TreePath])),
+        ("a\u{202e}b".into(), all(&[TreePath])),
         ("../x".into(), all(&[])),
         ("a/../b".into(), all(&[])),
         ("/etc/passwd".into(), all(&[])),
         ("refs/heads/../x".into(), all(&[])),
         (
             "main".into(),
-            all(&[Name, TargetName, ItemPath, SourcePath]),
+            all(&[Name, TargetName, ItemPath, SourcePath, TreePath, Identifier]),
         ),
     ];
     values.sort_by(|a, b| a.0.cmp(&b.0));
@@ -171,6 +217,18 @@ fn every_variant_is_walked() {
             rev: Commit::new(COMMIT).unwrap(),
             path: SourcePath::new("a.md").unwrap(),
         },
+        Arg::Path(TreePath::new("-rf.rs").unwrap()),
+        Arg::LineLog {
+            lines: LineRange::new(3, 9).unwrap(),
+            file: TreePath::new("src/lib.rs").unwrap(),
+        },
+        Arg::Pickaxe(Identifier::new("gone").unwrap()),
+        Arg::Trusted(
+            super::TrustedArgv::new(vec!["true".to_string()])
+                .unwrap()
+                .words()[0]
+                .clone(),
+        ),
     ];
     let mut names: Vec<&str> = samples.iter().map(variant).collect();
     names.sort_unstable();
@@ -181,7 +239,9 @@ fn every_variant_is_walked() {
     let built: std::collections::BTreeSet<&str> =
         builders().iter().map(|(name, _, _)| *name).collect();
     for name in VARIANTS {
-        if !matches!(name, "literal" | "target-lib") {
+        // A literal is fixed text, `--lib` holds nothing, and a trusted word
+        // comes only from the command line of the process.
+        if !matches!(name, "literal" | "target-lib" | "trusted") {
             assert!(built.contains(name), "no builder for `{name}`");
         }
     }
@@ -210,12 +270,26 @@ fn a_rejected_value_never_becomes_an_argument() {
                         rendered.contains(&text),
                         "`{rendered}` must carry its value {text:?} unchanged"
                     );
-                    assert!(!text.starts_with('-'), "{text:?} was accepted");
-                    assert!(
-                        text.chars().all(|c| c.is_ascii_graphic())
-                            && !text.contains([';', '|', '$', '`', '*', '(', ')', '"']),
-                        "{text:?} holds a character no pattern allows"
-                    );
+                    if pattern == Pattern::TreePath {
+                        // A tree path may look like an option or hold any
+                        // printable character: it is a path after `--`, or
+                        // the tail of one `-L<start>,<end>:` argument.
+                        assert!(
+                            rendered == text || rendered == format!("-L1,2:{text}"),
+                            "`{rendered}` places the tree path {text:?} where an option is read"
+                        );
+                        assert!(
+                            !text.chars().any(char::is_control),
+                            "{text:?} holds a control character"
+                        );
+                    } else {
+                        assert!(!text.starts_with('-'), "{text:?} was accepted");
+                        assert!(
+                            text.chars().all(|c| c.is_ascii_graphic())
+                                && !text.contains([';', '|', '$', '`', '*', '(', ')', '"']),
+                            "{text:?} holds a character no pattern allows"
+                        );
+                    }
                 }
                 Err(error) => {
                     rejected += 1;

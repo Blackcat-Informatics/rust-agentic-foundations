@@ -143,6 +143,10 @@ jobs:
       # work on every platform.
       - name: Test the bound executors against the fake runner on macOS
         run: "cargo test -p raf-workplan --locked --lib bound::"
+      # macOS answers EPERM, not ESRCH, to a kill of a group whose members have
+      # exited, and only this job can show the runner treats that as done.
+      - name: Test the process group kill on macOS
+        run: "cargo test -p raf-workplan --locked --lib exec::system::"
       - name: Test the bound executors against the real cargo on macOS
         run: cargo test -p raf-workplan --locked --test bound
       # The binary is run as built, in both shapes of its argument vector, against

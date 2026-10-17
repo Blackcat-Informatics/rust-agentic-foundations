@@ -22,6 +22,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use raf_okf::{Actor, AssessmentVerdict};
 use raf_source::RelPath;
 use raf_workplan::bound::BoundOutcome;
 use raf_workplan::exec::{
@@ -30,9 +31,11 @@ use raf_workplan::exec::{
 use raf_workplan::lifecycle::{Completion, Condition, Failure, Lifecycle, LifecycleError};
 use raf_workplan::obligation::ObligationKind;
 use raf_workplan::{ChangeLookupError, Gate, SyncOptions, Workplan};
+use support::assessed::{assess_on_disk, assess_on_disk_as};
 use support::changes::{DONE, capability, record};
 use support::checkout::git;
 use support::disk::{Scratch, put, read, snapshot};
+use support::evidence::{Evidence, digest_of};
 
 /// No fixture may take longer than this, builds included.
 const BUDGET: Duration = Duration::from_secs(300);
@@ -85,6 +88,37 @@ const BROKEN_EXAMPLE: &str = "fn main() {\n    let number: u32 = \"text\";\n    
 const EXITING_EXAMPLE: &str = "fn main() {\n    std::process::exit(3);\n}\n";
 
 const PASSES: &str = "[fx_life::tests::passes]";
+
+/// The evidence record of the trace cases, and the claim on it.
+const EVIDENCE: &str = "work/evidence/bound.md";
+const CLAIM: &str = "<!-- raf:claim evidence=bound -->\n";
+
+/// The digest of `fx_life::add` in the library `lib`.
+fn add_digest(lib: &str) -> String {
+    let source = raf_source::Workspace::load(
+        &raf_source::MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname = \"fx-life\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n",
+            ),
+            ("src/lib.rs", lib),
+        ]),
+        &["."],
+    )
+    .expect("the fixture library loads");
+    digest_of(&source, "fx_life::add")
+}
+
+/// The library with `add` edited.
+fn edited_lib() -> String {
+    LIB.replace("    a + b\n", "    b + a\n")
+}
+
+/// A passing record for `fixture`, made against `add` as `LIB` has it.
+fn evidence() -> Evidence {
+    Evidence::passing("bound", "[cap:fixture]")
+        .inputs(vec![("fx_life::add".to_string(), add_digest(LIB))])
+}
 
 /// An item with an outcome, and one without.
 const NO_OUTCOME: &str = "  - claim: \"fixture is shaped\"\n";
@@ -252,6 +286,7 @@ impl Fixture {
         for (path, text) in spec.documents() {
             put(root, &path, &text);
         }
+        put(root, support::COVERAGE, &support::open_coverage());
         if real {
             git(root, &["init", "-q", "-b", "main"]);
         }
@@ -261,6 +296,9 @@ impl Fixture {
             real,
         };
         fixture.resync();
+        // The sections the change affects are assessed as they stand, so the
+        // gate is judged on what each fixture is about.
+        fixture.assess();
         if real {
             git(root, &["add", "-A"]);
             git(root, &["commit", "-q", "-m", "base"]);
@@ -280,6 +318,13 @@ impl Fixture {
 
     fn root(&self) -> &Path {
         self.scratch.path()
+    }
+
+    /// Assess the sections the change affects as they stand now, as an author
+    /// does after an edit: through the shared helper and the real
+    /// `record_assessment`, replacing the assessments that are there.
+    fn assess(&self) {
+        assess_on_disk(self.root(), "shape");
     }
 
     /// Run `docs sync` over the documents as they are and write what it returns.
@@ -579,6 +624,169 @@ fn a_prefixed_slug_names_the_same_change() {
     assert!(!fixture.exists(RECORD));
 }
 
+/// The record is removed through real directories only. A linked `work`
+/// inside the root, made after the repository is opened, is refused before
+/// any `cargo` process or write, with the record behind it kept; a linked
+/// `work/changes` is never read as the directory of change records, so the
+/// change is not found and nothing runs either. The neighbour with real
+/// directories completes.
+#[cfg(unix)]
+#[test]
+fn a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_completes() {
+    let fixture = Fixture::scripted(&Spec::default());
+    let root = fixture.root();
+    let lifecycle = fixture.over(passing(git_answers(), "passes"));
+    for link in ["work", "work/changes"] {
+        std::fs::rename(root.join(link), root.join("moved")).expect("moves");
+        let up = "../".repeat(link.matches('/').count());
+        std::os::unix::fs::symlink(format!("{up}moved"), root.join(link)).expect("links");
+        let before = fixture.snapshot();
+        let error = lifecycle.complete("shape").expect_err(link);
+        if link == "work" {
+            assert!(
+                matches!(&error, LifecycleError::RecordRefused { path, .. } if path == "work"),
+                "{error:?}"
+            );
+            assert!(
+                matches!(&error, LifecycleError::RecordRefused { ran: false, .. }),
+                "{error:?}"
+            );
+            let text = error.to_string();
+            assert!(
+                text.contains("at the first judgement, before anything ran: ")
+                    && text.contains("; nothing was written, so make"),
+                "{text}"
+            );
+        } else {
+            assert!(
+                matches!(
+                    &error,
+                    LifecycleError::Change(ChangeLookupError::Unknown { .. })
+                ),
+                "{error:?}"
+            );
+        }
+        assert_eq!(fixture.snapshot(), before, "{link}: nothing is written");
+        assert!(
+            lifecycle
+                .runner()
+                .calls()
+                .iter()
+                .all(|c| c.program() == Program::Git),
+            "{link}: no cargo process ran"
+        );
+        std::fs::remove_file(root.join(link)).expect("unlinks");
+        std::fs::rename(root.join("moved"), root.join(link)).expect("moves back");
+    }
+    let completion = lifecycle.complete("shape").expect("complete answers");
+    assert!(completion.is_completed(), "{completion}");
+    assert!(!fixture.exists(RECORD));
+}
+
+/// A change record that becomes a symbolic link while the bound tests run is
+/// refused by the second judgement, after the tests ran: the change still
+/// loads through the link, the error names the record and says the tests
+/// ran, and nothing is written, the link and the file behind it kept. The
+/// neighbour, whose run changes nothing, completes.
+#[cfg(unix)]
+#[test]
+fn a_record_linked_while_the_tests_ran_is_refused_at_the_second_judgement() {
+    let fixture = Fixture::scripted(&Spec::default());
+    let root = fixture.root();
+    let runner = AfterCargo::new(passing(git_answers(), "passes"), || {
+        std::fs::rename(root.join(RECORD), root.join("moved.md")).expect("moves");
+        std::os::unix::fs::symlink("../../moved.md", root.join(RECORD)).expect("links");
+    });
+    let lifecycle = fixture.over(runner);
+    let cap = fixture.text(CAP);
+    let error = lifecycle.complete("shape").expect_err("refused");
+    assert_eq!(fixture.text(CAP), cap, "no generated block is rewritten");
+    assert!(
+        matches!(&error, LifecycleError::RecordRefused { path, ran: true, .. } if path == RECORD),
+        "{error:?}"
+    );
+    let text = error.to_string();
+    assert!(
+        text.contains("at the second judgement, after the bound tests and examples ran: ")
+            && text.contains("; nothing was written, so make"),
+        "{text}"
+    );
+    assert!(
+        programs_of(&lifecycle.runner().commands()).contains(&"cargo"),
+        "the bound tests ran"
+    );
+    assert!(
+        std::fs::symlink_metadata(root.join(RECORD))
+            .expect("the link is kept")
+            .file_type()
+            .is_symlink()
+    );
+    assert!(
+        fixture.exists("moved.md"),
+        "the file behind the link is kept"
+    );
+
+    let neighbour = Fixture::scripted(&Spec::default());
+    let runner = AfterCargo::new(passing(git_answers(), "passes"), || {});
+    let completion = neighbour.over(runner).complete("shape").expect("answers");
+    assert!(completion.is_completed(), "{completion}");
+    assert!(!neighbour.exists(RECORD));
+}
+
+// --- condition 6 ---------------------------------------------------------------------
+
+#[test]
+fn an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does() {
+    // The fixture's Contract is assessed and accepted by an agent: that alone
+    // satisfies the gate.
+    let fixture = Fixture::scripted(&Spec::default());
+    let accepted = fixture.text(ASSESSMENT);
+    assert!(accepted.contains("\nby: agent\n"), "{accepted}");
+    // A rejection by a human or by an agent refuses under conditions 1 and 6,
+    // spends no process on `cargo`, and writes nothing.
+    for by in Actor::ALL {
+        assess_on_disk_as(fixture.root(), "shape", AssessmentVerdict::Rejected, by);
+        let before = fixture.snapshot();
+        let lifecycle = fixture.over(git_answers());
+        let refused = lifecycle.complete("shape").expect("answers");
+        assert_eq!(count(&refused, Condition::Assessments), 1, "{refused}");
+        assert_eq!(kinds(&refused), [ObligationKind::AssessmentRejected]);
+        let text = refused.to_string();
+        assert!(
+            text.starts_with(
+                "refused: 1 obligation, 1 section without a current accepted assessment\n"
+            ),
+            "{text}"
+        );
+        // The fault prints once, under its obligation.
+        assert_eq!(text.matches("assessment-rejected").count(), 1, "{text}");
+        assert!(
+            text.contains(&format!("has the verdict rejected, by {})", by.name())),
+            "{text}"
+        );
+        assert!(
+            lifecycle
+                .runner()
+                .calls()
+                .iter()
+                .all(|call| call.program() == Program::Git),
+            "a refusal of condition 6 starts no cargo"
+        );
+        assert_eq!(fixture.snapshot(), before);
+    }
+    // The neighbour: accepted again by an agent, the change completes, and the
+    // assessment is left as it is.
+    fixture.assess();
+    assert_eq!(fixture.text(ASSESSMENT), accepted);
+    let completion = fixture
+        .over(passing(git_answers(), "passes"))
+        .complete("shape")
+        .expect("answers");
+    assert!(completion.is_completed(), "{completion}");
+    assert_eq!(fixture.text(ASSESSMENT), accepted);
+    assert!(!fixture.exists(RECORD));
+}
+
 // --- one refusal for each kind of obligation ---------------------------------------
 
 const GOOD_LIST: &str = "[fx_life::example_crate::good]";
@@ -599,6 +807,14 @@ struct Case {
 fn nothing(_: &Fixture) {}
 
 fn cases() -> Vec<Case> {
+    let mut cases = document_cases();
+    cases.extend(trace_cases());
+    cases.extend(assessment_cases());
+    cases
+}
+
+/// The cases of the kinds the documents and the bound runs owe.
+fn document_cases() -> Vec<Case> {
     let implementing = || {
         Spec::default()
             .state("implementing")
@@ -613,6 +829,7 @@ fn cases() -> Vec<Case> {
                 fixture.edit(CAP, PROPOSAL, "");
                 fixture.edit(CAP, "state: implementing", "state: delivered");
                 fixture.resync();
+                fixture.assess();
             },
         },
         Case {
@@ -640,6 +857,7 @@ fn cases() -> Vec<Case> {
                     "Text for Contract of fixture.",
                     "Text for Contract of fixture, as revised.",
                 );
+                fixture.assess();
             },
         },
         Case {
@@ -671,6 +889,112 @@ fn cases() -> Vec<Case> {
                     "Text for Purpose of fixture.",
                 );
             },
+        },
+    ]
+}
+
+/// The cases of the kinds the claims and the evidence records owe.
+fn trace_cases() -> Vec<Case> {
+    vec![
+        Case {
+            kind: ObligationKind::ClaimUnsupported,
+            spec: Spec::default()
+                .extra("Contract", CLAIM)
+                .doc(EVIDENCE, evidence().verdict("fail").text()),
+            fault: nothing,
+            repair: |fixture| {
+                fixture.edit(EVIDENCE, "verdict: fail", "verdict: pass");
+                fixture.assess();
+            },
+        },
+        Case {
+            kind: ObligationKind::EvidenceStale,
+            spec: Spec::default()
+                .extra("Contract", CLAIM)
+                .doc(EVIDENCE, evidence().text()),
+            fault: |fixture| {
+                put(fixture.root(), "src/lib.rs", &edited_lib());
+                fixture.assess();
+            },
+            repair: |fixture| {
+                fixture.edit(EVIDENCE, &add_digest(LIB), &add_digest(&edited_lib()));
+                fixture.assess();
+            },
+        },
+        Case {
+            kind: ObligationKind::EvidenceChanged,
+            spec: Spec::default().extra("Contract", CLAIM).doc(
+                EVIDENCE,
+                evidence()
+                    .values(&[("peak", "1")])
+                    .limits(&[("peak", "2")])
+                    .text(),
+            ),
+            fault: |fixture| {
+                put(
+                    fixture.root(),
+                    EVIDENCE,
+                    &evidence().values(&[("peak", "1")]).text(),
+                );
+                fixture.assess();
+            },
+            repair: |fixture| {
+                put(
+                    fixture.root(),
+                    EVIDENCE,
+                    &evidence()
+                        .values(&[("peak", "1")])
+                        .limits(&[("peak", "2")])
+                        .text(),
+                );
+                fixture.assess();
+            },
+        },
+    ]
+}
+
+/// The assessment of the Contract of `fixture`, the one section the change
+/// affects.
+const ASSESSMENT: &str = "work/assessments/fixture-contract.md";
+
+/// The cases of the kinds the assessments owe: the assessment removed, the
+/// section edited after it was made, and a current assessment that rejects
+/// the section. Each repair assesses the section again with the verdict
+/// `accepted`.
+fn assessment_cases() -> Vec<Case> {
+    vec![
+        Case {
+            kind: ObligationKind::AssessmentMissing,
+            spec: Spec::default(),
+            fault: |fixture| {
+                std::fs::remove_file(fixture.root().join(ASSESSMENT)).expect("removed");
+            },
+            repair: Fixture::assess,
+        },
+        Case {
+            kind: ObligationKind::AssessmentStale,
+            spec: Spec::default(),
+            fault: |fixture| {
+                fixture.edit(
+                    CAP,
+                    "Text for Contract of fixture.",
+                    "Text for Contract of fixture, edited after the assessment.",
+                );
+            },
+            repair: Fixture::assess,
+        },
+        Case {
+            kind: ObligationKind::AssessmentRejected,
+            spec: Spec::default(),
+            fault: |fixture| {
+                assess_on_disk_as(
+                    fixture.root(),
+                    "shape",
+                    AssessmentVerdict::Rejected,
+                    Actor::Human,
+                );
+            },
+            repair: Fixture::assess,
         },
     ]
 }
@@ -708,6 +1032,19 @@ fn each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_a
         stood.dedup();
         assert_eq!(stood, [case.kind], "{name}: {refused}");
         assert!(count(&refused, Condition::Obligations) >= 1, "{name}");
+        // An assessment kind stands under condition 6 too, and no other kind
+        // does.
+        let assessed = matches!(
+            case.kind,
+            ObligationKind::AssessmentMissing
+                | ObligationKind::AssessmentStale
+                | ObligationKind::AssessmentRejected
+        );
+        assert_eq!(
+            count(&refused, Condition::Assessments),
+            usize::from(assessed),
+            "{name}: {refused}"
+        );
         assert!(
             refused.to_string().starts_with("refused: "),
             "{name}: {refused}"
@@ -732,12 +1069,18 @@ fn each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_a
 /// whether it names a line.
 fn place_of(kind: ObligationKind) -> (&'static str, bool) {
     match kind {
-        ObligationKind::UnresolvedProposal | ObligationKind::TenseMismatch => (CAP, true),
+        ObligationKind::UnresolvedProposal
+        | ObligationKind::TenseMismatch
+        | ObligationKind::ClaimUnsupported
+        | ObligationKind::EvidenceChanged => (CAP, true),
         ObligationKind::ItemWithoutOutcome => (RECORD, false),
         ObligationKind::BindingMissing
         | ObligationKind::SectionUntouched
-        | ObligationKind::ExampleFailing => (CAP, false),
+        | ObligationKind::ExampleFailing
+        | ObligationKind::AssessmentMissing => (CAP, false),
         ObligationKind::GeneratedStale => (INDEX, true),
+        ObligationKind::EvidenceStale => (EVIDENCE, false),
+        ObligationKind::AssessmentStale | ObligationKind::AssessmentRejected => (ASSESSMENT, false),
         _ => unreachable!("every kind has a case"),
     }
 }
@@ -976,6 +1319,8 @@ fn a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside
     let doc = "/// assert_eq!(fx_life::add(1, 2), 3);";
     let fixture = Fixture::real(&Spec::default().examples("[fx_life::add]", &[]));
     fixture.edit("src/lib.rs", doc, "/// assert_eq!(fx_life::add(1, 2), 4);");
+    // The documentation is part of the text of the bound symbol.
+    fixture.assess();
     let before = fixture.snapshot();
     let refused = fixture.complete();
     assert_eq!(count(&refused, Condition::BoundRuns), 1, "{refused}");
@@ -989,6 +1334,7 @@ fn a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside
     assert_eq!(kinds(&refused), [ObligationKind::ExampleFailing]);
     assert_eq!(fixture.snapshot(), before);
     fixture.edit("src/lib.rs", "/// assert_eq!(fx_life::add(1, 2), 4);", doc);
+    fixture.assess();
     assert!(fixture.complete().is_completed());
 
     // A tests binding to a function that is not a `#[test]` runs zero tests:
@@ -1104,6 +1450,59 @@ fn an_item_without_outcome_and_a_stale_block_print_the_counts_of_the_contract() 
         text.contains("docs/capabilities/index.md  document  generated-stale  line ")
             && text.contains("a docs sync run (the `catalogue` block is stale)"),
         "{text}"
+    );
+}
+
+/// The headline counts sections for condition 6: one section whose
+/// assessment has three moved inputs (its own text and two bound symbols) is
+/// three obligations, each printed once, and one section; two sections with
+/// one moved input each are two.
+#[test]
+fn a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline() {
+    let spec = Spec {
+        code: "[fx_life::add, fx_life::plain]",
+        ..Spec::default()
+    }
+    .extra("Contract", "\nThe fixture adds.\n");
+    let fixture = Fixture::scripted(&spec);
+    fixture.edit(CAP, "The fixture adds.", "The fixture adds two numbers.");
+    fixture.edit("src/lib.rs", "    a + b\n", "    b + a\n");
+    fixture.edit(
+        "src/lib.rs",
+        "pub fn plain() {}",
+        "pub fn plain() {\n    drop(());\n}",
+    );
+    let before = fixture.snapshot();
+    let refused = fixture
+        .over(git_answers())
+        .complete("shape")
+        .expect("answers");
+    assert_eq!(
+        refused.headline(),
+        "refused: 3 obligations, 1 section without a current accepted assessment",
+        "{refused}"
+    );
+    assert_eq!(kinds(&refused), [ObligationKind::AssessmentStale]);
+    assert_eq!(count(&refused, Condition::Assessments), 3);
+    assert_eq!(refused.to_string().lines().count(), 4, "{refused}");
+    assert_eq!(fixture.snapshot(), before);
+
+    // The neighbour: two sections, each with its own text moved.
+    let two = Spec::default()
+        .extra("Contract", "\nThe fixture adds.\n")
+        .extra("Usage", "\nCall it.\n")
+        .effect("none", &["cap:fixture#contract", "cap:fixture#usage"]);
+    let fixture = Fixture::scripted(&two);
+    fixture.edit(CAP, "The fixture adds.", "The fixture adds two numbers.");
+    fixture.edit(CAP, "Call it.", "Call it twice.");
+    let refused = fixture
+        .over(git_answers())
+        .complete("shape")
+        .expect("answers");
+    assert_eq!(
+        refused.headline(),
+        "refused: 2 obligations, 2 sections without a current accepted assessment",
+        "{refused}"
     );
 }
 
@@ -1293,6 +1692,7 @@ fn contract_effect_none_completes_without_usage_or_example_edits_and_still_refus
         "Text for Usage of fixture.",
         "Text for Usage of fixture. It is going to change.",
     );
+    fixture.assess();
     let refused = fixture.complete();
     assert_eq!(
         kinds(&refused),
@@ -1763,6 +2163,7 @@ fn conditions_and_failures_have_stable_names_and_the_headline_is_the_first_line(
         (Condition::Proposals, "proposals", Some(3)),
         (Condition::GeneratedBlocks, "generated-blocks", Some(4)),
         (Condition::BoundRuns, "bound-runs", Some(5)),
+        (Condition::Assessments, "assessments", Some(6)),
         (Condition::AfterRemoval, "after-removal", None),
         (Condition::ChangedDuringRun, "changed-during-run", None),
     ] {

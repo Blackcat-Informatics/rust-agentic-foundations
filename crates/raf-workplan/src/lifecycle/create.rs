@@ -7,28 +7,21 @@
 use std::collections::BTreeSet;
 use std::error::Error;
 use std::fmt;
-use std::fs::{self, OpenOptions};
-use std::io::{self, Write as _};
+use std::fs;
+use std::io;
 use std::path::Path;
 
 use raf_okf::{
     CapabilitySection, ConstructError, DocType, Document, Entry, Frontmatter, List, ListItem, Map,
     Scalar, State, Value, is_kebab,
 };
-use raf_source::{DiskTree, EntryKind, RelPath, Tree};
+use raf_source::{DiskTree, RelPath};
 
+use crate::files::{self, CreateError};
 use crate::generated;
 use crate::graph::SectionId;
+use crate::spdx::{self, SpdxError};
 use crate::{Finding, Workplan};
-
-/// The tag of the copyright line of an SPDX header. It is written in two pieces
-/// so that this file does not carry the tag itself, which a licence checker
-/// reads in any file.
-const COPYRIGHT_TAG: &str = concat!("SPDX-", "FileCopyrightText: ");
-
-/// The tag of the licence line of an SPDX header, in two pieces for the same
-/// reason.
-const LICENCE_TAG: &str = concat!("SPDX-", "License-Identifier: ");
 
 /// The prefix of a capability id.
 const CAPABILITY_PREFIX: &str = "cap:";
@@ -519,7 +512,7 @@ impl Workplan<'_> {
         }
         let document = Document::new(frontmatter(slug, &capabilities, &affects)?, BODY)?;
         let before = pending_sync(self);
-        create(root, &path, &with_spdx(document.render(), spdx))?;
+        create(root, &path, &spdx::with_spdx(document.render(), spdx))?;
         let after = match self.reload(root, &path, slug) {
             Ok(after) => after,
             Err(error) => {
@@ -624,52 +617,12 @@ fn pending_sync(plan: &Workplan<'_>) -> Pending {
 
 /// The SPDX lines of a request: both, or neither.
 fn spdx_of(request: &NewChangeRequest) -> Result<Option<(&str, &str)>, NewChangeError> {
-    match (request.copyright.as_deref(), request.licence.as_deref()) {
-        (None, None) => Ok(None),
-        (Some(_), None) => Err(NewChangeError::SpdxUnset { field: "licence" }),
-        (None, Some(_)) => Err(NewChangeError::SpdxUnset { field: "copyright" }),
-        (Some(copyright), Some(licence)) => Ok(Some((
-            spdx_line("copyright", copyright)?,
-            spdx_line("licence", licence)?,
-        ))),
-    }
-}
-
-/// A value of the SPDX header: not empty and one line of text.
-fn spdx_line<'a>(field: &'static str, value: &'a str) -> Result<&'a str, NewChangeError> {
-    // A control character, and the two separators Unicode adds to the line
-    // breaks (U+2028 and U+2029), would end or split the comment line. The
-    // value is judged as given, so a line ending at its edge is refused too and
-    // not trimmed away.
-    if value
-        .chars()
-        .any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'))
-    {
-        return Err(NewChangeError::SpdxInvalid {
-            field,
-            reason: "it must be one line of text, with no control character and no line or paragraph separator",
-        });
-    }
-    let value = value.trim();
-    if value.is_empty() {
-        return Err(NewChangeError::SpdxInvalid {
-            field,
-            reason: "it is empty",
-        });
-    }
-    Ok(value)
-}
-
-/// `rendered` with the two SPDX comment lines directly after the opening
-/// fence of the frontmatter, where the change records of a repository that
-/// checks licences carry them.
-fn with_spdx(rendered: String, spdx: Option<(&str, &str)>) -> String {
-    let Some((copyright, licence)) = spdx else {
-        return rendered;
-    };
-    let fence = rendered.find('\n').map_or(rendered.len(), |end| end + 1);
-    let (head, tail) = rendered.split_at(fence);
-    format!("{head}# {COPYRIGHT_TAG}{copyright}\n# {LICENCE_TAG}{licence}\n{tail}")
+    spdx::pair(request.copyright.as_deref(), request.licence.as_deref()).map_err(
+        |error| match error {
+            SpdxError::Unset { field } => NewChangeError::SpdxUnset { field },
+            SpdxError::Invalid { field, reason } => NewChangeError::SpdxInvalid { field, reason },
+        },
+    )
 }
 
 /// The `affects` sections of a request: the entries given, or the `contract`
@@ -759,62 +712,11 @@ fn write_error(path: &str, source: io::Error) -> NewChangeError {
     }
 }
 
-/// Create `path` below `root` with `text`, exclusively.
-///
-/// `work` and `work/changes` must each be a directory or not exist; a
-/// symbolic link or a file there is refused, and a missing directory is
-/// created. The file is created with `create_new`, so an existing file or
-/// link at the path is an [`NewChangeError::Exists`] and is not touched. A
-/// failure after the file was created removes it again.
+/// Create the record `path` below `root` with `text`, exclusively, creating
+/// `work/changes` when it is missing; see [`files::create_new`].
 fn create(root: &Path, path: &RelPath, text: &str) -> Result<(), NewChangeError> {
-    let tree = DiskTree::new(root).map_err(|error| write_error(path.as_str(), to_io(error)))?;
-    let directory = DocType::Change.directory();
-    let mut missing = false;
-    let mut prefix = String::new();
-    for part in directory.split('/') {
-        if !prefix.is_empty() {
-            prefix.push('/');
-        }
-        prefix.push_str(part);
-        let rel = RelPath::new(&prefix).map_err(|error| {
-            write_error(&prefix, io::Error::new(io::ErrorKind::InvalidInput, error))
-        })?;
-        match tree.entry(&rel) {
-            Ok(Some(EntryKind::Dir)) => {}
-            Ok(None) => missing = true,
-            Ok(Some(_)) => {
-                return Err(write_error(
-                    &prefix,
-                    io::Error::new(io::ErrorKind::InvalidInput, "it is not a directory"),
-                ));
-            }
-            Err(error) => return Err(write_error(&prefix, to_io(error))),
-        }
-    }
-    if missing {
-        fs::create_dir_all(root.join(directory)).map_err(|error| write_error(directory, error))?;
-    }
-    let target = root.join(path.as_str());
-    let mut file = match OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&target)
-    {
-        Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            return Err(NewChangeError::Exists { path: path.clone() });
-        }
-        Err(error) => return Err(write_error(path.as_str(), error)),
-    };
-    let written = file
-        .write_all(text.as_bytes())
-        .and_then(|()| file.sync_all());
-    if let Err(error) = written {
-        drop(file);
-        // The file was created by this call just above; nothing else is
-        // removed.
-        let _ = fs::remove_file(&target);
-        return Err(write_error(path.as_str(), error));
-    }
-    Ok(())
+    files::create_new(root, DocType::Change.directory(), path, text).map_err(|error| match error {
+        CreateError::Exists => NewChangeError::Exists { path: path.clone() },
+        CreateError::Write { path, source } => NewChangeError::Write { path, source },
+    })
 }

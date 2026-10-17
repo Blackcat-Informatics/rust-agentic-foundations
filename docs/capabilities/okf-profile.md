@@ -15,6 +15,18 @@ bindings:
     - raf_okf::is_capability_index
     - raf_okf::Span
     - raf_okf::RafDocument
+    - raf_okf::EvidenceRecord
+    - raf_okf::AssessmentRecord
+    - raf_okf::CoverageRecord
+    - raf_okf::Claim
+    - raf_okf::EvidenceRecord::new
+    - raf_okf::EvidenceRecord::to_document
+    - raf_okf::AssessmentRecord::new
+    - raf_okf::AssessmentRecord::to_document
+    - raf_okf::CoverageRecord::new
+    - raf_okf::CoverageRecord::to_document
+    - raf_okf::Number::compare
+    - raf_okf::Number::exceeds
   tests:
     - raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests
     - raf_okf::test_crate::refusals::a_document_without_a_fence_on_line_one_is_refused
@@ -72,7 +84,43 @@ bindings:
     - raf_okf::test_crate::no_io_in_source::the_crate_sources_name_neither_the_file_system_nor_the_process_module
     - raf_okf::test_crate::usage_docs::the_examples_block_validates_between_fences_and_resource_is_rejected
     - raf_okf::test_crate::repo_markdown::no_tracked_markdown_file_holds_a_split_link_or_a_malformed_block
-  examples: []
+    - raf_okf::test_crate::schema::only_coverage_is_a_singleton_and_only_the_three_records_are_records
+    - raf_okf::test_crate::records::a_valid_evidence_record_validates_to_its_typed_value
+    - raf_okf::test_crate::records::a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float
+    - raf_okf::test_crate::records::numbers_compare_exactly_by_sign_whole_part_and_fraction
+    - raf_okf::test_crate::records::a_valid_assessment_validates_to_its_typed_value
+    - raf_okf::test_crate::records::a_valid_coverage_record_validates_and_an_empty_scope_opts_out_visibly
+    - raf_okf::test_crate::records::a_verdict_is_one_of_the_verdicts_of_its_type
+    - raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name
+    - raf_okf::test_crate::records::a_digest_is_sixty_four_lowercase_hex_digits
+    - raf_okf::test_crate::records::a_revision_is_a_full_commit_id
+    - raf_okf::test_crate::records::an_exclusion_names_an_item_or_a_module_prefix_below_a_crate_root
+    - raf_okf::test_crate::records::an_exclusion_has_a_reason_with_no_placeholder
+    - raf_okf::test_crate::records::a_list_that_holds_each_entry_once_refuses_a_repeat
+    - raf_okf::test_crate::records::coverage_is_one_record_at_its_one_path
+    - raf_okf::test_crate::records::a_record_sits_in_its_directory_and_its_id_matches_its_file
+    - raf_okf::test_crate::records::a_record_has_no_title_description_or_body
+    - raf_okf::test_crate::claims::a_claim_marker_names_its_evidence_and_supports_the_paragraph_above_it
+    - raf_okf::test_crate::claims::a_claim_may_rest_on_several_records
+    - raf_okf::test_crate::claims::a_claim_after_a_list_item_supports_that_item_only
+    - raf_okf::test_crate::claims::markers_in_fences_code_spans_and_proposed_blocks_are_not_read
+    - raf_okf::test_crate::claims::every_other_raf_comment_is_refused_with_its_line
+    - raf_okf::test_crate::claims::a_malformed_claim_marker_is_refused_with_its_line
+    - raf_okf::test_crate::claims::a_claim_marker_with_no_statement_directly_above_is_refused
+    - raf_okf::test_crate::claims::claims_in_a_document_carry_whole_text_lines
+    - raf_okf::test_crate::render::record_keys_out_of_order_render_in_table_order_and_validate
+    - raf_okf::test_crate::record_writer::a_built_evidence_record_renders_to_a_record_that_reads_back_equal
+    - raf_okf::test_crate::record_writer::a_built_assessment_and_coverage_record_read_back_equal
+    - raf_okf::test_crate::record_writer::every_record_fixture_reads_back_equal_after_writing
+    - raf_okf::test_crate::record_writer::the_keys_are_written_in_the_order_of_the_key_table
+    - raf_okf::test_crate::record_writer::a_value_the_profile_refuses_is_written_and_refused_when_it_is_read_back
+    - raf_okf::test_crate::claims::a_raf_generated_comment_in_another_case_or_spacing_is_text
+    - raf_okf::test_crate::claims::a_raf_comment_split_over_lines_is_a_marker_error_and_other_split_comments_are_text
+    - cargo_workplan::test_crate::check::a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass
+    - raf_okf::test_crate::validate_cost::an_evidence_record_at_the_cap_with_maximal_values_and_limits_validates_within_the_bound
+  examples:
+    - raf_okf::EvidenceRecord::to_document
+    - raf_okf::Claim
 depends: []
 ---
 
@@ -88,7 +136,8 @@ a document means the same thing to every tool.
 ## Contract
 
 The facts of the profile, which are the document types, the closed key sets, the
-value rules, the body rules and the PROPOSED and generated block syntax, are stated
+value rules, the body rules and the syntax of the PROPOSED blocks, the generated
+blocks and the claim markers, are stated
 once, in [the RAF profile of OKF](../architecture/okf-profile.md). `raf-okf`
 implements that page and adds no rule of its own. This document states only what the
 crate does with it.
@@ -118,10 +167,17 @@ panic, abort or unbounded allocation:
   would otherwise rescan a long paragraph for every `](`. A longer part is a
   positioned error, never a link that is silently not read.
 
+**Document types.** The profile has six types: the documents `Capability`, `Change`
+and `Architecture`, which people write, and the records `Evidence`, `Assessment` and
+`Coverage`, which state a result in their frontmatter. `DocType::ALL` lists them.
+
 **Validate.** `Profile::validate` checks a parsed document and its path against the
 closed key set of its `type` and returns a typed result: the typed document
 (`RafDocument`, with `State`, `Bindings`, `Affects` entries, `ChangeItem` entries and
-their `Outcome`), or the list of every violation, not only the first. Each violation
+their `Outcome`), a record as `RafDocument::Evidence`, `RafDocument::Assessment` or
+`RafDocument::Coverage`, holding an `EvidenceRecord`, an `AssessmentRecord` or a
+`CoverageRecord` with a `RecordHeader`, since a record has no `title` and no
+`description`, or the list of every violation, not only the first. Each violation
 names the file, the rule and, for a frontmatter rule, the key; a body rule names the
 section or the line instead. The rules are:
 
@@ -129,8 +185,8 @@ section or the line instead. The rules are:
   key outside the table, a missing required key, and the base key `resource` (a rule of
   its own, which names the key set of the type) are violations. The optional keys
   `tags` and `timestamp` may be absent;
-- a missing `type`, or one other than `Capability`, `Change` or `Architecture`, is the
-  only violation reported for that document, because no key set applies;
+- a missing `type`, or one outside `DocType::ALL`, is the only violation reported for
+  that document, because no key set applies;
 - a document of a known type sits directly in the directory of its type;
 - the `id` carries the prefix of its type and a kebab-case slug equal to the file name
   without `.md`; `title` and `description` are non-empty strings;
@@ -147,14 +203,39 @@ section or the line instead. The rules are:
 - `tags` is a list of non-empty strings with no duplicate, and `timestamp` is an RFC
   3339 date and time;
 - a Capability body holds the seven sections in order, none empty; a Change body holds
-  a non-empty `Summary`; an Architecture body is not empty. A section is empty when
-  nothing is left after its HTML comments and generated blocks are removed;
+  a non-empty `Summary`; an Architecture body is not empty; a record body is empty. A
+  section is empty when nothing is left after its HTML comments and generated blocks
+  are removed;
 - a PROPOSED block appears only in a Capability and only inside a section;
+- a claim marker appears only in a Capability: one in any other document is a
+  violation;
 - no prose line, title, description or item claim holds a placeholder token, and
   no link is split across lines. `Body::placeholder_lines` returns the
   placeholder tokens of any body, with their lines, by the same rule, so a caller
   that reads Markdown without frontmatter applies the rule `Profile::validate`
   applies; fenced code, code spans and HTML comments are not read.
+
+The records follow the key table and value rules of the architecture page:
+
+- evidence and an assessment share the trace keys `subject`, `inputs`, `verdict`
+  and `by`. The subject is parsed into an `EvidenceSubject` (`command` or
+  `binding:<path>`) or a `SectionRef`, each input row into an `Input` with its
+  `InputKind` and a digest of 64 lowercase hexadecimal digits, the verdict into
+  an `EvidenceVerdict` or an `AssessmentVerdict`, and `by` into an `Actor`, which
+  is `human` or `agent` and never the name of a person;
+- evidence names the capabilities it covers in `for`, takes `symbol` inputs
+  only, and states `command` exactly when its subject is `command`; `revision`
+  is a full commit id; `values` and `limits` hold `Number`s, each limit of
+  evidence that passes names a value, and evidence that passes holds no value
+  above its limit, compared exactly on the decimal texts (`Number::compare`);
+- an assessment holds the `section` input of its subject;
+- the coverage record is `coverage:default` at `work/coverage/default.md`. Its
+  `scope` holds distinct crate package names, and each exclusion an
+  `ExclusionItem` below a crate root with a non-empty reason; a crate root is
+  refused;
+- `DocType`, `InputKind`, `Actor`, `EvidenceVerdict`, `AssessmentVerdict`,
+  `EvidenceSubject` and `ExclusionItem` are exhaustive enums, because the profile
+  closes each set.
 
 Checks that need other documents, such as whether an id exists or whether a graph is
 acyclic, belong to [the document model](./workplan-document-model.md); `raf-okf`
@@ -194,15 +275,28 @@ holds:
 - PROPOSED blocks, each with the change slug it names, its span, its marker line, its
   unquoted content and the section that holds it;
 - prose lines: the lines outside fenced code and HTML comments with code spans
-  removed, each with its section and whether it lies in a PROPOSED or generated block.
+  removed, each with its section and whether it lies in a PROPOSED or generated block;
+- claims: `Body::claims` returns each claim marker outside fenced code, code spans
+  and PROPOSED blocks as a `Claim`: the evidence slugs it names, its line, its marker
+  span, the span of the paragraph or list item it supports, and its section.
 
 A malformed PROPOSED marker in any spelling, an unclosed generated block, a nested
 generated block and an end marker without a start are parse errors with line numbers.
-So are block quotes and list items nested over 64 levels. `Body::replace_spans` applies
-non-overlapping byte-range edits in one pass and reads the model again; it is all or
-nothing, and it fails with a typed error for a range outside the body, a range inside a
-character, two ranges that overlap, or a result that no longer parses. `Document` and
-`Index` delegate to it.
+So are block quotes and list items nested over 64 levels and, outside fenced code,
+code spans and PROPOSED blocks, a malformed claim marker, a claim marker with no
+statement directly above it, and a `raf:` comment that is neither a `raf:generated:`
+comment nor a claim marker, so a misspelt claim marker never reads as a plain comment.
+A marker is one line: an HTML comment that `<!--` opens at the end of a line, outside
+its code spans, and whose first non-blank text on the lines below is `raf:` in any
+letter case and not `raf:generated:`, is the same error at the line of `<!--`,
+`okf-parse-malformed-claim` for `raf:claim` and `okf-parse-unknown-marker` for
+another word, so a claim marker split over lines never reads as a plain comment
+either. A multi-line `raf:generated:` comment, an SPDX header written over several
+lines and every other multi-line comment are plain comments. `Body::replace_spans`
+applies non-overlapping byte-range edits in one pass and reads the model again; it
+is all or nothing, and it fails with a typed error for a range outside the body, a
+range inside a character, two ranges that overlap, or a result that no longer
+parses. `Document` and `Index` delegate to it.
 
 **Write.** `Document::render` writes a document back. The writer is deterministic
 and round-trips: parsing the output yields an equal document, and rendering a
@@ -215,6 +309,19 @@ rendering; every other list keeps author order. Comments travel with the key the
 unchanged apart from the replaced spans that a caller supplies, such as a generated
 block. Two documents are equal when their keys, compared as a map, have equal values
 and equal attached comments, and their bodies hold the same bytes.
+
+**Writing records.** `EvidenceRecord::new`, `AssessmentRecord::new` and
+`CoverageRecord::new` build a record with its header (`RecordHeader::new`), from
+`Input::new`, `SectionRef::new`, `Measure::new` and `Exclusion::new`; the
+constructors judge nothing. `EvidenceRecord::to_document`,
+`AssessmentRecord::to_document` and `CoverageRecord::to_document` write a record as
+a document with its keys in key-table order, its lists and measures in record
+order, numbers unquoted as written, an empty list as `[]`, absent optional keys left
+out, and an empty body. `Profile::validate` reads the rendering back as an equal
+record when the values satisfy the profile, and refuses it with the violations
+otherwise; a value the frontmatter cannot hold is a `ConstructError`.
+`EvidenceVerdict::name`, `AssessmentVerdict::name` and `EvidenceSubject::text` give
+the values of the keys.
 
 **Index handling.** `docs/capabilities/index.md` is the one navigation file in the
 capability directory. `is_capability_index` is true for that path and false for any
@@ -345,3 +452,39 @@ would produce noise in the diff, and a clean check could not be told from a stal
   for canonical input, and `parse(render(d))` equals `d`.
 - An index fixture: a generated-block index is accepted and a hand-written one is
   rejected.
+- A record fixture per rule, each beside an accepted neighbour: a verdict outside
+  the set of each type, a `by` that names a person, a malformed digest, a short
+  commit id, an empty exclusion reason, a crate-root exclusion, a repeated scope
+  entry, a record in another directory or under another file name, and a
+  coverage record under another slug.
+- Claim fixtures: a claim with one record and with several, after a paragraph
+  and after a list item; markers inside a fence, a code span and a PROPOSED block
+  are not read; an unknown `raf:` comment is refused; a `raf:generated:` comment
+  keeps its own rules; each malformed and each unattached marker is refused with
+  its line.
+- The record fixtures render to their own bytes and validate, and a record with
+  its keys out of order renders them in table order.
+- A record of each type built with the constructors, and each record fixture,
+  written by `to_document` reads back as an equal record with its keys in table
+  order; empty lists and absent optional keys are written as the profile reads
+  them; a value the profile refuses is refused on reading back, and a value the
+  frontmatter cannot hold by the writer.
+- A `raf:generated:` comment in another letter case or spacing is text, beside
+  an unknown `raf:` comment that is refused.
+- Split-marker fixtures of the body model: `<!--`, `raf:claim evidence=x` and `-->`
+  on three lines, the same with a blank line and `  RAF:Claim` below `<!--`, and a
+  comment opened after a statement on its line are each a malformed claim marker at
+  the line of `<!--`, and `<!--`, `raf:foo`, `-->` is an unknown marker; beside them
+  a split `raf:generated:` comment in two spellings, an SPDX header over several
+  lines, an ordinary multi-line comment, an empty one and one opened in a code span
+  are plain, and nothing is read in fenced code or a PROPOSED block. Through
+  `check`, the three-line claim marker and the one with a blank line in a
+  capability are `okf-parse-malformed-claim` and the `raf:foo` comment
+  `okf-parse-unknown-marker`, each exit 1 with nothing written, and the split
+  `raf:generated:` comment, the SPDX header and the ordinary comment exit 0.
+- Cost fixture: an evidence record at the 1 MiB cap with the most `values` and
+  `limits` validates within 100 ms in a release build.
+- The documentation examples of `EvidenceRecord::to_document` (a record built,
+  written, parsed and validated back to an equal record) and of `Claim` (a claim
+  marker read with its evidence, line, section and statement) run as the bound
+  examples.

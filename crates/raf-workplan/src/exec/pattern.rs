@@ -13,9 +13,12 @@
 //!   `<[A-Za-z0-9_,':&]*>` after each segment;
 //! * `<relative-source-path>`: `[A-Za-z0-9_][A-Za-z0-9_./-]*`.
 //!
-//! Two further validators serve the Git commands: a full reference name and a
-//! commit id. Each newtype keeps its text private, so a value of the type is
-//! proof that the text matched.
+//! Five further validators serve the Git commands: a full reference name, a
+//! commit id, a tree path (a file or directory of the workspace as the
+//! history command names it), an identifier (the text of a `-S` pickaxe) and a
+//! date (the value of `--since`, which the history compares with the author
+//! date of each commit and gives to no process). Each newtype keeps its text private, so a
+//! value of the type is proof that the text matched.
 
 use std::error::Error;
 use std::fmt;
@@ -25,6 +28,9 @@ const SHOWN: usize = 64;
 
 /// The longest reference name accepted, in bytes.
 const REF_NAME_LIMIT: usize = 1024;
+
+/// The longest tree path accepted, in bytes.
+const TREE_PATH_LIMIT: usize = 4096;
 
 /// A pattern a value must match before it reaches a command line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -45,17 +51,34 @@ pub enum Pattern {
     RefName,
     /// A Git commit id: 40 or 64 lowercase hexadecimal digits.
     Commit,
+    /// `<tree-path>`: a path relative to the workspace root as the history
+    /// command gives it to `git`, only after `--` or after the colon of one
+    /// `-L` argument, so it may begin with `-`. Its segments are separated by
+    /// `/` and none is empty, `.` or `..`; it holds no control character and
+    /// no `\`, `*`, `?` or `[`, does not begin with `/` or `:` (so it is never
+    /// a pathspec pattern or magic), and is at most 4096 bytes.
+    TreePath,
+    /// `<identifier>`: a Rust identifier, the text of a `-S` argument.
+    Identifier,
+    /// `<date>`: `YYYY-MM-DD`, a day of the Gregorian calendar from
+    /// 1970-01-01 to 2099-12-31, the value of `--since`. It reaches no
+    /// process: the history compares the start of that day in UTC with the
+    /// author date of each commit, in process.
+    Date,
 }
 
 impl Pattern {
     /// Every pattern.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 9] = [
         Self::Name,
         Self::TargetName,
         Self::ItemPath,
         Self::SourcePath,
         Self::RefName,
         Self::Commit,
+        Self::TreePath,
+        Self::Identifier,
+        Self::Date,
     ];
 
     /// The pattern as the capability documents write it.
@@ -70,6 +93,9 @@ impl Pattern {
             Self::SourcePath => "[A-Za-z0-9_][A-Za-z0-9_./-]*",
             Self::RefName => "refs/<segment>(/<segment>)*",
             Self::Commit => "[0-9a-f]{40}|[0-9a-f]{64}",
+            Self::TreePath => "[^/:][^/]*(/[^/]+)*",
+            Self::Identifier => "[A-Za-z_][A-Za-z0-9_]*",
+            Self::Date => "(19[7-9][0-9]|20[0-9][0-9])-[0-9]{2}-[0-9]{2}",
         }
     }
 
@@ -82,14 +108,20 @@ impl Pattern {
             Self::SourcePath => "relative source path",
             Self::RefName => "full reference name",
             Self::Commit => "commit id",
+            Self::TreePath => "tree path",
+            Self::Identifier => "identifier",
+            Self::Date => "date of the form YYYY-MM-DD from 1970-01-01 to 2099-12-31",
         }
     }
 
     /// Whether the whole text matches the pattern.
     ///
-    /// The relative source path is narrower than its expression: a segment
-    /// that is empty, `.` or `..` does not match, so a path stays inside the
-    /// tree it is read from.
+    /// The relative source path and the tree path are narrower than their
+    /// expressions: a segment that is empty, `.` or `..` does not match, so a
+    /// path stays inside the tree it is read from, and a tree path holds no
+    /// control character, no `\`, `*`, `?` or `[` and at most 4096 bytes. A
+    /// date names a real day: `2026-02-29` does not match and `2028-02-29`
+    /// does.
     #[must_use]
     pub fn matches(self, text: &str) -> bool {
         match self {
@@ -99,6 +131,9 @@ impl Pattern {
             Self::SourcePath => is_source_path(text),
             Self::RefName => is_ref_name(text),
             Self::Commit => is_commit(text),
+            Self::TreePath => is_tree_path(text),
+            Self::Identifier => is_identifier(text),
+            Self::Date => is_date(text),
         }
     }
 
@@ -264,6 +299,61 @@ fn is_commit(text: &str) -> bool {
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
+/// A tree path: see [`Pattern::TreePath`].
+fn is_tree_path(text: &str) -> bool {
+    !text.is_empty()
+        && text.len() <= TREE_PATH_LIMIT
+        && !text.starts_with([':', '/'])
+        && !text
+            .chars()
+            .any(|c| c.is_control() || matches!(c, '\\' | '*' | '?' | '['))
+        && text
+            .split('/')
+            .all(|segment| !matches!(segment, "" | "." | ".."))
+}
+
+/// `[A-Za-z_][A-Za-z0-9_]*`.
+fn is_identifier(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    bytes.first().is_some_and(|b| is_ident_start(*b)) && bytes.iter().all(|b| is_ident_continue(*b))
+}
+
+/// `YYYY-MM-DD`, a day of the Gregorian calendar of the years 1970 to 2099.
+fn is_date(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let shape = bytes.len() == 10
+        && bytes[4] == b'-'
+        && bytes[7] == b'-'
+        && bytes
+            .iter()
+            .enumerate()
+            .all(|(at, b)| at == 4 || at == 7 || b.is_ascii_digit());
+    if !shape {
+        return false;
+    }
+    let number = |range: std::ops::Range<usize>| -> u32 {
+        bytes[range]
+            .iter()
+            .fold(0, |total, b| total * 10 + u32::from(b - b'0'))
+    };
+    let (year, month, day) = (number(0..4), number(5..7), number(8..10));
+    (1970..=2099).contains(&year)
+        && (1..=12).contains(&month)
+        && (1..=days_in_month(year, month)).contains(&day)
+}
+
+/// The number of days of `month` (1 to 12) of `year`.
+pub(crate) fn days_in_month(year: u32, month: u32) -> u32 {
+    match month {
+        2 if year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400)) => {
+            29
+        }
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+
 macro_rules! validated {
     ($(#[$meta:meta])* $name:ident, $pattern:expr) => {
         $(#[$meta])*
@@ -337,6 +427,69 @@ validated!(
     RefName,
     Pattern::RefName
 );
+validated!(
+    /// A file or directory of the workspace, relative to its root, as the
+    /// history command gives it to `git`: after `--`, or after the colon of
+    /// one `-L<start>,<end>:<file>` argument. It may begin with `-`, because
+    /// neither place reads an option.
+    TreePath,
+    Pattern::TreePath
+);
+validated!(
+    /// A Rust identifier: the text of one `-S<identifier>` argument.
+    Identifier,
+    Pattern::Identifier
+);
+validated!(
+    /// A day, `YYYY-MM-DD`: the value of `--since`, which the history compares,
+    /// as the start of the day in UTC, with the author date of each commit.
+    Date,
+    Pattern::Date
+);
+
+impl TreePath {
+    /// The top of the workspace, written `.`: the directory of a package
+    /// whose manifest is at the root. The tree-path pattern refuses `.`, so
+    /// this is the one way to name it.
+    #[must_use]
+    pub fn top() -> Self {
+        Self(".".to_string())
+    }
+}
+
+/// A range of lines of a file, `<start>,<end>`, 1-based and inclusive, as
+/// `-L<start>,<end>:<file>` reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LineRange {
+    start: usize,
+    end: usize,
+}
+
+impl LineRange {
+    /// The lines `start` to `end`, when `1 <= start <= end`.
+    #[must_use]
+    pub fn new(start: usize, end: usize) -> Option<Self> {
+        (1 <= start && start <= end).then_some(Self { start, end })
+    }
+
+    /// The first line.
+    #[must_use]
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    /// The last line.
+    #[must_use]
+    pub fn end(&self) -> usize {
+        self.end
+    }
+}
+
+impl fmt::Display for LineRange {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{},{}", self.start, self.end)
+    }
+}
 
 /// The target of a test: `--lib`, `--bin=<bin>` or `--test=<test>`, so that the
 /// same name in another target is never run.

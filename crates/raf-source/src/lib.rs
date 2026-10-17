@@ -23,6 +23,34 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
+//! [`Workspace::exported_items`] lists the public surface of a library or a
+//! binary: the items another crate can name through its crate root, each under
+//! the path it is exported by and with the item that defines it, and the public
+//! re-exports of other crates, which are not items of the target. Over a real
+//! tree, each library's surface maps every exported path back to its
+//! definition. The block needs a real tree, so it is compiled and not run:
+//!
+//! ```rust,no_run
+//! use raf_source::{DiskTree, TargetKind, Workspace};
+//!
+//! let ws = Workspace::load(&DiskTree::new(".")?, &["crates"])?;
+//! for id in ws.target_ids() {
+//!     let target = ws.target(id).expect("an id of this workspace");
+//!     if target.kind != TargetKind::Lib {
+//!         continue;
+//!     }
+//!     let exports = ws.exported_items(id)?;
+//!     for export in &exports.items {
+//!         let item = ws.item(export.item).expect("an item of this workspace");
+//!         println!("{} is {} in {}", export.path, item.path, export.file);
+//!     }
+//!     for reexport in &exports.reexports {
+//!         println!("{} re-exports {}", reexport.path, reexport.written);
+//!     }
+//! }
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
 //! With [`MemoryTree`] a fixture needs no disk:
 //!
 //! ```rust
@@ -35,6 +63,28 @@
 //! ]);
 //! let ws = Workspace::load(&tree, &["."])?;
 //! assert_eq!(ws.resolve("demo::run")?.path, "demo::inner::go");
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
+//! A `pub` item of a private module is exported only through a `pub` re-export:
+//!
+//! ```rust
+//! use raf_source::{MemoryTree, Workspace};
+//!
+//! let tree = MemoryTree::from([
+//!     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+//!     ("src/lib.rs", "mod inner;\npub use inner::go as run;\npub(crate) fn helper() {}\n"),
+//!     ("src/inner.rs", "pub fn go() {}\npub fn unused() {}\n"),
+//! ]);
+//! let ws = Workspace::load(&tree, &["."])?;
+//! let lib = ws.target_ids().next().expect("the library");
+//! let exports = ws.exported_items(lib)?;
+//! assert_eq!(exports.items.len(), 1);
+//! assert_eq!(exports.items[0].path, "demo::run");
+//! assert_eq!(
+//!     ws.item(exports.items[0].item).map(|item| item.path.as_str()),
+//!     Some("demo::inner::go")
+//! );
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
@@ -108,6 +158,7 @@ mod cfg;
 mod cost;
 mod discovery;
 mod error;
+mod exports;
 mod facts;
 mod glob;
 mod glob_scope;
@@ -132,6 +183,7 @@ mod workspace;
 
 pub use budget::{Budget, PARSE_BYTES_PER_TOKEN, RECURSION_UNIT_BYTES};
 pub use error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
+pub use exports::{ExportError, ExportOptions, ExportedItem, Exports, Reexport};
 pub use facts::{FieldShape, SpanFact, TestRole, Vis};
 pub use item::{
     Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl,

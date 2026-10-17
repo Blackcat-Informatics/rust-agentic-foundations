@@ -8,7 +8,7 @@ use std::fmt;
 use crate::body::LinkForm;
 use crate::profile::schema::DocType;
 use crate::profile::timestamp::TimestampError;
-use crate::profile::typed::State;
+use crate::profile::typed::{Actor, InputKind, State};
 
 /// Where a violation is.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,7 +44,7 @@ pub enum Rule {
         /// The type whose key set it is outside.
         doc_type: DocType,
     },
-    /// A `type` other than `Capability`, `Change` or `Architecture`.
+    /// A `type` outside [`DocType::ALL`].
     UnknownType {
         /// The value found.
         found: String,
@@ -186,9 +186,143 @@ pub enum Rule {
         /// The form of the link.
         form: LinkForm,
     },
+    /// A claim marker in a document that is not a capability.
+    ClaimOutsideCapability,
+    /// A record body with text: a record states its result in the
+    /// frontmatter and has nothing after it but blank lines and HTML comments.
+    BodyNotEmpty {
+        /// The record type.
+        doc_type: DocType,
+    },
+    /// The id of a type a repository holds once is not its one slug.
+    SingletonId {
+        /// The type.
+        doc_type: DocType,
+    },
+    /// A `subject` that is not of the form the type takes.
+    BadSubject {
+        /// The record type.
+        doc_type: DocType,
+        /// The value found.
+        found: String,
+    },
+    /// Evidence whose `command` key does not fit its subject: present with a
+    /// binding subject, or absent with the subject `command`.
+    CommandSubject {
+        /// Whether the `command` key is present.
+        has_command: bool,
+    },
+    /// A key of a row of `inputs` or `exclusions` outside the keys of the row.
+    RowUnknownKey {
+        /// The list the row is in.
+        list: &'static str,
+        /// The key.
+        key: String,
+    },
+    /// A row of `inputs` or `exclusions` without one of its keys.
+    RowMissingKey {
+        /// The list the row is in.
+        list: &'static str,
+        /// The key.
+        key: &'static str,
+    },
+    /// An input `kind` the type does not take.
+    BadInputKind {
+        /// The record type.
+        doc_type: DocType,
+        /// The value found.
+        found: String,
+    },
+    /// An input `name` that is not of the form its kind takes.
+    BadInputName {
+        /// The kind of the row.
+        kind: InputKind,
+        /// The value found.
+        found: String,
+    },
+    /// A digest that is not 64 lowercase hexadecimal digits.
+    BadDigest {
+        /// The value found.
+        found: String,
+    },
+    /// An entry that occurs twice in a list that holds each once.
+    DuplicateEntry {
+        /// The list.
+        list: &'static str,
+        /// The entry.
+        entry: String,
+    },
+    /// An empty list that must hold at least one entry.
+    EmptyList {
+        /// The list.
+        list: &'static str,
+    },
+    /// An assessment whose inputs hold no `section` row for its subject.
+    SubjectInputMissing {
+        /// The subject.
+        subject: String,
+    },
+    /// A `verdict` outside the verdicts of the type.
+    BadVerdict {
+        /// The record type.
+        doc_type: DocType,
+        /// The value found.
+        found: String,
+    },
+    /// A `by` other than `human` and `agent`.
+    BadActor {
+        /// The value found.
+        found: String,
+    },
+    /// A `revision` that is not a commit id.
+    BadRevision {
+        /// The value found.
+        found: String,
+    },
+    /// A measure whose value is not a number.
+    BadMeasure {
+        /// The map, `values` or `limits`.
+        list: &'static str,
+        /// The name of the measure.
+        name: String,
+        /// The value found.
+        found: String,
+    },
+    /// A limit that names no measured value.
+    LimitWithoutValue {
+        /// The name of the limit.
+        name: String,
+    },
+    /// Evidence with the verdict `pass` and a value above its limit.
+    VerdictOverLimit {
+        /// The name of the value.
+        name: String,
+    },
+    /// A `scope` entry that is not a crate package name.
+    BadCrateName {
+        /// The entry.
+        entry: String,
+    },
+    /// An exclusion `item` that is neither an item path nor a
+    /// `<module>::*` prefix.
+    BadExclusionItem {
+        /// The value found.
+        found: String,
+    },
+    /// An exclusion of a whole crate: a crate root, or a prefix of one.
+    CrateRootExclusion {
+        /// The value found.
+        found: String,
+    },
+    /// An exclusion with an empty `reason`.
+    EmptyReason {
+        /// The item the exclusion names.
+        item: String,
+    },
 }
 
 impl fmt::Display for Rule {
+    #[allow(clippy::too_many_lines, reason = "one arm per rule of the profile")]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingKey { key } => write!(f, "missing required key `{key}`"),
@@ -204,11 +338,13 @@ impl fmt::Display for Rule {
             }
             Self::UnknownType { found } => write!(
                 f,
-                "bad type `{found}`; the types are Capability, Change and Architecture"
+                "bad type `{found}`; the types are {}",
+                DocType::listed("and")
             ),
             Self::WrongDirectory { declared } => write!(
                 f,
-                "a {} document belongs directly in {}",
+                "{} {} document belongs directly in {}",
+                declared.article(),
                 declared.name(),
                 declared.directory()
             ),
@@ -285,7 +421,149 @@ impl fmt::Display for Rule {
             Self::SplitLink { form } => {
                 write!(f, "a link split across lines ({form:?}) is not allowed")
             }
+            Self::ClaimOutsideCapability => {
+                f.write_str("a claim marker outside a capability document")
+            }
+            Self::BodyNotEmpty { doc_type } => write!(
+                f,
+                "{} {} record has no body; its result is its frontmatter",
+                doc_type.article(),
+                doc_type.name()
+            ),
+            Self::SingletonId { doc_type } => {
+                let slug = doc_type.singleton().map_or("", |slug| slug);
+                write!(
+                    f,
+                    "a repository holds one {} record, `{}{slug}` at {}/{slug}.md",
+                    doc_type.name(),
+                    doc_type.id_prefix(),
+                    doc_type.directory()
+                )
+            }
+            Self::BadSubject { doc_type, found } => {
+                let form = match doc_type {
+                    DocType::Evidence => "`command` or `binding:<path>`",
+                    _ => "`cap:<slug>#<section>`",
+                };
+                write!(
+                    f,
+                    "bad subject `{found}`; the subject of {} {} record is {form}",
+                    doc_type.article(),
+                    doc_type.name()
+                )
+            }
+            Self::CommandSubject { has_command } => {
+                if *has_command {
+                    f.write_str("a `command` belongs only to evidence whose subject is `command`")
+                } else {
+                    f.write_str("evidence whose subject is `command` states the `command`")
+                }
+            }
+            Self::RowUnknownKey { list, key } => {
+                write!(f, "unknown key `{key}` in a row of `{list}`")
+            }
+            Self::RowMissingKey { list, key } => {
+                write!(f, "a row of `{list}` has no `{key}`")
+            }
+            Self::BadInputKind { doc_type, found } => {
+                let kinds: Vec<&str> = InputKind::ALL
+                    .into_iter()
+                    .filter(|kind| input_kind_allowed(*doc_type, *kind))
+                    .map(InputKind::name)
+                    .collect();
+                write!(
+                    f,
+                    "bad input kind `{found}`; {} {} input is {}",
+                    doc_type.article(),
+                    doc_type.name(),
+                    kinds.join(" or ")
+                )
+            }
+            Self::BadInputName { kind, found } => {
+                let form = match kind {
+                    InputKind::Section => "`cap:<slug>#<section>`",
+                    InputKind::Symbol => "a path such as `crate::item`",
+                    InputKind::Record => "`evidence:<slug>`",
+                };
+                write!(f, "bad {} input name `{found}`; it is {form}", kind.name())
+            }
+            Self::BadDigest { found } => write!(
+                f,
+                "bad digest `{found}`; a digest is 64 lowercase hexadecimal digits"
+            ),
+            Self::DuplicateEntry { list, entry } => {
+                write!(f, "`{entry}` occurs twice in `{list}`")
+            }
+            Self::EmptyList { list } => write!(f, "`{list}` holds at least one entry"),
+            Self::SubjectInputMissing { subject } => write!(
+                f,
+                "the inputs hold no `section` row for the subject `{subject}`"
+            ),
+            Self::BadVerdict { doc_type, found } => {
+                let verdicts = match doc_type {
+                    DocType::Evidence => "`pass` or `fail`",
+                    _ => "`accepted` or `rejected`",
+                };
+                write!(
+                    f,
+                    "bad verdict `{found}`; the verdict of {} {} record is {verdicts}",
+                    doc_type.article(),
+                    doc_type.name()
+                )
+            }
+            Self::BadActor { found } => {
+                let actors: Vec<String> = Actor::ALL
+                    .map(|actor| format!("`{}`", actor.name()))
+                    .to_vec();
+                write!(
+                    f,
+                    "bad `by` value `{found}`; it is {}, never the name of a person",
+                    actors.join(" or ")
+                )
+            }
+            Self::BadRevision { found } => write!(
+                f,
+                "bad revision `{found}`; a revision is a commit id of 40 or 64 lowercase hexadecimal digits"
+            ),
+            Self::BadMeasure { list, name, found } => {
+                write!(
+                    f,
+                    "`{name}` in `{list}` is `{found}`, which is not a number"
+                )
+            }
+            Self::LimitWithoutValue { name } => {
+                write!(f, "the limit `{name}` names no measured value")
+            }
+            Self::VerdictOverLimit { name } => write!(
+                f,
+                "the verdict is `pass`, and the value `{name}` is above its limit"
+            ),
+            Self::BadCrateName { entry } => {
+                write!(f, "scope entry `{entry}` is not a crate package name")
+            }
+            Self::BadExclusionItem { found } => write!(
+                f,
+                "exclusion item `{found}` is neither an item path nor a `<module>::*` prefix"
+            ),
+            Self::CrateRootExclusion { found } => write!(
+                f,
+                "exclusion item `{found}` takes out a whole crate; remove the crate from `scope` instead"
+            ),
+            Self::EmptyReason { item } => {
+                write!(f, "the exclusion of `{item}` has no reason")
+            }
         }
+    }
+}
+
+/// Whether a record of `doc_type` takes inputs of `kind`: evidence is made
+/// against the symbols of the code it covers, and an assessment against its
+/// section, the symbols that section names and the evidence it cites.
+pub(crate) fn input_kind_allowed(doc_type: DocType, kind: InputKind) -> bool {
+    match doc_type {
+        DocType::Evidence => kind == InputKind::Symbol,
+        DocType::Assessment => true,
+        DocType::Capability | DocType::Change | DocType::Architecture | DocType::Coverage => false,
     }
 }
 
@@ -411,6 +689,52 @@ pub enum RuleTag {
     Placeholder,
     /// [`Rule::SplitLink`].
     SplitLink,
+    /// [`Rule::ClaimOutsideCapability`].
+    ClaimOutsideCapability,
+    /// [`Rule::BodyNotEmpty`].
+    BodyNotEmpty,
+    /// [`Rule::SingletonId`].
+    SingletonId,
+    /// [`Rule::BadSubject`].
+    BadSubject,
+    /// [`Rule::CommandSubject`].
+    CommandSubject,
+    /// [`Rule::RowUnknownKey`].
+    RowUnknownKey,
+    /// [`Rule::RowMissingKey`].
+    RowMissingKey,
+    /// [`Rule::BadInputKind`].
+    BadInputKind,
+    /// [`Rule::BadInputName`].
+    BadInputName,
+    /// [`Rule::BadDigest`].
+    BadDigest,
+    /// [`Rule::DuplicateEntry`].
+    DuplicateEntry,
+    /// [`Rule::EmptyList`].
+    EmptyList,
+    /// [`Rule::SubjectInputMissing`].
+    SubjectInputMissing,
+    /// [`Rule::BadVerdict`].
+    BadVerdict,
+    /// [`Rule::BadActor`].
+    BadActor,
+    /// [`Rule::BadRevision`].
+    BadRevision,
+    /// [`Rule::BadMeasure`].
+    BadMeasure,
+    /// [`Rule::LimitWithoutValue`].
+    LimitWithoutValue,
+    /// [`Rule::VerdictOverLimit`].
+    VerdictOverLimit,
+    /// [`Rule::BadCrateName`].
+    BadCrateName,
+    /// [`Rule::BadExclusionItem`].
+    BadExclusionItem,
+    /// [`Rule::CrateRootExclusion`].
+    CrateRootExclusion,
+    /// [`Rule::EmptyReason`].
+    EmptyReason,
 }
 
 impl RuleTag {
@@ -454,6 +778,29 @@ impl RuleTag {
             Self::ProposedOutsideSection => "proposed-outside-section",
             Self::Placeholder => "placeholder",
             Self::SplitLink => "split-link",
+            Self::ClaimOutsideCapability => "claim-outside-capability",
+            Self::BodyNotEmpty => "body-not-empty",
+            Self::SingletonId => "singleton-id",
+            Self::BadSubject => "bad-subject",
+            Self::CommandSubject => "command-subject",
+            Self::RowUnknownKey => "row-unknown-key",
+            Self::RowMissingKey => "row-missing-key",
+            Self::BadInputKind => "bad-input-kind",
+            Self::BadInputName => "bad-input-name",
+            Self::BadDigest => "bad-digest",
+            Self::DuplicateEntry => "duplicate-entry",
+            Self::EmptyList => "empty-list",
+            Self::SubjectInputMissing => "subject-input-missing",
+            Self::BadVerdict => "bad-verdict",
+            Self::BadActor => "bad-actor",
+            Self::BadRevision => "bad-revision",
+            Self::BadMeasure => "bad-measure",
+            Self::LimitWithoutValue => "limit-without-value",
+            Self::VerdictOverLimit => "verdict-over-limit",
+            Self::BadCrateName => "bad-crate-name",
+            Self::BadExclusionItem => "bad-exclusion-item",
+            Self::CrateRootExclusion => "crate-root-exclusion",
+            Self::EmptyReason => "empty-reason",
         }
     }
 }
@@ -466,7 +813,7 @@ impl fmt::Display for RuleTag {
 
 impl Rule {
     /// Every tag, in the order of the variants of [`Rule`].
-    pub const ALL: [RuleTag; 36] = [
+    pub const ALL: [RuleTag; 59] = [
         RuleTag::MissingKey,
         RuleTag::UnknownKey,
         RuleTag::ResourceKey,
@@ -503,6 +850,29 @@ impl Rule {
         RuleTag::ProposedOutsideSection,
         RuleTag::Placeholder,
         RuleTag::SplitLink,
+        RuleTag::ClaimOutsideCapability,
+        RuleTag::BodyNotEmpty,
+        RuleTag::SingletonId,
+        RuleTag::BadSubject,
+        RuleTag::CommandSubject,
+        RuleTag::RowUnknownKey,
+        RuleTag::RowMissingKey,
+        RuleTag::BadInputKind,
+        RuleTag::BadInputName,
+        RuleTag::BadDigest,
+        RuleTag::DuplicateEntry,
+        RuleTag::EmptyList,
+        RuleTag::SubjectInputMissing,
+        RuleTag::BadVerdict,
+        RuleTag::BadActor,
+        RuleTag::BadRevision,
+        RuleTag::BadMeasure,
+        RuleTag::LimitWithoutValue,
+        RuleTag::VerdictOverLimit,
+        RuleTag::BadCrateName,
+        RuleTag::BadExclusionItem,
+        RuleTag::CrateRootExclusion,
+        RuleTag::EmptyReason,
     ];
 
     /// The tag of this value, which drops its data.
@@ -545,6 +915,29 @@ impl Rule {
             Self::ProposedOutsideSection { .. } => RuleTag::ProposedOutsideSection,
             Self::Placeholder { .. } => RuleTag::Placeholder,
             Self::SplitLink { .. } => RuleTag::SplitLink,
+            Self::ClaimOutsideCapability => RuleTag::ClaimOutsideCapability,
+            Self::BodyNotEmpty { .. } => RuleTag::BodyNotEmpty,
+            Self::SingletonId { .. } => RuleTag::SingletonId,
+            Self::BadSubject { .. } => RuleTag::BadSubject,
+            Self::CommandSubject { .. } => RuleTag::CommandSubject,
+            Self::RowUnknownKey { .. } => RuleTag::RowUnknownKey,
+            Self::RowMissingKey { .. } => RuleTag::RowMissingKey,
+            Self::BadInputKind { .. } => RuleTag::BadInputKind,
+            Self::BadInputName { .. } => RuleTag::BadInputName,
+            Self::BadDigest { .. } => RuleTag::BadDigest,
+            Self::DuplicateEntry { .. } => RuleTag::DuplicateEntry,
+            Self::EmptyList { .. } => RuleTag::EmptyList,
+            Self::SubjectInputMissing { .. } => RuleTag::SubjectInputMissing,
+            Self::BadVerdict { .. } => RuleTag::BadVerdict,
+            Self::BadActor { .. } => RuleTag::BadActor,
+            Self::BadRevision { .. } => RuleTag::BadRevision,
+            Self::BadMeasure { .. } => RuleTag::BadMeasure,
+            Self::LimitWithoutValue { .. } => RuleTag::LimitWithoutValue,
+            Self::VerdictOverLimit { .. } => RuleTag::VerdictOverLimit,
+            Self::BadCrateName { .. } => RuleTag::BadCrateName,
+            Self::BadExclusionItem { .. } => RuleTag::BadExclusionItem,
+            Self::CrateRootExclusion { .. } => RuleTag::CrateRootExclusion,
+            Self::EmptyReason { .. } => RuleTag::EmptyReason,
         }
     }
 }
@@ -555,10 +948,11 @@ mod tag_tests {
     use crate::body::LinkForm;
     use crate::profile::schema::DocType;
     use crate::profile::timestamp::validate_timestamp;
-    use crate::profile::typed::State;
+    use crate::profile::typed::{InputKind, State};
 
     /// A rule of each tag. The match names every tag, so a tag added to
     /// `RuleTag` stops this from compiling until it has a sample.
+    #[allow(clippy::too_many_lines, reason = "one arm per rule of the profile")]
     fn sample(tag: RuleTag) -> Rule {
         match tag {
             RuleTag::MissingKey => Rule::MissingKey { key: String::new() },
@@ -638,6 +1032,75 @@ mod tag_tests {
             RuleTag::SplitLink => Rule::SplitLink {
                 form: LinkForm::Inline,
             },
+            RuleTag::ClaimOutsideCapability => Rule::ClaimOutsideCapability,
+            RuleTag::BodyNotEmpty => Rule::BodyNotEmpty {
+                doc_type: DocType::Evidence,
+            },
+            RuleTag::SingletonId => Rule::SingletonId {
+                doc_type: DocType::Coverage,
+            },
+            RuleTag::BadSubject => Rule::BadSubject {
+                doc_type: DocType::Evidence,
+                found: String::new(),
+            },
+            RuleTag::CommandSubject => Rule::CommandSubject { has_command: true },
+            RuleTag::RowUnknownKey => Rule::RowUnknownKey {
+                list: "",
+                key: String::new(),
+            },
+            RuleTag::RowMissingKey => Rule::RowMissingKey { list: "", key: "" },
+            RuleTag::BadInputKind => Rule::BadInputKind {
+                doc_type: DocType::Evidence,
+                found: String::new(),
+            },
+            RuleTag::BadInputName => Rule::BadInputName {
+                kind: InputKind::Symbol,
+                found: String::new(),
+            },
+            RuleTag::BadDigest => Rule::BadDigest {
+                found: String::new(),
+            },
+            RuleTag::DuplicateEntry => Rule::DuplicateEntry {
+                list: "",
+                entry: String::new(),
+            },
+            RuleTag::EmptyList => Rule::EmptyList { list: "" },
+            RuleTag::SubjectInputMissing => Rule::SubjectInputMissing {
+                subject: String::new(),
+            },
+            RuleTag::BadVerdict => Rule::BadVerdict {
+                doc_type: DocType::Evidence,
+                found: String::new(),
+            },
+            RuleTag::BadActor => Rule::BadActor {
+                found: String::new(),
+            },
+            RuleTag::BadRevision => Rule::BadRevision {
+                found: String::new(),
+            },
+            RuleTag::BadMeasure => Rule::BadMeasure {
+                list: "",
+                name: String::new(),
+                found: String::new(),
+            },
+            RuleTag::LimitWithoutValue => Rule::LimitWithoutValue {
+                name: String::new(),
+            },
+            RuleTag::VerdictOverLimit => Rule::VerdictOverLimit {
+                name: String::new(),
+            },
+            RuleTag::BadCrateName => Rule::BadCrateName {
+                entry: String::new(),
+            },
+            RuleTag::BadExclusionItem => Rule::BadExclusionItem {
+                found: String::new(),
+            },
+            RuleTag::CrateRootExclusion => Rule::CrateRootExclusion {
+                found: String::new(),
+            },
+            RuleTag::EmptyReason => Rule::EmptyReason {
+                item: String::new(),
+            },
         }
     }
 
@@ -682,11 +1145,34 @@ mod tag_tests {
             Rule::ProposedOutsideSection { .. } => 33,
             Rule::Placeholder { .. } => 34,
             Rule::SplitLink { .. } => 35,
+            Rule::ClaimOutsideCapability => 36,
+            Rule::BodyNotEmpty { .. } => 37,
+            Rule::SingletonId { .. } => 38,
+            Rule::BadSubject { .. } => 39,
+            Rule::CommandSubject { .. } => 40,
+            Rule::RowUnknownKey { .. } => 41,
+            Rule::RowMissingKey { .. } => 42,
+            Rule::BadInputKind { .. } => 43,
+            Rule::BadInputName { .. } => 44,
+            Rule::BadDigest { .. } => 45,
+            Rule::DuplicateEntry { .. } => 46,
+            Rule::EmptyList { .. } => 47,
+            Rule::SubjectInputMissing { .. } => 48,
+            Rule::BadVerdict { .. } => 49,
+            Rule::BadActor { .. } => 50,
+            Rule::BadRevision { .. } => 51,
+            Rule::BadMeasure { .. } => 52,
+            Rule::LimitWithoutValue { .. } => 53,
+            Rule::VerdictOverLimit { .. } => 54,
+            Rule::BadCrateName { .. } => 55,
+            Rule::BadExclusionItem { .. } => 56,
+            Rule::CrateRootExclusion { .. } => 57,
+            Rule::EmptyReason { .. } => 58,
         }
     }
 
     /// How many variants `Rule` has.
-    const VARIANTS: usize = 36;
+    const VARIANTS: usize = 59;
 
     #[test]
     fn all_lists_every_rule_once_in_variant_order() {

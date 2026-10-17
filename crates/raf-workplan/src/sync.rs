@@ -18,10 +18,11 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use raf_okf::{Index, ParseError};
-use raf_source::{DiskTree, EntryKind, RelPath, Tree};
+use raf_source::{EntryKind, RelPath};
 
 use crate::Finding;
 use crate::Workplan;
+use crate::files;
 use crate::generated::{self, INDEX_PATH};
 
 /// What a sync needs beyond the documents: the SPDX text of the index it
@@ -266,8 +267,10 @@ impl Workplan<'_> {
     ///
     /// Every target is judged before the first byte is written. A target must
     /// be a regular file that already exists, or the capability index
-    /// `docs/capabilities/index.md` in a directory that exists; a symbolic
-    /// link, a directory, a path that leaves `root` and any other target are
+    /// `docs/capabilities/index.md` in a directory that exists, and each
+    /// directory on the way to it must be a directory and not a symbolic link,
+    /// inside the root or out of it; a symbolic link, a directory, a path that
+    /// leaves `root`, a path below a linked directory and any other target are
     /// refused, and so is a report that names a path twice. Every new text is
     /// first written to a temporary file in the directory of its target, and
     /// only when all of them are written are the files renamed into place, so
@@ -283,15 +286,14 @@ impl Workplan<'_> {
     /// rest. A temporary file is created exclusively under a unique name and
     /// only the ones this call created are removed.
     pub fn write(report: &SyncReport, root: &Path) -> io::Result<()> {
-        let tree = DiskTree::new(root).map_err(to_io)?;
-        let root = fs::canonicalize(root)?;
         let mut seen = std::collections::BTreeSet::new();
         for (path, _) in &report.edits {
             if !seen.insert(path.as_str()) {
                 return Err(refused(path, "it is listed twice"));
             }
-            judge(&tree, path)?;
+            judge(root, path)?;
         }
+        let root = fs::canonicalize(root)?;
         let mut staged: Vec<(PathBuf, PathBuf)> = Vec::new();
         for (path, text) in &report.edits {
             let target = root.join(path.as_str());
@@ -330,24 +332,27 @@ fn refused(path: &RelPath, reason: &str) -> io::Error {
     )
 }
 
-fn to_io(error: raf_source::TreeError) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidInput, error)
-}
-
-/// Require that `path` is a regular file, or the new capability index.
-fn judge(tree: &DiskTree, path: &RelPath) -> io::Result<()> {
-    match tree.entry(path).map_err(to_io)? {
+/// Require that `path` is a regular file, or the new capability index, below
+/// directories that are not links: the way to it is judged as every write of
+/// the crate judges it ([`files::target`]), so a directory link inside the
+/// root never lets an edit land in another directory.
+fn judge(root: &Path, path: &RelPath) -> io::Result<()> {
+    let directory = path
+        .parent()
+        .ok_or_else(|| refused(path, "it has no directory"))?;
+    let found = files::target(root, directory.as_str(), path).map_err(|error| {
+        refused(
+            path,
+            &format!("the directory {} is refused: {}", error.path, error.source),
+        )
+    })?;
+    if !found.directories {
+        return Err(refused(path, "its directory does not exist"));
+    }
+    match found.kind {
         Some(EntryKind::File) => Ok(()),
         Some(_) => Err(refused(path, "it is not a regular file")),
-        None if path.as_str() == INDEX_PATH => {
-            let parent = path
-                .parent()
-                .ok_or_else(|| refused(path, "it has no directory"))?;
-            match tree.entry(&parent).map_err(to_io)? {
-                Some(EntryKind::Dir) => Ok(()),
-                _ => Err(refused(path, "its directory does not exist")),
-            }
-        }
+        None if path.as_str() == INDEX_PATH => Ok(()),
         None => Err(refused(
             path,
             "it does not exist; only the capability index is created",
@@ -358,7 +363,7 @@ fn judge(tree: &DiskTree, path: &RelPath) -> io::Result<()> {
 /// Write `text` to a new temporary file beside `target`, with the permissions
 /// of `target`, and return its path. The file is created exclusively under a
 /// name no other file has, so a file that is already there is never touched.
-fn stage(target: &Path, text: &str) -> io::Result<PathBuf> {
+pub(crate) fn stage(target: &Path, text: &str) -> io::Result<PathBuf> {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let name = target
         .file_name()

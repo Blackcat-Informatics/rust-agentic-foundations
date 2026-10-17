@@ -85,7 +85,7 @@ pub(crate) fn repo(files: &[(&str, String)]) -> Repo {
     for (path, text) in files {
         repo.insert((*path).to_string(), text.clone());
     }
-    synced::synced(&repo)
+    synced::synced(&super::with_open_coverage(repo))
 }
 
 /// `repo` with the first `from` of `path` replaced by `to`.

@@ -122,7 +122,15 @@ guarantees are these, and no wider:
   the imports are settled, and the time to decide them grows faster than their size
   (200 modules that glob the crate root, which globs each, each importing a name
   nothing defines, settle in 613 s at a peak of 555 MiB resident, with 9.7 MB charged
-  to the glob tables).
+  to the glob tables). Listing the exported items (`Workspace::exported_items`, which
+  `check` runs for the crates in the coverage scope) carries each re-export through
+  the globs that reach it and charges what it keeps, and the work of deciding a
+  carry, to the item-bytes budget left after the load, so it ends in a typed error
+  and never in a wrong list, but it sets no time bound, and the
+  time before the budget stops it grows faster than the source: a glob chain of 200
+  modules, each with 40 re-exports of another crate, is refused by the budget after
+  75 s at a peak of 138 MB in a release build, and 500 such modules (about 0.5 MB of
+  source) had no answer after 4 minutes of CPU at 53 MB.
   The source index parses on a
   dedicated 64 MiB stack on a thread named after the file, and is fuzzed through a
   target (`parse-source`) whose committed corpus `cargo test` replays in child
@@ -136,26 +144,113 @@ guarantees are these, and no wider:
   an overflow as a robustness bug: under the trust model above its impact is a failed
   run and not a breach. The parsers set no time bound.
 - **Subprocesses.** Every spawned `cargo` or `git` process runs with no shell and
-  takes its arguments as an argv vector, and `cargo` runs with `--frozen`. A value
+  takes its arguments as an argv vector, and `cargo` runs with `--frozen`. The one
+  further process is the caller's own command of `evidence record`: the words after
+  `--` on its command line, which only the command line of the running process can
+  supply (`raf_workplan::exec::TrustedArgv` is built from `std::env::args_os` and
+  from no text a document or record holds, which a compile-fail test pins). It is
+  trusted build input, as the workspace's own build commands are, and runs exactly as
+  given: no shell, argv words as typed (a word that is not UTF-8 is refused before it
+  runs), no `--frozen` added to a `cargo` inside it, standard input null, the
+  workspace root as its directory, the caller's environment unchanged (`LC_ALL=C` is
+  set only for `git` and the `cargo` passes whose output the tool parses), each
+  stream bounded to 16 MiB (more is an error that says the time it ran, and no
+  record) and a 1800-second limit
+  (a kill there is recorded as `fail`, whatever its limits; a background process
+  that keeps its output open after it exits holds the run until then). The limit
+  holds only while `cargo-workplan` runs: on Unix the command leads a process group
+  of its own, so an interrupt or a hang-up from the terminal (Ctrl-C) reaches
+  `cargo-workplan` and not the command, which then runs on with no limit and leaves
+  no record; and a descendant that leaves the group (`setsid`, `setpgid`) is not
+  reached by the kill at the limit, as it is not for a bound test. With the root as
+  its directory, a relative program (`./tool.sh` typed below the root) resolves
+  against the root, not the caller's directory, and with `.` on `PATH` a bare name
+  is looked for in the root, while the record keeps the command as typed. A message
+  about the command quotes its words as the record stores them
+  (`TrustedArgv::text`), so two commands never read the same. Only the
+  `name=number` lines of its standard output are read, as values, at most 1024 of
+  them, a bound on what `evidence record` writes: a record written by hand may hold
+  more and is bounded by the 1 MiB bound of a document; no other output is kept. The `command` text a record stores
+  for its readers, and its `revision`, never reach a process. A value
   taken from a document reaches a process only after resolution against the loaded
-  documents or the source index and a stated pattern, and then in one of three
+  documents or the source index and a stated pattern, and then in one of four
   forms: after `--`; inside a single `<rev>:<path>` or `-L<start>,<end>:<path>`
-  argument; or, for a test name that the test harness reads, as a validated filter
-  after `-- --exact --`. The `cargo-workplan` binary starts no process of its own:
+  argument; for a test name that the test harness reads, as a validated filter
+  after `-- --exact --`; or, for the history command, as a Rust identifier (the
+  last segment of a binding's path, `[A-Za-z_][A-Za-z0-9_]*`) inside a single
+  `-S<identifier>` argument. A path in the first two forms may begin with `-`,
+  because neither place reads an option, and it holds no control character, no
+  `\`, `*`, `?` or `[`, no empty, `.` or `..` segment and no leading `/` or `:`,
+  so it is never a pathspec pattern or magic. The `cargo-workplan` binary starts no process of its own:
   root discovery (`cargo metadata --format-version 1 --no-deps --frozen`) and the
   `git` calls of the gate are made by `raf-workplan`, and a slug argument is checked
   against the slug pattern when the arguments are parsed, so one that starts with `-`
-  is a usage error before any process starts. The change commands add two kinds of
+  is a usage error before any process starts. So is every value of the record
+  commands that is not of its form or starts with `-`: the id of `history`,
+  `evidence claims` and `evidence for`, a `--since` day, the section of `assess`,
+  and the `--id`, `--for`, `--limit` and `--revision` of `evidence record`, and
+  the package of `coverage --crate`. The command of `evidence record` is every
+  word after the first `--` of the command line; the binary passes
+  `std::env::args_os()` itself to `TrustedArgv::from_command_line`, refuses the
+  run before the root is looked for when the parser's trailing words differ from
+  those words, and refuses an option whose value would be `--`, so no option can
+  move where the command starts. `history`, `evidence claims`, `evidence for`,
+  `assess --context`, `assess --list` and `coverage` write nothing; `assess
+  --verdict` writes the one assessment record. The text output of `history`,
+  `coverage`, `evidence claims` and `assess --context` writes each control
+  character and each bidirectional formatting character of a document, a record
+  or a commit as its `\u{..}` escape (a line break in a table cell is a space,
+  and the multi-line text of the last two keeps its line feeds and tabs), so no
+  such text reaches a terminal as a control; the JSON forms escape control
+  characters as JSON does. The change commands add two kinds of
   process, both started by `raf-workplan`: `git` (the default branch, the merge base
   and the file at the merge base, for `change reconcile` and `change complete`, which
   ask `git --version` before anything else, refuse a Git older than 2.30, and then
   ask `git rev-parse --show-prefix` once to read each file at the workspace's place
   below the top of its work tree) and
   `cargo` (the bound tests and examples, for `verify`, `change complete` and the
-  examples of `change reconcile`). A bound value that does not resolve, or does not
+  examples of `change reconcile`). For a claim of a listed capability,
+  `change reconcile` and `change complete` also read each evidence record the claim
+  names at the same merge base with the same `git cat-file blob
+  <merge-base>:<prefix>work/evidence/<slug>.md` row, once per record, up to 1 MiB, the
+  slug being the claim's evidence id, which the profile holds to the slug pattern; a
+  record there that does not read is an error. The history of a document (`Workplan::history`)
+  starts `git` only: `git --version`, `git rev-parse --is-shallow-repository`
+  (a shallow clone is refused), `git --no-pager log --no-show-signature --follow
+  --cc --root` on the document's path after `--` and on the path of each file of a
+  bound module after `--`, `git --no-pager log
+  --no-show-signature -L<start>,<end>:<file>` for the span of each bound symbol,
+  and, for a binding that no longer resolves, `git --no-pager log
+  --no-show-signature --root -S<identifier> -n 1` over its crate's directory after
+  `--`, whose commit and parent ids are accepted only by the commit-id pattern and
+  reach no further process. Its id is matched against the loaded documents and
+  never reaches a process; a `--since` value, a day from 1970-01-01 to 2099-12-31,
+  reaches no process either: it is compared in the process with the author date of
+  each commit; each log is read up to 16 MiB and more is an error; and the history reads Git and writes
+  nothing (in a partial clone Git itself may fetch missing objects into `.git`). A
+  bound value that does not resolve, or does not
   match its stated pattern, never reaches `cargo`; a process runs with its input
-  closed, its output bounded and a wall-clock limit. `change new` writes one file,
-  `change complete` the generated blocks it stales and then removes the one record,
+  closed, its output bounded and a wall-clock limit, and a bound test or example
+  killed at either limit fails its binding with the time it ran and the limit. `change new` writes one file,
+  `evidence record` writes one record, `work/evidence/<id>.md` (created exclusively,
+  or replaced through a temporary file and a rename), and only after the run, and
+  never a document, recording an assessment (`Workplan::record_assessment`) writes
+  one record, `work/assessments/<capability slug>-<section>.md` (created
+  exclusively, or put in place of the assessment of the same section through a
+  temporary file and a rename, refusing a link or any other file in the way), starts
+  no process, and never edits a document, the digests it keeps being computed from
+  the loaded documents and the source index; every write of a record, of a change
+  record, of a generated block and the removal of a completed record first judges
+  each directory on the way (`work` and `work/<type>`, or `docs` and
+  `docs/capabilities`) and refuses one that is a symbolic link, whether it leads
+  inside the root or out of it, or that is not a directory, before anything runs or
+  is written, so no write lands on another file through a directory link (the
+  judgement goes by path, not through held directory handles, so a local writer
+  that swaps a directory for a link between the judgement and the write is not
+  stopped; such a writer can already edit the workspace, which this trust model
+  does not defend against);
+  `change complete` the generated blocks it stales and then removes the one record
+  (the assessment records are read and left as they are),
   and `change impact`, `change reconcile` and `verify` write nothing in the
   repository (a build goes to the cargo target directory).
 
@@ -186,9 +281,11 @@ the subprocess surface, and the rest apply as the other crates are built:
   local Cargo registry or git checkouts; a hostile manifest that redirects the
   scan. Resolution executes the workspace's cargo configuration (see the trust
   model above).
-- **Subprocesses** — the `cargo` and `git` processes the gates spawn: argument
-  injection through branch names, paths, package names or document fields,
-  and unintended inheritance or leakage of the environment.
+- **Subprocesses** — the `cargo` and `git` processes the gates spawn, and the
+  caller's own command that `evidence record` runs: argument injection through
+  branch names, paths, package names or document fields, a document or record
+  field reaching a command line, and unintended inheritance or leakage of the
+  environment.
 - **Supply chain** — the crates published on crates.io, their dependency tree,
   and the release automation that will publish them (none is published yet).
 

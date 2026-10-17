@@ -16,6 +16,296 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   writes documents back deterministically so a parsed document renders to its own
   bytes. Input is bounded in size and nesting, anchors and aliases are refused, and
   the crate reads no file.
+- **`raf-okf`:** the profile gains three record types beside the documents:
+  `Evidence` (`work/evidence`), `Assessment` (`work/assessments`) and `Coverage`
+  (the one record `work/coverage/default.md`). A record states a result in its
+  frontmatter, with no title, description or body. Evidence and an assessment
+  share the trace keys `subject`, `inputs` (rows of a kind, a name and a SHA-256
+  digest), `verdict` and `by` (`human` or `agent`, never a name); evidence adds
+  the capabilities it covers, the command, the commit, and measured values with
+  their limits, and the coverage record holds the crates in scope and the
+  exclusions with their reasons. `Profile::validate` returns `EvidenceRecord`,
+  `AssessmentRecord` and `CoverageRecord`, and reports one rule for each fault.
+  `Body::claims` reads the claim marker
+  `<!-- raf:claim evidence=<slug>[,<slug>...] -->` with the paragraph or list item
+  it supports; a malformed or unattached claim marker and any other `raf:` comment
+  that is not a `raf:generated:` comment are parse errors, and a claim outside a
+  capability is a violation. `DocType`, `RafDocument`, `Rule::ALL` and
+  `ErrorKind::ALL` grow, so an exhaustive match over them names the new variants.
+- **`raf-okf`:** a record is built with `EvidenceRecord::new`,
+  `AssessmentRecord::new` or `CoverageRecord::new` (with `RecordHeader::new`,
+  `Input::new`, `SectionRef::new`, `Measure::new` and `Exclusion::new`) and
+  written by its `to_document`: keys in key-table order, numbers unquoted as
+  written, an empty list as `[]`, absent optional keys left out and an empty body,
+  so `Profile::validate` reads the text back as the same record.
+  `EvidenceVerdict::name`, `AssessmentVerdict::name` and `EvidenceSubject::text`
+  give the key values. The limits of an evidence record are judged against its
+  values in time linear in their number.
+- **`raf-okf`:** `Number::compare` and `Number::exceeds` order two numbers
+  exactly on their decimal texts (sign, whole part without leading zeros,
+  fraction without trailing zeros, any length), and `Profile::validate` judges the
+  limits of a passing evidence record with them, so a value over its limit by less
+  than an `f64` tells apart is refused. A limit of a failing evidence record may
+  name no value, since a failing execution may have printed none.
+- **`raf-source`:** `Workspace::exported_items` lists the public surface of a
+  library or a binary: the items another crate can name through its crate root,
+  each as an `ExportedItem` with the path it is exported under and the item that
+  defines it, so a re-export under another name maps back to its definition. An
+  item is exported through a route of `pub` declarations back to a `pub`
+  definition, through `pub` modules and named, renamed and glob `pub use`
+  re-exports, so a `pub` item of a private module is exported only through a
+  re-export and a restricted item or a re-export that is not `pub` keeps a name in.
+  The `pub` members of the inherent impls of an exported type and the members of an
+  exported trait follow it; test code is never exported. A re-export of another
+  crate, of an enum variant or of a path the index cannot follow is a `Reexport`
+  and not an item, also where a `pub` glob carries it into the module that reads
+  the glob. `Item::macro_export` tells a `#[macro_export]` macro.
+  `#[doc(hidden)]` paths are left out unless `ExportOptions::include_hidden` lists
+  them, flagged. An ambiguous or cyclic public name, or a `pub` glob of nothing,
+  fails with the resolver's error, and the listing is charged to the item-bytes
+  budget left after the load; a listing whose decision of a carried re-export
+  passes it is `ExportError::CarryBudget`, naming the re-export.
+- **`raf-workplan`:** `Workplan::load` reads the records: the evidence of
+  `work/evidence`, the assessments of `work/assessments` and the coverage record
+  `work/coverage/default.md` (`Workplan::evidence`, `Workplan::assessments`,
+  `Workplan::coverage`). Any other file in `work/coverage` is
+  `singleton-other-file`, and a repository without these directories loads as
+  before. The graph gains record and crate nodes and the `for`, claim, assessment
+  subject, `scope` and input edges (`Graph::evidence_of`, `Graph::claims_on`,
+  `Graph::assessments_of`, `Graph::inputs_of`); a symbol a record input names is
+  a node, and an input that resolves to nothing is no edge and no finding. `check`
+  reports `claim-evidence-missing` and
+  `claim-evidence-not-for` with the line of the marker, `evidence-for-missing`,
+  `assessment-subject-missing` and `scope-crate-missing`. `NodeKind`, `EdgeKind`,
+  `Node` and `Edge` grow. `digest::Digest` is the SHA-256 of a section, a symbol
+  or a record over a domain-separated, length-prefixed encoding with CRLF read as
+  LF, computed in the crate with no new dependency. `record::create` writes a new
+  record exclusively and `record::replace` replaces one through a temporary file
+  and a rename, each with optional SPDX lines and refusing a record that would not
+  load clean.
+- **`raf-workplan` history:** `Workplan::history(id, options, runner)` returns the
+  `History` of a `cap:`, `change:`, `arch:`, `evidence:` or `assessment:` id: the
+  commits of its document through its moves (`git log --follow --cc --root
+  --name-only`, with the name it had at each, the merges whose resolution changed
+  it and the first commit whatever `log.showRoot` says) and, for a capability, of each resolved `code` binding's
+  span (`git log -L<start>,<end>:<file>`) and, for a binding of a module below its
+  crate root, of each file its digest reads (the module's own file and the file of
+  every module below it, with the document's `git log --follow` row), each commit
+  once with all its `Source`s and paths, newest first by author date and then by
+  commit id. A file of a bound module that no commit holds is
+  `HistoryError::Uncommitted`, which names the binding and the file. A `code` binding
+  that no longer resolves is a `RemovedBinding`: the newest commit that changed how
+  often the last segment of its path occurs in its crate's directory
+  (`git log --root -S<identifier> -n 1`) as the commit that removed it, and its
+  first parent (`%P` of the same query) as the last commit in which it resolved.
+  `--since` keeps the entries whose author date is at or after 00:00:00 UTC of its
+  day, so a date selects the same commits on every clock and in every time zone; it
+  is compared in process and reaches no `git` process, whose own `--since` reads
+  the committer date. The id is
+  matched against the loaded documents and never reaches a process; an unknown,
+  unloaded or wrong-kind id, a binding that names no single symbol and any value
+  that fails its pattern are refused before any process starts. Then `git
+  --version` refuses a Git older than 2.30, and `git rev-parse
+  --is-shallow-repository` refuses a shallow clone. A log over 16 MiB is
+  `GitError::LogTooLarge`; a record is split at `0x1f` at most twice, so a subject
+  keeps every byte but a newline. `history::render::table` and
+  `history::render::json` write the same entries in the same order. `exec` gains
+  the patterns `TreePath` (a path given only after `--` or after the colon of one
+  `-L` argument, so it may begin with `-`), `Identifier` (one `-S` argument) and
+  `Date` (`YYYY-MM-DD` from 1970 to 2099, the `--since` day), `LineRange`, and
+  the argument variants and rows of the four commands; `git` gains
+  `is_shallow`, `document_log`, `symbol_log` and `last_change` (`LastChange`).
+  Table cells escape control and bidirectional formatting characters.
+  `Pattern::ALL`, `Arg` and `GitError` grow. A `git log -L` that `git` refuses,
+  as for a bound file that is not committed or whose copy in `HEAD` ends before
+  the line the symbol starts at, is `HistoryError::SymbolLog`, which names the
+  binding and the file, quotes `git` and names committing the file as one way to
+  read the lines. The history writes nothing.
+- **`raf-workplan` evidence:** `Workplan::record_evidence(root, runner, request)`
+  runs one execution and writes the evidence record `work/evidence/<id>.md`. The
+  verdict comes from one `VerdictSource`: the caller's own command
+  (`exec::TrustedArgv`, the words after `--` of the command line of the running
+  process, which `TrustedArgv::from_command_line` takes from `std::env::ArgsOs`
+  and no document or record text can build; `Program::Trusted`,
+  `Invocation::trusted`, `Arg::Trusted` and `Limits::trusted`), run with no shell,
+  standard input null, the workspace root as its directory, the caller's
+  environment, 16 MiB per stream and 1800 seconds, its exit status deciding pass
+  or fail and its `name=number` output lines giving the values; or a bound test or
+  example of a capability of `for`, run by the `bound::Executor`. A value over its
+  limit (compared exactly on the decimal texts), a failing status and a signal
+  record `fail`, `Recorded::failed` naming each reason, and so does a kill at the
+  time limit, whatever the limits; a value that is not a number (an exponent
+  included), a name printed twice, more than `MAX_VALUES` (1024) values, a limit a
+  command that exited never printed and output past the bound are `MeasureError`s
+  or `EvidenceError`s and write nothing, and so does a command that cannot start. The
+  inputs are the `Digest::symbol` of each `code` binding of each capability of
+  `for`, which must be loaded and bind code that resolves. `parse_limit` reads a
+  `name=number` limit. `Workplan::evidence_claims` lists the statements resting on a
+  record (file, line, section and text), and `Workplan::evidence_for` the records
+  supporting a capability, by `for` and by claim. `Programs::path_of` returns an
+  `Option`, `None` for the caller's own command.
+- **`raf-workplan` claim and evidence obligations:** `ObligationKind` gains
+  `claim-unsupported` (a claim whose evidence does not load, fails or holds a value
+  over its limit, once for each that holds), `evidence-stale` (a record input whose digest now differs, or
+  that no longer resolves, named), both from `Workplan::reconcile`, and the process
+  kind `evidence-changed`, which `Lifecycle::reconcile` and `Lifecycle::complete`
+  raise by reading each record a claim names at the merge base: a pass that now
+  fails, a value over its limit or the merge base's, a limit gone, or the record
+  gone. `Needed` gains `SupportingEvidence`, `RecordedAgain` and `ReviewedClaim`,
+  with `ClaimProblem`, `OverLimit`, `InputMoved` and `EvidenceChange`.
+- **`raf-workplan` prose assessment:** the `assessment` module records the
+  verdict of a human or an agent on one authored section, `cap:<slug>#<section>`,
+  as the record `work/assessments/<capability slug>-<section>.md`
+  (`record_slug`), one for each section. Its inputs, each kept with its digest, are
+  the section (generated blocks left out), the `code` bindings of the capability
+  the section names in code spans (by the path or a `::`-suffix of two segments
+  or more, beside those it names by the last segment alone; every `code` binding
+  when it names none by a path), and the evidence records its claims name. `Workplan::assess_context` gives the
+  assessor the section, the bound symbols with their source text and the evidence
+  with its verdicts, the same for a human and an agent;
+  `Workplan::assessment_record` builds the record and `Workplan::record_assessment`
+  writes it, replacing the assessment of the section, refusing a bound symbol that
+  does not resolve, a claim on a record that does not load and a record over the
+  document bound; `Workplan::list_assessments` says of each record whether it is
+  current and which inputs moved (`Currency`, `MovedInput`, `InputChange`). A
+  section with nothing outside its generated blocks and comments is not assessed.
+  `check` reports `assessment-id-mismatch` for an assessment named otherwise than
+  its subject. The `prose_of` pass over a section is linear in its text and blocks.
+- **`raf-workplan` assessment obligations and condition 6:** `ObligationKind` gains
+  `assessment-missing`, `assessment-stale` (once for each input that moved, named)
+  and `assessment-rejected`, raised by `Workplan::reconcile` for each authored
+  section in `affects` whatever the `contract_effect`, with `Needed::Assessed`,
+  `Needed::AssessedAgain` and `Needed::AcceptedAssessment`. `Lifecycle::complete`
+  gains condition 6 (`Condition::Assessments`, `Failure::Assessment`): each
+  authored section in `affects` needs a current assessment with the verdict
+  `accepted`, by a human or an agent, judged with the static conditions before any
+  bound run; a refusal counts the sections without one, each section once however
+  many of its inputs moved. `complete` leaves the assessment records as they are.
+- **`raf-workplan` two-way coverage:** the `coverage` module judges the public
+  items and the tests of the workspace against the bindings of the capabilities.
+  `Workplan::coverage_report` returns a `CoverageReport` of every package: the
+  public items (from `Workspace::exported_items`, `doc(hidden)` left out) that no
+  `code` binding covers, the public re-exports of the workspace the index cannot
+  follow to an item (a type a macro generates) as `unresolved re-export` entries,
+  the tests (`#[test]` functions, unit tests included) that no `tests` binding
+  names, what the exclusions of the coverage record take out with their reasons,
+  and each surface that cannot be listed as a typed `SurfaceError`, all sorted by
+  package and path; `coverage::render` writes each direction as a table and as
+  JSON. Binding an item covers the items below it, a binding is followed through
+  re-exports to the definition, and an item bound only in `examples` is a gap.
+  `check` enforces the crates of the record's `scope`: `coverage-item-unbound`,
+  `coverage-reexport-unbound`, `coverage-test-unbound` and
+  `coverage-surface-unreadable`, with `coverage-exclusion-unmatched` for an
+  exclusion of nothing and one `coverage-record-missing` for a repository with
+  capability documents and no record (`scope: []` enforces nothing). A `scope`
+  entry written as a crate name is named as the package it means. The
+  repository's own record enforces `raf-workplan` and `cargo-workplan` with no
+  exclusion: their capabilities bind every public item and every test of them,
+  unit tests included.
+- **`raf-workplan` digests of modules:** `Digest::symbol` of a module below a
+  crate root hashes, after the module's own span, the whole text of each file of
+  the module and of the modules below it, so a module binding stands for the
+  module's content in evidence and assessment inputs as it does in coverage, and
+  an edit inside a bound module makes its records stale while an edit of a
+  sibling module does not. A digest recorded against a module before this change
+  differs from the one computed now.
+- **`raf-workplan` current rationale:** `check` reports an architecture page that
+  no capability, change or other architecture page links to
+  (`architecture-page-unlinked`; a link from the page to itself does not count,
+  and no page is reported while a document that may hold the link does not load),
+  a decision page (an architecture page with a `## Decision` heading) without a
+  `## Conditions to revisit` heading and a `## Conditions to revisit` heading with
+  no list item (`decision-conditions-missing`), and a `### Decision` in the
+  Explanation of a capability that no `### Conditions to revisit` follows before
+  the next decision, or such a subheading with no list item
+  (`explanation-conditions-missing`). Headings match their exact text and level;
+  headings in fenced code and in PROPOSED blocks do not count. A condition is
+  plain prose and nothing judges whether it has been met. A link to a page or a
+  heading that does not exist stays `link-broken` or `anchor-broken`.
+- **`raf-workplan` the time of an output kill:** `ExecError::OutputTooLarge`
+  gains `elapsed`, the time the process had run when it was killed for writing
+  more than the bound, and its message gives it, so a bound test or example killed
+  for too much output fails its binding with the time it ran and the bound, as a
+  kill at the timeout does, and its run keeps that time in place of zero. A
+  pattern outside the crate that names the fields of `OutputTooLarge` without `..`
+  names `elapsed` too.
+- **`raf-workplan` writes through real directories:** `record::create`,
+  `record::replace`, the checks `Workplan::record_evidence` and
+  `Workplan::record_assessment` make before they write, `Workplan::write` and the
+  removal of a completed record judge each directory on the way to the file
+  (`work` and the directory of the record type, `docs` and `docs/capabilities`, or
+  `work` and `work/changes`) and refuse one that is a symbolic link, whether it
+  leads inside the root or out of it, or that is not a directory, before anything
+  runs or is written. A directory link inside the root no longer lets a
+  replacement land on another file, such as a capability document.
+  `LifecycleError` gains `RecordRefused`, which `Lifecycle::complete` returns for
+  a refused way to the record at either judgement of the static conditions, the
+  first before any process runs and the second after the bound tests and
+  examples ran; its `ran` field and its message say which.
+- **`raf-okf` a marker split over lines:** a comment that `<!--` opens at the
+  end of a line and whose first non-blank text below is `raf:` in any letter case,
+  other than `raf:generated:`, is a malformed claim marker for `raf:claim` and an
+  unknown marker for any other word, at the line of `<!--`, so a claim marker
+  written over several lines is a parse error and never a plain comment. Split
+  `raf:generated:` comments, SPDX headers and other multi-line comments stay plain.
+- **`raf-workplan` claims while a capability does not load:**
+  `Workplan::evidence_claims` returns the new
+  `EvidenceLookupError::UnloadedCapabilities`, naming each capability document
+  that exists and does not load, in place of an answer that leaves out the claims
+  such a document may hold, so `evidence claims` exits 2 as `evidence for` does. A
+  change record or an evidence record that does not load leaves the answer as it
+  is.
+- **`raf-workplan` coverage of unresolved re-exports and unloaded
+  capabilities:** the path an unresolved re-export names is read from the module
+  that declares it, the innermost inline module whose braces hold the declaration
+  or else the module of its file, with each `super::` one module up, so a binding
+  of the module it reaches covers it and a binding of the declaring module that
+  the path leaves no longer does. While a capability document exists and does
+  not load, `check` reports its own findings and no `coverage-item-unbound`,
+  `coverage-test-unbound` or `coverage-reexport-unbound`, in place of one finding
+  for every item and test that document binds.
+- **`raf-workplan` the caller's command in messages:** the text of a trusted
+  `Invocation`, which the messages of `ExecError` quote, is the command as
+  `TrustedArgv::text` writes it and the evidence record stores it, each word a
+  shell would split or expand in single quotes, so `sh -c 'yes >&2'` and
+  `sh -c yes '>&2'` no longer read the same. `SECURITY.md` states the limits of
+  the trusted command: an interrupt of `cargo-workplan` does not reach it, a
+  descendant that leaves its process group escapes the kill, a relative program
+  resolves against the workspace root, a hand-written record may hold more than
+  1024 values, the write checks judge paths and not handles, and the time the
+  exported-items listing may take before its budget stops it.
+- **Escaped document text on a terminal:** `raf_workplan::escape::shown_lines`
+  writes each control character but the line feed and the tab, and each
+  bidirectional formatting character, as its `\u{..}` escape, the rule the history
+  and coverage tables apply to their cells. The text output of `evidence claims`
+  and `assess --context` goes through it, so a document cannot clear the screen,
+  set the title of a terminal or reorder a line; the JSON forms are unchanged.
+- **`cargo-workplan` record commands:** `history <id> [--since <YYYY-MM-DD>]`
+  prints the table or the JSON of `Workplan::history` (exit 0, or 2 for an id no
+  document has, a shallow clone or a Git older than 2.30). `evidence record --id
+  <slug> --for cap:<slug>... --by human|agent [--limit name=number]... [--revision
+  <commit>] [--update] [--copyright <text> --licence <id>]` runs the command after
+  `--`, or the bound test or example of `--from-binding <path>`, and writes one
+  evidence record: exit 0 for `pass`, 1 for `fail`, 2 when no record is written.
+  Every word after the first `--` of the command line is the command, options
+  included; the parser's reading and the `TrustedArgv` of `std::env::args_os()`
+  must agree word by word, an option whose value would be `--` is a usage error,
+  and a program name of `--` and `--from-binding` beside a `--` are refused before
+  any process starts. A replacement holds only the SPDX lines its own run is
+  given. `evidence claims <evidence-id>` and `evidence for cap:<slug>` print what
+  rests on a record and what supports a capability. `assess cap:<slug>#<section>`
+  takes one of `--context` (the same for `--by human` and `--by agent`),
+  `--verdict accepted|rejected --by human|agent` (one record written, exit 0 for
+  either verdict) and `--list` (each assessment with its currency, exit 0; a
+  section given to it must exist).
+  `coverage code|tests [--crate <package>]` prints one direction of the coverage
+  report of the whole workspace or of one package, and exits 1 when it names a
+  gap. Each id, day, limit, revision, section and package is checked when the
+  arguments are parsed, before any process starts. The JSON kinds
+  `history-entry`, `history-removed`, `evidence-recorded`, `evidence-claim`,
+  `evidence-for`, `assess-context`, `assessment-recorded`, `assessment`,
+  `coverage-gap`, `coverage-excluded` and `coverage-error` are documented in the
+  crate documentation with their members in order.
 - **`raf-workplan`:** loads a repository's capability, change and architecture
   documents through a `raf-source` `Tree` into typed values with their bodies,
   validating each with `raf-okf`. `Workplan::load` never fails and never panics:

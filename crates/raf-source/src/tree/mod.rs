@@ -100,7 +100,7 @@ pub enum Opened {
 
 /// One entry of a directory listing.
 ///
-/// The struct is `#[non_exhaustive]`: a later field is not a breaking change,
+/// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
 /// so a pattern names the fields it reads and ends in `..`, and a [`Tree`]
 /// backend outside the crate builds an entry with [`Entry::new`].
 ///

@@ -55,6 +55,8 @@ fn shaped(tag: &str, state: &str, tests: &str, examples: &str, items: &str) -> R
         "Fixture states its contract here.",
     );
     repo.sync();
+    // The contract as it now reads is assessed.
+    repo.assess("shape");
     repo
 }
 
@@ -126,7 +128,22 @@ fn a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_c
     assert!(!repo.read(CAP).contains("work/changes/shape.md"));
     repo.both(&["check"]).expect(0);
     repo.git(&["add", "-A"]);
-    assert_eq!(repo.git(&["status", "--short"]).lines().count(), 2);
+    // The capability and the removed record, beside the assessment the
+    // fixture recorded before the run, which `complete` leaves as it is.
+    let mut status: Vec<String> = repo
+        .git(&["status", "--short"])
+        .lines()
+        .map(str::to_string)
+        .collect();
+    status.sort();
+    assert_eq!(
+        status,
+        [
+            "A  work/assessments/fixture-contract.md".to_string(),
+            format!("D  {RECORD}"),
+            format!("M  {CAP}"),
+        ]
+    );
 
     // A second run finds no record.
     let again = repo.run(&["change", "complete", "shape"]).expect(2);
@@ -396,6 +413,23 @@ fn json_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_fil
     );
 }
 
+/// The contract settled and not assessed owes its assessment alone; the
+/// assessor then records it, through the library.
+fn assess_the_contract(repo: &Repo) {
+    let unassessed = repo.run(&["change", "reconcile", "shape"]).expect(1);
+    assert_eq!(
+        unassessed.lines(),
+        [
+            "cap:fixture  contract  assessment-missing  an assessment of the section recorded with assess (`cap:fixture#contract` has no assessment `assessment:fixture-contract`)"
+        ],
+        "{unassessed:#?}"
+    );
+    assert_eq!(
+        repo.assess("shape"),
+        ["work/assessments/fixture-contract.md"]
+    );
+}
+
 #[test]
 fn from_new_to_a_completed_change_through_the_binary() {
     let repo = Repo::real("complete-flow");
@@ -467,17 +501,20 @@ fn from_new_to_a_completed_change_through_the_binary() {
     );
     repo.run(&["check"]).expect(0);
     let owed = repo.run(&["change", "reconcile", "shape"]).expect(1);
-    assert_eq!(owed.lines().len(), 1, "{owed:#?}");
+    assert_eq!(owed.lines().len(), 2, "{owed:#?}");
     assert!(owed.stdout.contains("  unresolved-proposal  "), "{owed:#?}");
+    assert!(owed.stdout.contains("  assessment-missing  "), "{owed:#?}");
     let refused = repo.run(&["change", "complete", "shape"]).expect(1);
     assert!(refused.stdout.starts_with("refused: "), "{refused:#?}");
 
-    // The block becomes the contract: nothing is owed.
+    // The block becomes the contract, and once the contract is assessed
+    // nothing is owed.
     repo.edit(
         CAP,
         "\n> [!PROPOSED change:shape]\n> Fixture does it.\n",
         "Fixture does it.\n",
     );
+    assess_the_contract(&repo);
     let empty = repo.both(&["change", "reconcile", "shape"]).expect(0);
     assert_eq!(empty.stdout, "");
 

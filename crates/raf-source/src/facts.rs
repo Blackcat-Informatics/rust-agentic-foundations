@@ -27,7 +27,7 @@ use crate::verbatim::{self, Bodiless, Verbatim};
 /// Line ranges are 1-based and half-open, as in `raf_okf::Span`: an item on
 /// line `n` alone has the lines `n..n + 1`.
 ///
-/// The struct is `#[non_exhaustive]`: a later field is not a breaking change,
+/// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
 /// so a pattern names the fields it reads and ends in `..`.
 ///
 /// ```compile_fail,E0638
@@ -266,6 +266,8 @@ pub(crate) struct UseFact {
     pub(crate) tree: UseTree,
     /// The test role.
     pub(crate) test: TestRole,
+    /// True when the declaration has `#[doc(hidden)]`.
+    pub(crate) doc_hidden: bool,
 }
 
 /// An `impl` block header and its items.
@@ -799,11 +801,22 @@ fn unsupported(item: &impl quote::ToTokens) -> ExtractError {
     }
 }
 
-/// The test role of a `use` declaration with the attributes `attrs`, which
-/// are read for their meaning and not kept.
-fn use_role(attrs: &[Attribute], inherited: TestRole) -> Found<TestRole> {
+/// The test role of a `use` declaration with the attributes `attrs`, and
+/// whether they hold `#[doc(hidden)]`; the attributes are read for their
+/// meaning and not kept.
+fn use_role(attrs: &[Attribute], inherited: TestRole) -> Found<UseRole> {
     let summary = summarize(attrs, &FactMeter::scratch())?;
-    Ok(role(summary.own_test, inherited))
+    Ok(UseRole {
+        test: role(summary.own_test, inherited),
+        doc_hidden: summary.doc_hidden,
+    })
+}
+
+/// What the attributes of a `use` declaration say of it.
+#[derive(Debug, Clone, Copy)]
+struct UseRole {
+    test: TestRole,
+    doc_hidden: bool,
 }
 
 struct Extractor<'t> {
@@ -1073,9 +1086,9 @@ impl Extractor<'_> {
             Item::Mod(m) => body.mods.push(self.module_fact(m, inherited)?),
             Item::Impl(i) => body.impls.push(self.impl_fact(i, inherited)?),
             Item::Use(u) => {
-                let test = use_role(&u.attrs, inherited)?;
+                let role = use_role(&u.attrs, inherited)?;
                 body.uses.push(self.use_fact(
-                    test,
+                    role,
                     &u.vis,
                     u.leading_colon.is_some(),
                     &u.tree,
@@ -1089,10 +1102,10 @@ impl Extractor<'_> {
                     // The attributes of the whole declaration are read once,
                     // so the work stays linear in the text however many
                     // members share them.
-                    let test = use_role(&group.attrs, inherited)?;
+                    let role = use_role(&group.attrs, inherited)?;
                     for member in &group.members {
                         body.uses.push(self.use_fact(
-                            test,
+                            role,
                             &group.vis,
                             member.leading_colon,
                             &member.tree,
@@ -1111,10 +1124,10 @@ impl Extractor<'_> {
     }
 
     /// The fact of one `use` declaration spanning `whole`, of the test role
-    /// `test` that [`use_role`] read from its attributes.
+    /// and the `doc(hidden)` flag that [`use_role`] read from its attributes.
     fn use_fact(
         &self,
-        test: TestRole,
+        role: UseRole,
         vis_of: &Visibility,
         leading_colon: bool,
         tree: &syn::UseTree,
@@ -1130,7 +1143,8 @@ impl Extractor<'_> {
             vis,
             leading_colon,
             tree: self.use_tree(tree, line)?,
-            test,
+            test: role.test,
+            doc_hidden: role.doc_hidden,
         })
     }
 

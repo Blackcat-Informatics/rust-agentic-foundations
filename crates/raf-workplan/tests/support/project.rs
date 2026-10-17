@@ -93,6 +93,11 @@ impl Project {
         for (path, text) in files {
             put(root, path, text);
         }
+        // Every project says what its coverage enforces: nothing, unless the
+        // files hold a record of their own.
+        if !files.iter().any(|(path, _)| path == super::COVERAGE) {
+            put(root, super::COVERAGE, &super::open_coverage());
+        }
         git(root, &["init", "-q", "-b", "main"]);
         Self {
             scratch,

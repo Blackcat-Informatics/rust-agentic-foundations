@@ -31,12 +31,14 @@ fn is_scanned(path: &str) -> bool {
 /// * Every file: a link or image split across lines, a link that does not
 ///   resolve (`link-broken`, `anchor-broken`, `link-outside`, `link-symlink`),
 ///   and text that does not read as Markdown (an unclosed frontmatter block, a
-///   malformed or unclosed generated marker, a malformed PROPOSED marker).
+///   malformed or unclosed generated marker, a malformed PROPOSED marker, a
+///   malformed or unattached claim marker, an unknown `raf:` comment).
 /// * Files at the top level and under `docs/` and `work/`: an issue or pull
 ///   request reference (`issue-reference`), an unfinished-work token
-///   (`okf-placeholder`), and a PROPOSED block, which belongs in a capability
+///   (`okf-placeholder`), a PROPOSED block, which belongs in a capability
 ///   document (`okf-proposed-outside-capability`), whose change must also
-///   exist (`proposed-missing-change`).
+///   exist (`proposed-missing-change`), and a claim marker, which belongs in
+///   a capability document too (`okf-claim-outside-capability`).
 ///
 /// `path` is the repository-relative path with `/` separators, `text` is the
 /// file, and `context` supplies the tracked paths.
@@ -121,6 +123,13 @@ pub(crate) fn rules(path: &str, text: &str, context: &LinkContext<'_>, out: &mut
                     "create the change record, or correct the slug in the marker",
                 ));
             }
+        }
+        for claim in body.claims() {
+            out.push(Finding::from_rule(
+                &Rule::ClaimOutsideCapability,
+                path,
+                Location::Line(claim.line()),
+            ));
         }
     }
     links::check_body(path, &body, context, out);

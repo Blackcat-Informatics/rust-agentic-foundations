@@ -20,6 +20,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use raf_workplan::{Gate, SyncOptions, Workplan};
 use serde_json::Value;
 
+/// The helper of the library's fixtures that assesses the sections a change
+/// affects, through the library, shared as one file.
+#[path = "../../../raf-workplan/tests/support/assessed.rs"]
+pub(crate) mod assessed;
 #[cfg(unix)]
 pub(crate) mod stubs;
 
@@ -30,6 +34,13 @@ pub(crate) const BINARY: &str = env!("CARGO_BIN_EXE_cargo-workplan");
 pub(crate) const COPYRIGHT: &str = "2026 Example Org <dev@example.org>";
 /// The licence identifier of an index the fixtures create.
 pub(crate) const LICENCE: &str = "CC-BY-4.0";
+
+/// Where the coverage record lives.
+pub(crate) const COVERAGE: &str = "work/coverage/default.md";
+
+/// The coverage record that enforces nothing: `scope: []` and no exclusion.
+pub(crate) const OPEN_COVERAGE: &str =
+    "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n";
 
 /// A unique directory under the system temporary directory, removed on drop.
 pub(crate) struct Scratch(PathBuf);
@@ -112,6 +123,9 @@ impl Repo {
             "/// A documented function.\npub fn real() {}\n",
         );
         repo.put("tests/it.rs", "#[test]\nfn case() {}\n");
+        // The coverage record that enforces nothing, so no fixture relies on
+        // a repository without one.
+        repo.put(COVERAGE, OPEN_COVERAGE);
         repo
     }
 
@@ -194,6 +208,13 @@ impl Repo {
         self.scratch.path()
     }
 
+    /// Give each authored section `change` affects a current accepted
+    /// assessment of the documents as they stand, through the library's
+    /// `record_assessment`; return the paths written.
+    pub(crate) fn assess(&self, change: &str) -> Vec<String> {
+        assessed::assess_on_disk(self.root(), change)
+    }
+
     /// Write `text` at `path`, creating the directories.
     pub(crate) fn put(&self, path: &str, text: &str) {
         let target = self.root().join(path);
@@ -248,6 +269,16 @@ impl Repo {
     /// Run the binary in the root in both shapes and require equal results.
     pub(crate) fn both(&self, args: &[&str]) -> Run {
         run_both(self.root(), args)
+    }
+
+    /// Run the binary in the root in both shapes and require equal results
+    /// once the run time of a kill (`in <seconds> s and was killed`), which two
+    /// runs of the same command measure apart, is written `<t>` in each.
+    pub(crate) fn both_timed(&self, args: &[&str]) -> Run {
+        let direct = run_in(self.root(), Shape::Direct, args).without_run_time();
+        let cargo = run_in(self.root(), Shape::Cargo, args).without_run_time();
+        assert_eq!(direct, cargo, "the two shapes of {args:?} differ");
+        direct
     }
 
     /// Run a command that writes in both shapes, each from the same starting
@@ -336,6 +367,33 @@ impl Run {
         assert_eq!(self.code, code, "{self:#?}");
         self
     }
+
+    /// The run with the seconds of each `in <seconds> s and was killed` in
+    /// its output written `<t>`.
+    pub(crate) fn without_run_time(self) -> Self {
+        Self {
+            code: self.code,
+            stdout: without_run_time(&self.stdout),
+            stderr: without_run_time(&self.stderr),
+        }
+    }
+}
+
+/// `text` with the seconds before each ` s and was killed` written `<t>`.
+fn without_run_time(text: &str) -> String {
+    const KILLED: &str = " s and was killed";
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(at) = rest.find(KILLED) {
+        let head = &rest[..at];
+        let seconds = head.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.');
+        out.push_str(seconds);
+        out.push_str("<t>");
+        out.push_str(KILLED);
+        rest = &rest[at + KILLED.len()..];
+    }
+    out.push_str(rest);
+    out
 }
 
 /// The command for the binary: closed standard input, the environment of the
@@ -403,7 +461,15 @@ pub(crate) fn snapshot(root: &Path) -> BTreeMap<String, Vec<u8>> {
                 into.insert(format!("{name}/"), Vec::new());
                 walk(root, &path, into);
             } else {
-                into.insert(name, fs::read(&path).expect("file bytes"));
+                // A file that Git removed between listing and reading (a lock or a
+                // temporary file) is not part of the tree a test compares.
+                match fs::read(&path) {
+                    Ok(bytes) => {
+                        into.insert(name, bytes);
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => panic!("cannot read {}: {e}", path.display()),
+                }
             }
         }
     }
@@ -478,6 +544,11 @@ pub(crate) const BLOCKS: &str = "\n<!-- raf:generated:verification-matrix -->\n<
 /// command and the user's configuration out of the way. Returns standard
 /// output without its last line ending.
 pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
+    git_with(dir, args, &[])
+}
+
+/// [`git`] with these variables set as well, such as the dates of a commit.
+pub(crate) fn git_with(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> String {
     let mut command = Command::new("git");
     command
         .arg("-C")
@@ -489,6 +560,12 @@ pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
             "core.hooksPath=/dev/null",
             "-c",
             "core.excludesFile=",
+            // No background maintenance: it can create and remove files under
+            // `.git` while a test reads the tree.
+            "-c",
+            "gc.auto=0",
+            "-c",
+            "maintenance.auto=false",
         ])
         .args(args)
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
@@ -500,6 +577,7 @@ pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
         .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
         .env("GIT_COMMITTER_NAME", "Fixture")
         .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid");
+    command.envs(env.iter().copied());
     for variable in [
         "GIT_DIR",
         "GIT_WORK_TREE",
