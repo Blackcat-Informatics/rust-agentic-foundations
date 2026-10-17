@@ -229,9 +229,9 @@ fn a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is() {
     let run = repo.both(&["history", "cap:alpha"]).expect(2);
     assert_eq!(run.stdout, "");
     assert!(
-        run.stderr
-            .contains("the bound symbol `demo::later::later` in `src/later.rs`")
-            && run.stderr.contains("commit `src/later.rs`"),
+        run.stderr.contains(
+            "`git log -L` could not read the lines of the bound symbol `demo::later::later` in `src/later.rs` from `HEAD`"
+        ) && run.stderr.contains("one way to read them is to commit `src/later.rs`"),
         "{run:#?}"
     );
     // The neighbour: once the file is committed, it has a history.

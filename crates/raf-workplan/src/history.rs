@@ -349,7 +349,10 @@ pub enum HistoryError {
     /// The repository is a shallow clone.
     Shallow,
     /// `git log -L` failed for the span of a bound symbol, as it does for a
-    /// file that is not committed or is shorter in `HEAD`.
+    /// file that is not committed or is shorter in `HEAD`. The message says
+    /// that `git log -L` could not read the lines from `HEAD`, with what `git`
+    /// said, and names committing the file as one way to read them, not as the
+    /// cause.
     SymbolLog {
         /// The binding's path.
         binding: String,
@@ -416,7 +419,7 @@ impl fmt::Display for HistoryError {
                 error,
             } => write!(
                 f,
-                "the lines of the bound symbol `{binding}` in `{file}` have no history: {error}; `git log -L` reads them from `HEAD`, so commit `{file}` (with the symbol at the lines it has now) and ask again"
+                "`git log -L` could not read the lines of the bound symbol `{binding}` in `{file}` from `HEAD`: {error}; when `{file}` is not committed, or `HEAD` holds fewer of its lines than the working copy, one way to read them is to commit `{file}` with the symbol at the lines it has now and ask again"
             ),
             Self::Uncommitted { binding, file } => write!(
                 f,

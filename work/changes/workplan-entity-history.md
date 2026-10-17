@@ -8,6 +8,7 @@ description: "The error for a line history git cannot read says what failed and 
 changes: [cap:workplan-entity-history]
 affects:
   - cap:workplan-entity-history#contract
+  - cap:workplan-entity-history#constraints
   - cap:workplan-entity-history#verification
 contract_effect: changes
 items:

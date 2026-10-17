@@ -1145,7 +1145,20 @@ fn a_symbol_log_that_git_refuses_names_the_binding_and_the_file_to_commit() {
         message.contains("There is no path src/alpha.rs"),
         "{message}"
     );
-    assert!(message.contains("commit `src/alpha.rs`"), "{message}");
+    assert!(
+        message.starts_with(
+            "`git log -L` could not read the lines of the bound symbol `demo::alpha::second` in `src/alpha.rs` from `HEAD`: "
+        ),
+        "{message}"
+    );
+    // Committing the file is one way to read the lines, named as such and
+    // not as the cause.
+    assert!(
+        message.ends_with(
+            "; when `src/alpha.rs` is not committed, or `HEAD` holds fewer of its lines than the working copy, one way to read them is to commit `src/alpha.rs` with the symbol at the lines it has now and ask again"
+        ),
+        "{message}"
+    );
     // A failing log of the document stays a failure of `git`.
     let doc = format!(
         "--no-pager log --no-show-signature --follow --cc --root {FORMAT} --name-only -- docs/capabilities/alpha.md"

@@ -93,6 +93,20 @@ source is the binding's path and their path is the file. A binding that names
 more than one symbol, or that the index cannot decide, is an error and no
 process starts.
 
+> [!PROPOSED change:workplan-entity-history]
+> **Binding history.** For each resolved code binding, the report reads the span of
+> each definition of the symbol (its file and lines) from the
+> [source index](./source-index.md) and runs `git log -L` over those lines, so the
+> report lists the commits that changed that symbol and not the whole file. Their
+> source is the binding's path and their path is the file. A binding that names
+> more than one symbol, or that the index cannot decide, is an error and no
+> process starts. When `git log -L` cannot read the lines of a symbol from `HEAD`,
+> as for a bound file that is not committed or that `HEAD` holds fewer lines of,
+> the whole history fails with an error (`HistoryError::SymbolLog`) that names the
+> binding and the file, says that `git log -L` could not read the lines from `HEAD`
+> with what `git` said, and names committing the file with the symbol at the lines
+> it has now as one way to read them, not as the cause.
+
 A binding that resolves to a module below its crate root stands for the files of
 the module, as its digest does for the evidence and assessments that rest on it
 (see [prose assessment](./workplan-prose-assessment.md)): the module's own file
@@ -232,6 +246,17 @@ the document and the method, so it is one entry with both sources:
   is shorter in `HEAD`, makes `git log -L` fail, and the whole history fails with
   it rather than leaving the binding out, with an error that names the binding
   and the file and says to commit it.
+
+> [!PROPOSED change:workplan-entity-history]
+> - `git log -L` follows the lines of a symbol through a rename that Git detects
+>   and ends where the lines came from another file, so the history of a symbol
+>   moved between files starts at the move. The span is read from the working tree
+>   and traced from `HEAD`, so for a file whose working copy differs from `HEAD`
+>   the lines are those numbers in `HEAD`. A bound file that is not committed, or
+>   is shorter in `HEAD`, makes `git log -L` fail, and the whole history fails with
+>   it rather than leaving the binding out, with an error that names the binding
+>   and the file, says that `git log -L` could not read the lines from `HEAD`, and
+>   names committing the file as one way to read them.
 - The history of a bound module is the history of its whole files: a commit that
   changed any line of one of them, a comment or a unit test included, is listed,
   as the module's digest moves with that edit. The log of each file holds its
@@ -332,6 +357,14 @@ sequence of proposals, discarded names and reversals that Git retains.
 - A bound file whose lines `git log -L` cannot read from `HEAD` (as for a file that
   is not committed): the error names the binding and the file and says to commit
   it, while a failing log of the document stays a failure of `git`.
+
+> [!PROPOSED change:workplan-entity-history]
+> - A bound file whose lines `git log -L` cannot read from `HEAD`: through the
+>   library, the error names the binding and the file, starts with `git log -L`
+>   could not read the lines from `HEAD`, quotes what `git` said and ends naming
+>   committing the file as one way to read them, while a failing log of the document
+>   stays a failure of `git`; through the binary, a file written after the last
+>   commit is exit 2 with that message, and has a history once it is committed.
 - The JSON output and the table carry the same entries in the same order.
 - Each kind of id (`cap:`, `change:`, `arch:`, `evidence:`, `assessment:`) has
   the history of its file.
