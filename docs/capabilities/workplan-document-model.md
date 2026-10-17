@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-document-model
 title: "Workplan document model"
 description: "Capability and change documents, the four states, PROPOSED blocks, the graph, binding resolution and the check rules."
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_workplan::Workplan
@@ -984,5 +984,4 @@ touches, and the obligations those sections receive are defined by
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
 | Depended on by | [workplan-reconcile](./workplan-reconcile.md) |
 | Depended on by | [workplan-two-way-coverage](./workplan-two-way-coverage.md) |
-| Changed by | [workplan-document-model](../../work/changes/workplan-document-model.md) |
 <!-- raf:generated:end -->

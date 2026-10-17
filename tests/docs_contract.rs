@@ -88,7 +88,7 @@ const INVENTORY: Inventory = Inventory {
         ("workplan-cli", "implementing"),
         ("workplan-complete-gate", "implementing"),
         ("workplan-current-rationale", "delivered"),
-        ("workplan-document-model", "implementing"),
+        ("workplan-document-model", "delivered"),
         ("workplan-entity-history", "implementing"),
         ("workplan-evidence-claims", "implementing"),
         ("workplan-generated-docs", "delivered"),
@@ -1037,8 +1037,8 @@ fn inventory_table_has_the_documented_shape() {
             .count()
     };
     assert_eq!(count("designed"), 9);
-    assert_eq!(count("implementing"), 7);
-    assert_eq!(count("delivered"), 5);
+    assert_eq!(count("implementing"), 6);
+    assert_eq!(count("delivered"), 6);
     assert_eq!(count("considered"), 0);
     assert_eq!(INVENTORY.architecture.len(), 2);
     assert!(
