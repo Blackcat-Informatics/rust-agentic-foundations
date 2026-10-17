@@ -240,3 +240,51 @@ fn help_and_version_exit_zero_on_standard_output() {
         "{version:#?}"
     );
 }
+
+#[test]
+fn a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass() {
+    let purpose = "Text for Purpose of alpha.";
+    for (comment, kind) in [
+        (
+            "<!--\nraf:claim evidence=x\n-->",
+            "okf-parse-malformed-claim",
+        ),
+        (
+            "<!--\n\n  RAF:Claim evidence=x\n-->",
+            "okf-parse-malformed-claim",
+        ),
+        ("<!--\nraf:foo\n-->", "okf-parse-unknown-marker"),
+    ] {
+        let repo = Repo::synced("check-split-marker", false);
+        repo.edit(
+            "docs/capabilities/alpha.md",
+            purpose,
+            &format!("{purpose}\n\n{comment}"),
+        );
+        let before = repo.snapshot();
+        let run = repo.both(&["check"]).expect(1);
+        assert!(
+            run.stdout.contains(&format!("[{kind}]"))
+                && run.stdout.contains("docs/capabilities/alpha.md"),
+            "{comment:?}: {run:#?}"
+        );
+        assert_eq!(run.lines(), repo.gate_lines(), "{comment:?}");
+        assert_eq!(repo.snapshot(), before, "check wrote");
+    }
+    // The neighbours: a split `raf:generated:` comment, an SPDX header split
+    // over lines and an ordinary split comment are plain comments.
+    for comment in [
+        "<!--\nraf:generated:x\n-->",
+        "<!--\nSPDX-FileCopyrightText: 2026 Example Org <dev@example.org>\nSPDX-License-Identifier: CC-BY-4.0\n-->",
+        "<!--\nA note for the reader.\n-->",
+    ] {
+        let repo = Repo::synced("check-split-plain", false);
+        repo.edit(
+            "docs/capabilities/alpha.md",
+            purpose,
+            &format!("{purpose}\n\n{comment}"),
+        );
+        let run = repo.both(&["check"]).expect(0);
+        assert_eq!(run.stdout, "", "{comment:?}: {run:#?}");
+    }
+}

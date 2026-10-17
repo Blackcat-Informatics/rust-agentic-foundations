@@ -304,3 +304,56 @@ fn a_raf_generated_comment_in_another_case_or_spacing_is_text() {
         &ErrorKind::UnknownMarker
     );
 }
+
+#[test]
+fn a_raf_comment_split_over_lines_is_a_marker_error_and_other_split_comments_are_text() {
+    // A marker is one line: a comment whose first text after `<!--` is a
+    // `raf:` word on a later line is the error of that word, reported at the
+    // line of `<!--`.
+    for (text, kind, line) in [
+        (
+            "A statement.\n<!--\nraf:claim evidence=x\n-->\n",
+            ErrorKind::MalformedClaim,
+            2,
+        ),
+        (
+            "A statement.\n<!--\n\n  RAF:Claim evidence=x\n-->\n",
+            ErrorKind::MalformedClaim,
+            2,
+        ),
+        (
+            "A statement. <!--\nraf:claim evidence=x -->\n",
+            ErrorKind::MalformedClaim,
+            1,
+        ),
+        ("Text.\n\n<!--\nraf:foo\n-->\n", ErrorKind::UnknownMarker, 3),
+        (
+            "Text.\n  <!--   \n\traf:note x -->\n",
+            ErrorKind::UnknownMarker,
+            2,
+        ),
+    ] {
+        let error = refused(text);
+        assert_eq!(error.kind(), &kind, "{text:?}");
+        assert_eq!(error.line(), line, "{text:?}");
+    }
+    // The neighbours stay plain: a split `raf:generated:` comment in any
+    // letter case, an SPDX header, an ordinary comment, an empty one, and a
+    // comment that opens in a code span; and inside fenced code and a
+    // PROPOSED block nothing is read.
+    for text in [
+        "Text.\n<!--\nraf:generated:x\n-->\n",
+        "Text.\n<!--\n  RAF:Generated:catalogue\n-->\n",
+        "<!--\nSPDX-FileCopyrightText: 2026 Someone\nSPDX-License-Identifier: CC-BY-4.0\n-->\n\n# Title\n",
+        "Text.\n<!--\nA note about raf:claim markers.\n-->\n",
+        "Text.\n<!--\n-->\nraf:claim evidence=x\n",
+        "Text `<!--`\nraf:claim evidence=x\n",
+        "Text.\n\n```markdown\n<!--\nraf:claim evidence=x\n-->\n```\n",
+        "Text.\n<!--\n```\nraf:claim evidence=x\n```\n-->\n",
+        "## Contract\n\n> [!PROPOSED change:split]\n> <!--\n> raf:claim evidence=x\n> -->\n",
+    ] {
+        let parsed = body(text);
+        assert_eq!(parsed.claims(), [], "{text:?}");
+        assert_eq!(parsed.generated_blocks().len(), 0, "{text:?}");
+    }
+}

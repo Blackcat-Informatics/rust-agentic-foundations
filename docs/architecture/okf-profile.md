@@ -274,6 +274,14 @@ code spans are not read, and neither
 are claim markers inside a PROPOSED block: a proposed claim is a claim once the
 block is resolved.
 
+A marker is one line. A comment that `<!--` opens at the end of a line, outside its
+code spans, and whose first non-blank text on the lines below is `raf:` in any
+letter case, other than `raf:generated:`, is the error of that word on the line of
+`<!--`: a malformed claim marker for `raf:claim` and an unknown marker for any
+other word, so a claim marker split over lines is never read as a plain comment
+either. A multi-line `raf:generated:` comment, an SPDX header written over several
+lines and every other multi-line comment are plain comments.
+
 A document reports its first marker error: reading stops at the first malformed
 PROPOSED marker, malformed, nested, unclosed or orphaned generated marker,
 malformed or unattached claim marker, or unknown `raf:` comment, so a second fault

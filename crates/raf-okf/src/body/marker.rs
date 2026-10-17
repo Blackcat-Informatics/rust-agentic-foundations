@@ -162,25 +162,49 @@ enum Family {
     Other,
 }
 
+/// The family of a comment by its first text after `<!--`, trimmed: `raf:`
+/// in any letter case and then a word other than `generated:`, or `None`.
+fn family_of(text: &str) -> Option<Family> {
+    let word = text
+        .get(..4)
+        .filter(|prefix| prefix.eq_ignore_ascii_case("raf:"))
+        .map(|_| text[4..].to_ascii_lowercase())?;
+    if word.starts_with("generated:") {
+        None
+    } else if word.starts_with("claim") {
+        Some(Family::Claim)
+    } else {
+        Some(Family::Other)
+    }
+}
+
 /// The family of the first `<!-- raf:` comment of a line outside its code
 /// spans, in any letter case and with any spacing after `<!--`, that is not
 /// a `raf:generated:` comment, or `None` when the line has none.
 fn raf_comment(raw: &str) -> Option<Family> {
     let visible = remove_code_spans(raw);
-    visible.match_indices("<!--").find_map(|(at, _)| {
-        let rest = visible[at + 4..].trim_start();
-        let word = rest
-            .get(..4)
-            .filter(|prefix| prefix.eq_ignore_ascii_case("raf:"))
-            .map(|_| rest[4..].to_ascii_lowercase())?;
-        if word.starts_with("generated:") {
-            None
-        } else if word.starts_with("claim") {
-            Some(Family::Claim)
-        } else {
-            Some(Family::Other)
-        }
-    })
+    visible
+        .match_indices("<!--")
+        .find_map(|(at, _)| family_of(visible[at + 4..].trim_start()))
+}
+
+/// The family of a comment that `<!--` opens at the end of line `index`
+/// outside its code spans, with nothing after it on that line, read from
+/// the first non-blank text of the lines below it as [`raf_comment`] reads
+/// the text after `<!--` on one line. `None` when the line ends otherwise,
+/// or when that text is fenced code, which is not read.
+fn split_raf_comment(body: &str, lines: &[Line], index: usize) -> Option<Family> {
+    let raw = &body[lines[index].start..lines[index].end];
+    if !remove_code_spans(raw).trim_end().ends_with("<!--") {
+        return None;
+    }
+    let next = lines[index + 1..]
+        .iter()
+        .find(|line| !body[line.start..line.end].trim().is_empty())?;
+    if next.fenced {
+        return None;
+    }
+    family_of(body[next.start..next.end].trim_start())
 }
 
 /// The evidence slugs of a claim marker line, trimmed, or `None` when the
@@ -256,8 +280,10 @@ fn raf_marker(
         return Ok(None);
     }
     // A generated marker starts its line, where the scan reads it; a
-    // `raf:generated:` comment anywhere else is text.
-    match raf_comment(raw) {
+    // `raf:generated:` comment anywhere else is text. A marker is one line,
+    // so a comment that opens at the end of the line and goes on with a
+    // `raf:` word below is a marker error, never a plain comment.
+    match raf_comment(raw).or_else(|| split_raf_comment(body, lines, index)) {
         None => Ok(None),
         Some(Family::Other) => Err(ErrorKind::UnknownMarker),
         Some(Family::Claim) => {
@@ -344,7 +370,9 @@ fn unquote(line: &str) -> &str {
 /// letter case and spacing, is a marker or an error: a generated marker
 /// starts its line (a `raf:generated:` comment elsewhere in a line is text),
 /// a claim marker is its whole line, and any other `raf:` comment is an
-/// unknown marker, so a misspelt marker is never read as a plain comment.
+/// unknown marker, so a misspelt marker is never read as a plain comment. A
+/// marker is one line: a comment whose first text after `<!--` is on a later
+/// line and is such a `raf:` comment is the same error.
 pub(crate) fn scan_markers(
     body: &str,
     lines: &[Line],

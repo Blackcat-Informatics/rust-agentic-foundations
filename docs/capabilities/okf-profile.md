@@ -115,6 +115,8 @@ bindings:
     - raf_okf::test_crate::record_writer::the_keys_are_written_in_the_order_of_the_key_table
     - raf_okf::test_crate::record_writer::a_value_the_profile_refuses_is_written_and_refused_when_it_is_read_back
     - raf_okf::test_crate::claims::a_raf_generated_comment_in_another_case_or_spacing_is_text
+    - raf_okf::test_crate::claims::a_raf_comment_split_over_lines_is_a_marker_error_and_other_split_comments_are_text
+    - cargo_workplan::test_crate::check::a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass
     - raf_okf::test_crate::validate_cost::an_evidence_record_at_the_cap_with_maximal_values_and_limits_validates_within_the_bound
   examples:
     - raf_okf::EvidenceRecord::to_document
@@ -287,6 +289,25 @@ comment nor a claim marker, so a misspelt claim marker never reads as a plain co
 one pass and reads the model again; it is all or nothing, and it fails with a typed
 error for a range outside the body, a range inside a character, two ranges that
 overlap, or a result that no longer parses. `Document` and `Index` delegate to it.
+
+> [!PROPOSED change:okf-profile]
+> A malformed PROPOSED marker in any spelling, an unclosed generated block, a nested
+> generated block and an end marker without a start are parse errors with line numbers.
+> So are block quotes and list items nested over 64 levels and, outside fenced code,
+> code spans and PROPOSED blocks, a malformed claim marker, a claim marker with no
+> statement directly above it, and a `raf:` comment that is neither a `raf:generated:`
+> comment nor a claim marker, so a misspelt claim marker never reads as a plain comment.
+> A marker is one line: an HTML comment that `<!--` opens at the end of a line, outside
+> its code spans, and whose first non-blank text on the lines below is `raf:` in any
+> letter case and not `raf:generated:`, is the same error at the line of `<!--`,
+> `okf-parse-malformed-claim` for `raf:claim` and `okf-parse-unknown-marker` for
+> another word, so a claim marker split over lines never reads as a plain comment
+> either. A multi-line `raf:generated:` comment, an SPDX header written over several
+> lines and every other multi-line comment are plain comments. `Body::replace_spans`
+> applies non-overlapping byte-range edits in one pass and reads the model again; it
+> is all or nothing, and it fails with a typed error for a range outside the body, a
+> range inside a character, two ranges that overlap, or a result that no longer
+> parses. `Document` and `Index` delegate to it.
 
 **Write.** `Document::render` writes a document back. The writer is deterministic
 and round-trips: parsing the output yields an equal document, and rendering a
@@ -461,6 +482,19 @@ would produce noise in the diff, and a clean check could not be told from a stal
   frontmatter cannot hold by the writer.
 - A `raf:generated:` comment in another letter case or spacing is text, beside
   an unknown `raf:` comment that is refused.
+
+> [!PROPOSED change:okf-profile]
+> - Split-marker fixtures of the body model: `<!--`, `raf:claim evidence=x` and `-->`
+>   on three lines, the same with a blank line and `  RAF:Claim` below `<!--`, and a
+>   comment opened after a statement on its line are each a malformed claim marker at
+>   the line of `<!--`, and `<!--`, `raf:foo`, `-->` is an unknown marker; beside them
+>   a split `raf:generated:` comment in two spellings, an SPDX header over several
+>   lines, an ordinary multi-line comment, an empty one and one opened in a code span
+>   are plain, and nothing is read in fenced code or a PROPOSED block. Through
+>   `check`, the first two in a capability are `okf-parse-malformed-claim` and the
+>   third `okf-parse-unknown-marker`, each exit 1 with nothing written, and the split
+>   `raf:generated:` comment, the SPDX header and the ordinary comment exit 0.
+
 - Cost fixture: an evidence record at the 1 MiB cap with the most `values` and
   `limits` validates within 100 ms in a release build.
 - The documentation examples of `EvidenceRecord::to_document` (a record built,

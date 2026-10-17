@@ -238,6 +238,12 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   replacement land on another file, such as a capability document.
   `LifecycleError` gains `RecordRefused`, which `Lifecycle::complete` returns for
   a refused way to the record before any condition runs a process.
+- **`raf-okf` a marker split over lines:** a comment that `<!--` opens at the
+  end of a line and whose first non-blank text below is `raf:` in any letter case,
+  other than `raf:generated:`, is a malformed claim marker for `raf:claim` and an
+  unknown marker for any other word, at the line of `<!--`, so a claim marker
+  written over several lines is a parse error and never a plain comment. Split
+  `raf:generated:` comments, SPDX headers and other multi-line comments stay plain.
 - **`cargo-workplan` record commands:** `history <id> [--since <YYYY-MM-DD>]`
   prints the table or the JSON of `Workplan::history` (exit 0, or 2 for an id no
   document has, a shallow clone or a Git older than 2.30). `evidence record --id
