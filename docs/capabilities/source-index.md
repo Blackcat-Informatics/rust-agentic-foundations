@@ -2368,10 +2368,9 @@ duplicates.
   `pub` items and re-exports its library's, and a test target, refused as
   `NotLibraryOrBinary`; a module reached by two `pub` paths and a cycle of globs,
   each read once.
-> [!PROPOSED change:source-index]
-> - A re-export of an item of another crate of the workspace that two `pub` globs
->   bring in is written as the glob that comes first, with its line, in either order
->   of the two, beside one glob alone, written as that glob.
+- A re-export of an item of another crate of the workspace that two `pub` globs
+  bring in is written as the glob that comes first, with its line, in either order
+  of the two, beside one glob alone, written as that glob.
 
 - Re-exports of a crate outside the workspace that a `pub` glob carries: from a
   private module and from a `pub` one (listed under both paths), renamed, through

@@ -11,7 +11,9 @@ affects:
 contract_effect: changes
 items:
   - claim: "A fixture pins that the binding site of an item reached through more than one glob re-export is the first glob that carries it."
+    outcome: implemented
   - claim: "The rustdoc of the data structs and options of raf-source words its non-exhaustive note as the Contract words it: adding a field or an option is not a breaking change."
+    outcome: implemented
 ---
 
 ## Summary
