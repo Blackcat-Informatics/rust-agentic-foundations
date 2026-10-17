@@ -244,6 +244,13 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   unknown marker for any other word, at the line of `<!--`, so a claim marker
   written over several lines is a parse error and never a plain comment. Split
   `raf:generated:` comments, SPDX headers and other multi-line comments stay plain.
+- **`raf-workplan` claims while a capability does not load:**
+  `Workplan::evidence_claims` returns the new
+  `EvidenceLookupError::UnloadedCapabilities`, naming each capability document
+  that exists and does not load, in place of an answer that leaves out the claims
+  such a document may hold, so `evidence claims` exits 2 as `evidence for` does. A
+  change record or an evidence record that does not load leaves the answer as it
+  is.
 - **`cargo-workplan` record commands:** `history <id> [--since <YYYY-MM-DD>]`
   prints the table or the JSON of `Workplan::history` (exit 0, or 2 for an id no
   document has, a shallow clone or a Git older than 2.30). `evidence record --id

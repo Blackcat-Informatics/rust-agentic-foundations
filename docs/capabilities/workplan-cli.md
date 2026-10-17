@@ -209,6 +209,7 @@ bindings:
     - cargo_workplan::test_crate::evidence::json_is_one_evidence_recorded_object_with_its_fields
     - cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record
     - cargo_workplan::test_crate::evidence::the_views_print_json_and_refuse_what_does_not_exist
+    - cargo_workplan::test_crate::evidence::claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records
     - cargo_workplan::test_crate::evidence::the_words_after_the_separator_are_the_command_options_included
     - cargo_workplan::test_crate::history::a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding
     - cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers
@@ -348,6 +349,29 @@ must be one that `assess --context` answers for, so a named section that can no
 longer be assessed (its capability gone or not loading, or a bound symbol it reads no
 longer resolving, for instance) is exit 2, while a bare `--list` still shows an
 assessment of it.
+
+> [!PROPOSED change:workplan-cli]
+> **Exit codes of the record commands.** `history`, `evidence claims`,
+> `evidence for` and `assess` exit 0 when they have an answer: a recorded `rejected`
+> verdict, and a stale or rejected assessment that `--list` shows, are results and
+> not findings, and `change reconcile` lists what they owe. `evidence record` exits 0
+> when it writes a `pass` record and 1 when it writes a `fail` record, a result the
+> repository owes; it exits 2 when it writes none: a printed value that is not a
+> number, a name printed twice, a limit the command never printed, output past its
+> bound, a command that cannot start, or a request refused before the run.
+> `coverage code` and `coverage tests` exit 1 when the report names a gap, or in the
+> code direction a surface that cannot be listed, and 0 otherwise. Each exits 2 when
+> the tool cannot run: an id or a capability that no loaded document has, a shallow
+> clone, a Git older than 2.30 or a bound file whose lines are not committed for
+> `history`, a package that `--crate` does not name. `evidence claims` also exits 2,
+> naming each capability document that exists and does not load, with nothing on
+> standard output, because a claim in such a document may name the record; a change
+> record or an evidence record that does not load holds no claim and leaves its
+> answer and exit 0 as they are. A section given to `assess --list` must be one that
+> `assess --context` answers for, so a named section that can no longer be assessed
+> (its capability gone or not loading, or a bound symbol it reads no longer
+> resolving, for instance) is exit 2, while a bare `--list` still shows an assessment
+> of it.
 
 **Options.** `--root <dir>` sets the workspace root, `--format text|json` selects the
 output, and `-q` suppresses everything but findings. Findings are printed to stdout in
@@ -549,6 +573,13 @@ rather than kept by hand.
   kind unequal to a rule name; `-q` hides each outcome and keeps a `fail` record and a
   coverage gap; the read-only commands leave the tree byte-identical.
 
+> [!PROPOSED change:workplan-cli]
+> - `evidence claims` while a capability document does not load: exit 2 in text and
+>   JSON, naming the document on standard error, with nothing on standard output and
+>   nothing written, for an id with claims and for one without; a change record or
+>   an evidence record that does not load leaves the answer, exit 0, while `check`
+>   reports it; the clean neighbour answers.
+
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
@@ -621,6 +652,7 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::evidence::a_replacement_holds_the_spdx_lines_of_its_own_run_only` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::a_request_that_cannot_be_recorded_runs_nothing` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::cargo_passes_the_command_after_the_separator_to_the_binary_unchanged` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::json_is_one_evidence_recorded_object_with_its_fields` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::the_views_print_json_and_refuse_what_does_not_exist` | test | [Verification](#verification) |

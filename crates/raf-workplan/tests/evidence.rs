@@ -194,6 +194,67 @@ fn a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers() {
     });
 }
 
+#[test]
+fn the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load() {
+    let bound = Evidence::passing("bound", "[cap:omega]");
+    let clean = claimed(&[("Contract", &claim("bound"))], &[&bound]);
+    // A second capability that does not load may hold a claim on the record,
+    // so no answer about the claims is complete: each id is refused.
+    let mut broken = clean.clone();
+    broken.insert(
+        "docs/capabilities/zeta.md".to_string(),
+        capability("zeta", "unknown", BOUND, &[]),
+    );
+    with_plan(&broken, |plan| {
+        for id in ["bound", "evidence:bound", "nothing"] {
+            let error = plan.evidence_claims(id).expect_err("refused");
+            assert_eq!(
+                error,
+                EvidenceLookupError::UnloadedCapabilities {
+                    ids: vec!["cap:zeta".to_string()]
+                },
+                "{id}"
+            );
+            assert!(
+                error.to_string().contains("cap:zeta did not load"),
+                "{error}"
+            );
+        }
+        // A bad id is still a bad id.
+        assert!(matches!(
+            plan.evidence_claims("Bad Id"),
+            Err(EvidenceLookupError::BadId { .. })
+        ));
+    });
+    // A change record or an evidence record that does not load holds no
+    // claim: the answer stands.
+    let change = replaced(&clean, SHAPE, "outcome: implemented", "outcome: maybe");
+    let record = {
+        let mut next = clean.clone();
+        next.insert(
+            "work/evidence/other.md".to_string(),
+            Evidence::passing("other", "[cap:omega]")
+                .verdict("maybe")
+                .text(),
+        );
+        next
+    };
+    for (name, repo) in [("clean", &clean), ("change", &change), ("record", &record)] {
+        with_plan(repo, |plan| {
+            // The neighbours do not load what they break.
+            assert_eq!(
+                plan.changes().len(),
+                usize::from(name != "change"),
+                "{name}"
+            );
+            assert_eq!(plan.evidence().len(), 1, "{name}");
+            let claims = plan.evidence_claims("bound").expect(name);
+            assert_eq!(claims.len(), 1, "{name}");
+            assert_eq!(claims[0].capability, "cap:omega", "{name}");
+        });
+    }
+}
+
 // --- a record from a bound test -------------------------------------------------
 
 /// The `cargo` that runs this test binary.

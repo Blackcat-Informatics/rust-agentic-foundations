@@ -717,6 +717,12 @@ pub enum EvidenceLookupError {
         /// The id.
         id: String,
     },
+    /// Capability documents exist as files and did not load, so the claims
+    /// they hold are unknown and no answer about claims is complete.
+    UnloadedCapabilities {
+        /// The ids of those documents, sorted.
+        ids: Vec<String>,
+    },
     /// The capability is not loaded.
     Capability {
         /// The id as given.
@@ -736,6 +742,11 @@ impl fmt::Display for EvidenceLookupError {
             Self::UnknownEvidence { id } => write!(
                 f,
                 "no evidence record has the id `{id}` and no claim names it"
+            ),
+            Self::UnloadedCapabilities { ids } => write!(
+                f,
+                "{} did not load, so a claim in it is unknown; fix its document first",
+                ids.join(", ")
             ),
             Self::Capability {
                 id,
@@ -774,7 +785,11 @@ impl Workplan<'_> {
     ///
     /// # Errors
     ///
-    /// [`EvidenceLookupError::BadId`], and
+    /// [`EvidenceLookupError::BadId`];
+    /// [`EvidenceLookupError::UnloadedCapabilities`] when a capability
+    /// document exists and did not load, since a claim in it may name the
+    /// evidence (a change or evidence record that did not load holds no
+    /// claim and leaves the answer as it is); and
     /// [`EvidenceLookupError::UnknownEvidence`] when no record file has the
     /// id and no claim names it.
     pub fn evidence_claims(
@@ -782,6 +797,14 @@ impl Workplan<'_> {
         evidence: &str,
     ) -> Result<Vec<ClaimStatement>, EvidenceLookupError> {
         let id = evidence_id(evidence)?;
+        let unloaded: Vec<String> = self
+            .unloaded()
+            .into_iter()
+            .filter(|unloaded| unloaded.starts_with(DocType::Capability.id_prefix()))
+            .collect();
+        if !unloaded.is_empty() {
+            return Err(EvidenceLookupError::UnloadedCapabilities { ids: unloaded });
+        }
         let slug = id
             .strip_prefix(DocType::Evidence.id_prefix())
             .unwrap_or(&id);

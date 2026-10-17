@@ -24,6 +24,7 @@ bindings:
     - raf_workplan::test_crate::evidence::a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers
     - raf_workplan::test_crate::evidence::hostile_record_text_is_read_as_text_and_reaches_no_process
     - raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability
+    - raf_workplan::test_crate::evidence::the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load
     - raf_workplan::evidence::measure::tests::a_limit_is_a_name_and_a_number
     - raf_workplan::evidence::measure::tests::a_limit_never_printed_is_an_error_and_a_printed_one_is_judged
     - raf_workplan::evidence::measure::tests::a_name_printed_twice_is_an_error_and_two_names_are_not
@@ -127,6 +128,17 @@ document (`evidence-for-missing`).
 rests on. `cargo workplan evidence claims <evidence-id>` answers which current
 statements depend on this result. `cargo workplan evidence for <cap:slug>` answers
 which results support a capability.
+
+> [!PROPOSED change:workplan-evidence-claims]
+> **The dependency view.** The graph holds an edge from each claim to the evidence it
+> rests on. `cargo workplan evidence claims <evidence-id>` answers which current
+> statements depend on this result. While a capability document exists and does not
+> load, the claims it holds are unknown, so `evidence claims` gives no answer and is
+> an error (`EvidenceLookupError::UnloadedCapabilities`, exit 2) naming each such
+> document, as `evidence for` is for a capability that does not load; a change
+> record or an evidence record that does not load holds no claim and leaves the
+> answer as it is. `cargo workplan evidence for <cap:slug>` answers which results
+> support a capability.
 
 **Invalidation.** When a record that passed at the merge base is replaced by one that
 fails, holds a value over its limit or the limit of the merge base, or has lost a limit
@@ -282,3 +294,7 @@ staleness reads no revision and asks Git nothing.
 >   real directories; through the gate, with `work/evidence` a link to
 >   `docs/capabilities`, a replacement of the evidence named as a capability document
 >   is refused before anything runs and the document keeps its text.
+> - While a second capability document does not load, the claims of a record are
+>   refused naming it, for a record with claims and for an id no claim names, while
+>   a malformed id is still refused as one; beside it a change record and an
+>   evidence record that do not load leave the answer, as the clean repository does.

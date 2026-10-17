@@ -637,6 +637,74 @@ fn the_views_print_json_and_refuse_what_does_not_exist() {
 }
 
 #[test]
+fn claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records() {
+    let claimed = || {
+        let repo = Repo::synced("evidence-claims-unloaded", false);
+        repo.edit(
+            "docs/capabilities/alpha.md",
+            "Text for Contract of alpha.",
+            CLAIM,
+        );
+        repo.sync();
+        repo
+    };
+    let answer = |repo: &Repo| {
+        let run = repo.both(&["evidence", "claims", "peak"]).expect(0);
+        assert!(
+            run.stdout.starts_with("docs/capabilities/alpha.md:")
+                && run.stdout.contains("cap:alpha#contract"),
+            "{run:#?}"
+        );
+    };
+    // The clean neighbour answers.
+    answer(&claimed());
+    // A capability document that does not load may hold a claim on the
+    // record: exit 2, naming it, with nothing on standard output and nothing
+    // written, for an id with claims and for one without.
+    let broken = claimed();
+    broken.edit(
+        "docs/capabilities/beta.md",
+        "state: implementing",
+        "state: unknown",
+    );
+    let before = broken.snapshot();
+    for id in ["peak", "evidence:peak", "nowhere"] {
+        let run = broken.both(&["evidence", "claims", id]).expect(2);
+        assert_eq!(run.stdout, "", "{run:#?}");
+        assert!(
+            run.stderr.contains("cap:beta did not load"),
+            "{id}: {run:#?}"
+        );
+    }
+    let json = broken
+        .both(&["--format", "json", "evidence", "claims", "peak"])
+        .expect(2);
+    assert!(json.stderr.contains("cap:beta"), "{json:#?}");
+    assert_eq!(broken.snapshot(), before, "evidence claims wrote");
+    // A change record or an evidence record that does not load holds no
+    // claim: the answer stands, though `check` reports the record.
+    for (path, text) in [
+        (
+            "work/changes/broken.md",
+            change("broken", "[cap:beta]", &["cap:beta#contract"])
+                .replace("items: []", "items: [x]"),
+        ),
+        (
+            "work/evidence/broken.md",
+            "---\ntype: Evidence\nid: evidence:broken\n---\n".to_string(),
+        ),
+    ] {
+        let repo = claimed();
+        repo.put(path, &text);
+        assert!(
+            repo.both(&["check"]).expect(1).stdout.contains(path),
+            "{path}"
+        );
+        answer(&repo);
+    }
+}
+
+#[test]
 fn cargo_passes_the_command_after_the_separator_to_the_binary_unchanged() {
     let _lock = serial();
     let repo = Repo::synced("evidence-dispatch", false);
