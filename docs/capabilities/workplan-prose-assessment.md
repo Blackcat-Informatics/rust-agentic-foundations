@@ -161,6 +161,10 @@ cap:streaming-parser#usage  assessment:streaming-parser-usage  accepted  agent  
 
 - An assessment never edits the section it assesses; recording writes only its
   own record.
+- An assessment is written only through real directories: `work` and
+  `work/assessments` must each be a directory, and a symbolic link there, inside
+  the root or out of it, or a file is refused before anything is written, so the
+  record replaced is the record of the section and never another file.
 - Generated blocks are excluded from assessment, so a regenerated table does not
   invalidate the assessment of the prose around it.
 - The digest is deterministic: the same inputs always produce the same digest,
@@ -178,23 +182,11 @@ cap:streaming-parser#usage  assessment:streaming-parser-usage  accepted  agent  
   that describes a method names the method, and the capability binds it. The
   binding of a module below a crate root stands for the module's whole content,
   its files and those of the modules below it, so any edit inside it moves the
-  input.
+  input. The binding of a crate root stands for its own span, the whole of its
+  file, and for nothing below it, so an edit of a module file below the root
+  leaves the input and an edit of the root's own file moves it.
 - A record holds every input in one file under the document bound, so a section
   with more inputs than fit is refused rather than recorded in part.
-
-> [!PROPOSED change:workplan-prose-assessment]
-> - An assessment is written only through real directories: `work` and
->   `work/assessments` must each be a directory, and a symbolic link there, inside
->   the root or out of it, or a file is refused before anything is written, so the
->   record replaced is the record of the section and never another file.
-> - The digest of a bound symbol is the text of its own item: the binding of a type
->   covers the type's definition and not the bodies of its methods, so a section
->   that describes a method names the method, and the capability binds it. The
->   binding of a module below a crate root stands for the module's whole content,
->   its files and those of the modules below it, so any edit inside it moves the
->   input. The binding of a crate root stands for its own span, the whole of its
->   file, and for nothing below it, so an edit of a module file below the root
->   leaves the input and an edit of the root's own file moves it.
 
 ## Explanation
 
@@ -261,13 +253,11 @@ sections to rewrite and the evidence still missing, and an assessor resolves the
   `assessment::record_slug` run.
 - The completion gate rejects a change whose affected authored section has no
   current assessment, or a current one that is `rejected` by a human or an agent.
-
-> [!PROPOSED change:workplan-prose-assessment]
-> - A directory link inside the root at `work` or at `work/assessments`, with the
->   record of the section behind it, and a file where `work/assessments` belongs, are
->   each refused with the tree byte-identical, and the same assessment through the
->   real directories replaces the record.
-> - The digest of a crate-root binding is unchanged by an edit in the file of a
->   module below the root and in the file of a module below that, while each edit
->   moves the digest of the module it is in, and an edit of the root's own file
->   moves the root's digest.
+- A directory link inside the root at `work` or at `work/assessments`, with the
+  record of the section behind it, and a file where `work/assessments` belongs, are
+  each refused with the tree byte-identical, and the same assessment through the
+  real directories replaces the record.
+- The digest of a crate-root binding is unchanged by an edit in the file of a
+  module below the root and in the file of a module below that, while each edit
+  moves the digest of the module it is in, and an edit of the root's own file
+  moves the root's digest.

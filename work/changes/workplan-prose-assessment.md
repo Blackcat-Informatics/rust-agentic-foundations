@@ -12,7 +12,9 @@ affects:
 contract_effect: changes
 items:
   - claim: "record_assessment refuses a linked work or work/assessments directory, or one that is a file, with nothing written."
+    outcome: implemented
   - claim: "The digest of a crate-root binding is unchanged by an edit of a module file below the crate root, and a test pins it."
+    outcome: implemented
 ---
 
 ## Summary
