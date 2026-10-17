@@ -14,6 +14,7 @@
 | [workplan-entity-history](./workplan-entity-history.md) | A history command for a capability or decision and its bindings, built on git log --follow and -L. |  |
 | [workplan-evidence-claims](./workplan-evidence-claims.md) | Persisted execution evidence, the claims that depend on each result, and invalidation when the evidence changes. |  |
 | [workplan-generated-docs](./workplan-generated-docs.md) | Generated blocks for the verification matrix, relationship table and capability catalogue, and the deterministic sync. |  |
+| [workplan-prose-assessment](./workplan-prose-assessment.md) | Recorded assessments of explanatory prose by humans and agents, invalidated when their inputs change. |  |
 | [workplan-reconcile](./workplan-reconcile.md) | change new, change impact and change reconcile: opening a change, listing what it touches, and producing the documentation obligations. |  |
 
 ## Implementing
@@ -21,7 +22,6 @@
 | Capability | Description | Gaps |
 | --- | --- | --- |
 | [workplan-current-rationale](./workplan-current-rationale.md) | Shared architecture pages that state resolved decisions, and the conditions to revisit them. |  |
-| [workplan-prose-assessment](./workplan-prose-assessment.md) | Recorded assessments of explanatory prose by humans and agents, invalidated when their inputs change. |  |
 | [workplan-two-way-coverage](./workplan-two-way-coverage.md) | Checks from code to documentation and from tests to claims, complementing the documentation-to-code and documentation-to-tests checks. |  |
 
 ## Designed
