@@ -221,6 +221,13 @@ impl<'s> Workplan<'s> {
     /// Whether a capability, change or architecture document exists as a file
     /// and did not load: its links are not in the graph, and its findings say
     /// what is wrong with it.
+    ///
+    /// A file is noted under the id of its type's prefix and its file stem
+    /// ([`Self::note_present`]), and that id is compared with the header ids of
+    /// the loaded documents. The comparison is exact because the profile rule
+    /// `okf-id-file-name` refuses a document whose id is not its file stem: a
+    /// loaded document is always noted under its own id, and a file whose
+    /// header names another id does not load, so it counts as unloaded.
     pub(crate) fn has_unloaded_documents(&self) -> bool {
         let loaded: BTreeSet<&str> = self
             .capabilities
