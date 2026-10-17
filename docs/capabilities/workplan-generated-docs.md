@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-generated-docs
 title: "Generated documentation blocks"
 description: "Generated blocks for the verification matrix, relationship table and capability catalogue, and the deterministic sync."
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_workplan::Workplan::sync
@@ -436,5 +436,4 @@ than written.
 | Depended on by | [workplan-complete-gate](./workplan-complete-gate.md) |
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
 | Depended on by | [workplan-reconcile](./workplan-reconcile.md) |
-| Changed by | [workplan-generated-docs](../../work/changes/workplan-generated-docs.md) |
 <!-- raf:generated:end -->
