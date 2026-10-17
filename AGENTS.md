@@ -40,7 +40,9 @@ carry the weight:
 The repository dogfoods both. Its own design is written in the workplan format,
 and the root package's test suite carries its gates. Today those are the
 document-contract test (`tests/docs_contract.rs`), which runs the workplan checks
-of `raf-workplan` over the tracked documents, and the repository gates
+of `raf-workplan` over the tracked documents, the self-workplan test
+(`tests/self_workplan.rs`), which runs the workplan gate from disk and requires
+every assessment to be current and accepted, and the repository gates
 (`tests/repo_gates.rs`: licence digests, issue-reference and process-wording
 scan, version agreement); the census gate joins them when `raf-census` is
 built.
@@ -137,14 +139,14 @@ make hooks   # point core.hooksPath at .githooks for this clone
   it is the repair for the stale-block finding of `Workplan::check`.
 - **Run `make check` before claiming work is done.** It stops at the first failure.
 - **Install the hooks with `make hooks`.** The pre-commit hook runs fmt and reuse
-  on a checkout of the staged index, and the `repo_gates` and `docs_contract`
-  test binaries over that checkout. The binaries are compiled from the working
+  on a checkout of the staged index, and the `repo_gates`, `docs_contract` and
+  `self_workplan` test binaries over that checkout. The binaries are compiled from the working
   tree, not the index; only the files they judge come from the index. A
   `pre-merge-commit` hook runs the same gates on merge commits.
 - **`make licenses` and `make issue-refs` run the Rust gates** in
   `tests/repo_gates.rs`, so they are a subset of `make test`. The pattern set
   lives once, in `raf_workplan::refs`, which `raf-workplan` also applies to the
-  documents it loads; both gate test files call it and share one file list in
+  documents it loads; the gate test files call it and share one file list in
   `tests/support/mod.rs`.
 - **Never bypass a hook or a gate.** Do not pass `--no-verify`, do not edit a hook
   to pass, and do not weaken a gate or a lint to get green. Fix the cause.

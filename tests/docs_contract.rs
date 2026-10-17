@@ -9,8 +9,8 @@
 //! symlinks, resolves the bindings of the capability documents against the
 //! source index of the whole repository, and requires `Workplan::check` to
 //! report nothing. `raf_workplan::plain::check` judges the tracked Markdown
-//! outside the document directories (README, AGENTS.md, templates), and
-//! `Gate::workspace` runs the same checks from disk.
+//! outside the document directories (README, AGENTS.md, templates). The
+//! `Gate::workspace` run of the same checks from disk is `tests/self_workplan.rs`.
 //!
 //! What stays here is this repository's own policy, which no model rule
 //! states:
@@ -43,7 +43,7 @@ use std::path::{Path, PathBuf};
 
 use raf_okf::{Body, DocType, Document, ErrorKind, FencedBlock};
 use raf_source::{DiskTree, MemoryTree, RelPath, Workspace};
-use raf_workplan::{Finding, Gate, LinkContext, Workplan, plain};
+use raf_workplan::{Finding, LinkContext, Workplan, plain};
 
 mod support;
 
@@ -607,14 +607,6 @@ fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
         "every capability of the inventory loads into the model"
     );
     Ok(())
-}
-
-#[test]
-fn repository_documents_satisfy_the_document_model() {
-    // The documented dev-dependency usage over the gate root. Inside the
-    // commit hook the root is a checkout of the index without `.git`, and the
-    // gate takes every file of it for a tracked path.
-    Gate::workspace(gate_root()).assert_clean();
 }
 
 #[test]
