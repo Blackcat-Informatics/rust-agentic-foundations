@@ -20,12 +20,14 @@
 //!    very last step, the record is removed.
 
 use std::fs;
+use std::io;
 
-use raf_okf::Location;
-use raf_source::RelPath;
+use raf_okf::{DocType, Location};
+use raf_source::{EntryKind, RelPath};
 
 use crate::bound::{Evidence, Executor};
 use crate::exec::Runner;
+use crate::files::{self, Target};
 use crate::finding::kind;
 use crate::generated;
 use crate::lookup::bare_slug;
@@ -173,7 +175,9 @@ impl<R: Runner> Lifecycle<R> {
     /// record or a listed capability does not load; [`LifecycleError::Git`]
     /// and [`LifecycleError::Document`] when a section cannot be compared;
     /// [`LifecycleError::Exec`] when a process of a bound run cannot be
-    /// started or read to its end; [`LifecycleError::Gate`] when the
+    /// started or read to its end; [`LifecycleError::RecordRefused`] when
+    /// `work` or `work/changes` is a symbolic link or not a directory, or the
+    /// record is not a regular file there, judged before anything runs; [`LifecycleError::Gate`] when the
     /// repository cannot be opened again; [`LifecycleError::Rewrite`] and
     /// [`LifecycleError::Remove`] when a write fails. Each is the tool being
     /// unable to give an answer, which is not a refusal.
@@ -225,6 +229,9 @@ impl<R: Runner> Lifecycle<R> {
                 side: Side::WorkingTree,
                 reason: error.to_string(),
             })?;
+        // The record is removed as the last step, so the way to it is judged
+        // as every write of the crate judges it, before anything runs.
+        Self::judge_record(opened, &record_path)?;
 
         // Condition 1, all kinds that need no run of `cargo`.
         let mut obligations = fixed.obligations().to_vec();
@@ -376,6 +383,30 @@ impl<R: Runner> Lifecycle<R> {
         owed.extend(tests);
         owed.extend(examples);
         Ok(owed)
+    }
+
+    /// Require that the record is a regular file directly in a `work/changes`
+    /// that is a directory below a `work` that is a directory, neither a link,
+    /// so the removal removes the record and no other file.
+    fn judge_record(opened: &Opened, record: &RelPath) -> Result<(), LifecycleError> {
+        let refused = |path: String, reason: &str| LifecycleError::RecordRefused {
+            path,
+            source: io::Error::new(io::ErrorKind::InvalidInput, reason.to_string()),
+        };
+        match files::target(opened.dir(), DocType::Change.directory(), record) {
+            Ok(Target {
+                kind: Some(EntryKind::File),
+                ..
+            }) => Ok(()),
+            Ok(_) => Err(refused(
+                record.as_str().to_string(),
+                "it is not a regular file",
+            )),
+            Err(error) => Err(LifecycleError::RecordRefused {
+                path: error.path,
+                source: error.source,
+            }),
+        }
     }
 
     /// The writes, in their fixed order: the generated blocks, and then, as the

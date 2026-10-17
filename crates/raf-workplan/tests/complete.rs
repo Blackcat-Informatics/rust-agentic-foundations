@@ -624,6 +624,59 @@ fn a_prefixed_slug_names_the_same_change() {
     assert!(!fixture.exists(RECORD));
 }
 
+/// The record is removed through real directories only. A linked `work`
+/// inside the root, made after the repository is opened, is refused before
+/// any `cargo` process or write, with the record behind it kept; a linked
+/// `work/changes` is never read as the directory of change records, so the
+/// change is not found and nothing runs either. The neighbour with real
+/// directories completes.
+#[cfg(unix)]
+#[test]
+fn a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_completes() {
+    let fixture = Fixture::scripted(&Spec::default());
+    let root = fixture.root();
+    let lifecycle = fixture.over(passing(git_answers(), "passes"));
+    for link in ["work", "work/changes"] {
+        std::fs::rename(root.join(link), root.join("moved")).expect("moves");
+        let up = "../".repeat(link.matches('/').count());
+        std::os::unix::fs::symlink(format!("{up}moved"), root.join(link)).expect("links");
+        let before = fixture.snapshot();
+        let error = lifecycle.complete("shape").expect_err(link);
+        if link == "work" {
+            assert!(
+                matches!(&error, LifecycleError::RecordRefused { path, .. } if path == "work"),
+                "{error:?}"
+            );
+            assert!(
+                error.to_string().contains("nothing was run or written"),
+                "{error}"
+            );
+        } else {
+            assert!(
+                matches!(
+                    &error,
+                    LifecycleError::Change(ChangeLookupError::Unknown { .. })
+                ),
+                "{error:?}"
+            );
+        }
+        assert_eq!(fixture.snapshot(), before, "{link}: nothing is written");
+        assert!(
+            lifecycle
+                .runner()
+                .calls()
+                .iter()
+                .all(|c| c.program() == Program::Git),
+            "{link}: no cargo process ran"
+        );
+        std::fs::remove_file(root.join(link)).expect("unlinks");
+        std::fs::rename(root.join("moved"), root.join(link)).expect("moves back");
+    }
+    let completion = lifecycle.complete("shape").expect("complete answers");
+    assert!(completion.is_completed(), "{completion}");
+    assert!(!fixture.exists(RECORD));
+}
+
 // --- condition 6 ---------------------------------------------------------------------
 
 #[test]

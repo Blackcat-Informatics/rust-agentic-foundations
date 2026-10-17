@@ -212,7 +212,12 @@ guarantees are these, and no wider:
   exclusively, or put in place of the assessment of the same section through a
   temporary file and a rename, refusing a link or any other file in the way), starts
   no process, and never edits a document, the digests it keeps being computed from
-  the loaded documents and the source index,
+  the loaded documents and the source index; every write of a record, of a change
+  record, of a generated block and the removal of a completed record first judges
+  each directory on the way (`work` and `work/<type>`, or `docs` and
+  `docs/capabilities`) and refuses one that is a symbolic link, whether it leads
+  inside the root or out of it, or that is not a directory, before anything runs or
+  is written, so no write lands on another file through a directory link;
   `change complete` the generated blocks it stales and then removes the one record
   (the assessment records are read and left as they are),
   and `change impact`, `change reconcile` and `verify` write nothing in the

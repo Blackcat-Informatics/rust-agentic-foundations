@@ -16,6 +16,8 @@ bindings:
     - raf_workplan::exec::TrustedWord
     - raf_workplan::exec::TrustedArgvError
   tests:
+    - raf_workplan::evidence::tests::a_directory_link_on_the_way_to_the_record_is_refused_before_the_command_runs
+    - raf_workplan::evidence::tests::evidence_through_the_gate_never_replaces_a_capability_document_through_a_link
     - raf_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_no_binding_starts_nothing
     - raf_workplan::test_crate::evidence::a_claim_on_a_value_over_its_limit_by_less_than_a_float_tells_apart_is_unsupported
     - raf_workplan::test_crate::evidence::a_record_supports_a_capability_by_its_for_list_without_a_claim
@@ -193,6 +195,12 @@ base: the bound is documented and no longer supported.
   closed: a background process that keeps them open after the command exits holds
   the run until the time limit, which records `fail`.
 
+> [!PROPOSED change:workplan-evidence-claims]
+> - Evidence is written only through real directories: before the command or the
+>   binding runs, `work` and `work/evidence` must each be a directory, and a symbolic
+>   link there, inside the root or out of it, or a file is refused with nothing run
+>   and nothing written, so a record never lands on a document through a link.
+
 ## Explanation
 
 The documented state of a system and the supported state differ by the evidence. A
@@ -266,3 +274,11 @@ staleness reads no revision and asks Git nothing.
   not exist is refused before anything starts or is written) and
   `evidence::parse_limit` (a limit is a name and a number; an exponent is refused)
   run.
+
+> [!PROPOSED change:workplan-evidence-claims]
+> - A directory link inside the root at `work` or at `work/evidence`, with a file of
+>   the record's name behind it, is refused before the command runs, for a new record
+>   and for a replacement, with nothing written, beside the same requests through the
+>   real directories; through the gate, with `work/evidence` a link to
+>   `docs/capabilities`, a replacement of the evidence named as a capability document
+>   is refused before anything runs and the document keeps its text.

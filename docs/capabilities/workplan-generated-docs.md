@@ -18,6 +18,7 @@ bindings:
     - raf_workplan::PreviewError
     - raf_workplan::ChangeLookupError
   tests:
+    - raf_workplan::test_crate::sync::write_refuses_a_target_behind_a_directory_link_inside_the_root
     - raf_workplan::test_crate::generated::the_synced_base_has_no_finding_at_all
     - raf_workplan::test_crate::generated::a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections
     - raf_workplan::test_crate::generated::rows_are_sorted_by_path_whatever_the_order_of_the_lists
@@ -259,6 +260,16 @@ A relationship table after a sync:
   file first and is renamed into place once all are written. A rename that fails
   after earlier ones succeeded leaves those files with their new text, and the next
   sync writes the rest.
+
+> [!PROPOSED change:workplan-generated-docs]
+> - `Workplan::write` writes only to a regular file that already exists or to the new
+>   index in an existing `docs/capabilities`, below directories that are each a
+>   directory and not a symbolic link, and refuses a symbolic link, a directory, a
+>   path outside the root, a path below a linked directory, inside the root or out of
+>   it, and a path listed twice. Every target is judged before the first byte is
+>   written. Every text goes to a temporary file first and is renamed into place once
+>   all are written. A rename that fails after earlier ones succeeded leaves those
+>   files with their new text, and the next sync writes the rest.
 - `preview` returns text and writes nothing.
 - `preview` refuses a PROPOSED block whose quoted text holds a fenced code block,
   because the block reader ends a block at the fence; the error names the line. It
@@ -323,6 +334,12 @@ than written.
   must create the index, syncs a git checkout, and refuses an unknown option, a flag
   without its value and an extra argument with exit 2 and nothing on standard
   output.
+
+> [!PROPOSED change:workplan-generated-docs]
+> - A directory link inside the root at `docs` or at `docs/capabilities`, made after
+>   the report was computed, is refused by `Workplan::write` before anything is
+>   written, though the files behind it are regular files, and the same report
+>   through the real directories is written.
 - Preview fixtures: a change with two blocks in one capability and a block of another
   change that stays, line endings kept, a tab after `>` kept, a fenced code block and
   a misindented line refused with their lines, an unknown slug, and a disk fixture
@@ -425,6 +442,7 @@ than written.
 | `raf_workplan::test_crate::sync::write_keeps_the_permissions_of_the_file_it_replaces` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::write_never_touches_a_file_that_is_already_there_under_a_temporary_name` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::write_puts_every_edit_on_disk_and_a_second_run_writes_nothing` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::write_refuses_a_target_behind_a_directory_link_inside_the_root` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index` | test | [Verification](#verification) |
 <!-- raf:generated:end -->
 

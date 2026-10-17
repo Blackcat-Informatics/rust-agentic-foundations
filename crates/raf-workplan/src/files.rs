@@ -1,7 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Creating a new file below a root, exclusively.
+//! Judging the way to a file the crate writes, and creating a new file below
+//! a root, exclusively.
+//!
+//! Every write of a record, a change record or a generated document goes
+//! through [`target`] first: each directory on the way must be a directory and
+//! not a symbolic link, so a link inside the root never lets a write land in
+//! another directory, such as a record replacing a document.
 
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write as _};
@@ -33,23 +39,57 @@ fn write_error(path: &str, source: io::Error) -> CreateError {
     }
 }
 
-/// Create `path` below `root` with `text`, exclusively.
+/// A path on the way to a write that is refused, and why. Nothing is written.
+#[derive(Debug)]
+pub(crate) struct Refused {
+    /// The refused directory, or the path when the tree cannot judge it.
+    pub(crate) path: String,
+    pub(crate) source: io::Error,
+}
+
+impl From<Refused> for CreateError {
+    fn from(refused: Refused) -> Self {
+        Self::Write {
+            path: refused.path,
+            source: refused.source,
+        }
+    }
+}
+
+fn refused(path: &str, source: io::Error) -> Refused {
+    Refused {
+        path: path.to_string(),
+        source,
+    }
+}
+
+/// What is at the path a write is about to use, once every directory on the
+/// way to it has been judged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Target {
+    /// Whether every directory on the way exists. When one does not, nothing
+    /// below it exists either.
+    pub(crate) directories: bool,
+    /// What is at the path itself, a final symbolic link not followed; `None`
+    /// when nothing is there.
+    pub(crate) kind: Option<EntryKind>,
+}
+
+/// Judge the way to `path`, which lies directly in `directory`, a
+/// `/`-separated path below `root`, and say what is at `path`.
 ///
-/// `path` lies directly in `directory`, a `/`-separated path below `root`.
-/// Each directory on the way to `directory` must be a directory or not exist;
-/// a symbolic link or a file there is refused, and a missing directory is
-/// created. The tree of `root` judges each of them, so none leads outside the
-/// root. The file is created with `create_new`, so an existing file or link
-/// at the path is [`CreateError::Exists`] and is not touched. A failure after
-/// the file was created removes it again.
-pub(crate) fn create_new(
-    root: &Path,
-    directory: &str,
-    path: &RelPath,
-    text: &str,
-) -> Result<(), CreateError> {
-    let tree = DiskTree::new(root).map_err(|error| write_error(path.as_str(), to_io(error)))?;
-    let mut missing = false;
+/// Each directory on the way (for `work/evidence`, `work` and then
+/// `work/evidence`) must be a directory or not exist; a symbolic link, wherever
+/// it points, a file or anything else there is refused. The tree of `root`
+/// judges each of them, so none leads outside the root, and since none is a
+/// link, the path names the file it names in `root` and no other.
+///
+/// # Errors
+///
+/// [`Refused`] naming the refused directory, or the path when the tree cannot
+/// judge it. Nothing is written.
+pub(crate) fn target(root: &Path, directory: &str, path: &RelPath) -> Result<Target, Refused> {
+    let tree = DiskTree::new(root).map_err(|error| refused(path.as_str(), to_io(error)))?;
     let mut prefix = String::new();
     for part in directory.split('/') {
         if !prefix.is_empty() {
@@ -57,21 +97,62 @@ pub(crate) fn create_new(
         }
         prefix.push_str(part);
         let rel = RelPath::new(&prefix).map_err(|error| {
-            write_error(&prefix, io::Error::new(io::ErrorKind::InvalidInput, error))
+            refused(&prefix, io::Error::new(io::ErrorKind::InvalidInput, error))
         })?;
         match tree.entry(&rel) {
             Ok(Some(EntryKind::Dir)) => {}
-            Ok(None) => missing = true,
+            Ok(None) => {
+                return Ok(Target {
+                    directories: false,
+                    kind: None,
+                });
+            }
+            Ok(Some(EntryKind::Symlink)) => {
+                return Err(refused(
+                    &prefix,
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "it is a symbolic link, and nothing is written through a link",
+                    ),
+                ));
+            }
             Ok(Some(_)) => {
-                return Err(write_error(
+                return Err(refused(
                     &prefix,
                     io::Error::new(io::ErrorKind::InvalidInput, "it is not a directory"),
                 ));
             }
-            Err(error) => return Err(write_error(&prefix, to_io(error))),
+            Err(error) => return Err(refused(&prefix, to_io(error))),
         }
     }
-    if missing {
+    let kind = tree
+        .entry(path)
+        .map_err(|error| refused(path.as_str(), to_io(error)))?;
+    Ok(Target {
+        directories: true,
+        kind,
+    })
+}
+
+/// Create `path` below `root` with `text`, exclusively.
+///
+/// `path` lies directly in `directory`, a `/`-separated path below `root`,
+/// and the way to it is judged by [`target`]: a symbolic link or a file on the
+/// way is refused, and a missing directory is created. The file is created
+/// with `create_new`, so an existing file or link at the path is
+/// [`CreateError::Exists`] and is not touched. A failure after the file was
+/// created removes it again.
+pub(crate) fn create_new(
+    root: &Path,
+    directory: &str,
+    path: &RelPath,
+    text: &str,
+) -> Result<(), CreateError> {
+    let found = target(root, directory, path)?;
+    if found.kind.is_some() {
+        return Err(CreateError::Exists);
+    }
+    if !found.directories {
         fs::create_dir_all(root.join(directory)).map_err(|error| write_error(directory, error))?;
     }
     let target = root.join(path.as_str());

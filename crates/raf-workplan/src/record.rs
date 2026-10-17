@@ -22,9 +22,9 @@ use raf_okf::{
     AssessmentRecord, ConstructError, CoverageRecord, DocType, Document, EvidenceRecord, Profile,
     RecordHeader, is_kebab,
 };
-use raf_source::{DiskTree, EntryKind, RelPath, Tree};
+use raf_source::{EntryKind, RelPath};
 
-use crate::files::{self, CreateError};
+use crate::files::{self, CreateError, Refused, Target};
 use crate::spdx::{self, SpdxError};
 use crate::{Finding, refs, sync};
 
@@ -277,6 +277,15 @@ impl From<ConstructError> for RecordError {
     }
 }
 
+impl From<Refused> for RecordError {
+    fn from(refused: Refused) -> Self {
+        Self::Write {
+            path: refused.path,
+            source: refused.source,
+        }
+    }
+}
+
 impl From<SpdxError> for RecordError {
     fn from(error: SpdxError) -> Self {
         match error {
@@ -292,9 +301,10 @@ impl From<SpdxError> for RecordError {
 /// The text is [`Record::text`]. The file is created exclusively: a file or a
 /// link already at the path is [`RecordError::Exists`] and is not touched.
 /// The directory of the record type is created when it is missing; it and
-/// `work` must each be a directory or not exist, and a symbolic link or a file
-/// there is refused, so the record is written below `root` only. A failure
-/// after the file was created removes it again.
+/// `work` must each be a directory or not exist, and a symbolic link, inside
+/// the root or out of it, or a file there is refused, so the record is written
+/// in the record directory of `root` only. A failure after the file was
+/// created removes it again.
 ///
 /// # Errors
 ///
@@ -320,8 +330,11 @@ pub fn create(
 /// Put the text of `record` in place of the record file that exists at its
 /// path below `root`, and return the path.
 ///
-/// The target must be a regular file that the tree of `root` reaches without
-/// leaving it; a missing file, a directory and a symbolic link are refused.
+/// `work` and the directory of the record type must each be a directory, and
+/// a symbolic link there, inside the root or out of it, or a file is refused,
+/// as [`create`] refuses it, so a replacement never lands on another file
+/// through a link. The target must then be a regular file; a missing file, a
+/// directory and a symbolic link are refused.
 /// The new text is written to a temporary file beside the target, created
 /// exclusively, and renamed over it, so the target holds either its old text
 /// or the new one, never part of either. The file keeps its permissions.
@@ -329,10 +342,11 @@ pub fn create(
 /// # Errors
 ///
 /// Every error of [`Record::text`], before anything is written;
-/// [`RecordError::Missing`] when no regular file is at the path; and
-/// [`RecordError::Write`] when the temporary file cannot be written or
-/// renamed, in which case the temporary file is removed and the target is
-/// unchanged.
+/// [`RecordError::Missing`] when no regular file is at the path;
+/// [`RecordError::Write`] naming the directory refused on the way, before
+/// anything is written; and [`RecordError::Write`] when the temporary file
+/// cannot be written or renamed, in which case the temporary file is removed
+/// and the target is unchanged.
 pub fn replace(
     root: &Path,
     record: &Record,
@@ -344,12 +358,13 @@ pub fn replace(
         path: path.to_string(),
         source,
     };
-    let tree = DiskTree::new(root)
-        .map_err(|error| write(io::Error::new(io::ErrorKind::InvalidInput, error)))?;
-    match tree.entry(&path) {
-        Ok(Some(EntryKind::File)) => {}
+    match files::target(root, record.doc_type().directory(), &path) {
+        Ok(Target {
+            kind: Some(EntryKind::File),
+            ..
+        }) => {}
         Ok(_) => return Err(RecordError::Missing { path }),
-        Err(error) => return Err(write(io::Error::new(io::ErrorKind::InvalidInput, error))),
+        Err(error) => return Err(error.into()),
     }
     let target = fs::canonicalize(root).map_err(write)?.join(path.as_str());
     let temporary = sync::stage(&target, &text).map_err(write)?;

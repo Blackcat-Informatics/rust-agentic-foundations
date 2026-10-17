@@ -14,6 +14,7 @@ bindings:
     - raf_workplan::Workplan::record_assessment
     - raf_workplan::Workplan::list_assessments
   tests:
+    - raf_workplan::test_crate::assessments::an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_records
     - raf_workplan::test_crate::assessments::a_bound_symbol_named_by_its_last_segment_is_an_input_beside_one_named_in_full
     - raf_workplan::test_crate::assessments::a_capability_that_does_not_load_is_refused_and_a_section_of_generated_blocks_only_does_not_load
     - raf_workplan::test_crate::assessments::a_common_word_that_is_the_last_segment_of_a_binding_does_not_narrow_the_inputs
@@ -180,6 +181,12 @@ cap:streaming-parser#usage  assessment:streaming-parser-usage  accepted  agent  
 - A record holds every input in one file under the document bound, so a section
   with more inputs than fit is refused rather than recorded in part.
 
+> [!PROPOSED change:workplan-prose-assessment]
+> - An assessment is written only through real directories: `work` and
+>   `work/assessments` must each be a directory, and a symbolic link there, inside
+>   the root or out of it, or a file is refused before anything is written, so the
+>   record replaced is the record of the section and never another file.
+
 ## Explanation
 
 Mechanical generation and explanatory writing have different jobs. A crate can produce
@@ -245,3 +252,9 @@ sections to rewrite and the evidence still missing, and an assessor resolves the
   `assessment::record_slug` run.
 - The completion gate rejects a change whose affected authored section has no
   current assessment, or a current one that is `rejected` by a human or an agent.
+
+> [!PROPOSED change:workplan-prose-assessment]
+> - A directory link inside the root at `work` or at `work/assessments`, with the
+>   record of the section behind it, and a file where `work/assessments` belongs, are
+>   each refused with the tree byte-identical, and the same assessment through the
+>   real directories replaces the record.

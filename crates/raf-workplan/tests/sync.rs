@@ -289,6 +289,43 @@ fn write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index(
     assert_eq!(read(root, ALPHA), before);
 }
 
+/// A directory link inside the root on the way to a target, at `docs` or at
+/// `docs/capabilities`, is refused before anything is written, though the
+/// file behind it is a regular file; the neighbour with real directories
+/// writes the same report.
+#[cfg(unix)]
+#[test]
+fn write_refuses_a_target_behind_a_directory_link_inside_the_root() {
+    for link in ["docs", "docs/capabilities"] {
+        let scratch = Scratch::new("in-root-link");
+        let root = scratch.path();
+        write_repo(root, &unsynced());
+        let report = on_disk(root, |plan| plan.sync(&options())).expect("syncs");
+        assert!(!report.is_empty());
+        fs::rename(root.join(link), root.join("moved")).expect("moves");
+        let up = "../".repeat(link.matches('/').count());
+        std::os::unix::fs::symlink(format!("{up}moved"), root.join(link)).expect("links");
+        let before = support::disk::snapshot(root);
+        let error = Workplan::write(&report, root).expect_err(link);
+        assert!(
+            error
+                .to_string()
+                .contains(&format!("the directory {link} is refused")),
+            "{link}: {error}"
+        );
+        assert_eq!(
+            support::disk::snapshot(root),
+            before,
+            "{link}: nothing is written"
+        );
+        // The neighbour: the directory is real again.
+        fs::remove_file(root.join(link)).expect("unlinks");
+        fs::rename(root.join("moved"), root.join(link)).expect("moves back");
+        Workplan::write(&report, root).expect("writes");
+        assert_eq!(read(root, ALPHA), base()[ALPHA]);
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn write_keeps_the_permissions_of_the_file_it_replaces() {

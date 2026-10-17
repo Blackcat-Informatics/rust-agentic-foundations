@@ -1113,3 +1113,88 @@ fn replace_renames_a_new_file_over_the_target_and_never_writes_into_it() {
         assert_eq!(names, ["alpha-contract.md"], "no temporary file is left");
     }
 }
+
+/// Move the directory `link` below `root` to `moved` and put a symbolic link
+/// to it, relative and so inside the root, in its place.
+#[cfg(unix)]
+fn link_in_root(root: &std::path::Path, link: &str, moved: &str) {
+    fs::rename(root.join(link), root.join(moved)).expect("the directory moves");
+    let up = "../".repeat(link.matches('/').count());
+    std::os::unix::fs::symlink(format!("{up}{moved}"), root.join(link)).expect("a link");
+}
+
+/// Undo [`link_in_root`]: the directory is a real directory again.
+#[cfg(unix)]
+fn unlink_in_root(root: &std::path::Path, link: &str, moved: &str) {
+    fs::remove_file(root.join(link)).expect("the link is removed");
+    fs::rename(root.join(moved), root.join(link)).expect("the directory moves back");
+}
+
+/// A directory link inside the root on the way to a record, at `work` or at
+/// the directory of the record type, is refused by `create` and by `replace`,
+/// with the record's own file behind the link and the tree byte-identical;
+/// once the directory is a real one again, the same writes go through.
+#[cfg(unix)]
+#[test]
+fn a_directory_link_inside_the_root_on_the_way_to_a_record_is_refused_and_a_real_directory_is_not()
+{
+    let cases = [
+        ("work", Record::Evidence(evidence())),
+        ("work", Record::Assessment(assessment())),
+        ("work", Record::Coverage(coverage())),
+        ("work/evidence", Record::Evidence(evidence())),
+        ("work/assessments", Record::Assessment(assessment())),
+        ("work/coverage", Record::Coverage(coverage())),
+    ];
+    for (link, record) in cases {
+        let scratch = repository("record-in-root-link");
+        let root = scratch.path();
+        let path = record.path().expect("a path");
+        // The record file is there, behind the link once it is made, so a
+        // write that followed the link would succeed.
+        put(root, path.as_str(), "mine\n");
+        link_in_root(root, link, "moved");
+        let before = snapshot(root);
+        for (what, result) in [
+            ("create", record::create(root, &record, &spdx())),
+            ("replace", record::replace(root, &record, &spdx())),
+        ] {
+            let error = result.expect_err(what);
+            assert!(
+                matches!(&error, RecordError::Write { path, .. } if path == link),
+                "{link} {what}: {error}"
+            );
+            assert!(error.to_string().contains("symbolic link"), "{error}");
+            assert_eq!(snapshot(root), before, "{link} {what}: nothing is written");
+        }
+        // The neighbour: the same directory, real.
+        unlink_in_root(root, link, "moved");
+        let replaced = record::replace(root, &record, &spdx()).expect("replaced");
+        assert_eq!(replaced, path);
+        assert_ne!(read(root, path.as_str()), "mine\n");
+        fs::remove_file(root.join(path.as_str())).expect("removed");
+        record::create(root, &record, &spdx()).expect("created");
+    }
+}
+
+/// The library reproduction of a replacement through a directory link: with
+/// `work/coverage` a link to `docs` and `docs/default.md` there, `replace` of
+/// the coverage record is refused and `docs/default.md` keeps its text.
+#[cfg(unix)]
+#[test]
+fn a_replacement_through_a_link_to_the_documents_never_overwrites_a_document() {
+    let scratch = repository("record-onto-docs");
+    let root = scratch.path();
+    put(root, "docs/default.md", "a document\n");
+    fs::remove_dir_all(root.join("work/coverage")).expect("removed");
+    std::os::unix::fs::symlink("../docs", root.join("work/coverage")).expect("a link");
+    let before = snapshot(root);
+    let error = record::replace(root, &Record::Coverage(coverage()), &spdx())
+        .expect_err("refused through the link");
+    assert!(
+        matches!(&error, RecordError::Write { path, .. } if path == "work/coverage"),
+        "{error}"
+    );
+    assert_eq!(read(root, "docs/default.md"), "a document\n");
+    assert_eq!(snapshot(root), before);
+}

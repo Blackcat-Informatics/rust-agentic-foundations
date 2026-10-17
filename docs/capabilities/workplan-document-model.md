@@ -112,6 +112,8 @@ bindings:
     - raf_workplan::test_crate::roadmap::an_implementing_capability_lists_its_gaps_exactly
     - raf_workplan::test_crate::roadmap::this_repository_lists_every_capability_once_in_its_state_group
     - raf_workplan::test_crate::roadmap::a_built_capability_is_delivered_or_reopened_under_its_own_change_and_has_no_gap
+    - raf_workplan::test_crate::records::a_replacement_through_a_link_to_the_documents_never_overwrites_a_document
+    - raf_workplan::test_crate::records::a_directory_link_inside_the_root_on_the_way_to_a_record_is_refused_and_a_real_directory_is_not
     - raf_workplan::test_crate::gate::a_clean_repository_passes
     - raf_workplan::test_crate::gate::a_broken_repository_panics_listing_every_finding
     - raf_workplan::test_crate::gate::a_missing_capabilities_directory_is_an_error
@@ -518,6 +520,21 @@ record, opened with the two SPDX comment lines of `RecordOptions` when both are
 given, and refuse, before anything is written, one of the two lines given without
 the other and a record whose text would not read back as a record with no finding.
 
+> [!PROPOSED change:workplan-document-model]
+> **Writing records.** `raf_workplan::record::create` writes a new `Record` file
+> exclusively, never replacing a file, below the root, creating the directory of
+> its type when it is missing; `record::replace` puts new text in place of an
+> existing record file through a temporary file and a rename. Each judges the way to
+> the record before anything is written, as every write of a record does: `work` and
+> the directory of the record type must each be a directory, and a symbolic link
+> there, whether it leads inside the root or out of it, a file or anything else is
+> refused, naming that directory. A record is therefore written in the record
+> directory of the root and never through a link onto another file, such as a
+> document. Both write the text the OKF writer renders for the record, opened with
+> the two SPDX comment lines of `RecordOptions` when both are given, and refuse,
+> before anything is written, one of the two lines given without the other and a
+> record whose text would not read back as a record with no finding.
+
 ## Usage
 
 A project runs the checks from a test with the dev-dependency API:
@@ -701,6 +718,14 @@ touches, and the obligations those sections receive are defined by
   fails with the target unchanged and no temporary file left; a record that would
   not load clean, a bad slug and half an SPDX header are refused with nothing
   written.
+
+> [!PROPOSED change:workplan-document-model]
+> - Link fixtures for the writer: a directory link inside the root at `work`, at
+>   `work/evidence`, at `work/assessments` and at `work/coverage`, with the record's
+>   own file behind it, is refused by `create` and by `replace`, naming the link, with
+>   the tree byte-identical, and the same writes through the real directory go
+>   through; with `work/coverage` a link to `docs` and `docs/default.md` there,
+>   `replace` of the coverage record is refused and the document keeps its text.
 - Cost fixtures: a record at the size bound with the most measures, and a hundred
   thousand claims, load in time linear in their size.
 
@@ -885,6 +910,7 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::records::a_claim_on_evidence_for_another_capability_is_a_finding` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_claim_on_unknown_evidence_names_the_file_and_the_line` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_directory_link_inside_the_root_on_the_way_to_a_record_is_refused_and_a_real_directory_is_not` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_hundred_thousand_claims_load_in_time_linear_in_their_number` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_record_at_the_size_bound_with_the_most_measures_loads` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_record_in_the_directory_of_another_type_is_wrong_directory` | test | [Verification](#verification) |
@@ -892,6 +918,7 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::records::a_record_that_would_not_load_clean_is_not_written` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_record_under_another_file_name_and_a_nested_record_are_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_reference_that_does_not_resolve_makes_no_edge` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_replacement_through_a_link_to_the_documents_never_overwrites_a_document` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_repository_without_record_directories_has_no_records_and_no_new_findings` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_symbolic_link_on_the_way_to_the_record_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value` | test | [Verification](#verification) |

@@ -220,6 +220,17 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   headings in fenced code and in PROPOSED blocks do not count. A condition is
   plain prose and nothing judges whether it has been met. A link to a page or a
   heading that does not exist stays `link-broken` or `anchor-broken`.
+- **`raf-workplan` writes through real directories:** `record::create`,
+  `record::replace`, the checks `Workplan::record_evidence` and
+  `Workplan::record_assessment` make before they write, `Workplan::write` and the
+  removal of a completed record judge each directory on the way to the file
+  (`work` and the directory of the record type, `docs` and `docs/capabilities`, or
+  `work` and `work/changes`) and refuse one that is a symbolic link, whether it
+  leads inside the root or out of it, or that is not a directory, before anything
+  runs or is written. A directory link inside the root no longer lets a
+  replacement land on another file, such as a capability document.
+  `LifecycleError` gains `RecordRefused`, which `Lifecycle::complete` returns for
+  a refused way to the record before any condition runs a process.
 - **`cargo-workplan` record commands:** `history <id> [--since <YYYY-MM-DD>]`
   prints the table or the JSON of `Workplan::history` (exit 0, or 2 for an id no
   document has, a shallow clone or a Git older than 2.30). `evidence record --id

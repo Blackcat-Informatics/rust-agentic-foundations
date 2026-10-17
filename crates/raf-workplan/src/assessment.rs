@@ -69,9 +69,10 @@ use raf_okf::{
     Actor, AssessmentRecord, AssessmentVerdict, Body, Capability, CapabilitySection, DocType,
     EvidenceVerdict, Input, InputKind, Measure, SectionRef, is_kebab,
 };
-use raf_source::RelPath;
+use raf_source::{EntryKind, RelPath};
 
 use crate::digest::{Digest, symbol_texts};
+use crate::files;
 use crate::graph::{BindingKind, SectionId, code_span_paths, prose_of};
 use crate::lifecycle::section_digest;
 use crate::lookup::write_findings;
@@ -957,15 +958,17 @@ impl Workplan<'_> {
     ///
     /// When a record of the section is there, the new one replaces it,
     /// through a temporary file and a rename, and nothing of the old one is
-    /// kept; otherwise the file is created exclusively. Every check is made
+    /// kept; otherwise the file is created exclusively. `work` and
+    /// `work/assessments` must each be a directory, and a symbolic link there,
+    /// inside the root or out of it, or a file is refused. Every check is made
     /// before anything is written, and the record is the one file written: no
     /// document is touched.
     ///
     /// # Errors
     ///
     /// Every error of [`Workplan::assessment_record`], before anything is
-    /// written, and [`AssessError::Record`] when the file in the way is not a
-    /// regular file or the write fails.
+    /// written, and [`AssessError::Record`] when a directory on the way is
+    /// refused, the file in the way is not a regular file, or the write fails.
     pub fn record_assessment(
         &self,
         root: &Path,
@@ -973,10 +976,15 @@ impl Workplan<'_> {
     ) -> Result<Assessed, AssessError> {
         let record = self.assessment_record(request)?;
         let path = record.path()?;
-        let replaced = match std::fs::symlink_metadata(root.join(path.as_str())) {
-            Ok(meta) if meta.file_type().is_file() => true,
-            Ok(_) => return Err(RecordError::Exists { path }.into()),
-            Err(_) => false,
+        // The way to the record is judged as every record write judges it
+        // (`work` and `work/assessments` are directories, never a link), so
+        // the file found is the record of the section and nothing else.
+        let found = files::target(root, DocType::Assessment.directory(), &path)
+            .map_err(RecordError::from)?;
+        let replaced = match found.kind {
+            Some(EntryKind::File) => true,
+            Some(_) => return Err(RecordError::Exists { path }.into()),
+            None => false,
         };
         let path = if replaced {
             record::replace(root, &record, &request.options)?

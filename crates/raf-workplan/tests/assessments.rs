@@ -896,3 +896,70 @@ fn a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged_within_
     );
     assert!(started.elapsed() < BUDGET, "{:?}", started.elapsed());
 }
+
+/// A directory link inside the root at `work` or `work/assessments`, with the
+/// record of the section behind it, and a file where `work/assessments`
+/// belongs, are each refused by `record_assessment` with the tree
+/// byte-identical; the neighbour with real directories records, replacing the
+/// file of the section.
+#[cfg(unix)]
+#[test]
+fn an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_records() {
+    let request = AssessmentRequest::new(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent);
+    for link in ["work", "work/assessments"] {
+        let fixture = Fixture::new("[demo::run]", "");
+        let root = fixture.root();
+        put(root, ASSESSMENT, "mine\n");
+        let error = on_disk(root, |plan| {
+            // The plan is read before the link is made: the default package
+            // discovery refuses a linked directory, and a library caller may
+            // name other source roots.
+            std::fs::rename(root.join(link), root.join("moved")).expect("moves");
+            let up = "../".repeat(link.matches('/').count());
+            std::os::unix::fs::symlink(format!("{up}moved"), root.join(link)).expect("links");
+            let before = snapshot(root);
+            let error = plan
+                .record_assessment(root, &request)
+                .expect_err("refused through the link");
+            assert_eq!(snapshot(root), before, "{link}: nothing is written");
+            error
+        });
+        assert!(
+            matches!(
+                &error,
+                AssessError::Record(raf_workplan::record::RecordError::Write { path, .. })
+                    if path == link
+            ),
+            "{link}: {error:?}"
+        );
+        assert_eq!(
+            read(root, &format!("moved{}", &ASSESSMENT[link.len()..])),
+            "mine\n"
+        );
+        // The neighbour: the directory is real again.
+        std::fs::remove_file(root.join(link)).expect("unlinks");
+        std::fs::rename(root.join("moved"), root.join(link)).expect("moves back");
+        let assessed = fixture
+            .assess(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
+            .expect("recorded");
+        assert!(assessed.replaced, "{link}");
+        assert_ne!(read(root, ASSESSMENT), "mine\n");
+    }
+    // A file where the directory belongs.
+    let fixture = Fixture::new("[demo::run]", "");
+    let root = fixture.root();
+    put(root, "work/assessments", "a file\n");
+    let before = snapshot(root);
+    let error = fixture
+        .assess(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
+        .expect_err("refused");
+    assert!(
+        matches!(
+            &error,
+            AssessError::Record(raf_workplan::record::RecordError::Write { path, .. })
+                if path == "work/assessments"
+        ),
+        "{error:?}"
+    );
+    assert_eq!(snapshot(root), before);
+}

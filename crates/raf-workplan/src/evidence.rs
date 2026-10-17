@@ -60,13 +60,14 @@ use raf_okf::{
     Actor, CapabilitySection, DocType, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Input,
     InputKind, Measure, is_kebab,
 };
-use raf_source::{LoadError, RelPath};
+use raf_source::{EntryKind, LoadError, RelPath};
 
 pub use measure::{MAX_VALUES, MeasureError, parse_limit};
 
 use crate::bound::{BoundOutcome, Executor, Refusal};
 use crate::digest::{Digest, SymbolDigestError};
 use crate::exec::{Commit, ExecError, Invocation, Limits, Runner, TrustedArgv};
+use crate::files;
 use crate::lookup::{capability_path, write_findings};
 use crate::record::{self, Record, RecordError, RecordOptions};
 use crate::{Binding, BindingKind, Finding, Workplan};
@@ -396,9 +397,11 @@ impl Workplan<'_> {
     /// the workspace root (`SystemRunner::new(Programs::new(root))`). Every
     /// check of the request is made before anything starts: the capabilities,
     /// their code bindings and the digests of the bound symbols, the limits, the
-    /// revision, the binding a binding source names, the id, the SPDX lines and
-    /// whether a file is at the path. The one file written is the record; no
-    /// document is touched.
+    /// revision, the binding a binding source names, the id, the SPDX lines,
+    /// the way to the record (`work` and `work/evidence` each a directory and
+    /// not a symbolic link, inside the root or out of it) and whether a file is
+    /// at the path. The one file written is the record; no document is
+    /// touched.
     ///
     /// ```rust
     /// use raf_okf::Actor;
@@ -603,15 +606,17 @@ impl Workplan<'_> {
 }
 
 /// Whether the record can be written at `path` below `root` in `mode`, before
-/// anything runs: nothing may be there for a new record, and a regular file
-/// must be there to replace. The write itself judges it again.
+/// anything runs: the way to it is judged as every record write judges it
+/// ([`files::target`]: `work` and `work/evidence` are directories, never a
+/// link), nothing may be there for a new record, and a regular file must be
+/// there to replace. The write itself judges it again.
 fn target_fits(root: &Path, path: &RelPath, mode: WriteMode) -> Result<(), EvidenceError> {
-    let found = std::fs::symlink_metadata(root.join(path.as_str()));
-    match (mode, found) {
-        (WriteMode::Create, Ok(_)) => Err(RecordError::Exists { path: path.clone() }.into()),
-        (WriteMode::Replace, Ok(meta)) if meta.file_type().is_file() => Ok(()),
+    let found =
+        files::target(root, DocType::Evidence.directory(), path).map_err(RecordError::from)?;
+    match (mode, found.kind) {
+        (WriteMode::Create, None) | (WriteMode::Replace, Some(EntryKind::File)) => Ok(()),
+        (WriteMode::Create, Some(_)) => Err(RecordError::Exists { path: path.clone() }.into()),
         (WriteMode::Replace, _) => Err(RecordError::Missing { path: path.clone() }.into()),
-        (WriteMode::Create, Err(_)) => Ok(()),
     }
 }
 

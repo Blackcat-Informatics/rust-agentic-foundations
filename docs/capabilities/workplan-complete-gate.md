@@ -25,6 +25,7 @@ bindings:
     - raf_workplan::bound
     - raf_workplan::lifecycle::Lifecycle
   tests:
+    - raf_workplan::test_crate::complete::a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_completes
     - raf_workplan::test_crate::scenarios::several_redesigns_leave_one_readable_present
     - raf_workplan::test_crate::scenarios::planning_produces_the_documentation
     - raf_workplan::test_crate::scenarios::a_document_that_merely_exists_does_not_satisfy_the_scenario
@@ -308,6 +309,15 @@ step, deletes `work/changes/<slug>.md` and exits with 0. Those are its only writ
 the rewrite fails the record stays, and if the deletion fails after the rewrite the
 error names the files already rewritten, so a deleted record is never found beside
 stale blocks. Git holds the record's history.
+
+> [!PROPOSED change:workplan-complete-gate]
+> The record is deleted only through real directories. With the static conditions,
+> before any `cargo` process or write, `complete` judges the way to
+> `work/changes/<slug>.md`: `work` and `work/changes` must each be a directory and not
+> a symbolic link, and the record a regular file there. Otherwise it is an error
+> (exit 2) that names the refused directory, and nothing is run or written. A linked
+> `work/changes` is never read as the directory of change records, so its change is
+> not found.
 
 **Obligations by effect.** All six conditions apply to every change. The effect only
 sets which obligations [reconcile](./workplan-reconcile.md) raises. A change with
@@ -596,6 +606,12 @@ Further checks:
 - The completion writes only the rewrite and the removal: the assessment records are
   left as they are.
 
+> [!PROPOSED change:workplan-complete-gate]
+> - A directory link inside the root at `work`, made after the repository is opened,
+>   is refused before any `cargo` process or write, with the record behind it kept;
+>   a linked `work/changes` leaves the change not found, with nothing run; the same
+>   completion through the real directories completes.
+
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
@@ -715,6 +731,7 @@ Further checks:
 | `raf_workplan::test_crate::complete::a_failing_bound_example_stands_under_conditions_one_and_five` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_failing_bound_test_refuses_condition_five_alone` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside_passing_neighbours` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_prefixed_slug_names_the_same_change` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_proposed_block_of_the_change_refuses_condition_three_in_a_loaded_and_in_an_unloaded_document` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_record_removed_while_the_tests_ran_is_an_error_and_nothing_is_written` | test | [Verification](#verification) |

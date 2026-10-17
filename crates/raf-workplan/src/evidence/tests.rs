@@ -97,19 +97,28 @@ impl Root {
         self.read("work/evidence/bound.md")
     }
 
-    /// Every file below the root, by path.
+    /// Every file below the root, by path; a symbolic link is listed by its
+    /// target and not followed.
     fn files(&self) -> BTreeMap<String, Vec<u8>> {
         fn walk(root: &Path, dir: &Path, into: &mut BTreeMap<String, Vec<u8>>) {
             for entry in fs::read_dir(dir).expect("a listing") {
-                let path = entry.expect("an entry").path();
-                if path.is_dir() {
+                let entry = entry.expect("an entry");
+                let path = entry.path();
+                let name = path
+                    .strip_prefix(root)
+                    .expect("below")
+                    .display()
+                    .to_string();
+                let kind = entry.file_type().expect("a file type");
+                if kind.is_symlink() {
+                    let target = fs::read_link(&path).expect("a link target");
+                    into.insert(
+                        format!("{name} -> link"),
+                        target.display().to_string().into_bytes(),
+                    );
+                } else if kind.is_dir() {
                     walk(root, &path, into);
                 } else {
-                    let name = path
-                        .strip_prefix(root)
-                        .expect("below")
-                        .display()
-                        .to_string();
                     into.insert(name, fs::read(&path).expect("bytes"));
                 }
             }
@@ -816,4 +825,142 @@ fn more_values_than_a_record_keeps_is_an_error_and_the_most_it_keeps_records() {
             assert_eq!(root.record(), None);
         }
     }
+}
+
+// --- the way to the record ----------------------------------------------------
+
+/// A directory link inside the root at `work` or `work/evidence`, with a file
+/// of the record's name behind it, is refused before the command runs, for a
+/// new record and for a replacement, and nothing is written; once the
+/// directory is a real one again, both record.
+#[cfg(unix)]
+#[test]
+fn a_directory_link_on_the_way_to_the_record_is_refused_before_the_command_runs() {
+    let argv = || TrustedArgv::new(vec!["true".to_string()]).expect("a command");
+    let passing = || {
+        FakeRunner::new().on(
+            Program::Trusted,
+            &["true"],
+            Ok(Output::new(Some(0), Vec::new(), Vec::new())),
+        )
+    };
+    for link in ["work", "work/evidence"] {
+        let root = Root::new("linked");
+        root.put("work/evidence/bound.md", "mine\n");
+        // The workspace and the documents are read before the link is made:
+        // the default package discovery refuses a linked directory, and a
+        // library caller may name other source roots.
+        let tree = DiskTree::new(root.path()).expect("a tree");
+        let source = Workspace::load(&tree, &["."]).expect("a workspace");
+        let plan = Workplan::load_with(&tree, &source, &LinkContext::of_tree(&tree));
+        fs::rename(root.path().join(link), root.path().join("moved")).expect("moves");
+        let up = "../".repeat(link.matches('/').count());
+        std::os::unix::fs::symlink(format!("{up}moved"), root.path().join(link)).expect("links");
+        let before = root.files();
+        for mode in [WriteMode::Create, WriteMode::Replace] {
+            let runner = FakeRunner::new();
+            let error = plan
+                .record_evidence(root.path(), &runner, &request(argv()).mode(mode))
+                .expect_err(link);
+            assert!(
+                matches!(&error, EvidenceError::Record(RecordError::Write { path, .. }) if path == link),
+                "{link} {mode:?}: {error}"
+            );
+            assert!(
+                runner.calls().is_empty(),
+                "{link} {mode:?}: a process started"
+            );
+            assert_eq!(root.files(), before, "{link} {mode:?}");
+        }
+        // The neighbour: the directory is real again.
+        fs::remove_file(root.path().join(link)).expect("unlinks");
+        fs::rename(root.path().join("moved"), root.path().join(link)).expect("moves back");
+        plan.record_evidence(
+            root.path(),
+            &passing(),
+            &request(argv()).mode(WriteMode::Replace),
+        )
+        .expect("replaced");
+        assert_ne!(root.record().as_deref(), Some("mine\n"));
+        fs::remove_file(root.path().join("work/evidence/bound.md")).expect("removed");
+        plan.record_evidence(root.path(), &passing(), &request(argv()))
+            .expect("recorded");
+    }
+}
+
+/// The reproduction through the documented gate: a workspace member `pkg`,
+/// a capability document `docs/capabilities/fixture.md`, and the link
+/// `work/evidence -> ../docs/capabilities`. The gate opens, and a replacement
+/// of the evidence `fixture` is refused before anything runs: the capability
+/// document keeps its text. The neighbour with a real `work/evidence`
+/// records.
+#[cfg(unix)]
+#[test]
+fn evidence_through_the_gate_never_replaces_a_capability_document_through_a_link() {
+    let root = Root::new("gate-link");
+    root.put(
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"pkg\"]\nresolver = \"2\"\n",
+    );
+    fs::remove_dir_all(root.path().join("src")).expect("removed");
+    root.put(
+        "pkg/Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+    );
+    root.put("pkg/src/lib.rs", LIB);
+    fs::rename(
+        root.path().join("docs/capabilities/demo.md"),
+        root.path().join("docs/capabilities/fixture.md"),
+    )
+    .expect("renamed");
+    let document = capability("[demo::run]").replace("id: cap:demo", "id: cap:fixture");
+    root.put("docs/capabilities/fixture.md", &document);
+    fs::create_dir_all(root.path().join("work")).expect("work");
+    std::os::unix::fs::symlink("../docs/capabilities", root.path().join("work/evidence"))
+        .expect("links");
+    let opened = crate::Gate::workspace(root.path())
+        .source_roots(&["pkg"])
+        .tracked_paths(Vec::new())
+        .open()
+        .expect("the gate opens");
+    let argv = TrustedArgv::new(vec!["true".to_string()]).expect("a command");
+    let request = EvidenceRequest::new(
+        "fixture",
+        vec!["cap:fixture".to_string()],
+        Actor::Agent,
+        VerdictSource::Command(argv),
+    )
+    .mode(WriteMode::Replace);
+    let before = root.files();
+    let runner = FakeRunner::new();
+    let error = opened
+        .workplan()
+        .record_evidence(root.path(), &runner, &request)
+        .expect_err("refused");
+    assert!(
+        matches!(&error, EvidenceError::Record(RecordError::Write { path, .. }) if path == "work/evidence"),
+        "{error}"
+    );
+    assert!(runner.calls().is_empty(), "a process started");
+    assert_eq!(
+        root.read("docs/capabilities/fixture.md").as_deref(),
+        Some(document.as_str())
+    );
+    assert_eq!(root.files(), before);
+    // The neighbour: a real `work/evidence`.
+    fs::remove_file(root.path().join("work/evidence")).expect("unlinks");
+    let runner = FakeRunner::new().on(
+        Program::Trusted,
+        &["true"],
+        Ok(Output::new(Some(0), Vec::new(), Vec::new())),
+    );
+    let recorded = opened
+        .workplan()
+        .record_evidence(root.path(), &runner, &request.mode(WriteMode::Create))
+        .expect("recorded");
+    assert_eq!(recorded.path.as_str(), "work/evidence/fixture.md");
+    assert_eq!(
+        root.read("docs/capabilities/fixture.md").as_deref(),
+        Some(document.as_str())
+    );
 }
