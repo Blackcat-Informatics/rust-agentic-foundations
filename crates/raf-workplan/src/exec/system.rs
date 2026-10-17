@@ -331,7 +331,41 @@ fn group_signal_outcome(
 mod tests {
     use rustix::io::Errno;
 
-    use super::group_signal_outcome;
+    use std::os::unix::process::CommandExt as _;
+    use std::process::{Command, Stdio};
+    use std::thread;
+    use std::time::Duration;
+
+    use super::{group_signal_outcome, kill_group, terminate};
+
+    /// A process in a group of its own that has exited and is not reaped yet.
+    fn exited_group_leader() -> std::process::Child {
+        let mut command = Command::new("sh");
+        command
+            .args(["-c", "exit 0"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .process_group(0);
+        let child = command.spawn().expect("sh starts");
+        // Long enough for the shell to exit; if it has not yet, the group is
+        // still signalled, so the test holds either way.
+        thread::sleep(Duration::from_millis(300));
+        child
+    }
+
+    #[test]
+    fn a_group_whose_leader_exited_before_the_kill_is_killed_without_error() {
+        let mut child = exited_group_leader();
+        kill_group(&mut child).expect("an exited, unreaped group is done");
+        child.wait().expect("the leader is collected");
+    }
+
+    #[test]
+    fn terminating_a_leader_that_exited_before_the_kill_succeeds() {
+        let mut child = exited_group_leader();
+        terminate(&mut child).expect("an exited leader is terminated");
+    }
 
     #[test]
     fn a_group_that_already_exited_is_done() {

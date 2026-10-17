@@ -87,6 +87,8 @@ bindings:
     - raf_workplan::exec::system::tests::a_group_that_already_exited_is_done
     - raf_workplan::exec::system::tests::a_refused_signal_is_done_only_when_the_leader_has_exited
     - raf_workplan::exec::system::tests::any_other_failure_is_reported_even_after_the_leader_exited
+    - raf_workplan::exec::system::tests::a_group_whose_leader_exited_before_the_kill_is_killed_without_error
+    - raf_workplan::exec::system::tests::terminating_a_leader_that_exited_before_the_kill_succeeds
     - raf_workplan::test_crate::exec::stubs::output_at_the_bound_passes_and_one_byte_over_is_refused_on_each_stream
     - raf_workplan::test_crate::verify::one_passing_and_one_failing_test_print_one_line_each_and_the_run_fails
     - raf_workplan::test_crate::verify::no_slug_runs_every_capability_and_a_slug_only_the_ones_the_change_lists
@@ -730,8 +732,10 @@ Further checks:
 | `raf_workplan::bound::tests::zero_passed_is_unresolved_even_with_exit_status_zero` | test | [Verification](#verification) |
 | `raf_workplan::exec` | doctest | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_group_that_already_exited_is_done` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_group_whose_leader_exited_before_the_kill_is_killed_without_error` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_refused_signal_is_done_only_when_the_leader_has_exited` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::any_other_failure_is_reported_even_after_the_leader_exited` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::terminating_a_leader_that_exited_before_the_kill_succeeds` | test | [Verification](#verification) |
 | `raf_workplan::exec::tests::a_literal_is_the_only_free_text_and_it_is_static` | test | [Verification](#verification) |
 | `raf_workplan::exec::tests::a_rejected_value_never_becomes_an_argument` | test | [Verification](#verification) |
 | `raf_workplan::exec::tests::every_variant_is_walked` | test | [Verification](#verification) |
