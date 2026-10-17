@@ -7,7 +7,7 @@ subject: cap:workplan-entity-history#verification
 inputs:
   - kind: section
     name: cap:workplan-entity-history#verification
-    digest: 43e402f2219f4d2b70ea957b26309dd20b02a88ce2943bc04189a433f91d3676
+    digest: dfd2f87dd100bf9ab0e3f50ee6f34edcd70dd52772d3083e4576765216cd4b63
   - kind: symbol
     name: raf_workplan::Workplan::history
     digest: 54ca67c0bc29309bda8c5b64782cda013825c20a1538b9c12f3c5ea65914c616

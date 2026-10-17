@@ -349,3 +349,43 @@ sequence of proposals, discarded names and reversals that Git retains.
   the history of its file.
 - The documentation example of `Workplan::history` runs: an id no document has is
   refused before any process starts.
+
+<!-- raf:generated:verification-matrix -->
+| Item | Kind | Section |
+| --- | --- | --- |
+| `raf_workplan::Workplan::history` | doctest | [Verification](#verification) |
+| `raf_workplan::git::log::tests::a_document_log_reads_each_record_with_its_paths` | test | [Verification](#verification) |
+| `raf_workplan::git::log::tests::a_log_past_the_bound_is_an_error_that_says_so` | test | [Verification](#verification) |
+| `raf_workplan::git::log::tests::a_since_day_starts_at_midnight_utc_on_the_scale_of_an_author_date` | test | [Verification](#verification) |
+| `raf_workplan::git::log::tests::a_strict_author_date_is_read_and_ordered_by_its_instant` | test | [Verification](#verification) |
+| `raf_workplan::git::log::tests::a_subject_keeps_every_byte_but_a_newline` | test | [Verification](#verification) |
+| `raf_workplan::git::log::tests::a_symbol_log_lists_no_path_and_refuses_any_other_line` | test | [Verification](#verification) |
+| `raf_workplan::git::log::tests::output_that_is_not_a_log_of_the_form_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::git::log::tests::the_pickaxe_answers_one_record_with_its_parent_or_none` | test | [Verification](#verification) |
+| `raf_workplan::git::log::tests::the_shallow_answer_is_true_or_false` | test | [Verification](#verification) |
+| `raf_workplan::history::render::tests::a_json_string_escapes_quotes_backslashes_and_every_control_character` | test | [Verification](#verification) |
+| `raf_workplan::history::render::tests::a_table_cell_cannot_break_the_table_or_reach_the_terminal` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::a_binding_that_names_no_single_symbol_is_refused_before_any_process` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::a_capability_history_holds_its_document_through_a_move_and_its_bound_code` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::a_log_past_sixteen_mebibytes_is_an_error_and_the_bound_itself_is_read` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::a_merge_whose_resolution_changed_the_document_is_in_its_history_and_a_clean_one_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::a_module_binding_asks_its_span_and_then_the_log_of_each_of_its_files_in_order` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::a_module_binding_lists_the_commits_of_its_files_and_not_of_a_sibling` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::a_module_file_that_is_not_committed_names_the_binding_and_the_file_until_it_is` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::a_root_commit_that_changed_the_identifier_has_no_parent` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::a_shallow_clone_is_refused_with_the_missing_history_named_and_a_full_clone_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::a_subject_with_unit_separators_and_a_hash_is_reported_whole` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::a_symbol_log_that_git_refuses_names_the_binding_and_the_file_to_commit` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::an_id_or_a_date_that_cannot_be_asked_about_starts_no_process` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::an_old_git_or_a_shallow_answer_stops_before_any_history_is_read` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::each_kind_of_id_has_the_history_of_its_file` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::every_question_is_asked_in_order_as_exactly_its_argv` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::since_counts_from_the_start_of_the_day_in_utc_in_every_time_zone` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::since_limits_the_logs_and_not_the_removal_lookup` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::since_reaches_no_process_and_keeps_each_entry_by_its_author_date` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::since_selects_by_the_author_date_and_not_by_the_committer_date` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::stubs::a_git_reporting_2_29_stops_the_history_before_any_log` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::stubs::a_path_named_like_an_option_reaches_git_after_the_separator_or_the_colon` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::stubs::a_real_process_that_prints_past_the_bound_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::the_table_and_the_json_carry_the_same_entries_in_the_same_order` | test | [Verification](#verification) |
+<!-- raf:generated:end -->

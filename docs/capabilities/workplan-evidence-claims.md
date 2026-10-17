@@ -318,3 +318,46 @@ staleness reads no revision and asks Git nothing.
   refused naming it, for a record with claims and for an id no claim names, while
   a malformed id is refused as malformed first; beside it a change record and an
   evidence record that do not load leave the answer, as the clean repository does.
+
+<!-- raf:generated:verification-matrix -->
+| Item | Kind | Section |
+| --- | --- | --- |
+| `raf_workplan::Workplan::record_evidence` | doctest | [Verification](#verification) |
+| `raf_workplan::evidence::measure::tests::a_limit_is_a_name_and_a_number` | test | [Verification](#verification) |
+| `raf_workplan::evidence::measure::tests::a_limit_never_printed_is_an_error_and_a_printed_one_is_judged` | test | [Verification](#verification) |
+| `raf_workplan::evidence::measure::tests::a_name_printed_twice_is_an_error_and_two_names_are_not` | test | [Verification](#verification) |
+| `raf_workplan::evidence::measure::tests::a_value_is_over_its_limit_by_its_text_and_not_by_its_nearest_float` | test | [Verification](#verification) |
+| `raf_workplan::evidence::measure::tests::a_value_that_is_not_a_number_is_an_error_and_its_neighbour_is_not` | test | [Verification](#verification) |
+| `raf_workplan::evidence::measure::tests::only_lines_of_a_name_an_equals_sign_and_a_number_are_values` | test | [Verification](#verification) |
+| `raf_workplan::evidence::parse_limit` | doctest | [Verification](#verification) |
+| `raf_workplan::evidence::tests::a_capability_with_no_code_binding_or_one_that_does_not_resolve_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::a_command_that_cannot_start_writes_no_record` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::a_directory_link_on_the_way_to_the_record_is_refused_before_the_command_runs` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::a_passing_command_writes_one_record_with_its_command_values_limits_and_input_digests` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::a_run_killed_at_its_time_limit_records_fail_and_its_neighbour_passes` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::a_value_over_its_limit_by_less_than_a_float_tells_apart_records_fail` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::each_fault_of_the_printed_values_is_an_error_beside_a_passing_neighbour` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::every_refusal_of_the_request_starts_nothing_and_writes_nothing` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::evidence_through_the_gate_never_replaces_a_capability_document_through_a_link` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::more_values_than_a_record_keeps_is_an_error_and_the_most_it_keeps_records` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::output_past_the_bound_is_an_error_and_writes_nothing_and_output_at_it_records` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::the_argv_reaches_the_process_exactly_with_no_shell_of_the_workplan` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::the_command_is_asked_with_the_bounds_of_a_build_and_the_callers_locale` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::the_command_runs_in_the_root_with_its_input_closed_and_the_callers_environment` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::the_exit_status_and_the_limits_decide_the_verdict` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::the_recorded_line_says_why_a_verdict_is_fail` | test | [Verification](#verification) |
+| `raf_workplan::exec::trusted::tests::a_line_with_no_command_is_refused_and_one_with_a_command_is_not` | test | [Verification](#verification) |
+| `raf_workplan::exec::trusted::tests::a_word_that_is_not_utf8_is_refused_by_its_place` | test | [Verification](#verification) |
+| `raf_workplan::exec::trusted::tests::an_error_about_the_command_quotes_its_words_as_the_record_stores_them` | test | [Verification](#verification) |
+| `raf_workplan::exec::trusted::tests::the_command_is_every_word_after_the_first_separator` | test | [Verification](#verification) |
+| `raf_workplan::exec::trusted::tests::the_text_quotes_each_word_a_shell_would_split_or_expand` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_no_binding_starts_nothing` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::a_claim_on_a_value_over_its_limit_by_less_than_a_float_tells_apart_is_unsupported` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::a_record_supports_a_capability_by_its_for_list_without_a_claim` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::hostile_record_text_is_read_as_text_and_reaches_no_process` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability` | test | [Verification](#verification) |
+<!-- raf:generated:end -->
