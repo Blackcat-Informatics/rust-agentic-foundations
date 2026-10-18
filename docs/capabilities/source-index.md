@@ -2309,9 +2309,10 @@ duplicates.
     verification: each is `OutsideRoot`, and no outside text, name or kind is
     returned;
   - under the Linux and other-Unix strategies, an outside FIFO reached through such
-    a swap before the open, with a writer blocked in its own open of the FIFO: the
-    read is `OutsideRoot` and the writer is never released, because no reader opened
-    the FIFO;
+    a swap before the open, watched for opens through inotify: the read is
+    `OutsideRoot` and the watch reports no open of the FIFO. The watch is checked
+    first against an `O_PATH` reference to the FIFO, which it must not report, and
+    last against a non-blocking open of the FIFO, which it must report exactly once;
   - under each strategy, every open that resolves a name below the root, for reads,
     identities, entries and listings that reach a FIFO or lead to one, is an `O_PATH`
     reference or an `O_NONBLOCK` open. The flags are checked before the open is made,

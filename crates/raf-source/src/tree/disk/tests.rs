@@ -489,32 +489,22 @@ mod swap {
         }
     }
 
-    /// The `/proc` task directory of the calling thread.
+    /// The open events queued on `queue` since it was last read, and none
+    /// when the queue is empty.
     #[cfg(target_os = "linux")]
-    fn own_task() -> PathBuf {
-        Path::new("/proc").join(fs::read_link("/proc/thread-self").expect("/proc/thread-self"))
-    }
+    fn queued_opens(queue: &std::os::fd::OwnedFd) -> Vec<rustix::fs::inotify::ReadFlags> {
+        use rustix::fs::inotify::Reader;
+        use rustix::io::Errno;
 
-    /// Wait until the thread of `task` is blocked in an `open` system call.
-    #[cfg(target_os = "linux")]
-    fn wait_until_blocked_in_open(task: &Path) {
-        let opens = [
-            libc::SYS_openat,
-            #[cfg(target_arch = "x86_64")]
-            libc::SYS_open,
-        ];
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        let mut buffer = [std::mem::MaybeUninit::<u8>::uninit(); 1024];
+        let mut reader = Reader::new(queue, &mut buffer);
+        let mut events = Vec::new();
         loop {
-            let call = fs::read_to_string(task.join("syscall")).expect("read the task's syscall");
-            let number = call.split_whitespace().next().and_then(|n| n.parse().ok());
-            if number.is_some_and(|number: libc::c_long| opens.contains(&number)) {
-                return;
+            match reader.next() {
+                Ok(event) => events.push(event.events()),
+                Err(Errno::AGAIN) => return events,
+                Err(error) => panic!("read the inotify queue: {error}"),
             }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "the writer never blocked in open: {call}"
-            );
-            std::thread::sleep(std::time::Duration::from_millis(5));
         }
     }
 
@@ -528,41 +518,59 @@ mod swap {
         }
     }
 
+    /// The probe is an inotify watch for `IN_OPEN` on the FIFO's inode. An
+    /// `O_PATH` reference must not be reported (the negative control, which the
+    /// Linux strategy relies on), and an `O_NONBLOCK` open must be, exactly
+    /// once (the positive control, which proves the watch is live).
     #[cfg(target_os = "linux")]
     fn outside_fifo_is_never_opened(strategy: Strategy) {
+        use rustix::fs::inotify::{self, CreateFlags, ReadFlags, WatchFlags};
         use std::os::unix::fs::OpenOptionsExt as _;
 
         let (_scratch, root, outside_dir) = fixture();
         let fifo = outside_dir.join("file.rs");
-        // A writer's open of a FIFO returns only once some reader opens it.
-        let (task_sender, task) = std::sync::mpsc::channel();
-        let (opened_sender, opened) = std::sync::mpsc::channel();
-        let writer_fifo = fifo.clone();
-        let writer = std::thread::spawn(move || {
-            task_sender.send(own_task()).expect("send the task");
-            // The receiver is gone only when the test already failed.
-            drop(opened_sender.send(fs::OpenOptions::new().write(true).open(&writer_fifo)));
-        });
-        wait_until_blocked_in_open(&task.recv().expect("the writer's task"));
+        let queue = inotify::init(CreateFlags::NONBLOCK | CreateFlags::CLOEXEC)
+            .expect("create an inotify queue");
+        inotify::add_watch(&queue, &fifo, WatchFlags::OPEN).expect("watch the FIFO for opens");
+
+        let reference = fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_PATH)
+            .open(&fifo)
+            .expect("take an O_PATH reference to the FIFO");
+        drop(reference);
+        let reported = queued_opens(&queue);
+        assert!(
+            reported.is_empty(),
+            "this kernel reports an O_PATH reference as an open ({reported:?}), so the probe \
+             cannot tell a reference from an open of the FIFO"
+        );
+
         let mut tree = tree_with(&root, strategy);
         tree.before_open = Some(park_and_link(&root, &outside_dir));
-
         let result = tree.read(&rel("dir/file.rs"), 1024);
-        let released = opened.recv_timeout(std::time::Duration::from_secs(1));
 
-        // Release the writer whatever happened, so its thread ends.
-        let release = fs::OpenOptions::new()
+        assert_outside(&result, strategy);
+        let opened = queued_opens(&queue);
+        assert!(
+            opened.is_empty(),
+            "{strategy:?}: the outside FIFO was opened: {opened:?}"
+        );
+        let flags = tree.recorded_opens();
+        assert!(!flags.is_empty(), "{strategy:?}: no open was recorded");
+        assert!(flags.iter().all(|&flags| never_blocks(flags)), "{flags:?}");
+
+        let live = fs::OpenOptions::new()
             .read(true)
             .custom_flags(libc::O_NONBLOCK)
             .open(&fifo)
-            .expect("release the writer");
-        writer.join().expect("the writer ends");
-        drop(release);
+            .expect("open the FIFO without blocking");
+        drop(live);
+        let reported = queued_opens(&queue);
         assert!(
-            released.is_err(),
-            "{strategy:?}: the outside FIFO was opened, releasing its writer: {released:?}"
+            matches!(reported.as_slice(), [event] if event.contains(ReadFlags::OPEN)),
+            "the probe did not report the one open of the FIFO: {reported:?}"
         );
-        assert_outside(&result, strategy);
     }
 
     /// `root/dir/secret.rs` and `outside/dir/secret.rs`, both regular files,
