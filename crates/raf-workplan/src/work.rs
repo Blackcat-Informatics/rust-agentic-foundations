@@ -38,11 +38,15 @@ pub(crate) enum Work {
     OutcomeChecks,
     /// A change put into the set of slugs the moves of a record are judged against.
     SlugsListed,
+    /// An exclusion of the coverage record tested against the paths of one entry.
+    ExclusionTests,
+    /// A public item, re-export or test judged for coverage.
+    EntriesJudged,
 }
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 12;
+const KINDS: usize = 14;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -59,6 +63,8 @@ const ALL: [Work; KINDS] = [
     Work::PhraseTests,
     Work::OutcomeChecks,
     Work::SlugsListed,
+    Work::ExclusionTests,
+    Work::EntriesJudged,
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].

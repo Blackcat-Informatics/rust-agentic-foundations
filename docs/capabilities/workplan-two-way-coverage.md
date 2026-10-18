@@ -13,7 +13,7 @@ bindings:
   tests:
     - raf_workplan::test_crate::coverage::a_bound_item_is_covered_and_its_unbound_neighbour_is_a_gap
     - raf_workplan::test_crate::coverage::a_bound_test_is_covered_and_every_unbound_test_unit_tests_included_is_a_gap
-    - raf_workplan::test_crate::coverage::a_crate_with_thousands_of_items_and_tests_is_judged_in_bounded_time
+    - raf_workplan::test_crate::coverage::a_crate_with_thousands_of_items_and_tests_is_judged
     - raf_workplan::test_crate::coverage::a_scope_entry_is_a_package_name_and_a_crate_name_says_which_package_it_means
     - raf_workplan::test_crate::coverage::a_surface_over_the_item_budget_is_a_budget_error
     - raf_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_an_error_of_the_report_and_a_finding_in_scope
@@ -35,6 +35,10 @@ bindings:
     - raf_workplan::test_crate::coverage::the_first_matching_exclusion_gives_the_reason
     - raf_workplan::test_crate::coverage::a_capability_that_does_not_load_gives_its_own_findings_and_no_cascade_of_gaps
     - raf_workplan::test_crate::coverage::a_re_export_written_through_super_names_the_path_super_reaches
+    - raf_workplan::coverage::tests::every_exclusion_is_tested_against_every_entry_exactly_once
+    - raf_workplan::coverage::tests::the_exclusions_tested_grow_with_the_entries_and_no_faster
+    - raf_workplan::coverage::tests::the_exclusions_tested_grow_with_the_exclusions_and_no_faster
+    - raf_workplan::coverage::tests::without_exclusions_the_entries_are_judged_and_nothing_is_tested
   examples:
     - raf_workplan::Workplan::coverage_report
 depends: [cap:workplan-document-model, cap:source-index, cap:workplan-evidence-claims]
@@ -248,7 +252,13 @@ stops compiling or running it receives an `example-failing` obligation.
   without capability documents owes no record; a surface that cannot be listed is an error of
   the report and a finding in `scope`.
 - Reports are identical across two runs on the same tree, and a crate with thousands
-  of items and tests is judged in bounded time.
+  of items and tests is judged with the counts, the gaps and the excluded entries of
+  its report right. The work of judging is entries times exclusions, pinned exactly
+  and counted, not timed: each entry is judged once, and each exclusion is tested
+  against each entry, because the first match gives the reason and every match is
+  marked so that an exclusion that matches nothing can be reported. With the
+  exclusions fixed the tests grow with the entries, with the entries fixed they grow
+  with the exclusions, and with no exclusion nothing is tested.
 - A `scope` entry that is a crate name and not a package name is
   `scope-crate-missing`, naming the package it means, and the package name is in
   scope.
@@ -276,10 +286,14 @@ stops compiling or running it receives an `example-failing` obligation.
 | Item | Kind | Section |
 | --- | --- | --- |
 | `raf_workplan::Workplan::coverage_report` | doctest | [Verification](#verification) |
+| `raf_workplan::coverage::tests::every_exclusion_is_tested_against_every_entry_exactly_once` | test | [Verification](#verification) |
+| `raf_workplan::coverage::tests::the_exclusions_tested_grow_with_the_entries_and_no_faster` | test | [Verification](#verification) |
+| `raf_workplan::coverage::tests::the_exclusions_tested_grow_with_the_exclusions_and_no_faster` | test | [Verification](#verification) |
+| `raf_workplan::coverage::tests::without_exclusions_the_entries_are_judged_and_nothing_is_tested` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::coverage::a_bound_item_is_covered_and_its_unbound_neighbour_is_a_gap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::coverage::a_bound_test_is_covered_and_every_unbound_test_unit_tests_included_is_a_gap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::coverage::a_capability_that_does_not_load_gives_its_own_findings_and_no_cascade_of_gaps` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::coverage::a_crate_with_thousands_of_items_and_tests_is_judged_in_bounded_time` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::a_crate_with_thousands_of_items_and_tests_is_judged` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::coverage::a_prefix_matches_below_its_module_and_never_a_sibling_that_shares_its_text` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::coverage::a_re_export_the_index_cannot_follow_is_reported_and_enforced_and_its_module_covers_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::coverage::a_re_export_written_through_super_names_the_path_super_reaches` | test | [Verification](#verification) |
