@@ -21,6 +21,7 @@ use syn::{Attribute, Expr, ExprLit, Item, Lit, Meta, Visibility};
 use crate::cfg::{CfgExpr, parse_list};
 use crate::meter::FactAllowance;
 use crate::verbatim::{self, Bodiless, Verbatim};
+use crate::work::{self, Work};
 
 /// A region of the file in lines and bytes.
 ///
@@ -391,6 +392,7 @@ impl<'t> Positions<'t> {
     }
 
     fn byte(&self, line: usize, column: usize) -> Found<usize> {
+        work::add(Work::Positions, 1);
         let outside = || ExtractError::Position { line };
         let index = line.checked_sub(1).ok_or_else(outside)?;
         let start = *self.starts.get(index).ok_or_else(outside)?;
@@ -406,10 +408,12 @@ impl<'t> Positions<'t> {
             let mut long = self.long.borrow_mut();
             let entry = long.entry(index).or_insert_with(|| {
                 if own.is_ascii() {
+                    work::add(Work::ColumnSteps, own.len());
                     LineIndex::Ascii
                 } else {
                     LineIndex::Marks(
                         own.char_indices()
+                            .inspect(|_| work::add(Work::ColumnSteps, 1))
                             .step_by(MARK_EVERY)
                             .map(|(at, _)| at)
                             .collect(),
@@ -432,12 +436,19 @@ impl<'t> Positions<'t> {
                 }
             }
         };
-        let mut chars = rest.char_indices();
-        match chars.nth(skip) {
-            Some((offset, _)) => Ok(start + base + offset),
-            // Just past the last character of the line.
-            None if rest.chars().count() == skip => Ok(start + base + rest.len()),
-            None => Err(outside()),
+        let mut chars = rest
+            .char_indices()
+            .inspect(|_| work::add(Work::ColumnSteps, 1));
+        if let Some((offset, _)) = chars.nth(skip) {
+            return Ok(start + base + offset);
+        }
+        let all = rest.chars().count();
+        work::add(Work::ColumnSteps, all);
+        // Just past the last character of the line.
+        if all == skip {
+            Ok(start + base + rest.len())
+        } else {
+            Err(outside())
         }
     }
 
@@ -677,6 +688,7 @@ fn summarize(attrs: &[Attribute], meter: &FactMeter) -> Found<AttrSummary> {
         paths: PathAttrs::default(),
     };
     for attr in attrs {
+        work::add(Work::Attributes, 1);
         let line = attr.span().start().line;
         let path = fit(path_text(attr.path()));
         let args = fit(match &attr.meta {
@@ -1743,19 +1755,18 @@ mod tests {
             "#[cfg(all(test, any({})))]\npub use {{\n{members}}};\n",
             names.join(", ")
         );
-        let started = std::time::Instant::now();
-        let ws = loaded(&[("src/lib.rs", &text)]);
-        let took = started.elapsed();
-        let bound = if cfg!(debug_assertions) {
-            std::time::Duration::from_secs(10)
-        } else {
-            std::time::Duration::from_millis(500)
+        let tree = syn::parse_file(&text).expect("the text parses");
+        let allowance = FactAllowance {
+            spent: 0,
+            limit: usize::MAX,
         };
-        assert!(took < bound, "{took:?}");
-        let lib = ws
-            .file(&RelPath::new("src/lib.rs").expect("path"))
-            .expect("loaded");
-        let uses = &lib.facts.body.uses;
+        // The attribute is read once for the whole declaration, so its count
+        // stops at the ceiling of two if it is read for each member instead.
+        let (extracted, tally) =
+            work::measure_kind(Work::Attributes, 2, || extract(&tree, &text, allowance));
+        let (facts, _) = extracted.expect("the facts are read");
+        assert_eq!(tally.get(Work::Attributes), 1);
+        let uses = &facts.body.uses;
         assert_eq!(uses.len(), MEMBERS);
         for (i, u) in uses.iter().enumerate() {
             assert_eq!(
@@ -1778,6 +1789,47 @@ mod tests {
                 },
                 "{i}"
             );
+        }
+    }
+
+    #[test]
+    fn a_long_line_of_wide_characters_is_indexed_once_for_all_its_positions() {
+        use std::fmt::Write as _;
+        // Twenty thousand functions on one line, each name holding a character
+        // of two bytes, so a column is not a byte offset.
+        const ITEMS: usize = 20_000;
+        let mut text = String::new();
+        let mut starts = Vec::new();
+        for index in 0..ITEMS {
+            starts.push(text.len());
+            write!(text, "pub fn é{index}() {{}} ").expect("a string takes the text");
+        }
+        text.push('\n');
+        let line_chars = text.chars().count();
+        let tree = syn::parse_file(&text).expect("the text parses");
+        let allowance = FactAllowance {
+            spent: 0,
+            limit: usize::MAX,
+        };
+        // A position costs at most one mark interval beside the one pass that
+        // indexes the line. The ceiling allows eight positions per item; a
+        // walk from the line start for each position, or an index built for
+        // each item, passes it within a few thousand items.
+        let ceiling = line_chars + 8 * ITEMS * (MARK_EVERY + 1);
+        let (extracted, tally) = work::measure(ceiling, || extract(&tree, &text, allowance));
+        let (facts, _) = extracted.expect("the facts are read");
+        let positions = tally.get(Work::Positions);
+        assert!(positions >= 2 * ITEMS, "{positions}");
+        assert!(tally.get(Work::ColumnSteps) > 0);
+        assert!(
+            tally.get(Work::ColumnSteps) <= line_chars + positions * (MARK_EVERY + 1),
+            "{} column steps for {positions} positions on a line of {line_chars}",
+            tally.get(Work::ColumnSteps)
+        );
+        assert_eq!(facts.body.items.len(), ITEMS);
+        for (index, start) in starts.iter().enumerate().step_by(997) {
+            let item = &facts.body.items[index];
+            assert_eq!(item.span.start_byte, *start, "é{index}");
         }
     }
 }

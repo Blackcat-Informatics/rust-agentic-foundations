@@ -220,6 +220,8 @@ bindings:
     - raf_source::test_crate::manifest_caps::exclude_still_removes_literal_wildcard_and_nested_members
     - raf_source::item::tests::an_item_record_is_at_most_two_hundred_fifty_six_bytes
     - raf_source::facts::tests::a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines
+    - raf_source::facts::tests::a_long_line_of_wide_characters_is_indexed_once_for_all_its_positions
+    - raf_source::facts::tests::a_large_attribute_on_a_verbatim_use_group_is_read_once_for_all_its_members
     - raf_source::settle::tests::a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room
     - raf_source::settle::tests::components_come_out_once_each_after_every_component_they_lead_to
     - raf_source::settle::tests::each_settle_after_the_first_is_charged_what_it_builds_again
@@ -263,7 +265,7 @@ bindings:
     - raf_source::test_crate::module_tree::a_file_reached_under_two_spellings_is_read_once_and_keeps_the_spelling_that_sorts_first
     - raf_source::test_crate::memory_tree::the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses
     - raf_source::test_crate::disk_tree_containment::the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle
-    - raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets_in_linear_time
+    - raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets
     - raf_source::test_crate::symbol_index::an_inherent_impl_on_a_type_the_index_cannot_see_is_indexed_under_its_written_self_path
     - raf_source::test_crate::symbol_index::a_bitflags_style_macro_type_with_an_impl_loads_with_its_members_marked_unresolved
     - raf_source::test_crate::symbol_index::an_impl_of_a_local_trait_object_loads_with_its_members_marked_unresolved
@@ -1862,7 +1864,9 @@ duplicates.
   a tree of two links back to `src` and eighteen levels of files, which spells its
   last file 2^17 ways, reads every file once and is refused by the item-bytes budget.
 - Positions: twenty thousand items on one line of two-byte characters get exact byte
-  offsets within the time a linear walk takes.
+  offsets, and extracting the facts of that line walks at most the characters of the
+  line plus one index interval for each position, so the line is indexed once however
+  many items it holds.
 - Composite, uncounted-shape and chain fixtures: `!` repeated 256 times before `(`
   repeated across 127 levels; `&` repeated 256 times before `(` across 127 levels, in
   a type; `&&` repeated 256 times before `(` across 127 levels; `A<` followed by 256
@@ -1931,8 +1935,8 @@ duplicates.
   and `type bool;` are indexed with their kind, name line, span and attributes, and no
   `body`; `const C: u8;`, a bodiless `const` in an impl block and `type T: Bound;` are
   `UnsupportedItem` naming the file and line. A group of 6000 members under a
-  `cfg` predicate of 6000 names reads that attribute once: it loads within 500 ms in a
-  release build (10 s in a debug build), each member's fact carrying the test role,
+  `cfg` predicate of 6000 names reads that attribute once, counted as one attribute read for
+  the whole declaration, each member's fact carrying the test role,
   visibility, span and tree it would have alone. A group and a bodiless method are charged
   the fact bytes of the separate `use` declarations and of the method with an empty
   body, and are refused at their line once over the fact budget.
@@ -2456,6 +2460,8 @@ duplicates.
 | `raf_source::error::tests::control_characters_in_a_path_are_escaped` | test | [Verification](#verification) |
 | `raf_source::error::tests::every_user_derived_field_of_every_display_is_escaped` | test | [Verification](#verification) |
 | `raf_source::facts::tests::a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines` | test | [Verification](#verification) |
+| `raf_source::facts::tests::a_large_attribute_on_a_verbatim_use_group_is_read_once_for_all_its_members` | test | [Verification](#verification) |
+| `raf_source::facts::tests::a_long_line_of_wide_characters_is_indexed_once_for_all_its_positions` | test | [Verification](#verification) |
 | `raf_source::item::tests::an_item_record_is_at_most_two_hundred_fifty_six_bytes` | test | [Verification](#verification) |
 | `raf_source::resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped` | test | [Verification](#verification) |
 | `raf_source::settle::tests::a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room` | test | [Verification](#verification) |
@@ -2619,7 +2625,7 @@ duplicates.
 | `raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::cfg_twins_are_one_symbol_with_two_sorted_sites` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::every_kind_is_indexed_with_its_kind_line_file_and_visibility` | test | [Verification](#verification) |
-| `raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets_in_linear_time` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::test_functions_carry_the_package_target_and_crate_relative_name` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::target_roots::a_build_script_main_beside_a_lib_module_build_script_is_ambiguous` | test | [Verification](#verification) |

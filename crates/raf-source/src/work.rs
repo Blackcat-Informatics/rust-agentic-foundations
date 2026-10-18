@@ -79,8 +79,9 @@ mod counting {
     thread_local! {
         /// The counts of this thread since the last reset.
         static TALLY: Cell<Tally> = const { Cell::new(Tally([0; KINDS])) };
-        /// The count no kind may pass while a measure runs.
-        static CEILING: Cell<Option<usize>> = const { Cell::new(None) };
+        /// The count a kind may not pass while a measure runs: the one kind
+        /// it limits, or every kind when that is `None`.
+        static CEILING: Cell<Option<(Option<Work>, usize)>> = const { Cell::new(None) };
     }
 
     /// Count `amount` units of `work`, and panic if that passes the ceiling.
@@ -90,7 +91,9 @@ mod counting {
         *slot = slot.saturating_add(amount);
         let count = *slot;
         TALLY.set(tally);
-        if let Some(ceiling) = CEILING.get() {
+        if let Some((limited, ceiling)) = CEILING.get()
+            && limited.is_none_or(|kind| kind == work)
+        {
             assert!(
                 count <= ceiling,
                 "{work:?} work passed the ceiling of {ceiling}: {count}"
@@ -110,8 +113,22 @@ mod counting {
     /// Run `run` against fresh tallies and return its result with what it
     /// counted. Panics the moment any kind of work passes `ceiling`.
     pub(crate) fn measure<T>(ceiling: usize, run: impl FnOnce() -> T) -> (T, Tally) {
+        measured(None, ceiling, run)
+    }
+
+    /// Like [`measure`], but only `limited` is held to `ceiling`; the other
+    /// kinds are counted without a limit.
+    pub(crate) fn measure_kind<T>(
+        limited: Work,
+        ceiling: usize,
+        run: impl FnOnce() -> T,
+    ) -> (T, Tally) {
+        measured(Some(limited), ceiling, run)
+    }
+
+    fn measured<T>(limited: Option<Work>, ceiling: usize, run: impl FnOnce() -> T) -> (T, Tally) {
         TALLY.set(Tally::default());
-        CEILING.set(Some(ceiling));
+        CEILING.set(Some((limited, ceiling)));
         let _armed = Armed;
         let result = run();
         (result, TALLY.get())
@@ -119,7 +136,7 @@ mod counting {
 }
 
 #[cfg(test)]
-pub(crate) use counting::{add, measure};
+pub(crate) use counting::{add, measure, measure_kind};
 
 /// Count work: nothing outside tests.
 #[cfg(not(test))]
@@ -128,7 +145,7 @@ pub(crate) fn add(_work: Work, _amount: usize) {}
 
 #[cfg(test)]
 mod tests {
-    use super::{ALL, Work, add, measure};
+    use super::{ALL, Work, add, measure, measure_kind};
 
     #[test]
     fn a_counter_increments_by_what_is_added() {
@@ -184,6 +201,21 @@ mod tests {
     fn reaching_the_ceiling_is_allowed() {
         let ((), tally) = measure(3, || add(Work::Positions, 3));
         assert_eq!(tally.get(Work::Positions), 3);
+    }
+
+    #[test]
+    #[should_panic(expected = "Attributes work passed the ceiling of 2: 3")]
+    fn a_limited_kind_panics_at_its_ceiling() {
+        measure_kind(Work::Attributes, 2, || add(Work::Attributes, 3));
+    }
+
+    #[test]
+    fn a_limited_measure_counts_the_other_kinds_without_a_ceiling() {
+        let ((), tally) = measure_kind(Work::Attributes, 2, || {
+            add(Work::Attributes, 2);
+            add(Work::Lookups, 500);
+        });
+        assert_eq!(tally.get(Work::Lookups), 500);
     }
 
     #[test]
