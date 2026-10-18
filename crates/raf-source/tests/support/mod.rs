@@ -9,6 +9,7 @@
 )]
 
 pub(crate) mod child;
+pub(crate) mod counting;
 pub(crate) mod json;
 pub(crate) mod program;
 pub(crate) mod random;

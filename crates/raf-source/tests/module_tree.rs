@@ -3,13 +3,16 @@
 
 //! Following `mod` declarations as rustc does.
 
-use std::cell::RefCell;
+mod support;
+
 use std::fmt::Write as _;
 
 use raf_source::{
-    Entry, EntryKind, FileId, LoadError, LoadErrorKind, MemoryTree, Opened, Origin, RelPath,
-    ResolveError, TestRole, Tree, TreeError, Workspace,
+    LoadError, LoadErrorKind, MemoryTree, Origin, RelPath, ResolveError, TestRole, TreeError,
+    Workspace,
 };
+
+use support::counting::Counting;
 
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
 
@@ -491,51 +494,19 @@ fn module_nesting_beyond_the_depth_budget_is_refused_and_the_budget_itself_loads
     ));
 }
 
-/// A tree that records every path it is asked to read.
-struct Recording {
-    inner: MemoryTree,
-    reads: RefCell<Vec<String>>,
-}
-
-impl Tree for Recording {
-    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
-        self.reads.borrow_mut().push(path.to_string());
-        self.inner.read(path, max_bytes)
-    }
-    fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
-        self.inner.list(path)
-    }
-    fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
-        self.inner.entry(path)
-    }
-    fn read_unseen(
-        &self,
-        path: &RelPath,
-        max_bytes: u64,
-        seen: &dyn Fn(&FileId) -> bool,
-    ) -> Result<Opened, TreeError> {
-        let opened = self.inner.read_unseen(path, max_bytes, seen)?;
-        if matches!(opened, Opened::Read { .. }) {
-            self.reads.borrow_mut().push(path.to_string());
-        }
-        Ok(opened)
-    }
-}
-
 #[test]
 fn a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_reading_it() {
     for escape in ["../../x.rs", "/etc/x.rs", "../../../x.rs"] {
         let lib = format!("#[path = \"{escape}\"]\nmod outside;");
-        let tree = Recording {
-            inner: [
+        let tree = Counting::new(
+            [
                 ("Cargo.toml", DEMO),
                 ("src/lib.rs", lib.as_str()),
                 ("x.rs", ""),
             ]
             .into_iter()
-            .collect(),
-            reads: RefCell::new(Vec::new()),
-        };
+            .collect::<MemoryTree>(),
+        );
         let result = Workspace::load(&tree, &["."]);
         let error = result.expect_err(escape);
         assert!(
@@ -549,22 +520,21 @@ fn a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_re
         );
         let text = error.to_string();
         assert!(text.contains("outside") && text.contains("path"), "{text}");
-        let reads = tree.reads.borrow();
-        assert_eq!(*reads, ["Cargo.toml", "src/lib.rs"], "{escape}");
+        let reads = tree.read_log();
+        assert_eq!(reads, ["Cargo.toml", "src/lib.rs"], "{escape}");
     }
     // A path that stays inside is read.
-    let tree = Recording {
-        inner: [
+    let tree = Counting::new(
+        [
             ("Cargo.toml", DEMO),
             ("src/lib.rs", "#[path = \"../inside.rs\"] mod inside;"),
             ("inside.rs", ""),
         ]
         .into_iter()
-        .collect(),
-        reads: RefCell::new(Vec::new()),
-    };
+        .collect::<MemoryTree>(),
+    );
     Workspace::load(&tree, &["."]).expect("inside path loads");
-    assert!(tree.reads.borrow().contains(&"inside.rs".to_owned()));
+    assert!(tree.read_log().contains(&"inside.rs".to_owned()));
 }
 
 #[test]
@@ -1078,8 +1048,8 @@ fn an_item_is_found_only_under_its_own_module_path() {
 fn a_file_reached_under_two_spellings_is_read_once_and_keeps_the_spelling_that_sorts_first() {
     // `src/z` is no directory, so `z/../b.rs` stays as written and names the
     // same file as `b.rs`; the walk reaches it under that spelling first.
-    let tree = Recording {
-        inner: [
+    let tree = Counting::new(
+        [
             ("Cargo.toml", DEMO),
             (
                 "src/lib.rs",
@@ -1088,9 +1058,8 @@ fn a_file_reached_under_two_spellings_is_read_once_and_keeps_the_spelling_that_s
             ("src/b.rs", "pub fn f() {}\n"),
         ]
         .into_iter()
-        .collect(),
-        reads: RefCell::new(Vec::new()),
-    };
+        .collect::<MemoryTree>(),
+    );
     let ws = Workspace::load(&tree, &["."]).expect("loads");
     assert_eq!(
         reached(&ws),
@@ -1100,7 +1069,7 @@ fn a_file_reached_under_two_spellings_is_read_once_and_keeps_the_spelling_that_s
         ])
     );
     assert_eq!(
-        *tree.reads.borrow(),
+        tree.read_log(),
         ["Cargo.toml", "src/lib.rs", "src/z/../b.rs"]
     );
     for path in ["demo::first::f", "demo::second::f"] {

@@ -10,13 +10,11 @@
 
 mod support;
 
-use std::cell::RefCell;
-use std::collections::BTreeMap;
-
 use raf_source::{
-    Budget, DiskTree, Entry, EntryKind, FileId, LoadError, LoadErrorKind, Opened, Origin, RelPath,
-    TargetProblem, Tree, TreeError, Workspace,
+    Budget, DiskTree, EntryKind, LoadError, LoadErrorKind, Origin, RelPath, TargetProblem, Tree,
+    TreeError, Workspace,
 };
+use support::counting::Counting;
 use support::{Scratch, within_watchdog};
 
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
@@ -344,54 +342,6 @@ fn discovery_classifies_a_symlink_by_what_it_resolves_to() {
     );
 }
 
-/// A disk tree that counts the reads of each file, by the file's identity.
-struct CountingReads {
-    inner: DiskTree,
-    reads: RefCell<BTreeMap<FileId, usize>>,
-}
-
-impl CountingReads {
-    fn new(scratch: &Scratch) -> Self {
-        Self {
-            inner: DiskTree::new(scratch.path("root")).expect("tree"),
-            reads: RefCell::new(BTreeMap::new()),
-        }
-    }
-
-    /// How many files were read, after checking that none was read twice.
-    fn files_read_once(&self) -> usize {
-        let reads = self.reads.borrow();
-        assert!(reads.values().all(|count| *count == 1), "{reads:?}");
-        reads.len()
-    }
-}
-
-impl Tree for CountingReads {
-    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
-        let id = self.inner.identity(path)?;
-        *self.reads.borrow_mut().entry(id).or_default() += 1;
-        self.inner.read(path, max_bytes)
-    }
-    fn read_unseen(
-        &self,
-        path: &RelPath,
-        max_bytes: u64,
-        seen: &dyn Fn(&FileId) -> bool,
-    ) -> Result<Opened, TreeError> {
-        let opened = self.inner.read_unseen(path, max_bytes, seen)?;
-        if let Opened::Read { id, .. } = &opened {
-            *self.reads.borrow_mut().entry(id.clone()).or_default() += 1;
-        }
-        Ok(opened)
-    }
-    fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
-        self.inner.list(path)
-    }
-    fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
-        self.inner.entry(path)
-    }
-}
-
 #[test]
 fn symlink_aliases_of_one_directory_parse_it_once() {
     // `l` and `m` lead back to `src`, so each level doubles the spellings of
@@ -413,7 +363,7 @@ fn symlink_aliases_of_one_directory_parse_it_once() {
         };
         scratch.file(&format!("root/src/x{level}.rs"), &text);
     }
-    let tree = CountingReads::new(&scratch);
+    let tree = Counting::new(DiskTree::new(scratch.path("root")).expect("tree"));
     let result = Workspace::load(&tree, &["."]);
     // The manifest, the root file and each level's file, each read once.
     assert_eq!(tree.files_read_once(), 2 + LEVELS);
@@ -442,7 +392,7 @@ fn a_file_reached_through_a_directory_symlink_is_one_file_under_the_spelling_tha
         "#[path = \"z/b.rs\"]\npub mod first;\n#[path = \"b.rs\"]\npub mod second;\n",
     );
     scratch.file("root/src/b.rs", "pub fn f() {}\n");
-    let tree = CountingReads::new(&scratch);
+    let tree = Counting::new(DiskTree::new(scratch.path("root")).expect("tree"));
     let ws = Workspace::load(&tree, &["."]).expect("loads");
     assert_eq!(tree.files_read_once(), 3);
     let paths: Vec<&str> = ws.files().map(|file| file.path.as_str()).collect();
