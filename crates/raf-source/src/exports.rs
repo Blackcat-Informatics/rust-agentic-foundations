@@ -49,6 +49,7 @@ use crate::modtree::TargetId;
 use crate::path::RelPath;
 use crate::resolve::{Fail, ResolveError};
 use crate::settle::slot;
+use crate::work::{self as tally, Work};
 
 /// What [`Workspace::exported_items_with`](crate::Workspace::exported_items_with)
 /// lists.
@@ -671,6 +672,7 @@ impl<'a> Surface<'a> {
             let mut work = VecDeque::from([(start, false)]);
             let mut entered = BTreeSet::from([start]);
             while let Some((module, hidden)) = work.pop_front() {
+                tally::add(Work::WalkSteps, 1);
                 self.charge(WALK_STEP_BYTES, at)?;
                 if module != start
                     && let std::collections::btree_map::Entry::Vacant(slot) = seen.entry(module)
@@ -1263,6 +1265,7 @@ impl<'a> Surface<'a> {
         if carry.graph.spans[mode].is_none() {
             let (spans, work) = dominator_spans(succ);
             let edges: usize = succ.iter().map(Vec::len).sum();
+            tally::add(Work::WalkSteps, work);
             charge(
                 self,
                 work * WALK_STEP_BYTES
@@ -1308,6 +1311,7 @@ impl<'a> Surface<'a> {
             }
         }
         let carriers = carry.carriers.get(name).map_or(&[][..], Vec::as_slice);
+        tally::add(Work::WalkSteps, steps);
         charge(
             self,
             steps * WALK_STEP_BYTES
@@ -1535,3 +1539,6 @@ impl<'a> Surface<'a> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

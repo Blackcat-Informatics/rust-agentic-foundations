@@ -881,30 +881,6 @@ fn a_named_re_export_of_an_enum_variant_is_a_re_export_and_a_glob_of_an_enum_add
 }
 
 #[test]
-fn a_module_of_three_thousand_pub_globs_is_listed_in_time_linear_in_its_names() {
-    let mut lib = String::new();
-    for n in 0..3000 {
-        writeln!(lib, "mod m{n} {{ pub fn f{n}() {{}} }}\npub use m{n}::*;").expect("write");
-    }
-    let ws = load(&[("src/lib.rs", lib.as_str())]);
-    let started = std::time::Instant::now();
-    let listed = ws
-        .exported_items(target(&ws, TargetKind::Lib))
-        .unwrap_or_else(|e| panic!("{e}"));
-    let took = started.elapsed();
-    assert_eq!(listed.items.len(), 3000);
-    // The globs that bring in each name are found by the name. Reading every
-    // glob of the module for each name took 0.45 s in a release build and
-    // 2.1 s in a debug build; by the name it takes about 15 ms and 70 ms.
-    let bound = if cfg!(debug_assertions) {
-        std::time::Duration::from_secs(1)
-    } else {
-        std::time::Duration::from_millis(150)
-    };
-    assert!(took < bound, "took {took:?}");
-}
-
-#[test]
 fn a_module_reached_by_a_hidden_and_a_shown_glob_carries_its_re_export_shown() {
     let ws = load(&[(
         "src/lib.rs",
@@ -924,51 +900,6 @@ fn a_module_reached_by_a_hidden_and_a_shown_glob_carries_its_re_export_shown() {
         reexports_of(&hidden, true),
         triples(&[("demo::Cell", "std::cell::Cell", true)])
     );
-}
-
-#[test]
-fn a_module_of_three_thousand_pub_globs_that_each_carry_a_re_export_is_listed_in_linear_time() {
-    let mut lib = String::new();
-    for n in 0..3000 {
-        writeln!(
-            lib,
-            "mod m{n} {{ pub use std::cell::Cell as C{n}; }}\npub use m{n}::*;"
-        )
-        .expect("write");
-    }
-    // One name that every carried module binds, and one the reader shadows.
-    for n in 0..3000 {
-        writeln!(
-            lib,
-            "mod k{n} {{ pub use std::rc::Rc; pub use std::fmt::Debug; }}\npub use k{n}::*;"
-        )
-        .expect("write");
-    }
-    lib.push_str("pub struct Debug;\n");
-    let ws = load(&[("src/lib.rs", lib.as_str())]);
-    let started = std::time::Instant::now();
-    let listed = ws
-        .exported_items(target(&ws, TargetKind::Lib))
-        .unwrap_or_else(|e| panic!("{e}"));
-    let took = started.elapsed();
-    assert_eq!(listed.items.len(), 1);
-    // Each carried `C<n>`, and `Rc` once from each `k<n>`; `Debug` is the
-    // reader's own.
-    assert_eq!(listed.reexports.len(), 6000);
-    assert!(
-        listed
-            .reexports
-            .iter()
-            .all(|reexport| reexport.path != "demo::Debug")
-    );
-    // Walking the routes again for each carried import took 4.1 s for the
-    // first half alone in a release build.
-    let bound = if cfg!(debug_assertions) {
-        std::time::Duration::from_secs(4)
-    } else {
-        std::time::Duration::from_millis(500)
-    };
-    assert!(took < bound, "took {took:?}");
 }
 
 #[test]
@@ -1030,60 +961,6 @@ fn an_item_and_a_carried_outside_re_export_of_one_name_are_both_listed_and_not_a
         reexports_of(&ws, false),
         triples(&[("demo::Rc", "std::rc::Rc", false)])
     );
-}
-
-/// A reader with `n` globs of modules that each carry a re-export of their
-/// own name, beside `n` globs of modules that each bind that name privately.
-fn sibling_shadows(n: usize) -> String {
-    let mut lib = String::new();
-    for i in 0..n {
-        writeln!(
-            lib,
-            "mod m{i} {{ pub use std::cell::Cell as C{i}; }}\nmod s{i} {{ fn C{i}() {{}} }}\npub use m{i}::*;\npub use s{i}::*;"
-        )
-        .expect("write");
-    }
-    lib
-}
-
-/// List the library of `lib` with `extra` item bytes beyond what its load
-/// spent, and return how long it took and how many re-exports it listed.
-fn list_within(lib: &str, extra: usize) -> (std::time::Duration, usize) {
-    let files = [("src/lib.rs", lib)];
-    let spent = load(&files).usage().item_bytes;
-    let mut options = LoadOptions::default();
-    options.max_item_bytes = spent + extra;
-    let ws = Workspace::load_with(&tree(&files), &["."], &options).expect("the load fits");
-    let started = std::time::Instant::now();
-    let listed = ws
-        .exported_items(target(&ws, TargetKind::Lib))
-        .unwrap_or_else(|e| panic!("{e}"));
-    (started.elapsed(), listed.reexports.len())
-}
-
-#[test]
-fn readers_of_three_and_ten_thousand_carried_names_beside_sibling_shadows_list_in_bounded_time_and_bytes()
- {
-    // Walking the reach again for each shadowed name took 0.86 s at 1000 and
-    // 12.8 s at 3000 in a release build, and kept every walk. Now the 3000
-    // list in about 90 ms and are charged under 16 MiB beyond the load.
-    let (took, listed) = list_within(&sibling_shadows(3000), 32 << 20);
-    assert_eq!(listed, 3000);
-    let bound = std::time::Duration::from_millis(if cfg!(debug_assertions) { 3000 } else { 300 });
-    assert!(took < bound, "took {took:?}");
-    // Loading 10,000 takes 27 s in a release build and minutes in a debug
-    // one, all of it the load's own, so the larger reader is listed in a
-    // release build only, where it lists in about 0.26 s.
-    if !cfg!(debug_assertions) {
-        let ws = load(&[("src/lib.rs", sibling_shadows(10_000).as_str())]);
-        let started = std::time::Instant::now();
-        let listed = ws
-            .exported_items(target(&ws, TargetKind::Lib))
-            .unwrap_or_else(|e| panic!("{e}"));
-        let took = started.elapsed();
-        assert_eq!(listed.reexports.len(), 10_000);
-        assert!(took < std::time::Duration::from_secs(1), "took {took:?}");
-    }
 }
 
 #[test]

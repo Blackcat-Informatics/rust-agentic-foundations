@@ -74,6 +74,7 @@ use crate::item::{ItemId, Namespace, SharedStr};
 use crate::meter::Meter;
 use crate::resolve::Heads;
 use crate::settle::Bound;
+use crate::work::{self as tally, Work};
 
 /// How far a binding is accessible: everywhere, within one module (which is
 /// the module the binding is in or one of its ancestors) and so by every
@@ -536,13 +537,15 @@ impl Index {
         &self,
         module: usize,
     ) -> impl Iterator<Item = (usize, usize, usize)> + '_ {
-        self.reads_of(module)
-            .iter()
-            .map(|read| (read.glob, read.target, read.view))
+        self.reads_of(module).iter().map(|read| {
+            tally::add(Work::ViewReads, 1);
+            (read.glob, read.target, read.view)
+        })
     }
 
     /// True when `view` holds `id` under `name` in the name space at `at`.
     pub(crate) fn view_holds(&self, view: usize, name: &str, at: usize, id: ItemId) -> bool {
+        tally::add(Work::ViewReads, 1);
         self.globs.views[view]
             .names
             .get(name)
@@ -556,6 +559,7 @@ impl Index {
         name: &str,
         at: usize,
     ) -> impl Iterator<Item = ItemId> + '_ {
+        tally::add(Work::ViewReads, 1);
         self.globs.views[view]
             .names
             .get(name)
@@ -566,7 +570,10 @@ impl Index {
 
     /// The names `view` holds, in order.
     pub(crate) fn view_names(&self, view: usize) -> impl Iterator<Item = &str> + '_ {
-        self.globs.views[view].names.keys().map(SharedStr::as_str)
+        self.globs.views[view].names.keys().map(|name| {
+            tally::add(Work::ViewReads, 1);
+            name.as_str()
+        })
     }
 
     /// The items the globs of `module` bring in under `name` in the name

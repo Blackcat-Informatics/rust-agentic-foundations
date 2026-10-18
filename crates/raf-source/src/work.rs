@@ -11,14 +11,6 @@
 //! instead of running to the end. The tallies belong to the calling thread, so
 //! only work done on that thread is counted.
 
-#![cfg_attr(
-    not(test),
-    allow(
-        dead_code,
-        reason = "the counters are read only by tests, and the no-op shim keeps the call sites compiling"
-    )
-)]
-
 /// One kind of work that is counted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Work {
@@ -43,6 +35,7 @@ pub(crate) enum Work {
 }
 
 /// The number of kinds of [`Work`].
+#[cfg(test)]
 const KINDS: usize = 9;
 
 /// Every kind of [`Work`], in tally order.
@@ -60,9 +53,11 @@ const ALL: [Work; KINDS] = [
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct Tally([usize; KINDS]);
 
+#[cfg(test)]
 impl Tally {
     /// The count of one kind of work.
     pub(crate) const fn get(&self, work: Work) -> usize {

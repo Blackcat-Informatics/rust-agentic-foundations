@@ -319,12 +319,13 @@ bindings:
     - raf_source::test_crate::exported_items::a_re_export_of_an_outside_crate_that_a_pub_glob_carries_is_a_re_export_of_the_reader
     - raf_source::test_crate::exported_items::a_carried_outside_re_export_is_kept_out_by_a_restricted_glob_or_a_name_on_the_way
     - raf_source::test_crate::exported_items::a_named_re_export_of_an_enum_variant_is_a_re_export_and_a_glob_of_an_enum_adds_nothing
-    - raf_source::test_crate::exported_items::a_module_of_three_thousand_pub_globs_is_listed_in_time_linear_in_its_names
+    - raf_source::exports::tests::a_module_of_pub_globs_is_listed_in_view_reads_linear_in_its_names
     - raf_source::test_crate::exported_items::a_module_reached_by_a_hidden_and_a_shown_glob_carries_its_re_export_shown
-    - raf_source::test_crate::exported_items::a_module_of_three_thousand_pub_globs_that_each_carry_a_re_export_is_listed_in_linear_time
+    - raf_source::exports::tests::a_module_of_pub_globs_that_each_carry_a_re_export_is_listed_in_view_reads_linear_in_its_names
+    - raf_source::exports::tests::a_module_of_pub_globs_that_each_carry_a_re_export_is_listed_in_walk_steps_linear_in_its_names
     - raf_source::test_crate::exported_items::a_carried_re_export_is_kept_out_exactly_where_every_route_passes_a_module_that_binds_its_name
     - raf_source::test_crate::exported_items::an_item_and_a_carried_outside_re_export_of_one_name_are_both_listed_and_not_ambiguous
-    - raf_source::test_crate::exported_items::readers_of_three_and_ten_thousand_carried_names_beside_sibling_shadows_list_in_bounded_time_and_bytes
+    - raf_source::exports::tests::readers_of_carried_names_beside_sibling_shadows_list_in_linear_work_and_bounded_bytes
     - raf_source::test_crate::exported_items::searches_for_names_that_several_binders_keep_from_a_long_route_are_refused_by_the_item_budget
     - raf_source::test_crate::exported_items::a_re_export_that_only_a_hidden_glob_carries_past_a_shadow_is_hidden_as_an_item_would_be
     - raf_source::test_crate::exported_items::a_carrier_with_pub_globs_of_its_own_is_not_its_own_binder
@@ -1488,9 +1489,9 @@ dropped before the next is made. The search keeps a stack of its own, and once i
 finds a route, or finds that there is none, every binding it passed is decided for
 the rest of the listing, so a chain of re-exports is followed once for all of its
 names: 20,000 chained re-exports, and a chain of 20,000 `pub` globs, list on a thread
-of 2 MiB. The globs of a module that bring in a name are found by the name, so a
-module of 3000 `pub` globs of one name each lists in about 15 ms in a release
-build. The modules a reader's routes reach are walked once, into a graph, for the
+of 2 MiB. The globs of a module that bring in a name are found by the name, so the
+reads of the glob views a listing makes grow in step with the names of a module of
+`pub` globs of one name each: three sizes of crate add the same reads each time. The modules a reader's routes reach are walked once, into a graph, for the
 re-exports they carry. A carried name is decided first over the routes that
 `#[doc(hidden)]` does not hide and, when they do not carry it, over every route,
 which carries it hidden; each decision is made from the modules of that walk
@@ -1511,11 +1512,11 @@ whose searches pass it is a `CarryBudget` error and never runs unbounded: a chai
 the chain bind, is refused in about 0.4 s in a release build, beside a chain of 50
 globs to 200 such names, which lists. Whether a route avoids a set of several modules
 needs that search, as no structure computed once for the reader answers it for
-every set the way the tree answers it for one module. 3000 `pub` globs that each
-carry a re-export of their own name, beside 3000 globs of modules that each bind
-that name privately, list in about 90 ms in a release build and are charged under
-16 MiB beyond the load, and 10,000 such in about 0.26 s, where walking the reach
-again for each name took 12.8 s at 3000.
+every set the way the tree answers it for one module. `pub` globs that each
+carry a re-export of their own name, beside globs of modules that each bind that
+name privately, list in walk steps and glob view reads that grow in step with the
+names, and 3000 of them are charged under 32 MiB beyond the load; walking the
+reach again for each name would make the steps grow with the square of the names.
 
 **API surface.** The data structs a caller reads, `Package`, `Target`, `SourceFile`,
 `Reach`, `Entry` and `SpanFact`, are `#[non_exhaustive]` like `Item`, so adding a field
@@ -2411,13 +2412,15 @@ duplicates.
   or a module on the way binds, or of test code. A named re-export of an enum
   variant is a `Reexport`, and a glob of the enum adds nothing. The `macro_export`
   flag of each macro item.
-- A module of 3000 `pub` globs of one name each lists within 150 ms in a release
-  build and a second in a debug build; 3000 that each carry a re-export of its own
-  name beside 3000 that each carry `Rc` and a `Debug` the reader shadows list
-  within 0.5 s in a release build and 4 s in a debug build; 3000 that each carry a
-  name beside 3000 globs of modules that bind it privately list within 300 ms in a
-  release build and 3 s in a debug build, charged under 32 MiB beyond the load,
-  and 10,000 such list within a second in a release build.
+- The work of a listing grows in step with the names it holds, counted and not
+  timed: a module of `pub` globs of one name each, at 500, 1000 and 1500 globs,
+  reads the glob views a number of times whose third step adds no more than its
+  second; the same holds for the view reads and the walk steps of 500, 1000 and
+  1500 globs that each carry a re-export of their own name beside as many that each
+  carry `Rc` and a `Debug` the reader shadows, and of as many that each carry a
+  name beside as many globs of modules that bind it privately, whose listing of
+  3000 is also charged under 32 MiB beyond the load. Each count is nonzero and
+  stops a listing that passes 32000 of it.
 - Carried names decided exactly: a binder that dominates the carrier, a binder
   beside a free route, a binder whose routes lead elsewhere, two binders on the two
   routes, two binders beside a third free route, two binders on one route behind a
@@ -2486,6 +2489,10 @@ duplicates.
 | `raf_source::error::tests::a_spawn_error_displays_the_file_and_carries_its_cause` | test | [Verification](#verification) |
 | `raf_source::error::tests::control_characters_in_a_path_are_escaped` | test | [Verification](#verification) |
 | `raf_source::error::tests::every_user_derived_field_of_every_display_is_escaped` | test | [Verification](#verification) |
+| `raf_source::exports::tests::a_module_of_pub_globs_is_listed_in_view_reads_linear_in_its_names` | test | [Verification](#verification) |
+| `raf_source::exports::tests::a_module_of_pub_globs_that_each_carry_a_re_export_is_listed_in_view_reads_linear_in_its_names` | test | [Verification](#verification) |
+| `raf_source::exports::tests::a_module_of_pub_globs_that_each_carry_a_re_export_is_listed_in_walk_steps_linear_in_its_names` | test | [Verification](#verification) |
+| `raf_source::exports::tests::readers_of_carried_names_beside_sibling_shadows_list_in_linear_work_and_bounded_bytes` | test | [Verification](#verification) |
 | `raf_source::facts::tests::a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines` | test | [Verification](#verification) |
 | `raf_source::facts::tests::a_large_attribute_on_a_verbatim_use_group_is_read_once_for_all_its_members` | test | [Verification](#verification) |
 | `raf_source::facts::tests::a_long_line_of_wide_characters_is_indexed_once_for_all_its_positions` | test | [Verification](#verification) |
@@ -2528,8 +2535,6 @@ duplicates.
 | `raf_source::test_crate::exported_items::a_chain_of_twenty_thousand_pub_globs_is_listed_on_a_two_mib_thread` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_glob_re_export_brings_in_the_pub_items_of_its_module_only` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_hidden_glob_partway_along_a_route_hides_a_carried_re_export_no_more_than_an_item` | test | [Verification](#verification) |
-| `raf_source::test_crate::exported_items::a_module_of_three_thousand_pub_globs_is_listed_in_time_linear_in_its_names` | test | [Verification](#verification) |
-| `raf_source::test_crate::exported_items::a_module_of_three_thousand_pub_globs_that_each_carry_a_re_export_is_listed_in_linear_time` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_module_reached_by_a_hidden_and_a_shown_glob_carries_its_re_export_shown` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_module_reached_by_two_pub_paths_is_listed_under_each_and_read_under_the_first` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_named_re_export_of_an_enum_variant_is_a_re_export_and_a_glob_of_an_enum_adds_nothing` | test | [Verification](#verification) |
@@ -2550,7 +2555,6 @@ duplicates.
 | `raf_source::test_crate::exported_items::in_random_small_crates_a_carried_re_export_is_listed_hidden_or_absent_as_the_item_is` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::of_two_carriers_of_one_name_only_the_one_with_a_free_route_is_listed_with_its_own_line` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_and_re_exports` | test | [Verification](#verification) |
-| `raf_source::test_crate::exported_items::readers_of_three_and_ten_thousand_carried_names_beside_sibling_shadows_list_in_bounded_time_and_bytes` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::searches_for_names_that_several_binders_keep_from_a_long_route_are_refused_by_the_item_budget` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::test_code_is_not_part_of_the_surface_beside_the_shipped_items` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::the_example_of_the_contract_lists_one_item_and_more_through_a_glob_or_a_pub_module` | test | [Verification](#verification) |
