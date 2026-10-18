@@ -214,10 +214,14 @@ bindings:
     - raf_source::test_crate::resolve_paths::a_name_found_through_a_glob_beside_a_glob_that_names_nothing_fails
     - raf_source::test_crate::manifest_caps::exclude_at_the_cap_loads_and_one_over_is_refused
     - raf_source::test_crate::manifest_caps::members_at_the_cap_loads_and_one_over_is_refused
-    - raf_source::test_crate::manifest_caps::the_duplicate_pattern_probe_is_refused_at_once
-    - raf_source::test_crate::manifest_caps::duplicate_patterns_within_the_caps_load_at_once
-    - raf_source::test_crate::manifest_caps::distinct_patterns_at_both_caps_load_at_once
+    - raf_source::test_crate::manifest_caps::the_duplicate_pattern_probe_is_refused_before_any_pattern_is_expanded
+    - raf_source::test_crate::manifest_caps::duplicate_patterns_within_the_caps_load_with_the_tree_calls_of_one_of_each
+    - raf_source::test_crate::manifest_caps::distinct_patterns_at_both_caps_load_with_no_tree_calls_for_the_excludes
     - raf_source::test_crate::manifest_caps::exclude_still_removes_literal_wildcard_and_nested_members
+    - raf_source::glob::tests::a_segment_is_matched_in_at_most_pattern_times_name_steps
+    - raf_source::members::tests::distinct_patterns_at_both_caps_are_tested_a_bounded_number_of_times
+    - raf_source::members::tests::duplicate_patterns_are_compiled_and_tested_once
+    - raf_source::test_crate::trait_keys::a_star_heavy_member_pattern_that_matches_no_directory_leaves_the_member_alone
     - raf_source::item::tests::an_item_record_is_at_most_two_hundred_fifty_six_bytes
     - raf_source::facts::tests::a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines
     - raf_source::facts::tests::a_long_line_of_wide_characters_is_indexed_once_for_all_its_positions
@@ -1843,12 +1847,24 @@ duplicates.
   that load; a `workspace.members` pattern at 128 levels expands and one at 129 is
   refused; 128 nested modules, inline and in files, load on 512 KiB, and 129 are
   refused typed.
-- Manifest caps and pattern cost: 4096 `exclude` entries load and 4097 are a `Manifest`
-  error naming `workspace.exclude`; 4096 `members` entries load and 4097 are a
-  `Manifest` error naming `workspace.members`; the 880 KB manifest of 20000 members and
-  200000 duplicate excludes is refused, 4096 duplicates of each kind load, and 4095
-  distinct members against 4096 distinct excludes load, each in under a second; literal,
-  wildcard and nested excludes still remove their members.
+- Manifest caps and pattern cost, counted through a tree that records its calls: 4096
+  `exclude` entries load with the tree calls of a load with no excludes, and 4097 are
+  a `Manifest` error naming `workspace.exclude` with the tree calls of a manifest refused
+  at its first read; 4096 `members` entries load with one `entry` call for each glob
+  beyond the single-member load and no `list` call, and 4097 are a `Manifest` error
+  naming `workspace.members`, refused with those same calls; the 880 KB manifest of
+  20000 members and 200000 duplicate excludes is refused before any pattern is expanded;
+  4096 duplicates of each kind load with the tree calls of one of each; 4095 distinct
+  members against 4096 distinct excludes load with the tree calls of the same members
+  against the one exclude that matches. Counted in the matcher, the 4095 distinct
+  members and the directory they find are tested against the wildcard excludes at most
+  once each, and every wildcard that has more segments than the path is skipped without
+  a step, so the segment matcher runs at most 21 steps for each test; 4096 duplicate
+  excludes are one wildcard tested twice. A segment of 24 `*a` pieces and a `b`, matched
+  against 40 characters of `a`, takes at most the pieces plus one times the characters
+  plus two steps, as do 8 and 16 such pieces. A star-heavy member pattern that matches
+  no directory leaves the member alone. Literal, wildcard and nested excludes still
+  remove their members.
 - Error text: the `Display` of `LoadError`, `LoadErrorKind`, `Origin`, `TargetProblem`,
   `TreeError` and `PathError` escapes every control character of a path, module name, predicate,
   key or message with `char::escape_debug` (quotes stay as written), so a `#[path]` with
@@ -2462,7 +2478,10 @@ duplicates.
 | `raf_source::facts::tests::a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines` | test | [Verification](#verification) |
 | `raf_source::facts::tests::a_large_attribute_on_a_verbatim_use_group_is_read_once_for_all_its_members` | test | [Verification](#verification) |
 | `raf_source::facts::tests::a_long_line_of_wide_characters_is_indexed_once_for_all_its_positions` | test | [Verification](#verification) |
+| `raf_source::glob::tests::a_segment_is_matched_in_at_most_pattern_times_name_steps` | test | [Verification](#verification) |
 | `raf_source::item::tests::an_item_record_is_at_most_two_hundred_fifty_six_bytes` | test | [Verification](#verification) |
+| `raf_source::members::tests::distinct_patterns_at_both_caps_are_tested_a_bounded_number_of_times` | test | [Verification](#verification) |
+| `raf_source::members::tests::duplicate_patterns_are_compiled_and_tested_once` | test | [Verification](#verification) |
 | `raf_source::resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped` | test | [Verification](#verification) |
 | `raf_source::settle::tests::a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room` | test | [Verification](#verification) |
 | `raf_source::settle::tests::a_round_that_decides_nothing_more_or_a_settle_too_many_is_reported_in_every_build` | test | [Verification](#verification) |
@@ -2555,12 +2574,12 @@ duplicates.
 | `raf_source::test_crate::load_cap::a_library_root_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_cap::a_lowered_cap_applies_to_a_child_file_and_spares_a_root_within_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_cap::a_module_file_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it` | test | [Verification](#verification) |
-| `raf_source::test_crate::manifest_caps::distinct_patterns_at_both_caps_load_at_once` | test | [Verification](#verification) |
-| `raf_source::test_crate::manifest_caps::duplicate_patterns_within_the_caps_load_at_once` | test | [Verification](#verification) |
+| `raf_source::test_crate::manifest_caps::distinct_patterns_at_both_caps_load_with_no_tree_calls_for_the_excludes` | test | [Verification](#verification) |
+| `raf_source::test_crate::manifest_caps::duplicate_patterns_within_the_caps_load_with_the_tree_calls_of_one_of_each` | test | [Verification](#verification) |
 | `raf_source::test_crate::manifest_caps::exclude_at_the_cap_loads_and_one_over_is_refused` | test | [Verification](#verification) |
 | `raf_source::test_crate::manifest_caps::exclude_still_removes_literal_wildcard_and_nested_members` | test | [Verification](#verification) |
 | `raf_source::test_crate::manifest_caps::members_at_the_cap_loads_and_one_over_is_refused` | test | [Verification](#verification) |
-| `raf_source::test_crate::manifest_caps::the_duplicate_pattern_probe_is_refused_at_once` | test | [Verification](#verification) |
+| `raf_source::test_crate::manifest_caps::the_duplicate_pattern_probe_is_refused_before_any_pattern_is_expanded` | test | [Verification](#verification) |
 | `raf_source::test_crate::memory_tree::duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_keys` | test | [Verification](#verification) |
 | `raf_source::test_crate::memory_tree::keys_that_leave_the_root_are_refused_with_outside_root_beside_a_valid_key` | test | [Verification](#verification) |
 | `raf_source::test_crate::memory_tree::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen` | test | [Verification](#verification) |
@@ -2640,6 +2659,7 @@ duplicates.
 | `raf_source::test_crate::this_repository::this_repository_loads_from_its_root_with_the_crates_directory_as_the_root` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_glob_through_a_re_exported_crate_is_keyed_under_the_crate` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_macro_call_in_a_trait_body_is_skipped` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::a_star_heavy_member_pattern_that_matches_no_directory_leaves_the_member_alone` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_trait_found_through_twenty_thousand_chained_globs_is_keyed_on_a_two_mib_thread` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_trait_name_that_two_globs_bind_keys_each_trait` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_trait_that_several_unknown_globs_could_give_is_refused_naming_one_glob_in_every_order` | test | [Verification](#verification) |

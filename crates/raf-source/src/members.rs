@@ -19,6 +19,7 @@ use crate::meter::Meter;
 use crate::modtree::tidy;
 use crate::path::{PathError, RelPath};
 use crate::tree::{EntryKind, Tree};
+use crate::work::{self, Work};
 
 fn manifest_error(path: &RelPath, key: &str, message: String) -> LoadError {
     LoadError::new(path, None, LoadErrorKind::Manifest { message }).reached_by(
@@ -238,9 +239,10 @@ impl Excludes {
             return false;
         }
         let chars: Vec<Vec<char>> = parts.iter().map(|part| part.chars().collect()).collect();
-        self.wildcard
-            .iter()
-            .any(|pattern| pattern.matches_prefix(&chars))
+        self.wildcard.iter().any(|pattern| {
+            work::add(Work::ExcludeTests, 1);
+            pattern.matches_prefix(&chars)
+        })
     }
 }
 
@@ -347,4 +349,86 @@ pub(crate) fn members(
         }
     }
     Ok(found)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fmt::Write as _;
+
+    use super::members;
+    use crate::manifest;
+    use crate::meter::Meter;
+    use crate::options::LoadOptions;
+    use crate::path::RelPath;
+    use crate::tree::MemoryTree;
+    use crate::work::{self, Work};
+
+    const CAP: usize = 4096;
+
+    const PACKAGE: &str = "[package]\nname = \"p\"\nversion = \"0.1.0\"\n";
+
+    /// The directories `members` finds for a workspace manifest that holds the
+    /// quoted `members` and `exclude`, beside one package `p`.
+    fn find(listed: &[String], exclude: &[String]) -> usize {
+        let quoted = |entries: &[String]| {
+            let mut text = String::new();
+            for entry in entries {
+                write!(text, "\"{entry}\",").expect("a string takes the text");
+            }
+            text
+        };
+        let root = format!(
+            "[workspace]\nmembers = [{}]\nexclude = [{}]\n",
+            quoted(listed),
+            quoted(exclude)
+        );
+        let tree: MemoryTree = [
+            ("Cargo.toml", root.as_str()),
+            ("p/Cargo.toml", PACKAGE),
+            ("p/src/lib.rs", ""),
+        ]
+        .into_iter()
+        .collect();
+        let parsed = manifest::parse(&root).expect("the manifest parses");
+        let meter = Meter::new(&LoadOptions::default());
+        let manifest_path = RelPath::new("Cargo.toml").expect("a path");
+        members(&tree, &meter, &RelPath::root(), &manifest_path, &parsed)
+            .unwrap_or_else(|error| panic!("{error}"))
+            .len()
+    }
+
+    #[test]
+    fn distinct_patterns_at_both_caps_are_tested_a_bounded_number_of_times() {
+        // Every literal member is tested against every wildcard exclude, and
+        // the only exclude that has one segment, and so is matched against a
+        // name at all, comes last.
+        let mut members: Vec<String> = (0..CAP - 1).map(|i| format!("m{i}")).collect();
+        members.push("p".to_owned());
+        let mut exclude: Vec<String> = (0..CAP - 1).map(|i| format!("a{i}/*")).collect();
+        exclude.push("m*".to_owned());
+        let wildcards = exclude.len();
+        // Each literal member is tested once, and the one directory found
+        // once more. A name has at most five characters, and `m*` has two
+        // pieces, so a test of it takes at most (2 + 1) * (5 + 2) steps.
+        let tested = members.len() + 1;
+        let steps = tested * 21;
+        let (found, tally) =
+            work::measure_kind(Work::PatternSteps, steps, || find(&members, &exclude));
+        assert_eq!(found, 1);
+        assert!(tally.get(Work::ExcludeTests) > 0);
+        assert!(tally.get(Work::ExcludeTests) <= tested * wildcards);
+        assert!(tally.get(Work::PatternSteps) > 0);
+        assert!(tally.get(Work::PatternSteps) <= steps);
+    }
+
+    #[test]
+    fn duplicate_patterns_are_compiled_and_tested_once() {
+        let members = vec!["p".to_owned(); CAP];
+        let exclude = vec!["q*".to_owned(); CAP];
+        // One member pattern, one wildcard exclude: the literal member is
+        // tested against it, and so is the directory it finds.
+        let (found, tally) = work::measure_kind(Work::ExcludeTests, 2, || find(&members, &exclude));
+        assert_eq!(found, 1);
+        assert_eq!(tally.get(Work::ExcludeTests), 2);
+    }
 }
