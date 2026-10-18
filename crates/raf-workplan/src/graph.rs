@@ -44,6 +44,7 @@ use raf_source::{ItemId, ResolveError, Workspace};
 
 use crate::bindings::{self, ExampleKind};
 use crate::finding::kind;
+use crate::work::{Work, add};
 use crate::{Finding, Loaded};
 
 /// One of the seven sections of a capability, named by the capability id.
@@ -1343,6 +1344,7 @@ fn add_claims(
 ) {
     let loaded: HashSet<&str> = evidence
         .iter()
+        .inspect(|_| add(Work::ClaimChecks, 1))
         .map(|record| record.value().header.id.as_str())
         .collect();
     let covered: HashSet<(&str, &str)> = evidence
@@ -1354,6 +1356,7 @@ fn add_claims(
                 .iter()
                 .map(|capability| (record.value().header.id.as_str(), capability.as_str()))
         })
+        .inspect(|_| add(Work::ClaimChecks, 1))
         .collect();
     let prefix = DocType::Evidence.id_prefix();
     for cap in caps {
@@ -1361,6 +1364,7 @@ fn add_claims(
         for claim in cap.body().claims() {
             let section = claim.section().and_then(CapabilitySection::from_slug);
             for slug in claim.evidence() {
+                add(Work::ClaimChecks, 1);
                 let id = format!("{prefix}{slug}");
                 if loaded.contains(id.as_str()) {
                     if !covered.contains(&(id.as_str(), capability)) {
@@ -1816,8 +1820,10 @@ pub(crate) fn prose_of(body: &Body, section: &raf_okf::Section) -> Option<String
     Some(
         text.char_indices()
             .map(|(at, c)| {
+                add(Work::ProseChars, 1);
                 while ranges.peek().is_some_and(|(_, to)| *to <= at) {
                     ranges.next();
+                    add(Work::BlankedSteps, 1);
                 }
                 let inside = ranges.peek().is_some_and(|(from, _)| *from <= at);
                 if inside && c != '\n' && c != '\r' {
@@ -1842,6 +1848,7 @@ pub(crate) fn code_span_paths(text: &str) -> BTreeSet<String> {
     let mut found = BTreeSet::new();
     let mut paragraph = String::new();
     for line in text.lines().chain(std::iter::once("")) {
+        add(Work::ContractLines, 1);
         if line.trim().is_empty() {
             for span in code_spans(&paragraph) {
                 paths_in_span(span, &mut found);
@@ -1966,7 +1973,11 @@ fn names(span: &str, path: &str) -> bool {
 mod tests {
     use std::fmt::Write as _;
 
+    use raf_source::{MemoryTree, Workspace};
+
     use super::{code_span_paths, names_in_code_span};
+    use crate::Workplan;
+    use crate::work::{Work, measure};
 
     /// The set of paths a text names is exactly the paths `names_in_code_span`
     /// accepts, for the paths of the text and for paths it does not hold.
@@ -2014,24 +2025,185 @@ mod tests {
         }
     }
 
-    /// A section of twenty thousand paragraphs, each beside a fenced block, is
-    /// read in time linear in its text and its blocks: the blocks are blanked,
-    /// the code spans outside them are read, and none inside them is.
-    #[test]
-    fn a_section_of_many_blocks_is_read_in_linear_time() {
+    /// The most any kind of work may count while one section is read in a
+    /// growth test: a read that does work per block and per character stops
+    /// here at once instead of running to the end.
+    const CEILING: usize = 1_000_000;
+
+    /// The paragraphs a section of `count` of them holds, each beside a
+    /// fenced block.
+    fn paragraphs(count: usize) -> String {
         let paragraph = "`demo::kept` x.\n\n```\n`demo::fenced`\n```\n\n";
-        let text = format!("# Title\n\n## Contract\n\n{}", paragraph.repeat(20_000));
-        let body = raf_okf::Body::parse(&text).expect("a body");
-        assert_eq!(body.fenced_blocks().len(), 20_000);
-        let section = &body.sections()[0];
-        let started = std::time::Instant::now();
-        let prose = super::prose_of(&body, section).expect("the section");
-        let found = code_span_paths(&prose);
-        let took = started.elapsed();
-        assert!(found.contains("demo::kept"));
-        assert!(!found.contains("demo::fenced"));
-        assert_eq!(prose.len(), body.section_text(section).expect("text").len());
-        assert!(took < std::time::Duration::from_secs(20), "{took:?}");
+        format!("# Title\n\n## Contract\n\n{}", paragraph.repeat(count))
+    }
+
+    /// A section of many paragraphs, each beside a fenced block, is read in
+    /// work linear in its text and its blocks: the blocks are blanked, the
+    /// code spans outside them are read, and none inside them is. The merged
+    /// ranges are stepped past once each, however many characters follow
+    /// them, and every character is read once. The section is built at one,
+    /// two and three units; the work of the third adds no more than the
+    /// second did.
+    #[test]
+    fn a_section_of_many_blocks_is_read_in_work_linear_in_its_blocks() {
+        const UNIT: usize = 5_000;
+        let read = |units: usize| {
+            let text = paragraphs(units * UNIT);
+            let body = raf_okf::Body::parse(&text).expect("a body");
+            assert_eq!(body.fenced_blocks().len(), units * UNIT);
+            let section = &body.sections()[0];
+            let ((prose, found), tally) = measure(CEILING, || {
+                let prose = super::prose_of(&body, section).expect("the section");
+                let found = code_span_paths(&prose);
+                (prose, found)
+            });
+            assert!(found.contains("demo::kept"));
+            assert!(!found.contains("demo::fenced"));
+            let whole = body.section_text(section).expect("text");
+            assert_eq!(prose.len(), whole.len());
+            assert_eq!(tally.get(Work::ProseChars), whole.chars().count());
+            assert!(tally.get(Work::BlankedSteps) <= units * UNIT);
+            tally
+        };
+        let [one, two, three] = [1, 2, 3].map(read);
+        for work in [Work::BlankedSteps, Work::ProseChars] {
+            let (one, two, three) = (one.get(work), two.get(work), three.get(work));
+            assert!(one > 0, "{work:?}");
+            assert!(three + one <= 2 * two, "{work:?}: {one}, {two}, {three}");
+        }
+    }
+
+    /// The text of a capability with the Purpose `purpose`.
+    fn capability(id: &str, purpose: &str) -> String {
+        let mut sections = String::new();
+        for name in [
+            "Purpose",
+            "Contract",
+            "Usage",
+            "Examples",
+            "Constraints",
+            "Explanation",
+            "Verification",
+        ] {
+            let text = if name == "Purpose" {
+                purpose
+            } else {
+                "Text.\n"
+            };
+            write!(sections, "## {name}\n\n{text}\n").expect("a string takes the text");
+        }
+        format!(
+            "---\ntype: Capability\nid: cap:{id}\ntitle: T\ndescription: D.\n\
+             state: designed\nbindings:\n  code: []\n  tests: []\n  examples: []\n\
+             depends: []\n---\n\n# T\n\n{sections}"
+        )
+    }
+
+    /// An evidence record `slug` that covers `covers`.
+    fn evidence(slug: &str, covers: &[String]) -> String {
+        format!(
+            "---\ntype: Evidence\nid: evidence:{slug}\nsubject: command\ninputs:\n  \
+             - kind: symbol\n    name: demo::real\n    digest: {DIGEST}\n\
+             verdict: pass\nby: agent\nfor: [{list}]\ncommand: \"cargo bench\"\n\
+             revision: b499578a1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f\n---\n",
+            list = covers
+                .iter()
+                .map(|id| format!("cap:{id}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+
+    const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+
+    /// What loading `capabilities` capabilities with `claims` claims each,
+    /// every claim naming `slugs` records that exist or not, costs the claim
+    /// judgment, and the findings it gives.
+    fn judge_claims(
+        capabilities: usize,
+        claims: usize,
+        records: usize,
+        slugs: &[String],
+    ) -> (usize, usize) {
+        let ids: Vec<String> = (0..capabilities).map(|n| format!("c{n}")).collect();
+        let marker = format!("<!-- raf:claim evidence={} -->\n", slugs.join(","));
+        let purpose = format!("Purpose.\n{}", format!("\nx\n{marker}").repeat(claims));
+        let mut files: Vec<(String, String)> = ids
+            .iter()
+            .map(|id| {
+                (
+                    format!("docs/capabilities/{id}.md"),
+                    capability(id, &purpose),
+                )
+            })
+            .collect();
+        for n in 0..records {
+            files.push((
+                format!("work/evidence/r{n}.md"),
+                evidence(&format!("r{n}"), &ids),
+            ));
+        }
+        let tree: MemoryTree = files
+            .iter()
+            .map(|(path, text)| (path.as_str(), text.as_str()))
+            .collect();
+        let source = Workspace::load(
+            &MemoryTree::from([
+                (
+                    "Cargo.toml",
+                    "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+                ),
+                ("src/lib.rs", "pub fn real() {}\n"),
+            ]),
+            &["."],
+        )
+        .expect("a workspace");
+        // The slugs of the claims, and the records entered into the sets once.
+        let ceiling = capabilities * claims * slugs.len() + records * (capabilities + 1);
+        let ((claim_edges, missing), tally) = measure(ceiling, || {
+            let plan = Workplan::load(&tree, &source);
+            let missing = plan
+                .check()
+                .iter()
+                .filter(|finding| finding.kind == "claim-evidence-missing")
+                .count();
+            (plan.graph().claims().len(), missing)
+        });
+        assert_eq!(
+            claim_edges,
+            capabilities * claims * records_named(slugs, records)
+        );
+        (tally.get(Work::ClaimChecks), missing)
+    }
+
+    /// How many of `slugs` name one of the first `records` records.
+    fn records_named(slugs: &[String], records: usize) -> usize {
+        slugs
+            .iter()
+            .filter(|slug| {
+                slug.strip_prefix('r')
+                    .and_then(|n| n.parse::<usize>().ok())
+                    .is_some_and(|n| n < records)
+            })
+            .count()
+    }
+
+    /// The claims of the capabilities are judged against sets that are built
+    /// once: each record is entered into them once, each `for` entry once,
+    /// and each slug of each claim is looked up once, however many claims
+    /// there are.
+    #[test]
+    fn the_claims_of_many_capabilities_are_judged_against_sets_built_once() {
+        let slugs: Vec<String> = ["r0", "r1", "ghost"].map(String::from).to_vec();
+        for (capabilities, claims, records) in [(4, 500, 3), (8, 250, 40)] {
+            let (checks, missing) = judge_claims(capabilities, claims, records, &slugs);
+            let total_slugs = capabilities * claims * slugs.len();
+            // Each record enters `loaded` once and `covered` once for each
+            // capability it covers.
+            let entered = records + records * capabilities;
+            assert_eq!(checks, total_slugs + entered, "{capabilities} x {claims}");
+            assert_eq!(missing, capabilities * claims, "one finding per ghost");
+        }
     }
 
     #[test]

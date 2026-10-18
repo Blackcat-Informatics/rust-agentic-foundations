@@ -312,6 +312,7 @@ mod rules;
 mod spdx;
 mod staged;
 mod sync;
+mod work;
 
 pub use bindings::ExampleKind;
 pub use finding::Finding;
