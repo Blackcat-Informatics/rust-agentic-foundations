@@ -56,9 +56,8 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   of the declarations, instead of `Ambiguous`. Whether a module holds an item
   apart from each reading module is answered for all of them from one dominator
   tree for each item, name and name space, each step charged to the budget of the
-  load before it is made. A fan-in of very many globs onto one module that a chain
-  of globs also reaches back still costs more than linear in the number of globs
-  to settle. The
+  load before it is made. Settling the glob views still costs quadratic or
+  worse in the number of globs on three shapes. The
   comparison with rustc draws from two families of seeds by default, selects one
   with `RAF_ORACLE_SEED_BASE`, lists every divergence with `RAF_ORACLE_LIST` and
   states its runs on both families; the glob and import cycles that the index
