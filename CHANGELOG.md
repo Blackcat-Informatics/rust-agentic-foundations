@@ -46,6 +46,16 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   makes the answer depend on the order of the declarations. The comparison with
   rustc probes bare first segments and fails an index answer that changes with
   the order of the declarations.
+- **`raf-source`:** an item or a module that a cycle of globs carries back to a
+  module beside a glob that holds it from elsewhere no longer leaves a hidden
+  companion next to it, so the name resolves as rustc has it in every order of
+  the declarations instead of `Ambiguous`. The search for the modules that hold
+  an item apart from a reading module is found once for each link of a chain of
+  globs, kept for every reader, and charged to the budget of the load. The
+  comparison with rustc draws from two families of seeds by default, selects one
+  with `RAF_ORACLE_SEED_BASE`, lists every divergence with `RAF_ORACLE_LIST` and
+  states its runs on both families; the glob and import cycles that the index
+  settles differently from rustc remain the only programs it leaves unclassified.
 - **`raf-okf`:** reads and writes the RAF profile of OKF documents. It parses
   Markdown with YAML frontmatter in a closed subset, validates the closed key sets
   and typed values of capability, change and architecture documents and reports
