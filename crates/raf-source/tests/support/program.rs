@@ -187,6 +187,12 @@ fn read_line(text: &str) -> Line {
     Line::Other
 }
 
+/// A declaration of a program, or a module with what it holds.
+enum Node {
+    Line(String),
+    Module(String, Vec<Node>, String),
+}
+
 /// Who wrote a line of the rendered source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Owner {
@@ -422,6 +428,79 @@ impl Program {
             }
         }
         self.lines.len() - 1
+    }
+
+    /// The program with the probe `probe` alone.
+    pub(crate) fn only_probe(&self, probe: usize) -> Self {
+        Self {
+            lines: self.lines.clone(),
+            probes: vec![self.probes[probe].clone()],
+            expect: None,
+        }
+    }
+
+    /// The program with the declarations of the crate root and of every
+    /// module in an order drawn from `draw`, each module kept whole.
+    pub(crate) fn shuffled(&self, draw: &mut Draw) -> Self {
+        let (mut nodes, _) = Self::nodes(&self.lines, 0);
+        Self::shuffle(&mut nodes, draw);
+        let mut lines = Vec::new();
+        Self::flatten(&nodes, &mut lines);
+        Self {
+            lines,
+            probes: self.probes.clone(),
+            expect: None,
+        }
+    }
+
+    /// The declarations from `at` to the end or the close of the module
+    /// they are in, as a list of siblings, and where the list ends.
+    fn nodes(lines: &[String], mut at: usize) -> (Vec<Node>, usize) {
+        let mut list = Vec::new();
+        while at < lines.len() {
+            match read_line(&lines[at]) {
+                Line::Close => return (list, at),
+                Line::Open(_) => {
+                    let (inside, close) = Self::nodes(lines, at + 1);
+                    list.push(Node::Module(
+                        lines[at].clone(),
+                        inside,
+                        lines[close].clone(),
+                    ));
+                    at = close + 1;
+                }
+                _ => {
+                    list.push(Node::Line(lines[at].clone()));
+                    at += 1;
+                }
+            }
+        }
+        (list, at)
+    }
+
+    fn shuffle(nodes: &mut [Node], draw: &mut Draw) {
+        for at in (1..nodes.len()).rev() {
+            nodes.swap(at, draw.below(at + 1));
+        }
+        for node in nodes {
+            if let Node::Module(_, inside, _) = node {
+                Self::shuffle(inside, draw);
+            }
+        }
+    }
+
+    /// Write `nodes` to `lines`.
+    fn flatten(nodes: &[Node], lines: &mut Vec<String>) {
+        for node in nodes {
+            match node {
+                Node::Line(text) => lines.push(text.clone()),
+                Node::Module(open, inside, close) => {
+                    lines.push(open.clone());
+                    Self::flatten(inside, lines);
+                    lines.push(close.clone());
+                }
+            }
+        }
     }
 
     /// The program without the lines `from..=to`.

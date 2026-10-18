@@ -22,7 +22,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use crate::cost::{btree_entry, btree_map};
 use crate::error::{LoadError, LoadErrorKind};
 use crate::facts::Vis;
-use crate::glob_scope::{Nobody, Waiters};
+use crate::glob_scope::{Nobody, Waiters, ambiguity_seen};
 use crate::index::{Index, UseDecl, UseKind, binding_bytes};
 use crate::item::{ItemId, Namespace};
 use crate::meter::Meter;
@@ -123,6 +123,10 @@ impl Bound {
 
     pub(crate) fn is_empty(&self) -> bool {
         self.sorted.is_empty()
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.sorted.len()
     }
 
     pub(crate) fn get(&self, id: ItemId) -> Option<&Origin> {
@@ -483,7 +487,10 @@ impl Index {
     /// rustc resolves an import: a binding `viewer` cannot access does not
     /// count, and a definition or explicit import that it cannot access
     /// hides the globs all the same, so one still to bind keeps the name from
-    /// them too.
+    /// them too. A name two globs bring in as different items is the one
+    /// exception to what `viewer` cannot access: it is ambiguous to a viewer
+    /// that can access any of its items, with all of them (see
+    /// [`Index::seen_globbed`]).
     pub(crate) fn lookup_seen(
         &self,
         module: usize,
@@ -510,7 +517,7 @@ impl Index {
         if self.blocked(module, name, ns, own) {
             return None;
         }
-        self.seen_by(Cow::Owned(self.globbed(module, name, at)), module, viewer)
+        self.seen_globbed(Cow::Owned(self.globbed(module, name, at)), module, viewer)
             .map(|bound| (bound, true))
     }
 
@@ -522,12 +529,38 @@ impl Index {
         module: usize,
         viewer: usize,
     ) -> Option<Cow<'a, Bound>> {
+        self.seen_in(bound, module, viewer, false)
+    }
+
+    /// [`Index::seen_by`] for what the globs of `module` bring in: a name that
+    /// they bring in as different items is ambiguous in the module and is as
+    /// visible as the most visible of its items, so a viewer that can access
+    /// one of them reads all (see [`ambiguity_seen`]).
+    fn seen_globbed<'a>(
+        &self,
+        bound: Cow<'a, Bound>,
+        module: usize,
+        viewer: usize,
+    ) -> Option<Cow<'a, Bound>> {
+        self.seen_in(bound, module, viewer, true)
+    }
+
+    /// The one definition of what `viewer` reads of `bound`; `globs` is
+    /// whether `bound` is what globs bring in.
+    fn seen_in<'a>(
+        &self,
+        bound: Cow<'a, Bound>,
+        module: usize,
+        viewer: usize,
+        globs: bool,
+    ) -> Option<Cow<'a, Bound>> {
         let visible = |origin: &Origin| {
             origin
                 .visibilities()
                 .any(|vis| self.is_visible(vis, module, viewer))
         };
-        if bound.iter().all(|(_, origin)| visible(origin)) {
+        let seen = bound.iter().filter(|(_, origin)| visible(origin)).count();
+        if seen == bound.len() || globs && ambiguity_seen(bound.len(), seen) {
             return (!bound.is_empty()).then_some(bound);
         }
         let kept: Bound = bound
@@ -1615,7 +1648,7 @@ impl Index {
                             // answers nothing for it, as rustc reads it.
                             let answered = source.module == decl.module
                                 || self
-                                    .seen_by(
+                                    .seen_globbed(
                                         Cow::Owned(self.globbed(place.0, &place.1, place.2)),
                                         place.0,
                                         decl.module,
@@ -1813,7 +1846,7 @@ impl Index {
                 self.seen_by(Cow::Borrowed(&entry.defs[at]), module, viewer)
                     .is_some()
             }) || self
-                .seen_by(Cow::Owned(self.globbed(module, &name, at)), module, viewer)
+                .seen_globbed(Cow::Owned(self.globbed(module, &name, at)), module, viewer)
                 .is_some()
                 || self.open_glob(module, Some(viewer))
                 || self.imports_of(module, &name).iter().any(|other| {
@@ -2369,7 +2402,7 @@ impl Index {
             let viewer = self.uses[*reader].module;
             *reader == position
                 || self
-                    .seen_by(Cow::Borrowed(&globbed), decl.module, viewer)
+                    .seen_globbed(Cow::Borrowed(&globbed), decl.module, viewer)
                     .is_none_or(|seen| {
                         self.is_visible(&decl.vis, decl.module, viewer)
                             && seen

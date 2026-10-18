@@ -1,4 +1,4 @@
-// oracle: rule2
+// oracle: agree
 // probe demo::m0::s0 self::A
 mod m3 {
 use crate::m2::*;

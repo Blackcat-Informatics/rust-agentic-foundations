@@ -51,7 +51,7 @@ const PROGRAMS_VARIABLE: &str = "RAF_ORACLE_PROGRAMS";
 /// The classes of disagreement that are known to occur and are counted and
 /// printed, not failed. A class leaves this list in the commit that fixes it,
 /// together with its corpus entries.
-const KNOWN: [Class; 2] = [Class::Rule2, Class::Documented];
+const KNOWN: [Class; 2] = [Class::Documented, Class::Order];
 
 /// How the two sides can disagree about a probe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,11 +72,18 @@ enum Class {
     /// a disagreement of this class is a failure.
     Rule1,
     /// A name the globs of a module bring in ambiguously, one item through a
-    /// glob the reading module cannot access, is refused.
+    /// glob the reading module cannot access, is refused. The index models
+    /// it, so a disagreement of this class, the index resolving what rustc
+    /// refuses, is a failure.
     Rule2,
     /// A glob re-export that `rustc` only warns about
     /// (`ambiguous_glob_reexports`) and resolves, which the index refuses.
     Documented,
+    /// A probe that `rustc` itself answers differently when the declarations
+    /// of the program come in another order, accepting it in one and
+    /// refusing it in another, so that no answer that does not depend on the
+    /// order can be its answer in all of them.
+    Order,
     /// None of the above.
     Unclassified,
 }
@@ -87,12 +94,13 @@ impl Class {
             Self::Rule1 => "rule1",
             Self::Rule2 => "rule2",
             Self::Documented => "documented",
+            Self::Order => "order",
             Self::Unclassified => "unclassified",
         }
     }
 
     fn named(name: &str) -> Option<Self> {
-        [Self::Rule1, Self::Rule2, Self::Documented]
+        [Self::Rule1, Self::Rule2, Self::Documented, Self::Order]
             .into_iter()
             .find(|class| class.name() == name)
     }
@@ -181,58 +189,86 @@ fn ask(
     }
 }
 
+/// How one name space of an accepted probe disagrees: `rustc` names the item
+/// tagged `wanted`, or none; the index answered `answer`. A name space that
+/// `rustc` leaves without an item and the index finds ambiguous or missing
+/// agrees: `rustc` drops a name space whose name is ambiguous from an import
+/// that binds in another, in the declaration orders where it does not refuse
+/// the import whole, and the index never answers an ambiguous name with an
+/// item.
+fn space_kind(wanted: Option<u32>, answer: &Answer) -> Option<Kind> {
+    match (wanted, answer) {
+        (Some(tag), Answer::Item { tag: found, .. }) => (tag != *found).then_some(Kind::OtherItem),
+        (Some(_), _) | (None, Answer::Failed(_)) => Some(Kind::AcceptedButRefused),
+        (None, Answer::Item { .. }) => Some(Kind::OtherItem),
+        (None, Answer::Ambiguous | Answer::Missing) => None,
+    }
+}
+
 /// Whether the two sides disagree about one probe.
 fn compare(rustc: &Verdict, index: &IndexVerdict) -> Option<Kind> {
     match rustc {
         Verdict::Rejected(_) => (!index.refuses()).then_some(Kind::RefusedButResolves),
         Verdict::Accepted { ty, value } => {
-            if index.refuses() {
+            let kinds = [space_kind(*ty, &index.ty), space_kind(*value, &index.value)];
+            if kinds.contains(&Some(Kind::AcceptedButRefused)) {
                 Some(Kind::AcceptedButRefused)
-            } else if index.ty.tag() != *ty || index.value.tag() != *value {
-                Some(Kind::OtherItem)
             } else {
-                None
+                kinds.into_iter().flatten().next()
             }
         }
     }
 }
 
-/// Which class a disagreement is. `when_visible` is whether the two sides
-/// agree on the probe once nothing in the program is hidden;
-/// `ambiguous_in_a_module` is whether the index finds the probed name
-/// ambiguous in some module of the program when that module reads it.
-fn classify(
-    kind: Kind,
-    rustc: &Verdict,
-    index: &IndexVerdict,
-    when_visible: impl FnOnce() -> bool,
-    warned_when_exported: impl FnOnce() -> bool,
-    ambiguous_in_a_module: impl FnOnce() -> bool,
-) -> Class {
+/// What the classifier asks about a probe, each answered only when a
+/// disagreement needs it.
+struct Facts<'a> {
+    /// Whether the two sides agree on the probe once nothing in the program
+    /// is hidden.
+    when_visible: &'a dyn Fn() -> bool,
+    /// Whether `rustc` warns of an ambiguous glob re-export of the probed
+    /// name once every module of the program is `pub`.
+    warned_when_exported: &'a dyn Fn() -> bool,
+    /// Whether the index finds the probed name ambiguous in some module of
+    /// the program when that module reads it.
+    ambiguous_in_a_module: &'a dyn Fn() -> bool,
+    /// Whether `rustc` answers the probe differently when the declarations
+    /// of the program come in another order.
+    order_dependent: &'a dyn Fn() -> bool,
+}
+
+/// Which class a disagreement is.
+fn classify(kind: Kind, rustc: &Verdict, index: &IndexVerdict, facts: &Facts<'_>) -> Class {
+    let when_visible = facts.when_visible;
+    let ambiguous_in_a_module = facts.ambiguous_in_a_module;
     if kind == Kind::AcceptedButRefused {
         // The index refuses a name that rustc resolves. The documented case
         // is the glob re-export that rustc only warns about.
         let ambiguous = index.ty == Answer::Ambiguous || index.value == Answer::Ambiguous;
-        if ambiguous && warned_when_exported() {
+        if ambiguous && (facts.warned_when_exported)() {
             return Class::Documented;
         }
-        // Otherwise the index counts an item that rustc does not see as a
-        // second candidate: the name is ambiguous in a module whose glob the
-        // reader cannot access, and rustc hides the name whole (rule 2).
-        // Rule 1 only hides, it never makes a name ambiguous or cyclic, so
-        // a refusal that no ambiguity explains is not one of the two rules.
-        return if when_visible() && ambiguous_in_a_module() {
-            Class::Rule2
-        } else {
-            Class::Unclassified
-        };
+        // If rustc itself answers the probe differently in another order of
+        // the declarations, no answer that does not depend on the order is
+        // its answer. Anything else it accepts and the index refuses is a
+        // disagreement to fix or to report.
+        if (facts.order_dependent)() {
+            return Class::Order;
+        }
+        return Class::Unclassified;
     }
     // The index is more permissive than rustc. Both rules are about what a
     // hidden binding lets through a glob or a re-export, so the disagreement
     // must go when nothing is hidden; rustc then refused the name as an
-    // ambiguity (rule 2) or did not see the binding at all (rule 1).
+    // ambiguity (rule 2) or did not see the binding at all (rule 1). A
+    // disagreement that does not is `rustc` answering by the order of the
+    // declarations, or one to fix or to report.
     if !when_visible() {
-        return Class::Unclassified;
+        return if (facts.order_dependent)() {
+            Class::Order
+        } else {
+            Class::Unclassified
+        };
     }
     // A name two globs of one module bring in as different items is
     // ambiguous there. A reader that cannot access one of the globs gets the
@@ -250,40 +286,46 @@ fn classify(
     }
 }
 
-/// Whether `rustc` warns of an ambiguous glob re-export of the name of
-/// `probe` once every module of the program is `pub`. `rustc` raises the
-/// lint only for what a crate exports, and resolves the name either way.
-fn warns_of_ambiguous_re_export(program: &Program, probe: usize) -> bool {
-    let exported = program.with_public_modules(probe);
+/// Whether `rustc` warns of an ambiguous glob re-export of the name of the
+/// only probe of `exported`, a program with what it re-exports made `pub`.
+/// `rustc` raises the lint only for what a crate exports, and resolves the
+/// name either way.
+fn warns_of_ambiguous_re_export(exported: &Program) -> bool {
     let name = format!("`{}`", exported.probes[0].name());
-    rustc::judge(&exported).is_some_and(|judged| {
+    rustc::judge(exported).is_some_and(|judged| {
         judged.warnings.iter().any(|warning| {
             warning.lint == "ambiguous_glob_reexports" && warning.text.contains(&name)
         })
     })
 }
 
-/// Whether the index finds some name of `program` ambiguous in some module
-/// of it that has a `use`, when that module reads the name itself: a name
+/// The number of other orders of the declarations tried for a program.
+const ORDERS_TRIED: usize = 12;
+
+/// Whether `rustc` answers the probe differently in another order of the
+/// declarations of the program, among [`ORDERS_TRIED`] orders drawn from a
+/// fixed seed (see [`Program::shuffled`]): it accepts a probe it refused as
+/// written, or refuses one it accepted. Only the probe's own errors count.
+fn rustc_depends_on_order(program: &Program, probe: usize, verdict: &Verdict) -> bool {
+    let accepted = matches!(verdict, Verdict::Accepted { .. });
+    let alone = program.only_probe(probe);
+    let mut draw = Draw::seeded(0x0de2_0001);
+    (0..ORDERS_TRIED).any(|_| rustc::accepts_probe(&alone.shuffled(&mut draw)) != accepted)
+}
+
+/// Whether the index finds the name of `probe` ambiguous in some module of
+/// `program` that has a `use`, when that module reads the name itself: a name
 /// that two globs of the module bring in as different items.
 fn ambiguous_in_a_module(ws: &Workspace, program: &Program, probe: usize) -> bool {
-    let mut names: std::collections::BTreeSet<String> = program
-        .decls()
-        .into_iter()
-        .map(|decl| decl.name)
-        .chain(program.uses().into_iter().filter_map(|decl| decl.binding))
-        .collect();
-    names.insert(program.probes[probe].name().to_owned());
+    let name = program.probes[probe].name();
     let modules: std::collections::BTreeSet<String> =
         program.uses().into_iter().map(|decl| decl.module).collect();
     modules.iter().any(|module| {
-        names.iter().any(|name| {
-            [Namespace::Type, Namespace::Value].into_iter().any(|ns| {
-                matches!(
-                    ws.resolve_from_in(module, &format!("self::{name}"), ns),
-                    Err(ResolveError::Ambiguous(_))
-                )
-            })
+        [Namespace::Type, Namespace::Value].into_iter().any(|ns| {
+            matches!(
+                ws.resolve_from_in(module, &format!("self::{name}"), ns),
+                Err(ResolveError::Ambiguous(_))
+            )
         })
     })
 }
@@ -383,9 +425,14 @@ fn evaluate_with(program: &Program, tamper: &dyn Fn(IndexVerdict) -> IndexVerdic
                     kind,
                     verdict,
                     &index,
-                    || agree_when_visible(&program, at, tamper),
-                    || warns_of_ambiguous_re_export(&program, at),
-                    || ambiguous_in_a_module(&ws, &program, at),
+                    &Facts {
+                        when_visible: &|| agree_when_visible(&program, at, tamper),
+                        warned_when_exported: &|| {
+                            warns_of_ambiguous_re_export(&program.with_public_modules(at))
+                        },
+                        ambiguous_in_a_module: &|| ambiguous_in_a_module(&ws, &program, at),
+                        order_dependent: &|| rustc_depends_on_order(&program, at, verdict),
+                    },
                 ),
                 rustc: verdict.clone(),
                 index,
@@ -568,6 +615,7 @@ fn the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes() {
         Class::Rule1,
         Class::Rule2,
         Class::Documented,
+        Class::Order,
         Class::Unclassified,
     ] {
         println!(
@@ -589,6 +637,7 @@ fn every_corpus_program_shows_the_divergence_it_records_and_no_other() {
     let programs: Vec<(String, Program)> = entries;
     let results = evaluate_all(&programs);
     let mut divergent = 0;
+    let (mut agreeing_accepts, mut agreeing_refusals) = (0, 0);
     for ((name, program), result) in programs.iter().zip(&results) {
         assert!(result.valid, "{name}: rustc refuses the crate");
         assert!(
@@ -600,12 +649,13 @@ fn every_corpus_program_shows_the_divergence_it_records_and_no_other() {
             .as_deref()
             .unwrap_or_else(|| panic!("{name}: no `// oracle:` line"));
         if expect == "agree" {
-            assert!(result.accepted > 0, "{name}: no probe is accepted");
             assert!(
                 result.divergences.is_empty(),
                 "{name}: expected agreement\n{}",
                 describe(&result.program, &result.divergences[0])
             );
+            agreeing_accepts += result.accepted;
+            agreeing_refusals += result.rejected;
             continue;
         }
         let class =
@@ -630,6 +680,10 @@ fn every_corpus_program_shows_the_divergence_it_records_and_no_other() {
         }
     }
     assert!(divergent > 0, "the corpus records no divergence");
+    assert!(
+        agreeing_accepts > 0 && agreeing_refusals > 0,
+        "the agreeing entries hold probes that rustc accepts and probes that it refuses"
+    );
     for class in KNOWN {
         assert!(
             programs

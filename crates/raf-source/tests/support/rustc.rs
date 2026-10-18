@@ -261,6 +261,20 @@ pub(crate) fn judge(program: &Program) -> Option<Judged> {
     None
 }
 
+/// Whether `rustc` accepts the probe of `program`, which holds one, by one
+/// compile and without naming what it resolves to. Errors in the rest of the
+/// crate are not the probe's. Used on a program `rustc` has judged, declared
+/// in another order, to see whether the order decides what it answers.
+pub(crate) fn accepts_probe(program: &Program) -> bool {
+    let rendered = program.render(&[0], &BTreeMap::new());
+    !errors(&compile(&rendered.source)).any(|error| {
+        matches!(
+            error.line.and_then(|line| rendered.owners.get(line - 1)),
+            Some(Owner::Probe(_))
+        )
+    })
+}
+
 fn rendered_accepts(all: &[usize], rejected: &BTreeMap<usize, Vec<String>>) -> Vec<usize> {
     all.iter()
         .copied()

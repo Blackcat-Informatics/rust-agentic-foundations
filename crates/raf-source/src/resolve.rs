@@ -712,6 +712,13 @@ impl Index {
                 note(&mut reads, module, ns, seg);
                 match self.lookup_seen(module, ns, seg, heads.own(), viewer) {
                     Some((bound, from_glob)) => {
+                        // A name two globs bring in as different items is
+                        // ambiguous in the module, and a path cannot go
+                        // through it, as in rustc: also where only one of the
+                        // items has what the path goes on to name.
+                        if !last && bound.len() > 1 {
+                            return Err(Fail::Ambiguous(self.sorted(bound.keys().copied())));
+                        }
                         for (id, origin) in bound.iter() {
                             merge(
                                 &mut found,

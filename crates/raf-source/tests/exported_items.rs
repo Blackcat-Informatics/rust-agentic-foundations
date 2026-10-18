@@ -1641,3 +1641,77 @@ fn an_item_reached_only_by_a_pub_use_of_a_private_glob_binding_is_not_exported_i
     );
     assert_eq!(loads, 36);
 }
+
+/// The number of loads of the crate made of `outer` and of `mod m` holding
+/// `inner`, in every order of both, for each of which the surface is refused
+/// as ambiguous.
+fn ambiguous_surface_in_every_order(outer: &[&str], inner: &[&str]) -> usize {
+    let mut loads = 0;
+    let inner: Vec<String> = inner.iter().map(|d| (*d).to_owned()).collect();
+    for inside in orders(&inner) {
+        let mut blocks: Vec<String> = outer.iter().map(|d| (*d).to_owned()).collect();
+        blocks.push(format!("mod m {{ {} }}", inside.join(" ")));
+        for order in orders(&blocks) {
+            let text = order.join("\n");
+            let ws = load(&[("src/lib.rs", text.as_str())]);
+            assert!(
+                matches!(
+                    ws.exported_items(target(&ws, TargetKind::Lib)),
+                    Err(ExportError::Resolve(ResolveError::Ambiguous(_)))
+                ),
+                "{text}"
+            );
+            loads += 1;
+        }
+    }
+    loads
+}
+
+#[test]
+fn a_name_two_globs_bring_in_as_different_items_one_through_a_private_glob_is_refused_in_every_order()
+ {
+    // `m` globs `a` privately and `b` publicly, and both hold a struct `Y`.
+    // The name is ambiguous in `m` for the crate root as well, so a `pub use`
+    // of `m`, by glob or by name, has no one item to export, and the surface
+    // is refused as ambiguous, not listed with `b::Y`. rustc refuses the
+    // named re-export in every order; for the glob it depends on the order of
+    // the two globs of `m` (a downstream crate finds `Y` missing, or is
+    // refused), and the index answers the refusal in each.
+    let inner = ["use crate::a::*;", "pub use crate::b::*;"];
+    for reexport in ["pub use m::*;", "pub use m::Y;"] {
+        let loads = ambiguous_surface_in_every_order(
+            &[
+                "mod a { pub struct Y; }",
+                "mod b { pub struct Y; }",
+                reexport,
+            ],
+            &inner,
+        );
+        assert_eq!(loads, 48, "{reexport}");
+    }
+
+    // Neighbour: the private glob brings in another name, and the surface
+    // lists what the public glob does and nothing of the private one.
+    let (listed, loads) = surface_in_every_order(
+        &[
+            "mod a { pub struct X; }",
+            "mod b { pub struct Y; }",
+            "pub use m::*;",
+        ],
+        &inner,
+    );
+    assert_eq!(listed, pairs(&[("demo::Y", "demo::b::Y")]));
+    assert_eq!(loads, 48);
+
+    // Neighbour: one item through both globs is not ambiguous.
+    let (listed, loads) = surface_in_every_order(
+        &[
+            "mod a { pub struct Y; }",
+            "mod b { pub use crate::a::Y; }",
+            "pub use m::*;",
+        ],
+        &inner,
+    );
+    assert_eq!(listed, pairs(&[("demo::Y", "demo::a::Y")]));
+    assert_eq!(loads, 48);
+}

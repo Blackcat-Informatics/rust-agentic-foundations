@@ -1,4 +1,4 @@
-// oracle: rule2
+// oracle: agree
 // probe demo::m0 crate::m1::s0::s0::B
 const fn B() -> u32 { 2 }
 pub mod m1 {
