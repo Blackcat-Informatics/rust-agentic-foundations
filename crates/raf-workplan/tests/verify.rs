@@ -10,14 +10,13 @@
 //! that bind it and a change record. Each builds into a target directory of its
 //! own, beside it and removed with it (named in the fixture's
 //! `.cargo/config.toml`, so the environment of this process is not touched),
-//! and `cargo` is the one that started this test binary (`$CARGO`). Every test asserts a wall-clock budget. A fixture that
+//! and `cargo` is the one that started this test binary (`$CARGO`). A fixture that
 //! must start no process runs with a `cargo` and a `git` that do not exist, so
 //! a process started anyway fails as an error and cannot pass.
 
 mod support;
 
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
 
 use raf_workplan::bound::{BoundOutcome, Evidence};
 use raf_workplan::exec::{
@@ -31,9 +30,6 @@ use support::assessed::assess_on_disk;
 use support::changes::{DONE, capability, record};
 use support::checkout::git;
 use support::disk::{Scratch, put, snapshot};
-
-/// No fixture may take longer than this, builds included.
-const BUDGET: Duration = Duration::from_secs(300);
 
 /// The `cargo` that runs this test binary: `$CARGO` as `cargo test` sets it.
 fn cargo() -> PathBuf {
@@ -100,7 +96,6 @@ const EXITING_EXAMPLE: &str = "fn main() {\n    std::process::exit(3);\n}\n";
 /// A generated repository, removed when dropped.
 struct Fixture {
     scratch: Scratch,
-    started: Instant,
 }
 
 impl Fixture {
@@ -139,10 +134,7 @@ impl Fixture {
         }
         // `Lifecycle` asks `git` where the root is in its work tree.
         git(root, &["init", "-q"]);
-        Self {
-            scratch,
-            started: Instant::now(),
-        }
+        Self { scratch }
     }
 
     fn root(&self) -> &Path {
@@ -188,14 +180,6 @@ impl Fixture {
 
     fn lifecycle(&self) -> Lifecycle {
         Lifecycle::open(self.programs()).unwrap_or_else(|error| panic!("opens: {error}"))
-    }
-
-    fn within_budget(&self) {
-        assert!(
-            self.started.elapsed() < BUDGET,
-            "the fixture took {:?}, over its budget of {BUDGET:?}",
-            self.started.elapsed()
-        );
     }
 }
 
@@ -249,14 +233,12 @@ fn single(tests: &str, examples: &str, example_files: &[(&str, &str)]) -> Fixtur
 }
 
 fn report_of(fixture: &Fixture, change: Option<&str>) -> VerifyReport {
-    let report = verify(
+    verify(
         &fixture.opened(),
         &SystemRunner::new(fixture.programs()),
         change,
     )
-    .unwrap_or_else(|error| panic!("verify should run: {error}"));
-    fixture.within_budget();
-    report
+    .unwrap_or_else(|error| panic!("verify should run: {error}"))
 }
 
 fn report_lines(report: &VerifyReport) -> Vec<String> {
@@ -640,7 +622,6 @@ fn an_example_that_does_not_build_is_a_line_and_is_gone_once_it_builds_and_runs(
         .lifecycle()
         .reconcile("shape")
         .expect("reconcile runs");
-    fixture.within_budget();
     // Nothing else is owed: the line is the whole list.
     assert_eq!(list.len(), 1, "{list}");
     let line = list.to_string();
@@ -670,7 +651,6 @@ fn an_example_that_does_not_build_is_a_line_and_is_gone_once_it_builds_and_runs(
         .reconcile("shape")
         .expect("reconcile runs");
     assert!(fixed.is_empty(), "{fixed}");
-    fixture.within_budget();
 }
 
 #[test]

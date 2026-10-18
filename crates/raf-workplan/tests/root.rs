@@ -12,7 +12,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use raf_workplan::exec::{ExecError, Programs, SystemRunner};
 use raf_workplan::root::{RootError, discover};
@@ -33,15 +32,20 @@ struct Scratch(PathBuf);
 impl Scratch {
     fn new() -> Self {
         static COUNTER: AtomicUsize = AtomicUsize::new(0);
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos());
-        let dir = std::env::temp_dir().join(format!(
-            "raf-workplan-root-{}-{nanos}-{}",
-            std::process::id(),
-            COUNTER.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&dir).expect("a scratch directory");
+        // The name is the process id and a counter; a directory left by an
+        // earlier process of the same id is skipped, not reused.
+        let dir = loop {
+            let dir = std::env::temp_dir().join(format!(
+                "raf-workplan-root-{}-{}",
+                std::process::id(),
+                COUNTER.fetch_add(1, Ordering::Relaxed)
+            ));
+            match fs::create_dir(&dir) {
+                Ok(()) => break dir,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                Err(error) => panic!("a scratch directory: {error}"),
+            }
+        };
         Self(fs::canonicalize(dir).expect("a canonical scratch directory"))
     }
 

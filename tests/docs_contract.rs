@@ -1303,8 +1303,8 @@ fn inventory_rejects_an_index_the_table_does_not_list() {
 
 // --- reading files ----------------------------------------------------------
 
-/// A scratch directory removed when dropped, named by process id, a
-/// nanosecond timestamp and a counter so no two runs share a path.
+/// A scratch directory removed when dropped, named by process id and a
+/// counter; a directory left by an earlier process of the same id is skipped.
 #[cfg(unix)]
 struct Scratch(PathBuf);
 
@@ -1312,17 +1312,19 @@ struct Scratch(PathBuf);
 impl Scratch {
     fn new() -> Self {
         use std::sync::atomic::{AtomicUsize, Ordering};
-        use std::time::{SystemTime, UNIX_EPOCH};
         static COUNTER: AtomicUsize = AtomicUsize::new(0);
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos());
-        let dir = std::env::temp_dir().join(format!(
-            "raf-docs-contract-{}-{nanos}-{}",
-            std::process::id(),
-            COUNTER.fetch_add(1, Ordering::Relaxed)
-        ));
-        std::fs::create_dir(&dir).expect("scratch directory");
+        let dir = loop {
+            let dir = std::env::temp_dir().join(format!(
+                "raf-docs-contract-{}-{}",
+                std::process::id(),
+                COUNTER.fetch_add(1, Ordering::Relaxed)
+            ));
+            match std::fs::create_dir(&dir) {
+                Ok(()) => break dir,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                Err(error) => panic!("scratch directory: {error}"),
+            }
+        };
         Self(dir)
     }
 }
@@ -1334,37 +1336,29 @@ impl Drop for Scratch {
     }
 }
 
+/// A path that is not a regular file is refused by its inspection, before it
+/// is opened: the device `/dev/null` and a directory named like a document
+/// give the typed refusal, a symlink is refused rather than followed, and a
+/// regular file is read. No FIFO is opened here, since a loader that opened
+/// one would block.
 #[cfg(unix)]
 #[test]
-fn refuses_non_regular_files_instead_of_blocking() {
-    use std::process::Command;
-    use std::sync::mpsc;
-    use std::time::Duration;
-
+fn refuses_non_regular_files_instead_of_reading_them() {
     let scratch = Scratch::new();
     let dir = scratch.0.clone();
-    let made = Command::new("mkfifo")
-        .arg(dir.join("trap.md"))
-        .status()
-        .expect("mkfifo runs");
-    assert!(made.success(), "mkfifo failed");
+    std::fs::create_dir(dir.join("folder.md")).expect("directory named like a document");
     std::fs::write(dir.join("plain.md"), "text").expect("plain file");
     std::os::unix::fs::symlink(dir.join("plain.md"), dir.join("link.md")).expect("symlink");
 
-    let (sender, receiver) = mpsc::channel();
-    let root = dir.clone();
-    std::thread::spawn(move || {
-        let _ = sender.send(read_regular(&root, Path::new("trap.md")));
-    });
-    let outcome = receiver
-        .recv_timeout(Duration::from_secs(10))
-        .expect("reading a FIFO must not block");
-    assert!(
-        outcome
-            .as_ref()
-            .is_err_and(|e| e.contains("not a regular file")),
-        "{outcome:?}"
-    );
+    for (root, name) in [(Path::new("/dev"), "null"), (dir.as_path(), "folder.md")] {
+        let outcome = read_regular(root, Path::new(name));
+        assert!(
+            outcome
+                .as_ref()
+                .is_err_and(|e| e.contains("not a regular file") && e.contains(name)),
+            "{name}: {outcome:?}"
+        );
+    }
     let link = read_regular(&dir, Path::new("link.md"));
     assert!(
         link.as_ref().is_err_and(

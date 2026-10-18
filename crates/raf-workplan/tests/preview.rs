@@ -392,17 +392,51 @@ impl Drop for Scratch {
     }
 }
 
-/// Every file under `dir` with its bytes and modification time, by path.
-fn snapshot(dir: &Path, out: &mut BTreeMap<PathBuf, (Vec<u8>, std::time::SystemTime)>) {
-    for entry in fs::read_dir(dir).expect("lists") {
-        let path = entry.expect("entry").path();
-        if path.is_dir() {
-            snapshot(&path, out);
-        } else {
-            let modified = fs::metadata(&path)
-                .and_then(|m| m.modified())
-                .expect("mtime");
-            out.insert(path.clone(), (fs::read(&path).expect("reads"), modified));
+/// What is on disk below `dir`: every file and directory by path, with the
+/// bytes of a file and the modification stamp of each, compared as the text of
+/// the stamp's debug form so the comparison needs no clock type.
+fn snapshot(dir: &Path) -> BTreeMap<PathBuf, (Vec<u8>, String)> {
+    let mut out = BTreeMap::new();
+    let mut pending = vec![dir.to_path_buf()];
+    while let Some(next) = pending.pop() {
+        for entry in fs::read_dir(&next).expect("lists") {
+            let path = entry.expect("entry").path();
+            let stamp = format!(
+                "{:?}",
+                fs::metadata(&path)
+                    .and_then(|m| m.modified())
+                    .expect("mtime")
+            );
+            if path.is_dir() {
+                pending.push(path.clone());
+                out.insert(path, (Vec::new(), stamp));
+            } else {
+                out.insert(path.clone(), (fs::read(&path).expect("reads"), stamp));
+            }
+        }
+    }
+    out
+}
+
+/// Move the modification stamp of every file below `dir` an hour into the
+/// past, so that a later write, even of the same bytes, changes the stamp by
+/// more than the granularity of the file system's clock.
+fn age(dir: &Path) {
+    let mut pending = vec![dir.to_path_buf()];
+    while let Some(next) = pending.pop() {
+        for entry in fs::read_dir(&next).expect("lists") {
+            let path = entry.expect("entry").path();
+            if path.is_dir() {
+                pending.push(path);
+            } else {
+                let file = fs::File::options()
+                    .write(true)
+                    .open(&path)
+                    .expect("opens for its stamp");
+                let stamp = file.metadata().and_then(|m| m.modified()).expect("mtime");
+                file.set_modified(stamp - std::time::Duration::from_secs(3600))
+                    .expect("ages");
+            }
         }
     }
 }
@@ -417,16 +451,15 @@ fn a_disk_fixture_is_byte_identical_afterwards() {
     for (path, text) in &base() {
         write(root, path, text);
     }
-    let mut before = BTreeMap::new();
-    snapshot(root, &mut before);
+    age(root);
+    let before = snapshot(root);
     let tree = DiskTree::new(root).expect("opens");
     let source = Workspace::load(&tree, &["."]).expect("workspace");
     let plan = Workplan::load_with(&tree, &source, &LinkContext::of_tree(&tree));
     let first = plan.preview("grow").expect("previews");
     assert_eq!(first, plan.preview("grow").expect("previews"));
     assert_ne!(first[0].text, base()[ALPHA]);
-    let mut after = BTreeMap::new();
-    snapshot(root, &mut after);
+    let after = snapshot(root);
     assert_eq!(before, after);
 }
 
