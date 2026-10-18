@@ -22,11 +22,17 @@ pub(crate) enum Work {
     ContractLines,
     /// A record put into the sets the claims are judged against, and a slug of a claim judged against them.
     ClaimChecks,
+    /// A heading stepped over looking for the end of a conditions list.
+    ConditionsScan,
+    /// A prose line looked at for a list item under a conditions heading.
+    ProseLinesScanned,
+    /// A heading judged by the rules of current rationale.
+    HeadingsScanned,
 }
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 4;
+const KINDS: usize = 7;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -35,6 +41,9 @@ const ALL: [Work; KINDS] = [
     Work::ProseChars,
     Work::ContractLines,
     Work::ClaimChecks,
+    Work::ConditionsScan,
+    Work::ProseLinesScanned,
+    Work::HeadingsScanned,
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].

@@ -93,6 +93,7 @@ use raf_okf::{Body, CapabilitySection, Heading, Location};
 
 use crate::finding::kind;
 use crate::graph::LinkEnd;
+use crate::work::{Work, add};
 use crate::{Finding, Workplan};
 
 /// The heading of a decision.
@@ -166,6 +167,7 @@ fn extent(headings: &[&Heading], index: usize, end: usize) -> Range<usize> {
     let heading = headings[index];
     let stop = headings[index + 1..]
         .iter()
+        .inspect(|_| add(Work::ConditionsScan, 1))
         .find(|next| next.level() <= heading.level())
         .map_or(end, |next| next.line().min(end));
     heading.line() + 1..stop
@@ -180,6 +182,7 @@ fn has_item(body: &Body, lines: &Range<usize>) -> bool {
     prose[first..]
         .iter()
         .take_while(|line| line.line() < lines.end)
+        .inspect(|_| add(Work::ProseLinesScanned, 1))
         .any(|line| list_item_text(line.text()).is_some())
 }
 
@@ -213,6 +216,7 @@ fn decision_page(id: &str, file: &str, body: &Body, out: &mut Vec<Finding>) {
     let mut decision = None;
     let mut conditions = false;
     for (index, heading) in headings.iter().enumerate() {
+        add(Work::HeadingsScanned, 1);
         if heading.level() != 2 {
             continue;
         }
@@ -276,6 +280,7 @@ fn explanation(id: &str, file: &str, body: &Body, out: &mut Vec<Finding>) {
         )
     };
     for (index, heading) in headings.iter().enumerate() {
+        add(Work::HeadingsScanned, 1);
         if heading.level() != 3 {
             continue;
         }
@@ -318,7 +323,145 @@ fn empty_list(kind: &'static str, (id, file): (&str, &str), line: usize, heading
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Write as _;
+
+    use raf_source::{MemoryTree, Workspace};
+
     use super::list_item_text;
+    use crate::Workplan;
+    use crate::work::{Tally, Work, measure};
+
+    /// An architecture page with `body` under its title.
+    fn page(body: &str) -> String {
+        format!(
+            "---\ntype: Architecture\nid: arch:layers\ntitle: Layers\n\
+             description: The layers.\n---\n\n# Layers\n\n{body}"
+        )
+    }
+
+    /// A capability whose Explanation holds `explanation`.
+    fn capability(explanation: &str) -> String {
+        let mut sections = String::new();
+        for name in [
+            "Purpose",
+            "Contract",
+            "Usage",
+            "Examples",
+            "Constraints",
+            "Explanation",
+            "Verification",
+        ] {
+            let text = if name == "Explanation" {
+                explanation
+            } else {
+                "Text."
+            };
+            write!(sections, "## {name}\n\n{text}\n\n").expect("a string takes the text");
+        }
+        format!(
+            "---\ntype: Capability\nid: cap:alpha\ntitle: Alpha\ndescription: Alpha.\n\
+             state: designed\nbindings:\n  code: []\n  tests: []\n  examples: []\n\
+             depends: []\n---\n\n# Alpha\n\n{sections}"
+        )
+    }
+
+    /// The findings of loading `files`, and the work the load counted, which
+    /// runs the rules of current rationale. A rule that does work per pair of
+    /// headings stops at `ceiling` at once instead of running to the end.
+    fn judged(files: &[(&str, &str)], ceiling: usize) -> (Vec<crate::Finding>, Tally) {
+        let source = Workspace::load(
+            &MemoryTree::from([
+                (
+                    "Cargo.toml",
+                    "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+                ),
+                ("src/lib.rs", ""),
+            ]),
+            &["."],
+        )
+        .expect("a workspace");
+        let tree: MemoryTree = files.iter().copied().collect();
+        let (plan, tally) = measure(ceiling, || Workplan::load(&tree, &source));
+        (plan.check(), tally)
+    }
+
+    /// The findings of `kind`.
+    fn of_kind(findings: &[crate::Finding], kind: &str) -> usize {
+        findings
+            .iter()
+            .filter(|finding| finding.kind == kind)
+            .count()
+    }
+
+    /// Twenty thousand empty conditions headings on a page, each with a line
+    /// of prose and no list item, are each judged against their own lines
+    /// only: the next heading of the level ends each list at once, and the
+    /// lines tried are the lines of the list.
+    #[test]
+    fn empty_conditions_headings_are_each_judged_against_their_own_lines() {
+        for count in [1_000, 20_000] {
+            let text = page(&"## Conditions to revisit\n\nNone.\n\n".repeat(count));
+            let (findings, tally) =
+                judged(&[("docs/architecture/layers.md", &text)], 2 * count + 10);
+            assert_eq!(of_kind(&findings, "decision-conditions-missing"), count);
+            // Every heading but the last is followed by one of its level.
+            assert_eq!(tally.get(Work::ConditionsScan), count - 1);
+            assert_eq!(tally.get(Work::ProseLinesScanned), count);
+            // The title and the conditions headings.
+            assert_eq!(tally.get(Work::HeadingsScanned), count + 1);
+        }
+    }
+
+    /// An Explanation of twenty thousand decisions, each with its conditions,
+    /// is judged in one step for each conditions heading and one line for
+    /// each list; with empty lists the findings are one for each.
+    #[test]
+    fn the_decisions_of_an_explanation_are_each_judged_against_their_own_lines() {
+        for count in [1_000, 20_000] {
+            let pairs = "### Decision\n\nD.\n\n### Conditions to revisit\n\n- C.\n\n".repeat(count);
+            let text = capability(&pairs);
+            let (findings, tally) =
+                judged(&[("docs/capabilities/alpha.md", &text)], 2 * count + 10);
+            assert_eq!(of_kind(&findings, "explanation-conditions-missing"), 0);
+            assert_eq!(tally.get(Work::ConditionsScan), count - 1);
+            assert_eq!(tally.get(Work::ProseLinesScanned), count);
+            assert_eq!(tally.get(Work::HeadingsScanned), 2 * count);
+
+            let empty =
+                "### Decision\n\nD.\n\n### Conditions to revisit\n\nNone.\n\n".repeat(count);
+            let text = capability(&empty);
+            let (findings, tally) =
+                judged(&[("docs/capabilities/alpha.md", &text)], 2 * count + 10);
+            assert_eq!(of_kind(&findings, "explanation-conditions-missing"), count);
+            assert_eq!(tally.get(Work::ConditionsScan), count - 1);
+            assert_eq!(tally.get(Work::ProseLinesScanned), count);
+        }
+    }
+
+    /// A decision page with a hundred thousand headings under its decision
+    /// reads each heading once, and so does the same page with its conditions
+    /// behind an unterminated fence, where the conditions heading is code.
+    #[test]
+    fn a_hundred_thousand_headings_are_each_read_once() {
+        let headings = "### H\n".repeat(100_000);
+        let open = page(&format!(
+            "## Decision\n{headings}\n## Conditions to revisit\n"
+        ));
+        let (findings, tally) = judged(&[("docs/architecture/layers.md", &open)], 200_000);
+        assert_eq!(of_kind(&findings, "decision-conditions-missing"), 1);
+        // The title, the decision, the headings and the conditions.
+        assert_eq!(tally.get(Work::HeadingsScanned), 100_003);
+        assert_eq!(tally.get(Work::ConditionsScan), 0);
+
+        let fenced = page(&format!(
+            "## Decision\n{headings}```\n## Conditions to revisit\n"
+        ));
+        let (findings, tally) = judged(&[("docs/architecture/layers.md", &fenced)], 200_000);
+        assert_eq!(of_kind(&findings, "decision-conditions-missing"), 1);
+        // The conditions heading is inside the fence: the title, the decision
+        // and the headings remain.
+        assert_eq!(tally.get(Work::HeadingsScanned), 100_002);
+    }
 
     #[test]
     fn a_list_item_is_a_marker_a_space_and_text_with_a_letter_or_a_digit() {
