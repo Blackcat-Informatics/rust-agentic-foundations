@@ -1060,15 +1060,17 @@ impl Index {
     }
 
     /// Check that the tables, settled `settles` times, were settled at most
-    /// once more than there are imports (see [`Index::settle_agreed`]), in
+    /// once more than there are imports and recorded drops of companions
+    /// (see [`Index::settle_agreed`]), in
     /// release builds too. More is a bug, reported as `Internal`.
     fn within_settles(&self, settles: usize) -> Result<(), LoadError> {
-        if settles <= self.uses.len() + 1 {
+        if settles <= self.uses.len() + self.drop_count() + 1 {
             return Ok(());
         }
         Err(self.internal(format!(
-            "the scope tables were settled {settles} times for {} imports",
-            self.uses.len()
+            "the scope tables were settled {settles} times for {} imports and {} dropped companions",
+            self.uses.len(),
+            self.drop_count()
         )))
     }
 
@@ -1960,9 +1962,13 @@ impl Index {
     /// are rebuilt from the definitions and settled again with every such
     /// import held from the start: a named one binds nothing and keeps its
     /// name from the globs, and a glob brings in nothing. The held imports
-    /// only grow, by at least one each time, so the tables are settled at
-    /// most once more than there are imports, which is checked in every build
-    /// ([`Index::within_settles`]). Each settle after the first is charged what it builds
+    /// only grow, by at least one each time. So do the glob reads that drop
+    /// the companions of an ambiguity: a read whose companions the settled
+    /// tables drop, and that did not drop them from the start, is recorded,
+    /// and the tables are settled again with it dropping them from the start
+    /// (see [`Index::record_drops`]). So the tables are settled at most once
+    /// more than there are imports and recorded drops, which is checked in
+    /// every build ([`Index::within_settles`]). Each settle after the first is charged what it builds
     /// again, the scope tables of the definitions and the state of every
     /// import ([`Index::settle_bytes`]), on top of the bindings it makes
     /// again, so the repeated settles are bounded by the budget of index
@@ -1977,7 +1983,9 @@ impl Index {
             let ambiguous: Vec<bool> = (0..self.uses.len())
                 .map(|position| self.use_ambiguous[position] || self.walks_ambiguous(position))
                 .collect();
-            let Some(first) = (0..self.uses.len()).find(|at| ambiguous[*at] && !held[*at]) else {
+            let first = (0..self.uses.len()).find(|at| ambiguous[*at] && !held[*at]);
+            let dropped = self.record_drops(meter)?;
+            let Some(first) = first.or_else(|| (dropped > 0).then(|| self.glob_imports[0])) else {
                 #[cfg(debug_assertions)]
                 self.check_settled();
                 return Ok(settles);
@@ -2855,7 +2863,7 @@ mod tests {
         let error = index.within_settles(3).expect_err("one settle too many");
         assert!(
             matches!(&error.kind, LoadErrorKind::Internal { what }
-                if what == "the scope tables were settled 3 times for 1 imports"),
+                if what == "the scope tables were settled 3 times for 1 imports and 0 dropped companions"),
             "{error:?}"
         );
     }

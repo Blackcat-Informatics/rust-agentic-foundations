@@ -4246,3 +4246,117 @@ fn a_path_through_a_module_two_globs_bring_in_as_different_modules_is_ambiguous_
     assert_eq!(found, vec!["demo::a::s::X"; 2]);
     assert_eq!(loads, 36);
 }
+
+#[test]
+fn an_item_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion_is_one_answer_in_every_order()
+ {
+    // `m0` globs `m2` publicly and `m1::s1` privately, and each holds a
+    // struct `B`: `B` is ambiguous in `m0`, and a reader outside `m0` can
+    // access `m2::B` only, so `m1::s1::B` rides along with it. `w` imports
+    // `m2::B` by name, and `mm` globs `m0` and `w`: `w` binds `B` itself and
+    // delivers `m2::B`, which `mm` also reads through `m0`, so `mm` drops
+    // the companion, whether the import of `w` binds before or after a path
+    // of `mm` reads `B`. `mm` imports `self::B` as `probe`, which a debug
+    // build checks against the settled tables after every load: what an
+    // import bound while they settled is what they reach. The index reads
+    // `B` and `probe` in `mm` as `m2::B` in every order. rustc's own answer
+    // depends on the order: it keeps the first glob binding of `B` that
+    // reaches `mm`, so it refuses `B` as ambiguous (E0659) when `m0` comes
+    // before `w` and accepts `m2::B` when `w` comes first. The index takes
+    // the answer of the orders rustc accepts, the one a crate that compiles
+    // has.
+    let reads: &[Read] = &[
+        ("demo::mm", "self::B", TYPE),
+        ("demo::mm", "self::probe", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod m1 { pub mod s1 { pub struct B {} } }",
+            "pub mod m2 { pub struct B {} }",
+            "pub mod m0 { pub use crate::m2::*; use crate::m1::s1::*; }",
+            "pub mod w { pub use crate::m2::B; }",
+            "pub mod mm { pub use crate::m0::*; pub use crate::w::*; use self::B as probe; }",
+        ],
+        &[],
+        reads,
+    );
+    assert_eq!(found, vec!["demo::m2::B"; reads.len()]);
+    assert_eq!(loads, 120);
+}
+
+#[test]
+fn a_crate_visible_import_or_glob_that_supplies_an_item_beside_its_companion_is_one_answer_in_every_order()
+ {
+    // The shape above with a `pub(crate)` import of `m2::B` in `w`, or a
+    // `pub(crate)` glob of `w` in `mm`: `mm` can access what `w` delivers
+    // either way, so it drops the companion as before, and the index reads
+    // `B` and `probe` in `mm` as `m2::B` in every order. rustc again keeps
+    // the first glob binding that reaches `mm`: it refuses `B` as ambiguous
+    // (E0659) when `m0` comes before `w` and accepts `m2::B` when `w` comes
+    // first.
+    let reads: &[Read] = &[
+        ("demo::mm", "self::B", TYPE),
+        ("demo::mm", "self::probe", TYPE),
+    ];
+    for (w, mm) in [
+        (
+            "pub mod w { pub(crate) use crate::m2::B; }",
+            "pub mod mm { pub use crate::m0::*; pub use crate::w::*; use self::B as probe; }",
+        ),
+        (
+            "pub mod w { pub use crate::m2::B; }",
+            "pub mod mm { pub use crate::m0::*; pub(crate) use crate::w::*; use self::B as probe; }",
+        ),
+        (
+            "pub mod w { pub(crate) use crate::m2::B; }",
+            "pub mod mm { pub use crate::m0::*; pub(crate) use crate::w::*; use self::B as probe; }",
+        ),
+    ] {
+        let (found, loads) = reads_in_every_order(
+            &[
+                "pub mod m1 { pub mod s1 { pub struct B {} } }",
+                "pub mod m2 { pub struct B {} }",
+                "pub mod m0 { pub use crate::m2::*; use crate::m1::s1::*; }",
+                w,
+                mm,
+            ],
+            &[],
+            reads,
+        );
+        assert_eq!(found, vec!["demo::m2::B"; reads.len()], "{w} {mm}");
+        assert_eq!(loads, 120);
+    }
+}
+
+#[test]
+fn a_companion_a_glob_cycle_carries_beside_an_explicit_import_of_its_item_leaves_no_view_with_it_in_every_order()
+ {
+    // The shape above, where `m0` also globs `mm` privately, so a cycle of
+    // globs runs through `m0` and `mm`, and `rr` globs `mm` and imports
+    // `self::B` as `probe2`. The view of `mm` that `rr` reads holds what
+    // `mm` delivers once the companion is dropped, and a debug build checks
+    // the imports of both modules against the settled tables. The index
+    // reads `B` and each `probe` as `m2::B` in every order. rustc's own
+    // answer depends on the order: it refuses `B` as ambiguous (E0659) when
+    // `m0` comes before `w` and accepts `m2::B` when `w` comes first.
+    let reads: &[Read] = &[
+        ("demo::mm", "self::B", TYPE),
+        ("demo::mm", "self::probe", TYPE),
+        ("demo::rr", "self::B", TYPE),
+        ("demo::rr", "self::probe2", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod m1 { pub mod s1 { pub struct B {} } }",
+            "pub mod m2 { pub struct B {} }",
+            "pub mod m0 { pub use crate::m2::*; use crate::m1::s1::*; use crate::mm::*; }",
+            "pub mod w { pub use crate::m2::B; }",
+            "pub mod mm { pub use crate::m0::*; pub use crate::w::*; use self::B as probe; }",
+            "pub mod rr { pub use crate::mm::*; use self::B as probe2; }",
+        ],
+        &[],
+        reads,
+    );
+    assert_eq!(found, vec!["demo::m2::B"; reads.len()]);
+    assert_eq!(loads, 720);
+}

@@ -31,7 +31,10 @@
 //! holds one of the real items of such a name through a glob of another
 //! module that binds the name itself, as when a cycle of globs delivers it
 //! back beside that glob, drops the companions, as rustc drops the ambiguity
-//! there.
+//! there. What reads and views hold only grows, so a drop that the settled
+//! tables show is made from the start when the tables settle again: then it
+//! does not depend on whether the item that justifies it came in before or
+//! after the companions.
 //!
 //! A view grows as the scope tables settle. What it gains is passed on only
 //! to the globs that read it, only with the names that gained something, and
@@ -58,9 +61,10 @@
 //! A few temporaries are not charged, each bounded by a constant factor of
 //! what another budget already charges and dropped before the next is made:
 //! the visibilities of each module, listed once for each item and `use`
-//! declaration before their repeats are removed, and the bindings with their
+//! declaration before their repeats are removed, the bindings with their
 //! routes that a lookup of what the globs of a module bring in under one name
-//! returns.
+//! returns, and the names that hold companions, listed while the drops the
+//! settled tables show are recorded.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::mem::size_of;
@@ -150,6 +154,11 @@ type Held = (ItemId, Level);
 /// What a module exports under each name, in each name space.
 type Exported = Vec<(String, [Vec<Held>; 3])>;
 
+/// The glob reads whose companions are dropped: for each glob import and
+/// module it reaches, the names whose companions the read does not deliver,
+/// in each name space (see [`Index::delivered`]).
+type Drops = BTreeMap<(usize, usize), BTreeMap<SharedStr, [bool; 3]>>;
+
 /// The items a name of a view stands for, in each name space, each list
 /// sorted by item, one entry for each item.
 type Lists = Box<[Vec<Held>; 3]>;
@@ -218,6 +227,12 @@ pub(crate) struct GlobTables {
     strings: HashSet<SharedStr>,
     /// What the tables were charged, released when they are cleared.
     charged: usize,
+    /// The glob reads whose companions are dropped, decided from the
+    /// settled tables of an earlier settle of the load and kept, with the
+    /// depths, when the tables are cleared (see [`Index::record_drops`]).
+    drops: Drops,
+    /// How many names of glob reads, each in one name space, `drops` holds.
+    dropped: usize,
 }
 
 /// Which modules can reach, through the glob imports of the modules on the
@@ -362,9 +377,13 @@ impl Index {
     pub(crate) fn clear_globs(&mut self) {
         let depth = std::mem::take(&mut self.globs.depth);
         let in_path = std::mem::take(&mut self.globs.in_path);
+        let drops = std::mem::take(&mut self.globs.drops);
+        let dropped = self.globs.dropped;
         self.globs = GlobTables {
             depth,
             in_path,
+            drops,
+            dropped,
             ..GlobTables::default()
         };
     }
@@ -599,21 +618,34 @@ impl Index {
     }
 
     /// What each glob read of `module` delivers under `name` in the name
-    /// space at `at`: the items of the view it reads, less the companions of
-    /// an ambiguity when another glob of the module delivers an item of it
-    /// as itself, from a module that binds the name itself. A view holds the
-    /// items of a name that its target brings in through globs the class
-    /// cannot access as companions of the ones it can (see
-    /// [`Index::exposed`]). rustc drops such an ambiguity from a module that
-    /// already holds the item it was carried with through a glob of another
-    /// module, as when a cycle of globs delivers that item back, so the
-    /// companions do not count there. Only a module that binds the name
-    /// itself counts as that other module: what it binds there no glob of
-    /// `module` passed on to it. An item a cycle of globs carries back
-    /// through `module` itself would otherwise drop the very companions it
-    /// was passed on with, or not, by whether it came back before or after
-    /// them, and a view that already passed the companions on keeps them.
+    /// space at `at`: the items of the view it reads, less its companions
+    /// where the read drops them. A view holds the items of a name that its
+    /// target brings in through globs the class cannot access as companions
+    /// of the ones it can (see [`Index::exposed`]). rustc drops such an
+    /// ambiguity from a module that already holds the item it was carried
+    /// with through a glob of another module, as when a cycle of globs
+    /// delivers that item back, so the companions do not count there (see
+    /// [`Index::redelivered`]). A read drops them once the tables show that,
+    /// and from the start of every later settle of the load when the settled
+    /// tables of an earlier one showed it (see [`Index::record_drops`]): the
+    /// item that delivers the companions' item can come in after a path or a
+    /// view read them, and what a path or a view read under a name only
+    /// grows, so a drop that only came then would leave the answer to the
+    /// order of the declarations.
     fn delivered(&self, module: usize, name: &str, at: usize) -> Vec<(&GlobRead, Vec<Held>)> {
+        let mut found = self.read_lists(module, name, at);
+        let redelivered = self.redelivered(&found, name, at);
+        for ((read, held), redelivered) in found.iter_mut().zip(redelivered) {
+            if redelivered || self.drops_companions(read, name, at) {
+                held.retain(|entry| !entry.1.is_companion());
+            }
+        }
+        found
+    }
+
+    /// The items of the view each glob read of `module` reads under `name`
+    /// in the name space at `at`, for the reads whose view holds any.
+    fn read_lists(&self, module: usize, name: &str, at: usize) -> Vec<(&GlobRead, Vec<Held>)> {
         let mut found: Vec<(&GlobRead, Vec<Held>)> = Vec::new();
         for read in self.reads_of(module) {
             let Some(lists) = self.globs.views[read.view].names.get(name) else {
@@ -623,6 +655,18 @@ impl Index {
                 found.push((read, lists[at].clone()));
             }
         }
+        found
+    }
+
+    /// For each glob read of `found`, the reads of one module and the items
+    /// their views hold under `name` in the name space at `at`, whether
+    /// another of them delivers as itself an item that the read delivers as
+    /// itself, from a module that binds the name itself, as a definition or
+    /// an explicit import: what such a read delivers no glob of the module
+    /// passed on to it. An item a cycle of globs carries back through the
+    /// module itself would otherwise drop the very companions it was passed
+    /// on with.
+    fn redelivered(&self, found: &[(&GlobRead, Vec<Held>)], name: &str, at: usize) -> Vec<bool> {
         let firm: Vec<Vec<ItemId>> = found
             .iter()
             .map(|(_, held)| {
@@ -632,9 +676,6 @@ impl Index {
                     .collect()
             })
             .collect();
-        // Whether each read's target binds the name itself, as a definition
-        // or an explicit import: what such a read delivers no glob of
-        // `module` passed on to it.
         let own: Vec<bool> = found
             .iter()
             .map(|(read, _)| {
@@ -643,17 +684,124 @@ impl Index {
                     .is_some_and(|entry| !entry.defs[at].is_empty())
             })
             .collect();
-        for this in 0..found.len() {
-            let redelivered = (0..found.len()).any(|other| {
-                own[other]
-                    && found[other].0.view != found[this].0.view
-                    && firm[other].iter().any(|id| firm[this].contains(id))
-            });
-            if redelivered {
-                found[this].1.retain(|entry| !entry.1.is_companion());
+        (0..found.len())
+            .map(|this| {
+                (0..found.len()).any(|other| {
+                    own[other]
+                        && found[other].0.view != found[this].0.view
+                        && firm[other].iter().any(|id| firm[this].contains(id))
+                })
+            })
+            .collect()
+    }
+
+    /// True when the glob read `read` drops its companions under `name` in
+    /// the name space at `at` from the start of a settle.
+    fn drops_companions(&self, read: &GlobRead, name: &str, at: usize) -> bool {
+        self.globs
+            .drops
+            .get(&(read.glob, read.target))
+            .and_then(|names| names.get(name))
+            .is_some_and(|spaces| spaces[at])
+    }
+
+    /// How many names of glob reads, each in one name space, drop their
+    /// companions.
+    pub(crate) fn drop_count(&self) -> usize {
+        self.globs.dropped
+    }
+
+    /// Record, from the settled tables, every glob read that delivers an
+    /// item beside companions under a name that another read of its module
+    /// delivers from a module that binds the name itself (see
+    /// [`Index::redelivered`]), and that does not drop its companions there
+    /// from the start yet, charging what the record of each takes. The
+    /// reads recorded drop their companions from the start of every later
+    /// settle of the load, and the record only grows. Returns how many were
+    /// recorded.
+    ///
+    /// The names of each view that hold a companion, and for each module
+    /// those of the views its globs read, are listed as temporaries that are
+    /// not charged: each holds at most one entry for each name and name
+    /// space of a view, which the views are charged for, the list of a
+    /// module is dropped before the next module's is made, and the list of
+    /// the views before the record grows.
+    pub(crate) fn record_drops(&mut self, meter: &Meter) -> Result<usize, LoadError> {
+        let Some(&first) = self.glob_imports.first() else {
+            return Ok(0);
+        };
+        let companions: Vec<Vec<(SharedStr, usize)>> = self
+            .globs
+            .views
+            .iter()
+            .map(|view| {
+                view.names
+                    .iter()
+                    .flat_map(|(name, lists)| {
+                        (0..3)
+                            .filter(|at| lists[*at].iter().any(|entry| entry.1.is_companion()))
+                            .map(|at| (name.clone(), at))
+                    })
+                    .collect()
+            })
+            .collect();
+        let mut due: Vec<(usize, usize, SharedStr, usize)> = Vec::new();
+        for module in 0..self.globs.reads.len() {
+            let reads = self.reads_of(module);
+            if reads.len() < 2 {
+                continue;
+            }
+            let names: BTreeSet<&(SharedStr, usize)> = reads
+                .iter()
+                .flat_map(|read| &companions[read.view])
+                .collect();
+            for (name, at) in names {
+                let found = self.read_lists(module, name, *at);
+                let redelivered = self.redelivered(&found, name, *at);
+                for ((read, held), redelivered) in found.iter().zip(redelivered) {
+                    if redelivered
+                        && held.iter().any(|entry| entry.1.is_companion())
+                        && !self.drops_companions(read, name, *at)
+                    {
+                        due.push((read.glob, read.target, name.clone(), *at));
+                    }
+                }
             }
         }
-        found
+        drop(companions);
+        let decl = &self.uses[first];
+        let (file, line) = (decl.file.clone(), decl.line);
+        let mut recorded = 0;
+        for (glob, target, name, at) in due {
+            let mut bytes = 0;
+            if self.globs.drops.is_empty() {
+                bytes += btree_map::<(usize, usize), BTreeMap<SharedStr, [bool; 3]>>();
+            }
+            let names = self.globs.drops.get(&(glob, target));
+            if names.is_none() {
+                bytes += btree_entry::<(usize, usize), BTreeMap<SharedStr, [bool; 3]>>()
+                    + btree_map::<SharedStr, [bool; 3]>();
+            }
+            let known = names.and_then(|names| names.get(name.as_str()));
+            if known.is_some_and(|spaces| spaces[at]) {
+                continue;
+            }
+            if known.is_none() {
+                // The record keeps the text of the name after the views
+                // that shared it are dropped.
+                bytes += btree_entry::<SharedStr, [bool; 3]>() + shared_text(name.len());
+            }
+            meter.items(bytes, &file, Some(line))?;
+            self.globs
+                .drops
+                .entry((glob, target))
+                .or_default()
+                .entry(name)
+                .or_default()[at] = true;
+            self.globs.dropped += 1;
+            recorded += 1;
+        }
+        Ok(recorded)
     }
 
     /// True when a glob of `module` brings in something under `name` in the

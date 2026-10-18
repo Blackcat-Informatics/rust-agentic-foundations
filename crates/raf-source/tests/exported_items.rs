@@ -1592,3 +1592,78 @@ fn a_name_two_globs_bring_in_as_different_items_one_through_a_private_glob_is_re
     assert_eq!(listed, pairs(&[("demo::Y", "demo::a::Y")]));
     assert_eq!(loads, 48);
 }
+
+/// Load the library in every order of `outer` and of `inner`, the
+/// declarations of the module `header` among them, and return the paths of
+/// the candidates its surface is refused as ambiguous with, asserting that
+/// the surface is refused, with the same candidates, in each. Returns them
+/// and the number of loads.
+fn ambiguous_candidates_in_every_order(
+    outer: &[&str],
+    header: &str,
+    inner: &[&str],
+) -> (Vec<String>, usize) {
+    let mut first: Option<Vec<String>> = None;
+    let mut loads = 0;
+    let inner: Vec<String> = inner.iter().map(|d| (*d).to_owned()).collect();
+    for inside in orders(&inner) {
+        let mut blocks: Vec<String> = outer.iter().map(|d| (*d).to_owned()).collect();
+        blocks.push(format!("{header} {{ {} }}", inside.join(" ")));
+        for order in orders(&blocks) {
+            let text = order.join("\n");
+            let ws = load(&[("src/lib.rs", text.as_str())]);
+            let Err(ExportError::Resolve(ResolveError::Ambiguous(ids))) =
+                ws.exported_items(target(&ws, TargetKind::Lib))
+            else {
+                panic!("not refused as ambiguous:\n{text}");
+            };
+            let mut paths: Vec<String> = ids
+                .iter()
+                .map(|id| ws.item(*id).expect("item").path.to_string())
+                .collect();
+            paths.sort();
+            match &first {
+                None => first = Some(paths),
+                Some(known) => assert_eq!(&paths, known, "{text}"),
+            }
+            loads += 1;
+        }
+    }
+    (first.expect("loaded"), loads)
+}
+
+#[test]
+fn a_surface_refused_for_a_module_name_a_glob_cycle_carries_lists_the_same_candidates_in_every_order()
+ {
+    // `m0` globs `m3`, `m1::s0` and `m1::s1` publicly, and the crate root
+    // globs `m0` publicly. `m1::s0` globs `m1`, and `m1::s1` globs the root
+    // and, privately, `m2`. So `s1` is a module of `m3`, of `m1` and of `m2`,
+    // and `m0` brings in the first two publicly: the root's
+    // `pub use crate::m0::*` has no one module `s1` to export, and the
+    // surface is refused as ambiguous. What `m0` reads of `m1::s1` holds
+    // `m3::s1` and `m1::s1`, which the cycle of globs through the root
+    // carries back, and `m2::s1` beside them only as a companion, through the
+    // private glob. `m3`, which binds `s1` itself, delivers `m3::s1` to `m0`
+    // as well, so `m0` drops the companion, whether it came in before or
+    // after. The surface is refused with `m1::s1` and `m3::s1` in every
+    // order. rustc compiles the crate in every order and only warns of the
+    // ambiguous glob re-export (`ambiguous_glob_reexports`), which the index
+    // refuses.
+    let (candidates, loads) = ambiguous_candidates_in_every_order(
+        &[
+            "pub use crate::m0::*;",
+            "mod m1 { pub mod s1 { pub(crate) use crate::*; use crate::m2::*; } \
+             pub mod s0 { pub use crate::m1::*; } }",
+            "mod m2 { pub mod s1 {} mod s0 {} }",
+            "mod m3 { pub mod s1 {} }",
+        ],
+        "pub mod m0",
+        &[
+            "pub use crate::m3::*;",
+            "pub use crate::m1::s0::*;",
+            "pub use crate::m1::s1::*;",
+        ],
+    );
+    assert_eq!(candidates, strings(&["demo::m1::s1", "demo::m3::s1"]));
+    assert_eq!(loads, 720);
+}
