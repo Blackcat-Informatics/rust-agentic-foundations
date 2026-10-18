@@ -138,7 +138,9 @@ jobs:
       # The executors of bound tests, doc tests and examples run the real cargo
       # against crates generated into a scratch directory, and their in-process
       # matrix runs through the fake runner; both are part of the claim that they
-      # work on every platform.
+      # work on every platform. The kill of a bound test or example that never
+      # ends is tested on Linux only (`exec::system::tests::cargo`, under a clock
+      # the test controls); here the fake runner pins how a kill is judged.
       - name: Test the bound executors against the fake runner on macOS
         run: "cargo test -p raf-workplan --locked --lib bound::"
       # macOS answers EPERM, not ESRCH, to a kill of a group whose members have
@@ -173,7 +175,9 @@ jobs:
       # The executors of bound tests, doc tests and examples run the real cargo
       # against crates generated into a scratch directory, and their in-process
       # matrix runs through the fake runner; both are part of the claim that they
-      # work on every platform.
+      # work on every platform. The kill of a bound test or example that never
+      # ends is tested on Linux only (`exec::system::tests::cargo`, under a clock
+      # the test controls); here the fake runner pins how a kill is judged.
       - name: Test the bound executors against the fake runner on Windows
         run: "cargo test -p raf-workplan --locked --lib bound::"
       - name: Test the bound executors against the real cargo on Windows

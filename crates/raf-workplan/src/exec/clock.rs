@@ -19,6 +19,11 @@ pub(super) trait Clock {
 
     /// Wait for this long before the next look.
     fn pause(&mut self, pause: Duration);
+
+    /// The process of the run has started with this id and is not collected
+    /// yet. The clock of the machine has no use for it; a clock of a test may
+    /// watch the process.
+    fn spawned(&mut self, _process: u32) {}
 }
 
 /// The clock of the machine: time since [`WallClock::start`], and a sleep.

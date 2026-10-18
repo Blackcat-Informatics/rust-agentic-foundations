@@ -25,6 +25,9 @@
 //! script, so the marker file that the script writes after the hold is
 //! absent; one that survived the kill, or was only stopped, writes the marker
 //! and ends, so no step can block for ever.
+//!
+//! [`cargo`] runs a bound test and a bound example that never end through the
+//! executor and the real `cargo` in the same way.
 
 use std::io::{self, Cursor};
 use std::time::Duration;
@@ -211,6 +214,10 @@ impl<C: Clock + ?Sized> Clock for &mut C {
     fn pause(&mut self, pause: Duration) {
         (**self).pause(pause);
     }
+
+    fn spawned(&mut self, process: u32) {
+        (**self).spawned(process);
+    }
 }
 
 /// The most looks, and the most pauses, a run under [`Frozen`] may make, and a
@@ -221,11 +228,16 @@ impl<C: Clock + ?Sized> Clock for &mut C {
 const FROZEN_CEILING: usize = 5_000_000;
 
 /// The most looks, and the most pauses, a run under [`Stepped`] may make once
-/// its clock moves. The limit passes within 105 pauses (at most five of the
-/// doubling pauses, then 20 ms each, then what remains), and the runner reads
-/// the clock once at each look and once for the result.
+/// its clock moves: twice the number of pauses of [`POLL_CEILING`] in `limit`.
+/// The limit passes within that many pauses and five more (at most five of
+/// the doubling pauses, then 20 ms each, then what remains), and the runner
+/// reads the clock once at each look and once for the result; for the limit
+/// of 2007 ms that is 105 pauses against a ceiling of 200.
 #[cfg(unix)]
-const STEPPED_CEILING: usize = 200;
+fn stepped_ceiling(limit: Duration) -> usize {
+    let pauses = limit.as_millis() / POLL_CEILING.as_millis();
+    usize::try_from(pauses).expect("a limit of the tests") * 2
+}
 
 /// The count of one kind of call to a test clock. Past its ceiling it fails
 /// the test, so a runner that never decides fails whether it pauses or not.
@@ -293,34 +305,37 @@ impl Clock for Frozen {
 }
 
 /// A clock that moves by each pause the runner asks for, and nothing else;
-/// each reading and each pause is counted. On Linux it has a [`Gate`]: until
-/// the gate opens, a pause yields the thread without moving the clock, so the
-/// processes of a [`Subject`] are known before the limit can pass, and no step
-/// blocks on them.
+/// each reading and each pause is counted, against the ceiling of its limit
+/// (see [`stepped_ceiling`]). On Linux it has a gate (an [`Opening`]): until
+/// the gate opens, a pause does not move the clock, so the processes of a
+/// [`Subject`] are known before the limit can pass.
 #[cfg(unix)]
 struct Stepped {
     now: Duration,
     looks: Count,
     pauses: Count,
+    /// The ceiling once the gate has opened.
     #[cfg(target_os = "linux")]
-    gate: Option<Gate>,
+    ceiling: usize,
+    #[cfg(target_os = "linux")]
+    gate: Option<Box<dyn Opening>>,
     #[cfg(target_os = "linux")]
     seen: Option<Seen>,
 }
 
 #[cfg(unix)]
 impl Stepped {
-    fn moving() -> (Count, Count) {
+    fn moving(ceiling: usize) -> (Count, Count) {
         (
-            Count::new("looks under a stepped clock", STEPPED_CEILING),
-            Count::new("pauses under a stepped clock", STEPPED_CEILING),
+            Count::new("looks under a stepped clock", ceiling),
+            Count::new("pauses under a stepped clock", ceiling),
         )
     }
 
-    /// A clock that moves from its first pause.
+    /// A clock that moves from its first pause, for a run of `limit`.
     #[cfg(not(target_os = "linux"))]
-    fn new() -> Self {
-        let (looks, pauses) = Self::moving();
+    fn new(limit: Duration) -> Self {
+        let (looks, pauses) = Self::moving(stepped_ceiling(limit));
         Self {
             now: Duration::ZERO,
             looks,
@@ -328,14 +343,15 @@ impl Stepped {
         }
     }
 
-    /// A clock that moves once `gate` has opened.
+    /// A clock for a run of `limit` that moves once `gate` has opened.
     #[cfg(target_os = "linux")]
-    fn gated(gate: Gate) -> Self {
+    fn gated(gate: impl Opening + 'static, limit: Duration) -> Self {
         Self {
             now: Duration::ZERO,
             looks: Count::new("looks before the gate opened", FROZEN_CEILING),
             pauses: Count::new("pauses before the gate opened", FROZEN_CEILING),
-            gate: Some(gate),
+            ceiling: stepped_ceiling(limit),
+            gate: Some(Box::new(gate)),
             seen: None,
         }
     }
@@ -354,7 +370,7 @@ impl Clock for Stepped {
             if let Some(seen) = gate.turn() {
                 self.seen = Some(seen);
                 self.gate = None;
-                (self.looks, self.pauses) = Self::moving();
+                (self.looks, self.pauses) = Self::moving(self.ceiling);
             } else {
                 self.pauses.tick();
                 std::thread::yield_now();
@@ -363,6 +379,15 @@ impl Clock for Stepped {
         }
         self.pauses.tick();
         self.now += pause;
+    }
+
+    fn spawned(&mut self, process: u32) {
+        #[cfg(target_os = "linux")]
+        if let Some(gate) = &mut self.gate {
+            gate.spawned(process);
+        }
+        #[cfg(not(target_os = "linux"))]
+        let _ = process;
     }
 }
 
@@ -454,7 +479,7 @@ struct Outlived {
 fn outlive(shape: Shape) -> Outlived {
     let subject = Subject::new();
     let invocation = sh(&subject.script(shape));
-    let mut clock = Stepped::gated(subject.gate(shape));
+    let mut clock = Stepped::gated(subject.gate(shape), LIMIT);
     let limits = Limits::trusted().with_timeout(LIMIT);
     let result = runner().run_with(&invocation, &limits, || &mut clock);
     let Some(seen) = clock.seen.take() else {
@@ -480,7 +505,7 @@ fn outlive(shape: Shape) -> Outlived {
         Shape::Leaves => "{ while :; do :; done; } & exit 0",
     };
     let invocation = sh(script);
-    let mut clock = Stepped::new();
+    let mut clock = Stepped::new(LIMIT);
     let limits = Limits::trusted().with_timeout(LIMIT);
     let result = runner().run_with(&invocation, &limits, || &mut clock);
     Outlived {
@@ -634,9 +659,20 @@ impl Subject {
     }
 }
 
-/// What a [`Stepped`] clock waits for before it moves: the process ids the
-/// script writes, a pidfd of each, and for a leader that exits, its end. Each
-/// turn looks without blocking.
+/// What a [`Stepped`] clock waits for before it moves.
+#[cfg(target_os = "linux")]
+trait Opening {
+    /// The runner has started the process of the run with this id.
+    fn spawned(&mut self, _process: u32) {}
+
+    /// One turn, at a pause of the runner: the processes once the limit may
+    /// pass, or `None` to look again at the next pause.
+    fn turn(&mut self) -> Option<Seen>;
+}
+
+/// The gate of a [`Subject`] script: the process ids the script writes, a
+/// pidfd of each, and for a leader that exits, its end. Each turn looks
+/// without blocking.
 #[cfg(target_os = "linux")]
 struct Gate {
     /// The pid FIFO, read without blocking.
@@ -650,9 +686,7 @@ struct Gate {
 }
 
 #[cfg(target_os = "linux")]
-impl Gate {
-    /// One turn: the processes once the limit may pass, or `None` to look
-    /// again at the next pause.
+impl Opening for Gate {
     fn turn(&mut self) -> Option<Seen> {
         use std::io::{Read as _, Write as _};
 
@@ -808,11 +842,10 @@ struct Settled {
 /// SIGHUP, SIGINT and SIGTERM and every process gets SIGCONT after the
 /// release, so only SIGKILL keeps the marker away.
 #[cfg(target_os = "linux")]
-fn nothing_outlived_the_kill(run: &Outlived) {
-    let settled = &run.settled;
-    let leader = run.seen.leader.pid.as_raw_pid();
-    assert_eq!(run.seen.leader.pgrp, leader, "the leader leads a group");
-    if let Some(descendant) = &run.seen.descendant {
+fn nothing_outlived_the_kill(seen: &Seen, settled: &Settled) {
+    let leader = seen.leader.pid.as_raw_pid();
+    assert_eq!(seen.leader.pgrp, leader, "the leader leads a group");
+    if let Some(descendant) = &seen.descendant {
         assert_eq!(descendant.pgrp, leader, "in the leader's group");
     }
     assert!(
@@ -840,7 +873,7 @@ fn a_process_that_outlives_its_limit_is_killed() {
     #[cfg(target_os = "linux")]
     {
         assert!(run.seen.descendant.is_none());
-        nothing_outlived_the_kill(&run);
+        nothing_outlived_the_kill(&run.seen, &run.settled);
     }
 }
 
@@ -872,7 +905,7 @@ fn the_family_does_not_outlive_the_kill() {
     #[cfg(target_os = "linux")]
     {
         assert!(run.seen.descendant.is_some());
-        nothing_outlived_the_kill(&run);
+        nothing_outlived_the_kill(&run.seen, &run.settled);
     }
 }
 
@@ -928,7 +961,7 @@ fn a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_l
     #[cfg(target_os = "linux")]
     {
         assert!(run.seen.descendant.is_some());
-        nothing_outlived_the_kill(&run);
+        nothing_outlived_the_kill(&run.seen, &run.settled);
     }
 }
 
@@ -1033,3 +1066,6 @@ fn both_streams_are_drained_at_once() {
     assert!(output.stdout.iter().all(|byte| *byte == b'o'));
     assert_eq!(output.elapsed, ran);
 }
+
+#[cfg(target_os = "linux")]
+mod cargo;

@@ -19,7 +19,7 @@ inputs:
     digest: fb60f3294ddb18cc2419096842b25f9150af9ff572c6fb766d261b35fc0363f1
   - kind: symbol
     name: raf_workplan::exec
-    digest: c94abccf51d4e7ee8cbf6b5348afa1450ab35ad052b3a7a82ee670719e867f75
+    digest: 19826c31d83dc7c831f39001d8c53361fb61ccb08a71989761b57193edcef553
   - kind: symbol
     name: raf_workplan::exec::Invocation
     digest: 541e0874a2cbff738b60b6c3762db18dc00952583480afab0cac3e52a7a4e65d
@@ -58,7 +58,7 @@ inputs:
     digest: 173351a58ff3ce22a6f7d55994dde9eeab7a3d2e0220180821a3cc8d71f96edf
   - kind: record
     name: evidence:gate-kills-a-test-past-its-timeout
-    digest: 7b1a562b94bbfcad3653dedfab9656f029ae62adcec507c730ed1864b83cf2f9
+    digest: cf59a50db64eb72fe082bd76ba178f7426d8338242548526b09affe07dbbfcd3
 verdict: accepted
 by: agent
 ---

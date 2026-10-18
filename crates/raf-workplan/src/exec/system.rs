@@ -128,6 +128,7 @@ impl SystemRunner {
             kind: error.kind(),
             message: error.to_string(),
         })?;
+        clock.spawned(child.id());
         let (Some(stdout), Some(stderr)) = (child.stdout.take(), child.stderr.take()) else {
             let failure = ExecError::Io {
                 command: command_text.clone(),

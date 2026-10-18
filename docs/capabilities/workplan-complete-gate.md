@@ -68,14 +68,14 @@ bindings:
     - raf_workplan::test_crate::bound::an_integration_test_with_a_hyphen_runs_under_its_cargo_name
     - raf_workplan::test_crate::bound::a_function_that_is_not_a_test_is_refused_before_any_process
     - raf_workplan::test_crate::bound::hostile_bindings_are_unresolved_and_never_reach_cargo
-    - raf_workplan::test_crate::bound::a_test_that_never_ends_is_killed_and_refused_with_the_time_it_ran
+    - raf_workplan::exec::system::tests::cargo::a_test_that_never_ends_is_killed_and_refused_with_the_time_it_ran
     - raf_workplan::test_crate::bound::documentation_tests_follow_the_rules_in_edition_2021
     - raf_workplan::test_crate::bound::documentation_tests_follow_the_rules_in_edition_2024
     - raf_workplan::test_crate::bound::an_item_path_that_begins_with_a_hyphen_never_reaches_cargo
     - raf_workplan::test_crate::bound::an_example_that_exits_zero_passes_and_one_that_does_not_fails
     - raf_workplan::test_crate::bound::a_hyphenated_example_runs_under_its_cargo_name
     - raf_workplan::test_crate::bound::an_example_that_reads_standard_input_sees_it_closed
-    - raf_workplan::test_crate::bound::an_example_that_never_ends_is_killed_and_reported_with_the_time_it_ran
+    - raf_workplan::exec::system::tests::cargo::an_example_that_never_ends_is_killed_and_reported_with_the_time_it_ran
     - raf_workplan::test_crate::exec::the_patterns_are_the_ones_the_documents_state
     - raf_workplan::test_crate::exec::every_pattern_refuses_hostile_values
     - raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table
@@ -616,9 +616,20 @@ Further checks:
   are refused with the message that asks for a runnable doc test; and an item path
   that begins with `-` never reaches `cargo`: bound, it does not resolve, and given
   to the plan, it is refused by its pattern.
-- An example fixture: a hyphenated example target runs, an example that reads stdin
-  sees it closed, and an example that does not exit within the timeout fails the
-  binding.
+- An example fixture: a hyphenated example target runs, and an example that reads
+  stdin sees it closed.
+- A never-ending fixture, on Linux: a bound test and a bound example that never
+  end by themselves run through the executor and the real `cargo` with a limit of
+  5 seconds. The list pass of the test runs under the clock of the machine and the
+  limit of the gate, and the run under a clock that moves only by the pauses the
+  runner asks for, so the limit passes after a bounded number of looks and nothing
+  waits for it. Each fails its binding with the reason `ran 5.0 s of its 5 s
+  limit`, pinned word for word, as a run that timed out after exactly 5 seconds;
+  the test binary that `cargo` started is in the group `cargo` leads, ignores
+  SIGHUP, SIGINT and SIGTERM, and never runs the rest of its test after the kill,
+  so only SIGKILL to the group passes; and the passing test beside the one that
+  never ends passes. On other systems the mapping of a kill to a failed binding is
+  pinned through the fake runner only.
 - A `verify` fixture with one passing and one failing bound test, asserting per-binding
   output and exit codes 0 and 1.
 
@@ -757,6 +768,8 @@ Further checks:
 | `raf_workplan::exec::system::tests::a_zero_limit_is_passed_at_once_unless_the_run_is_done` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::any_other_failure_is_reported_even_after_the_leader_exited` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::both_streams_are_drained_at_once` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::cargo::a_test_that_never_ends_is_killed_and_refused_with_the_time_it_ran` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::cargo::an_example_that_never_ends_is_killed_and_reported_with_the_time_it_ran` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::output_at_the_bound_passes_and_one_byte_over_is_refused_on_each_stream` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::terminating_a_leader_that_exited_before_the_kill_succeeds` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::the_capture_stops_one_byte_past_its_bound_and_flags_the_overflow` | test | [Verification](#verification) |
@@ -784,9 +797,7 @@ Further checks:
 | `raf_workplan::test_crate::bound::a_process_that_cannot_start_is_an_error_and_not_a_verdict` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_test_behind_a_disabled_feature_lists_nothing_and_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_test_of_a_binary_runs_under_bin` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::bound::a_test_that_never_ends_is_killed_and_refused_with_the_time_it_ran` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::an_example_that_exits_zero_passes_and_one_that_does_not_fails` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::bound::an_example_that_never_ends_is_killed_and_reported_with_the_time_it_ran` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::an_example_that_reads_standard_input_sees_it_closed` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::an_ignored_test_is_listed_and_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::an_integration_test_with_a_hyphen_runs_under_its_cargo_name` | test | [Verification](#verification) |
