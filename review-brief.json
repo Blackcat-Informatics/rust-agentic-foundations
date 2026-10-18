@@ -1,0 +1,179 @@
+{
+  "issue": 14,
+  "branch": "paudley/14-raf-source-model-rustc-s-visibility-of",
+  "base": "origin/main",
+  "commits": [
+    {
+      "oid": "fc21ada21e9fda182988ea1f30b2d72d685d4943",
+      "subject": "test: compare the clean neighbour of the clock gate to an empty list",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "19f3701f7f679cb22d7d5d5d7a842b4d834fd5aa",
+      "subject": "test: the clock gate also refuses the core and async timers and the timeout waits, and two counts get a lower bound",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "d3a779c6b6074e6ba893ff60ca3d68f37972f833",
+      "subject": "docs(source-index): deliver the visibility rules, the reading-module entry points and the limits that remain",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "c60fa0dc5d7c3327371482d9ed39ec9766cbc523",
+      "subject": "docs(source-index): reopen the capability to state the visibility rules, the entry points and the limits",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "f1603cd706a4a0e9c5d657b22545d18f4c51a1d1",
+      "subject": "test(raf-source): the listing tests count glob view reads and walk steps instead of reading the clock, and a gate keeps the clock out of the crate",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "d495a433defa7ab99e803747b3e33c7337bc9c7a",
+      "subject": "test(raf-source): an outside FIFO reached by a swap is shown unopened by an inotify watch, not by a blocked writer",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "937fd1a9c1a7eaab3459bb2d8b81a1776d56fca5",
+      "subject": "test(raf-source): the disk tests call the tree directly, and every open is checked to be a reference or non-blocking",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "e5bc866bf182c35a6e4a8ad0b45567cffc550d61",
+      "subject": "fix(raf-source): a companion item no longer rides around a glob cycle past the rule that drops it",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "760b80c15b796bb9226edf59b35f7592ebb70b69",
+      "subject": "test(raf-source): the box-pattern refusal shows the parser never ran, not how fast it was",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "36fc3e0176b94324a139bdde54cc5d0d5bd20ecd",
+      "subject": "test(raf-source): the module-path budget tests count tree calls instead of reading the clock",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "5b96f786c7a9b313f173b32d774e9f7092561358",
+      "subject": "test(raf-source): a path of fifty thousand segments is bounded by counted reads, not by the clock",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "c299b91d8e5797a862e89284b338e3083b578079",
+      "subject": "test(raf-source): member and exclude patterns are bounded by counted work, not by the clock",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "72bedc497a8944d2627a35dcbce3c04b96a8dcc8",
+      "subject": "test(raf-source): facts and long-line positions are bounded by counted work, not by the clock",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "3d39a9996e81103f3586f1af36f66989ddc548f9",
+      "subject": "test(raf-source): test-only work tallies with a ceiling that fails fast",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "5aced3c9c782e275fced26413b69a2c9be9de747",
+      "subject": "test(raf-source): one counting tree with an operation ceiling replaces the two ad hoc read counters",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "1ef2915dad484c217fd6e57c8938293a88c776b8",
+      "subject": "test(raf-source): the oracle asks rustc one name space at a time before calling a divergence order-dependent",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "d692c8244fe70f5c9606fa6447f936292d7d7fa1",
+      "subject": "docs(readme): state the current status of the crates and lead with the built workplan gate",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "173a2cbac54b0ce30fda399e786340823eff9791",
+      "subject": "fix(raf-source): an import a reader cannot name holds a glob binding back only while the globs bring the name in",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "79fb59834055ee3cf6ffa7b793a7e4b152087166",
+      "subject": "fix(raf-source): refuse a name that globs bring in as different items when the reader can access one",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "e0a75e9e178ec3a225df32e7a4ef15bc222aeb1f",
+      "subject": "fix(raf-source): a re-export is no more visible than the binding it re-exports",
+      "date": "2026-10-17"
+    },
+    {
+      "oid": "5f5049baa0832d68aea1730ccf7797f397db1eba",
+      "subject": "test(raf-source): compare use-path resolution with rustc on generated programs",
+      "date": "2026-10-17"
+    }
+  ],
+  "files": [
+    "CHANGELOG.md",
+    "README.md",
+    "crates/raf-source/src/exports.rs",
+    "crates/raf-source/src/exports/tests.rs",
+    "crates/raf-source/src/facts.rs",
+    "crates/raf-source/src/glob.rs",
+    "crates/raf-source/src/glob_scope.rs",
+    "crates/raf-source/src/lib.rs",
+    "crates/raf-source/src/members.rs",
+    "crates/raf-source/src/resolve.rs",
+    "crates/raf-source/src/settle.rs",
+    "crates/raf-source/src/tree/disk.rs",
+    "crates/raf-source/src/tree/disk/handle_path.rs",
+    "crates/raf-source/src/tree/disk/linux.rs",
+    "crates/raf-source/src/tree/disk/other_unix.rs",
+    "crates/raf-source/src/tree/disk/tests.rs",
+    "crates/raf-source/src/work.rs",
+    "crates/raf-source/src/workspace.rs",
+    "crates/raf-source/tests/disk_tree_containment.rs",
+    "crates/raf-source/tests/exported_items.rs",
+    "crates/raf-source/tests/manifest_caps.rs",
+    "crates/raf-source/tests/module_tree.rs",
+    "crates/raf-source/tests/prescan_budgets.rs",
+    "crates/raf-source/tests/resolve_paths.rs",
+    "crates/raf-source/tests/rustc_oracle.rs",
+    "crates/raf-source/tests/support/counting.rs",
+    "crates/raf-source/tests/support/json.rs",
+    "crates/raf-source/tests/support/mod.rs",
+    "crates/raf-source/tests/support/program.rs",
+    "crates/raf-source/tests/support/random.rs",
+    "crates/raf-source/tests/support/rustc.rs",
+    "crates/raf-source/tests/symbol_index.rs",
+    "crates/raf-source/tests/trait_keys.rs",
+    "crates/raf-source/tests/use_resolution.rs",
+    "crates/raf-source/tests/workspace_containment.rs",
+    "docs/capabilities/source-index.md",
+    "fuzz/corpus/rustc-oracle/accessible_glob_reexported.rs",
+    "fuzz/corpus/rustc-oracle/ambiguity_a_glob_cycle_delivers_back.rs",
+    "fuzz/corpus/rustc-oracle/ambiguity_hidden_by_a_private_glob_in_a_chain.rs",
+    "fuzz/corpus/rustc-oracle/ambiguity_through_inaccessible_glob.rs",
+    "fuzz/corpus/rustc-oracle/ambiguous_module_in_the_middle_of_a_path.rs",
+    "fuzz/corpus/rustc-oracle/ambiguous_module_through_inaccessible_glob.rs",
+    "fuzz/corpus/rustc-oracle/glob_order_changes_what_rustc_accepts.rs",
+    "fuzz/corpus/rustc-oracle/glob_order_decides_whether_a_type_a_glob_cycle_carries_is_found.rs",
+    "fuzz/corpus/rustc-oracle/glob_reexport_ambiguity_warned.rs",
+    "fuzz/corpus/rustc-oracle/hidden_item_beside_an_item_the_reader_already_holds.rs",
+    "fuzz/corpus/rustc-oracle/hidden_module_a_glob_cycle_carries_back_beside_the_module_itself.rs",
+    "fuzz/corpus/rustc-oracle/import_cycle_in_one_name_space_beside_a_glob_that_holds_it.rs",
+    "fuzz/corpus/rustc-oracle/import_cycle_rustc_cannot_determine_beside_a_glob_that_resolves_it.rs",
+    "fuzz/corpus/rustc-oracle/import_cycle_rustc_cannot_determine_through_a_named_import_and_two_globs.rs",
+    "fuzz/corpus/rustc-oracle/import_cycle_through_a_named_import_and_two_globs_of_a_module.rs",
+    "fuzz/corpus/rustc-oracle/named_reexport_of_a_private_glob_binding.rs",
+    "fuzz/corpus/rustc-oracle/private_glob_beside_a_different_name.rs",
+    "fuzz/corpus/rustc-oracle/private_import_shadows_the_glob_for_outsiders.rs",
+    "fuzz/corpus/rustc-oracle/private_item_beside_a_private_import_of_its_name_in_a_glob_cycle.rs",
+    "fuzz/corpus/rustc-oracle/private_item_reexported_by_a_child_glob.rs",
+    "fuzz/corpus/rustc-oracle/struct_and_function_of_one_name.rs",
+    "fuzz/corpus/rustc-oracle/value_import_beside_a_glob_that_brings_in_a_type_of_its_name.rs",
+    "tests/repo_gates.rs",
+    "work/assessments/source-index-constraints.md",
+    "work/assessments/source-index-contract.md",
+    "work/assessments/source-index-examples.md",
+    "work/assessments/source-index-usage.md",
+    "work/assessments/source-index-verification.md"
+  ],
+  "adrs_touched": []
+}

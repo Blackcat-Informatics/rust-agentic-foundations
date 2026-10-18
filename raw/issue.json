@@ -1,0 +1,33 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "## Context\n\n`raf-source` resolves `use` paths with rustc's import-accessibility rule: a binding or glob that the importing module cannot access counts for nothing. Two further rustc visibility rules are not modelled yet, and the `cap:source-index` Contract lists them under Constraints:\n\n1. **Re-exported private glob binding.** An explicit `pub use` of a binding that its module can reach only through a private glob is treated as visible as the import. rustc keeps it no more visible than the binding it re-exports, so a module that globs it can read a name rustc hides from it.\n2. **Ambiguity through an inaccessible glob.** When the globs of a module bring a name in ambiguously, and one of the items comes through a glob the reading module cannot access, the index answers with the other item. rustc refuses the path, usually as E0659 and sometimes as E0573.\n\n## Measured impact\n\nIn a rustc-oracle fuzz of generated programs with private globs, these two rules account for every remaining wrong answer on code rustc accepts: 12 queries in 10 of 5,522 programs. Eleven of the 12 were also wrong before the current resolver.\n\n## Scope\n\n- Model both rules in the settling of `use` paths, keeping resolution independent of declaration order.\n- Add an every-order fixture for each rule.\n- Re-run the rustc-oracle fuzz with private globs, with no new disagreements.\n- Remove the two sentences from the Contract's Constraints.\n",
+  "closedAt": null,
+  "comments": [],
+  "createdAt": "2026-10-14T07:43:21Z",
+  "labels": [
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bapUQ",
+      "name": "enhancement",
+      "description": "New feature or request",
+      "color": "a2eeef"
+    },
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bfxmQ",
+      "name": "crate:raf-source",
+      "description": "",
+      "color": "1d76db"
+    }
+  ],
+  "milestone": null,
+  "number": 14,
+  "state": "OPEN",
+  "title": "raf-source: model rustc's visibility of re-exported private glob bindings and of ambiguity through inaccessible globs",
+  "updatedAt": "2026-10-14T07:43:21Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/14"
+}

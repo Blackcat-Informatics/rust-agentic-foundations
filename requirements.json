@@ -1,0 +1,49 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "line": 14,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "- Model both rules in the settling of `use` paths, keeping resolution independent of declaration order.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B2",
+      "line": 15,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "- Add an every-order fixture for each rule.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B3",
+      "line": 16,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "- Re-run the rustc-oracle fuzz with private globs, with no new disagreements.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B4",
+      "line": 17,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "- Remove the two sentences from the Contract's Constraints.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    }
+  ],
+  "silent_comments": []
+}

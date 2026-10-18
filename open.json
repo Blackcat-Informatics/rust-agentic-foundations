@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "issue": 14,
+  "repo": "rust-agentic-foundations",
+  "forge": "github",
+  "nwo": "Blackcat-Informatics/rust-agentic-foundations",
+  "read_access": "anon-read",
+  "main_root": "/home/paudley/Active/rust-agentic-foundations",
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/14-raf-source-model-rustc-s-visibility-of",
+  "branch": "paudley/14-raf-source-model-rustc-s-visibility-of",
+  "slug": "raf-source-model-rustc-s-visibility-of",
+  "slug_drift": false,
+  "stage_dir": "/home/paudley/Active/rust-agentic-foundations/.worktrees/14-raf-source-model-rustc-s-visibility-of/.stage/raf-source-model-rustc-s-visibility-of",
+  "stage_tracked": true,
+  "base": "origin/main",
+  "base_oid": "16ffd2fd58c4db8f81630940fe4b90d068c3f17d",
+  "reused": false,
+  "adr_repo": false,
+  "created": [
+    "worktree:/home/paudley/Active/rust-agentic-foundations/.worktrees/14-raf-source-model-rustc-s-visibility-of",
+    "branch:paudley/14-raf-source-model-rustc-s-visibility-of",
+    "stage:/home/paudley/Active/rust-agentic-foundations/.worktrees/14-raf-source-model-rustc-s-visibility-of/.stage/raf-source-model-rustc-s-visibility-of",
+    "issue:/home/paudley/Active/rust-agentic-foundations/.worktrees/14-raf-source-model-rustc-s-visibility-of/.stage/raf-source-model-rustc-s-visibility-of/issue.md"
+  ],
+  "warnings": [],
+  "timestamp": "2026-10-17T12:39:02-0600"
+}
