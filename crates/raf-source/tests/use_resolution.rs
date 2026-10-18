@@ -4098,6 +4098,106 @@ fn an_ambiguity_a_glob_cycle_carries_beside_a_glob_of_one_of_its_items_is_one_an
 }
 
 #[test]
+fn a_hidden_module_a_glob_cycle_carries_back_beside_the_module_itself_is_no_ambiguity_in_every_order()
+ {
+    // `m2` globs `m1` privately, which brings in the module `m1::s0`, and the
+    // root, which globs `m3::s0`, which globs `m0::s0`, which globs `m2` and
+    // its parent `m0`: the root and `m2` read `s0` as the module `m0::s0`
+    // carried around the cycle, and in `m2` it is ambiguous with `m1::s0`.
+    // `m0::s0` reads `m0::s0` itself through its glob of `m0`, so rustc drops
+    // the ambiguity there, and every reader outside `m2` reads `s0` as
+    // `m0::s0` and the root's `s0::C` as the function of `m2`, with no type
+    // `C`, in every order.
+    let reads: &[Read] = &[
+        ("demo::m3::s0", "crate::s0::C", TYPE),
+        ("demo::m3::s0", "crate::s0::C", VALUE),
+        ("demo", "crate::s0", TYPE),
+        ("demo::m3::s0", "self::s0", TYPE),
+        ("demo::m0::s0", "self::s0", TYPE),
+        ("demo::m2", "self::s0", TYPE),
+    ];
+    let s0 = [
+        "pub use crate::m2::*; pub(crate) use super::*;",
+        "pub(crate) use super::*; pub use crate::m2::*;",
+    ];
+    for s0 in s0 {
+        let m0 = format!("pub mod m0 {{ pub mod s0 {{ {s0} }} }}");
+        let (found, loads) = reads_in_every_order(
+            &[
+                "pub mod m3 { pub mod s0 { pub use crate::m0::s0::*; } }",
+                &m0,
+                "pub mod m1 { pub mod s0 {} }",
+                "pub use crate::m3::s0::*;",
+            ],
+            &[(
+                "mod m2",
+                &[
+                    "use crate::m1::*;",
+                    "pub(crate) use super::*;",
+                    "pub const fn C() -> u32 { 8 }",
+                ],
+            )],
+            reads,
+        );
+        assert_eq!(
+            found,
+            [
+                "not found".to_owned(),
+                "demo::m2::C".to_owned(),
+                "demo::m0::s0".to_owned(),
+                "demo::m0::s0".to_owned(),
+                "demo::m0::s0".to_owned(),
+                ambiguous_between("demo::m0::s0", "demo::m1::s0"),
+            ],
+            "{s0}"
+        );
+        assert_eq!(loads, 720);
+    }
+}
+
+#[test]
+fn an_item_a_glob_cycle_carries_back_through_the_module_itself_keeps_its_companion_in_every_order()
+{
+    // `m0` globs `m2` publicly and `m1::s1` privately, and each holds a
+    // struct `B`: `B` is ambiguous in `m0`, and a reader outside `m0` can
+    // access `m2::B` only, so `m1::s1::B` rides along with it. `m1::s0` globs
+    // `m0` and the root, and the root globs `m1::s0`: the cycle carries
+    // `m2::B` back to `m1::s0` through the root only because `m1::s0` passed
+    // it on, so it drops nothing there, whichever comes first. The root and
+    // `m1::s0` each import `self::B` as `probe`, which a debug build checks
+    // against the settled tables after every load: what an import bound
+    // while they settled is what they reach. The index reads `B` and each
+    // `probe` as the two structs, in every order, and rustc agrees: it
+    // refuses `B` and `probe` as ambiguous (E0659) in the root, in `m1::s0`
+    // and in `m0`.
+    let reads: &[Read] = &[
+        ("demo", "self::B", TYPE),
+        ("demo", "self::probe", TYPE),
+        ("demo::m1::s0", "self::B", TYPE),
+        ("demo::m1::s0", "self::probe", TYPE),
+        ("demo::m0", "self::B", TYPE),
+        ("demo", "crate::m0::B", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod m1 { pub mod s1 { pub struct B {} } \
+             pub mod s0 { pub use crate::m0::*; pub use crate::*; use self::B as probe; } }",
+            "pub mod m2 { pub struct B {} }",
+            "pub use crate::m1::s0::*;",
+            "use self::B as probe;",
+        ],
+        &[(
+            "pub mod m0",
+            &["pub use crate::m2::*;", "use crate::m1::s1::*;"],
+        )],
+        reads,
+    );
+    let both = ambiguous_between("demo::m1::s1::B", "demo::m2::B");
+    assert_eq!(found, vec![both; reads.len()]);
+    assert_eq!(loads, 240);
+}
+
+#[test]
 fn a_path_through_a_module_two_globs_bring_in_as_different_modules_is_ambiguous_in_every_order() {
     // `m` globs `a` and `b`, both publicly, and each holds a module `s`.
     // rustc refuses a path through `s` (E0659), also for a name only one of

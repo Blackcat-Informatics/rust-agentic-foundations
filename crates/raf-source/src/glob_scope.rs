@@ -29,8 +29,9 @@
 //! every table that filters by access. The items a view holds only for that
 //! reason are its companions, marked on their level. A module that already
 //! holds one of the real items of such a name through a glob of another
-//! module, as when a cycle of globs delivers it back, drops the companions,
-//! as rustc drops the ambiguity there.
+//! module that binds the name itself, as when a cycle of globs delivers it
+//! back beside that glob, drops the companions, as rustc drops the ambiguity
+//! there.
 //!
 //! A view grows as the scope tables settle. What it gains is passed on only
 //! to the globs that read it, only with the names that gained something, and
@@ -593,12 +594,18 @@ impl Index {
     /// What each glob read of `module` delivers under `name` in the name
     /// space at `at`: the items of the view it reads, less the companions of
     /// an ambiguity when another glob of the module delivers an item of it
-    /// as itself. A view holds the items of a name that its target brings in
-    /// through globs the class cannot access as companions of the ones it
-    /// can (see [`Index::exposed`]). rustc drops such an ambiguity from a
-    /// module that already holds the item it was carried with through a
-    /// glob of another module, as when a cycle of globs delivers that item
-    /// back, so the companions do not count there.
+    /// as itself, from a module that binds the name itself. A view holds the
+    /// items of a name that its target brings in through globs the class
+    /// cannot access as companions of the ones it can (see
+    /// [`Index::exposed`]). rustc drops such an ambiguity from a module that
+    /// already holds the item it was carried with through a glob of another
+    /// module, as when a cycle of globs delivers that item back, so the
+    /// companions do not count there. Only a module that binds the name
+    /// itself counts as that other module: what it binds there no glob of
+    /// `module` passed on to it. An item a cycle of globs carries back
+    /// through `module` itself would otherwise drop the very companions it
+    /// was passed on with, or not, by whether it came back before or after
+    /// them, and a view that already passed the companions on keeps them.
     fn delivered(&self, module: usize, name: &str, at: usize) -> Vec<(&GlobRead, Vec<Held>)> {
         let mut found: Vec<(&GlobRead, Vec<Held>)> = Vec::new();
         for read in self.reads_of(module) {
@@ -618,9 +625,21 @@ impl Index {
                     .collect()
             })
             .collect();
+        // Whether each read's target binds the name itself, as a definition
+        // or an explicit import: what such a read delivers no glob of
+        // `module` passed on to it.
+        let own: Vec<bool> = found
+            .iter()
+            .map(|(read, _)| {
+                self.scopes[read.target]
+                    .get(name)
+                    .is_some_and(|entry| !entry.defs[at].is_empty())
+            })
+            .collect();
         for this in 0..found.len() {
             let redelivered = (0..found.len()).any(|other| {
-                found[other].0.view != found[this].0.view
+                own[other]
+                    && found[other].0.view != found[this].0.view
                     && firm[other].iter().any(|id| firm[this].contains(id))
             });
             if redelivered {
@@ -1032,9 +1051,10 @@ impl Index {
                 for (at, ids) in lists.iter_mut().enumerate() {
                     let hidden = outside.remove(&(name, at)).unwrap_or_default();
                     any_hidden |= !hidden.is_empty();
-                    // Items the class cannot access are read again from the
-                    // globs, as each delivers them (see [`Index::delivered`]).
-                    *ids = if hidden.is_empty() {
+                    // Items the class cannot access, and companions, are
+                    // read again from the globs, as each delivers them (see
+                    // [`Index::delivered`]).
+                    *ids = if hidden.is_empty() && !ids.iter().any(|held| held.1.is_companion()) {
                         self.exposed(std::mem::take(ids), hidden)
                     } else {
                         self.export_ids(target, class, name, at)
@@ -1309,9 +1329,14 @@ impl Index {
                 // Items the class can access arrive. Where the globs of the
                 // module bring in items it cannot access, those join them,
                 // whichever glob they came through, so the table of the
-                // module is read again for the name.
+                // module is read again for the name. So it is where a
+                // companion arrives: another glob of the module may deliver
+                // the item it was carried with, which drops it (see
+                // [`Index::delivered`]).
                 if self.globs.views[view].hidden || !hidden.is_empty() {
                     self.globs.views[view].hidden = true;
+                    self.export_ids(module, &class, name, at)
+                } else if seen.iter().any(|held| held.1.is_companion()) {
                     self.export_ids(module, &class, name, at)
                 } else {
                     self.widest(&mut seen);
