@@ -37,9 +37,24 @@
 //! accepts when either name space binds, does not hide a name space whose
 //! answer changes.
 //!
-//! The committed programs under `fuzz/corpus/rustc-oracle` are replayed with
-//! a fixed list of seeds. `RAF_ORACLE_PROGRAMS` raises the number of
-//! generated programs for the full run.
+//! The committed programs under `fuzz/corpus/rustc-oracle` are replayed. The
+//! generated programs come from eight seeds, `base + 1` to `base + 8`. The
+//! default run draws [`DEFAULT_PROGRAMS`] programs from each of two bases,
+//! `0xa11ce00` and `0xc0ffee00`. `RAF_ORACLE_SEED_BASE` (hexadecimal with a
+//! `0x` prefix, or decimal) selects one other base and the run then draws
+//! only from it, and `RAF_ORACLE_PROGRAMS` sets the number of programs of the
+//! full run: of the base selected, or of `0xa11ce00` when none is.
+//!
+//! To compare another resolver by program: copy `tests/` of this crate and
+//! the corpus under `fuzz/corpus/rustc-oracle` into a clone of the older
+//! commit, which must have the API the tests call, and run
+//! `RAF_ORACLE_LIST=1 RAF_ORACLE_PROGRAMS=n cargo test -p raf-source --release
+//! --test rustc_oracle -- --nocapture` in both trees. Every divergence,
+//! those of the known classes included, is then printed as
+//! `seed 0x.. program N: <class> probe <i> <path> in <module>`. The programs
+//! at one seed and number are the same text on both sides, so the sorted
+//! lines can be compared with `diff`; the run of the older tree may fail on
+//! classes that tree does not model, and its output is still complete.
 
 mod support;
 
@@ -57,20 +72,63 @@ use support::program::{CRATE, Probe, Program, Space, random_program};
 use support::random::Draw;
 use support::rustc::{self, Judged, SpaceVerdict, UNDETERMINABLE, Verdict};
 
-/// The seeds of the default run. The programs of a seed are drawn one after
-/// the other from a generator of that seed.
-const SEEDS: [u64; 8] = [
-    0x0a11_ce01,
-    0x0a11_ce02,
-    0x0a11_ce03,
-    0x0a11_ce04,
-    0x0a11_ce05,
-    0x0a11_ce06,
-    0x0a11_ce07,
-    0x0a11_ce08,
-];
+/// The base of the seeds of the first family of the default run; its seeds
+/// are `base + 1` to `base + SEEDS_PER_BASE`. The programs of a seed are
+/// drawn one after the other from a generator of that seed.
+const BASE: u64 = 0x0a11_ce00;
 
-/// The number of programs of the default run.
+/// The base of the second family of the default run.
+const SECOND_BASE: u64 = 0xc0ff_ee00;
+
+/// The number of seeds of a base.
+const SEEDS_PER_BASE: u64 = 8;
+
+/// The environment variable that selects the base of the seeds.
+const SEED_BASE_VARIABLE: &str = "RAF_ORACLE_SEED_BASE";
+
+/// The environment variable that, set to `1`, lists every divergence.
+const LIST_VARIABLE: &str = "RAF_ORACLE_LIST";
+
+/// The seeds of a base.
+fn seeds_of(base: u64) -> Vec<u64> {
+    (1..=SEEDS_PER_BASE).map(|n| base + n).collect()
+}
+
+/// A number written in hexadecimal with a `0x` prefix, or in decimal;
+/// underscores are ignored.
+fn parse_seed_base(text: &str) -> Result<u64, String> {
+    let clean: String = text.trim().chars().filter(|c| *c != '_').collect();
+    let parsed = match clean
+        .strip_prefix("0x")
+        .or_else(|| clean.strip_prefix("0X"))
+    {
+        Some(digits) => u64::from_str_radix(digits, 16),
+        None => clean.parse(),
+    };
+    let base = parsed.map_err(|e| format!("{SEED_BASE_VARIABLE}={text:?} is not a number: {e}"))?;
+    base.checked_add(SEEDS_PER_BASE)
+        .map(|_| base)
+        .ok_or_else(|| format!("{SEED_BASE_VARIABLE}={text:?} leaves no room for the seeds"))
+}
+
+/// The base the environment selects, if it does.
+fn selected_base() -> Option<u64> {
+    std::env::var(SEED_BASE_VARIABLE)
+        .ok()
+        .map(|text| parse_seed_base(&text).unwrap_or_else(|e| panic!("{e}")))
+}
+
+/// The bases of the run and the number of programs drawn from each.
+fn families() -> Vec<(u64, usize)> {
+    let set = std::env::var(PROGRAMS_VARIABLE).is_ok();
+    match (selected_base(), set) {
+        (Some(base), _) => vec![(base, program_count())],
+        (None, true) => vec![(BASE, program_count())],
+        (None, false) => vec![(BASE, DEFAULT_PROGRAMS), (SECOND_BASE, DEFAULT_PROGRAMS)],
+    }
+}
+
+/// The number of programs of the default run from each base.
 const DEFAULT_PROGRAMS: usize = 64;
 
 /// The most programs with an index that varies with the order that are
@@ -906,16 +964,25 @@ fn reduce(program: &Program, probe: usize, shows: &dyn Fn(&Evaluation) -> bool) 
     }
 }
 
-/// The programs of the run: the seeds in turn, each seed's programs drawn
-/// from one generator.
-fn generated(total: usize) -> Vec<(String, Program)> {
-    let mut draws: Vec<Draw> = SEEDS.iter().map(|seed| Draw::seeded(*seed)).collect();
+/// The programs of the run: the seeds of each family in turn, each seed's
+/// programs drawn from one generator.
+fn generated() -> Vec<(String, Program)> {
+    families()
+        .into_iter()
+        .flat_map(|(base, total)| generated_from(base, total))
+        .collect()
+}
+
+/// `total` programs from the seeds of `base`.
+fn generated_from(base: u64, total: usize) -> Vec<(String, Program)> {
+    let seeds = seeds_of(base);
+    let mut draws: Vec<Draw> = seeds.iter().map(|seed| Draw::seeded(*seed)).collect();
     (0..total)
         .map(|n| {
-            let which = n % SEEDS.len();
+            let which = n % seeds.len();
             let program = random_program(&mut draws[which]);
             (
-                format!("seed {:#x} program {}", SEEDS[which], n / SEEDS.len()),
+                format!("seed {:#x} program {}", seeds[which], n / seeds.len()),
                 program,
             )
         })
@@ -1006,19 +1073,30 @@ fn describe(program: &Program, divergence: &Divergence) -> String {
 
 #[test]
 fn the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes() {
-    let total = program_count();
+    let programs = generated();
+    let total = programs.len();
     assert!(total > 0, "{PROGRAMS_VARIABLE} names no programs");
-    let programs = generated(total);
     let results = evaluate_all(&programs);
     let mut by_class: BTreeMap<Class, usize> = BTreeMap::new();
     let (mut valid, mut accepted, mut rejected) = (0, 0, 0);
     let mut failures = String::new();
+    let listing = std::env::var(LIST_VARIABLE).is_ok_and(|value| value == "1");
     for ((label, _), result) in programs.iter().zip(&results) {
         valid += usize::from(result.valid);
         accepted += result.accepted;
         rejected += result.rejected;
         for divergence in &result.divergences {
             *by_class.entry(divergence.class).or_default() += 1;
+            if listing {
+                let probe = &result.program.probes[divergence.probe];
+                println!(
+                    "{label}: {} probe {} {} in {}",
+                    divergence.class.name(),
+                    divergence.probe,
+                    probe.path,
+                    probe.module
+                );
+            }
             if !KNOWN.contains(&divergence.class) {
                 writeln!(
                     failures,
@@ -1030,6 +1108,15 @@ fn the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes() {
         }
         for unstable in &result.unstable {
             *by_class.entry(Class::IndexOrder).or_default() += 1;
+            if listing {
+                match unstable.probe {
+                    Some(at) => println!(
+                        "{label}: index-order probe {at} {} in {}",
+                        result.program.probes[at].path, result.program.probes[at].module
+                    ),
+                    None => println!("{label}: index-order surface"),
+                }
+            }
             // Only the first few are reduced, which costs a compile for each
             // step.
             let reduced = if by_class[&Class::IndexOrder] <= MOST_REDUCED {
@@ -1050,14 +1137,16 @@ fn the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes() {
         }
     }
     println!("rustc: {}", rustc::version());
-    println!(
-        "seeds: {}",
-        SEEDS
-            .iter()
-            .map(|seed| format!("{seed:#x}"))
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
+    for (base, count) in families() {
+        println!(
+            "seeds: {} ({count} programs)",
+            seeds_of(base)
+                .iter()
+                .map(|seed| format!("{seed:#x}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
     println!("programs: {total} ({valid} judged)");
     println!(
         "probes: {} ({accepted} accepted, {rejected} refused)",
@@ -1298,7 +1387,7 @@ fn the_minimiser_drops_what_a_divergence_does_not_need_and_keeps_its_class() {
 #[test]
 #[ignore = "writes the corpus; run by hand"]
 fn write_corpus() {
-    let programs = generated(program_count());
+    let programs = generated_from(BASE, program_count());
     let results = evaluate_all(&programs);
     let first = |wanted: &dyn Fn(&Divergence) -> bool| {
         results.iter().find_map(|result| {
@@ -1393,5 +1482,22 @@ fn a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too() {
     assert!(!varying.divergences.is_empty(), "{name}");
     for divergence in &varying.divergences {
         assert_ne!(divergence.class, Class::Order, "{name}");
+    }
+}
+
+#[test]
+fn the_seed_base_is_read_in_hexadecimal_or_decimal_and_refuses_anything_else() {
+    assert_eq!(parse_seed_base("0xa11ce00"), Ok(0x0a11_ce00));
+    assert_eq!(parse_seed_base(" 0XC0FF_EE00 "), Ok(0xc0ff_ee00));
+    assert_eq!(parse_seed_base("1000"), Ok(1000));
+    assert_eq!(seeds_of(0x0a11_ce00)[0], 0x0a11_ce01);
+    assert_eq!(seeds_of(0x0a11_ce00)[7], 0x0a11_ce08);
+    for bad in ["", "0x", "0xzz", "seed", "-1", "12ab", "0xffffffffffffffff"] {
+        let error = parse_seed_base(bad).expect_err(bad);
+        assert!(
+            error.contains(SEED_BASE_VARIABLE) && error.contains("is not a number")
+                || error.contains("no room"),
+            "{error}"
+        );
     }
 }
