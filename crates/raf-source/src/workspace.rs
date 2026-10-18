@@ -414,7 +414,12 @@ impl Workspace {
     /// of the workspace, and otherwise as [`Workspace::resolve`]: a path
     /// that names nothing the module can access is
     /// [`ResolveError::NotFound`], and one that names several symbols is
-    /// [`ResolveError::Ambiguous`].
+    /// [`ResolveError::Ambiguous`]. So is a `module` that starts with a
+    /// crate path that targets of several packages share (two libraries with
+    /// one crate name), as for [`Workspace::resolve`]: the answer lists the
+    /// crate roots of those packages, and a module of any other crate reads
+    /// as before. Nothing names the package here, so such a module cannot be
+    /// read from.
     ///
     /// # Examples
     ///

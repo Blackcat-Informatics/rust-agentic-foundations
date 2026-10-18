@@ -755,6 +755,7 @@ pub(crate) fn random_program(draw: &mut Draw) -> Program {
         items.insert(module.clone(), made);
     }
     let mut body: BTreeMap<ModulePath, Vec<String>> = BTreeMap::new();
+    let mut globs: Vec<(ModulePath, ModulePath)> = Vec::new();
     for module in &modules {
         let mut lines: Vec<String> = Vec::new();
         let mut taken: BTreeSet<String> = BTreeSet::new();
@@ -777,6 +778,7 @@ pub(crate) fn random_program(draw: &mut Draw) -> Program {
             if draw.below(100) < 50 {
                 let vis = draw_vis(draw, 4, 4);
                 lines.push(format!("{}use {how}::*;", vis.written()));
+                globs.push((module.clone(), target));
                 continue;
             }
             let here: Vec<&String> = items[&target].iter().map(|item| &item.0).collect();
@@ -807,19 +809,86 @@ pub(crate) fn random_program(draw: &mut Draw) -> Program {
     let mut lines = Vec::new();
     let top = nest(draw, &Vec::new(), &modules, &mut body);
     lines.extend(top);
-    let probes = (0..3 + draw.below(4))
-        .map(|_| random_probe(draw, &modules, &items))
-        .fold(Vec::<Probe>::new(), |mut all, probe| {
-            if !all.contains(&probe) {
-                all.push(probe);
-            }
-            all
-        });
+    let mut probes: Vec<Probe> = Vec::new();
+    let drawn = (0..3 + draw.below(4)).map(|_| random_probe(draw, &modules, &items));
+    let bare = bare_probes(&lines, &modules, &items, &globs);
+    for probe in drawn.chain(bare) {
+        if !probes.contains(&probe) {
+            probes.push(probe);
+        }
+    }
     Program {
         lines,
         probes,
         expect: None,
     }
+}
+
+/// Probes whose path starts with a bare name, as code and `use` paths of the
+/// 2018 edition and later do: the name of a module the reading module holds
+/// or that the globs of the reading module bring in, through the globs the
+/// program writes and the globs of the modules they reach. They are drawn
+/// from a generator seeded by the text of the program, so that the draws
+/// that make the program itself are the same with and without them.
+fn bare_probes(
+    lines: &[String],
+    modules: &[ModulePath],
+    items: &BTreeMap<ModulePath, Items>,
+    globs: &[(ModulePath, ModulePath)],
+) -> Vec<Probe> {
+    // FNV-1a over the lines.
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in lines.iter().flat_map(|line| line.bytes().chain(*b"\n")) {
+        hash = (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    let mut draw = Draw::seeded(hash);
+    let children = |module: &ModulePath| -> Vec<ModulePath> {
+        modules
+            .iter()
+            .filter(|child| child.len() == module.len() + 1 && child.starts_with(module))
+            .cloned()
+            .collect()
+    };
+    let mut candidates: Vec<(ModulePath, ModulePath)> = Vec::new();
+    for reader in modules {
+        // The modules whose globs the reader reaches, itself first.
+        let mut reached = vec![reader.clone()];
+        let mut at = 0;
+        while at < reached.len() {
+            for (from, to) in globs {
+                if from == &reached[at] && !reached.contains(to) {
+                    reached.push(to.clone());
+                }
+            }
+            at += 1;
+        }
+        for module in &reached {
+            for child in children(module) {
+                candidates.push((reader.clone(), child));
+            }
+        }
+    }
+    let mut found = Vec::new();
+    if candidates.is_empty() {
+        return found;
+    }
+    for _ in 0..=draw.below(2) {
+        let (reader, target) = draw.pick(&candidates).clone();
+        let here: Vec<&String> = items[&target].iter().map(|item| &item.0).collect();
+        let name = if here.is_empty() || draw.one_in(4) {
+            (*draw.pick(&NAMES)).to_owned()
+        } else {
+            (*draw.pick(&here)).clone()
+        };
+        let probe = Probe {
+            module: canonical(&reader),
+            path: format!("{}::{name}", target[target.len() - 1]),
+        };
+        if !found.contains(&probe) {
+            found.push(probe);
+        }
+    }
+    found
 }
 
 /// The lines of the module at `path` with its children nested, in an order

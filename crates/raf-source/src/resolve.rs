@@ -632,6 +632,15 @@ impl Index {
                         {
                             return Err(Fail::Ambiguous(ids));
                         }
+                        // As in the segment loop: a name two globs bring in
+                        // as different items is ambiguous in the module, and
+                        // a path cannot start with it, also where only one
+                        // of the items has what the path goes on to name.
+                        // Definitions and imports of one name are
+                        // alternatives under `cfg`, and all of them count.
+                        if from_glob && segs.len() > 1 && bound.len() > 1 {
+                            return Err(Fail::Ambiguous(self.sorted(bound.keys().copied())));
+                        }
                         for (id, origin) in bound.iter() {
                             merge(
                                 &mut state.items,
@@ -717,8 +726,10 @@ impl Index {
                         // A name two globs bring in as different items is
                         // ambiguous in the module, and a path cannot go
                         // through it, as in rustc: also where only one of the
-                        // items has what the path goes on to name.
-                        if !last && bound.len() > 1 {
+                        // items has what the path goes on to name. The
+                        // definitions and imports of a name, which are
+                        // alternatives under `cfg`, all count instead.
+                        if from_glob && !last && bound.len() > 1 {
                             return Err(Fail::Ambiguous(self.sorted(bound.keys().copied())));
                         }
                         for (id, origin) in bound.iter() {
@@ -1322,13 +1333,32 @@ impl Index {
     }
 
     /// The module whose canonical path is `path`, such as `demo::inner`.
-    fn module_named(&self, path: &str) -> Option<usize> {
-        let first = path.split("::").next()?;
+    ///
+    /// A crate path that targets of several packages share (two libraries
+    /// with one crate name) names the crates of all of them, and the module is
+    /// not told apart without its package: it is
+    /// [`ResolveError::Ambiguous`] between their crate roots, as
+    /// [`Index::resolve`] answers for a path that starts with that crate path.
+    fn module_named(&self, path: &str) -> Result<Option<usize>, ResolveError> {
+        let Some(first) = path.split("::").next() else {
+            return Ok(None);
+        };
         let key = SharedStr::from(path);
-        self.crate_roots
-            .get(first)?
+        let Some(roots) = self.crate_roots.get(first) else {
+            return Ok(None);
+        };
+        if roots.len() > 1 {
+            return Err(ResolveError::Ambiguous(
+                self.sorted(
+                    roots
+                        .iter()
+                        .filter_map(|root| self.root_items.get(root).copied()),
+                ),
+            ));
+        }
+        Ok(roots
             .iter()
-            .find_map(|root| self.module_by_path.get(&(*root, key.clone())).copied())
+            .find_map(|root| self.module_by_path.get(&(*root, key.clone())).copied()))
     }
 
     /// Resolve the path of a `use` declaration written in the module
@@ -1340,7 +1370,7 @@ impl Index {
         ns: Option<Namespace>,
     ) -> Result<Resolution, ResolveError> {
         let from = self
-            .module_named(module)
+            .module_named(module)?
             .ok_or_else(|| ResolveError::UnknownModule(module.to_owned()))?;
         let (leading_colon, written) = path.strip_prefix("::").map_or((false, path), |p| (true, p));
         let segs: Vec<String> = written

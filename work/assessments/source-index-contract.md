@@ -67,7 +67,7 @@ inputs:
     digest: 8778674c764a024836be800d352cf3a22d9b6d8dfe07627fe76e707e1f617e38
   - kind: symbol
     name: raf_source::Workspace::resolve_from
-    digest: 90b94d5e3701ce3da98fbeec3840b38015290f561ae65f9bbe71a46c98801f64
+    digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94
   - kind: symbol
     name: raf_source::Workspace::resolve_from_in
     digest: 43567aac51c99a30ce8e50e10eba1f27b9b24353a5f1322f7816b0c88e4015d8

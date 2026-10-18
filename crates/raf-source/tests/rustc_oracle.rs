@@ -5,7 +5,8 @@
 //! with private, `pub` and `pub(crate)` globs, named and glob re-exports,
 //! shadowing and a struct and a function of one name, are asked the same
 //! question by both. A question, a probe, is a `use` of a path as seen from a
-//! chosen module. `rustc` accepts or refuses it, and when it accepts, a second
+//! chosen module; a path starts with `crate`, `self`, `super`, or a bare name,
+//! the name of a module the reading module holds or its globs bring in. `rustc` accepts or refuses it, and when it accepts, a second
 //! compile tells which item it names; the index answers through
 //! `Workspace::resolve_from_in`. Every disagreement is classified, and one
 //! that matches no known class fails the test.
