@@ -1097,6 +1097,13 @@ impl Index {
             }
         }
         let holding = &supply.holdings[&key];
+        // Decisive, not defensive: a holder that the item reaches only
+        // through the reading module can still deliver it without the
+        // reading module's companions, when a support that only importers
+        // inside the reading module can see drops them from the view such a
+        // holder reads. Its delivery would then widen the drop to every
+        // importer; this check keeps it to the support's own level
+        // (`a_drop_justified_by_a_holder_that_reads_the_item_back_from_the_reader_stays_within_the_reader_in_every_order`).
         holding.holds(from) && !holding.dominates(reader, from)
     }
 
@@ -2217,5 +2224,103 @@ mod tests {
         let (count, found) = counted(&lib);
         assert_eq!(count, 0);
         assert!(found.starts_with("Ambiguous"), "{found}");
+    }
+
+    /// Whether `ruler` dominates `node` by the immediate dominators
+    /// `dominator`: it is `node` or one of the dominators above it.
+    fn dominates_by(dominator: &[usize], ruler: usize, node: usize) -> bool {
+        let mut at = node;
+        loop {
+            if at == ruler {
+                return true;
+            }
+            if at == 0 || dominator[at] == super::NONE {
+                return false;
+            }
+            at = dominator[at];
+        }
+    }
+
+    /// Whether the root reaches `node` in `successors` with `left_out` left
+    /// out, by a plain search.
+    fn reached_without(successors: &[Vec<usize>], left_out: Option<usize>, node: usize) -> bool {
+        let mut seen = vec![false; successors.len()];
+        let mut work = vec![0];
+        while let Some(at) = work.pop() {
+            if Some(at) == left_out || seen[at] {
+                continue;
+            }
+            seen[at] = true;
+            work.extend(successors[at].iter().copied());
+        }
+        seen[node]
+    }
+
+    /// Check the dominators of `successors` against their definition: a
+    /// node the root reaches is dominated by another exactly when leaving
+    /// that one out leaves it unreached, and by itself and the root.
+    fn check_dominators(successors: &[Vec<usize>]) -> Vec<usize> {
+        let dominator =
+            super::dominators(successors, &mut |_| Ok(())).unwrap_or_else(|e| panic!("{e}"));
+        for node in 0..successors.len() {
+            if !reached_without(successors, None, node) {
+                assert_eq!(dominator[node], super::NONE, "{successors:?}: {node}");
+                continue;
+            }
+            for ruler in 0..successors.len() {
+                let expected = ruler == node || !reached_without(successors, Some(ruler), node);
+                assert_eq!(
+                    dominates_by(&dominator, ruler, node),
+                    expected,
+                    "{successors:?}: does {ruler} dominate {node}"
+                );
+            }
+        }
+        dominator
+    }
+
+    #[test]
+    fn the_dominators_of_small_holder_graphs_follow_their_definition() {
+        // A diamond: neither side dominates the join.
+        let dominator = check_dominators(&[vec![1, 2], vec![3], vec![3], vec![]]);
+        assert_eq!(dominator[3], 0);
+        // A cycle entered once: its entry dominates the rest of it.
+        let dominator = check_dominators(&[vec![1], vec![2], vec![1, 3], vec![]]);
+        assert_eq!((dominator[2], dominator[3]), (1, 2));
+        // A node that leads to itself.
+        let dominator = check_dominators(&[vec![1], vec![1, 2], vec![]]);
+        assert_eq!(dominator[2], 1);
+        // A node the root does not reach.
+        let dominator = check_dominators(&[vec![1], vec![], vec![1]]);
+        assert_eq!(dominator[2], super::NONE);
+        // Repeated edges.
+        let dominator = check_dominators(&[vec![1, 1], vec![2, 2], vec![]]);
+        assert_eq!(dominator[2], 1);
+        // Nodes reached only through one node, beside one reached apart.
+        let dominator = check_dominators(&[vec![1, 4], vec![2], vec![3], vec![1], vec![3]]);
+        assert_eq!((dominator[2], dominator[3]), (1, 0));
+    }
+
+    #[test]
+    fn the_dominators_of_seeded_random_graphs_follow_their_definition() {
+        // A fixed generator, so every run checks the same graphs.
+        let mut state: u64 = 0x5eed_0f00_d000_0014;
+        let mut next = move |bound: usize| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            usize::try_from(state % u64::try_from(bound).expect("small")).expect("small")
+        };
+        for _ in 0..400 {
+            let count = 2 + next(8);
+            let edges = next(3 * count);
+            let mut successors: Vec<Vec<usize>> = vec![Vec::new(); count];
+            for _ in 0..edges {
+                let from = next(count);
+                let to = 1 + next(count - 1);
+                successors[from].push(to);
+            }
+            check_dominators(&successors);
+        }
     }
 }

@@ -4690,3 +4690,64 @@ fn an_item_a_glob_brings_in_from_its_definition_apart_from_a_cycle_drops_the_com
     assert_eq!(found, ["demo::m1::B"]);
     assert_eq!(loads, 48);
 }
+
+#[test]
+fn a_drop_justified_by_a_holder_that_reads_the_item_back_from_the_reader_stays_within_the_reader_in_every_order()
+ {
+    // `r` globs `a` publicly, which brings in `d::X` with `p::X` riding along
+    // as a companion, and `d` privately, which defines `X`: inside `r`, `d`
+    // supports dropping the companion, at the level of that private glob
+    // only. `r::t` globs `r` back and lies inside `r`, so the view it reads
+    // has dropped the companion, and `r` globs `r::t` publicly: what `r::t`
+    // delivers reaches it only through `r` itself, so it supports no drop,
+    // and the drop stays within `r`. `o`, outside `r`, reads `X` as the
+    // ambiguity; `r` and `r::t` read `d::X`. The index answers so in every
+    // order. rustc's own answer depends on the order: it accepts `d::X` in
+    // some orders and refuses `X` as ambiguous (E0659) in others.
+    let reads: &[Read] = &[
+        ("demo::o", "self::X", TYPE),
+        ("demo::r", "self::X", TYPE),
+        ("demo::r::t", "self::X", TYPE),
+    ];
+    let expected = vec![
+        ambiguous_between("demo::d::X", "demo::p::X"),
+        "demo::d::X".to_owned(),
+        "demo::d::X".to_owned(),
+    ];
+    let r = "pub mod r { pub use crate::a::*; use crate::d::*; pub use self::t::*; \
+             pub mod t { pub use super::*; } }";
+    let (found, loads) = reads_in_every_order_in(
+        "2024",
+        &[
+            "pub mod d { pub struct X {} }",
+            "pub mod p { pub struct X {} }",
+            "pub mod a { pub use crate::d::*; use crate::p::*; }",
+            "pub mod o { pub use crate::r::*; }",
+            r,
+        ],
+        &[],
+        reads,
+    );
+    assert_eq!(found, expected);
+    assert_eq!(loads, 120);
+    let (found, loads) = reads_in_every_order_in(
+        "2024",
+        &[
+            "pub mod d { pub struct X {} } pub mod p { pub struct X {} } \
+             pub mod a { pub use crate::d::*; use crate::p::*; }",
+            "pub mod o { pub use crate::r::*; }",
+        ],
+        &[(
+            "pub mod r",
+            &[
+                "pub use crate::a::*;",
+                "use crate::d::*;",
+                "pub use self::t::*;",
+                "pub mod t { pub use super::*; }",
+            ],
+        )],
+        reads,
+    );
+    assert_eq!(found, expected);
+    assert_eq!(loads, 144);
+}
