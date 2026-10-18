@@ -144,7 +144,7 @@ bindings:
     - raf_source::test_crate::prescan_budgets::a_construct_that_continues_past_a_comma_or_a_closing_brace_keeps_its_count
     - raf_source::test_crate::prescan_budgets::a_macro_call_counts_only_its_groups_and_a_match_pattern_only_its_alternatives
     - raf_source::test_crate::prescan_budgets::chains_that_overflowed_the_parse_stack_are_refused_by_the_recursion_budget
-    - raf_source::test_crate::prescan_budgets::the_eighty_kilobyte_box_pattern_is_refused_in_under_a_second
+    - raf_source::test_crate::prescan_budgets::the_eighty_kilobyte_box_pattern_is_refused_by_the_pre_scan_before_the_parser_runs
     - raf_source::test_crate::prescan_budgets::the_recursion_refusal_names_the_line_where_the_count_went_over
     - raf_source::test_crate::walk_stack::a_use_tree_at_the_recursion_limit_loads_resolves_and_drops_on_a_five_hundred_twelve_kib_thread
     - raf_source::test_crate::workspace_seeds::every_load_workspace_seed_loads_with_items_through_the_fuzz_input_code
@@ -1936,7 +1936,9 @@ duplicates.
   before generic arguments with commas, and of `a < return x > b &&` are refused, beside
   short ones that parse. Five thousand statements, elements, arms, blocks and items in
   one level parse. The refusal names the line where the count went over. An 80 KB
-  `let box box ... x` is refused in under a second. A `use` path and a `use` tree of
+  `let box box ... x` is refused by the recursion budget before the parser runs, which a
+  flag set by the visit closure shows, beside the same pattern at depth 100 that parses
+  and sets it. A `use` path and a `use` tree of
   nested groups at the limit load, resolve and drop on a thread of 512 KiB in a debug
   build, and one separator more is refused.
 - Evasion fixtures: an `if` followed by 20000 `else if {true} {}` links, and
@@ -2614,7 +2616,7 @@ duplicates.
 | `raf_source::test_crate::prescan_budgets::every_counted_keyword_counts_one_at_the_limit_and_one_over` | test | [Verification](#verification) |
 | `raf_source::test_crate::prescan_budgets::every_operator_counts_one_for_each_of_its_characters_at_the_limit_and_one_over` | test | [Verification](#verification) |
 | `raf_source::test_crate::prescan_budgets::five_hundred_nested_generics_are_refused_beside_sixty_four` | test | [Verification](#verification) |
-| `raf_source::test_crate::prescan_budgets::the_eighty_kilobyte_box_pattern_is_refused_in_under_a_second` | test | [Verification](#verification) |
+| `raf_source::test_crate::prescan_budgets::the_eighty_kilobyte_box_pattern_is_refused_by_the_pre_scan_before_the_parser_runs` | test | [Verification](#verification) |
 | `raf_source::test_crate::prescan_budgets::the_recursion_limit_is_half_the_parse_stack_over_the_measured_cost_of_one_unit` | test | [Verification](#verification) |
 | `raf_source::test_crate::prescan_budgets::the_recursion_refusal_names_the_line_where_the_count_went_over` | test | [Verification](#verification) |
 | `raf_source::test_crate::prescan_budgets::twenty_thousand_else_if_links_are_refused_beside_two_hundred_fifty_six` | test | [Verification](#verification) |

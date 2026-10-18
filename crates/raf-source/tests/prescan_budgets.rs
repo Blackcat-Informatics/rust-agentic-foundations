@@ -6,6 +6,8 @@
 
 mod support;
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use raf_source::{Budget, LoadErrorKind, RelPath, parse_source};
 use support::shapes::{
     bangs, bars, block_condition_else_ifs, else_ifs, generics, lifetime_refs, parens, refs,
@@ -574,14 +576,34 @@ fn chains_that_overflowed_the_parse_stack_are_refused_by_the_recursion_budget() 
 }
 
 #[test]
-fn the_eighty_kilobyte_box_pattern_is_refused_in_under_a_second() {
+fn the_eighty_kilobyte_box_pattern_is_refused_by_the_pre_scan_before_the_parser_runs() {
+    // The visit runs only on a tree the parser built, so a flag it sets shows
+    // whether the parser ran.
+    let visited = |text: &str| {
+        let ran = AtomicBool::new(false);
+        let result = parse_source(&file(), text, |_| ran.store(true, Ordering::SeqCst));
+        (result, ran.load(Ordering::SeqCst))
+    };
     let text = support::shapes::box_patterns(20000);
     assert!(text.len() >= 80_000);
-    let started = std::time::Instant::now();
-    assert_eq!(refusal(&text), Some(Budget::Recursion));
-    assert!(started.elapsed() < std::time::Duration::from_secs(1));
-    // The same pattern at a depth the budget admits parses.
-    parses(&support::shapes::box_patterns(100));
+    let (result, ran) = visited(&text);
+    let error = result.expect_err("refused");
+    assert!(
+        matches!(
+            error.kind,
+            LoadErrorKind::Budget {
+                budget: Budget::Recursion,
+                ..
+            }
+        ),
+        "{error}"
+    );
+    assert!(!ran, "the parser ran on a refused input");
+    // The same pattern at a depth the budget admits parses, and the flag is
+    // set, so the probe is live.
+    let (result, ran) = visited(&support::shapes::box_patterns(100));
+    result.expect("parses");
+    assert!(ran);
 }
 
 #[test]
