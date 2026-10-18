@@ -46,12 +46,13 @@ mod support;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::fs;
+use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 
-use raf_source::{MemoryTree, Namespace, ResolveError, Workspace};
+use raf_source::{MemoryTree, Namespace, ResolveError, TargetKind, Workspace};
 use support::program::{CRATE, Probe, Program, Space, random_program};
 use support::random::Draw;
 use support::rustc::{self, Judged, SpaceVerdict, UNDETERMINABLE, Verdict};
@@ -71,6 +72,10 @@ const SEEDS: [u64; 8] = [
 
 /// The number of programs of the default run.
 const DEFAULT_PROGRAMS: usize = 64;
+
+/// The most programs with an index that varies with the order that are
+/// reduced for the failure message.
+const MOST_REDUCED: usize = 3;
 
 /// The environment variable that sets the number of programs.
 const PROGRAMS_VARIABLE: &str = "RAF_ORACLE_PROGRAMS";
@@ -123,6 +128,11 @@ enum Class {
     /// and imports that bind the name, which the index does not settle as
     /// `rustc` does.
     Cycle,
+    /// The index's own answer, to a probe or for the exported surface,
+    /// changes when the declarations of the program come in another order.
+    /// It is not about a disagreement with `rustc`, and no known class: it
+    /// is never counted as `order`, which needs the index to be stable.
+    IndexOrder,
     /// None of the above.
     Unclassified,
 }
@@ -135,6 +145,7 @@ impl Class {
             Self::Documented => "documented",
             Self::Order => "order",
             Self::Cycle => "cycle",
+            Self::IndexOrder => "index-order",
             Self::Unclassified => "unclassified",
         }
     }
@@ -168,6 +179,18 @@ enum Answer {
 }
 
 impl Answer {
+    /// The answer without the route it took, which is not what the index
+    /// says about the name.
+    fn without_chain(&self) -> Self {
+        match self {
+            Self::Item { tag, .. } => Self::Item {
+                tag: *tag,
+                chain: Vec::new(),
+            },
+            other => other.clone(),
+        }
+    }
+
     fn tag(&self) -> Option<u32> {
         match self {
             Self::Item { tag, .. } => Some(*tag),
@@ -327,6 +350,11 @@ struct Facts<'a> {
     /// Whether the imports of the program form a cycle among the modules the
     /// probe's module reaches.
     cycle_reaches_probe: &'a dyn Fn() -> bool,
+    /// Whether the index answers the probe the same in every order of the
+    /// declarations tried. `rustc` answering it differently is `order` only
+    /// then: an index that varies has a fault of its own, whatever `rustc`
+    /// does.
+    index_stable: bool,
 }
 
 /// Which class a disagreement is.
@@ -352,7 +380,7 @@ fn classify(kind: Kind, rustc: &Verdict, index: &IndexVerdict, facts: &Facts<'_>
         // the declarations, no answer that does not depend on the order is
         // its answer. Anything else it accepts and the index refuses is a
         // disagreement to fix or to report.
-        if (facts.order_dependent)(&spaces) {
+        if facts.index_stable && (facts.order_dependent)(&spaces) {
             return Class::Order;
         }
         return Class::Unclassified;
@@ -364,7 +392,7 @@ fn classify(kind: Kind, rustc: &Verdict, index: &IndexVerdict, facts: &Facts<'_>
     // disagreement that does not is `rustc` answering by the order of the
     // declarations, or one to fix or to report.
     let visible = when_visible();
-    if (facts.order_dependent)(&spaces) {
+    if facts.index_stable && (facts.order_dependent)(&spaces) {
         return Class::Order;
     }
     // The other direction of the cycle gap: rustc cannot settle an import
@@ -408,6 +436,9 @@ fn warns_of_ambiguous_re_export(exported: &Program) -> bool {
 /// The number of other orders of the declarations tried for a program.
 const ORDERS_TRIED: usize = 12;
 
+/// The seed of the orders tried, for `rustc` and for the index alike.
+const ORDER_SEED: u64 = 0x0de2_0001;
+
 /// Whether `rustc` answers the probe differently in some of `spaces` when
 /// the declarations of the program come in another order, among the order as
 /// written and [`ORDERS_TRIED`] orders drawn from a fixed seed (see
@@ -415,7 +446,7 @@ const ORDERS_TRIED: usize = 12;
 /// another, or refused in a third. Only the probe's own errors count.
 fn rustc_depends_on_order(program: &Program, probe: usize, spaces: &[Space]) -> bool {
     let alone = program.only_probe(probe);
-    let mut draw = Draw::seeded(0x0de2_0001);
+    let mut draw = Draw::seeded(ORDER_SEED);
     let mut answers: Vec<Vec<SpaceVerdict>> = Vec::new();
     let mut note = |program: &Program| {
         let verdicts = rustc::space_verdicts(program);
@@ -485,6 +516,230 @@ fn agree_when_visible(
     agree_on_the_only_probe(&program.all_public(probe), tamper)
 }
 
+/// What the index says about a whole program: its answer to each probe in
+/// both name spaces, without the route taken, with the candidates of an
+/// ambiguous answer, and its exported surface.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct View {
+    probes: Vec<(IndexVerdict, String)>,
+    surface: String,
+}
+
+/// The paths of the candidates of an ambiguous answer of the index to
+/// `probe` in `space`, sorted, or nothing.
+fn candidates(ws: &Workspace, probe: &Probe, space: Space) -> String {
+    let namespace = match space {
+        Space::Type => Namespace::Type,
+        Space::Value => Namespace::Value,
+    };
+    match ws.resolve_from_in(&probe.module, &probe.path, namespace) {
+        Err(ResolveError::Ambiguous(ids)) => {
+            let mut paths: Vec<String> = ids
+                .iter()
+                .map(|id| {
+                    ws.item(*id)
+                        .map_or_else(String::new, |i| i.path.to_string())
+                })
+                .collect();
+            paths.sort();
+            format!("{paths:?}")
+        }
+        _ => String::new(),
+    }
+}
+
+/// The public surface of the library of `ws`, as one comparable text: each
+/// exported path with the item it names and its kind, and each re-export,
+/// or the error that refuses the listing.
+fn surface(ws: &Workspace) -> String {
+    let id = ws
+        .target_ids()
+        .find(|id| ws.target(*id).is_some_and(|t| t.kind == TargetKind::Lib))
+        .expect("the program is a library");
+    match ws.exported_items(id) {
+        Ok(exports) => {
+            let mut items: Vec<String> = exports
+                .items
+                .iter()
+                .map(|export| {
+                    let defined = ws
+                        .item(export.item)
+                        .map_or_else(String::new, |item| item.path.to_string());
+                    format!("{} = {defined} ({:?})", export.path, export.kind)
+                })
+                .collect();
+            items.sort();
+            let mut reexports: Vec<String> = exports
+                .reexports
+                .iter()
+                .map(|reexport| format!("{} = {}", reexport.path, reexport.written))
+                .collect();
+            reexports.sort();
+            format!("items {items:?}, re-exports {reexports:?}")
+        }
+        Err(error) => format!("refused: {error}"),
+    }
+}
+
+/// The text of a panic payload.
+fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
+    payload
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| payload.downcast_ref::<&str>().copied())
+        .unwrap_or("a panic")
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .to_owned()
+}
+
+/// The start of the answer of a load that panicked.
+const PANICKED: &str = "the load panicked";
+
+/// What the index says about `program` written in this order: a load that
+/// panics, as the check of the settled tables does in a debug build, is its
+/// own answer for every probe and for the surface.
+fn view_of(program: &Program, tags: &BTreeMap<(String, Space), u32>) -> View {
+    let all: Vec<usize> = (0..program.probes.len()).collect();
+    let source = program.render(&all, &BTreeMap::new()).source;
+    let asked = panic::catch_unwind(AssertUnwindSafe(|| {
+        let ws = load(&source);
+        let probes = program
+            .probes
+            .iter()
+            .map(|probe| {
+                (
+                    IndexVerdict {
+                        ty: ask(&ws, tags, probe, Space::Type).without_chain(),
+                        value: ask(&ws, tags, probe, Space::Value).without_chain(),
+                    },
+                    format!(
+                        "{}/{}",
+                        candidates(&ws, probe, Space::Type),
+                        candidates(&ws, probe, Space::Value)
+                    ),
+                )
+            })
+            .collect();
+        View {
+            probes,
+            surface: surface(&ws),
+        }
+    }));
+    asked.unwrap_or_else(|payload| {
+        let failed = Answer::Failed(format!("{PANICKED}: {}", panic_text(&*payload)));
+        View {
+            probes: program
+                .probes
+                .iter()
+                .map(|_| {
+                    (
+                        IndexVerdict {
+                            ty: failed.clone(),
+                            value: failed.clone(),
+                        },
+                        String::new(),
+                    )
+                })
+                .collect(),
+            surface: format!("{PANICKED}: {}", panic_text(&*payload)),
+        }
+    })
+}
+
+/// A probe, or the exported surface, that the index answers differently in
+/// different orders of the declarations.
+#[derive(Debug, Clone)]
+struct Unstable {
+    /// The probe, or `None` for the exported surface.
+    probe: Option<usize>,
+    /// Each distinct answer with the first order that gave it, 0 being the
+    /// order as written and the others the shuffles, in the order tried.
+    answers: Vec<(usize, String)>,
+}
+
+/// Ask the index about `program` as written and in [`ORDERS_TRIED`] orders
+/// drawn from a fixed seed (the orders [`rustc_depends_on_order`] tries), and
+/// list each probe and the surface it answers differently in some of them.
+/// `tamper` changes the answer to a probe in the order given.
+fn index_instability(
+    program: &Program,
+    tags: &BTreeMap<(String, Space), u32>,
+    tamper: &dyn Fn(usize, IndexVerdict) -> IndexVerdict,
+) -> Vec<Unstable> {
+    let mut draw = Draw::seeded(ORDER_SEED);
+    let mut views = vec![view_of(program, tags)];
+    for _ in 0..ORDERS_TRIED {
+        views.push(view_of(&program.shuffled(&mut draw), tags));
+    }
+    let mut found = Vec::new();
+    let distinct = |texts: Vec<String>| -> Vec<(usize, String)> {
+        let mut seen: Vec<(usize, String)> = Vec::new();
+        for (order, text) in texts.into_iter().enumerate() {
+            if !seen.iter().any(|(_, known)| *known == text) {
+                seen.push((order, text));
+            }
+        }
+        seen
+    };
+    for probe in 0..program.probes.len() {
+        let answers = distinct(
+            views
+                .iter()
+                .enumerate()
+                .map(|(order, view)| {
+                    let (verdict, listed) = view.probes[probe].clone();
+                    let told = tamper(order, verdict);
+                    format!(
+                        "type {:?}, value {:?}, candidates {listed}",
+                        told.ty, told.value
+                    )
+                })
+                .collect(),
+        );
+        if answers.len() > 1 {
+            found.push(Unstable {
+                probe: Some(probe),
+                answers,
+            });
+        }
+    }
+    let answers = distinct(views.iter().map(|view| view.surface.clone()).collect());
+    // A load that panics in every order is no stable answer.
+    if answers.len() > 1 || answers[0].1.starts_with(PANICKED) {
+        found.push(Unstable {
+            probe: None,
+            answers,
+        });
+    }
+    found
+}
+
+/// The answers of the index that differ across the orders, for a failure
+/// message.
+fn describe_unstable(program: &Program, unstable: &Unstable) -> String {
+    let what = unstable.probe.map_or_else(
+        || "the exported surface".to_owned(),
+        |at| {
+            format!(
+                "probe {at} `{}` in {}",
+                program.probes[at].path, program.probes[at].module
+            )
+        },
+    );
+    let mut text = format!("{}: {what}\n", Class::IndexOrder.name());
+    for (order, answer) in &unstable.answers {
+        let which = if *order == 0 {
+            "as written".to_owned()
+        } else {
+            format!("shuffle {order}")
+        };
+        writeln!(text, "  {which}: {answer}").expect("write");
+    }
+    text
+}
+
 /// One disagreement.
 #[derive(Debug, Clone)]
 struct Divergence {
@@ -505,11 +760,25 @@ struct Evaluation {
     accepted: usize,
     rejected: usize,
     divergences: Vec<Divergence>,
+    /// What the index answers differently across the orders of the
+    /// declarations, whatever `rustc` says.
+    unstable: Vec<Unstable>,
 }
 
 /// Judge `program` with both sides, the index answers passed through
 /// `tamper`.
 fn evaluate_with(program: &Program, tamper: &dyn Fn(IndexVerdict) -> IndexVerdict) -> Evaluation {
+    evaluate_in(program, tamper, &|_, answer| answer)
+}
+
+/// [`evaluate_with`], the answers of the index in the orders of the
+/// declarations other than the one written also passed through `by_order`,
+/// given the order (0 is the order as written).
+fn evaluate_in(
+    program: &Program,
+    tamper: &dyn Fn(IndexVerdict) -> IndexVerdict,
+    by_order: &dyn Fn(usize, IndexVerdict) -> IndexVerdict,
+) -> Evaluation {
     let Some(Judged {
         program, verdicts, ..
     }) = rustc::judge(program)
@@ -520,17 +789,32 @@ fn evaluate_with(program: &Program, tamper: &dyn Fn(IndexVerdict) -> IndexVerdic
             accepted: 0,
             rejected: 0,
             divergences: Vec::new(),
+            unstable: Vec::new(),
         };
     };
     let all: Vec<usize> = (0..program.probes.len()).collect();
-    let ws = load(&program.render(&all, &BTreeMap::new()).source);
     let tags = tags(&program);
+    let unstable = index_instability(&program, &tags, by_order);
+    // A load that panics, as the check of the settled tables makes it in a
+    // debug build, is reported with the orders and has no answer to compare.
+    let source = program.render(&all, &BTreeMap::new()).source;
+    let Ok(ws) = panic::catch_unwind(AssertUnwindSafe(|| load(&source))) else {
+        return Evaluation {
+            program: program.clone(),
+            valid: true,
+            accepted: 0,
+            rejected: 0,
+            divergences: Vec::new(),
+            unstable,
+        };
+    };
     let mut evaluation = Evaluation {
         program: program.clone(),
         valid: true,
         accepted: 0,
         rejected: 0,
         divergences: Vec::new(),
+        unstable,
     };
     for (at, verdict) in verdicts.iter().enumerate() {
         let probe = &program.probes[at];
@@ -559,6 +843,10 @@ fn evaluate_with(program: &Program, tamper: &dyn Fn(IndexVerdict) -> IndexVerdic
                         ambiguous_in_a_module: &|| ambiguous_in_a_module(&ws, &program, at),
                         order_dependent: &|spaces| rustc_depends_on_order(&program, at, spaces),
                         cycle_reaches_probe: &|| program.import_cycle_reaches(at),
+                        index_stable: !evaluation
+                            .unstable
+                            .iter()
+                            .any(|unstable| unstable.probe == Some(at)),
                     },
                 ),
                 rustc: verdict.clone(),
@@ -577,16 +865,33 @@ fn evaluate(program: &Program) -> Evaluation {
 /// that `wanted` accepts on it: lines and modules are removed greedily, each removal
 /// kept when the reduced program still shows the class.
 fn minimise(program: &Program, probe: usize, wanted: &dyn Fn(&Divergence) -> bool) -> Program {
+    reduce(program, probe, &|evaluation| {
+        evaluation.divergences.iter().any(wanted)
+    })
+}
+
+/// [`minimise`] for an index that answers the probe `probe` differently in
+/// some order of the declarations.
+fn minimise_unstable(program: &Program, probe: Option<usize>) -> Program {
+    // The reduced program holds the one probe, at 0.
+    let kept = probe.map(|_| 0);
+    reduce(program, probe.unwrap_or(0), &|evaluation| {
+        evaluation
+            .unstable
+            .iter()
+            .any(|unstable| unstable.probe == kept)
+    })
+}
+
+/// The program reduced to the probe `probe` and as few lines as keep what
+/// `shows` finds in an evaluation of it.
+fn reduce(program: &Program, probe: usize, shows: &dyn Fn(&Evaluation) -> bool) -> Program {
     let mut current = program.clone();
     current.probes = vec![program.probes[probe].clone()];
     current.expect = None;
     let shows = |candidate: &Program| {
         let evaluation = evaluate(candidate);
-        evaluation
-            .divergences
-            .iter()
-            .any(wanted)
-            .then_some(evaluation.program)
+        shows(&evaluation).then_some(evaluation.program)
     };
     loop {
         let reduced = current
@@ -723,6 +1028,26 @@ fn the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes() {
                 .expect("write");
             }
         }
+        for unstable in &result.unstable {
+            *by_class.entry(Class::IndexOrder).or_default() += 1;
+            // Only the first few are reduced, which costs a compile for each
+            // step.
+            let reduced = if by_class[&Class::IndexOrder] <= MOST_REDUCED {
+                format!(
+                    "reduced:\n{}",
+                    minimise_unstable(&result.program, unstable.probe).to_text()
+                )
+            } else {
+                String::new()
+            };
+            writeln!(
+                failures,
+                "{label}: {}{}\n{reduced}",
+                describe_unstable(&result.program, unstable),
+                result.program.to_text()
+            )
+            .expect("write");
+        }
     }
     println!("rustc: {}", rustc::version());
     println!(
@@ -744,6 +1069,7 @@ fn the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes() {
         Class::Documented,
         Class::Order,
         Class::Cycle,
+        Class::IndexOrder,
         Class::Unclassified,
     ] {
         println!(
@@ -768,6 +1094,11 @@ fn every_corpus_program_shows_the_divergence_it_records_and_no_other() {
     let (mut agreeing_accepts, mut agreeing_refusals) = (0, 0);
     for ((name, program), result) in programs.iter().zip(&results) {
         assert!(result.valid, "{name}: rustc refuses the crate");
+        assert!(
+            result.unstable.is_empty(),
+            "{name}: the index answers differently in another order\n{}",
+            describe_unstable(&result.program, &result.unstable[0])
+        );
         assert!(
             result.accepted + result.rejected > 0,
             "{name}: it holds no probe"
@@ -847,6 +1178,7 @@ fn a_wrong_index_answer_is_reported_beside_the_right_one_which_is_not() {
     let right = evaluate(&program);
     assert!(right.valid);
     assert!(right.divergences.is_empty(), "{:?}", right.divergences);
+    assert!(right.unstable.is_empty(), "{:?}", right.unstable);
     assert_eq!((right.accepted, right.rejected), (2, 1));
 
     // The index names another item.
@@ -998,5 +1330,68 @@ fn write_corpus() {
             let small = minimise(program, probe, &unclassified);
             println!("unclassified {kind:?}, reduced:\n{}", small.to_text());
         }
+    }
+}
+
+#[test]
+fn an_index_answer_that_changes_with_the_order_is_reported_as_index_order() {
+    let program = fixture(TWO_STRUCTS);
+    // The index names the other struct in the third shuffle only.
+    let changing = evaluate_in(&program, &|answer| answer, &|order, mut answer| {
+        if let (3, Answer::Item { tag, .. }) = (order, &mut answer.ty) {
+            *tag = if *tag == 1 { 2 } else { 1 };
+        }
+        answer
+    });
+    assert!(
+        changing.divergences.is_empty(),
+        "{:?}",
+        changing.divergences
+    );
+    let probes: Vec<Option<usize>> = changing.unstable.iter().map(|u| u.probe).collect();
+    assert_eq!(probes, [Some(0), Some(1)]);
+    let orders: Vec<usize> = changing.unstable[0]
+        .answers
+        .iter()
+        .map(|(order, _)| *order)
+        .collect();
+    assert_eq!(orders, [0, 3]);
+    let report = describe_unstable(&changing.program, &changing.unstable[0]);
+    assert!(
+        report.starts_with("index-order: probe 0 `crate::m0::A` in demo\n"),
+        "{report}"
+    );
+    assert!(
+        report.contains("as written") && report.contains("shuffle 3"),
+        "{report}"
+    );
+    assert!(!KNOWN.contains(&Class::IndexOrder));
+    assert_eq!(Class::named("index-order"), None);
+}
+
+#[test]
+fn a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too() {
+    let entries = corpus();
+    let (name, entry) = entries
+        .iter()
+        .find(|(_, program)| program.expect.as_deref() == Some(Class::Order.name()))
+        .expect("the corpus holds an order entry");
+    let stable = evaluate(entry);
+    assert!(stable.unstable.is_empty(), "{name}");
+    assert!(
+        stable.divergences.iter().any(|d| d.class == Class::Order),
+        "{name}: it no longer diverges as order"
+    );
+    // The index answers every probe otherwise in the first shuffle.
+    let varying = evaluate_in(entry, &|answer| answer, &|order, mut answer| {
+        if order == 1 {
+            answer.ty = Answer::Cyclic;
+        }
+        answer
+    });
+    assert!(!varying.unstable.is_empty(), "{name}");
+    assert!(!varying.divergences.is_empty(), "{name}");
+    for divergence in &varying.divergences {
+        assert_ne!(divergence.class, Class::Order, "{name}");
     }
 }
