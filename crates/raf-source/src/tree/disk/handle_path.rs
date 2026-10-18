@@ -48,7 +48,7 @@ pub(super) fn open(
         refuse_unless_directory(&candidate, shown)?;
     }
     hook!(tree, before_open);
-    let file = open_handle(&canonical, want).map_err(|e| open_error(shown, e))?;
+    let file = open_handle(tree, &canonical, want).map_err(|e| open_error(shown, e))?;
     hook!(tree, after_open);
     let path = verified_path(&tree.root, &file, shown)?;
     let metadata = file.metadata().map_err(|e| TreeError::from_io(shown, e))?;
@@ -94,7 +94,7 @@ const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
 /// sharing is withheld, so while the handle is held the file or directory
 /// cannot be renamed or deleted under it.
 #[cfg(windows)]
-fn open_handle(path: &Path, _want: Want) -> std::io::Result<File> {
+fn open_handle(_tree: &DiskTree, path: &Path, _want: Want) -> std::io::Result<File> {
     use std::os::windows::fs::OpenOptionsExt as _;
     std::fs::OpenOptions::new()
         .read(true)
@@ -106,16 +106,19 @@ fn open_handle(path: &Path, _want: Want) -> std::io::Result<File> {
 /// A Linux test build: open `path` without blocking and without following a
 /// final symlink; a directory is opened as one.
 #[cfg(unix)]
-fn open_handle(path: &Path, want: Want) -> std::io::Result<File> {
+fn open_handle(tree: &DiskTree, path: &Path, want: Want) -> std::io::Result<File> {
     use std::os::unix::fs::OpenOptionsExt as _;
     let directory = if want == Want::File {
         0
     } else {
         libc::O_DIRECTORY
     };
+    let flags = libc::O_NONBLOCK | libc::O_NOFOLLOW | directory;
+    #[cfg(test)]
+    tree.note_open(flags.cast_unsigned());
     std::fs::OpenOptions::new()
         .read(true)
-        .custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW | directory)
+        .custom_flags(flags)
         .open(path)
 }
 

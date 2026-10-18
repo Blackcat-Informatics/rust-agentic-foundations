@@ -990,7 +990,7 @@ fn items_that_share_a_source_item_are_grouped_by_its_identity() {
 }
 
 #[test]
-fn items_on_one_long_line_of_wide_characters_get_exact_byte_offsets_in_linear_time() {
+fn items_on_one_long_line_of_wide_characters_get_exact_byte_offsets() {
     // Twenty thousand functions on one line, each name holding a character of
     // two bytes, so a column is not a byte offset.
     let mut text = String::new();
@@ -1000,15 +1000,7 @@ fn items_on_one_long_line_of_wide_characters_get_exact_byte_offsets_in_linear_ti
         write!(text, "pub fn é{index}() {{}} ").expect("write to a string");
     }
     text.push('\n');
-    let (sender, receiver) = std::sync::mpsc::channel();
-    let worker = std::thread::spawn(move || {
-        // The receiver is gone only when the watchdog already fired.
-        drop(sender.send(lib(&text)));
-    });
-    let ws = receiver
-        .recv_timeout(std::time::Duration::from_secs(20))
-        .expect("the positions of one long line take time linear in the line");
-    worker.join().expect("the load does not panic");
+    let ws = lib(&text);
     for (index, start) in starts.iter().enumerate().step_by(997) {
         let found = item(&ws, &format!("demo::é{index}"), Namespace::Value);
         assert_eq!(found.span.start_byte, *start, "é{index}");

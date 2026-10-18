@@ -4,7 +4,11 @@
 //! The public surface of a target: which items another crate can name through
 //! its crate root, under which paths, and what is refused.
 
+mod support;
+
 use std::fmt::Write as _;
+
+use support::random::{Draw, random_crate};
 
 use raf_source::{
     Budget, ExportError, ExportOptions, Exports, LoadErrorKind, LoadOptions, MemoryTree,
@@ -877,30 +881,6 @@ fn a_named_re_export_of_an_enum_variant_is_a_re_export_and_a_glob_of_an_enum_add
 }
 
 #[test]
-fn a_module_of_three_thousand_pub_globs_is_listed_in_time_linear_in_its_names() {
-    let mut lib = String::new();
-    for n in 0..3000 {
-        writeln!(lib, "mod m{n} {{ pub fn f{n}() {{}} }}\npub use m{n}::*;").expect("write");
-    }
-    let ws = load(&[("src/lib.rs", lib.as_str())]);
-    let started = std::time::Instant::now();
-    let listed = ws
-        .exported_items(target(&ws, TargetKind::Lib))
-        .unwrap_or_else(|e| panic!("{e}"));
-    let took = started.elapsed();
-    assert_eq!(listed.items.len(), 3000);
-    // The globs that bring in each name are found by the name. Reading every
-    // glob of the module for each name took 0.45 s in a release build and
-    // 2.1 s in a debug build; by the name it takes about 15 ms and 70 ms.
-    let bound = if cfg!(debug_assertions) {
-        std::time::Duration::from_secs(1)
-    } else {
-        std::time::Duration::from_millis(150)
-    };
-    assert!(took < bound, "took {took:?}");
-}
-
-#[test]
 fn a_module_reached_by_a_hidden_and_a_shown_glob_carries_its_re_export_shown() {
     let ws = load(&[(
         "src/lib.rs",
@@ -920,51 +900,6 @@ fn a_module_reached_by_a_hidden_and_a_shown_glob_carries_its_re_export_shown() {
         reexports_of(&hidden, true),
         triples(&[("demo::Cell", "std::cell::Cell", true)])
     );
-}
-
-#[test]
-fn a_module_of_three_thousand_pub_globs_that_each_carry_a_re_export_is_listed_in_linear_time() {
-    let mut lib = String::new();
-    for n in 0..3000 {
-        writeln!(
-            lib,
-            "mod m{n} {{ pub use std::cell::Cell as C{n}; }}\npub use m{n}::*;"
-        )
-        .expect("write");
-    }
-    // One name that every carried module binds, and one the reader shadows.
-    for n in 0..3000 {
-        writeln!(
-            lib,
-            "mod k{n} {{ pub use std::rc::Rc; pub use std::fmt::Debug; }}\npub use k{n}::*;"
-        )
-        .expect("write");
-    }
-    lib.push_str("pub struct Debug;\n");
-    let ws = load(&[("src/lib.rs", lib.as_str())]);
-    let started = std::time::Instant::now();
-    let listed = ws
-        .exported_items(target(&ws, TargetKind::Lib))
-        .unwrap_or_else(|e| panic!("{e}"));
-    let took = started.elapsed();
-    assert_eq!(listed.items.len(), 1);
-    // Each carried `C<n>`, and `Rc` once from each `k<n>`; `Debug` is the
-    // reader's own.
-    assert_eq!(listed.reexports.len(), 6000);
-    assert!(
-        listed
-            .reexports
-            .iter()
-            .all(|reexport| reexport.path != "demo::Debug")
-    );
-    // Walking the routes again for each carried import took 4.1 s for the
-    // first half alone in a release build.
-    let bound = if cfg!(debug_assertions) {
-        std::time::Duration::from_secs(4)
-    } else {
-        std::time::Duration::from_millis(500)
-    };
-    assert!(took < bound, "took {took:?}");
 }
 
 #[test]
@@ -1026,60 +961,6 @@ fn an_item_and_a_carried_outside_re_export_of_one_name_are_both_listed_and_not_a
         reexports_of(&ws, false),
         triples(&[("demo::Rc", "std::rc::Rc", false)])
     );
-}
-
-/// A reader with `n` globs of modules that each carry a re-export of their
-/// own name, beside `n` globs of modules that each bind that name privately.
-fn sibling_shadows(n: usize) -> String {
-    let mut lib = String::new();
-    for i in 0..n {
-        writeln!(
-            lib,
-            "mod m{i} {{ pub use std::cell::Cell as C{i}; }}\nmod s{i} {{ fn C{i}() {{}} }}\npub use m{i}::*;\npub use s{i}::*;"
-        )
-        .expect("write");
-    }
-    lib
-}
-
-/// List the library of `lib` with `extra` item bytes beyond what its load
-/// spent, and return how long it took and how many re-exports it listed.
-fn list_within(lib: &str, extra: usize) -> (std::time::Duration, usize) {
-    let files = [("src/lib.rs", lib)];
-    let spent = load(&files).usage().item_bytes;
-    let mut options = LoadOptions::default();
-    options.max_item_bytes = spent + extra;
-    let ws = Workspace::load_with(&tree(&files), &["."], &options).expect("the load fits");
-    let started = std::time::Instant::now();
-    let listed = ws
-        .exported_items(target(&ws, TargetKind::Lib))
-        .unwrap_or_else(|e| panic!("{e}"));
-    (started.elapsed(), listed.reexports.len())
-}
-
-#[test]
-fn readers_of_three_and_ten_thousand_carried_names_beside_sibling_shadows_list_in_bounded_time_and_bytes()
- {
-    // Walking the reach again for each shadowed name took 0.86 s at 1000 and
-    // 12.8 s at 3000 in a release build, and kept every walk. Now the 3000
-    // list in about 90 ms and are charged under 16 MiB beyond the load.
-    let (took, listed) = list_within(&sibling_shadows(3000), 32 << 20);
-    assert_eq!(listed, 3000);
-    let bound = std::time::Duration::from_millis(if cfg!(debug_assertions) { 3000 } else { 300 });
-    assert!(took < bound, "took {took:?}");
-    // Loading 10,000 takes 27 s in a release build and minutes in a debug
-    // one, all of it the load's own, so the larger reader is listed in a
-    // release build only, where it lists in about 0.26 s.
-    if !cfg!(debug_assertions) {
-        let ws = load(&[("src/lib.rs", sibling_shadows(10_000).as_str())]);
-        let started = std::time::Instant::now();
-        let listed = ws
-            .exported_items(target(&ws, TargetKind::Lib))
-            .unwrap_or_else(|e| panic!("{e}"));
-        let took = started.elapsed();
-        assert_eq!(listed.reexports.len(), 10_000);
-        assert!(took < std::time::Duration::from_secs(1), "took {took:?}");
-    }
 }
 
 #[test]
@@ -1471,109 +1352,6 @@ fn only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_a
     }
 }
 
-/// A small deterministic generator, so the random family is the same in every
-/// run.
-struct Draw(u64);
-
-impl Draw {
-    fn next(&mut self) -> u64 {
-        // xorshift64*
-        self.0 ^= self.0 >> 12;
-        self.0 ^= self.0 << 25;
-        self.0 ^= self.0 >> 27;
-        self.0.wrapping_mul(0x2545_f491_4f6c_dd1d)
-    }
-
-    /// A number below `bound`.
-    fn below(&mut self, bound: usize) -> usize {
-        let bound = u64::try_from(bound).expect("a small bound");
-        usize::try_from(self.next() % bound).expect("below a small bound")
-    }
-
-    /// True once in `odds`.
-    fn one_in(&mut self, odds: usize) -> bool {
-        self.below(odds) == 0
-    }
-}
-
-/// A random small crate whose carrier `c` holds `carrier`: up to six private
-/// modules of `pub`, `pub(crate)` and hidden globs to one another and to the
-/// carrier, cycles allowed, binders of `Cell` by a private struct or a
-/// private import, hidden modules and a hidden carrier, and a reader at the
-/// root or in a `pub` module, sometimes hidden.
-fn random_crate(draw: &mut Draw, carrier: &str) -> String {
-    let modules = 1 + draw.below(6);
-    let target = |draw: &mut Draw, from: Option<usize>| loop {
-        let at = draw.below(modules + 1);
-        if at == modules {
-            return "c".to_owned();
-        }
-        if Some(at) != from {
-            return format!("m{at}");
-        }
-    };
-    let glob = |draw: &mut Draw, to: &str| {
-        let hidden = if draw.one_in(4) {
-            "#[doc(hidden)] "
-        } else {
-            ""
-        };
-        let vis = if draw.one_in(5) { "pub(crate)" } else { "pub" };
-        format!("{hidden}{vis} use crate::{to}::*; ")
-    };
-    let mut lib = String::new();
-    let carrier_attr = if draw.one_in(5) {
-        "#[doc(hidden)] "
-    } else {
-        ""
-    };
-    let module_attr = if draw.one_in(6) {
-        "#[doc(hidden)]\n"
-    } else {
-        ""
-    };
-    writeln!(lib, "{module_attr}mod c {{ {carrier_attr}{carrier} }}").expect("write");
-    for at in 0..modules {
-        let mut body = String::new();
-        for _ in 0..=draw.below(3) {
-            let to = target(draw, Some(at));
-            body.push_str(&glob(draw, &to));
-        }
-        match draw.below(6) {
-            0 => body.push_str("struct Cell; "),
-            1 => body.push_str("use std::rc::Rc as Cell; "),
-            _ => {}
-        }
-        let module_attr = if draw.one_in(6) {
-            "#[doc(hidden)]\n"
-        } else {
-            ""
-        };
-        writeln!(lib, "{module_attr}mod m{at} {{ {body}}}").expect("write");
-    }
-    let mut reader = String::new();
-    for _ in 0..=draw.below(3) {
-        let to = target(draw, None);
-        let hidden = if draw.one_in(3) {
-            "#[doc(hidden)] "
-        } else {
-            ""
-        };
-        writeln!(reader, "{hidden}pub use crate::{to}::*;").expect("write");
-    }
-    if draw.one_in(2) {
-        let module_attr = if draw.one_in(5) {
-            "#[doc(hidden)]\n"
-        } else {
-            ""
-        };
-        writeln!(lib, "{module_attr}pub mod r {{\n{reader}}}").expect("write");
-    } else {
-        lib.push_str(&reader);
-    }
-    lib
-}
-
 #[test]
 fn in_random_small_crates_a_carried_re_export_is_listed_hidden_or_absent_as_the_item_is() {
     let mut outcomes = std::collections::BTreeSet::new();
@@ -1665,4 +1443,227 @@ fn a_re_export_two_globs_carry_is_written_as_the_first_glob_that_carries_it() {
         site("pub fn own() {}\n\npub use p_one::again::*;\n"),
         [("demo::f".to_owned(), "p_one::again::*".to_owned(), f, 3)]
     );
+}
+
+/// Every order of `items`.
+fn orders(items: &[String]) -> Vec<Vec<String>> {
+    if items.len() <= 1 {
+        return vec![items.to_vec()];
+    }
+    let mut all = Vec::new();
+    for position in 0..items.len() {
+        let mut rest = items.to_vec();
+        let head = rest.remove(position);
+        for mut tail in orders(&rest) {
+            tail.insert(0, head.clone());
+            all.push(tail);
+        }
+    }
+    all
+}
+
+/// The surface of the crate made of `outer` and of `mod m` holding `inner`,
+/// in every order of both, which is the same in each. Returns it and the
+/// number of loads.
+fn surface_in_every_order(outer: &[&str], inner: &[&str]) -> (Vec<(String, String)>, usize) {
+    let mut found: Option<Vec<(String, String)>> = None;
+    let mut loads = 0;
+    let inner: Vec<String> = inner.iter().map(|d| (*d).to_owned()).collect();
+    for inside in orders(&inner) {
+        let mut blocks: Vec<String> = outer.iter().map(|d| (*d).to_owned()).collect();
+        blocks.push(format!("mod m {{ {} }}", inside.join(" ")));
+        for order in orders(&blocks) {
+            let text = order.join("\n");
+            let listed = surface(&load(&[("src/lib.rs", text.as_str())]));
+            match &found {
+                None => found = Some(listed),
+                Some(first) => assert_eq!(&listed, first, "{text}"),
+            }
+            loads += 1;
+        }
+    }
+    (found.expect("loaded"), loads)
+}
+
+#[test]
+fn an_item_reached_only_by_a_pub_use_of_a_private_glob_binding_is_not_exported_in_every_order() {
+    // `m` reads the struct `A` of the private module `x` through a private
+    // glob, and `c` re-exports `super::A` with the function `A` that `m`
+    // defines: rustc keeps the struct no more visible than the glob, so the
+    // crate's `pub use` of `c` exports the function and not the struct.
+    let (listed, loads) = surface_in_every_order(
+        &["mod x { pub struct A {} }", "pub use m::c::*;"],
+        &[
+            "use crate::x::*;",
+            "pub fn A() {}",
+            "pub mod c { pub use super::A; }",
+        ],
+    );
+    assert_eq!(listed, pairs(&[("demo::A", "demo::m::A")]));
+    assert_eq!(loads, 36);
+
+    // Neighbour: with a `pub` glob in `m` the struct is exported beside the
+    // function.
+    let (listed, loads) = surface_in_every_order(
+        &["mod x { pub struct A {} }", "pub use m::c::*;"],
+        &[
+            "pub use crate::x::*;",
+            "pub fn A() {}",
+            "pub mod c { pub use super::A; }",
+        ],
+    );
+    assert_eq!(
+        listed,
+        pairs(&[("demo::A", "demo::m::A"), ("demo::A", "demo::x::A")])
+    );
+    assert_eq!(loads, 36);
+}
+
+/// The number of loads of the crate made of `outer` and of `mod m` holding
+/// `inner`, in every order of both, for each of which the surface is refused
+/// as ambiguous.
+fn ambiguous_surface_in_every_order(outer: &[&str], inner: &[&str]) -> usize {
+    let mut loads = 0;
+    let inner: Vec<String> = inner.iter().map(|d| (*d).to_owned()).collect();
+    for inside in orders(&inner) {
+        let mut blocks: Vec<String> = outer.iter().map(|d| (*d).to_owned()).collect();
+        blocks.push(format!("mod m {{ {} }}", inside.join(" ")));
+        for order in orders(&blocks) {
+            let text = order.join("\n");
+            let ws = load(&[("src/lib.rs", text.as_str())]);
+            assert!(
+                matches!(
+                    ws.exported_items(target(&ws, TargetKind::Lib)),
+                    Err(ExportError::Resolve(ResolveError::Ambiguous(_)))
+                ),
+                "{text}"
+            );
+            loads += 1;
+        }
+    }
+    loads
+}
+
+#[test]
+fn a_name_two_globs_bring_in_as_different_items_one_through_a_private_glob_is_refused_in_every_order()
+ {
+    // `m` globs `a` privately and `b` publicly, and both hold a struct `Y`.
+    // The name is ambiguous in `m` for the crate root as well, so a `pub use`
+    // of `m`, by glob or by name, has no one item to export, and the surface
+    // is refused as ambiguous, not listed with `b::Y`. rustc refuses the
+    // named re-export in every order; for the glob it depends on the order of
+    // the two globs of `m` (a downstream crate finds `Y` missing, or is
+    // refused), and the index answers the refusal in each.
+    let inner = ["use crate::a::*;", "pub use crate::b::*;"];
+    for reexport in ["pub use m::*;", "pub use m::Y;"] {
+        let loads = ambiguous_surface_in_every_order(
+            &[
+                "mod a { pub struct Y; }",
+                "mod b { pub struct Y; }",
+                reexport,
+            ],
+            &inner,
+        );
+        assert_eq!(loads, 48, "{reexport}");
+    }
+
+    // Neighbour: the private glob brings in another name, and the surface
+    // lists what the public glob does and nothing of the private one.
+    let (listed, loads) = surface_in_every_order(
+        &[
+            "mod a { pub struct X; }",
+            "mod b { pub struct Y; }",
+            "pub use m::*;",
+        ],
+        &inner,
+    );
+    assert_eq!(listed, pairs(&[("demo::Y", "demo::b::Y")]));
+    assert_eq!(loads, 48);
+
+    // Neighbour: one item through both globs is not ambiguous.
+    let (listed, loads) = surface_in_every_order(
+        &[
+            "mod a { pub struct Y; }",
+            "mod b { pub use crate::a::Y; }",
+            "pub use m::*;",
+        ],
+        &inner,
+    );
+    assert_eq!(listed, pairs(&[("demo::Y", "demo::a::Y")]));
+    assert_eq!(loads, 48);
+}
+
+/// Load the library in every order of `outer` and of `inner`, the
+/// declarations of the module `header` among them, and return the paths of
+/// the candidates its surface is refused as ambiguous with, asserting that
+/// the surface is refused, with the same candidates, in each. Returns them
+/// and the number of loads.
+fn ambiguous_candidates_in_every_order(
+    outer: &[&str],
+    header: &str,
+    inner: &[&str],
+) -> (Vec<String>, usize) {
+    let mut first: Option<Vec<String>> = None;
+    let mut loads = 0;
+    let inner: Vec<String> = inner.iter().map(|d| (*d).to_owned()).collect();
+    for inside in orders(&inner) {
+        let mut blocks: Vec<String> = outer.iter().map(|d| (*d).to_owned()).collect();
+        blocks.push(format!("{header} {{ {} }}", inside.join(" ")));
+        for order in orders(&blocks) {
+            let text = order.join("\n");
+            let ws = load(&[("src/lib.rs", text.as_str())]);
+            let Err(ExportError::Resolve(ResolveError::Ambiguous(ids))) =
+                ws.exported_items(target(&ws, TargetKind::Lib))
+            else {
+                panic!("not refused as ambiguous:\n{text}");
+            };
+            let mut paths: Vec<String> = ids
+                .iter()
+                .map(|id| ws.item(*id).expect("item").path.to_string())
+                .collect();
+            paths.sort();
+            match &first {
+                None => first = Some(paths),
+                Some(known) => assert_eq!(&paths, known, "{text}"),
+            }
+            loads += 1;
+        }
+    }
+    (first.expect("loaded"), loads)
+}
+
+#[test]
+fn a_surface_refused_for_a_module_name_a_glob_cycle_carries_lists_the_same_candidates_in_every_order()
+ {
+    // `m0` globs `m3`, `m1::s0` and `m1::s1` publicly, and the crate root
+    // globs `m0` publicly. `m1::s0` globs `m1`, and `m1::s1` globs the root
+    // and, privately, `m2`. So `s1` is a module of `m3`, of `m1` and of `m2`,
+    // and `m0` brings in the first two publicly: the root's
+    // `pub use crate::m0::*` has no one module `s1` to export, and the
+    // surface is refused as ambiguous. What `m0` reads of `m1::s1` holds
+    // `m3::s1` and `m1::s1`, which the cycle of globs through the root
+    // carries back, and `m2::s1` beside them only as a companion, through the
+    // private glob. `m3`, which binds `s1` itself, delivers `m3::s1` to `m0`
+    // as well, so `m0` drops the companion, whether it came in before or
+    // after. The surface is refused with `m1::s1` and `m3::s1` in every
+    // order. rustc compiles the crate in every order and only warns of the
+    // ambiguous glob re-export (`ambiguous_glob_reexports`), which the index
+    // refuses.
+    let (candidates, loads) = ambiguous_candidates_in_every_order(
+        &[
+            "pub use crate::m0::*;",
+            "mod m1 { pub mod s1 { pub(crate) use crate::*; use crate::m2::*; } \
+             pub mod s0 { pub use crate::m1::*; } }",
+            "mod m2 { pub mod s1 {} mod s0 {} }",
+            "mod m3 { pub mod s1 {} }",
+        ],
+        "pub mod m0",
+        &[
+            "pub use crate::m3::*;",
+            "pub use crate::m1::s0::*;",
+            "pub use crate::m1::s1::*;",
+        ],
+    );
+    assert_eq!(candidates, strings(&["demo::m1::s1", "demo::m3::s1"]));
+    assert_eq!(loads, 720);
 }

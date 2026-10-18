@@ -22,11 +22,12 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use crate::cost::{btree_entry, btree_map};
 use crate::error::{LoadError, LoadErrorKind};
 use crate::facts::Vis;
-use crate::glob_scope::{Nobody, Waiters};
+use crate::glob_scope::{Nobody, Waiters, ambiguity_seen};
 use crate::index::{Index, UseDecl, UseKind, binding_bytes};
 use crate::item::{ItemId, Namespace};
 use crate::meter::Meter;
 use crate::resolve::{Fail, Heads, Hit, Walked, places};
+use crate::work::{self, Work};
 
 /// How a name came to be bound in a module.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -123,6 +124,10 @@ impl Bound {
 
     pub(crate) fn is_empty(&self) -> bool {
         self.sorted.is_empty()
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.sorted.len()
     }
 
     pub(crate) fn get(&self, id: ItemId) -> Option<&Origin> {
@@ -349,7 +354,7 @@ impl Index {
     }
 
     /// True when `module` is `ancestor` or lies inside it.
-    fn within(&self, mut module: usize, ancestor: usize) -> bool {
+    pub(crate) fn within(&self, mut module: usize, ancestor: usize) -> bool {
         loop {
             if module == ancestor {
                 return true;
@@ -483,7 +488,10 @@ impl Index {
     /// rustc resolves an import: a binding `viewer` cannot access does not
     /// count, and a definition or explicit import that it cannot access
     /// hides the globs all the same, so one still to bind keeps the name from
-    /// them too.
+    /// them too. A name two globs bring in as different items is the one
+    /// exception to what `viewer` cannot access: it is ambiguous to a viewer
+    /// that can access any of its items, with all of them (see
+    /// [`Index::seen_globbed`]).
     pub(crate) fn lookup_seen(
         &self,
         module: usize,
@@ -495,6 +503,7 @@ impl Index {
         let Some(viewer) = viewer.filter(|viewer| *viewer != module) else {
             return self.lookup_in(module, ns, name, own);
         };
+        work::add(Work::Lookups, 1);
         let entry = self.scopes[module].get(name);
         let at = slot(ns);
         if let Some(defs) = entry
@@ -510,7 +519,7 @@ impl Index {
         if self.blocked(module, name, ns, own) {
             return None;
         }
-        self.seen_by(Cow::Owned(self.globbed(module, name, at)), module, viewer)
+        self.seen_globbed(Cow::Owned(self.globbed(module, name, at)), module, viewer)
             .map(|bound| (bound, true))
     }
 
@@ -522,12 +531,38 @@ impl Index {
         module: usize,
         viewer: usize,
     ) -> Option<Cow<'a, Bound>> {
+        self.seen_in(bound, module, viewer, false)
+    }
+
+    /// [`Index::seen_by`] for what the globs of `module` bring in: a name that
+    /// they bring in as different items is ambiguous in the module and is as
+    /// visible as the most visible of its items, so a viewer that can access
+    /// one of them reads all (see [`ambiguity_seen`]).
+    fn seen_globbed<'a>(
+        &self,
+        bound: Cow<'a, Bound>,
+        module: usize,
+        viewer: usize,
+    ) -> Option<Cow<'a, Bound>> {
+        self.seen_in(bound, module, viewer, true)
+    }
+
+    /// The one definition of what `viewer` reads of `bound`; `globs` is
+    /// whether `bound` is what globs bring in.
+    fn seen_in<'a>(
+        &self,
+        bound: Cow<'a, Bound>,
+        module: usize,
+        viewer: usize,
+        globs: bool,
+    ) -> Option<Cow<'a, Bound>> {
         let visible = |origin: &Origin| {
             origin
                 .visibilities()
                 .any(|vis| self.is_visible(vis, module, viewer))
         };
-        if bound.iter().all(|(_, origin)| visible(origin)) {
+        let seen = bound.iter().filter(|(_, origin)| visible(origin)).count();
+        if seen == bound.len() || globs && ambiguity_seen(bound.len(), seen) {
             return (!bound.is_empty()).then_some(bound);
         }
         let kept: Bound = bound
@@ -545,6 +580,7 @@ impl Index {
         name: &str,
         own: Option<usize>,
     ) -> Option<(Cow<'_, Bound>, bool)> {
+        work::add(Work::Lookups, 1);
         let entry = self.scopes[module].get(name);
         let at = slot(ns);
         if own.is_some_and(|position| self.binds_name(position, module, name)) {
@@ -604,15 +640,19 @@ impl Index {
                 .any(|position| !self.use_free[*position][slot(ns)])
     }
 
-    /// [`Index::blocked`] as a glob of `module` in `importer` sees it: only
-    /// the imports that `importer` can name count, and one that a cycle left
-    /// to the globs of `module` still counts until it is decided, as rustc
-    /// brings a glob binding into other modules only once no single import
-    /// may still bind the name ([`Index::left_to_globs`]).
+    /// [`Index::blocked`] as a glob of `module` in `importer` sees it: an
+    /// import that `importer` can name counts, and so does one it cannot name
+    /// while the globs of `module` bring the name in, as the import keeps
+    /// what they bring in from every importer until it is decided (see
+    /// [`Index::blocked_in`]); one that a cycle left to the globs of
+    /// `module` still counts until it is decided, as rustc brings a glob
+    /// binding into other modules only once no single import may still bind
+    /// the name ([`Index::left_to_globs`]).
     fn blocked_for(&self, module: usize, name: &str, at: usize, importer: usize) -> bool {
         self.imports_of(module, name).iter().any(|position| {
             (!self.use_free[*position][at] || self.left_to_globs(*position, at))
-                && self.is_visible(&self.uses[*position].vis, module, importer)
+                && (self.is_visible(&self.uses[*position].vis, module, importer)
+                    || self.globbed_any(module, name, at))
         })
     }
 
@@ -715,7 +755,9 @@ impl Index {
 
     /// The places that keep `name` of `module` open through its globs in the
     /// name space at `at`: the name in each module one of those globs reaches
-    /// where it is not settled for `module`.
+    /// where it is not settled for `module`. None where `module` defines the
+    /// name there: the definition shadows its globs for every reader, a path
+    /// that reads the name it imports itself among them.
     fn pending_sources(&self, module: usize, name: &str, at: usize) -> Vec<(usize, String, usize)> {
         self.pending_sources_for(module, name, at, None)
     }
@@ -731,6 +773,13 @@ impl Index {
         viewer: Option<usize>,
     ) -> Vec<(usize, String, usize)> {
         let mut sources = Vec::new();
+        if self.scopes[module].get(name).is_some_and(|entry| {
+            entry.defs[at]
+                .iter()
+                .any(|(_, origin)| origin.link.is_none())
+        }) {
+            return sources;
+        }
         for glob in self.globs_of(module).iter().filter(|glob| {
             viewer.is_none_or(|viewer| self.is_visible(&self.uses[**glob].vis, module, viewer))
         }) {
@@ -832,11 +881,18 @@ impl Index {
     }
 
     /// The route of a binding that the glob import `decl` brings in from
-    /// `name` of `target` in the name space at `ns`.
-    pub(crate) fn glob_origin(decl: &UseDecl, target: usize, ns: usize, name: &str) -> Origin {
+    /// `name` of `target` in the name space at `ns`, with the visibility `vis`
+    /// the glob gives it, the glob's own or the narrower one of the binding.
+    pub(crate) fn glob_origin(
+        decl: &UseDecl,
+        vis: Vis,
+        target: usize,
+        ns: usize,
+        name: &str,
+    ) -> Origin {
         Origin {
             via_glob: true,
-            vis: decl.vis.clone(),
+            vis,
             link: Some(Link {
                 module: decl.module,
                 name: "*".to_owned(),
@@ -1004,15 +1060,18 @@ impl Index {
     }
 
     /// Check that the tables, settled `settles` times, were settled at most
-    /// once more than there are imports (see [`Index::settle_agreed`]), in
+    /// once more than there are imports for each count of recorded drops of
+    /// companions, from none to those recorded (see
+    /// [`Index::settle_agreed`]), in
     /// release builds too. More is a bug, reported as `Internal`.
     fn within_settles(&self, settles: usize) -> Result<(), LoadError> {
-        if settles <= self.uses.len() + 1 {
+        if settles <= (self.uses.len() + 1) * (self.drop_count() + 1) {
             return Ok(());
         }
         Err(self.internal(format!(
-            "the scope tables were settled {settles} times for {} imports",
-            self.uses.len()
+            "the scope tables were settled {settles} times for {} imports and {} dropped companions",
+            self.uses.len(),
+            self.drop_count()
         )))
     }
 
@@ -1608,7 +1667,7 @@ impl Index {
                             // answers nothing for it, as rustc reads it.
                             let answered = source.module == decl.module
                                 || self
-                                    .seen_by(
+                                    .seen_globbed(
                                         Cow::Owned(self.globbed(place.0, &place.1, place.2)),
                                         place.0,
                                         decl.module,
@@ -1806,7 +1865,7 @@ impl Index {
                 self.seen_by(Cow::Borrowed(&entry.defs[at]), module, viewer)
                     .is_some()
             }) || self
-                .seen_by(Cow::Owned(self.globbed(module, &name, at)), module, viewer)
+                .seen_globbed(Cow::Owned(self.globbed(module, &name, at)), module, viewer)
                 .is_some()
                 || self.open_glob(module, Some(viewer))
                 || self.imports_of(module, &name).iter().any(|other| {
@@ -1904,8 +1963,17 @@ impl Index {
     /// are rebuilt from the definitions and settled again with every such
     /// import held from the start: a named one binds nothing and keeps its
     /// name from the globs, and a glob brings in nothing. The held imports
-    /// only grow, by at least one each time, so the tables are settled at
-    /// most once more than there are imports, which is checked in every build
+    /// only grow, by at least one each time. Once no import is newly held,
+    /// the glob reads whose companions the settled tables drop, and that did
+    /// not drop them from the start, are recorded (see
+    /// [`Index::record_drops`]), and the tables are settled again with them
+    /// dropping their companions from the start and with no import held: a
+    /// drop changes what the paths read, and an import held for an ambiguity
+    /// that a drop removes is held again only if the tables with the drop
+    /// show it ambiguous. The recorded drops only grow, by at least one each
+    /// time, and between two growths the held imports grow, so the tables
+    /// are settled at most once more than there are imports for each count
+    /// of recorded drops, which is checked in every build
     /// ([`Index::within_settles`]). Each settle after the first is charged what it builds
     /// again, the scope tables of the definitions and the state of every
     /// import ([`Index::settle_bytes`]), on top of the bindings it makes
@@ -1921,7 +1989,16 @@ impl Index {
             let ambiguous: Vec<bool> = (0..self.uses.len())
                 .map(|position| self.use_ambiguous[position] || self.walks_ambiguous(position))
                 .collect();
-            let Some(first) = (0..self.uses.len()).find(|at| ambiguous[*at] && !held[*at]) else {
+            // Drops are recorded only from tables that are final for the
+            // held imports: tables settled again for a newly held import are
+            // thrown away.
+            let first = (0..self.uses.len()).find(|at| ambiguous[*at] && !held[*at]);
+            let dropped = if first.is_none() {
+                self.record_drops(meter)?
+            } else {
+                0
+            };
+            let Some(first) = first.or_else(|| (dropped > 0).then(|| self.glob_imports[0])) else {
                 #[cfg(debug_assertions)]
                 self.check_settled();
                 return Ok(settles);
@@ -1931,14 +2008,23 @@ impl Index {
             self.release_globs(meter);
             self.build_scopes();
             self.crates_open = false;
-            self.use_ambiguous = ambiguous;
+            // New drops change what every path reads, so the imports are
+            // held again only as the tables with the drops show them
+            // ambiguous: one held for an ambiguity a drop removes would stay
+            // held.
+            self.use_ambiguous = if dropped > 0 {
+                vec![false; self.uses.len()]
+            } else {
+                ambiguous
+            };
         }
     }
 
-    /// Check that the settled tables agree with every named import that is
-    /// not held as ambiguous. Walked again against the final tables, with
-    /// the globs rebuilt: the imports of a name that resolved reach what they
-    /// bound, and each one that did not resolve reaches nothing. The queue
+    /// Check that the settled tables agree with every named import. Walked
+    /// again against the final tables, with the globs rebuilt: the imports of
+    /// a name that resolved reach what they bound, each one that did not
+    /// resolve reaches nothing, and each one held as ambiguous walks an
+    /// ambiguous path. The queue
     /// binds what a path reads while the tables settle and the globs are
     /// rebuilt once they are settled; this is the invariant that makes the
     /// two agree. Run in debug builds.
@@ -1957,10 +2043,20 @@ impl Index {
                 let UseKind::Named { segs, .. } = &import.kind else {
                     continue;
                 };
+                let (walks, _, _) = self.import_paths(position, import, segs);
+                // A held import binds nothing, and its path is still
+                // ambiguous in the settled tables.
                 if self.use_ambiguous[position] {
+                    assert!(
+                        walks
+                            .iter()
+                            .any(|(_, walk)| matches!(walk, Err(Fail::Ambiguous(_)))),
+                        "{}:{}: an import held as ambiguous walks {walks:?} in the settled tables",
+                        import.file,
+                        import.line
+                    );
                     continue;
                 }
-                let (walks, _, _) = self.import_paths(position, import, segs);
                 for (ns, walk) in walks {
                     // A name space a cycle leaves undecided binds nothing,
                     // and a path through it resolves `Cyclic`.
@@ -2227,9 +2323,10 @@ impl Index {
                 self.use_resolved[position] = true;
                 self.use_bound[position][slot(ns)] = true;
                 self.use_decided[position][slot(ns)] = true;
+                let vis = self.import_vis(decl, &hit, id);
                 let origin = Origin {
                     via_glob: hit.via_glob,
-                    vis: decl.vis.clone(),
+                    vis,
                     link: Some(Link {
                         module: decl.module,
                         name: name.to_owned(),
@@ -2249,7 +2346,7 @@ impl Index {
                         .and_then(|link| link.source.as_ref())
                         .map_or(0, |last| last.name.capacity());
                     meter.items(
-                        binding_bytes(name, &decl.vis, source),
+                        binding_bytes(name, &origin.vis, source),
                         &decl.file,
                         Some(decl.line),
                     )?;
@@ -2275,6 +2372,37 @@ impl Index {
             }
         }
         Ok(bound)
+    }
+
+    /// The visibility of the binding the named import `decl` makes of `id`,
+    /// reached by `hit`: no wider than the binding it re-exports, as in
+    /// rustc, which keeps `pub use` of a name its module reads through a
+    /// private glob no more visible than the glob made it. The cap is the
+    /// widest level at which the importing module can name the binding in the
+    /// place the path ended; there is none for a path that ends at an
+    /// associated item or at a module (`hit.last` is `None`).
+    fn import_vis(&self, decl: &UseDecl, hit: &Hit, id: ItemId) -> Vis {
+        let Some(last) = &hit.last else {
+            return decl.vis.clone();
+        };
+        let Some(origin) = self.origin_of(last, id) else {
+            return decl.vis.clone();
+        };
+        let Some(cap) = origin
+            .visibilities()
+            .filter(|vis| self.is_visible(vis, last.module, decl.module))
+            .map(|vis| self.level_of(vis, last.module))
+            .reduce(|left, right| self.wider(left, right))
+        else {
+            return decl.vis.clone();
+        };
+        let own = self.level_of(&decl.vis, decl.module);
+        let met = self.meet(own, cap);
+        if met == own {
+            decl.vis.clone()
+        } else {
+            self.vis_at(met, decl.module)
+        }
     }
 
     /// True when every place in `reads`, read by the path of the named import
@@ -2330,7 +2458,7 @@ impl Index {
             let viewer = self.uses[*reader].module;
             *reader == position
                 || self
-                    .seen_by(Cow::Borrowed(&globbed), decl.module, viewer)
+                    .seen_globbed(Cow::Borrowed(&globbed), decl.module, viewer)
                     .is_none_or(|seen| {
                         self.is_visible(&decl.vis, decl.module, viewer)
                             && seen
@@ -2767,7 +2895,7 @@ mod tests {
         let error = index.within_settles(3).expect_err("one settle too many");
         assert!(
             matches!(&error.kind, LoadErrorKind::Internal { what }
-                if what == "the scope tables were settled 3 times for 1 imports"),
+                if what == "the scope tables were settled 3 times for 1 imports and 0 dropped companions"),
             "{error:?}"
         );
     }

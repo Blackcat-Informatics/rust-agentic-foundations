@@ -18,16 +18,21 @@ to fix the problem.
 
 ## Crates
 
-`raf-okf`, `raf-source`, `raf-workplan` and `cargo-workplan` are **delivered**.
+`raf-okf`, `raf-source`, `raf-workplan` and `cargo-workplan` are **delivered**:
+twelve capabilities, each with resolved bindings and a generated verification
+matrix. This repository runs the workplan gate on itself
+(`tests/self_workplan.rs`), and the `use`-path resolution of `raf-source` is
+checked against `rustc` on generated programs
+(`crates/raf-source/tests/rustc_oracle.rs`).
 `raf-workplan` delivers its document model, generated documentation blocks,
 reconcile step, `verify` and completion gate, entity history, execution evidence
 and its claims, prose assessments, two-way coverage and the current-rationale
 check, and `cargo-workplan` runs `check`, `status`, `docs sync|preview`,
 `change new|impact|reconcile|complete`, `verify`, `history`,
 `evidence record|claims|for`, `assess` and `coverage code|tests`: their contract
-is stated in [workplan-cli](docs/capabilities/workplan-cli.md). The other crates are
-**designed — not yet published**. The linked
-capability documents are the specification the crates are built against.
+is stated in [workplan-cli](docs/capabilities/workplan-cli.md). The census crates
+are **designed — not yet published**: their nine capability documents are the
+specification they will be built against, and no census code exists yet.
 
 | Crate | Kind | Purpose | Status | Specification |
 |---|---|---|---|---|
@@ -40,22 +45,13 @@ capability documents are the specification the crates are built against.
 
 ## Usage
 
-A project consumes RAF as dev-dependencies. The workplan gate below is built; the
-census gate is designed and not available yet. Neither crate is published yet.
+A project consumes RAF as dev-dependencies. The workplan gate is built and runs
+on this repository; the census gate is designed and does not exist yet. Neither
+crate is published yet.
 
 ```toml
 [dev-dependencies]
-raf-census = "0.1"
 raf-workplan = "0.1"
-```
-
-```rust
-// tests/census.rs
-#[test]
-fn no_new_duplicate_helpers() {
-    raf_census::Gate::workspace(env!("CARGO_MANIFEST_DIR"))
-        .assert_clean();
-}
 ```
 
 ```rust
@@ -63,6 +59,22 @@ fn no_new_duplicate_helpers() {
 #[test]
 fn workplan_is_reconciled() {
     raf_workplan::Gate::workspace(env!("CARGO_MANIFEST_DIR"))
+        .assert_clean();
+}
+```
+
+The census gate, once built, takes the same shape:
+
+```toml
+[dev-dependencies]
+raf-census = "0.1"
+```
+
+```rust
+// tests/census.rs
+#[test]
+fn no_new_duplicate_helpers() {
+    raf_census::Gate::workspace(env!("CARGO_MANIFEST_DIR"))
         .assert_clean();
 }
 ```

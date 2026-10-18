@@ -8,6 +8,60 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
+- **`raf-source`:** `use` paths follow two more visibility rules of rustc. A named
+  re-export or a glob that reads a binding through a glob the importing module
+  cannot access keeps the narrower of its own visibility and the visibility of
+  the binding it reads, measured on the importing module's ancestor chain, so a
+  module that globs such a re-export cannot read a name rustc hides from it. A
+  name that two globs bring in as different items is ambiguous in that module
+  for every reader that can access at least one of the items, and such a reader
+  gets `ResolveError::Ambiguous` listing every candidate, as rustc refuses the
+  path; a path through a module that two globs bring in as different modules is
+  ambiguous in the same way. For a name that two globs bring in as different
+  items the reader gets `Ambiguous` in every declaration order. Where a definition
+  or an explicit import, or a glob of a module that defines or imports the item
+  and is reached other than through the reading module, supplies an item that
+  another glob also carries as a companion (a hidden item riding along with
+  it), the index gives that item in every order, and an import that reads the
+  name through the glob that carries the companion supplies nothing, so the name
+  stays `Ambiguous`. Where rustc's own answer varies with the order of the
+  declarations, the index gives one answer in every order, the ambiguity for some
+  shapes and the item for others.
+  `Workspace::resolve_from(module, path)` and `resolve_from_in` resolve a path as
+  a `use` written in the named module would, and `ResolveError::UnknownModule`
+  names a module that is not in the index. The crate's resolution is compared
+  with rustc on generated programs with private, public and crate-visible
+  globs; the divergences that remain are a glob cycle rustc settles differently
+  in a name space, the glob re-export rustc only warns about, and shapes on
+  which rustc's own answer depends on declaration order. An item that a cycle
+  of globs carries back to a module no longer leaves a companion item in that
+  module's view, so the internal consistency check of a debug build no longer
+  stops the load in the shapes fixed. The crate's tests no longer read the clock:
+  they count work through a counting tree and test-only tallies, and the
+  repository gate refuses clock use in the crate's source and tests.
+- **`raf-source`:** a path whose first segment is a bare name that two globs bring
+  in as different modules is ambiguous, as a later segment is, and an import that
+  starts with it binds nothing. The `cfg` alternatives of one module that a glob
+  brings in are one candidate at any segment. `Workspace::resolve_from` and
+  `resolve_from_in` answer `Ambiguous`, as `resolve` does, for a reading module
+  of a crate name that libraries of several packages share. A companion item
+  that an explicit import or a defining glob supplies, one that arrives where the
+  reader cannot access it, or one that a cycle of globs carries back, no longer
+  makes the answer depend on the order of the declarations. The comparison with
+  rustc probes bare first segments and fails an index answer that changes with
+  the order of the declarations.
+- **`raf-source`:** an item or a module that a cycle of globs carries back to a
+  module beside a glob that holds it from elsewhere no longer leaves a hidden
+  companion next to it, so the name resolves to the item, the same in every order
+  of the declarations, instead of `Ambiguous`. Whether a module holds an item
+  apart from each reading module is answered for all of them from one dominator
+  tree for each item, name and name space, each step charged to the budget of the
+  load before it is made. Settling the glob views still costs quadratic or
+  worse in the number of globs on three shapes. The
+  comparison with rustc draws from two families of seeds by default, selects one
+  with `RAF_ORACLE_SEED_BASE`, lists every divergence with `RAF_ORACLE_LIST` and
+  states its runs on both families; the glob and import cycles that the index
+  settles differently from rustc remain the only programs it leaves unclassified.
 - **`raf-okf`:** reads and writes the RAF profile of OKF documents. It parses
   Markdown with YAML frontmatter in a closed subset, validates the closed key sets
   and typed values of capability, change and architecture documents and reports

@@ -3,15 +3,16 @@
 
 //! A `DiskTree` never reads outside its root. Each fixture sits in a fresh
 //! temporary directory beside an outside sentinel. The sentinel is a FIFO
-//! wherever one is needed: a read of it would block, and every call runs
-//! under a watchdog, so a test that passes never read it.
+//! wherever one is needed: a blocking read of it would never return, so a test
+//! that passes never read it. The unit tests of the disk tree check that every
+//! open is an `O_PATH` reference or an `O_NONBLOCK` open.
 
 #![cfg(unix)]
 
 mod support;
 
 use raf_source::{DiskTree, EntryKind, Opened, RelPath, Tree, TreeError};
-use support::{Scratch, within_watchdog};
+use support::Scratch;
 
 const CAP: u64 = 1024;
 
@@ -29,8 +30,8 @@ fn fixture() -> (Scratch, DiskTree) {
     (scratch, tree)
 }
 
-fn read_within_watchdog(tree: DiskTree, text: &'static str) -> Result<String, TreeError> {
-    within_watchdog(move || tree.read(&path(text), CAP))
+fn read(tree: &DiskTree, text: &str) -> Result<String, TreeError> {
+    tree.read(&path(text), CAP)
 }
 
 #[test]
@@ -40,7 +41,7 @@ fn a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_acce
     scratch.link("root/alias.rs", scratch.path("root/real.rs"));
     scratch.link("root/relative.rs", "real.rs");
 
-    let refused = read_within_watchdog(tree, "out.rs").expect_err("outside");
+    let refused = read(&tree, "out.rs").expect_err("outside");
     assert!(
         matches!(refused, TreeError::OutsideRoot { .. }),
         "{refused:?}"
@@ -63,7 +64,7 @@ fn a_symlink_to_a_symlink_that_leaves_the_root_is_refused_beside_a_chain_that_st
     scratch.link("root/c.rs", scratch.path("root/real.rs"));
     scratch.link("root/b.rs", scratch.path("root/c.rs"));
 
-    let refused = read_within_watchdog(tree, "first.rs").expect_err("outside");
+    let refused = read(&tree, "first.rs").expect_err("outside");
     assert!(
         matches!(refused, TreeError::OutsideRoot { .. }),
         "{refused:?}"
@@ -83,7 +84,7 @@ fn a_parent_segment_after_an_outside_directory_symlink_is_resolved_on_disk_and_r
     scratch.fifo("outside/x.rs");
     scratch.dir("root/plain");
 
-    let refused = read_within_watchdog(tree, "vendored/../x.rs").expect_err("outside");
+    let refused = read(&tree, "vendored/../x.rs").expect_err("outside");
     assert!(
         matches!(refused, TreeError::OutsideRoot { .. }),
         "{refused:?}"
@@ -152,13 +153,11 @@ fn a_fifo_named_as_a_file_is_refused_without_blocking_beside_a_regular_file() {
     scratch.fifo("root/pipe.rs");
     let tree = DiskTree::new(scratch.path("root")).expect("tree");
 
-    let (refused, kind, accepted) = within_watchdog(move || {
-        (
-            tree.read(&path("pipe.rs"), CAP),
-            tree.entry(&path("pipe.rs")),
-            tree.read(&path("real.rs"), CAP),
-        )
-    });
+    let (refused, kind, accepted) = (
+        tree.read(&path("pipe.rs"), CAP),
+        tree.entry(&path("pipe.rs")),
+        tree.read(&path("real.rs"), CAP),
+    );
 
     assert!(
         matches!(refused, Err(TreeError::NotRegular { .. })),
@@ -206,7 +205,7 @@ fn a_symlinked_root_is_followed_to_its_target_and_containment_is_judged_there() 
     let tree = DiskTree::new(scratch.path("alias_root")).expect("tree through the alias");
 
     assert_eq!(tree.read(&path("real.rs"), CAP).expect("read"), "real");
-    let refused = read_within_watchdog(tree, "to_outside.rs").expect_err("outside");
+    let refused = read(&tree, "to_outside.rs").expect_err("outside");
     assert!(
         matches!(refused, TreeError::OutsideRoot { .. }),
         "{refused:?}"
@@ -227,7 +226,7 @@ fn a_file_that_is_missing_is_not_found_and_one_that_leaves_the_root_is_outside_r
         "{dangling:?}"
     );
     let tree2 = DiskTree::new(scratch.path("root")).expect("tree");
-    let outside = read_within_watchdog(tree2, "out.rs").expect_err("outside");
+    let outside = read(&tree2, "out.rs").expect_err("outside");
     assert!(
         matches!(outside, TreeError::OutsideRoot { .. }),
         "{outside:?}"
@@ -351,7 +350,7 @@ fn the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle() {
         Err(TreeError::NotFound { .. })
     ));
     scratch.link("root/out.rs", scratch.path("outside/sentinel.rs"));
-    let outside = within_watchdog(move || tree.identity(&path("out.rs")));
+    let outside = tree.identity(&path("out.rs"));
     assert!(
         matches!(outside, Err(TreeError::OutsideRoot { .. })),
         "{outside:?}"

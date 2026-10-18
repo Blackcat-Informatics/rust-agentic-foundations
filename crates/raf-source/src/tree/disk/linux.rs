@@ -41,9 +41,12 @@ pub(super) fn open(
         refuse_unless_directory(&candidate, shown)?;
     }
     hook!(tree, before_open);
+    let flags = libc::O_PATH | libc::O_NOFOLLOW;
+    #[cfg(test)]
+    tree.note_open(flags.cast_unsigned());
     let reference = OpenOptions::new()
         .read(true)
-        .custom_flags(libc::O_PATH | libc::O_NOFOLLOW)
+        .custom_flags(flags)
         .open(&canonical)
         .map_err(|e| open_error(shown, e))?;
     hook!(tree, after_open);

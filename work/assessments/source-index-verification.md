@@ -7,19 +7,22 @@ subject: cap:source-index#verification
 inputs:
   - kind: section
     name: cap:source-index#verification
-    digest: 246f6bfe44c1ab30b0332d006ca3d8a871af1443a0d05ba07cac352a921cfb38
+    digest: 2ba6e51e1df8301413cccb55fa287c0c2f7d9a12d7d261ff61dd0c62252e707f
   - kind: symbol
     name: raf_source::Budget
     digest: 112cd1e623c2c1c3f5b568ff36d5fd8914bcdba242888abc79525048c7445634
   - kind: symbol
     name: raf_source::DiskTree
-    digest: 0e3d20e48dd1565506f12b2d49f8c1f14b33d12ca25486e14397d6b1e1302536
+    digest: 8de0bd6cf52eb2437cddff8545a4af80ca0f68b9da0a70b705a32f026eeaef63
   - kind: symbol
     name: raf_source::MemoryTree
     digest: f4dcd98dc81a25c56fe58967638c60ad348a69335229bd8fe860a7d3788080c7
   - kind: symbol
     name: raf_source::Reexport
     digest: eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
+  - kind: symbol
+    name: raf_source::ResolveError
+    digest: 97e82f5945a3f75d63b81a8fad164b38427445939061027fb757655508175c22
   - kind: symbol
     name: raf_source::Target
     digest: e9ce9b0c72d512e774654a3c3bff6ecca9d9d1b00cd169472582e58693772a6a
@@ -29,6 +32,12 @@ inputs:
   - kind: symbol
     name: raf_source::Workspace::exported_items
     digest: 6d6c67ccd4ffe690cbccae92d1c8bcc8883b0d973853327c06917a60b6851de9
+  - kind: symbol
+    name: raf_source::Workspace::resolve_from
+    digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94
+  - kind: symbol
+    name: raf_source::Workspace::resolve_from_in
+    digest: 43567aac51c99a30ce8e50e10eba1f27b9b24353a5f1322f7816b0c88e4015d8
   - kind: symbol
     name: raf_source::Workspace::resolve_in_package
     digest: 55aef4b2934d9e615a22f5c3f08ac679a9ea8d94b79d1e0844d64381a8ad1044

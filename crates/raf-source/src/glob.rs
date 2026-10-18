@@ -9,6 +9,8 @@
 //! unclosed bracket are outside the supported syntax and are refused, never
 //! ignored.
 
+use crate::work::{self, Work};
+
 /// One piece of a segment pattern.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Piece {
@@ -89,6 +91,7 @@ fn matches_segment(pieces: &[Piece], text: &[char]) -> bool {
     let (mut p, mut t) = (0, 0);
     let mut star: Option<(usize, usize)> = None;
     while t < text.len() {
+        work::add(Work::PatternSteps, 1);
         match pieces.get(p) {
             Some(Piece::Run) => {
                 star = Some((p, t));
@@ -191,5 +194,38 @@ impl Pattern {
                 .iter()
                 .zip(parts)
                 .all(|(pieces, part)| matches_segment(pieces, part))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Pattern;
+    use crate::work::{self, Work};
+
+    #[test]
+    fn a_segment_is_matched_in_at_most_pattern_times_name_steps() {
+        const NAME: usize = 40;
+        let name = "a".repeat(NAME);
+        for stars in [8, 16, 24] {
+            let text = format!("crates/{}b", "*a".repeat(stars));
+            let pattern = Pattern::parse(&text).expect("the pattern parses");
+            // The pieces of the segment: a star and a letter per repeat, and
+            // the letter that never matches. Backtracking only goes forward
+            // from the last star, so each character of the name is tried
+            // against at most every piece once.
+            let pieces = 2 * stars + 1;
+            let bound = (pieces + 1) * (NAME + 2);
+            let (matched, tally) = work::measure(bound, || pattern.segment_matches(1, &name));
+            assert!(!matched, "{stars} stars");
+            let steps = tally.get(Work::PatternSteps);
+            assert!(steps > 0, "{stars} stars");
+            assert!(steps <= bound, "{stars} stars took {steps} steps");
+        }
+        // The same pattern matches a name that ends where it must.
+        let pattern = Pattern::parse(&format!("crates/{}b", "*a".repeat(24))).expect("parses");
+        let ending = format!("{name}b");
+        let (matched, tally) = work::measure(2000, || pattern.segment_matches(1, &ending));
+        assert!(matched);
+        assert!(tally.get(Work::PatternSteps) > 0);
     }
 }

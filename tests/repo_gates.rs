@@ -15,11 +15,14 @@
 //! * the fuzz harness workspace carries the same `[workspace.lints]` tables as
 //!   the root, and every workspace manifest inherits them;
 //! * the fuzz harness `deny.toml` is the root `deny.toml` plus its one
-//!   crate-scoped licence exception.
+//!   crate-scoped licence exception;
+//! * no tracked Rust file under `crates/raf-source/src` or
+//!   `crates/raf-source/tests` names a clock or a wait on one, so no test of
+//!   that crate measures or asserts time (its `examples/` are exempt).
 //!
 //! Each gate is a pure function over text or bytes, and each has a named
 //! negative fixture below that breaks exactly one thing. Test names start with
-//! `licenses_`, `issue_refs_`, `citation_`, `lints_` or `deny_`, which names the gate a test
+//! `licenses_`, `issue_refs_`, `citation_`, `lints_`, `deny_` or `time_in_raf_source_`, which names the gate a test
 //! belongs to; `make licenses` and `make issue-refs` run the whole binary. Only
 //! the standard library is used.
 
@@ -245,6 +248,59 @@ fn scan_tree(root: &Path, paths: &[PathBuf]) -> (Vec<String>, usize) {
     (hits, scanned)
 }
 
+/// The directories of `raf-source` whose Rust files may not name a clock. Its
+/// `examples/` are binaries, not tests, and are not listed.
+const CLOCK_FREE: [&str; 2] = ["crates/raf-source/src", "crates/raf-source/tests"];
+
+/// The spellings that read a clock or wait on one, each matched as a whole
+/// word: the `std::time` and `core::time` modules, the timer modules of async
+/// runtimes, the types that carry a reading or a span, a sleep, and the waits
+/// and socket options that carry a timeout.
+const CLOCK_WORDS: [&str; 13] = [
+    "std::time",
+    "core::time",
+    "tokio::time",
+    "Instant",
+    "Duration",
+    "SystemTime",
+    "sleep",
+    "recv_timeout",
+    "wait_timeout",
+    "park_timeout",
+    "set_read_timeout",
+    "set_write_timeout",
+    "elapsed",
+];
+
+/// True when `word` occurs in `line` with no identifier character on either side.
+fn has_word(line: &str, word: &str) -> bool {
+    let identifier = |c: char| c.is_alphanumeric() || c == '_';
+    line.match_indices(word).any(|(start, _)| {
+        let before = line[..start].chars().next_back();
+        let after = line[start + word.len()..].chars().next();
+        !before.is_some_and(identifier) && !after.is_some_and(identifier)
+    })
+}
+
+/// One `path:line: word` entry per clock spelling in `text`, when `path` is a
+/// Rust file under a clock-free directory; nothing for any other path.
+fn clock_hits(path: &Path, text: &str) -> Vec<String> {
+    let in_scope = path.extension().is_some_and(|ext| ext == "rs")
+        && CLOCK_FREE.iter().any(|dir| path.starts_with(dir));
+    if !in_scope {
+        return Vec::new();
+    }
+    let mut hits = Vec::new();
+    for (index, line) in text.lines().enumerate() {
+        for word in CLOCK_WORDS {
+            if has_word(line, word) {
+                hits.push(format!("{}:{}: {word}", path.display(), index + 1));
+            }
+        }
+    }
+    hits
+}
+
 /// The `version` under `[workspace.package]` in a `Cargo.toml` text.
 fn workspace_version(manifest: &str) -> Option<String> {
     let mut in_section = false;
@@ -467,6 +523,29 @@ fn issue_refs_tracked_files_are_clean() {
     assert!(
         hits.is_empty(),
         "issue-refs: {} hits; remove issue/PR tokens and process wording:\n  {}",
+        hits.len(),
+        hits.join("\n  ")
+    );
+}
+
+#[test]
+fn time_in_raf_source_tracked_files_name_no_clock() {
+    let root = gate_root();
+    let mut hits = Vec::new();
+    let mut scanned = 0;
+    for path in tracked_paths() {
+        if CLOCK_FREE.iter().any(|dir| path.starts_with(dir)) {
+            scanned += 1;
+            let bytes = read_tracked(&root, &path);
+            if let Some(text) = decode_text(&bytes) {
+                hits.extend(clock_hits(&path, &text));
+            }
+        }
+    }
+    assert!(scanned > 0, "no file of raf-source was scanned");
+    assert!(
+        hits.is_empty(),
+        "time-in-raf-source: {} hits; count work or tree calls instead of reading a clock:\n  {}",
         hits.len(),
         hits.join("\n  ")
     );
@@ -769,6 +848,80 @@ fn issue_refs_scans_text_files_and_skips_binary_ones() {
     std::fs::remove_dir_all(&dir).expect("remove scratch directory");
     assert_eq!(scanned, 1);
     assert_eq!(hits, vec![format!("text.md:1: {NUMBER}")]);
+}
+
+// ---------------------------------------------------------------------------
+// Fixtures: clocks in raf-source
+// ---------------------------------------------------------------------------
+
+/// A planted reading of the clock, assembled so that this file stays clean.
+fn planted() -> String {
+    format!("let started = std::{}::{}::now();\n", "time", "Instant")
+}
+
+#[test]
+fn time_in_raf_source_rejects_a_planted_clock_reading_with_file_and_line() {
+    let text = format!("fn clean() {{}}\n{}", planted());
+    let hits = clock_hits(Path::new("crates/raf-source/tests/a.rs"), &text);
+    assert_eq!(
+        hits,
+        vec![
+            "crates/raf-source/tests/a.rs:2: std::time".to_owned(),
+            "crates/raf-source/tests/a.rs:2: Instant".to_owned(),
+        ]
+    );
+}
+
+#[test]
+fn time_in_raf_source_rejects_each_spelling_in_the_library_and_the_tests() {
+    for (word, line) in [
+        ("Duration", "let d = Duration::from_secs(1);"),
+        ("SystemTime", "let t = SystemTime::now();"),
+        ("sleep", "std::thread::sleep(pause);"),
+        ("recv_timeout", "receiver.recv_timeout(limit)"),
+        ("core::time", "use core::time::Duration as D;"),
+        ("tokio::time", "tokio::time::sleep(pause).await;"),
+        ("wait_timeout", "condvar.wait_timeout(guard, limit)"),
+        ("park_timeout", "std::thread::park_timeout(limit);"),
+        ("set_read_timeout", "socket.set_read_timeout(limit)"),
+        ("set_write_timeout", "socket.set_write_timeout(limit)"),
+        ("elapsed", "let took = started.elapsed();"),
+    ] {
+        for dir in ["crates/raf-source/src", "crates/raf-source/tests"] {
+            let path = format!("{dir}/nested/x.rs");
+            let hits = clock_hits(Path::new(&path), line);
+            // A line can carry two spellings (`core::time::Duration`): the
+            // spelling under test is reported among the hits, at line 1.
+            assert!(
+                hits.contains(&format!("{path}:1: {word}")),
+                "{line}: {hits:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn time_in_raf_source_passes_the_clean_neighbour() {
+    let text = "fn count(tree: &Counting) -> usize { tree.reads() }\n\
+                // an instantaneous step, a duration-free count, sleepless\n\
+                fn Instantiate() {}\n";
+    assert_eq!(
+        clock_hits(Path::new("crates/raf-source/tests/a.rs"), text),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn time_in_raf_source_exempts_the_examples_and_other_crates_and_other_files() {
+    let text = planted();
+    for path in [
+        "crates/raf-source/examples/registry_scan.rs",
+        "crates/raf-okf/src/lib.rs",
+        "crates/raf-source/README.md",
+        "crates/raf-source/src_notes/a.rs",
+    ] {
+        assert!(clock_hits(Path::new(path), &text).is_empty(), "{path}");
+    }
 }
 
 // ---------------------------------------------------------------------------

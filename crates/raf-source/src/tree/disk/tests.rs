@@ -54,19 +54,6 @@ impl Drop for Scratch {
     }
 }
 
-/// Run `work` on its own thread; fail when it has not finished in 10 seconds.
-#[cfg(unix)]
-fn within_watchdog<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
-    let (sender, receiver) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        // The receiver is gone only when the watchdog already fired.
-        drop(sender.send(work()));
-    });
-    receiver
-        .recv_timeout(std::time::Duration::from_secs(10))
-        .expect("the operation blocked past the watchdog")
-}
-
 fn write(path: &Path, text: &str) {
     fs::write(path, text).expect("write file");
 }
@@ -371,7 +358,7 @@ mod swap {
             let mut tree = tree_with(&root, strategy);
             tree.before_open = Some(park_and_link(&root, &outside_dir));
 
-            let result = within_watchdog(move || tree.read(&rel("dir/file.rs"), 1024));
+            let result = tree.read(&rel("dir/file.rs"), 1024);
 
             assert_outside(&result, strategy);
         }
@@ -399,14 +386,12 @@ mod swap {
                 let mut tree = tree_with(&root, strategy);
                 tree.after_verify = Some(move_out_and_link(&root, &outside_dir));
 
-                let result = within_watchdog(move || {
-                    let path = rel("dir/file.rs");
-                    if unseen {
-                        tree.read_unseen(&path, 1024, &|_| false).map(|_| ())
-                    } else {
-                        tree.read(&path, 1024).map(|_| ())
-                    }
-                });
+                let path = rel("dir/file.rs");
+                let result = if unseen {
+                    tree.read_unseen(&path, 1024, &|_| false).map(|_| ())
+                } else {
+                    tree.read(&path, 1024).map(|_| ())
+                };
 
                 assert!(
                     matches!(result, Err(TreeError::OutsideRoot { .. })),
@@ -423,7 +408,7 @@ mod swap {
             let mut tree = tree_with(&root, strategy);
             tree.before_open = Some(park_and_link(&root, &outside_dir));
 
-            let result = within_watchdog(move || tree.list(&rel("dir/sub")));
+            let result = tree.list(&rel("dir/sub"));
 
             assert_outside(&result, strategy);
         }
@@ -436,7 +421,7 @@ mod swap {
             let mut tree = tree_with(&root, strategy);
             tree.after_verify = Some(move_out_and_link(&root, &outside_dir));
 
-            let result = within_watchdog(move || tree.list(&rel("dir/sub")));
+            let result = tree.list(&rel("dir/sub"));
 
             assert_outside(&result, strategy);
         }
@@ -473,7 +458,7 @@ mod swap {
                     tree.after_verify = Some(move_out_and_link(&root, &outside_dir));
                 }
 
-                let result = within_watchdog(move || tree.entry(&rel("dir/sub/only_outside")));
+                let result = tree.entry(&rel("dir/sub/only_outside"));
 
                 assert!(
                     matches!(result, Err(TreeError::OutsideRoot { .. })),
@@ -504,32 +489,22 @@ mod swap {
         }
     }
 
-    /// The `/proc` task directory of the calling thread.
+    /// The open events queued on `queue` since it was last read, and none
+    /// when the queue is empty.
     #[cfg(target_os = "linux")]
-    fn own_task() -> PathBuf {
-        Path::new("/proc").join(fs::read_link("/proc/thread-self").expect("/proc/thread-self"))
-    }
+    fn queued_opens(queue: &std::os::fd::OwnedFd) -> Vec<rustix::fs::inotify::ReadFlags> {
+        use rustix::fs::inotify::Reader;
+        use rustix::io::Errno;
 
-    /// Wait until the thread of `task` is blocked in an `open` system call.
-    #[cfg(target_os = "linux")]
-    fn wait_until_blocked_in_open(task: &Path) {
-        let opens = [
-            libc::SYS_openat,
-            #[cfg(target_arch = "x86_64")]
-            libc::SYS_open,
-        ];
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        let mut buffer = [std::mem::MaybeUninit::<u8>::uninit(); 1024];
+        let mut reader = Reader::new(queue, &mut buffer);
+        let mut events = Vec::new();
         loop {
-            let call = fs::read_to_string(task.join("syscall")).expect("read the task's syscall");
-            let number = call.split_whitespace().next().and_then(|n| n.parse().ok());
-            if number.is_some_and(|number: libc::c_long| opens.contains(&number)) {
-                return;
+            match reader.next() {
+                Ok(event) => events.push(event.events()),
+                Err(Errno::AGAIN) => return events,
+                Err(error) => panic!("read the inotify queue: {error}"),
             }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "the writer never blocked in open: {call}"
-            );
-            std::thread::sleep(std::time::Duration::from_millis(5));
         }
     }
 
@@ -543,41 +518,59 @@ mod swap {
         }
     }
 
+    /// The probe is an inotify watch for `IN_OPEN` on the FIFO's inode. An
+    /// `O_PATH` reference must not be reported (the negative control, which the
+    /// Linux strategy relies on), and an `O_NONBLOCK` open must be, exactly
+    /// once (the positive control, which proves the watch is live).
     #[cfg(target_os = "linux")]
     fn outside_fifo_is_never_opened(strategy: Strategy) {
+        use rustix::fs::inotify::{self, CreateFlags, ReadFlags, WatchFlags};
         use std::os::unix::fs::OpenOptionsExt as _;
 
         let (_scratch, root, outside_dir) = fixture();
         let fifo = outside_dir.join("file.rs");
-        // A writer's open of a FIFO returns only once some reader opens it.
-        let (task_sender, task) = std::sync::mpsc::channel();
-        let (opened_sender, opened) = std::sync::mpsc::channel();
-        let writer_fifo = fifo.clone();
-        let writer = std::thread::spawn(move || {
-            task_sender.send(own_task()).expect("send the task");
-            // The receiver is gone only when the test already failed.
-            drop(opened_sender.send(fs::OpenOptions::new().write(true).open(&writer_fifo)));
-        });
-        wait_until_blocked_in_open(&task.recv().expect("the writer's task"));
+        let queue = inotify::init(CreateFlags::NONBLOCK | CreateFlags::CLOEXEC)
+            .expect("create an inotify queue");
+        inotify::add_watch(&queue, &fifo, WatchFlags::OPEN).expect("watch the FIFO for opens");
+
+        let reference = fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_PATH)
+            .open(&fifo)
+            .expect("take an O_PATH reference to the FIFO");
+        drop(reference);
+        let reported = queued_opens(&queue);
+        assert!(
+            reported.is_empty(),
+            "this kernel reports an O_PATH reference as an open ({reported:?}), so the probe \
+             cannot tell a reference from an open of the FIFO"
+        );
+
         let mut tree = tree_with(&root, strategy);
         tree.before_open = Some(park_and_link(&root, &outside_dir));
+        let result = tree.read(&rel("dir/file.rs"), 1024);
 
-        let result = within_watchdog(move || tree.read(&rel("dir/file.rs"), 1024));
-        let released = opened.recv_timeout(std::time::Duration::from_secs(1));
+        assert_outside(&result, strategy);
+        let opened = queued_opens(&queue);
+        assert!(
+            opened.is_empty(),
+            "{strategy:?}: the outside FIFO was opened: {opened:?}"
+        );
+        let flags = tree.recorded_opens();
+        assert!(!flags.is_empty(), "{strategy:?}: no open was recorded");
+        assert!(flags.iter().all(|&flags| never_blocks(flags)), "{flags:?}");
 
-        // Release the writer whatever happened, so its thread ends.
-        let release = fs::OpenOptions::new()
+        let live = fs::OpenOptions::new()
             .read(true)
             .custom_flags(libc::O_NONBLOCK)
             .open(&fifo)
-            .expect("release the writer");
-        writer.join().expect("the writer ends");
-        drop(release);
+            .expect("open the FIFO without blocking");
+        drop(live);
+        let reported = queued_opens(&queue);
         assert!(
-            released.is_err(),
-            "{strategy:?}: the outside FIFO was opened, releasing its writer: {released:?}"
+            matches!(reported.as_slice(), [event] if event.contains(ReadFlags::OPEN)),
+            "the probe did not report the one open of the FIFO: {reported:?}"
         );
-        assert_outside(&result, strategy);
     }
 
     /// `root/dir/secret.rs` and `outside/dir/secret.rs`, both regular files,
@@ -630,7 +623,7 @@ mod swap {
                 tree.before_open = Some(park_and_link(&root, &outside_dir));
                 tree.after_open = Some(undo_park(&root));
 
-                let result = within_watchdog(move || call(&tree));
+                let result = call(&tree);
 
                 assert!(
                     matches!(result, Err(TreeError::OutsideRoot { .. })),
@@ -667,7 +660,7 @@ mod swap {
             tree.after_open = Some(hook(&flip));
             tree.after_verify = Some(hook(&flip));
 
-            let result = within_watchdog(move || tree.read(&rel("dir/secret.rs"), 1024));
+            let result = tree.read(&rel("dir/secret.rs"), 1024);
 
             assert_outside(&result, strategy);
         }
@@ -717,8 +710,8 @@ mod strategy {
         (scratch, root)
     }
 
-    fn read(tree: DiskTree, path: &'static str) -> Result<String, TreeError> {
-        within_watchdog(move || tree.read(&rel(path), 1024))
+    fn read(tree: &DiskTree, path: &str) -> Result<String, TreeError> {
+        tree.read(&rel(path), 1024)
     }
 
     #[test]
@@ -734,7 +727,7 @@ mod strategy {
             symlink("out.rs", &root.join("chain.rs"));
 
             for refused in ["out.rs", "chain.rs"] {
-                let result = read(tree_with(&root, strategy), refused);
+                let result = read(&tree_with(&root, strategy), refused);
                 assert!(
                     matches!(result, Err(TreeError::OutsideRoot { .. })),
                     "{strategy:?} {refused}: {result:?}"
@@ -1065,7 +1058,7 @@ mod strategy {
             symlink(scratch.dir.join("outside/inner"), &root.join("vendored"));
             write(&root.join("x.rs"), "the lexical clamp would read this");
 
-            let result = read(tree_with(&root, strategy), "vendored/../x.rs");
+            let result = read(&tree_with(&root, strategy), "vendored/../x.rs");
 
             assert!(
                 matches!(result, Err(TreeError::OutsideRoot { .. })),
@@ -1082,14 +1075,12 @@ mod strategy {
             scratch.dir("root/sub");
             let tree = tree_with(&root, strategy);
 
-            let (pipe, sub, kind, real) = within_watchdog(move || {
-                (
-                    tree.read(&rel("pipe.rs"), 1024),
-                    tree.identity(&rel("sub")),
-                    tree.entry(&rel("pipe.rs")),
-                    tree.read(&rel("real.rs"), 1024),
-                )
-            });
+            let (pipe, sub, kind, real) = (
+                tree.read(&rel("pipe.rs"), 1024),
+                tree.identity(&rel("sub")),
+                tree.entry(&rel("pipe.rs")),
+                tree.read(&rel("real.rs"), 1024),
+            );
 
             assert!(
                 matches!(pipe, Err(TreeError::NotRegular { .. })),
@@ -1101,6 +1092,59 @@ mod strategy {
             );
             assert_eq!(kind.expect("entry"), Some(EntryKind::Other), "{strategy:?}");
             assert_eq!(real.expect("regular"), "real", "{strategy:?}");
+        }
+    }
+
+    /// Every open that resolves a name is an `O_PATH` reference or an
+    /// `O_NONBLOCK` open, so none waits on a FIFO. The calls reach a FIFO
+    /// inside the root, a FIFO behind an outside link, and a directory; those
+    /// that must reach an open record at least one (the Linux strategy refuses
+    /// the outside link before it opens anything).
+    #[test]
+    fn every_open_that_resolves_a_name_is_a_reference_or_does_not_block() {
+        for &strategy in STRATEGIES {
+            let (scratch, root) = fixture();
+            make_fifo(&root.join("pipe.rs"));
+            scratch.dir("root/sub");
+            write(&root.join("sub/inner.rs"), "inner");
+            symlink(
+                scratch.dir.join("outside/sentinel.rs"),
+                &root.join("out.rs"),
+            );
+            let tree = tree_with(&root, strategy);
+
+            let mut seen = 0;
+            let mut recorded = |call: &str, opens: bool| {
+                let flags = tree.recorded_opens();
+                assert!(
+                    !opens || flags.len() > seen,
+                    "{strategy:?} {call}: no open recorded"
+                );
+                seen = flags.len();
+                assert!(
+                    flags.iter().all(|&flags| never_blocks(flags)),
+                    "{strategy:?} {call}: {flags:?}"
+                );
+            };
+            let _ = tree.read(&rel("pipe.rs"), 1024);
+            recorded("read of a FIFO", true);
+            let _ = tree.read(&rel("out.rs"), 1024);
+            recorded("read through an outside link to a FIFO", false);
+            let _ = tree.read_unseen(&rel("pipe.rs"), 1024, &|_| false);
+            recorded("read_unseen of a FIFO", true);
+            let _ = tree.identity(&rel("pipe.rs"));
+            recorded("identity of a FIFO", true);
+            let _ = tree.entry(&rel("pipe.rs"));
+            recorded("entry of a FIFO", false);
+            let _ = tree.entry(&rel("sub/inner.rs"));
+            recorded("entry of a file below a directory", true);
+            let _ = tree.list(&rel("pipe.rs"));
+            recorded("list of a FIFO", false);
+            assert_eq!(
+                tree.read(&rel("sub/inner.rs"), 1024).expect("read"),
+                "inner"
+            );
+            recorded("read of a regular file", true);
         }
     }
 

@@ -2836,11 +2836,18 @@ fn a_cycle_through_a_glob_the_importer_cannot_access_is_no_cycle_in_every_order(
 #[test]
 fn an_import_a_cycle_leaves_to_the_globs_binds_what_its_readers_could_access_in_every_order() {
     // `m2` and `m3` import `Y` from each other, and `m2`'s globs answer
-    // `m2::Y`: its private glob of `m0` with `m0::Y` and its public glob of
-    // `m1` with the unit struct `m1::Y`. `m3`, outside `m2`, can access only
-    // `m1::Y`, so it binds that, and `m2`'s import, reading `m3::Y`, binds it
-    // too: what `m3` read is kept, and rustc accepts the crate with both
-    // names `m1::Y`.
+    // `m2::Y`: its private glob of `m0` with the struct `m0::Y`, which has no
+    // value, and its public glob of `m1` with the unit struct `m1::Y`, which
+    // has both. The value name space holds `m1::Y` only, and both imports
+    // bind it, for `m3`, outside `m2`, as for `m2`. The type name space
+    // holds two structs: `m3` cannot access the glob of `m0`, but rustc keeps
+    // the name ambiguous in `m2` for every reader, so `m2::Y` and `m3::Y` are
+    // ambiguous there, and not `m1::Y`. rustc itself reads this crate in two
+    // ways, by the order of the two globs in `m2` and by nothing else: with
+    // the private glob first it accepts the crate and drops the type name
+    // space of the imports (`m3::Y` names no type), and with the public glob
+    // first it reports E0659. The index answers as rustc does wherever rustc
+    // answers, in every order, and holds the type name space ambiguous.
     let (found, orders) = one_answer_in_every_order(
         lib,
         &[
@@ -2853,10 +2860,12 @@ fn an_import_a_cycle_leaves_to_the_globs_binds_what_its_readers_could_access_in_
             ("demo::m2::Y", Some(Namespace::Type)),
             ("demo::m2::Y", Some(Namespace::Value)),
             ("demo::m3::Y", Some(Namespace::Type)),
+            ("demo::m3::Y", Some(Namespace::Value)),
         ],
     );
     assert_eq!(orders, 24);
-    assert_eq!(found, ["demo::m1::Y", "demo::m1::Y", "demo::m1::Y", ""]);
+    let both = "ambiguous [\"demo::m0::Y\", \"demo::m1::Y\"]";
+    assert_eq!(found, [both, "demo::m1::Y", both, "demo::m1::Y", ""]);
 }
 
 #[test]
@@ -3194,4 +3203,1551 @@ fn a_crate_root_inside_a_group_under_a_path_is_a_syntax_error() {
         "{error}"
     );
     assert_eq!((error.file.as_str(), error.line), ("src/lib.rs", Some(2)));
+}
+
+/// What `module` reads `path` as in `ns` when it writes it in a `use`: the
+/// canonical path, or the kind of refusal.
+fn read_as(ws: &Workspace, module: &str, path: &str, ns: Namespace) -> String {
+    match ws.resolve_from_in(module, path, ns) {
+        Ok(found) => found.path,
+        Err(ResolveError::NotFound(_)) => "not found".to_owned(),
+        Err(ResolveError::Ambiguous(ids)) => format!(
+            "ambiguous {:?}",
+            ids.iter()
+                .map(|id| ws.item(*id).expect("item").path.to_string())
+                .collect::<Vec<_>>()
+        ),
+        Err(other) => format!("{other:?}"),
+    }
+}
+
+/// A question to a reader: the module, the `use` path and the name space.
+type Read = (&'static str, &'static str, Namespace);
+
+/// Load the crate in every order of its top-level modules, `others` and the
+/// `modules` of `(header, declarations)`, with the declarations inside each
+/// of those modules in every order too, and assert that every reader's
+/// answer to `reads` is the same in each. Returns the answers and the number
+/// of loads.
+fn reads_in_every_order(
+    others: &[&str],
+    modules: &[(&str, &[&str])],
+    reads: &[Read],
+) -> (Vec<String>, usize) {
+    let mut expected: Option<Vec<String>> = None;
+    let mut loads = 0;
+    let insides: Vec<Vec<Vec<String>>> = modules
+        .iter()
+        .map(|(_, inner)| permutations(&inner.iter().map(|d| (*d).to_owned()).collect::<Vec<_>>()))
+        .collect();
+    let mut choice = vec![0; modules.len()];
+    loop {
+        let mut blocks: Vec<String> = others.iter().map(|b| (*b).to_owned()).collect();
+        for (at, (header, _)) in modules.iter().enumerate() {
+            blocks.push(format!(
+                "{header} {{ {} }}",
+                insides[at][choice[at]].join(" ")
+            ));
+        }
+        for order in permutations(&blocks) {
+            let ws = lib(&order.join("\n"));
+            let results: Vec<String> = reads
+                .iter()
+                .map(|(module, path, ns)| read_as(&ws, module, path, *ns))
+                .collect();
+            match &expected {
+                None => expected = Some(results),
+                Some(first) => assert_eq!(&results, first, "{order:?}"),
+            }
+            loads += 1;
+        }
+        // The next combination of orders inside the modules.
+        let mut at = 0;
+        while at < choice.len() {
+            choice[at] += 1;
+            if choice[at] < insides[at].len() {
+                break;
+            }
+            choice[at] = 0;
+            at += 1;
+        }
+        if at == choice.len() {
+            break;
+        }
+    }
+    (expected.expect("loaded"), loads)
+}
+
+const TYPE: Namespace = Namespace::Type;
+const VALUE: Namespace = Namespace::Value;
+
+#[test]
+fn a_pub_use_of_a_name_read_through_a_private_glob_is_seen_no_wider_than_the_glob_in_every_order() {
+    // `m` reads the struct `A` of `x` through a private glob and defines the
+    // function `A`. `c` re-exports `super::A`: rustc keeps the struct `A` of
+    // `c` visible within `m` only, and the function `pub`. `r` globs `c`, so
+    // it reads the function and not the struct, and `m` reads both through
+    // `c`. In `m` the one name `A` stands in both name spaces: for the struct
+    // through the glob, and for the function it defines.
+    let reads: &[Read] = &[
+        ("demo::r", "self::A", TYPE),
+        ("demo::r", "self::A", VALUE),
+        ("demo::r", "crate::m::c::A", TYPE),
+        ("demo::r", "crate::m::c::A", VALUE),
+        ("demo::m", "self::c::A", TYPE),
+        ("demo::m", "self::c::A", VALUE),
+        ("demo::m::c", "self::A", TYPE),
+        ("demo::m::c", "self::A", VALUE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod x { pub struct A {} }",
+            "pub mod r { pub use crate::m::c::*; }",
+        ],
+        &[(
+            "mod m",
+            &[
+                "use crate::x::*;",
+                "pub fn A() {}",
+                "pub mod c { pub use super::A; }",
+            ],
+        )],
+        reads,
+    );
+    assert_eq!(
+        found,
+        [
+            "not found",
+            "demo::m::A",
+            "not found",
+            "demo::m::A",
+            "demo::x::A",
+            "demo::m::A",
+            "demo::x::A",
+            "demo::m::A",
+        ]
+    );
+    assert_eq!(loads, 36);
+
+    // Neighbours: the same re-export of a binding the glob makes accessible
+    // as widely as the re-export stays as visible as it, for a `pub` glob and
+    // for a `pub(crate)` glob read from inside the crate.
+    for glob in ["pub use crate::x::*;", "pub(crate) use crate::x::*;"] {
+        let (found, loads) = reads_in_every_order(
+            &[
+                "pub mod x { pub struct A {} }",
+                "pub mod r { pub use crate::m::c::*; }",
+            ],
+            &[(
+                "mod m",
+                &[glob, "pub fn A() {}", "pub mod c { pub use super::A; }"],
+            )],
+            reads,
+        );
+        assert_eq!(
+            found,
+            [
+                "demo::x::A",
+                "demo::m::A",
+                "demo::x::A",
+                "demo::m::A",
+                "demo::x::A",
+                "demo::m::A",
+                "demo::x::A",
+                "demo::m::A",
+            ],
+            "{glob}"
+        );
+        assert_eq!(loads, 36);
+    }
+}
+
+#[test]
+fn a_chain_of_two_re_exports_through_two_private_globs_is_capped_twice_in_every_order() {
+    // `c1` re-exports what `m1` reads of `x` through a private glob; `m2`
+    // reads `c1` through a private glob and defines the struct `A`, so `c2`
+    // re-exports its own struct, which is `pub`, and the function `m2`
+    // reads through the glob, which is visible within `m2` only. `r` reads
+    // the struct and not the function.
+    let reads: &[Read] = &[
+        ("demo::r", "self::A", TYPE),
+        ("demo::r", "self::A", VALUE),
+        ("demo::m2", "self::c2::A", TYPE),
+        ("demo::m2", "self::c2::A", VALUE),
+        ("demo::m2", "self::A", TYPE),
+        ("demo::m2", "self::A", VALUE),
+        ("demo::m1", "self::c1::A", TYPE),
+        ("demo::m1", "self::c1::A", VALUE),
+        ("demo::m2::c2", "self::A", VALUE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod x { pub struct A {} }",
+            "pub mod r { pub use crate::m2::c2::*; }",
+        ],
+        &[
+            (
+                "mod m1",
+                &[
+                    "use crate::x::*;",
+                    "pub fn A() {}",
+                    "pub mod c1 { pub use super::A; }",
+                ],
+            ),
+            (
+                "mod m2",
+                &[
+                    "use crate::m1::c1::*;",
+                    "pub struct A {}",
+                    "pub mod c2 { pub use super::A; }",
+                ],
+            ),
+        ],
+        reads,
+    );
+    assert_eq!(
+        found,
+        [
+            "demo::m2::A",
+            "not found",
+            "demo::m2::A",
+            "demo::m1::A",
+            "demo::m2::A",
+            "demo::m1::A",
+            "demo::x::A",
+            "demo::m1::A",
+            "demo::m1::A",
+        ]
+    );
+    assert_eq!(loads, 864);
+}
+
+#[test]
+fn an_item_reached_by_a_capped_re_export_and_by_a_wider_glob_is_seen_as_widely_as_the_wider_in_every_order()
+ {
+    // `n` reads the struct `A` through `c`'s re-export, visible within `m`,
+    // and through a glob of `x` of its own. With a `pub(crate)` glob the item
+    // is visible in the crate, the wider of the two, whichever is met first;
+    // with a private glob, the wider is `m`, and a reader outside `m` finds
+    // no struct. The function reaches `n` through `c` only and is `pub`.
+    let reads: &[Read] = &[
+        ("demo::r", "self::A", TYPE),
+        ("demo::r", "self::A", VALUE),
+        ("demo::m::n", "self::A", TYPE),
+        ("demo::m", "self::n::A", TYPE),
+    ];
+    let wide = [
+        "pub mod n { pub use super::c::*; pub(crate) use crate::x::*; }",
+        "pub mod n { pub(crate) use crate::x::*; pub use super::c::*; }",
+    ];
+    for n in wide {
+        let (found, loads) = reads_in_every_order(
+            &[
+                "pub mod x { pub struct A {} }",
+                "pub mod r { pub use crate::m::n::*; }",
+            ],
+            &[(
+                "mod m",
+                &[
+                    "use crate::x::*;",
+                    "pub fn A() {}",
+                    "pub mod c { pub use super::A; }",
+                    n,
+                ],
+            )],
+            reads,
+        );
+        assert_eq!(
+            found,
+            ["demo::x::A", "demo::m::A", "demo::x::A", "demo::x::A"],
+            "{n}"
+        );
+        assert_eq!(loads, 144);
+    }
+    let narrow = [
+        "pub mod n { pub use super::c::*; use crate::x::*; }",
+        "pub mod n { use crate::x::*; pub use super::c::*; }",
+    ];
+    for n in narrow {
+        let (found, loads) = reads_in_every_order(
+            &[
+                "pub mod x { pub struct A {} }",
+                "pub mod r { pub use crate::m::n::*; }",
+            ],
+            &[(
+                "mod m",
+                &[
+                    "use crate::x::*;",
+                    "pub fn A() {}",
+                    "pub mod c { pub use super::A; }",
+                    n,
+                ],
+            )],
+            reads,
+        );
+        assert_eq!(
+            found,
+            ["not found", "demo::m::A", "demo::x::A", "demo::x::A"],
+            "{n}"
+        );
+        assert_eq!(loads, 144);
+    }
+}
+
+#[test]
+fn a_glob_re_export_of_a_private_item_is_seen_no_wider_than_the_item_in_every_order() {
+    // `s0` globs its parent, whose private struct `B` it may read; its glob
+    // is `pub` and the binding it makes is visible within `m0` only, so a
+    // glob of `s0` from outside `m0` brings in nothing, and a glob from
+    // inside brings in the struct.
+    let reads: &[Read] = &[
+        ("demo", "self::m2::B", TYPE),
+        ("demo::m0::s0", "self::B", TYPE),
+        ("demo::m0::s1", "crate::m0::s0::B", TYPE),
+        ("demo::m0::s1", "self::B", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &["pub mod m2 { pub use crate::m0::s0::*; }"],
+        &[(
+            "pub mod m0",
+            &[
+                "pub mod s0 { pub use super::*; }",
+                "pub mod s1 { pub use super::s0::*; }",
+                "struct B {}",
+            ],
+        )],
+        reads,
+    );
+    assert_eq!(
+        found,
+        ["not found", "demo::m0::B", "demo::m0::B", "demo::m0::B"]
+    );
+    assert_eq!(loads, 12);
+}
+
+/// The answer of a reader who finds the name ambiguous between `first` and
+/// `second`.
+fn ambiguous_between(first: &str, second: &str) -> String {
+    format!("ambiguous [\"{first}\", \"{second}\"]")
+}
+
+#[test]
+fn a_name_two_globs_bring_in_as_different_items_is_ambiguous_to_a_reader_of_one_glob_in_every_order()
+ {
+    // `m` globs `a` privately and `b` with a glob the readers can access, and
+    // both modules hold a struct `Y`. rustc keeps the name ambiguous in `m`
+    // whichever glob a reader can access (E0659 for each of the probes
+    // below, in every order of the declarations of the crate and of `m`),
+    // and refuses it to a reader that cannot access the private glob as
+    // much as to one that can: the index does not answer with `b::Y`.
+    let reads: &[Read] = &[
+        ("demo", "crate::m::Y", TYPE),
+        ("demo", "crate::m::Y", VALUE),
+        ("demo::s", "crate::m::Y", TYPE),
+        ("demo::m", "self::Y", TYPE),
+        ("demo::m::c", "super::Y", TYPE),
+        ("demo::m::c", "super::Y", VALUE),
+    ];
+    let both = ambiguous_between("demo::a::Y", "demo::b::Y");
+    for glob in ["pub use crate::b::*;", "pub(crate) use crate::b::*;"] {
+        let (found, loads) = reads_in_every_order(
+            &[
+                "pub mod a { pub struct Y; }",
+                "pub mod b { pub struct Y; }",
+                "pub mod s {}",
+            ],
+            &[("mod m", &["use crate::a::*;", glob, "pub mod c {}"])],
+            reads,
+        );
+        assert_eq!(found, vec![both.clone(); reads.len()], "{glob}");
+        assert_eq!(loads, 144);
+    }
+    // The question as the public entry point asks it: ambiguous, with both
+    // items, for a reader outside `m` that cannot access the private glob.
+    let ws = lib("pub mod a { pub struct Y; }\npub mod b { pub struct Y; }\n\
+         mod m { use crate::a::*; pub use crate::b::*; }\n");
+    match ws.resolve_from("demo", "crate::m::Y") {
+        Err(ResolveError::Ambiguous(ids)) => {
+            let mut paths: Vec<String> = ids
+                .iter()
+                .map(|id| ws.item(*id).expect("item").path.to_string())
+                .collect();
+            paths.sort();
+            assert_eq!(paths, ["demo::a::Y", "demo::b::Y"]);
+        }
+        other => panic!("{other:?}"),
+    }
+    // Neighbours. With both globs private the name is ambiguous inside `m`
+    // and found nowhere outside it (rustc refuses both reads); with both
+    // public it is ambiguous everywhere.
+    let (found, loads) = reads_in_every_order(
+        &["pub mod a { pub struct Y; }", "pub mod b { pub struct Y; }"],
+        &[(
+            "mod m",
+            &["use crate::a::*;", "use crate::b::*;", "pub mod c {}"],
+        )],
+        &[
+            ("demo", "crate::m::Y", TYPE),
+            ("demo::m", "self::Y", TYPE),
+            ("demo::m::c", "super::Y", TYPE),
+        ],
+    );
+    assert_eq!(found, ["not found".to_owned(), both.clone(), both.clone()]);
+    assert_eq!(loads, 36);
+    let (found, loads) = reads_in_every_order(
+        &["pub mod a { pub struct Y; }", "pub mod b { pub struct Y; }"],
+        &[(
+            "mod m",
+            &[
+                "pub use crate::a::*;",
+                "pub use crate::b::*;",
+                "pub mod c {}",
+            ],
+        )],
+        &[
+            ("demo", "crate::m::Y", TYPE),
+            ("demo::m::c", "super::Y", TYPE),
+        ],
+    );
+    assert_eq!(found, [both.clone(), both]);
+    assert_eq!(loads, 36);
+}
+
+#[test]
+fn a_module_and_a_struct_of_one_name_through_two_globs_are_ambiguous_in_the_type_name_space_in_every_order()
+ {
+    // The shape rustc reports as E0573 beside E0659 in a type position: the
+    // private glob brings in a module `Y`, the public one a unit struct `Y`.
+    // The type name space is ambiguous; the value name space holds the
+    // struct only, which rustc resolves for a reader of the public glob.
+    let (found, loads) = reads_in_every_order(
+        &["pub mod a { pub mod Y {} }", "pub mod b { pub struct Y; }"],
+        &[(
+            "mod m",
+            &["use crate::a::*;", "pub use crate::b::*;", "pub mod c {}"],
+        )],
+        &[
+            ("demo", "crate::m::Y", TYPE),
+            ("demo", "crate::m::Y", VALUE),
+            ("demo::m", "self::Y", TYPE),
+            ("demo::m::c", "super::Y", TYPE),
+            ("demo::m::c", "super::Y", VALUE),
+        ],
+    );
+    let both = ambiguous_between("demo::a::Y", "demo::b::Y");
+    assert_eq!(
+        found,
+        [
+            both.clone(),
+            "demo::b::Y".to_owned(),
+            both.clone(),
+            both,
+            "demo::b::Y".to_owned()
+        ]
+    );
+    assert_eq!(loads, 36);
+}
+
+#[test]
+fn the_refusal_of_an_ambiguous_name_in_one_name_space_leaves_the_other_resolved_in_every_order() {
+    // A struct `Y` through the private glob and another through the public
+    // one are ambiguous in the type name space, and the function `Y` of a
+    // third public glob is the only value: rustc refuses the type and
+    // resolves the value, for readers outside `m` and inside it.
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod a { pub struct Y {} }",
+            "pub mod b { pub struct Y {} }",
+            "pub mod d { pub fn Y() {} }",
+        ],
+        &[(
+            "mod m",
+            &[
+                "use crate::a::*;",
+                "pub use crate::b::*;",
+                "pub use crate::d::*;",
+            ],
+        )],
+        &[
+            ("demo", "crate::m::Y", TYPE),
+            ("demo", "crate::m::Y", VALUE),
+            ("demo::m", "self::Y", TYPE),
+            ("demo::m", "self::Y", VALUE),
+        ],
+    );
+    assert_eq!(
+        found,
+        [
+            ambiguous_between("demo::a::Y", "demo::b::Y"),
+            "demo::d::Y".to_owned(),
+            ambiguous_between("demo::a::Y", "demo::b::Y"),
+            "demo::d::Y".to_owned(),
+        ]
+    );
+    assert_eq!(loads, 144);
+    // The other way: two functions are ambiguous and the struct resolves.
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod a { pub fn Y() {} }",
+            "pub mod b { pub fn Y() {} }",
+            "pub mod d { pub struct Y {} }",
+        ],
+        &[(
+            "mod m",
+            &[
+                "use crate::a::*;",
+                "pub use crate::b::*;",
+                "pub use crate::d::*;",
+            ],
+        )],
+        &[
+            ("demo", "crate::m::Y", TYPE),
+            ("demo", "crate::m::Y", VALUE),
+            ("demo::m", "self::Y", TYPE),
+            ("demo::m", "self::Y", VALUE),
+        ],
+    );
+    assert_eq!(
+        found,
+        [
+            "demo::d::Y".to_owned(),
+            ambiguous_between("demo::a::Y", "demo::b::Y"),
+            "demo::d::Y".to_owned(),
+            ambiguous_between("demo::a::Y", "demo::b::Y"),
+        ]
+    );
+    assert_eq!(loads, 144);
+}
+
+#[test]
+fn names_the_private_glob_does_not_make_ambiguous_still_resolve_for_a_reader_outside_in_every_order()
+ {
+    // One item reached through both globs is one candidate.
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod a { pub struct Y; }",
+            "pub mod b { pub use crate::a::Y; }",
+        ],
+        &[(
+            "mod m",
+            &["use crate::a::*;", "pub use crate::b::*;", "pub mod c {}"],
+        )],
+        &[
+            ("demo", "crate::m::Y", TYPE),
+            ("demo", "crate::m::Y", VALUE),
+            ("demo::m::c", "super::Y", TYPE),
+        ],
+    );
+    assert_eq!(found, vec!["demo::a::Y"; 3]);
+    assert_eq!(loads, 36);
+    // A function and a struct of one name are two name spaces: the reader
+    // outside finds the struct of the public glob, and the function of the
+    // private one only inside.
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod a { pub fn Y() {} }",
+            "pub mod b { pub struct Y {} }",
+        ],
+        &[(
+            "mod m",
+            &["use crate::a::*;", "pub use crate::b::*;", "pub mod c {}"],
+        )],
+        &[
+            ("demo", "crate::m::Y", TYPE),
+            ("demo", "crate::m::Y", VALUE),
+            ("demo::m::c", "super::Y", TYPE),
+            ("demo::m::c", "super::Y", VALUE),
+        ],
+    );
+    assert_eq!(
+        found,
+        ["demo::b::Y", "not found", "demo::b::Y", "demo::a::Y"]
+    );
+    assert_eq!(loads, 36);
+    // A definition of `m` shadows both globs, and so does an explicit
+    // import.
+    let (found, loads) = reads_in_every_order(
+        &["pub mod a { pub struct Y; }", "pub mod b { pub struct Y; }"],
+        &[(
+            "mod m",
+            &[
+                "use crate::a::*;",
+                "pub use crate::b::*;",
+                "pub struct Y;",
+                "pub mod c {}",
+            ],
+        )],
+        &[
+            ("demo", "crate::m::Y", TYPE),
+            ("demo", "crate::m::Y", VALUE),
+            ("demo::m::c", "super::Y", TYPE),
+        ],
+    );
+    assert_eq!(found, vec!["demo::m::Y"; 3]);
+    assert_eq!(loads, 144);
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod a { pub struct Y; }",
+            "pub mod b { pub struct Y; }",
+            "pub mod e { pub struct Y; }",
+        ],
+        &[(
+            "mod m",
+            &[
+                "use crate::a::*;",
+                "pub use crate::b::*;",
+                "pub use crate::e::Y;",
+            ],
+        )],
+        &[
+            ("demo", "crate::m::Y", TYPE),
+            ("demo", "crate::m::Y", VALUE),
+        ],
+    );
+    assert_eq!(found, vec!["demo::e::Y"; 2]);
+    assert_eq!(loads, 144);
+}
+
+#[test]
+fn a_glob_of_a_module_whose_name_is_ambiguous_carries_the_ambiguity_to_its_readers_in_every_order()
+{
+    // `r` globs `m`, where the private glob of `a` and the public glob of
+    // `b` bring in different structs `Y`. The name is ambiguous in `r`
+    // as in `m` (rustc refuses each read in every order), for a reader that
+    // cannot access the private glob of `m` as well as for `r` itself; a
+    // reader that cannot access the glob of `r` finds nothing there.
+    let both = ambiguous_between("demo::a::Y", "demo::b::Y");
+    for (glob, outside) in [
+        ("pub use crate::m::*;", both.as_str()),
+        ("pub(crate) use crate::m::*;", both.as_str()),
+        ("use crate::m::*;", "not found"),
+    ] {
+        let (found, loads) = reads_in_every_order(
+            &[
+                "pub mod a { pub struct Y; }",
+                "pub mod b { pub struct Y; }",
+                &format!("pub mod r {{ {glob} }}"),
+            ],
+            &[("mod m", &["use crate::a::*;", "pub use crate::b::*;"])],
+            &[
+                ("demo", "crate::r::Y", TYPE),
+                ("demo", "crate::r::Y", VALUE),
+                ("demo::r", "self::Y", TYPE),
+            ],
+        );
+        assert_eq!(found, [outside, outside, both.as_str()], "{glob}");
+        assert_eq!(loads, 48);
+    }
+}
+
+#[test]
+fn an_import_a_reader_cannot_name_still_keeps_its_name_from_the_globs_in_every_order() {
+    // `m0` globs `m2`, whose functions `C` and `A` it would pass on, and
+    // imports `m2::C` as `A`. The import binds `A` in `m0` whoever can name
+    // it: a reader that cannot (rustc: E0603 for `m0::A`, and nothing in the
+    // glob of `m0` that `m1` makes) does not get the glob's `A` instead, and
+    // the glob does not carry it before the import has bound it: `m1`'s
+    // import of `self::A` binds nothing (E0432). With a `pub` import every
+    // reader names it.
+    let reads: &[Read] = &[
+        ("demo::m1", "self::A", VALUE),
+        ("demo", "crate::m1::A", VALUE),
+        ("demo", "crate::m0::A", VALUE),
+        ("demo::m0", "self::A", VALUE),
+        ("demo", "crate::m1::seen", VALUE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod m1 { pub use crate::m0::*; pub use self::A as seen; }",
+            "pub mod m2 { pub fn C() {} pub fn A() {} }",
+        ],
+        &[(
+            "mod m0",
+            &["pub use crate::m2::*;", "use crate::m2::C as A;"],
+        )],
+        reads,
+    );
+    assert_eq!(
+        found,
+        [
+            "not found",
+            "not found",
+            "not found",
+            "demo::m2::C",
+            "not found"
+        ]
+    );
+    assert_eq!(loads, 12);
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod m1 { pub use crate::m0::*; pub use self::A as seen; }",
+            "pub mod m2 { pub fn C() {} pub fn A() {} }",
+        ],
+        &[(
+            "pub mod m0",
+            &["pub use crate::m2::*;", "pub use crate::m2::C as A;"],
+        )],
+        reads,
+    );
+    assert_eq!(found, vec!["demo::m2::C"; 5]);
+    assert_eq!(loads, 12);
+}
+
+#[test]
+fn an_import_of_a_value_a_reader_cannot_name_leaves_the_type_of_its_name_to_the_globs_in_every_order()
+ {
+    // `s1` imports the function `m2::C` privately and globs `m0`, which
+    // brings in the struct `m1::C`; `s0` globs `s1` and `m2`, and `s1`
+    // re-exports `s0::C` as `B`, which `m2` imports. The private import binds
+    // `C` in the value name space only, so once it is settled the glob's
+    // struct reaches `s0`, which cannot name the import: `s0::C` is the
+    // struct and the function, and so are `s1::B` and `m2::B`, never the
+    // struct `m1::B` that the glob of `s1` brings in under `B`. rustc accepts
+    // each read below, and refuses `B` at the root (E0432), in every order.
+    // Neighbour: where `m2` defines a struct `C` too, the private import
+    // binds it in both name spaces, keeps the glob's struct from `s0`, and
+    // `s0` reads `m2`'s struct through its other glob.
+    let reads: &[Read] = &[
+        ("demo::m2", "self::B", TYPE),
+        ("demo::m2", "self::B", VALUE),
+        ("demo::m0::s1", "self::B", TYPE),
+        ("demo::m0::s1", "self::C", TYPE),
+        ("demo::m0::s1", "self::C", VALUE),
+        ("demo::m0::s0", "self::C", TYPE),
+        ("demo", "self::B", TYPE),
+        ("demo", "self::C", TYPE),
+        ("demo", "self::C", VALUE),
+    ];
+    let s0 = ["pub use crate::m0::s1::*;", "pub use crate::m2::*;"];
+    let s1 = [
+        "use crate::m2::C;",
+        "pub(crate) use super::*;",
+        "pub use crate::m0::s0::C as B;",
+    ];
+    // Both orders of `s0` and each declaration of `s1` first, in the first
+    // shape; the neighbour in the written order of the two.
+    let inner = |all: bool| {
+        let mut orders = vec![(s0, s1)];
+        if all {
+            for (s0, s1) in [
+                (s0, [s1[1], s1[2], s1[0]]),
+                (s0, [s1[2], s1[0], s1[1]]),
+                ([s0[1], s0[0]], s1),
+                ([s0[1], s0[0]], [s1[1], s1[2], s1[0]]),
+                ([s0[1], s0[0]], [s1[2], s1[0], s1[1]]),
+            ] {
+                orders.push((s0, s1));
+            }
+        }
+        orders
+    };
+    for (all, m2, expected) in [
+        (
+            true,
+            &["use crate::m0::s1::B;", "pub fn C() {}"][..],
+            [
+                "demo::m1::C",
+                "demo::m2::C",
+                "demo::m1::C",
+                "demo::m1::C",
+                "demo::m2::C",
+                "demo::m1::C",
+                "not found",
+                "not found",
+                "demo::m2::C",
+            ],
+        ),
+        (
+            false,
+            &["use crate::m0::s1::B;", "pub fn C() {}", "pub struct C {}"][..],
+            [
+                "demo::m2::C",
+                "demo::m2::C",
+                "demo::m2::C",
+                "demo::m2::C",
+                "demo::m2::C",
+                "demo::m2::C",
+                "not found",
+                "demo::m2::C",
+                "demo::m2::C",
+            ],
+        ),
+    ] {
+        for (s0, s1) in inner(all) {
+            let m0 = [
+                "pub use crate::m1::*;".to_owned(),
+                format!("pub mod s0 {{ {} }}", s0.join(" ")),
+                format!("pub mod s1 {{ {} }}", s1.join(" ")),
+            ];
+            let m0: Vec<&str> = m0.iter().map(String::as_str).collect();
+            let (found, loads) = reads_in_every_order(
+                &[
+                    "pub use crate::m2::*;",
+                    "pub mod m1 { pub struct C {} pub struct B {} }",
+                ],
+                &[("mod m2", m2), ("pub mod m0", &m0)],
+                reads,
+            );
+            assert_eq!(found, expected, "{m2:?} {s0:?} {s1:?}");
+            assert_eq!(loads, 24 * (1..=m2.len()).product::<usize>() * 6);
+        }
+    }
+}
+
+#[test]
+fn a_hidden_item_does_not_make_a_name_ambiguous_where_a_glob_cycle_delivers_the_item_held_in_every_order()
+ {
+    // `m` globs the root, which globs `x` and `m`, and globs `p` privately:
+    // `A` is `x::A`, delivered back to `m` by the root, and `p::A`, which the
+    // root cannot access. The root already holds `x::A` through its own
+    // glob of `x`, so rustc drops the ambiguity there and accepts `A` from
+    // the root and from `m::c`, in every order; inside `m`, and through `m`
+    // from the root, it refuses.
+    let reads: &[Read] = &[
+        ("demo", "crate::A", TYPE),
+        ("demo::m::c", "crate::A", TYPE),
+        ("demo::m", "self::A", TYPE),
+        ("demo::m", "crate::A", TYPE),
+        ("demo", "crate::m::A", TYPE),
+    ];
+    let both = ambiguous_between("demo::p::A", "demo::x::A");
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod x { pub struct A; }",
+            "pub mod p { pub struct A; }",
+            "use crate::m::*;",
+            "pub use crate::x::*;",
+        ],
+        &[(
+            "pub mod m",
+            &["pub use super::*;", "use crate::p::*;", "pub mod c {}"],
+        )],
+        reads,
+    );
+    assert_eq!(
+        found,
+        [
+            "demo::x::A".to_owned(),
+            "demo::x::A".to_owned(),
+            both.clone(),
+            "demo::x::A".to_owned(),
+            both
+        ]
+    );
+    assert_eq!(loads, 720);
+}
+
+#[test]
+fn an_ambiguity_a_glob_cycle_carries_beside_a_glob_of_one_of_its_items_is_one_answer_in_every_order()
+ {
+    // `m2` globs the root, whose private struct `A` it reads, and its own
+    // child `s1` privately, which brings in `s0::A` (a struct and a
+    // function) through `m3`: `A` is ambiguous in `m2` in the type name
+    // space. `m0` globs `m2` privately, and `m3` with a `pub` glob, which
+    // brings in `s0::A` alone; `m1` globs `m0`. rustc refuses `A` in `m2`
+    // in every order (E0659). In `m0` and `m1` its answer depends on the
+    // order of the declarations: by which of its globs brought the name into
+    // `m2` first, `m0` reads the type `A` as `s0::A` or refuses it (E0659),
+    // and `m1` reads it as `s0::A` or finds no type `A`. The index reads the
+    // ambiguity of `m2` as visible as its most visible item, the root's
+    // struct, which `m0` can access, so `m0` holds the two items through
+    // two globs, and `m1` reads both, in every order. The function is
+    // `s0::A` everywhere.
+    let reads: &[Read] = &[
+        ("demo::m2", "self::A", TYPE),
+        ("demo::m2", "self::A", VALUE),
+        ("demo::m0", "self::A", TYPE),
+        ("demo::m0", "self::A", VALUE),
+        ("demo::m1", "self::A", TYPE),
+        ("demo::m1", "self::A", VALUE),
+    ];
+    let m2 = [
+        "mod s1 { pub(crate) use crate::m3::*; }",
+        "use crate::m2::s1::*;",
+        "pub use crate::*;",
+        "pub mod s0 { pub struct A {} pub fn A() {} }",
+    ];
+    let both = ambiguous_between("demo::A", "demo::m2::s0::A");
+    for first in 0..m2.len() {
+        let rotated: Vec<&str> = m2[first..].iter().chain(&m2[..first]).copied().collect();
+        let m2 = format!("mod m2 {{ {} }}", rotated.join(" "));
+        let (found, loads) = reads_in_every_order(
+            &[
+                "struct A {}",
+                "mod m3 { pub(crate) use crate::m2::s0::*; }",
+                &m2,
+                "mod m1 { pub(crate) use crate::m0::*; }",
+            ],
+            &[("mod m0", &["use crate::m2::*;", "pub use crate::m3::*;"])],
+            reads,
+        );
+        assert_eq!(
+            found,
+            [
+                both.clone(),
+                "demo::m2::s0::A".to_owned(),
+                both.clone(),
+                "demo::m2::s0::A".to_owned(),
+                both.clone(),
+                "demo::m2::s0::A".to_owned(),
+            ],
+            "{m2}"
+        );
+        assert_eq!(loads, 240);
+    }
+}
+
+#[test]
+fn a_hidden_module_a_glob_cycle_carries_back_beside_the_module_itself_is_no_ambiguity_in_every_order()
+ {
+    // `m2` globs `m1` privately, which brings in the module `m1::s0`, and the
+    // root, which globs `m3::s0`, which globs `m0::s0`, which globs `m2` and
+    // its parent `m0`: the root and `m2` read `s0` as the module `m0::s0`
+    // carried around the cycle, and in `m2` it is ambiguous with `m1::s0`.
+    // `m0::s0` reads `m0::s0` itself through its glob of `m0`, so rustc drops
+    // the ambiguity there, and every reader outside `m2` reads `s0` as
+    // `m0::s0` and the root's `s0::C` as the function of `m2`, with no type
+    // `C`, in every order.
+    let reads: &[Read] = &[
+        ("demo::m3::s0", "crate::s0::C", TYPE),
+        ("demo::m3::s0", "crate::s0::C", VALUE),
+        ("demo", "crate::s0", TYPE),
+        ("demo::m3::s0", "self::s0", TYPE),
+        ("demo::m0::s0", "self::s0", TYPE),
+        ("demo::m2", "self::s0", TYPE),
+    ];
+    let s0 = [
+        "pub use crate::m2::*; pub(crate) use super::*;",
+        "pub(crate) use super::*; pub use crate::m2::*;",
+    ];
+    for s0 in s0 {
+        let m0 = format!("pub mod m0 {{ pub mod s0 {{ {s0} }} }}");
+        let (found, loads) = reads_in_every_order(
+            &[
+                "pub mod m3 { pub mod s0 { pub use crate::m0::s0::*; } }",
+                &m0,
+                "pub mod m1 { pub mod s0 {} }",
+                "pub use crate::m3::s0::*;",
+            ],
+            &[(
+                "mod m2",
+                &[
+                    "use crate::m1::*;",
+                    "pub(crate) use super::*;",
+                    "pub const fn C() -> u32 { 8 }",
+                ],
+            )],
+            reads,
+        );
+        assert_eq!(
+            found,
+            [
+                "not found".to_owned(),
+                "demo::m2::C".to_owned(),
+                "demo::m0::s0".to_owned(),
+                "demo::m0::s0".to_owned(),
+                "demo::m0::s0".to_owned(),
+                ambiguous_between("demo::m0::s0", "demo::m1::s0"),
+            ],
+            "{s0}"
+        );
+        assert_eq!(loads, 720);
+    }
+}
+
+#[test]
+fn an_item_a_glob_cycle_carries_back_through_the_module_itself_keeps_its_companion_in_every_order()
+{
+    // `m0` globs `m2` publicly and `m1::s1` privately, and each holds a
+    // struct `B`: `B` is ambiguous in `m0`, and a reader outside `m0` can
+    // access `m2::B` only, so `m1::s1::B` rides along with it. `m1::s0` globs
+    // `m0` and the root, and the root globs `m1::s0`: the cycle carries
+    // `m2::B` back to `m1::s0` through the root only because `m1::s0` passed
+    // it on, so it drops nothing there, whichever comes first. The root and
+    // `m1::s0` each import `self::B` as `probe`, which a debug build checks
+    // against the settled tables after every load: what an import bound
+    // while they settled is what they reach. The index reads `B` and each
+    // `probe` as the two structs, in every order, and rustc agrees: it
+    // refuses `B` and `probe` as ambiguous (E0659) in the root, in `m1::s0`
+    // and in `m0`.
+    let reads: &[Read] = &[
+        ("demo", "self::B", TYPE),
+        ("demo", "self::probe", TYPE),
+        ("demo::m1::s0", "self::B", TYPE),
+        ("demo::m1::s0", "self::probe", TYPE),
+        ("demo::m0", "self::B", TYPE),
+        ("demo", "crate::m0::B", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod m1 { pub mod s1 { pub struct B {} } \
+             pub mod s0 { pub use crate::m0::*; pub use crate::*; use self::B as probe; } }",
+            "pub mod m2 { pub struct B {} }",
+            "pub use crate::m1::s0::*;",
+            "use self::B as probe;",
+        ],
+        &[(
+            "pub mod m0",
+            &["pub use crate::m2::*;", "use crate::m1::s1::*;"],
+        )],
+        reads,
+    );
+    let both = ambiguous_between("demo::m1::s1::B", "demo::m2::B");
+    assert_eq!(found, vec![both; reads.len()]);
+    assert_eq!(loads, 240);
+}
+
+#[test]
+fn a_path_through_a_module_two_globs_bring_in_as_different_modules_is_ambiguous_in_every_order() {
+    // `m` globs `a` and `b`, both publicly, and each holds a module `s`.
+    // rustc refuses a path through `s` (E0659), also for a name only one of
+    // the two modules has; the same module reached through both globs is one
+    // candidate, and the path resolves.
+    let reads: &[Read] = &[
+        ("demo", "crate::m::s::X", TYPE),
+        ("demo::m::c", "super::s::X", TYPE),
+        ("demo", "crate::m::s::Z", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod a { pub mod s { pub struct X; } }",
+            "pub mod b { pub mod s { pub struct Z; } }",
+        ],
+        &[(
+            "pub mod m",
+            &[
+                "pub use crate::a::*;",
+                "pub use crate::b::*;",
+                "pub mod c {}",
+            ],
+        )],
+        reads,
+    );
+    assert_eq!(
+        found,
+        vec![ambiguous_between("demo::a::s", "demo::b::s"); 3]
+    );
+    assert_eq!(loads, 36);
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod a { pub mod s { pub struct X; } }",
+            "pub mod b { pub use crate::a::s; }",
+        ],
+        &[(
+            "pub mod m",
+            &[
+                "pub use crate::a::*;",
+                "pub use crate::b::*;",
+                "pub mod c {}",
+            ],
+        )],
+        &reads[..2],
+    );
+    assert_eq!(found, vec!["demo::a::s::X"; 2]);
+    assert_eq!(loads, 36);
+}
+
+#[test]
+fn an_item_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion_is_one_answer_in_every_order()
+ {
+    // `m0` globs `m2` publicly and `m1::s1` privately, and each holds a
+    // struct `B`: `B` is ambiguous in `m0`, and a reader outside `m0` can
+    // access `m2::B` only, so `m1::s1::B` rides along with it. `w` imports
+    // `m2::B` by name, and `mm` globs `m0` and `w`: `w` binds `B` itself and
+    // delivers `m2::B`, which `mm` also reads through `m0`, so `mm` drops
+    // the companion, whether the import of `w` binds before or after a path
+    // of `mm` reads `B`. `mm` imports `self::B` as `probe`, which a debug
+    // build checks against the settled tables after every load: what an
+    // import bound while they settled is what they reach. The index reads
+    // `B` and `probe` in `mm` as `m2::B` in every order. rustc's own answer
+    // depends on the order: it keeps the first glob binding of `B` that
+    // reaches `mm`, so it refuses `B` as ambiguous (E0659) when `m0` comes
+    // before `w` and accepts `m2::B` when `w` comes first. The index takes
+    // the answer of the orders rustc accepts, the one a crate that compiles
+    // has.
+    let reads: &[Read] = &[
+        ("demo::mm", "self::B", TYPE),
+        ("demo::mm", "self::probe", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod m1 { pub mod s1 { pub struct B {} } }",
+            "pub mod m2 { pub struct B {} }",
+            "pub mod m0 { pub use crate::m2::*; use crate::m1::s1::*; }",
+            "pub mod w { pub use crate::m2::B; }",
+            "pub mod mm { pub use crate::m0::*; pub use crate::w::*; use self::B as probe; }",
+        ],
+        &[],
+        reads,
+    );
+    assert_eq!(found, vec!["demo::m2::B"; reads.len()]);
+    assert_eq!(loads, 120);
+}
+
+#[test]
+fn a_crate_visible_import_or_glob_that_supplies_an_item_beside_its_companion_is_one_answer_in_every_order()
+ {
+    // The shape above with a `pub(crate)` import of `m2::B` in `w`, or a
+    // `pub(crate)` glob of `w` in `mm`: `mm` can access what `w` delivers
+    // either way, so it drops the companion as before, and the index reads
+    // `B` and `probe` in `mm` as `m2::B` in every order. rustc again keeps
+    // the first glob binding that reaches `mm`: it refuses `B` as ambiguous
+    // (E0659) when `m0` comes before `w` and accepts `m2::B` when `w` comes
+    // first.
+    let reads: &[Read] = &[
+        ("demo::mm", "self::B", TYPE),
+        ("demo::mm", "self::probe", TYPE),
+    ];
+    for (w, mm) in [
+        (
+            "pub mod w { pub(crate) use crate::m2::B; }",
+            "pub mod mm { pub use crate::m0::*; pub use crate::w::*; use self::B as probe; }",
+        ),
+        (
+            "pub mod w { pub use crate::m2::B; }",
+            "pub mod mm { pub use crate::m0::*; pub(crate) use crate::w::*; use self::B as probe; }",
+        ),
+        (
+            "pub mod w { pub(crate) use crate::m2::B; }",
+            "pub mod mm { pub use crate::m0::*; pub(crate) use crate::w::*; use self::B as probe; }",
+        ),
+    ] {
+        let (found, loads) = reads_in_every_order(
+            &[
+                "pub mod m1 { pub mod s1 { pub struct B {} } }",
+                "pub mod m2 { pub struct B {} }",
+                "pub mod m0 { pub use crate::m2::*; use crate::m1::s1::*; }",
+                w,
+                mm,
+            ],
+            &[],
+            reads,
+        );
+        assert_eq!(found, vec!["demo::m2::B"; reads.len()], "{w} {mm}");
+        assert_eq!(loads, 120);
+    }
+}
+
+#[test]
+fn a_companion_a_glob_cycle_carries_beside_an_explicit_import_of_its_item_leaves_no_view_with_it_in_every_order()
+ {
+    // The shape above, where `m0` also globs `mm` privately, so a cycle of
+    // globs runs through `m0` and `mm`, and `rr` globs `mm` and imports
+    // `self::B` as `probe2`. The view of `mm` that `rr` reads holds what
+    // `mm` delivers once the companion is dropped, and a debug build checks
+    // the imports of both modules against the settled tables. The index
+    // reads `B` and each `probe` as `m2::B` in every order. rustc's own
+    // answer depends on the order: it refuses `B` as ambiguous (E0659) when
+    // `m0` comes before `w` and accepts `m2::B` when `w` comes first.
+    let reads: &[Read] = &[
+        ("demo::mm", "self::B", TYPE),
+        ("demo::mm", "self::probe", TYPE),
+        ("demo::rr", "self::B", TYPE),
+        ("demo::rr", "self::probe2", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod m1 { pub mod s1 { pub struct B {} } }",
+            "pub mod m2 { pub struct B {} }",
+            "pub mod m0 { pub use crate::m2::*; use crate::m1::s1::*; use crate::mm::*; }",
+            "pub mod w { pub use crate::m2::B; }",
+            "pub mod mm { pub use crate::m0::*; pub use crate::w::*; use self::B as probe; }",
+            "pub mod rr { pub use crate::mm::*; use self::B as probe2; }",
+        ],
+        &[],
+        reads,
+    );
+    assert_eq!(found, vec!["demo::m2::B"; reads.len()]);
+    assert_eq!(loads, 720);
+}
+
+#[test]
+fn a_module_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion_is_one_answer_in_every_order()
+ {
+    // The shape where `w` supplies `m2::B` beside `m0`, whose globs carry
+    // `m1::s1::B` with it as a companion, with `B` a module of each and the
+    // path going on through it: `mm` imports `self::B::X` as `probe`. While
+    // the companion is still delivered, the path through `B` is ambiguous
+    // and the import is held; once the settled tables drop the companion, the
+    // imports are held again only as the tables with the drop show them
+    // ambiguous, and a debug build checks that every held import still walks
+    // an ambiguous path. The index reads `probe` and `self::B::X` in `mm` as
+    // `m2::B::X` in every order. rustc's own answer depends on the order: it
+    // refuses `B` as ambiguous (E0659) when `m0` comes before `w` and accepts
+    // `m2::B::X` when `w` comes first.
+    let reads: &[Read] = &[
+        ("demo::mm", "self::probe", TYPE),
+        ("demo::mm", "self::B::X", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod m1 { pub mod s1 { pub mod B { pub struct X {} } } }",
+            "pub mod m2 { pub mod B { pub struct X {} } }",
+            "pub mod m0 { pub use crate::m2::*; use crate::m1::s1::*; }",
+            "pub mod w { pub use crate::m2::B; }",
+            "pub mod mm { pub use crate::m0::*; pub use crate::w::*; use self::B::X as probe; }",
+        ],
+        &[],
+        reads,
+    );
+    assert_eq!(found, vec!["demo::m2::B::X"; reads.len()]);
+    assert_eq!(loads, 120);
+}
+
+#[test]
+fn an_import_that_reads_its_name_through_the_glob_whose_companion_it_would_drop_keeps_the_ambiguity_in_every_order()
+ {
+    // The shape where `w` imports `B` by name beside `m0`, whose globs carry
+    // `m1::s1::B` with `m2::B` as a companion, but `w` imports `crate::mm::B`:
+    // it reads the name through the glob of `m0` in `mm`, so it binds the
+    // companion as well, and what it delivers back to `mm` does not justify
+    // dropping the companion there. The index reads `B` and `probe` in `mm`
+    // and `B` in `w` as ambiguous between the two structs in every order,
+    // and rustc agrees: it refuses `B` as ambiguous (E0659) in every order.
+    let reads: &[Read] = &[
+        ("demo::mm", "self::B", TYPE),
+        ("demo::mm", "self::probe", TYPE),
+        ("demo::w", "self::B", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod m1 { pub mod s1 { pub struct B {} } }",
+            "pub mod m2 { pub struct B {} }",
+            "pub mod m0 { pub use crate::m2::*; use crate::m1::s1::*; }",
+            "pub mod w { pub use crate::mm::B; }",
+            "pub mod mm { pub use crate::m0::*; pub use crate::w::*; use self::B as probe; }",
+        ],
+        &[],
+        reads,
+    );
+    let both = ambiguous_between("demo::m1::s1::B", "demo::m2::B");
+    assert_eq!(found, vec![both; reads.len()]);
+    assert_eq!(loads, 120);
+}
+
+#[test]
+fn a_companion_that_arrives_where_the_reader_cannot_access_it_is_dropped_as_its_glob_drops_it_in_every_order()
+ {
+    // `m1` globs `m2` privately and `m0::s0` publicly, and each holds a
+    // struct `B`: `B` is ambiguous in `m1`, and `m2::s1`, which globs `m1`
+    // privately, can access `m0::s0::B` only, so `m2::B` rides along with it.
+    // `m2::s1` also globs `m0::s0` publicly, which defines `B`, so it drops
+    // the companion. `m2::s0` globs `m2::s1` and cannot access what `m2::s1`
+    // brings in through its private glob: the companion arrives at the view
+    // `m2::s0` reads as an item it cannot access beside one it holds, and that
+    // view drops it as the glob it came through drops it, whether it came in
+    // before or after `m0::s0::B`. The index reads `B` in `m2::s0` as
+    // `m0::s0::B` in every order. rustc's own answer depends on the order: it
+    // accepts `m0::s0::B` in 54 of the 72 orders and refuses `B` as ambiguous
+    // (E0659) in the others.
+    let reads: &[Read] = &[("demo::m2::s0", "self::B", TYPE)];
+    let (found, loads) = reads_in_every_order(
+        &["mod m0 { pub mod s0 { pub(crate) struct B {} } }"],
+        &[
+            (
+                "mod m2",
+                &[
+                    "pub mod s1 { pub use crate::m0::s0::*; use crate::m1::*; }",
+                    "pub mod s0 { pub use crate::m2::s1::*; }",
+                    "pub struct B {}",
+                ],
+            ),
+            (
+                "mod m1",
+                &["use crate::m2::*;", "pub use crate::m0::s0::*;"],
+            ),
+        ],
+        reads,
+    );
+    assert_eq!(found, ["demo::m0::s0::B"]);
+    assert_eq!(loads, 72);
+}
+
+#[test]
+fn a_companion_a_chain_of_globs_carries_to_a_reader_that_cannot_access_it_is_dropped_in_every_order()
+ {
+    // `m0::s0` globs `m2::s1` privately and `m1::s0` publicly, and each holds
+    // a struct `B`; `m2` globs `m0::s0` privately, so it holds `m1::s0::B`
+    // with `m2::s1::B` as a companion, and `m2::s0` globs `m2` and `m1::s0`,
+    // which defines `B`, so it drops the companion. The crate root globs
+    // `m2::s0` privately, `m3` globs the root and `m1` globs `m3`. The
+    // companion arrives at the view of `m2::s0` that the root reads as an
+    // item the root cannot access beside `m1::s0::B`, and the view drops it
+    // as the glob of `m2` it came through drops it, whether it came in before
+    // or after. The index reads `crate::m1::B` from `m3::s0` and from `m3` as
+    // `m1::s0::B` in every order, and rustc agrees in every order.
+    let reads: &[Read] = &[
+        ("demo::m3::s0", "crate::m1::B", TYPE),
+        ("demo::m3", "crate::m1::B", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "use crate::m2::s0::*;",
+            "pub mod m1 { pub mod s0 { pub struct B {} } pub(crate) use crate::m3::*; }",
+            "mod m3 { pub(crate) use super::*; pub mod s0 {} }",
+            "mod m0 { pub mod s0 { use crate::m2::s1::*; pub use crate::m1::s0::*; } }",
+        ],
+        &[(
+            "pub mod m2",
+            &[
+                "use crate::m0::s0::*;",
+                "pub mod s0 { use super::*; pub use crate::m1::s0::*; }",
+                "pub mod s1 { pub(crate) struct B {} }",
+            ],
+        )],
+        reads,
+    );
+    assert_eq!(found, vec!["demo::m1::s0::B"; reads.len()]);
+    assert_eq!(loads, 720);
+}
+
+/// [`reads_in_every_order`] for a library of `edition`, where a header of
+/// `modules` may open nested modules, as `mod m { pub mod s`: the
+/// declarations go into the innermost, and each module the header leaves
+/// open is closed after them.
+fn reads_in_every_order_in(
+    edition: &str,
+    others: &[&str],
+    modules: &[(&str, &[&str])],
+    reads: &[Read],
+) -> (Vec<String>, usize) {
+    let mut expected: Option<Vec<String>> = None;
+    let mut loads = 0;
+    let insides: Vec<Vec<Vec<String>>> = modules
+        .iter()
+        .map(|(_, inner)| permutations(&inner.iter().map(|d| (*d).to_owned()).collect::<Vec<_>>()))
+        .collect();
+    let mut choice = vec![0; modules.len()];
+    loop {
+        let mut blocks: Vec<String> = others.iter().map(|b| (*b).to_owned()).collect();
+        for (at, (header, _)) in modules.iter().enumerate() {
+            let opened = header.matches('{').count() - header.matches('}').count();
+            let closes = " }".repeat(opened);
+            blocks.push(format!(
+                "{header} {{ {} }}{closes}",
+                insides[at][choice[at]].join(" ")
+            ));
+        }
+        for order in permutations(&blocks) {
+            let text = order.join("\n");
+            let ws = load_in(edition, &[("src/lib.rs", text.as_str())])
+                .unwrap_or_else(|e| panic!("{e}"));
+            let results: Vec<String> = reads
+                .iter()
+                .map(|(module, path, ns)| read_as(&ws, module, path, *ns))
+                .collect();
+            match &expected {
+                None => expected = Some(results),
+                Some(first) => assert_eq!(&results, first, "{order:?}"),
+            }
+            loads += 1;
+        }
+        let mut at = 0;
+        while at < choice.len() {
+            choice[at] += 1;
+            if choice[at] < insides[at].len() {
+                break;
+            }
+            choice[at] = 0;
+            at += 1;
+        }
+        if at == choice.len() {
+            break;
+        }
+    }
+    (expected.expect("loaded"), loads)
+}
+
+#[test]
+fn an_item_a_glob_cycle_carries_back_beside_a_glob_that_holds_it_from_elsewhere_drops_its_companion_in_every_order()
+ {
+    // `m3` globs `m3::s0` privately and `m0`, and `m0` globs `m3` and
+    // `m3::s1`, which globs `m1`: the function `A` of `m1` reaches `m3`
+    // through `m0`, beside `m3::s0::A`, so `A` is ambiguous in `m3`, and to
+    // `m0`, which cannot access `m3::s0::A`, it rides along as a companion of
+    // `m1::A`. The glob of `m3::s1` in `m0` delivers `m1::A` from a module
+    // whose globs do not reach `m0`, so `m0` holds it apart from the cycle
+    // that carries it back, and drops the companion, though `m3::s1` does not
+    // bind `A` itself. The index reads `crate::m0::A` from `m3::s1` as
+    // `m1::A` in the value name space in every order, and rustc agrees in
+    // every order, in the editions 2021 and 2024.
+    let reads: &[Read] = &[
+        ("demo::m3::s1", "crate::m0::A", VALUE),
+        ("demo::m3::s1", "crate::m0::A", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order_in(
+        "2024",
+        &["pub mod m1 { pub const fn A() -> u32 { 7 } }"],
+        &[
+            (
+                "pub mod m0",
+                &["pub use crate::m3::s1::*;", "use crate::m3::*;"],
+            ),
+            (
+                "mod m3",
+                &[
+                    "pub mod s0 { pub const fn A() -> u32 { 15 } }",
+                    "use crate::m3::s0::*;",
+                    "pub(crate) use crate::m0::*;",
+                    "pub mod s1 { pub use crate::m1::*; }",
+                ],
+            ),
+        ],
+        reads,
+    );
+    assert_eq!(found, ["demo::m1::A", "not found"]);
+    assert_eq!(loads, 288);
+}
+
+#[test]
+fn a_module_a_glob_cycle_carries_back_beside_a_glob_that_holds_it_from_elsewhere_starts_a_path_in_every_order()
+ {
+    // `m0::s0` globs `m1::s0` privately and the crate root publicly, and the
+    // root globs `m1` privately, so it holds the module `m1::s0`. `m1::s0`
+    // globs `m0` privately and `m2::s0`, which globs `m0::s0`: what
+    // `m1::s0` brings in under `s0` is `m1::s0`, carried back around the
+    // cycle, with `m0::s0` riding along hidden. The root delivers `m1::s0`
+    // to `m0::s0` from globs that do not reach `m0::s0`, so `m0::s0` drops
+    // the companion and the bare first segment `s0` of a path in `m0::s0`
+    // names `m1::s0` alone. The index reads `s0::B` from `m0::s0` as
+    // `m1::s0::B` in every order, and rustc agrees in every order, in the
+    // editions 2021 and 2024.
+    let reads: &[Read] = &[
+        ("demo::m0::s0", "s0::B", TYPE),
+        ("demo::m0::s0", "s0::B", VALUE),
+    ];
+    let (found, loads) = reads_in_every_order_in(
+        "2024",
+        &[
+            "pub mod m0 { pub mod s0 { use crate::m1::s0::*; pub use crate::*; } }",
+            "use self::m1::*;",
+            "pub mod m2 { pub mod s0 { pub(crate) use crate::m0::s0::*; } }",
+        ],
+        &[(
+            "mod m1 { pub mod s0",
+            &[
+                "use crate::m0::*;",
+                "pub struct B {}",
+                "pub use crate::m2::s0::*;",
+            ],
+        )],
+        reads,
+    );
+    assert_eq!(found, ["demo::m1::s0::B", "not found"]);
+    assert_eq!(loads, 144);
+}
+
+#[test]
+fn an_item_a_glob_brings_in_from_its_definition_apart_from_a_cycle_drops_the_companion_the_cycle_carries_in_every_order()
+ {
+    // The shapes above where the glob that holds the item apart from the
+    // cycle reaches its definition through another glob. `m3::s1` globs
+    // `m1`, which defines `A`, and `m0` privately: what it delivers to `m0`
+    // comes from `m1` without passing through `m0`, so `m0` drops the
+    // companion `m3::s0::A` that its glob of `m3` carries beside `m1::A`.
+    // And the crate root globs `m1::s0`, which globs `m1`, where `B` is
+    // defined, and `m2::s1`, which globs the root and, privately, `m2`, which
+    // defines another `B`: the root drops `m2::B`, which rides along with
+    // `m1::B` carried back around the cycle. The index reads `crate::m0::A`
+    // from `m3::s1` as `m1::A` and `crate::B` from `m2::s1` as `m1::B`, in the
+    // value name space, in every order, and rustc agrees in every order, in
+    // the editions 2021 and 2024.
+    let (found, loads) = reads_in_every_order_in(
+        "2024",
+        &[
+            "pub mod m1 { pub const fn A() -> u32 { 7 } }",
+            "pub mod m0 { pub use crate::m3::s1::*; use crate::m3::*; }",
+        ],
+        &[(
+            "mod m3",
+            &[
+                "pub mod s0 { pub const fn A() -> u32 { 15 } }",
+                "use crate::m3::s0::*;",
+                "pub mod s1 { use crate::m0::*; pub use crate::m1::*; }",
+                "pub use crate::m0::*;",
+            ],
+        )],
+        &[("demo::m3::s1", "crate::m0::A", VALUE)],
+    );
+    assert_eq!(found, ["demo::m1::A"]);
+    assert_eq!(loads, 144);
+    let (found, loads) = reads_in_every_order_in(
+        "2024",
+        &[
+            "pub use crate::m1::s0::*;",
+            "pub mod m1 { pub mod s0 { pub use crate::m1::*; } pub(crate) const fn B() -> u32 { 1 } }",
+            "use crate::m2::s1::*;",
+        ],
+        &[(
+            "mod m2",
+            &[
+                "pub const fn B() -> u32 { 6 }",
+                "pub mod s1 { pub use crate::*; use crate::m2::*; }",
+            ],
+        )],
+        &[("demo::m2::s1", "crate::B", VALUE)],
+    );
+    assert_eq!(found, ["demo::m1::B"]);
+    assert_eq!(loads, 48);
+}
+
+#[test]
+fn a_drop_justified_by_a_holder_that_reads_the_item_back_from_the_reader_stays_within_the_reader_in_every_order()
+ {
+    // `r` globs `a` publicly, which brings in `d::X` with `p::X` riding along
+    // as a companion, and `d` privately, which defines `X`: inside `r`, `d`
+    // supports dropping the companion, at the level of that private glob
+    // only. `r::t` globs `r` back and lies inside `r`, so the view it reads
+    // has dropped the companion, and `r` globs `r::t` publicly: what `r::t`
+    // delivers reaches it only through `r` itself, so it supports no drop,
+    // and the drop stays within `r`. `o`, outside `r`, reads `X` as the
+    // ambiguity; `r` and `r::t` read `d::X`. The index answers so in every
+    // order. rustc's own answer depends on the order: it accepts `d::X` in
+    // some orders and refuses `X` as ambiguous (E0659) in others.
+    let reads: &[Read] = &[
+        ("demo::o", "self::X", TYPE),
+        ("demo::r", "self::X", TYPE),
+        ("demo::r::t", "self::X", TYPE),
+    ];
+    let expected = vec![
+        ambiguous_between("demo::d::X", "demo::p::X"),
+        "demo::d::X".to_owned(),
+        "demo::d::X".to_owned(),
+    ];
+    let r = "pub mod r { pub use crate::a::*; use crate::d::*; pub use self::t::*; \
+             pub mod t { pub use super::*; } }";
+    let (found, loads) = reads_in_every_order_in(
+        "2024",
+        &[
+            "pub mod d { pub struct X {} }",
+            "pub mod p { pub struct X {} }",
+            "pub mod a { pub use crate::d::*; use crate::p::*; }",
+            "pub mod o { pub use crate::r::*; }",
+            r,
+        ],
+        &[],
+        reads,
+    );
+    assert_eq!(found, expected);
+    assert_eq!(loads, 120);
+    let (found, loads) = reads_in_every_order_in(
+        "2024",
+        &[
+            "pub mod d { pub struct X {} } pub mod p { pub struct X {} } \
+             pub mod a { pub use crate::d::*; use crate::p::*; }",
+            "pub mod o { pub use crate::r::*; }",
+        ],
+        &[(
+            "pub mod r",
+            &[
+                "pub use crate::a::*;",
+                "use crate::d::*;",
+                "pub use self::t::*;",
+                "pub mod t { pub use super::*; }",
+            ],
+        )],
+        reads,
+    );
+    assert_eq!(found, expected);
+    assert_eq!(loads, 144);
 }

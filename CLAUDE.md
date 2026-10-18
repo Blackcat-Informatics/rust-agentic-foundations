@@ -18,6 +18,10 @@ Quick orientation:
 * **No timing runs**: time-based testing is forbidden. Write no timing runs,
   wall-clock benchmarks, sleep-based waits or timing assertions. Measure with
   `perf` or by counting allocations, and tell every agent you start this rule.
+* **Platforms**: Linux is the primary operating system for all v0.9-pre work.
+  Every other operating system is supported on a minimal-effort basis: a
+  platform-specific failure does not block a change, and its fix waits for a
+  platform change of its own.
 * **Naming**: the project is **RAF** (Rust Agentic Foundations) in prose; crate
   and binary names are lowercase `raf-*` and `cargo-*`.
 * **No deferrals**: finish the work, or move the scope to another tracked change.

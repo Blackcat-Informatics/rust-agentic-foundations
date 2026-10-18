@@ -15,9 +15,10 @@ use std::fmt;
 
 use crate::error::Esc;
 use crate::index::{Index, UseKind};
-use crate::item::{ItemId, Namespace, SymbolKind};
+use crate::item::{ItemId, Namespace, SharedStr, SymbolKind};
 use crate::modtree::TargetId;
 use crate::settle::{Source, slot};
+use crate::work::{self, Work};
 
 /// The items a walk reached, and the modules a keyword path named.
 #[derive(Debug, Default)]
@@ -189,6 +190,9 @@ pub enum ResolveError {
     /// The package named to qualify the path is not a package of the
     /// workspace.
     UnknownPackage(String),
+    /// The module named to read a `use` path from is not a module of the
+    /// workspace.
+    UnknownModule(String),
     /// A lookup on the way of the path reads the names a glob import brings
     /// in, and the glob's path names nothing in the workspace past its first
     /// segment (`use self::missing::*;`, `use crate::a::gone::*;`). rustc
@@ -222,6 +226,9 @@ impl fmt::Display for ResolveError {
             ),
             Self::UnknownPackage(package) => {
                 write!(f, "`{}` is not a package of the workspace", Esc(package))
+            }
+            Self::UnknownModule(module) => {
+                write!(f, "`{}` is not a module of the workspace", Esc(module))
             }
             Self::UnresolvedGlob { path, glob, module } => write!(
                 f,
@@ -625,6 +632,19 @@ impl Index {
                         {
                             return Err(Fail::Ambiguous(ids));
                         }
+                        // As in the segment loop: a name two globs bring in
+                        // as different items is ambiguous in the module, and
+                        // a path cannot start with it, also where only one
+                        // of the items has what the path goes on to name.
+                        // The `cfg` alternatives of one module are one
+                        // candidate, and so are definitions and imports of
+                        // one name, which all count.
+                        if from_glob
+                            && segs.len() > 1
+                            && self.several_symbols(bound.keys().copied())
+                        {
+                            return Err(Fail::Ambiguous(self.sorted(bound.keys().copied())));
+                        }
                         for (id, origin) in bound.iter() {
                             merge(
                                 &mut state.items,
@@ -684,6 +704,7 @@ impl Index {
         // what the importing module can access counts.
         let viewer = matches!(heads, Heads::Use { .. }).then_some(from);
         for (offset, seg) in segs.iter().enumerate().skip(next_index) {
+            work::add(Work::SegmentReads, 1);
             let last = offset + 1 == segs.len();
             let ns = if last { last_ns } else { Namespace::Type };
             if seg == "super" && state.items.is_empty() {
@@ -706,6 +727,16 @@ impl Index {
                 note(&mut reads, module, ns, seg);
                 match self.lookup_seen(module, ns, seg, heads.own(), viewer) {
                     Some((bound, from_glob)) => {
+                        // A name two globs bring in as different items is
+                        // ambiguous in the module, and a path cannot go
+                        // through it, as in rustc: also where only one of the
+                        // items has what the path goes on to name. The
+                        // `cfg` alternatives of one module are one
+                        // candidate, and the definitions and imports of a
+                        // name all count.
+                        if from_glob && !last && self.several_symbols(bound.keys().copied()) {
+                            return Err(Fail::Ambiguous(self.sorted(bound.keys().copied())));
+                        }
                         for (id, origin) in bound.iter() {
                             merge(
                                 &mut found,
@@ -1095,7 +1126,7 @@ impl Index {
             .min()
     }
 
-    fn origin_of(&self, source: &Source, id: ItemId) -> Option<crate::settle::Origin> {
+    pub(crate) fn origin_of(&self, source: &Source, id: ItemId) -> Option<crate::settle::Origin> {
         let ns = slot(source.ns);
         let defs = self.scopes[source.module]
             .get(&source.name)
@@ -1191,6 +1222,7 @@ impl Index {
         // cost its length, not its length squared.
         let mut prefix = String::with_capacity(text.len());
         for (taken, seg) in (1..=segs.len()).zip(segs) {
+            work::add(Work::SegmentReads, 1);
             if taken > 1 {
                 prefix.push_str("::");
             }
@@ -1256,8 +1288,24 @@ impl Index {
                 }
             }
         }
+        self.conclude(&found, &missing, &reads, text, ns, from_keys)
+    }
+
+    /// What a walk found, as the answer: the unbound error when it found
+    /// nothing, ambiguity when it found several symbols, and the symbol
+    /// otherwise. `from_keys` is true when the items come from the foreign
+    /// keys and not from a walk.
+    fn conclude(
+        &self,
+        found: &BTreeMap<ItemId, Hit>,
+        missing: &[Source],
+        reads: &[Source],
+        text: &str,
+        ns: Namespace,
+        from_keys: bool,
+    ) -> Result<Resolution, ResolveError> {
         if found.is_empty() {
-            return Err(self.unbound(&missing, &reads, text));
+            return Err(self.unbound(missing, reads, text));
         }
         // One symbol is one path and kind in one crate. Items of two targets
         // at one path are two symbols, whatever order they were found in; the
@@ -1274,7 +1322,7 @@ impl Index {
         }
         // A lookup on the way that read a glob whose path names nothing past
         // its first segment may have missed what the glob would bring in.
-        if let Some(glob) = self.unresolved_glob_read(&reads) {
+        if let Some(glob) = self.unresolved_glob_read(reads) {
             return Err(self.glob_error(glob, text));
         }
         let sites = self.sorted(found.keys().copied());
@@ -1289,12 +1337,105 @@ impl Index {
         })
     }
 
+    /// True when `ids` are more than one symbol: a symbol is one path and
+    /// kind in one crate, so the `cfg` alternatives of one module, which the
+    /// index keeps as several items, are one.
+    fn several_symbols(&self, ids: impl Iterator<Item = ItemId>) -> bool {
+        let groups: BTreeSet<(TargetId, &str, SymbolKind)> = ids
+            .map(|id| {
+                let item = &self.items[id.0];
+                (item.target, item.path.as_str(), item.kind)
+            })
+            .collect();
+        groups.len() > 1
+    }
+
+    /// The module whose canonical path is `path`, such as `demo::inner`.
+    ///
+    /// A crate path that targets of several packages share (two libraries
+    /// with one crate name) names the crates of all of them, and the module is
+    /// not told apart without its package: it is
+    /// [`ResolveError::Ambiguous`] between their crate roots, as
+    /// [`Index::resolve`] answers for a path that starts with that crate path.
+    fn module_named(&self, path: &str) -> Result<Option<usize>, ResolveError> {
+        let Some(first) = path.split("::").next() else {
+            return Ok(None);
+        };
+        let key = SharedStr::from(path);
+        let Some(roots) = self.crate_roots.get(first) else {
+            return Ok(None);
+        };
+        if roots.len() > 1 {
+            return Err(ResolveError::Ambiguous(
+                self.sorted(
+                    roots
+                        .iter()
+                        .filter_map(|root| self.root_items.get(root).copied()),
+                ),
+            ));
+        }
+        Ok(roots
+            .iter()
+            .find_map(|root| self.module_by_path.get(&(*root, key.clone())).copied()))
+    }
+
+    /// Resolve the path of a `use` declaration written in the module
+    /// `module`, in `ns` or in each name space in turn.
+    pub(crate) fn resolve_from(
+        &self,
+        module: &str,
+        path: &str,
+        ns: Option<Namespace>,
+    ) -> Result<Resolution, ResolveError> {
+        let from = self
+            .module_named(module)?
+            .ok_or_else(|| ResolveError::UnknownModule(module.to_owned()))?;
+        let (leading_colon, written) = path.strip_prefix("::").map_or((false, path), |p| (true, p));
+        let segs: Vec<String> = written
+            .split("::")
+            .map(|s| strip_raw(s).to_owned())
+            .collect();
+        let valid = |s: &String| {
+            !s.is_empty() && s != "Self" && s.chars().all(|c| c.is_alphanumeric() || c == '_')
+        };
+        if !segs.iter().all(valid) {
+            return Err(ResolveError::Invalid(path.to_owned()));
+        }
+        let text = segs.join("::");
+        let spaces: Vec<Namespace> = ns.map_or_else(|| Namespace::ALL.to_vec(), |one| vec![one]);
+        let heads = Heads::Use {
+            test: false,
+            own: None,
+        };
+        for space in spaces {
+            let mut reads = Vec::new();
+            let walk = self.walk_noting(from, &segs, leading_colon, space, heads, Some(&mut reads));
+            if walk.is_ok() && reads.iter().any(|source| self.bound_by_undecided(source)) {
+                return Err(ResolveError::Cyclic(text));
+            }
+            let outcome = match walk {
+                Ok(walked) => self.conclude(&walked.items, &[], &reads, &text, space, false),
+                Err(Fail::Missing(missing)) => Err(self.unbound(&missing, &reads, &text)),
+                Err(Fail::SeveralCrates { roots: ids, .. } | Fail::Ambiguous(ids)) => {
+                    Err(ResolveError::Ambiguous(ids))
+                }
+                Err(Fail::SuperAboveRoot) => Err(ResolveError::Invalid(path.to_owned())),
+            };
+            match outcome {
+                Err(ResolveError::NotFound(_)) => {}
+                other => return other,
+            }
+        }
+        Err(ResolveError::NotFound(text))
+    }
+
     /// True when a proper prefix of `segs` is the self path of an inherent
     /// impl that the index cannot see, of `package` when one is given.
     fn through_unresolved(&self, segs: &[String], package: Option<&str>) -> bool {
         // The prefix grows by one segment a step, as in [`Index::resolve_in`].
         let mut prefix = String::new();
         segs.iter().take(segs.len().saturating_sub(1)).any(|seg| {
+            work::add(Work::SegmentReads, 1);
             if !prefix.is_empty() {
                 prefix.push_str("::");
             }
@@ -1357,6 +1498,8 @@ impl Index {
 mod tests {
     use super::ResolveError;
     use crate::item::ItemId;
+    use crate::work::{self, Work};
+    use crate::{MemoryTree, Workspace};
 
     /// An escape sequence, a bidirectional override and a line break.
     const HOSTILE: &str = "a\u{1b}[2J\u{202e}\r\nb";
@@ -1372,6 +1515,7 @@ mod tests {
             ResolveError::Invalid(hostile()),
             ResolveError::UnresolvedSelf(hostile()),
             ResolveError::UnknownPackage(hostile()),
+            ResolveError::UnknownModule(hostile()),
             ResolveError::UnresolvedGlob {
                 path: hostile(),
                 glob: hostile(),
@@ -1386,6 +1530,7 @@ mod tests {
                 | ResolveError::Invalid(_)
                 | ResolveError::UnresolvedSelf(_)
                 | ResolveError::UnknownPackage(_)
+                | ResolveError::UnknownModule(_)
                 | ResolveError::UnresolvedGlob { .. } => {}
             }
         }
@@ -1411,5 +1556,42 @@ mod tests {
                 "{text}"
             );
         }
+    }
+
+    #[test]
+    fn a_path_of_fifty_thousand_segments_reads_each_segment_a_bounded_number_of_times() {
+        const SEGMENTS: usize = 50_000;
+        let manifest = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
+        let tree: MemoryTree = [
+            ("Cargo.toml", manifest),
+            (
+                "src/lib.rs",
+                "pub mod m { pub use crate::m; pub fn end() {} }\n",
+            ),
+        ]
+        .into_iter()
+        .collect();
+        let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+        let missing = format!("demo{}", "::a".repeat(SEGMENTS));
+        let deep = format!("demo{}::end", "::m".repeat(SEGMENTS));
+        // A path is walked in each name space and scanned once for a block it
+        // cannot see into, so a segment is read a few times and not once for
+        // each segment before it. The bound is also the ceiling, so a walk
+        // that starts again from the crate root for each prefix stops at once.
+        let segments = SEGMENTS + 2;
+        let reads = 4 * segments;
+        let lookups = 2 * segments;
+        let (answer, tally) = work::measure(reads, || ws.resolve(&missing));
+        assert_eq!(answer, Err(ResolveError::NotFound(missing.clone())));
+        assert!(tally.get(Work::SegmentReads) > 0);
+        assert!(tally.get(Work::SegmentReads) <= reads);
+        assert!(tally.get(Work::Lookups) > 0);
+        assert!(tally.get(Work::Lookups) <= lookups);
+        let (answer, tally) = work::measure(reads, || ws.resolve(&deep));
+        assert_eq!(answer.expect("the deep path resolves").path, "demo::m::end");
+        assert!(tally.get(Work::SegmentReads) > 0);
+        assert!(tally.get(Work::SegmentReads) <= reads);
+        assert!(tally.get(Work::Lookups) > 0);
+        assert!(tally.get(Work::Lookups) <= lookups);
     }
 }

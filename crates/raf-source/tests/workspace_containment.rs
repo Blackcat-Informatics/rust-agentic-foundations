@@ -3,21 +3,20 @@
 
 //! The containment cases of `DiskTree`, run through `Workspace::load`. Each
 //! fixture sits in a fresh temporary directory beside an outside sentinel that
-//! is a FIFO wherever one is needed: reading it would block, and every load
-//! runs under a watchdog, so a test that passes never read it.
+//! is a FIFO wherever one is needed: a blocking read of it would never return,
+//! so a test that passes never read it. The unit tests of the disk tree check
+//! that every open is an `O_PATH` reference or an `O_NONBLOCK` open.
 
 #![cfg(unix)]
 
 mod support;
 
-use std::cell::RefCell;
-use std::collections::BTreeMap;
-
 use raf_source::{
-    Budget, DiskTree, Entry, EntryKind, FileId, LoadError, LoadErrorKind, Opened, Origin, RelPath,
-    TargetProblem, Tree, TreeError, Workspace,
+    Budget, DiskTree, EntryKind, LoadError, LoadErrorKind, Origin, RelPath, TargetProblem, Tree,
+    TreeError, Workspace,
 };
-use support::{Scratch, within_watchdog};
+use support::Scratch;
+use support::counting::Counting;
 
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
 
@@ -32,7 +31,7 @@ fn fixture() -> Scratch {
 
 fn load(scratch: &Scratch) -> Result<Workspace, LoadError> {
     let tree = DiskTree::new(scratch.path("root")).expect("tree");
-    within_watchdog(move || Workspace::load(&tree, &["."]))
+    Workspace::load(&tree, &["."])
 }
 
 fn outside_root(error: &LoadError) -> bool {
@@ -150,10 +149,8 @@ fn a_symlinked_manifest_to_outside_is_refused_beside_one_to_a_file_inside() {
     // Two packages with one name: the link is read and found to repeat `demo`.
     let error = load(&accepted).expect_err("duplicate name through the link");
     assert!(matches!(error.kind, LoadErrorKind::Target(_)), "{error}");
-    let packages = within_watchdog({
-        let tree = DiskTree::new(accepted.path("root/real")).expect("tree");
-        move || Workspace::load(&tree, &["."]).map(|ws| ws.packages().len())
-    });
+    let tree = DiskTree::new(accepted.path("root/real")).expect("tree");
+    let packages = Workspace::load(&tree, &["."]).map(|ws| ws.packages().len());
     assert_eq!(packages.expect("loads"), 1);
 }
 
@@ -164,7 +161,7 @@ fn a_directory_symlink_loop_ends_with_an_error_and_a_plain_directory_symlink_is_
     scratch.link("root/crates/a", "b");
     scratch.link("root/crates/b", "a");
     let tree = DiskTree::new(scratch.path("root")).expect("tree");
-    let error = within_watchdog(move || Workspace::load(&tree, &["crates"])).expect_err("loop");
+    let error = Workspace::load(&tree, &["crates"]).expect_err("loop");
     assert!(
         matches!(&error.kind, LoadErrorKind::Tree(e) if matches!(**e, TreeError::SymlinkLoop { .. })),
         "{error}"
@@ -174,7 +171,7 @@ fn a_directory_symlink_loop_ends_with_an_error_and_a_plain_directory_symlink_is_
     scratch.dir("root/crates/real");
     scratch.link("root/crates/link", scratch.path("root/crates/real"));
     let tree = DiskTree::new(scratch.path("root")).expect("tree");
-    let error = within_watchdog(move || Workspace::load(&tree, &["crates"])).expect_err("symlink");
+    let error = Workspace::load(&tree, &["crates"]).expect_err("symlink");
     assert!(matches!(error.kind, LoadErrorKind::DirSymlink), "{error}");
     assert_eq!(error.file.as_str(), "crates/link");
 
@@ -187,7 +184,7 @@ fn a_directory_symlink_loop_ends_with_an_error_and_a_plain_directory_symlink_is_
         scratch.path("root/crates/readme.txt"),
     );
     let tree = DiskTree::new(scratch.path("root")).expect("tree");
-    assert!(within_watchdog(move || Workspace::load(&tree, &["crates"])).is_ok());
+    assert!(Workspace::load(&tree, &["crates"]).is_ok());
 }
 
 #[test]
@@ -293,7 +290,7 @@ fn discover_with(link: impl FnOnce(&Scratch)) -> Result<Workspace, LoadError> {
     scratch.file("root/crates/file.txt", "text");
     link(&scratch);
     let tree = DiskTree::new(scratch.path("root")).expect("tree");
-    within_watchdog(move || Workspace::load(&tree, &["crates"]))
+    Workspace::load(&tree, &["crates"])
 }
 
 #[test]
@@ -344,54 +341,6 @@ fn discovery_classifies_a_symlink_by_what_it_resolves_to() {
     );
 }
 
-/// A disk tree that counts the reads of each file, by the file's identity.
-struct CountingReads {
-    inner: DiskTree,
-    reads: RefCell<BTreeMap<FileId, usize>>,
-}
-
-impl CountingReads {
-    fn new(scratch: &Scratch) -> Self {
-        Self {
-            inner: DiskTree::new(scratch.path("root")).expect("tree"),
-            reads: RefCell::new(BTreeMap::new()),
-        }
-    }
-
-    /// How many files were read, after checking that none was read twice.
-    fn files_read_once(&self) -> usize {
-        let reads = self.reads.borrow();
-        assert!(reads.values().all(|count| *count == 1), "{reads:?}");
-        reads.len()
-    }
-}
-
-impl Tree for CountingReads {
-    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
-        let id = self.inner.identity(path)?;
-        *self.reads.borrow_mut().entry(id).or_default() += 1;
-        self.inner.read(path, max_bytes)
-    }
-    fn read_unseen(
-        &self,
-        path: &RelPath,
-        max_bytes: u64,
-        seen: &dyn Fn(&FileId) -> bool,
-    ) -> Result<Opened, TreeError> {
-        let opened = self.inner.read_unseen(path, max_bytes, seen)?;
-        if let Opened::Read { id, .. } = &opened {
-            *self.reads.borrow_mut().entry(id.clone()).or_default() += 1;
-        }
-        Ok(opened)
-    }
-    fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
-        self.inner.list(path)
-    }
-    fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
-        self.inner.entry(path)
-    }
-}
-
 #[test]
 fn symlink_aliases_of_one_directory_parse_it_once() {
     // `l` and `m` lead back to `src`, so each level doubles the spellings of
@@ -413,7 +362,7 @@ fn symlink_aliases_of_one_directory_parse_it_once() {
         };
         scratch.file(&format!("root/src/x{level}.rs"), &text);
     }
-    let tree = CountingReads::new(&scratch);
+    let tree = Counting::new(DiskTree::new(scratch.path("root")).expect("tree"));
     let result = Workspace::load(&tree, &["."]);
     // The manifest, the root file and each level's file, each read once.
     assert_eq!(tree.files_read_once(), 2 + LEVELS);
@@ -442,7 +391,7 @@ fn a_file_reached_through_a_directory_symlink_is_one_file_under_the_spelling_tha
         "#[path = \"z/b.rs\"]\npub mod first;\n#[path = \"b.rs\"]\npub mod second;\n",
     );
     scratch.file("root/src/b.rs", "pub fn f() {}\n");
-    let tree = CountingReads::new(&scratch);
+    let tree = Counting::new(DiskTree::new(scratch.path("root")).expect("tree"));
     let ws = Workspace::load(&tree, &["."]).expect("loads");
     assert_eq!(tree.files_read_once(), 3);
     let paths: Vec<&str> = ws.files().map(|file| file.path.as_str()).collect();
