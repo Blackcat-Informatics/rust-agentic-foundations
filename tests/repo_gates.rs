@@ -905,7 +905,10 @@ fn time_in_raf_source_passes_the_clean_neighbour() {
     let text = "fn count(tree: &Counting) -> usize { tree.reads() }\n\
                 // an instantaneous step, a duration-free count, sleepless\n\
                 fn Instantiate() {}\n";
-    assert!(clock_hits(Path::new("crates/raf-source/tests/a.rs"), text).is_empty());
+    assert_eq!(
+        clock_hits(Path::new("crates/raf-source/tests/a.rs"), text),
+        Vec::<String>::new()
+    );
 }
 
 #[test]
