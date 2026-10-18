@@ -5,7 +5,7 @@ type: Capability
 id: cap:source-index
 title: "Source index"
 description: "The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #[path], and a symbol and use-alias index."
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_source::Tree
@@ -15,6 +15,7 @@ bindings:
     - raf_source::Workspace
     - raf_source::parse_source
     - raf_source::Resolution
+    - raf_source::ResolveError
     - raf_source::LoadOptions
     - raf_source::Item
     - raf_source::Target
@@ -27,6 +28,8 @@ bindings:
     - raf_source::SelfType
     - raf_source::UnresolvedImpl
     - raf_source::Workspace::resolve_in_package
+    - raf_source::Workspace::resolve_from
+    - raf_source::Workspace::resolve_from_in
     - raf_source::Workspace::unresolved_impls
     - raf_source::Workspace::exported_items
     - raf_source::Workspace::exported_items_with
@@ -337,6 +340,32 @@ bindings:
     - raf_source::test_crate::exported_items::in_random_small_crates_a_carried_re_export_is_listed_hidden_or_absent_as_the_item_is
     - raf_source::test_crate::exported_items::a_re_export_two_globs_carry_is_written_as_the_first_glob_that_carries_it
     - raf_source::test_crate::this_repository::the_surface_of_each_library_and_binary_of_this_repository_lists_its_public_items
+    - raf_source::test_crate::use_resolution::a_pub_use_of_a_name_read_through_a_private_glob_is_seen_no_wider_than_the_glob_in_every_order
+    - raf_source::test_crate::use_resolution::a_chain_of_two_re_exports_through_two_private_globs_is_capped_twice_in_every_order
+    - raf_source::test_crate::use_resolution::an_item_reached_by_a_capped_re_export_and_by_a_wider_glob_is_seen_as_widely_as_the_wider_in_every_order
+    - raf_source::test_crate::use_resolution::a_glob_re_export_of_a_private_item_is_seen_no_wider_than_the_item_in_every_order
+    - raf_source::test_crate::use_resolution::a_name_two_globs_bring_in_as_different_items_is_ambiguous_to_a_reader_of_one_glob_in_every_order
+    - raf_source::test_crate::use_resolution::a_module_and_a_struct_of_one_name_through_two_globs_are_ambiguous_in_the_type_name_space_in_every_order
+    - raf_source::test_crate::use_resolution::the_refusal_of_an_ambiguous_name_in_one_name_space_leaves_the_other_resolved_in_every_order
+    - raf_source::test_crate::use_resolution::names_the_private_glob_does_not_make_ambiguous_still_resolve_for_a_reader_outside_in_every_order
+    - raf_source::test_crate::use_resolution::a_glob_of_a_module_whose_name_is_ambiguous_carries_the_ambiguity_to_its_readers_in_every_order
+    - raf_source::test_crate::use_resolution::an_import_a_reader_cannot_name_still_keeps_its_name_from_the_globs_in_every_order
+    - raf_source::test_crate::use_resolution::an_import_of_a_value_a_reader_cannot_name_leaves_the_type_of_its_name_to_the_globs_in_every_order
+    - raf_source::test_crate::use_resolution::a_hidden_item_does_not_make_a_name_ambiguous_where_a_glob_cycle_delivers_the_item_held_in_every_order
+    - raf_source::test_crate::use_resolution::an_ambiguity_a_glob_cycle_carries_beside_a_glob_of_one_of_its_items_is_one_answer_in_every_order
+    - raf_source::test_crate::use_resolution::a_hidden_module_a_glob_cycle_carries_back_beside_the_module_itself_is_no_ambiguity_in_every_order
+    - raf_source::test_crate::use_resolution::an_item_a_glob_cycle_carries_back_through_the_module_itself_keeps_its_companion_in_every_order
+    - raf_source::test_crate::use_resolution::a_path_through_a_module_two_globs_bring_in_as_different_modules_is_ambiguous_in_every_order
+    - raf_source::test_crate::exported_items::an_item_reached_only_by_a_pub_use_of_a_private_glob_binding_is_not_exported_in_every_order
+    - raf_source::test_crate::exported_items::a_name_two_globs_bring_in_as_different_items_one_through_a_private_glob_is_refused_in_every_order
+    - raf_source::test_crate::resolve_paths::a_use_path_counts_only_what_the_reading_module_can_access
+    - raf_source::test_crate::resolve_paths::a_use_path_is_read_in_one_name_space_or_in_each_in_turn
+    - raf_source::test_crate::resolve_paths::a_module_that_is_not_in_the_workspace_and_a_text_that_is_no_path_are_refused
+    - raf_source::test_crate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes
+    - raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other
+    - raf_source::test_crate::rustc_oracle::a_wrong_index_answer_is_reported_beside_the_right_one_which_is_not
+    - raf_source::test_crate::rustc_oracle::a_divergence_that_matches_no_class_is_unclassified
+    - raf_source::test_crate::rustc_oracle::the_minimiser_drops_what_a_divergence_does_not_need_and_keeps_its_class
   examples:
     - raf_source::Workspace::exported_items
 depends: []
@@ -625,16 +654,12 @@ fifty thousand, and a shared test-support diamond records one path per target an
 module that reaches it, so the limit admits every realistic tree. What the walks
 record is charged to the item-bytes budget below, which bounds what the limit costs: a
 chain of seventeen files that each declare the next twice (2^18 - 1 walks from 1 KiB
-of source) is refused by the item-bytes budget after 1.0 s at a peak of 170 MiB
-resident, measured in a release build. A load that passes the limit is a `Budget`
+of source) is refused by the item-bytes budget at a peak of 170 MiB resident, measured in a release build. A load that passes the limit is a `Budget`
 error that names the file and the line of the declaration.
 
 **Work and memory bounds.** Discovery and the expansion of `workspace.members`
 patterns enter at most 128 directories below their root (`DirectoryDepth`), on a stack
-of their own; a deeper directory is a `Budget` error that names it, which a chain of
-20000 directories in memory meets on a thread of 2 MiB in a debug build, in under a
-millisecond in a release build, and a chain of 2100 on disk in 22 ms with 4 MiB
-resident. Four byte budgets bound one load. Each is a default that `LoadOptions` can
+of their own; a deeper directory is a `Budget` error that names it, which a chain of 20000 directories in memory meets on a thread of 2 MiB in a debug build and in a release build, and a chain of 2100 on disk meets with 4 MiB resident. Four byte budgets bound one load. Each is a default that `LoadOptions` can
 change:
 
 - `max_total_bytes` (`TotalBytes`) bounds the bytes the load reads, source files
@@ -705,53 +730,33 @@ Two figures follow, measured in a release build:
    glob tables is bounded by the item bytes (512 MiB), the source text
    (`max_total_bytes`, 256 MiB by default, which a caller may raise), the fact bytes
    (256 MiB) and the glob bytes (512 MiB): 1.5 GiB at the defaults. 300000 unit structs of their
-   own names in three files load in 0.70 s at a peak of 380 MiB on the heap, and
-   400000 are refused by the item-bytes budget in 1.1 s; thirty files of 4 MiB of doc
-   comments made of quotes, which double when escaped, hold 253 MB of facts and load
-   in 1.8 s at a peak of 382 MiB, and forty are refused by the fact-bytes budget in
-   1.8 s; 31 files of 8 MiB load in 0.30 s, and 33 are refused by the total-bytes
-   budget in 0.30 s. A load near all four limits at once (2000 copies of a chain of
+   own names in three files load at a peak of 380 MiB on the heap, and 400000 are refused by the item-bytes budget; thirty files of 4 MiB of doc
+   comments made of quotes, which double when escaped, hold 253 MB of facts and load at a peak of 382 MiB, and forty are refused by the fact-bytes budget; 31 files of 8 MiB load, and 33 are refused by the total-bytes budget. A load near all four limits at once (2000 copies of a chain of
    100 nested inline modules, 20 files of 8.3 MB of doc comments in lines of 300
    characters, 7 files of 8 MB of comments and a module of 1000 modules that each glob
    it while it globs each of them; 214 MiB read and 463, 245 and 475 MiB charged to the
-   index, the facts and the glob tables) keeps 1054 MiB and peaks at 1059 MiB, in 14 to
-   23 s on a shared host; without the globs the same load keeps 735 MiB and peaks at
-   741 MiB, in 13 to 16 s. 1000 modules that glob the crate root, which globs each of
-   them, so that every module brings in all 2000 names, load in 2.8 to 4.6 s with 436
-   MiB charged to the glob tables at a peak of 360 MiB resident, and 1400 are refused
-   by the glob-bytes budget in 1.9 to 3.2 s at a peak of 415 MiB; a chain of 2000
-   globs that each add a name loads in 1.9 to 3.1 s with 435 MiB charged at a peak of
-   354 MiB (three runs each).
+   index, the facts and the glob tables) keeps 1054 MiB and peaks at 1059 MiB; without the globs the same load keeps 735 MiB and peaks at 741 MiB. 1000 modules that glob the crate root, which globs each of
+   them, so that every module brings in all 2000 names, load with 436 MiB charged to the glob tables at a peak of 360 MiB resident, and 1400 are refused by the glob-bytes budget at a peak of 415 MiB; a chain of 2000 globs that each add a name loads with 435 MiB charged at a peak of 354 MiB.
 2. One-file parse peak. What parsing one file holds at its peak is at most
    `max_file_tokens` × `PARSE_BYTES_PER_TOKEN` (1664 bytes): about 3.1 GiB at the
    default of 2000000 tokens. The costliest arrangement of statement lists at
-   exactly 2000000 tokens loads in 0.80 s with 2623 MiB allocated at the peak, 1188
-   MiB of it resident; an 8 MiB file of `a<b; ` repeated (6.7 million tokens) is
-   refused by the pre-scan in 40 ms with no more allocated than its text. A caller
+   exactly 2000000 tokens loads with 2623 MiB allocated at the peak, 1188 MiB of it resident; an 8 MiB file of `a<b; ` repeated (6.7 million tokens) is refused by the pre-scan with no more allocated than its text. A caller
    on a host with less memory lowers the limit to its memory over 1664 bytes:
    `max_file_tokens = 320000` keeps the peak below 512 MiB (the costliest
-   arrangement at exactly that limit loads in 0.17 s with 462 MiB allocated, 190 MiB
-   resident), and refuses files above it with the same typed error.
+   arrangement at exactly that limit loads with 462 MiB allocated, 190 MiB resident), and refuses files above it with the same typed error.
 
 A load holds at most figure (1) and one file's figure (2) at once: about 4.6 GiB at
 the defaults, each term a limit of `LoadOptions` that a caller sets to fit its host.
 The bindings that explicit imports make are charged to the index and what globs bring
 in to the glob tables, so the scope tables are within figure (1): one module of 3000
-functions that 3000 other modules glob, 163 KB of source and 63004 tokens, loads in
-35 to 61 ms at a peak of 24 MiB resident, with 3.8 MiB charged to the glob tables, as the
+functions that 3000 other modules glob, 163 KB of source and 63004 tokens, loads at a peak of 24 MiB resident, with 3.8 MiB charged to the glob tables, as the
 importers read one table of the names. A module that globs one module of 60000 names
-3000 times over, globbed by another, loads in 0.8 s with 94 MiB charged to the glob
-tables and a heap peak of 100 MiB, under the 206 MiB charged in all, as gathering what a
+3000 times over, globbed by another, loads with 94 MiB charged to the glob tables and a heap peak of 100 MiB, under the 206 MiB charged in all, as gathering what a
 module exports reads each table it holds once and is charged before it is allocated. While the tables settle, a load also
 holds the work queue of the imports and, each time it runs empty, the graph of the
 imports still undecided and the places they wait on; no budget counts them, and they
 are dropped once the tables are settled. They grow with the undecided imports times
-the places their paths read through globs, and the time it takes to decide them grows
-faster still (the crate sets no time bound): 100 modules that glob the crate root,
-which globs each of them, each with an import of a name that nothing defines, settle
-in 20 to 32 s at a peak of 87 MiB resident, of which the glob tables are charged 2.5 MiB,
-and 200 such modules settle in 613 s at a peak of 555 MiB resident, of which the glob
-tables are charged 9.7 MB: the memory no budget counts can pass the glob budget.
+the places their paths read through globs, and no budget bounds the work to decide them: 100 modules that glob the crate root, which globs each of them, each with an import of a name that nothing defines, settle at a peak of 87 MiB resident, of which the glob tables are charged 2.5 MiB, and 200 such modules settle at a peak of 555 MiB resident, of which the glob tables are charged 9.7 MB: the memory no budget counts can pass the glob budget.
 
 Parsing then runs on a dedicated thread, named after the file, with a stack of 64
 MiB (`PARSE_STACK_BYTES`), which is a stated constant and not the stack of the
@@ -1026,18 +1031,14 @@ the `path` dependencies of the members, in `[dependencies]`, `[dev-dependencies]
 `[build-dependencies]` and the `[target.*]` tables, renamed ones and `workspace = true`
 ones that `[workspace.dependencies]` gives a path included, that lie inside the
 workspace directory and are not excluded. A pattern may use `*`, `?` and `[...]` (with
-ranges and a leading `!` or `^`) in each path segment, and is matched in time
-proportional to the pattern times the name; `**`, a backslash, an unclosed bracket and an
+ranges and a leading `!` or `^`) in each path segment, and a segment is matched in at most (pieces + 1) × (name length + 2) steps, where the pieces are its stars and its single characters and classes; `**`, a backslash, an unclosed bracket and an
 empty segment (`a//b`, `a//`) are a typed manifest error, never ignored; one trailing `/` is
 allowed (`crates/*/` is `crates/*`). `workspace.members` and `workspace.exclude` each
 hold at most 4096 entries, a manifest error naming the key beyond that. Each distinct
 pattern is compiled once: a duplicate is dropped, an exclude without a wildcard is a set
 entry looked up once for each directory above a path, and only the excludes with a
 wildcard are matched one by one, so a manifest of 20000 members and 200000 excludes
-(880 KB) is refused at once. The cost that remains is the directories below a root times
-the wildcard excludes: 4096 member directories against 4095 distinct wildcard excludes
-load in about 50 ms, and an adversarial set of star-heavy wildcard excludes over 4096
-directories takes about a second. An entry of `workspace.members` that has no wildcard names one directory, which must exist and have
+(880 KB) is refused at once. The cost that remains is the directories below a root times the wildcard excludes, counted and not timed: each member directory a pattern finds is tested once against the wildcard excludes, an exclude with more segments than the path is skipped without a step, and 4096 duplicate excludes are one wildcard tested twice. An entry of `workspace.members` that has no wildcard names one directory, which must exist and have
 a `Cargo.toml`, or it is a manifest error naming `workspace.members`, unless it is
 excluded, in which case it is ignored and need not exist; a glob entry skips
 what it matches that is not a directory or has no `Cargo.toml`. The member manifests are read through
@@ -1314,8 +1315,7 @@ end; that is checked in release builds too, and a round that decides nothing mor
 `Internal` load error. Of two routes to one item the one that uses no
 glob decides `via_glob`.
 
-> [!PROPOSED change:source-index]
-> Two more rules of rustc decide what a reader can see through globs, and the answer does not depend on the order of the declarations. First, a named `pub use`, or a glob, that reads a binding through a glob its module cannot access keeps the narrower of its own visibility and the visibility of the binding it reads, measured on the ancestor chain of the importing module, so a module that globs such a re-export cannot read a name that rustc hides from it: with `mod x { pub struct A; }` and `mod m { use crate::x::*; pub mod c { pub use super::A; } }`, the module `m` reads the struct `A` through `c`, and a module outside `m` that globs `c` does not. Routes to one item combine by the widest, so an item that a capped re-export and a wider glob both bring in is as visible as the wider. Second, a name that two globs of a module bring in as different items is ambiguous in that module, and it is visible to every reader that can access at least one of the items: such a reader gets `ResolveError::Ambiguous` listing every candidate, also the item it could reach only through a glob it cannot access, where rustc refuses the path (usually as E0659, in one shape as E0573), and a reader that can access none of the items finds nothing. One item reached through both globs is one candidate, and a name that only one glob brings in is not ambiguous. The ambiguity passes to the readers of a glob of the module. An import that a reader cannot name still keeps its name from the globs, and a module's own item shadows its globs for every reader, so neither makes the name ambiguous. A path through a module that two globs bring in as different modules is ambiguous, also for a name only one of the two modules has. Where rustc's own answer depends on the order of the declarations, as when the glob that brought a name in first decides, the index gives one fixed answer, the ambiguity, in every order.
+Two more rules of rustc decide what a reader can see through globs, and the answer does not depend on the order of the declarations. First, a named `pub use`, or a glob, that reads a binding through a glob its module cannot access keeps the narrower of its own visibility and the visibility of the binding it reads, measured on the ancestor chain of the importing module, so a module that globs such a re-export cannot read a name that rustc hides from it: with `mod x { pub struct A; }` and `mod m { use crate::x::*; pub mod c { pub use super::A; } }`, the module `m` reads the struct `A` through `c`, and a module outside `m` that globs `c` does not. Routes to one item combine by the widest, so an item that a capped re-export and a wider glob both bring in is as visible as the wider. Second, a name that two globs of a module bring in as different items is ambiguous in that module, and it is visible to every reader that can access at least one of the items: such a reader gets `ResolveError::Ambiguous` listing every candidate, also the item it could reach only through a glob it cannot access, where rustc refuses the path (usually as E0659, in one shape as E0573), and a reader that can access none of the items finds nothing. One item reached through both globs is one candidate, and a name that only one glob brings in is not ambiguous. The ambiguity passes to the readers of a glob of the module. An import that a reader cannot name still keeps its name from the globs, and a module's own item shadows its globs for every reader, so neither makes the name ambiguous. A path through a module that two globs bring in as different modules is ambiguous, also for a name only one of the two modules has. Where rustc's own answer depends on the order of the declarations, as when the glob that brought a name in first decides, the index gives one fixed answer, the ambiguity, in every order.
 
 `resolve(path)` takes a canonical path such as `demo::inner::go` (a segment may be
 written as a raw identifier: `r#match` and `match` are the same name) and tries the type,
@@ -1324,10 +1324,7 @@ path may end at a method: `demo::Thing::new`. A canonical path starts at a crate
 and names each item by its name, so a segment that is a path keyword, `crate`, `self`,
 `super` or `Self`, in any position and also written as a raw identifier, makes the text
 `Invalid`: `demo::crate::a::x`, `demo::self::a::x` and `demo::super::x` are `Invalid`
-beside `demo::a::x`. Each segment is read once and the crate path is found by
-prefixes that grow a segment at a time, so the cost of a path is linear in its length:
-in a release build a path of 50,000 segments is answered in milliseconds (under 100
-ms; a debug build is several times slower). The result is a `Resolution`: the
+beside `demo::a::x`. The crate path is found by prefixes that grow a segment at a time, so the cost of a path is linear in its length: a path of 50,000 segments, found or missing, is read at most four times for each segment and looked up at most twice for each segment, counted in a debug build as in a release build. The result is a `Resolution`: the
 canonical `path` of the definition, the `namespace`, the `sites` (non-empty, sorted by
 path, file and position), `via_glob` (true when a glob import carried the path to the
 symbol), and the `chain` of locations the lookup passed through from the requested path to the
@@ -1382,11 +1379,7 @@ names the `X` of `p-two`, and a name that is no package of the workspace is
 macro generates is not indexed, and the documentation of the capabilities that rely on
 the index says so.
 
-> [!PROPOSED change:source-index]
-> `resolve_from(module, path)` resolves a path as a `use` written in the module `module` would (a canonical module path such as `demo::inner`), trying the type, value and macro name spaces in that order, and `resolve_from_in(module, path, namespace)` takes one name space. The reading module is the viewer: the path starts as code of that module starts it (`crate`, `self`, `super`, a name the module binds, or a crate of the extern prelude) and each segment counts only the bindings that module can access, as rustc settles an import, where `resolve` takes a canonical path and checks no visibility. A path that names nothing the module can access is `NotFound`, one that names several symbols is `Ambiguous`, and a module that is not in the index is `ResolveError::UnknownModule`.
-
-> [!PROPOSED change:source-index]
-> Work is counted and not timed. A segment of a member or exclude pattern is matched in at most (pieces + 1) × (name length + 2) steps, where the pieces are the stars, the letters and classes of the segment. The cost that remains is the directories below a root times the wildcard excludes: the directories a pattern finds are each tested once against the wildcard excludes, an exclude with more segments than the path is skipped without a step, and 4096 duplicate excludes are one wildcard tested twice. The cost of a path is linear in its length: a path of 50,000 segments, found or missing, is read at most four times for each segment and looked up at most twice for each segment, in a debug build as in a release build.
+`resolve_from(module, path)` resolves a path as a `use` written in the module `module` would (a canonical module path such as `demo::inner`), trying the type, value and macro name spaces in that order, and `resolve_from_in(module, path, namespace)` takes one name space. The reading module is the viewer: the path starts as code of that module starts it (`crate`, `self`, `super`, a name the module binds, or a crate of the extern prelude) and each segment counts only the bindings that module can access, as rustc settles an import, where `resolve` takes a canonical path and checks no visibility. A path that names nothing the module can access is `NotFound`, one that names several symbols is `Ambiguous`, and a module that is not in the index is `ResolveError::UnknownModule`.
 
 **Exported items.** `Workspace::exported_items(target)` lists the public surface of
 a library or binary target: the items another crate can name through its crate
@@ -1518,8 +1511,7 @@ Each step of the walk, of the tree and of the searches, a module or a route read
 is charged a binding to the item-bytes budget, with what they hold, so a listing
 whose searches pass it is a `CarryBudget` error and never runs unbounded: a chain of
 5000 globs to a module that carries 2000 names, each of which two modules beside
-the chain bind, is refused in about 0.4 s in a release build, beside a chain of 50
-globs to 200 such names, which lists. Whether a route avoids a set of several modules
+the chain bind, is refused, beside a chain of 50 globs to 200 such names, which lists. Whether a route avoids a set of several modules
 needs that search, as no structure computed once for the reader answers it for
 every set the way the tree answers it for one module. `pub` globs that each
 carry a re-export of their own name, beside globs of modules that each bind that
@@ -1527,8 +1519,7 @@ name privately, list in walk steps and glob view reads that grow in step with th
 names, and 3000 of them are charged under 32 MiB beyond the load; walking the
 reach again for each name would make the steps grow with the square of the names.
 
-> [!PROPOSED change:source-index]
-> The two visibility rules of the use-alias index reach the surface as follows. A listing that meets the second rule, a name that two globs of a listed module bring in as different items, fails with `ExportError::Resolve(ResolveError::Ambiguous(_))` and lists every candidate, whatever the order of the declarations. The first rule never lists an item that is reached only through a re-export it caps: the surface requires every `use` declaration on the way to be `pub`, and a binding read through a private glob has no route of `pub` declarations, so the `pub use` of such a re-export lists the items it binds on its own and not the one behind the glob.
+The two visibility rules of the use-alias index reach the surface as follows. A listing that meets the second rule, a name that two globs of a listed module bring in as different items, fails with `ExportError::Resolve(ResolveError::Ambiguous(_))` and lists every candidate, whatever the order of the declarations. The first rule never lists an item that is reached only through a re-export it caps: the surface requires every `use` declaration on the way to be `pub`, and a binding read through a private glob has no route of `pub` declarations, so the `pub use` of such a re-export lists the items it binds on its own and not the one behind the glob.
 
 **API surface.** The data structs a caller reads, `Package`, `Target`, `SourceFile`,
 `Reach`, `Entry` and `SpanFact`, are `#[non_exhaustive]` like `Item`, so adding a field
@@ -1591,8 +1582,7 @@ for id in ws.target_ids() {
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-> [!PROPOSED change:source-index]
-> Resolve a path as a `use` written in a module would with `ws.resolve_from(module, path)`, or in one name space with `ws.resolve_from_in(module, path, namespace)`, for a `module` such as `"demo::inner"`. The reading module is the viewer: `ws.resolve_from("demo::b", "crate::a::go")` finds `demo::a::go` when `go` is `pub` in `a`, and a private item of `a` is `ResolveError::NotFound` for `b`. A module that is not in the index is `ResolveError::UnknownModule`.
+Resolve a path as a `use` written in a module would with `ws.resolve_from(module, path)`, or in one name space with `ws.resolve_from_in(module, path, namespace)`, for a `module` such as `"demo::inner"`. The reading module is the viewer: `ws.resolve_from("demo::b", "crate::a::go")` finds `demo::a::go` when `go` is `pub` in `a`, and a private item of `a` is `ResolveError::NotFound` for `b`. A module that is not in the index is `ResolveError::UnknownModule`.
 
 ## Examples
 
@@ -1666,29 +1656,16 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
   never a pass.
 - The work queue and the graph of undecided imports that settling the scope tables
   builds are not budgeted: they are dropped once the tables are settled, and they grow
-  with the undecided imports times the places their paths read through globs, while
-  the time to decide them grows faster (see Work and memory bounds).
+  with the undecided imports times the places their paths read through globs, and no budget bounds the work to decide them (see Work and memory bounds).
 - Resolution covers items the source defines. Items from dependencies are outside the
   index and resolve to a not-found failure.
 - An item that syn returns as tokens is indexed only in the three shapes the Contract
   names: a `use` group with a member that starts with `::`, a function with no body and
   a type with no definition. Any other, such as `const C: u8;` written as the input of an
   attribute macro, fails the whole load with `UnsupportedItem`, naming the file and line.
-- Two visibility rules of rustc are not modelled. An explicit `pub use` of a binding
-  that its module can access only through a private glob binds the name as visible as
-  the import, where rustc keeps it no more visible than the binding it re-exports, so a
-  module that globs it can read a name that rustc hides from it. And a name that the
-  globs of a module bring in ambiguously, one of the items through a glob that a
-  reading module cannot access, is the other item for that module, where rustc refuses
-  the path, usually as an ambiguity (E0659) and sometimes as a name that is not there
-  (E0573).
-
-> [!PROPOSED change:source-index]
-> - The index settles a cycle of globs and imports differently from rustc in some programs, in both directions: it refuses a name with `Cyclic` where rustc accepts the probe, and it resolves a name where rustc reports that it cannot determine the resolution of the import; some ambiguity shapes inside glob cycles differ as well, where the index calls a name ambiguous or resolves it and rustc does the opposite.
-> - Where rustc's own answer depends on the order of the declarations, as when the first binding of a glob ambiguity decides, the index gives one answer in every order.
-> - A companion item, one a module's glob view holds only because it rides with another item of an ambiguous name, that reaches a module before an explicit import supplies the same item can stay in that module's glob view, so the answer of such a module can depend on the order of the declarations in rare shapes, and the internal consistency check of a debug build can stop the load.
-> - Of the two visibility rules of the Contract, the first never lists an item through the re-export it caps, since the surface requires every `use` declaration on the way to be `pub`, and the second fails a listing that meets it with `Ambiguous`, as rustc refuses the path.
-
+- A cycle of globs and imports settles differently in rustc and in the index, in both directions: the index refuses a name with `Cyclic` where rustc accepts the probe, and it resolves a name where rustc reports that it cannot determine the resolution of the import; in some ambiguity shapes inside a glob cycle rustc answers differently as the declarations come in another order, and the index, which gives one answer, calls the name ambiguous where rustc resolves it in some orders.
+- Where rustc's own answer depends on the order of the declarations, as when the first binding of a glob ambiguity decides, the index gives one answer in every order.
+- A companion item, one a module's glob view holds only because it rides with another item of an ambiguous name, that reaches a module before an explicit import supplies the same item can stay in that module's glob view, so the answer of such a module can depend on the order of the declarations in rare shapes, and the internal consistency check of a debug build can stop the load.
 - `workspace.members` and `workspace.exclude` hold at most 4096 entries each.
 - The text of an error shows input-derived text with control characters escaped by
   `char::escape_debug`, which also doubles a backslash, so it is safe to print to a
@@ -1704,13 +1681,7 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
   any other `cfg` is listed whether or not a build has it, and nothing a macro
   generates is listed. `#[doc(hidden)]` and `#[macro_export]` are read as the index
   reads them, unconditional and, for `doc`, with `hidden` alone; one that a
-  `cfg_attr` applies is not read. Of the two visibility rules above that the index
-  does not model, the first does not reach the surface, whose routes require every
-  `use` declaration on the way to be `pub`; the second does: a name that the globs
-  of a module bring in ambiguously, one of the items through a glob that a module
-  which globs it cannot access, is listed under that module with the other item,
-  where rustc refuses the path. A name that two globs of a listed module bring in
-  as two items fails the whole listing with `Ambiguous`, also where rustc accepts
+  `cfg_attr` applies is not read. Of the two visibility rules of the Contract, the first never lists an item through the re-export it caps, since the surface requires every `use` declaration on the way to be `pub`, and the second fails a listing that meets it with `Ambiguous`, as `resolve` does. A name that two globs of a listed module bring in as two items fails the whole listing with `Ambiguous`, also where rustc accepts
   the crate with only the `ambiguous_glob_reexports` warning (two `pub` globs, one
   of whose items is `pub(crate)`, so that another crate can name the other): the
   listing refuses the name rather than choose one, as `resolve` does. A re-export
@@ -2155,10 +2126,7 @@ duplicates.
   that is `NotFound` and one of 50,000 segments through a module that imports itself
   that resolves, each answered with at most four segment reads and two name lookups
   for each segment plus two, counted in the walk and stopped at that count.
-
-> [!PROPOSED change:source-index]
-> - `resolve_from`: a use path counts only what the reading module can access: the module itself, a child of it and a public item of a sibling resolve, and a private item of a module read from outside it and a module private to the one that declares it are `NotFound`; it is read in one name space or in each in turn; a module that is not in the workspace is `UnknownModule`, and a text that is no path is `Invalid`.
-
+- `resolve_from`: a use path counts only what the reading module can access: the module itself, a child of it and a public item of a sibling resolve, and a private item of a module read from outside it and a module private to the one that declares it are `NotFound`; it is read in one name space or in each in turn; a module that is not in the workspace is `UnknownModule`, and a text that is no path is `Invalid`.
 - Missing-glob fixtures: a module with `pub use self::missing::*;`, a module that globs
   it, `crate::a::gone::*`, `super::a::inner::nothing::*` and an import of a name the
   missing glob would bring in load, and each lookup that reads one of those globs is
@@ -2276,10 +2244,7 @@ duplicates.
   orders it compiles, binding `m28::Y`, and in the other half it reports E0659. RAF's
   `Ambiguous` in every order is deliberate, as it agrees with rustc wherever rustc
   reports an error and does not depend on the order.
-
-> [!PROPOSED change:source-index]
-> - Visibility rules of rustc for globs, each in every order of the declarations (the blocks of the crate and the declarations of the module permuted together, each order giving one answer) and each beside a neighbour that resolves: a struct `A` that a module reads through a private glob and a `pub use` re-exports is not found by a reader outside that module and is found by the module, while the function `A` the module defines is found by both; the same re-export of a binding that a `pub` glob or a `pub(crate)` glob makes accessible stays as visible as the re-export; a chain of two re-exports through two private globs is capped twice; an item that a capped re-export and a wider glob both bring in is as visible as the wider; and a glob re-export of a private item is no wider than the item. A name that two globs bring in as two structs, one through a private glob, is `Ambiguous` for a reader of either glob and for a reader of a glob of that module, as rustc's E0659; a module and a struct of one name are ambiguous in the type name space and the unit struct resolves in the value name space; a refusal in one name space leaves the other resolved; and a name that the private glob does not bring in twice still resolves for a reader outside. An import a reader cannot name still keeps its name from the globs, as does an import of a value for the type name space; a path through a module that two globs bring in as different modules is `Ambiguous`, also for a name only one of them has. In the shapes where a cycle of globs carries an item or a module back to a module that already holds it, a hidden item makes no ambiguity, an ambiguity a cycle carries beside a glob of one of its items has one answer, a hidden module a cycle carries back beside the module itself makes no ambiguity, and a companion item an explicit import in a cycle supplies keeps both candidates, in every order, where rustc's own answer is the same or depends on the order.
-
+- Visibility rules of rustc for globs, each in every order of the declarations (the blocks of the crate and the declarations of the module permuted together, each order giving one answer) and each beside a neighbour that resolves: a struct `A` that a module reads through a private glob and a `pub use` re-exports is not found by a reader outside that module and is found by the module, while the function `A` the module defines is found by both; the same re-export of a binding that a `pub` glob or a `pub(crate)` glob makes accessible stays as visible as the re-export; a chain of two re-exports through two private globs is capped twice; an item that a capped re-export and a wider glob both bring in is as visible as the wider; and a glob re-export of a private item is no wider than the item. A name that two globs bring in as two structs, one through a private glob, is `Ambiguous` for a reader of either glob and for a reader of a glob of that module, as rustc's E0659; a module and a struct of one name are ambiguous in the type name space and the unit struct resolves in the value name space; a refusal in one name space leaves the other resolved; and a name that the private glob does not bring in twice still resolves for a reader outside. An import a reader cannot name still keeps its name from the globs, and an import of a value that a reader cannot name leaves the type name space of its name to the globs; a path through a module that two globs bring in as different modules is `Ambiguous`, also for a name only one of them has. In the shapes where a cycle of globs carries an item or a module back to a module that already holds it, a hidden item makes no ambiguity, an ambiguity a cycle carries beside a glob of one of its items has one answer, a hidden module a cycle carries back beside the module itself makes no ambiguity, and an item that a cycle carries back through the module itself keeps its companion, so the two structs stay ambiguous in every order, as rustc has it.
 - Trait-key fixtures through `use` declarations: `use std;` with `impl
   std::fmt::Display for &Foo` in editions 2018, 2021 and 2024 and in a 2015 module, keyed
   `std::fmt::Display`, beside `use nope;`, which is refused; `pub use serde;` with `use
@@ -2498,10 +2463,7 @@ duplicates.
   its module beside a private one; a listing over the item-bytes budget left by the
   load is a `Budget` error of `ItemBytes` naming the file and line, beside the same
   tree with a larger budget, which lists every item.
-
-> [!PROPOSED change:source-index]
-> - The two visibility rules on the surface, each in every order: a crate whose root has `pub use m::c::*;`, where `m` reads a struct `A` through a private glob and `c` re-exports it, lists the function `A` that `m` defines and not the struct, beside the same crate with a `pub` glob in `m`, which lists both; a name that two globs of `m` bring in as two structs, one through a private glob, fails the listing with `ExportError::Resolve(ResolveError::Ambiguous(_))` for `pub use m::*;` and for `pub use m::Y;`, beside a private glob that brings in another name, which lists what the public glob does, and one item reached through both globs, which lists.
-
+- The two visibility rules on the surface, each in every order: a crate whose root has `pub use m::c::*;`, where `m` reads a struct `A` through a private glob and `c` re-exports it, lists the function `A` that `m` defines and not the struct, beside the same crate with a `pub` glob in `m`, which lists both; a name that two globs of `m` bring in as two structs, one through a private glob, fails the listing with `ExportError::Resolve(ResolveError::Ambiguous(_))` for `pub use m::*;` and for `pub use m::Y;`, beside a private glob that brings in another name, which lists what the public glob does, and one item reached through both globs, which lists.
 - Stack and work: 20,000 chained `pub use` re-exports and a chain of 20,000 `pub`
   globs list on a thread of 2 MiB in debug and release builds.
 - On this repository, the surface of each library and binary lists without an
@@ -2512,9 +2474,7 @@ duplicates.
   `cargo-workplan` binary exports nothing.
 - The `load-workspace` fuzz target lists the surface of every target of each
   workspace that loads, hidden items included.
-
-> [!PROPOSED change:source-index]
-> - A differential test against rustc (`rustc_oracle`): generated library crates of several modules, with private, `pub` and `pub(crate)` globs, named and glob re-exports, shadowing, and a struct and a function of one name, are asked the same questions by both. A question is a `use` of a path as seen from a chosen module. rustc accepts or refuses it and, when it accepts, a second compile tags the item it names; the index answers through `resolve_from_in`, in each name space. A disagreement is classified as the first of the rule on re-export visibility, the rule on ambiguity through an inaccessible glob, `documented` (the glob re-export that rustc only warns about and resolves while the index refuses), `order` (rustc answers differently when the declarations come in another order, asked one name space at a time), `cycle` (the index refuses a cycle with `Cyclic` where rustc accepts, or resolves where rustc cannot determine the import) or `unclassified`. The two rules and `unclassified` fail the test; the other three are counted and printed, because they are the limits of the Constraints. The default test draws 64 programs from eight fixed seeds, and `RAF_ORACLE_PROGRAMS` sets the number of programs for a full run; it asserts that programs were judged and that rustc accepted and refused probes, so a run that compares nothing fails. The last full runs, in a release build with the rustc of the pinned toolchain (1.101.0-nightly, 21b707e3f), were 5,522 and 11,044 programs: no disagreement of the first rule, none of the second, none unclassified. A second test replays the committed programs under `fuzz/corpus/rustc-oracle`, each marked with the class it must show (`agree`, `documented`, `order` or `cycle`), and fails if one shows another class or none; a negative fixture makes the index answer wrongly and requires the divergence to be reported beside the right answer, another requires a divergence that matches no class to be `unclassified`, and the minimiser drops what a divergence does not need and keeps its class. The helper that writes the corpus is run by hand and is not bound.
+- A differential test against rustc (`rustc_oracle`): generated library crates of several modules, with private, `pub` and `pub(crate)` globs, named and glob re-exports, shadowing, and a struct and a function of one name, are asked the same questions by both. A question is a `use` of a path as seen from a chosen module. rustc accepts or refuses it and, when it accepts, a second compile tags the item it names; the index answers through `resolve_from_in`, in each name space. A disagreement is classified as the first of the rule on re-export visibility, the rule on ambiguity through an inaccessible glob, `documented` (the glob re-export that rustc only warns about and resolves while the index refuses), `order` (rustc answers differently when the declarations come in another order, asked one name space at a time), `cycle` (the index refuses a cycle with `Cyclic` where rustc accepts, or resolves where rustc cannot determine the import) or `unclassified`. The two rules and `unclassified` fail the test; the other three are counted and printed, because they are the limits of the Constraints. The default test draws 64 programs from eight fixed seeds, and `RAF_ORACLE_PROGRAMS` sets the number of programs for a full run; it asserts that programs were judged and that rustc accepted and refused probes, so a run that compares nothing fails. The last full runs, in a release build with the rustc of the pinned toolchain (1.101.0-nightly, 21b707e3f), were 5,522 and 11,044 programs: no disagreement of the first rule, none of the second, none unclassified. A second test replays the committed programs under `fuzz/corpus/rustc-oracle`, each marked with the class it must show (`agree`, `documented`, `order` or `cycle`), and fails if one shows another class or none; a negative fixture makes the index answer wrongly and requires the divergence to be reported beside the right answer, another requires a divergence that matches no class to be `unclassified`, and the minimiser drops what a divergence does not need and keeps its class. The helper that writes the corpus is run by hand and is not bound.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
@@ -2574,6 +2534,7 @@ duplicates.
 | `raf_source::test_crate::exported_items::a_hidden_glob_partway_along_a_route_hides_a_carried_re_export_no_more_than_an_item` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_module_reached_by_a_hidden_and_a_shown_glob_carries_its_re_export_shown` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_module_reached_by_two_pub_paths_is_listed_under_each_and_read_under_the_first` | test | [Verification](#verification) |
+| `raf_source::test_crate::exported_items::a_name_two_globs_bring_in_as_different_items_one_through_a_private_glob_is_refused_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_named_re_export_of_an_enum_variant_is_a_re_export_and_a_glob_of_an_enum_adds_nothing` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_pub_function_is_exported_beside_private_and_restricted_ones_which_are_not` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_pub_item_of_a_private_module_is_exported_only_through_a_pub_use_and_under_its_rename` | test | [Verification](#verification) |
@@ -2587,6 +2548,7 @@ duplicates.
 | `raf_source::test_crate::exported_items::an_ambiguous_a_cyclic_or_an_unresolved_public_name_fails_beside_a_neighbour_that_lists` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::an_exported_macro_is_exported_and_a_local_or_generated_one_is_not` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::an_item_and_a_carried_outside_re_export_of_one_name_are_both_listed_and_not_ambiguous` | test | [Verification](#verification) |
+| `raf_source::test_crate::exported_items::an_item_reached_only_by_a_pub_use_of_a_private_glob_binding_is_not_exported_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::doc_hidden_items_are_left_out_by_default_and_flagged_when_included` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::enum_variants_and_struct_fields_are_not_items_of_the_surface` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::in_random_small_crates_a_carried_re_export_is_listed_hidden_or_absent_as_the_item_is` | test | [Verification](#verification) |
@@ -2675,9 +2637,17 @@ duplicates.
 | `raf_source::test_crate::resolve_paths::a_cycle_of_globs_stays_cyclic_beside_globs_that_resolve` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found` | test | [Verification](#verification) |
+| `raf_source::test_crate::resolve_paths::a_module_that_is_not_in_the_workspace_and_a_text_that_is_no_path_are_refused` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::a_name_found_through_a_glob_beside_a_glob_that_names_nothing_fails` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path` | test | [Verification](#verification) |
+| `raf_source::test_crate::resolve_paths::a_use_path_counts_only_what_the_reading_module_can_access` | test | [Verification](#verification) |
+| `raf_source::test_crate::resolve_paths::a_use_path_is_read_in_one_name_space_or_in_each_in_turn` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::globs_of_dependencies_in_one_module_leave_a_missing_name_not_found` | test | [Verification](#verification) |
+| `raf_source::test_crate::rustc_oracle::a_divergence_that_matches_no_class_is_unclassified` | test | [Verification](#verification) |
+| `raf_source::test_crate::rustc_oracle::a_wrong_index_answer_is_reported_beside_the_right_one_which_is_not` | test | [Verification](#verification) |
+| `raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other` | test | [Verification](#verification) |
+| `raf_source::test_crate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes` | test | [Verification](#verification) |
+| `raf_source::test_crate::rustc_oracle::the_minimiser_drops_what_a_divergence_does_not_need_and_keeps_its_class` | test | [Verification](#verification) |
 | `raf_source::test_crate::source_text::a_budget_refusal_in_a_crlf_file_names_the_same_line_as_in_an_lf_file` | test | [Verification](#verification) |
 | `raf_source::test_crate::source_text::a_byte_order_mark_leaves_the_lines_of_the_text_where_they_are` | test | [Verification](#verification) |
 | `raf_source::test_crate::source_text::a_byte_order_mark_on_the_first_line_starts_the_span_of_its_item_after_the_mark` | test | [Verification](#verification) |
@@ -2729,6 +2699,7 @@ duplicates.
 | `raf_source::test_crate::trait_keys::the_completion_audit_shape_of_a_crate_alias_and_twenty_thousand_imports_loads_on_a_two_mib_thread` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::twenty_thousand_chained_local_aliases_load_on_a_two_mib_thread` | test | [Verification](#verification) |
 | `raf_source::test_crate::tree_error::every_variant_names_its_path_in_display_and_in_path` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_chain_of_two_re_exports_through_two_private_globs_is_capped_twice_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_crate_name_an_explicit_import_binds_is_never_read_as_the_crate_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_crate_name_in_an_import_is_the_dependency_its_target_declares` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_crate_root_inside_a_group_under_a_path_is_a_syntax_error` | test | [Verification](#verification) |
@@ -2745,29 +2716,40 @@ duplicates.
 | `raf_source::test_crate::use_resolution::a_dev_dependency_is_named_only_by_test_code_even_under_a_normal_dependencys_name` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_glob_brings_in_what_its_target_binds_later_whatever_its_target_holds_under_its_first_segment` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_glob_of_a_module_whose_name_is_ambiguous_carries_the_ambiguity_to_its_readers_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_glob_re_export_of_a_private_item_is_seen_no_wider_than_the_item_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_glob_that_brings_in_an_import_of_another_crate_collides_with_the_crate` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_glob_the_importer_cannot_access_holds_nothing_back_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_glob_whose_own_path_starts_at_a_crate_is_ambiguous_with_a_crate_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_glob_whose_path_turns_out_ambiguous_brings_in_nothing_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_hidden_item_does_not_make_a_name_ambiguous_where_a_glob_cycle_delivers_the_item_held_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_hidden_module_a_glob_cycle_carries_back_beside_the_module_itself_is_no_ambiguity_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_leading_colon_member_of_a_use_group_reads_the_crate_root_in_edition_2015` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_long_chain_of_re_exports_resolves_in_either_order_without_a_cap` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_module_and_a_struct_of_one_name_through_two_globs_are_ambiguous_in_the_type_name_space_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_name_an_import_the_reader_cannot_access_binds_is_hidden_from_it_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_name_bound_to_several_modules_gives_a_trait_key_through_each` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_name_space_binds_nothing_only_once_the_globs_its_globs_reach_are_settled` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_name_space_binds_nothing_only_once_the_globs_that_may_bring_it_in_are_settled_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_name_two_globs_bring_in_as_different_items_is_ambiguous_to_a_reader_of_one_glob_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_no_std_crate_does_not_name_std_without_an_extern_crate_item` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_path_through_a_module_two_globs_bring_in_as_different_modules_is_ambiguous_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_path_through_an_import_a_cycle_leaves_undecided_in_another_name_space_is_cyclic` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_pub_use_of_a_name_read_through_a_private_glob_is_seen_no_wider_than_the_glob_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_single_segment_import_of_a_dependency_is_an_external_alias_and_never_its_own_cycle` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_single_segment_import_of_a_workspace_library_binds_its_crate_root` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_three_hop_chain_resolves_and_lists_each_hop` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_use_head_from_a_glob_that_is_also_an_extern_prelude_crate_is_ambiguous` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_use_path_of_edition_2015_starts_at_the_crate_root` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::an_ambiguity_a_glob_cycle_carries_beside_a_glob_of_one_of_its_items_is_one_answer_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_explicit_import_shadows_a_workspace_library_in_every_declaration_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_explicit_import_shadows_the_glob_whether_or_not_the_index_sees_what_it_binds` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_import_a_cycle_leaves_to_the_globs_binds_what_its_readers_could_access_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::an_import_a_reader_cannot_name_still_keeps_its_name_from_the_globs_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_import_binds_what_a_name_it_read_gains_later_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_import_keeps_the_globs_out_only_in_the_name_spaces_it_binds_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::an_import_of_a_value_a_reader_cannot_name_leaves_the_type_of_its_name_to_the_globs_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_import_of_a_value_named_like_a_crate_leaves_the_crate_and_the_globs_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_import_of_its_own_module_reads_what_the_globs_bring_in_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_import_that_binds_its_name_in_one_name_space_leaves_the_others_to_the_globs` | test | [Verification](#verification) |
@@ -2775,15 +2757,19 @@ duplicates.
 | `raf_source::test_crate::use_resolution::an_import_that_reads_a_name_only_through_a_glob_it_cannot_access_finds_nothing_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_import_through_an_import_that_keeps_its_name_keeps_its_own_from_the_globs_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_import_whose_glob_reads_it_starts_at_the_crate_once_no_glob_may_bring_the_name_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::an_item_a_glob_cycle_carries_back_through_the_module_itself_keeps_its_companion_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_item_a_glob_reaches_by_a_public_and_a_private_route_is_visible_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::an_item_reached_by_a_capped_re_export_and_by_a_wider_glob_is_seen_as_widely_as_the_wider_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::cycles_through_private_globs_resolve_as_each_reader_can_access_them_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::globs_that_glob_one_another_beside_names_bound_twice_settle_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::imports_that_read_a_name_through_a_glob_agree_with_the_glob_on_an_ambiguous_re_export` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::imports_that_wait_on_one_another_through_globs_are_decided_as_rustc_does_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::imports_whose_heads_are_names_their_globs_bring_in_are_decided_alike_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::missing_names_dependency_items_and_macro_generated_items_are_not_found` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::names_the_private_glob_does_not_make_ambiguous_still_resolve_for_a_reader_outside_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::resolution_does_not_depend_on_the_order_of_the_declarations` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::the_rebuilt_globs_read_each_glob_path_in_the_settled_tables_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::the_refusal_of_an_ambiguous_name_in_one_name_space_leaves_the_other_resolved_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::two_libraries_with_one_crate_name_are_ambiguous_until_the_package_is_named` | test | [Verification](#verification) |
 | `raf_source::test_crate::walk_stack::a_directory_at_the_depth_limit_is_walked_and_one_below_it_is_refused` | test | [Verification](#verification) |
 | `raf_source::test_crate::walk_stack::a_disk_chain_of_directories_is_refused_typed_on_a_two_mib_thread` | test | [Verification](#verification) |

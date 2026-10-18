@@ -7,7 +7,7 @@ subject: cap:source-index#constraints
 inputs:
   - kind: section
     name: cap:source-index#constraints
-    digest: 8b1bb506ccf4d4b004edc806204c46d685a46fd33002fabbeca9666d99d3ea6d
+    digest: 4fc089b095096233bd5b0d241ac54201767ad01d9068f46bbee82d3487be2617
   - kind: symbol
     name: raf_source::Budget
     digest: 112cd1e623c2c1c3f5b568ff36d5fd8914bcdba242888abc79525048c7445634
@@ -57,6 +57,9 @@ inputs:
     name: raf_source::Resolution
     digest: d64079680e215562f62a260d3cea4ccb84f5ff63d860ab863d09b19734cfe95e
   - kind: symbol
+    name: raf_source::ResolveError
+    digest: 97e82f5945a3f75d63b81a8fad164b38427445939061027fb757655508175c22
+  - kind: symbol
     name: raf_source::SelfType
     digest: 3b36a393fc86b3b53b750186daa3fb72a3ea9a5465eca1712d0fb064c6533fa5
   - kind: symbol
@@ -80,6 +83,12 @@ inputs:
   - kind: symbol
     name: raf_source::Workspace::exported_items_with
     digest: 8778674c764a024836be800d352cf3a22d9b6d8dfe07627fe76e707e1f617e38
+  - kind: symbol
+    name: raf_source::Workspace::resolve_from
+    digest: 90b94d5e3701ce3da98fbeec3840b38015290f561ae65f9bbe71a46c98801f64
+  - kind: symbol
+    name: raf_source::Workspace::resolve_from_in
+    digest: 43567aac51c99a30ce8e50e10eba1f27b9b24353a5f1322f7816b0c88e4015d8
   - kind: symbol
     name: raf_source::Workspace::resolve_in_package
     digest: 55aef4b2934d9e615a22f5c3f08ac679a9ea8d94b79d1e0844d64381a8ad1044
