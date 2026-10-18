@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 use crate::error::{ErrorKind, ParseError};
 use crate::limits::MAX_BLOCK_NESTING;
+use crate::work::{Work, add};
 
 /// Where a body starts in the whole text of its document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -174,6 +175,7 @@ fn base_indent(stack: &[usize]) -> usize {
 }
 
 fn opens_fence(text: &str, content: usize, base: usize) -> Option<OpenFence> {
+    add(Work::FenceScans, 1);
     let rest = &text[content..];
     let indent = rest.len() - rest.trim_start_matches(' ').len();
     if indent > 3 + base {
@@ -197,6 +199,7 @@ fn opens_fence(text: &str, content: usize, base: usize) -> Option<OpenFence> {
 }
 
 fn closes_fence(text: &str, fence: &OpenFence, base: usize) -> bool {
+    add(Work::FenceScans, 1);
     let prefix = prefix_of(text);
     let rest = &text[prefix.content..];
     let indent = rest.len() - rest.trim_start_matches(' ').len();

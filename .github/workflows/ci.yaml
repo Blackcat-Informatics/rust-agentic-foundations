@@ -82,8 +82,6 @@ jobs:
           toolchain: nightly # keep in sync with rust-toolchain.toml
       - name: Test raf-source in release mode
         run: cargo test -p raf-source --release --locked
-      - name: Test the raf-okf validation cost in release mode
-        run: cargo test -p raf-okf --release --locked --test validate_cost
 
   fuzz:
     runs-on: ubuntu-latest

@@ -7,6 +7,7 @@ use crate::body::{Body, Section};
 use crate::profile::schema::DocType;
 use crate::profile::typed::CapabilitySection;
 use crate::profile::violation::{Location, Rule, Violation};
+use crate::work::{Work, add};
 
 /// Unfinished-work tokens that may not appear outside code, lowercase and
 /// matched without regard to case, spacing or dots between letters. The text
@@ -49,6 +50,7 @@ fn visible_content(body: &Body, section: &Section) -> String {
     let blocks = body.generated_blocks();
     let first = blocks.partition_point(|block| block.outer().bytes.start < content.start);
     for block in &blocks[first..] {
+        add(Work::BlocksVisited, 1);
         let outer = &block.outer().bytes;
         if outer.start >= content.end {
             break;

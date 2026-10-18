@@ -12,9 +12,7 @@
 #
 # Gates beyond the workspace tests:
 #   test-release  the raf-source tests again in release mode, because the parse
-#                 stack cost of a nesting level differs between the profiles, and
-#                 the raf-okf validation cost probe, whose time bound is checked
-#                 in release only.
+#                 stack cost of a nesting level differs between the profiles.
 #   fuzz          fmt, clippy and deny on the fuzz harness, then a bounded run of
 #                 each of its targets over its committed corpus. Needs cargo-fuzz.
 #   cross-check   cargo check of every raf-source target (the library, its unit
@@ -61,9 +59,8 @@ clippy: ## Clippy over the workspace, warnings denied.
 test: ## Run the workspace tests.
 	cargo test --workspace --locked
 
-test-release: ## Run the raf-source tests and the raf-okf cost probe in release mode.
+test-release: ## Run the raf-source tests in release mode.
 	cargo test -p raf-source --release --locked
-	cargo test -p raf-okf --release --locked --test validate_cost
 
 doc: ## Build the docs, warnings denied.
 	RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked

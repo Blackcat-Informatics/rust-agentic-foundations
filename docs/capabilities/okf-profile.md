@@ -37,8 +37,8 @@ bindings:
     - raf_okf::test_crate::refusals::a_leading_byte_order_mark_is_refused_at_line_one_column_one
     - raf_okf::test_crate::refusals::a_nul_in_the_body_is_kept_and_renders_back
     - raf_okf::test_crate::refusals::a_frontmatter_fence_line_with_a_trailing_space_is_not_a_fence
-    - raf_okf::test_crate::validate_cost::a_change_at_the_cap_with_maximal_affects_and_changes_validates_within_the_bound
-    - raf_okf::test_crate::validate_cost::a_capability_at_the_cap_with_many_sections_and_blocks_validates_within_the_bound
+    - raf_okf::test_crate::validate_cost::a_change_with_maximal_affects_and_changes_validates_at_the_cap
+    - raf_okf::test_crate::validate_cost::a_capability_with_many_sections_and_blocks_is_refused_for_a_duplicated_section_at_the_cap
     - raf_okf::test_crate::profile::every_required_key_of_every_type_is_reported_when_missing
     - raf_okf::test_crate::profile::an_unknown_key_is_reported_at_that_key
     - raf_okf::test_crate::profile::an_unknown_or_foreign_key_is_reported_on_every_type
@@ -117,7 +117,13 @@ bindings:
     - raf_okf::test_crate::claims::a_raf_generated_comment_in_another_case_or_spacing_is_text
     - raf_okf::test_crate::claims::a_raf_comment_split_over_lines_is_a_marker_error_and_other_split_comments_are_text
     - cargo_workplan::test_crate::check::a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass
-    - raf_okf::test_crate::validate_cost::an_evidence_record_at_the_cap_with_maximal_values_and_limits_validates_within_the_bound
+    - raf_okf::test_crate::validate_cost::an_evidence_record_with_maximal_values_and_limits_validates_at_the_cap
+    - raf_okf::profile::cost_tests::a_change_at_the_cap_judges_each_affects_entry_once_against_one_set
+    - raf_okf::profile::cost_tests::a_capability_at_the_cap_looks_at_each_block_once
+    - raf_okf::profile::cost_tests::the_blocks_looked_at_grow_with_sections_and_blocks_together
+    - raf_okf::profile::cost_tests::an_evidence_record_at_the_cap_indexes_each_value_once_and_looks_up_each_limit_once
+    - raf_okf::profile::cost_tests::the_lines_tested_for_a_fence_grow_with_the_length_of_the_page
+    - raf_okf::profile::cost_tests::an_unterminated_fence_is_tested_once_for_each_line_it_swallows
   examples:
     - raf_okf::EvidenceRecord::to_document
     - raf_okf::Claim
@@ -445,9 +451,16 @@ would produce noise in the diff, and a clean check could not be told from a stal
 - Refusal fixtures for a leading byte order mark (no fence at line 1, column 1) and
   for a frontmatter fence line with a trailing space; a NUL in the body is kept and
   renders back.
-- A cost fixture: a change at the 1 MiB cap with the most `changes` and `affects`
-  entries it holds, and a capability with the most sections and generated blocks,
-  validate within 100 ms in a release build.
+- Cost fixtures, counted and not timed. A change at the 1 MiB cap with the most
+  `changes` and `affects` entries it holds validates, and the count of `affects`
+  entries judged equals the number of entries while the set of `changes` is built
+  once, not once per entry. A capability at the cap with the most sections and
+  generated blocks is refused for the duplicated section, and each generated block
+  is looked at once. With sections and generated blocks growing together at one,
+  two and three units, the blocks looked at are nonzero and the third unit adds no
+  more than the second. The lines tested for a fence grow in step with the length of
+  a page, and an unterminated fence is tested once for each line it swallows. A
+  count sees the steps that are counted: a loop added elsewhere is not seen by it.
 - A round-trip property over the fixture documents: `render(parse(x))` equals `x`
   for canonical input, and `parse(render(d))` equals `d`.
 - An index fixture: a generated-block index is accepted and a hand-written one is
@@ -482,8 +495,10 @@ would produce noise in the diff, and a clean check could not be told from a stal
   capability are `okf-parse-malformed-claim` and the `raf:foo` comment
   `okf-parse-unknown-marker`, each exit 1 with nothing written, and the split
   `raf:generated:` comment, the SPDX header and the ordinary comment exit 0.
-- Cost fixture: an evidence record at the 1 MiB cap with the most `values` and
-  `limits` validates within 100 ms in a release build.
+- Cost fixture, counted and not timed: an evidence record at the 1 MiB cap with the
+  most `values` and `limits` validates, each value is indexed once and each limit
+  looked up once, and a table built for each limit would pass the count at the
+  second limit.
 - The documentation examples of `EvidenceRecord::to_document` (a record built,
   written, parsed and validated back to an equal record) and of `Claim` (a claim
   marker read with its evidence, line, section and statement) run as the bound
@@ -495,6 +510,12 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `cargo_workplan::test_crate::check::a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass` | test | [Verification](#verification) |
 | `raf_okf::Claim` | doctest | [Verification](#verification) |
 | `raf_okf::EvidenceRecord::to_document` | doctest | [Verification](#verification) |
+| `raf_okf::profile::cost_tests::a_capability_at_the_cap_looks_at_each_block_once` | test | [Verification](#verification) |
+| `raf_okf::profile::cost_tests::a_change_at_the_cap_judges_each_affects_entry_once_against_one_set` | test | [Verification](#verification) |
+| `raf_okf::profile::cost_tests::an_evidence_record_at_the_cap_indexes_each_value_once_and_looks_up_each_limit_once` | test | [Verification](#verification) |
+| `raf_okf::profile::cost_tests::an_unterminated_fence_is_tested_once_for_each_line_it_swallows` | test | [Verification](#verification) |
+| `raf_okf::profile::cost_tests::the_blocks_looked_at_grow_with_sections_and_blocks_together` | test | [Verification](#verification) |
+| `raf_okf::profile::cost_tests::the_lines_tested_for_a_fence_grow_with_the_length_of_the_page` | test | [Verification](#verification) |
 | `raf_okf::test_crate::alloc_bound::refused_documents_stay_within_eight_times_their_size` | test | [Verification](#verification) |
 | `raf_okf::test_crate::body_structure::a_fenced_block_exposes_its_content_and_whether_it_is_closed` | test | [Verification](#verification) |
 | `raf_okf::test_crate::body_structure::a_fenced_block_prints_and_compares_without_the_body_around_it` | test | [Verification](#verification) |
@@ -581,7 +602,7 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `raf_okf::test_crate::splice::overlapping_spans_are_refused_and_the_body_is_unchanged` | test | [Verification](#verification) |
 | `raf_okf::test_crate::splice::two_generated_blocks_change_only_their_byte_ranges` | test | [Verification](#verification) |
 | `raf_okf::test_crate::usage_docs::the_examples_block_validates_between_fences_and_resource_is_rejected` | test | [Verification](#verification) |
-| `raf_okf::test_crate::validate_cost::a_capability_at_the_cap_with_many_sections_and_blocks_validates_within_the_bound` | test | [Verification](#verification) |
-| `raf_okf::test_crate::validate_cost::a_change_at_the_cap_with_maximal_affects_and_changes_validates_within_the_bound` | test | [Verification](#verification) |
-| `raf_okf::test_crate::validate_cost::an_evidence_record_at_the_cap_with_maximal_values_and_limits_validates_within_the_bound` | test | [Verification](#verification) |
+| `raf_okf::test_crate::validate_cost::a_capability_with_many_sections_and_blocks_is_refused_for_a_duplicated_section_at_the_cap` | test | [Verification](#verification) |
+| `raf_okf::test_crate::validate_cost::a_change_with_maximal_affects_and_changes_validates_at_the_cap` | test | [Verification](#verification) |
+| `raf_okf::test_crate::validate_cost::an_evidence_record_with_maximal_values_and_limits_validates_at_the_cap` | test | [Verification](#verification) |
 <!-- raf:generated:end -->

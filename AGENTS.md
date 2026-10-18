@@ -157,9 +157,7 @@ make hooks   # point core.hooksPath at .githooks for this clone
   targets (`rustup target add x86_64-apple-darwin x86_64-unknown-freebsd
   x86_64-pc-windows-gnu`).
 - `make test-release` runs the `raf-source` tests in release mode, because the stack
-  a nesting level costs the parser differs between profiles, and the `raf-okf`
-  validation cost probe (`tests/validate_cost.rs`), whose time bound only holds in
-  release. `make fuzz` checks the fuzz harness in `fuzz/` (its own workspace) with
+  a nesting level costs the parser differs between profiles. `make fuzz` checks the fuzz harness in `fuzz/` (its own workspace) with
   fmt, clippy and deny, then runs each of its targets over its committed corpus. `make
   cross-check` runs `cargo check --all-targets` of `raf-source`, warnings denied,
   for the three targets above. `make msrv` and `make fmt` also cover the fuzz harness

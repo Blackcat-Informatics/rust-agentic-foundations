@@ -5,6 +5,8 @@
 //! the validator that reports every violation.
 
 mod body_rules;
+#[cfg(test)]
+mod cost_tests;
 mod records;
 mod schema;
 mod timestamp;
@@ -16,6 +18,7 @@ use std::collections::HashSet;
 
 use crate::document::Document;
 use crate::frontmatter::value::{Entry, ItemValue, Map, Scalar, Value};
+use crate::work::{Work, add};
 
 pub(crate) use body_rules::placeholders;
 pub use schema::{DocType, KeySpec, ValueKind};
@@ -597,6 +600,7 @@ fn check_capability_ids(
 
 fn check_affects(check: &mut Check<'_>, entry: &Entry, changes: &[String]) -> Option<Vec<Affects>> {
     let listed: HashSet<&str> = changes.iter().map(String::as_str).collect();
+    add(Work::ChangeIdsSet, changes.len());
     let Some(texts) = strings(entry.value()) else {
         check.key(
             "affects",
@@ -609,6 +613,7 @@ fn check_affects(check: &mut Check<'_>, entry: &Entry, changes: &[String]) -> Op
     let mut parsed = Vec::new();
     let mut valid = true;
     for text in texts {
+        add(Work::AffectsEntries, 1);
         let split = text
             .split_once('#')
             .filter(|(capability, _)| is_capability_id(capability));

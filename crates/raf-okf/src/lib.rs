@@ -105,6 +105,7 @@ mod index;
 mod limits;
 mod profile;
 mod span;
+mod work;
 
 pub use body::{
     Body, Claim, FencedBlock, GeneratedBlock, Heading, Link, LinkError, LinkForm, LinkTarget,

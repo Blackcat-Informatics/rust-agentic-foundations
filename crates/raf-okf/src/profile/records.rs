@@ -13,6 +13,7 @@ use crate::profile::typed::{
 };
 use crate::profile::violation::{Rule, input_kind_allowed};
 use crate::profile::{Check, is_capability_id, is_kebab, scalar_text};
+use crate::work::{Work, add};
 
 /// The keys of a row of `inputs`, in writing order.
 const INPUT_KEYS: [&str; 3] = ["kind", "name", "digest"];
@@ -591,9 +592,11 @@ pub(super) fn check_between(check: &mut Check<'_>, keys: &Keys<'_>) -> bool {
         // time linear in their number.
         let by_name: HashMap<&str, &Measure> = values
             .iter()
+            .inspect(|_| add(Work::MeasuresIndexed, 1))
             .map(|value| (value.name.as_str(), value))
             .collect();
         for limit in limits {
+            add(Work::LimitLookups, 1);
             let Some(value) = by_name.get(limit.name.as_str()) else {
                 // A failing execution, such as one killed at its time limit,
                 // may have printed none of its values.
