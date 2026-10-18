@@ -599,8 +599,11 @@ fn check_capability_ids(
 }
 
 fn check_affects(check: &mut Check<'_>, entry: &Entry, changes: &[String]) -> Option<Vec<Affects>> {
-    let listed: HashSet<&str> = changes.iter().map(String::as_str).collect();
-    add(Work::ChangeIdsSet, changes.len());
+    let listed: HashSet<&str> = changes
+        .iter()
+        .inspect(|_| add(Work::ChangeIdsSet, 1))
+        .map(String::as_str)
+        .collect();
     let Some(texts) = strings(entry.value()) else {
         check.key(
             "affects",
@@ -638,6 +641,7 @@ fn check_affects(check: &mut Check<'_>, entry: &Entry, changes: &[String]) -> Op
             );
             valid = false;
         }
+        add(Work::ListedLookups, 1);
         if !listed.contains(capability) {
             check.key(
                 "affects",

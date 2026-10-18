@@ -167,6 +167,7 @@ fn a_change_at_the_cap_judges_each_affects_entry_once_against_one_set() {
     assert_eq!(change.affects.len(), count);
     assert_eq!(tally.get(Work::ChangeIdsSet), count);
     assert_eq!(tally.get(Work::AffectsEntries), count);
+    assert_eq!(tally.get(Work::ListedLookups), count);
 }
 
 #[test]

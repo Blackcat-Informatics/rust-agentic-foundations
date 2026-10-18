@@ -18,6 +18,8 @@ pub(crate) enum Work {
     ChangeIdsSet,
     /// An `affects` entry judged against that set.
     AffectsEntries,
+    /// An `affects` entry looked up in that set.
+    ListedLookups,
     /// A generated block looked at by the search for the visible content of a
     /// section.
     BlocksVisited,
@@ -32,13 +34,14 @@ pub(crate) enum Work {
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 6;
+const KINDS: usize = 7;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
 const ALL: [Work; KINDS] = [
     Work::ChangeIdsSet,
     Work::AffectsEntries,
+    Work::ListedLookups,
     Work::BlocksVisited,
     Work::MeasuresIndexed,
     Work::LimitLookups,
