@@ -43,7 +43,9 @@
 //! whose module has no view passes nothing on, and costs nothing for each
 //! name its view gains. So a chain of globs costs what it brings in, once for
 //! each link, and a module that a thousand modules glob is read by a thousand
-//! globs from one table. A glob that reads a view another glob of its module
+//! globs from one table. A fan-in of very many globs onto one module that a
+//! chain of globs also reaches back costs more than that: each companion that
+//! arrives at the module reads the lists of all its reads again. A glob that reads a view another glob of its module
 //! with the same visibility already reads passes nothing on, and what a
 //! module exports is gathered from each view its globs read once, so a module
 //! that globs one module many times over costs a read for each glob and not a
@@ -64,9 +66,11 @@
 //! declaration before their repeats are removed, the bindings with their
 //! routes that a lookup of what the globs of a module bring in under one name
 //! returns, the names that hold companions, listed while the drops the
-//! settled tables show are recorded, and the modules a search of the globs
-//! for an independent supply of an item visits, at most one entry for each
-//! module.
+//! settled tables show are recorded. The search for the modules that hold an
+//! item apart from a reading module is charged for each step it makes (see
+//! `SUPPLY_STEP_BYTES`); its tree of dominators, one entry for each module of
+//! the holder graph, is built once for an item and name and dropped when the
+//! drops are recorded.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::mem::size_of;
