@@ -32,11 +32,14 @@ pub(crate) enum Work {
     ViewReads,
     /// A unit of work charged to the export walk.
     WalkSteps,
+    /// A glob read looked at by the search for the modules that hold an item
+    /// apart from a reading module.
+    SupplySteps,
 }
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 9;
+const KINDS: usize = 10;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -50,6 +53,7 @@ const ALL: [Work; KINDS] = [
     Work::Lookups,
     Work::ViewReads,
     Work::WalkSteps,
+    Work::SupplySteps,
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].
