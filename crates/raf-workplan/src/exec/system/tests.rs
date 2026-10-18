@@ -8,19 +8,23 @@
 //! machine. Under [`Frozen`] every look reads the same time, so only the end of
 //! the process or an output bound can end the run, and the time a run reports
 //! is that reading exactly. Under [`Stepped`] each pause the runner asks for
-//! moves the reading by that much, so the limit passes after a fixed number of
-//! looks whatever the speed of the host. Both count every pause and fail the
-//! test past a ceiling, so a runner that never decides fails instead of hanging.
+//! moves the reading by that much, so the limit passes after a bounded number
+//! of looks whatever the speed of the host. Both count every reading and every
+//! pause and fail the test past a ceiling, so a runner that never decides, or
+//! that stops pausing, fails instead of spinning.
 //!
-//! A process that has to outlive its limit blocks reading a FIFO that the test
-//! holds open (the hold), after writing its process id to another one (the
-//! pids); a leader that exits and leaves it behind first waits on a third (go)
-//! until its pidfd is taken. On Linux the test takes a pidfd of each process
-//! before the kill can be asked for; once the run is over it releases the hold,
-//! blocks on each pidfd until the process has ended and looks at it in
-//! `/proc`. A killed process never ran the rest of its script, so the marker
-//! file that the script writes after the hold is absent; one that survived the
-//! kill writes the marker and ends, so no step can block for ever.
+//! A process that has to outlive its limit first ignores SIGHUP, SIGINT and
+//! SIGTERM, writes its process id to a FIFO (the pids) and blocks reading
+//! another that the test holds open (the hold); a leader that exits and leaves
+//! it behind first waits on a third (go) until its pidfd is taken. On Linux the
+//! stepped clock reads the pids without blocking and does not move until it
+//! has a pidfd of each process, so a script that ends early ends the run
+//! instead of stopping the test. Once the run is over the test releases the
+//! hold, sends SIGCONT to each process and blocks on each pidfd until the
+//! process has ended. A process killed with SIGKILL never ran the rest of its
+//! script, so the marker file that the script writes after the hold is
+//! absent; one that survived the kill, or was only stopped, writes the marker
+//! and ends, so no step can block for ever.
 
 use std::io::{self, Cursor};
 use std::time::Duration;
@@ -209,24 +213,58 @@ impl<C: Clock + ?Sized> Clock for &mut C {
     }
 }
 
-/// The most pauses a run under [`Frozen`] may ask for. Each pause only yields
+/// The most looks, and the most pauses, a run under [`Frozen`] may make, and a
+/// run under [`Stepped`] before its gate opens. Each pause there only yields
 /// the thread, so a short process ends within a small part of this; a runner
-/// that never decides reaches it and fails the test instead of hanging.
+/// that never decides reaches it and fails the test instead of spinning.
 #[cfg(unix)]
 const FROZEN_CEILING: usize = 5_000_000;
 
-/// The most pauses a run under [`Stepped`] may ask for. The limit of two
-/// seconds passes on the 104th (31 ms in the first five, then 20 ms each, then
-/// the 9 ms that remain).
+/// The most looks, and the most pauses, a run under [`Stepped`] may make once
+/// its clock moves. The limit passes within 105 pauses (at most five of the
+/// doubling pauses, then 20 ms each, then what remains), and the runner reads
+/// the clock once at each look and once for the result.
 #[cfg(unix)]
 const STEPPED_CEILING: usize = 200;
 
-/// A clock whose reading never moves: a pause yields the thread and is counted.
+/// The count of one kind of call to a test clock. Past its ceiling it fails
+/// the test, so a runner that never decides fails whether it pauses or not.
+#[cfg(unix)]
+struct Count {
+    what: &'static str,
+    done: std::cell::Cell<usize>,
+    ceiling: usize,
+}
+
+#[cfg(unix)]
+impl Count {
+    fn new(what: &'static str, ceiling: usize) -> Self {
+        Self {
+            what,
+            done: std::cell::Cell::new(0),
+            ceiling,
+        }
+    }
+
+    fn tick(&self) {
+        let done = self.done.get() + 1;
+        self.done.set(done);
+        assert!(
+            done <= self.ceiling,
+            "the run made {done} {}, past the ceiling of {}",
+            self.what,
+            self.ceiling
+        );
+    }
+}
+
+/// A clock whose reading never moves: each reading and each pause is counted,
+/// and a pause yields the thread.
 #[cfg(unix)]
 struct Frozen {
     elapsed: Duration,
-    pauses: usize,
-    ceiling: usize,
+    looks: Count,
+    pauses: Count,
 }
 
 #[cfg(unix)]
@@ -235,8 +273,8 @@ impl Frozen {
     fn at(elapsed: Duration) -> Self {
         Self {
             elapsed,
-            pauses: 0,
-            ceiling: FROZEN_CEILING,
+            looks: Count::new("looks under a clock that never moves", FROZEN_CEILING),
+            pauses: Count::new("pauses under a clock that never moves", FROZEN_CEILING),
         }
     }
 }
@@ -244,29 +282,26 @@ impl Frozen {
 #[cfg(unix)]
 impl Clock for Frozen {
     fn elapsed(&self) -> Duration {
+        self.looks.tick();
         self.elapsed
     }
 
     fn pause(&mut self, _pause: Duration) {
-        self.pauses += 1;
-        assert!(
-            self.pauses <= self.ceiling,
-            "the run paused {} times under a clock that never moves and decided nothing",
-            self.pauses
-        );
+        self.pauses.tick();
         std::thread::yield_now();
     }
 }
 
-/// A clock that moves by each pause the runner asks for, and nothing else. On
-/// Linux its first pause first reads the process ids from the pid FIFO of a
-/// [`Subject`] (see [`Gate`]), so the processes are known before the limit
-/// can pass.
+/// A clock that moves by each pause the runner asks for, and nothing else;
+/// each reading and each pause is counted. On Linux it has a [`Gate`]: until
+/// the gate opens, a pause yields the thread without moving the clock, so the
+/// processes of a [`Subject`] are known before the limit can pass, and no step
+/// blocks on them.
 #[cfg(unix)]
 struct Stepped {
     now: Duration,
-    pauses: usize,
-    ceiling: usize,
+    looks: Count,
+    pauses: Count,
     #[cfg(target_os = "linux")]
     gate: Option<Gate>,
     #[cfg(target_os = "linux")]
@@ -274,24 +309,59 @@ struct Stepped {
 }
 
 #[cfg(unix)]
+impl Stepped {
+    fn moving() -> (Count, Count) {
+        (
+            Count::new("looks under a stepped clock", STEPPED_CEILING),
+            Count::new("pauses under a stepped clock", STEPPED_CEILING),
+        )
+    }
+
+    /// A clock that moves from its first pause.
+    #[cfg(not(target_os = "linux"))]
+    fn new() -> Self {
+        let (looks, pauses) = Self::moving();
+        Self {
+            now: Duration::ZERO,
+            looks,
+            pauses,
+        }
+    }
+
+    /// A clock that moves once `gate` has opened.
+    #[cfg(target_os = "linux")]
+    fn gated(gate: Gate) -> Self {
+        Self {
+            now: Duration::ZERO,
+            looks: Count::new("looks before the gate opened", FROZEN_CEILING),
+            pauses: Count::new("pauses before the gate opened", FROZEN_CEILING),
+            gate: Some(gate),
+            seen: None,
+        }
+    }
+}
+
+#[cfg(unix)]
 impl Clock for Stepped {
     fn elapsed(&self) -> Duration {
+        self.looks.tick();
         self.now
     }
 
     fn pause(&mut self, pause: Duration) {
-        self.pauses += 1;
-        assert!(
-            self.pauses <= self.ceiling,
-            "the run paused {} times, past its ceiling of {}, with the clock at {:?}",
-            self.pauses,
-            self.ceiling,
-            self.now
-        );
         #[cfg(target_os = "linux")]
-        if let Some(gate) = self.gate.take() {
-            self.seen = Some(gate.open());
+        if let Some(gate) = &mut self.gate {
+            if let Some(seen) = gate.turn() {
+                self.seen = Some(seen);
+                self.gate = None;
+                (self.looks, self.pauses) = Self::moving();
+            } else {
+                self.pauses.tick();
+                std::thread::yield_now();
+                return;
+            }
         }
+        self.pauses.tick();
         self.now += pause;
     }
 }
@@ -359,9 +429,13 @@ enum Shape {
     Leaves,
 }
 
-/// The two seconds of the runs that outlive their limit.
+/// The limit of the runs that outlive it: two seconds and seven milliseconds.
+/// The pauses before the gate opens do not move a stepped clock, so the
+/// moving pauses may start anywhere in the runner's schedule and add up to
+/// 31, 30, 28, 24, 16 or 0 ms and then 20 ms each; none of those sums is this
+/// limit, so a pause that is not cut to what remains passes it.
 #[cfg(unix)]
-const LIMIT: Duration = Duration::from_secs(2);
+const LIMIT: Duration = Duration::from_millis(2007);
 
 /// A run of a process of `shape` that outlives its limit, and on Linux what
 /// became of its processes.
@@ -375,22 +449,16 @@ struct Outlived {
     settled: Settled,
 }
 
-/// Run a process of `shape` under a stepped clock with a two-second limit.
+/// Run a process of `shape` under a stepped clock with the limit [`LIMIT`].
 #[cfg(target_os = "linux")]
 fn outlive(shape: Shape) -> Outlived {
     let subject = Subject::new();
     let invocation = sh(&subject.script(shape));
-    let mut clock = Stepped {
-        now: Duration::ZERO,
-        pauses: 0,
-        ceiling: STEPPED_CEILING,
-        gate: Some(subject.gate(shape)),
-        seen: None,
-    };
+    let mut clock = Stepped::gated(subject.gate(shape));
     let limits = Limits::trusted().with_timeout(LIMIT);
     let result = runner().run_with(&invocation, &limits, || &mut clock);
     let Some(seen) = clock.seen.take() else {
-        panic!("the run ended before its first pause: {result:?}");
+        panic!("the run ended before the gate opened on the processes of its script: {result:?}");
     };
     let settled = subject.settle(&seen);
     Outlived {
@@ -401,7 +469,7 @@ fn outlive(shape: Shape) -> Outlived {
     }
 }
 
-/// Run a process of `shape` under a stepped clock with a two-second limit.
+/// Run a process of `shape` under a stepped clock with the limit [`LIMIT`].
 /// Without the FIFOs of Linux the process never ends by running a loop of the
 /// shell, and only the error is asserted.
 #[cfg(all(unix, not(target_os = "linux")))]
@@ -412,11 +480,7 @@ fn outlive(shape: Shape) -> Outlived {
         Shape::Leaves => "{ while :; do :; done; } & exit 0",
     };
     let invocation = sh(script);
-    let mut clock = Stepped {
-        now: Duration::ZERO,
-        pauses: 0,
-        ceiling: STEPPED_CEILING,
-    };
+    let mut clock = Stepped::new();
     let limits = Limits::trusted().with_timeout(LIMIT);
     let result = runner().run_with(&invocation, &limits, || &mut clock);
     Outlived {
@@ -445,10 +509,11 @@ fn killed_at_the_limit(run: &Outlived) {
 struct Subject {
     scratch: Scratch,
     /// The pid FIFO, open for reading and writing since before the spawn, so
-    /// the script's write never blocks and the read never ends early.
+    /// the script's write never blocks, and without blocking, so the gate
+    /// never waits on it.
     pids: std::fs::File,
-    /// The hold FIFO, open the same way, so the release is a plain write that
-    /// lands whether or not the script has opened it yet.
+    /// The hold FIFO, open for reading and writing, so the release is a plain
+    /// write that lands whether or not the script has opened it yet.
     hold: std::fs::File,
     /// The FIFO a leader that leaves its descendant behind reads before it
     /// exits, open the same way: the leader stays unreaped until its pidfd is
@@ -459,8 +524,10 @@ struct Subject {
 #[cfg(target_os = "linux")]
 impl Subject {
     fn new() -> Self {
+        use std::os::unix::fs::OpenOptionsExt as _;
+
         let scratch = Scratch::new();
-        let fifo = |name: &str| {
+        let fifo = |name: &str, flags: rustix::fs::OFlags| {
             let path = scratch.0.join(name);
             rustix::fs::mknodat(
                 rustix::fs::CWD,
@@ -470,15 +537,17 @@ impl Subject {
                 0,
             )
             .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+            let flags = i32::try_from(flags.bits()).expect("open flags");
             std::fs::OpenOptions::new()
                 .read(true)
                 .write(true)
+                .custom_flags(flags)
                 .open(&path)
                 .unwrap_or_else(|error| panic!("{}: {error}", path.display()))
         };
-        let pids = fifo("pids");
-        let hold = fifo("hold");
-        let go = fifo("go");
+        let pids = fifo("pids", rustix::fs::OFlags::NONBLOCK);
+        let hold = fifo("hold", rustix::fs::OFlags::empty());
+        let go = fifo("go", rustix::fs::OFlags::empty());
         Self {
             scratch,
             pids,
@@ -500,10 +569,12 @@ impl Subject {
         self.scratch.0.join("marker")
     }
 
-    /// The script: the process ids go to the pid FIFO, the process that
-    /// blocks reads the hold FIFO, and after the hold it writes the marker. A
-    /// leader that exits reads the go FIFO first. Every word is a builtin of
-    /// the shell, so it runs with an empty `PATH`.
+    /// The script: it first ignores SIGHUP, SIGINT and SIGTERM, before any
+    /// fork, so that only a signal that cannot be ignored ends it or what it
+    /// starts; the process ids go to the pid FIFO, the process that blocks
+    /// reads the hold FIFO, and after the hold it writes the marker. A leader
+    /// that exits reads the go FIFO first. Every word is a builtin of the
+    /// shell, so it runs with an empty `PATH`.
     fn script(&self, shape: Shape) -> String {
         let (pids, hold, go, marker) = (
             self.quoted("pids"),
@@ -512,33 +583,35 @@ impl Subject {
             self.quoted("marker"),
         );
         let blocks = format!("read x < {hold}; echo survived > {marker}");
-        match shape {
+        let body = match shape {
             Shape::Alone => format!("echo $$ > {pids}; {blocks}; exit 0"),
             Shape::Waits => format!("{{ {blocks}; }} & echo \"$$ $!\" > {pids}; wait"),
             Shape::Leaves => {
                 format!("{{ {blocks}; }} & echo \"$$ $!\" > {pids}; read y < {go}; exit 0")
             }
-        }
+        };
+        format!("trap '' HUP INT TERM; {body}")
     }
 
-    /// The gate of a stepped clock for a process of `shape`. When the process
-    /// leaves one behind and exits, the gate lets it exit once the pidfds are
-    /// taken and blocks until it has, so the runner's next look finds its
-    /// status in.
+    /// The gate of a stepped clock for a process of `shape`.
     fn gate(&self, shape: Shape) -> Gate {
         let clone = |file: &std::fs::File| file.try_clone().expect("a FIFO is shared");
         Gate {
             pids: clone(&self.pids),
+            line: Vec::new(),
             go: (shape == Shape::Leaves).then(|| clone(&self.go)),
+            found: None,
         }
     }
 
     /// What became of the processes once the run is over: whether the leader
-    /// is reaped as the run returns; then, with the hold released and each
-    /// process ended, how each stands in `/proc` and whether the marker was
-    /// written. A process the kill reached never read the release, so the
-    /// marker is there only if one survived the kill.
+    /// is reaped as the run returns; then, with the hold released, each
+    /// process sent SIGCONT (so one that a stop left behind runs on) and each
+    /// process ended, whether the marker was written. A process the kill
+    /// reached never read the release, so the marker is there only if one
+    /// survived the kill.
     fn settle(&self, seen: &Seen) -> Settled {
+        use rustix::process::{Signal, pidfd_send_signal};
         use std::io::Write as _;
         use std::os::fd::AsFd as _;
 
@@ -547,55 +620,85 @@ impl Subject {
             WaitIdOptions::EXITED | WaitIdOptions::NOHANG,
         );
         (&self.hold).write_all(b"\n").expect("the hold is released");
-        seen.leader.wait_for_end();
-        if let Some(descendant) = &seen.descendant {
-            descendant.wait_for_end();
+        for process in seen.processes() {
+            // A process that has ended is not an error here.
+            let _ = pidfd_send_signal(&process.fd, Signal::CONT);
+        }
+        for process in seen.processes() {
+            process.wait_for_end();
         }
         Settled {
-            leader: seen.leader.fate(),
-            descendant: seen.descendant.as_ref().map(Process::fate),
             leader_reaped: matches!(reaped, Err(Errno::CHILD)),
             marker: self.marker().exists(),
         }
     }
 }
 
-/// The first pause of a [`Stepped`] clock: read the process ids the script
-/// writes and take a pidfd of each before the limit can pass.
+/// What a [`Stepped`] clock waits for before it moves: the process ids the
+/// script writes, a pidfd of each, and for a leader that exits, its end. Each
+/// turn looks without blocking.
 #[cfg(target_os = "linux")]
 struct Gate {
+    /// The pid FIFO, read without blocking.
     pids: std::fs::File,
+    /// What has been read of the line of process ids.
+    line: Vec<u8>,
     /// The go FIFO, for a leader that exits.
     go: Option<std::fs::File>,
+    /// The processes, once their pidfds are taken.
+    found: Option<Seen>,
 }
 
 #[cfg(target_os = "linux")]
 impl Gate {
-    fn open(self) -> Seen {
+    /// One turn: the processes once the limit may pass, or `None` to look
+    /// again at the next pause.
+    fn turn(&mut self) -> Option<Seen> {
         use std::io::{Read as _, Write as _};
 
-        let mut line = Vec::new();
-        while !line.contains(&b'\n') {
+        if self.found.is_none() {
             let mut chunk = [0_u8; 64];
-            let read = (&self.pids).read(&mut chunk).expect("the pid FIFO is read");
-            // The test holds a writer, so a read never finds the end.
-            assert_ne!(read, 0, "the pid FIFO ended");
-            line.extend_from_slice(&chunk[..read]);
+            match (&self.pids).read(&mut chunk) {
+                // The test holds a writer, so a read never finds the end.
+                Ok(0) => panic!("the pid FIFO ended"),
+                Ok(read) => self.line.extend_from_slice(&chunk[..read]),
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                    ) => {}
+                Err(error) => panic!("the pid FIFO is read: {error}"),
+            }
+            if !self.line.contains(&b'\n') {
+                return None;
+            }
+            let line = String::from_utf8(std::mem::take(&mut self.line)).expect("process ids");
+            let mut pids = line.split_whitespace().map(Process::open);
+            let leader = pids.next().expect("the leader's process id");
+            let descendant = pids.next();
+            if let Some(go) = &self.go {
+                (&*go).write_all(b"\n").expect("the leader is let go");
+            } else {
+                assert!(
+                    !leader.ended(),
+                    "the process ended before its limit could pass"
+                );
+            }
+            self.found = Some(Seen { leader, descendant });
         }
-        let line = String::from_utf8(line).expect("process ids");
-        let mut pids = line.split_whitespace().map(Process::open);
-        let leader = pids.next().expect("the leader's process id");
-        let descendant = pids.next();
-        if let Some(mut go) = self.go {
-            go.write_all(b"\n").expect("the leader is let go");
-            leader.wait_for_end();
+        let leader_exits = self.go.is_some();
+        let seen = self.found.as_ref()?;
+        if leader_exits && !seen.leader.ended() {
+            return None;
         }
-        Seen { leader, descendant }
+        self.found.take()
     }
 }
 
 /// The processes of a run as the gate found them. Dropping it sends SIGKILL to
-/// each of them and to the group, so a run that fails leaves nothing behind.
+/// each of them through its pidfd, and on a failing test to the group as
+/// well, so a run that fails leaves nothing behind; after a clean end the
+/// group's id may already belong to another group.
 #[cfg(target_os = "linux")]
 struct Seen {
     leader: Process,
@@ -603,23 +706,32 @@ struct Seen {
 }
 
 #[cfg(target_os = "linux")]
+impl Seen {
+    fn processes(&self) -> impl Iterator<Item = &Process> {
+        std::iter::once(&self.leader).chain(&self.descendant)
+    }
+}
+
+#[cfg(target_os = "linux")]
 impl Drop for Seen {
     fn drop(&mut self) {
         use rustix::process::{Signal, kill_process_group, pidfd_send_signal};
 
-        for process in std::iter::once(&self.leader).chain(&self.descendant) {
+        for process in self.processes() {
             let _ = pidfd_send_signal(&process.fd, Signal::KILL);
         }
-        let _ = kill_process_group(self.leader.pid, Signal::KILL);
+        if std::thread::panicking() {
+            let _ = kill_process_group(self.leader.pid, Signal::KILL);
+        }
     }
 }
 
-/// One process, held by a pidfd, and its `/proc/<pid>/stat` when it was taken.
+/// One process, held by a pidfd, and its group when the pidfd was taken.
 #[cfg(target_os = "linux")]
 struct Process {
     pid: Pid,
     fd: std::os::fd::OwnedFd,
-    stat: Stat,
+    pgrp: i32,
 }
 
 #[cfg(target_os = "linux")]
@@ -631,43 +743,33 @@ impl Process {
         let pid = Pid::from_raw(raw).expect("a process id");
         // The process is blocked reading a FIFO the test holds and is not
         // reaped, so the id is still this process.
-        let fd = pidfd_open(pid, PidfdFlags::empty()).expect("a pidfd of a live process");
-        let stat = Stat::of(pid).expect("the stat of a live process");
-        Self { pid, fd, stat }
+        let fd = pidfd_open(pid, PidfdFlags::empty())
+            .unwrap_or_else(|error| panic!("a pidfd of process {raw}, still running: {error}"));
+        let pgrp = group_of(pid).expect("the stat of a live process");
+        Self { pid, fd, pgrp }
     }
 
-    /// How the process stands now: gone, dead and not reaped, dying of a
-    /// pending SIGKILL, or running.
-    fn fate(&self) -> Fate {
-        let Some(now) = Stat::of(self.pid) else {
-            return Fate::Gone;
+    /// Whether the process has ended, without blocking.
+    fn ended(&self) -> bool {
+        use rustix::event::{PollFd, PollFlags, Timespec, poll};
+
+        let now = Timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
         };
-        if now.starttime != self.stat.starttime {
-            // Another process has the id.
-            return Fate::Gone;
-        }
-        if matches!(now.state, 'Z' | 'X') {
-            return Fate::Dead(now.state);
-        }
-        let Ok(status) = std::fs::read_to_string(format!("/proc/{}/status", self.pid.as_raw_pid()))
-        else {
-            return Fate::Gone;
-        };
-        let pending = ["SigPnd:", "ShdPnd:"].into_iter().any(|key| {
-            status
-                .lines()
-                .find_map(|line| line.strip_prefix(key))
-                .and_then(|mask| u64::from_str_radix(mask.trim(), 16).ok())
-                .is_some_and(|mask| mask & SIGKILL_BIT != 0)
-        });
-        if pending {
-            Fate::KillPending(now.state)
-        } else {
-            Fate::Running(now.state)
+        let mut fds = [PollFd::new(&self.fd, PollFlags::IN)];
+        loop {
+            match poll(&mut fds, Some(&now)) {
+                Ok(_) => return fds[0].revents().contains(PollFlags::IN),
+                Err(Errno::INTR) => {}
+                Err(error) => panic!("poll of the pidfd of {}: {error}", self.pid.as_raw_pid()),
+            }
         }
     }
 
     /// Block until the process has ended: an event of the kernel, not a time.
+    /// It is asked for only after the hold is released and SIGCONT sent, when
+    /// a process that survived the kill has nothing left to wait on.
     fn wait_for_end(&self) {
         use rustix::event::{PollFd, PollFlags, poll};
 
@@ -682,84 +784,36 @@ impl Process {
     }
 }
 
-/// SIGKILL (signal 9) in the masks of `/proc/<pid>/status`.
+/// The process group of `pid`, the fifth field of `/proc/<pid>/stat` (the
+/// fields after the command name, which ends at the last `)`, begin with the
+/// third).
 #[cfg(target_os = "linux")]
-const SIGKILL_BIT: u64 = 1 << 8;
-
-/// The fields of `/proc/<pid>/stat` the tests read.
-#[cfg(target_os = "linux")]
-#[derive(Debug, Clone, Copy)]
-struct Stat {
-    state: char,
-    pgrp: i32,
-    /// When the process started, in ticks since boot: with the id, it names
-    /// one process even if the id is used again.
-    starttime: u64,
-}
-
-#[cfg(target_os = "linux")]
-impl Stat {
-    fn of(pid: Pid) -> Option<Self> {
-        let text = std::fs::read_to_string(format!("/proc/{}/stat", pid.as_raw_pid())).ok()?;
-        // The fields after the command name, which ends at the last `)`; the
-        // state is the third field of the line, the group the fifth and the
-        // start the twenty-second.
-        let (_, rest) = text.rsplit_once(')')?;
-        let fields: Vec<&str> = rest.split_whitespace().collect();
-        Some(Self {
-            state: fields.first()?.chars().next()?,
-            pgrp: fields.get(2)?.parse().ok()?,
-            starttime: fields.get(19)?.parse().ok()?,
-        })
-    }
-}
-
-/// How a process stood once its pidfd reported its end.
-#[cfg(target_os = "linux")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Fate {
-    /// Reaped.
-    Gone,
-    /// Dead and not reaped yet.
-    Dead(char),
-    /// SIGKILL is pending; the process is on its way out.
-    KillPending(char),
-    /// Still running, in this state, with no SIGKILL pending.
-    Running(char),
-}
-
-#[cfg(target_os = "linux")]
-impl Fate {
-    /// Gone, dead, or dying of SIGKILL.
-    fn ended(self) -> bool {
-        !matches!(self, Self::Running(_))
-    }
+fn group_of(pid: Pid) -> Option<i32> {
+    let text = std::fs::read_to_string(format!("/proc/{}/stat", pid.as_raw_pid())).ok()?;
+    let (_, rest) = text.rsplit_once(')')?;
+    rest.split_whitespace().nth(2)?.parse().ok()
 }
 
 /// What became of the processes of a run once it was over.
 #[cfg(target_os = "linux")]
 #[derive(Debug)]
 struct Settled {
-    leader: Fate,
-    descendant: Option<Fate>,
     leader_reaped: bool,
     marker: bool,
 }
 
-/// The kill reached the leader and what it started: the leader is reaped as
-/// the run returns, the marker the script writes after the hold was never
-/// written, and once each pidfd reported its end, each process is gone, dead
-/// or dying of SIGKILL. Both are in the group the run started.
+/// The kill reached the leader and what it started: both are in the group
+/// the run started, the leader is reaped as the run returns, and the marker
+/// the script writes after the hold was never written. The script ignores
+/// SIGHUP, SIGINT and SIGTERM and every process gets SIGCONT after the
+/// release, so only SIGKILL keeps the marker away.
 #[cfg(target_os = "linux")]
 fn nothing_outlived_the_kill(run: &Outlived) {
     let settled = &run.settled;
     let leader = run.seen.leader.pid.as_raw_pid();
-    assert_eq!(
-        run.seen.leader.stat.pgrp, leader,
-        "the leader leads a group"
-    );
+    assert_eq!(run.seen.leader.pgrp, leader, "the leader leads a group");
     if let Some(descendant) = &run.seen.descendant {
-        assert_eq!(descendant.stat.pgrp, leader, "in the leader's group");
+        assert_eq!(descendant.pgrp, leader, "in the leader's group");
     }
     assert!(
         settled.leader_reaped,
@@ -769,8 +823,6 @@ fn nothing_outlived_the_kill(run: &Outlived) {
         !settled.marker,
         "a process ran on past the kill and wrote the marker: {settled:?}"
     );
-    assert!(settled.leader.ended(), "{settled:?}");
-    assert!(settled.descendant.is_none_or(Fate::ended), "{settled:?}");
 }
 
 // ------------------------------------------------------------- time bound
@@ -957,4 +1009,27 @@ fn a_process_that_never_stops_writing_is_killed_at_the_bound() {
             elapsed: ran,
         }
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn both_streams_are_drained_at_once() {
+    // Standard error is written in full first, then standard output, each
+    // more than a pipe holds. A runner that read one stream to its end before
+    // the other would wait for output that cannot come; the clock never
+    // moves, so the limit cannot end that wait, and the ceiling of the clock
+    // fails the test instead.
+    let ran = Duration::from_millis(900);
+    let mut clock = Frozen::at(ran);
+    let both =
+        sh("head -c 400000 /dev/zero | tr '\\0' e >&2; head -c 400000 /dev/zero | tr '\\0' o");
+    let output = runner()
+        .run_with(&both, &Limits::trusted(), || &mut clock)
+        .expect("both streams are read to their end");
+    assert!(output.success(), "{:?}", output.code);
+    assert_eq!(output.stderr.len(), 400_000);
+    assert_eq!(output.stdout.len(), 400_000);
+    assert!(output.stderr.iter().all(|byte| *byte == b'e'));
+    assert!(output.stdout.iter().all(|byte| *byte == b'o'));
+    assert_eq!(output.elapsed, ran);
 }

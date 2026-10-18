@@ -1441,28 +1441,6 @@ echo to-stderr >&2"#;
     }
 
     #[test]
-    fn both_streams_are_drained_at_once() {
-        let _lock = serial();
-        let scratch = Scratch::new();
-        // Standard error is written in full first, then standard output. A
-        // runner that read standard output to its end before standard error
-        // would wait for output that cannot come until error is read.
-        let stub = scratch.stub(
-            "both",
-            "head -c 400000 /dev/zero | tr '\\0' e >&2\nhead -c 400000 /dev/zero | tr '\\0' o",
-        );
-        let output = scratch
-            .runner(&stub)
-            .run(&Invocation::git_version(), &Limits::trusted())
-            .unwrap();
-        assert!(output.success());
-        assert_eq!(output.stderr.len(), 400_000);
-        assert_eq!(output.stdout.len(), 400_000);
-        assert!(output.stderr.iter().all(|b| *b == b'e'));
-        assert!(output.stdout.iter().all(|b| *b == b'o'));
-    }
-
-    #[test]
     fn output_is_returned_byte_for_byte() {
         let _lock = serial();
         let scratch = Scratch::new();

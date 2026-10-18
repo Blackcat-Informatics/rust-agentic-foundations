@@ -131,7 +131,7 @@ bindings:
     - raf_workplan::test_crate::exec::stubs::a_file_that_cannot_be_executed_is_a_spawn_error
     - raf_workplan::exec::system::tests::a_process_inside_its_limit_passes
     - raf_workplan::exec::system::tests::a_process_that_never_stops_writing_is_killed_at_the_bound
-    - raf_workplan::test_crate::exec::stubs::both_streams_are_drained_at_once
+    - raf_workplan::exec::system::tests::both_streams_are_drained_at_once
     - raf_workplan::test_crate::exec::stubs::nothing_else_is_added_to_the_environment
     - raf_workplan::test_crate::exec::stubs::output_is_returned_byte_for_byte
     - raf_workplan::test_crate::exec::stubs::the_c_locale_is_set_when_the_output_is_parsed_and_left_alone_otherwise
@@ -644,8 +644,14 @@ Further checks:
   gives exactly the limit, and under a clock that never moves, a kill for too much
   output and a run that ends each give that clock's reading. On Linux a process
   killed at its limit, and one it started that holds the output pipes, never run
-  the rest of their script after the kill, also with no `kill` program on `PATH`,
-  and the process the runner started is reaped.
+  the rest of their script after the kill, though the script ignores SIGHUP,
+  SIGINT and SIGTERM and each process is sent SIGCONT afterwards, so only
+  SIGKILL passes; this holds also with no `kill` program on `PATH`, and the
+  process the runner started is reaped. A process that writes more than a pipe
+  holds to both streams runs to its end under the clock that never moves, so
+  the two streams are read at once. Nothing tests that the clock the runner
+  uses outside the tests measures real time: a clock of the machine that always
+  read zero would pass every one of these tests, a limit that is accepted.
 - The headline counts sections for condition 6: one section whose assessment has
   three moved inputs (its text and two bound symbols) prints three
   `assessment-stale` lines under `3 obligations, 1 section without a current
@@ -750,6 +756,7 @@ Further checks:
 | `raf_workplan::exec::system::tests::a_refused_signal_is_done_only_when_the_leader_has_exited` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_zero_limit_is_passed_at_once_unless_the_run_is_done` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::any_other_failure_is_reported_even_after_the_leader_exited` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::both_streams_are_drained_at_once` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::output_at_the_bound_passes_and_one_byte_over_is_refused_on_each_stream` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::terminating_a_leader_that_exited_before_the_kill_succeeds` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::the_capture_stops_one_byte_past_its_bound_and_flags_the_overflow` | test | [Verification](#verification) |
@@ -841,7 +848,6 @@ Further checks:
 | `raf_workplan::test_crate::exec::stubs::a_failing_exit_code_and_a_signal_are_outputs_and_not_errors` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::a_file_that_cannot_be_executed_is_a_spawn_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::a_stub_named_by_cargo_runs_for_cargo_and_a_stub_on_the_path_when_it_is_unset` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::stubs::both_streams_are_drained_at_once` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::every_row_reaches_a_process_as_exactly_its_argv` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::nothing_else_is_added_to_the_environment` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::output_is_returned_byte_for_byte` | test | [Verification](#verification) |
