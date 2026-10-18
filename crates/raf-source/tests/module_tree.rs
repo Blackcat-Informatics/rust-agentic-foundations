@@ -12,7 +12,7 @@ use raf_source::{
     Workspace,
 };
 
-use support::counting::Counting;
+use support::counting::{Counting, Op};
 
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
 
@@ -679,11 +679,25 @@ fn borrowed(files: &[(String, String)]) -> Vec<(&str, &str)> {
         .collect()
 }
 
+/// Load `files` and a manifest through a counting tree that refuses more than
+/// `ceiling` calls.
+fn load_counted(
+    files: &[(&str, &str)],
+    ceiling: usize,
+) -> (Counting<MemoryTree>, Result<Workspace, LoadError>) {
+    let mut all = vec![("Cargo.toml", DEMO)];
+    all.extend_from_slice(files);
+    let tree = Counting::new(all.into_iter().collect::<MemoryTree>()).with_ceiling(ceiling);
+    let result = Workspace::load(&tree, &["."]);
+    (tree, result)
+}
+
 #[test]
-fn a_chain_of_files_that_each_declare_the_next_twice_is_refused_quickly_beside_a_small_diamond() {
-    let started = std::time::Instant::now();
+fn a_chain_of_files_that_each_declare_the_next_twice_is_refused_by_the_module_path_budget_opening_each_file_once_beside_a_small_diamond()
+ {
     let files = chain(2, 30);
-    let error = load(&borrowed(&files)).expect_err("2^30 module paths");
+    let (tree, result) = load_counted(&borrowed(&files), 200);
+    let error = result.expect_err("2^30 module paths");
     assert!(
         matches!(
             error.kind,
@@ -696,17 +710,23 @@ fn a_chain_of_files_that_each_declare_the_next_twice_is_refused_quickly_beside_a
     );
     assert!(error.file.as_str().starts_with("src/m"), "{error}");
     assert!(error.line.is_some());
-    // The refusal by the module-path budget is what bounds the work: 2^18
-    // walks of 2^31. In a release build that takes a fraction of a second,
-    // and the bound below leaves room for a loaded host; a debug build is
-    // judged by the budget alone.
-    if !cfg!(debug_assertions) {
-        assert!(
-            started.elapsed() < std::time::Duration::from_secs(30),
-            "{:?}",
-            started.elapsed()
-        );
-    }
+    // The refusal by the module-path budget is what bounds the walk of 2^31
+    // paths, and each source file (the root and the thirty-one chain files)
+    // is opened and read once however many paths reach it.
+    let manifests = 1;
+    assert!(tree.count(Op::Open) > 0);
+    assert!(
+        tree.count(Op::Open) <= files.len() + manifests,
+        "{} opens for {} files",
+        tree.count(Op::Open),
+        files.len()
+    );
+    assert!(tree.count(Op::OpenedRead) > 0);
+    assert!(
+        tree.count(Op::OpenedRead) <= files.len(),
+        "{}",
+        tree.count(Op::OpenedRead)
+    );
 
     // A small diamond is every file once per path and loads.
     let files = chain(2, 4);
@@ -826,8 +846,8 @@ fn alternatives(levels: usize) -> String {
 
 #[test]
 fn inline_modules_with_path_alternatives_are_bounded_by_the_module_path_budget() {
-    let started = std::time::Instant::now();
-    let error = load(&[("src/lib.rs", &alternatives(40))]).expect_err("3^40 walks");
+    let (tree, result) = load_counted(&[("src/lib.rs", &alternatives(40))], 200);
+    let error = result.expect_err("3^40 walks");
     assert!(
         matches!(
             error.kind,
@@ -839,13 +859,25 @@ fn inline_modules_with_path_alternatives_are_bounded_by_the_module_path_budget()
         "{error}"
     );
     assert_eq!(error.file.as_str(), "src/lib.rs");
-    assert!(
-        started.elapsed() < std::time::Duration::from_secs(10),
-        "{:?}",
-        started.elapsed()
-    );
+    // The alternatives are inline bodies, so the deep load asks the tree for
+    // exactly what a shallow load asks: discovery and `src/lib.rs`, opened once.
+    let (shallow, loaded) = load_counted(&[("src/lib.rs", &alternatives(5))], 200);
+    loaded.expect("shallow case loads");
+    assert_eq!(tree.count(Op::Open), 1);
+    assert_eq!(tree.count_at(Op::Open, "src/lib.rs"), 1);
+    assert_eq!(tree.count(Op::OpenedRead), 1, "{:?}", tree.read_log());
+    assert!(tree.count(Op::Entry) > 0);
+    for op in [
+        Op::Read,
+        Op::Open,
+        Op::OpenedRead,
+        Op::Identity,
+        Op::List,
+        Op::Entry,
+    ] {
+        assert_eq!(tree.count(op), shallow.count(op), "{op:?}");
+    }
     // A shallow case walks each body three times and loads.
-    assert!(load(&[("src/lib.rs", &alternatives(5))]).is_ok());
 }
 
 // --- a module file that sorts before the file that declares it ---------------

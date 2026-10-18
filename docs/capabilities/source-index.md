@@ -58,7 +58,7 @@ bindings:
     - raf_source::test_crate::module_tree::a_module_cycle_is_an_error_naming_both_files
     - raf_source::test_crate::module_tree::a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_reading_it
     - raf_source::test_crate::module_tree::the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone
-    - raf_source::test_crate::module_tree::a_chain_of_files_that_each_declare_the_next_twice_is_refused_quickly_beside_a_small_diamond
+    - raf_source::test_crate::module_tree::a_chain_of_files_that_each_declare_the_next_twice_is_refused_by_the_module_path_budget_opening_each_file_once_beside_a_small_diamond
     - raf_source::test_crate::module_tree::a_child_file_that_sorts_before_its_mod_rs_parent_is_placed_under_its_own_path
     - raf_source::test_crate::module_tree::an_item_is_found_only_under_its_own_module_path
     - raf_source::test_crate::symbol_index::every_kind_is_indexed_with_its_kind_line_file_and_visibility
@@ -1763,8 +1763,11 @@ duplicates.
   unconditional `path` attributes, raw identifiers, a cycle naming both files, a file
   reached by several paths and by two targets listed once, an unresolved `mod` naming
   the file and line, the module-depth budget at 128 and 129, a chain of files that each
-  declare the next twice (2^31 paths) refused by the module-path budget, within 30 s in a
-  release build, beside a small diamond, and a first-party
+  declare the next twice (2^31 paths) refused by the module-path budget at its limit
+  of 262,144, with each source file opened and read once through a counting tree that
+  refuses more than 200 calls, beside a small diamond; 40 nested inline modules with
+  two `cfg_attr` path alternatives each, refused by the same budget with no tree call
+  beyond those of a shallow load; and a first-party
   `mod test_crate;` beside a test target.
 - Placement fixtures, each asserting every item path: a child file that sorts before
   the file that declares it (`a/mod.rs` with `a/b.rs`, and `a.rs` with `a/b.rs` below a
@@ -2585,7 +2588,7 @@ duplicates.
 | `raf_source::test_crate::memory_tree::keys_that_leave_the_root_are_refused_with_outside_root_beside_a_valid_key` | test | [Verification](#verification) |
 | `raf_source::test_crate::memory_tree::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen` | test | [Verification](#verification) |
 | `raf_source::test_crate::memory_tree::the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses` | test | [Verification](#verification) |
-| `raf_source::test_crate::module_tree::a_chain_of_files_that_each_declare_the_next_twice_is_refused_quickly_beside_a_small_diamond` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::a_chain_of_files_that_each_declare_the_next_twice_is_refused_by_the_module_path_budget_opening_each_file_once_beside_a_small_diamond` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::a_child_file_that_sorts_before_its_mod_rs_parent_is_placed_under_its_own_path` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::a_file_reached_under_two_spellings_is_read_once_and_keeps_the_spelling_that_sorts_first` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::a_module_cycle_is_an_error_naming_both_files` | test | [Verification](#verification) |
