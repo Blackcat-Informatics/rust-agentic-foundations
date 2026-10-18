@@ -1060,11 +1060,12 @@ impl Index {
     }
 
     /// Check that the tables, settled `settles` times, were settled at most
-    /// once more than there are imports and recorded drops of companions
-    /// (see [`Index::settle_agreed`]), in
+    /// once more than there are imports for each count of recorded drops of
+    /// companions, from none to those recorded (see
+    /// [`Index::settle_agreed`]), in
     /// release builds too. More is a bug, reported as `Internal`.
     fn within_settles(&self, settles: usize) -> Result<(), LoadError> {
-        if settles <= self.uses.len() + self.drop_count() + 1 {
+        if settles <= (self.uses.len() + 1) * (self.drop_count() + 1) {
             return Ok(());
         }
         Err(self.internal(format!(
@@ -1962,13 +1963,18 @@ impl Index {
     /// are rebuilt from the definitions and settled again with every such
     /// import held from the start: a named one binds nothing and keeps its
     /// name from the globs, and a glob brings in nothing. The held imports
-    /// only grow, by at least one each time. So do the glob reads that drop
-    /// the companions of an ambiguity: a read whose companions the settled
-    /// tables drop, and that did not drop them from the start, is recorded,
-    /// and the tables are settled again with it dropping them from the start
-    /// (see [`Index::record_drops`]). So the tables are settled at most once
-    /// more than there are imports and recorded drops, which is checked in
-    /// every build ([`Index::within_settles`]). Each settle after the first is charged what it builds
+    /// only grow, by at least one each time. Once no import is newly held,
+    /// the glob reads whose companions the settled tables drop, and that did
+    /// not drop them from the start, are recorded (see
+    /// [`Index::record_drops`]), and the tables are settled again with them
+    /// dropping their companions from the start and with no import held: a
+    /// drop changes what the paths read, and an import held for an ambiguity
+    /// that a drop removes is held again only if the tables with the drop
+    /// show it ambiguous. The recorded drops only grow, by at least one each
+    /// time, and between two growths the held imports grow, so the tables
+    /// are settled at most once more than there are imports for each count
+    /// of recorded drops, which is checked in every build
+    /// ([`Index::within_settles`]). Each settle after the first is charged what it builds
     /// again, the scope tables of the definitions and the state of every
     /// import ([`Index::settle_bytes`]), on top of the bindings it makes
     /// again, so the repeated settles are bounded by the budget of index
@@ -1983,8 +1989,15 @@ impl Index {
             let ambiguous: Vec<bool> = (0..self.uses.len())
                 .map(|position| self.use_ambiguous[position] || self.walks_ambiguous(position))
                 .collect();
+            // Drops are recorded only from tables that are final for the
+            // held imports: tables settled again for a newly held import are
+            // thrown away.
             let first = (0..self.uses.len()).find(|at| ambiguous[*at] && !held[*at]);
-            let dropped = self.record_drops(meter)?;
+            let dropped = if first.is_none() {
+                self.record_drops(meter)?
+            } else {
+                0
+            };
             let Some(first) = first.or_else(|| (dropped > 0).then(|| self.glob_imports[0])) else {
                 #[cfg(debug_assertions)]
                 self.check_settled();
@@ -1995,14 +2008,23 @@ impl Index {
             self.release_globs(meter);
             self.build_scopes();
             self.crates_open = false;
-            self.use_ambiguous = ambiguous;
+            // New drops change what every path reads, so the imports are
+            // held again only as the tables with the drops show them
+            // ambiguous: one held for an ambiguity a drop removes would stay
+            // held.
+            self.use_ambiguous = if dropped > 0 {
+                vec![false; self.uses.len()]
+            } else {
+                ambiguous
+            };
         }
     }
 
-    /// Check that the settled tables agree with every named import that is
-    /// not held as ambiguous. Walked again against the final tables, with
-    /// the globs rebuilt: the imports of a name that resolved reach what they
-    /// bound, and each one that did not resolve reaches nothing. The queue
+    /// Check that the settled tables agree with every named import. Walked
+    /// again against the final tables, with the globs rebuilt: the imports of
+    /// a name that resolved reach what they bound, each one that did not
+    /// resolve reaches nothing, and each one held as ambiguous walks an
+    /// ambiguous path. The queue
     /// binds what a path reads while the tables settle and the globs are
     /// rebuilt once they are settled; this is the invariant that makes the
     /// two agree. Run in debug builds.
@@ -2021,10 +2043,20 @@ impl Index {
                 let UseKind::Named { segs, .. } = &import.kind else {
                     continue;
                 };
+                let (walks, _, _) = self.import_paths(position, import, segs);
+                // A held import binds nothing, and its path is still
+                // ambiguous in the settled tables.
                 if self.use_ambiguous[position] {
+                    assert!(
+                        walks
+                            .iter()
+                            .any(|(_, walk)| matches!(walk, Err(Fail::Ambiguous(_)))),
+                        "{}:{}: an import held as ambiguous walks {walks:?} in the settled tables",
+                        import.file,
+                        import.line
+                    );
                     continue;
                 }
-                let (walks, _, _) = self.import_paths(position, import, segs);
                 for (ns, walk) in walks {
                     // A name space a cycle leaves undecided binds nothing,
                     // and a path through it resolves `Cyclic`.

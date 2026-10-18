@@ -4360,3 +4360,143 @@ fn a_companion_a_glob_cycle_carries_beside_an_explicit_import_of_its_item_leaves
     assert_eq!(found, vec!["demo::m2::B"; reads.len()]);
     assert_eq!(loads, 720);
 }
+
+#[test]
+fn a_module_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion_is_one_answer_in_every_order()
+ {
+    // The shape where `w` supplies `m2::B` beside `m0`, whose globs carry
+    // `m1::s1::B` with it as a companion, with `B` a module of each and the
+    // path going on through it: `mm` imports `self::B::X` as `probe`. While
+    // the companion is still delivered, the path through `B` is ambiguous
+    // and the import is held; once the settled tables drop the companion, the
+    // imports are held again only as the tables with the drop show them
+    // ambiguous, and a debug build checks that every held import still walks
+    // an ambiguous path. The index reads `probe` and `self::B::X` in `mm` as
+    // `m2::B::X` in every order. rustc's own answer depends on the order: it
+    // refuses `B` as ambiguous (E0659) when `m0` comes before `w` and accepts
+    // `m2::B::X` when `w` comes first.
+    let reads: &[Read] = &[
+        ("demo::mm", "self::probe", TYPE),
+        ("demo::mm", "self::B::X", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod m1 { pub mod s1 { pub mod B { pub struct X {} } } }",
+            "pub mod m2 { pub mod B { pub struct X {} } }",
+            "pub mod m0 { pub use crate::m2::*; use crate::m1::s1::*; }",
+            "pub mod w { pub use crate::m2::B; }",
+            "pub mod mm { pub use crate::m0::*; pub use crate::w::*; use self::B::X as probe; }",
+        ],
+        &[],
+        reads,
+    );
+    assert_eq!(found, vec!["demo::m2::B::X"; reads.len()]);
+    assert_eq!(loads, 120);
+}
+
+#[test]
+fn an_import_that_reads_its_name_through_the_glob_whose_companion_it_would_drop_keeps_the_ambiguity_in_every_order()
+ {
+    // The shape where `w` imports `B` by name beside `m0`, whose globs carry
+    // `m1::s1::B` with `m2::B` as a companion, but `w` imports `crate::mm::B`:
+    // it reads the name through the glob of `m0` in `mm`, so it binds the
+    // companion as well, and what it delivers back to `mm` does not justify
+    // dropping the companion there. The index reads `B` and `probe` in `mm`
+    // and `B` in `w` as ambiguous between the two structs in every order,
+    // and rustc agrees: it refuses `B` as ambiguous (E0659) in every order.
+    let reads: &[Read] = &[
+        ("demo::mm", "self::B", TYPE),
+        ("demo::mm", "self::probe", TYPE),
+        ("demo::w", "self::B", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod m1 { pub mod s1 { pub struct B {} } }",
+            "pub mod m2 { pub struct B {} }",
+            "pub mod m0 { pub use crate::m2::*; use crate::m1::s1::*; }",
+            "pub mod w { pub use crate::mm::B; }",
+            "pub mod mm { pub use crate::m0::*; pub use crate::w::*; use self::B as probe; }",
+        ],
+        &[],
+        reads,
+    );
+    let both = ambiguous_between("demo::m1::s1::B", "demo::m2::B");
+    assert_eq!(found, vec![both; reads.len()]);
+    assert_eq!(loads, 120);
+}
+
+#[test]
+fn a_companion_that_arrives_where_the_reader_cannot_access_it_is_dropped_as_its_glob_drops_it_in_every_order()
+ {
+    // `m1` globs `m2` privately and `m0::s0` publicly, and each holds a
+    // struct `B`: `B` is ambiguous in `m1`, and `m2::s1`, which globs `m1`
+    // privately, can access `m0::s0::B` only, so `m2::B` rides along with it.
+    // `m2::s1` also globs `m0::s0` publicly, which defines `B`, so it drops
+    // the companion. `m2::s0` globs `m2::s1` and cannot access what `m2::s1`
+    // brings in through its private glob: the companion arrives at the view
+    // `m2::s0` reads as an item it cannot access beside one it holds, and that
+    // view drops it as the glob it came through drops it, whether it came in
+    // before or after `m0::s0::B`. The index reads `B` in `m2::s0` as
+    // `m0::s0::B` in every order. rustc's own answer depends on the order: it
+    // accepts `m0::s0::B` in 54 of the 72 orders and refuses `B` as ambiguous
+    // (E0659) in the others.
+    let reads: &[Read] = &[("demo::m2::s0", "self::B", TYPE)];
+    let (found, loads) = reads_in_every_order(
+        &["mod m0 { pub mod s0 { pub(crate) struct B {} } }"],
+        &[
+            (
+                "mod m2",
+                &[
+                    "pub mod s1 { pub use crate::m0::s0::*; use crate::m1::*; }",
+                    "pub mod s0 { pub use crate::m2::s1::*; }",
+                    "pub struct B {}",
+                ],
+            ),
+            (
+                "mod m1",
+                &["use crate::m2::*;", "pub use crate::m0::s0::*;"],
+            ),
+        ],
+        reads,
+    );
+    assert_eq!(found, ["demo::m0::s0::B"]);
+    assert_eq!(loads, 72);
+}
+
+#[test]
+fn a_companion_a_chain_of_globs_carries_to_a_reader_that_cannot_access_it_is_dropped_in_every_order()
+ {
+    // `m0::s0` globs `m2::s1` privately and `m1::s0` publicly, and each holds
+    // a struct `B`; `m2` globs `m0::s0` privately, so it holds `m1::s0::B`
+    // with `m2::s1::B` as a companion, and `m2::s0` globs `m2` and `m1::s0`,
+    // which defines `B`, so it drops the companion. The crate root globs
+    // `m2::s0` privately, `m3` globs the root and `m1` globs `m3`. The
+    // companion arrives at the view of `m2::s0` that the root reads as an
+    // item the root cannot access beside `m1::s0::B`, and the view drops it
+    // as the glob of `m2` it came through drops it, whether it came in before
+    // or after. The index reads `crate::m1::B` from `m3::s0` and from `m3` as
+    // `m1::s0::B` in every order, and rustc agrees in every order.
+    let reads: &[Read] = &[
+        ("demo::m3::s0", "crate::m1::B", TYPE),
+        ("demo::m3", "crate::m1::B", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "use crate::m2::s0::*;",
+            "pub mod m1 { pub mod s0 { pub struct B {} } pub(crate) use crate::m3::*; }",
+            "mod m3 { pub(crate) use super::*; pub mod s0 {} }",
+            "mod m0 { pub mod s0 { use crate::m2::s1::*; pub use crate::m1::s0::*; } }",
+        ],
+        &[(
+            "pub mod m2",
+            &[
+                "use crate::m0::s0::*;",
+                "pub mod s0 { use super::*; pub use crate::m1::s0::*; }",
+                "pub mod s1 { pub(crate) struct B {} }",
+            ],
+        )],
+        reads,
+    );
+    assert_eq!(found, vec!["demo::m1::s0::B"; reads.len()]);
+    assert_eq!(loads, 720);
+}

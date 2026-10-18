@@ -662,10 +662,14 @@ impl Index {
     /// their views hold under `name` in the name space at `at`, whether
     /// another of them delivers as itself an item that the read delivers as
     /// itself, from a module that binds the name itself, as a definition or
-    /// an explicit import: what such a read delivers no glob of the module
-    /// passed on to it. An item a cycle of globs carries back through the
-    /// module itself would otherwise drop the very companions it was passed
-    /// on with.
+    /// an explicit import, and delivers none of the read's companions: what
+    /// such a read delivers no glob of the module passed on to it. An item a
+    /// cycle of globs carries back through the module itself would otherwise
+    /// drop the very companions it was passed on with. A binding of the name
+    /// that reads it through the module's own globs, and so through the read
+    /// itself, holds the companions as well while the read delivers them, so
+    /// it never justifies their drop: rustc reads that binding as the
+    /// ambiguity.
     fn redelivered(&self, found: &[(&GlobRead, Vec<Held>)], name: &str, at: usize) -> Vec<bool> {
         let firm: Vec<Vec<ItemId>> = found
             .iter()
@@ -690,6 +694,13 @@ impl Index {
                     own[other]
                         && found[other].0.view != found[this].0.view
                         && firm[other].iter().any(|id| firm[this].contains(id))
+                        && !found[this].1.iter().any(|entry| {
+                            entry.1.is_companion()
+                                && found[other]
+                                    .1
+                                    .binary_search_by_key(&entry.0, |held| held.0)
+                                    .is_ok()
+                        })
                 })
             })
             .collect()
@@ -1497,21 +1508,14 @@ impl Index {
                     self.widest(&mut seen);
                     seen
                 }
-            } else if let Some(widest) = held
-                .iter()
-                .map(|held| held.1)
-                .reduce(|left, right| self.wider(left, right))
-            {
+            } else if !hidden.is_empty() && !held.is_empty() {
                 // Nothing the class can access arrives, and what it already
                 // reads under the name is now ambiguous with the items that
-                // arrive.
+                // arrive, unless the read they arrive through drops them as
+                // companions: the table of the module is read again for the
+                // name (see [`Index::delivered`]).
                 self.globs.views[view].hidden = true;
-                hidden.sort_unstable_by_key(|held| held.0);
-                hidden.dedup_by_key(|held| held.0);
-                hidden
-                    .into_iter()
-                    .map(|(id, _)| (id, widest.companion()))
-                    .collect()
+                self.export_ids(module, &class, name, at)
             } else {
                 self.globs.views[view].hidden |= !hidden.is_empty();
                 continue;
