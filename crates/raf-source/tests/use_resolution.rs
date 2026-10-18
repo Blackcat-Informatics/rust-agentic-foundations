@@ -4500,3 +4500,193 @@ fn a_companion_a_chain_of_globs_carries_to_a_reader_that_cannot_access_it_is_dro
     assert_eq!(found, vec!["demo::m1::s0::B"; reads.len()]);
     assert_eq!(loads, 720);
 }
+
+/// [`reads_in_every_order`] for a library of `edition`, where a header of
+/// `modules` may open nested modules, as `mod m { pub mod s`: the
+/// declarations go into the innermost, and each module the header leaves
+/// open is closed after them.
+fn reads_in_every_order_in(
+    edition: &str,
+    others: &[&str],
+    modules: &[(&str, &[&str])],
+    reads: &[Read],
+) -> (Vec<String>, usize) {
+    let mut expected: Option<Vec<String>> = None;
+    let mut loads = 0;
+    let insides: Vec<Vec<Vec<String>>> = modules
+        .iter()
+        .map(|(_, inner)| permutations(&inner.iter().map(|d| (*d).to_owned()).collect::<Vec<_>>()))
+        .collect();
+    let mut choice = vec![0; modules.len()];
+    loop {
+        let mut blocks: Vec<String> = others.iter().map(|b| (*b).to_owned()).collect();
+        for (at, (header, _)) in modules.iter().enumerate() {
+            let opened = header.matches('{').count() - header.matches('}').count();
+            let closes = " }".repeat(opened);
+            blocks.push(format!(
+                "{header} {{ {} }}{closes}",
+                insides[at][choice[at]].join(" ")
+            ));
+        }
+        for order in permutations(&blocks) {
+            let text = order.join("\n");
+            let ws = load_in(edition, &[("src/lib.rs", text.as_str())])
+                .unwrap_or_else(|e| panic!("{e}"));
+            let results: Vec<String> = reads
+                .iter()
+                .map(|(module, path, ns)| read_as(&ws, module, path, *ns))
+                .collect();
+            match &expected {
+                None => expected = Some(results),
+                Some(first) => assert_eq!(&results, first, "{order:?}"),
+            }
+            loads += 1;
+        }
+        let mut at = 0;
+        while at < choice.len() {
+            choice[at] += 1;
+            if choice[at] < insides[at].len() {
+                break;
+            }
+            choice[at] = 0;
+            at += 1;
+        }
+        if at == choice.len() {
+            break;
+        }
+    }
+    (expected.expect("loaded"), loads)
+}
+
+#[test]
+fn an_item_a_glob_cycle_carries_back_beside_a_glob_that_holds_it_from_elsewhere_drops_its_companion_in_every_order()
+ {
+    // `m3` globs `m3::s0` privately and `m0`, and `m0` globs `m3` and
+    // `m3::s1`, which globs `m1`: the function `A` of `m1` reaches `m3`
+    // through `m0`, beside `m3::s0::A`, so `A` is ambiguous in `m3`, and to
+    // `m0`, which cannot access `m3::s0::A`, it rides along as a companion of
+    // `m1::A`. The glob of `m3::s1` in `m0` delivers `m1::A` from a module
+    // whose globs do not reach `m0`, so `m0` holds it apart from the cycle
+    // that carries it back, and drops the companion, though `m3::s1` does not
+    // bind `A` itself. The index reads `crate::m0::A` from `m3::s1` as
+    // `m1::A` in the value name space in every order, and rustc agrees in
+    // every order, in the editions 2021 and 2024.
+    let reads: &[Read] = &[
+        ("demo::m3::s1", "crate::m0::A", VALUE),
+        ("demo::m3::s1", "crate::m0::A", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order_in(
+        "2024",
+        &["pub mod m1 { pub const fn A() -> u32 { 7 } }"],
+        &[
+            (
+                "pub mod m0",
+                &["pub use crate::m3::s1::*;", "use crate::m3::*;"],
+            ),
+            (
+                "mod m3",
+                &[
+                    "pub mod s0 { pub const fn A() -> u32 { 15 } }",
+                    "use crate::m3::s0::*;",
+                    "pub(crate) use crate::m0::*;",
+                    "pub mod s1 { pub use crate::m1::*; }",
+                ],
+            ),
+        ],
+        reads,
+    );
+    assert_eq!(found, ["demo::m1::A", "not found"]);
+    assert_eq!(loads, 288);
+}
+
+#[test]
+fn a_module_a_glob_cycle_carries_back_beside_a_glob_that_holds_it_from_elsewhere_starts_a_path_in_every_order()
+ {
+    // `m0::s0` globs `m1::s0` privately and the crate root publicly, and the
+    // root globs `m1` privately, so it holds the module `m1::s0`. `m1::s0`
+    // globs `m0` privately and `m2::s0`, which globs `m0::s0`: what
+    // `m1::s0` brings in under `s0` is `m1::s0`, carried back around the
+    // cycle, with `m0::s0` riding along hidden. The root delivers `m1::s0`
+    // to `m0::s0` from globs that do not reach `m0::s0`, so `m0::s0` drops
+    // the companion and the bare first segment `s0` of a path in `m0::s0`
+    // names `m1::s0` alone. The index reads `s0::B` from `m0::s0` as
+    // `m1::s0::B` in every order, and rustc agrees in every order, in the
+    // editions 2021 and 2024.
+    let reads: &[Read] = &[
+        ("demo::m0::s0", "s0::B", TYPE),
+        ("demo::m0::s0", "s0::B", VALUE),
+    ];
+    let (found, loads) = reads_in_every_order_in(
+        "2024",
+        &[
+            "pub mod m0 { pub mod s0 { use crate::m1::s0::*; pub use crate::*; } }",
+            "use self::m1::*;",
+            "pub mod m2 { pub mod s0 { pub(crate) use crate::m0::s0::*; } }",
+        ],
+        &[(
+            "mod m1 { pub mod s0",
+            &[
+                "use crate::m0::*;",
+                "pub struct B {}",
+                "pub use crate::m2::s0::*;",
+            ],
+        )],
+        reads,
+    );
+    assert_eq!(found, ["demo::m1::s0::B", "not found"]);
+    assert_eq!(loads, 144);
+}
+
+#[test]
+fn an_item_a_glob_brings_in_from_its_definition_apart_from_a_cycle_drops_the_companion_the_cycle_carries_in_every_order()
+ {
+    // The shapes above where the glob that holds the item apart from the
+    // cycle reaches its definition through another glob. `m3::s1` globs
+    // `m1`, which defines `A`, and `m0` privately: what it delivers to `m0`
+    // comes from `m1` without passing through `m0`, so `m0` drops the
+    // companion `m3::s0::A` that its glob of `m3` carries beside `m1::A`.
+    // And the crate root globs `m1::s0`, which globs `m1`, where `B` is
+    // defined, and `m2::s1`, which globs the root and, privately, `m2`, which
+    // defines another `B`: the root drops `m2::B`, which rides along with
+    // `m1::B` carried back around the cycle. The index reads `crate::m0::A`
+    // from `m3::s1` as `m1::A` and `crate::B` from `m2::s1` as `m1::B`, in the
+    // value name space, in every order, and rustc agrees in every order, in
+    // the editions 2021 and 2024.
+    let (found, loads) = reads_in_every_order_in(
+        "2024",
+        &[
+            "pub mod m1 { pub const fn A() -> u32 { 7 } }",
+            "pub mod m0 { pub use crate::m3::s1::*; use crate::m3::*; }",
+        ],
+        &[(
+            "mod m3",
+            &[
+                "pub mod s0 { pub const fn A() -> u32 { 15 } }",
+                "use crate::m3::s0::*;",
+                "pub mod s1 { use crate::m0::*; pub use crate::m1::*; }",
+                "pub use crate::m0::*;",
+            ],
+        )],
+        &[("demo::m3::s1", "crate::m0::A", VALUE)],
+    );
+    assert_eq!(found, ["demo::m1::A"]);
+    assert_eq!(loads, 144);
+    let (found, loads) = reads_in_every_order_in(
+        "2024",
+        &[
+            "pub use crate::m1::s0::*;",
+            "pub mod m1 { pub mod s0 { pub use crate::m1::*; } pub(crate) const fn B() -> u32 { 1 } }",
+            "use crate::m2::s1::*;",
+        ],
+        &[(
+            "mod m2",
+            &[
+                "pub const fn B() -> u32 { 6 }",
+                "pub mod s1 { pub use crate::*; use crate::m2::*; }",
+            ],
+        )],
+        &[("demo::m2::s1", "crate::B", VALUE)],
+    );
+    assert_eq!(found, ["demo::m1::B"]);
+    assert_eq!(loads, 48);
+}

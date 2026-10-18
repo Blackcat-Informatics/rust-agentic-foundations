@@ -63,8 +63,10 @@
 //! the visibilities of each module, listed once for each item and `use`
 //! declaration before their repeats are removed, the bindings with their
 //! routes that a lookup of what the globs of a module bring in under one name
-//! returns, and the names that hold companions, listed while the drops the
-//! settled tables show are recorded.
+//! returns, the names that hold companions, listed while the drops the
+//! settled tables show are recorded, and the modules a search of the globs
+//! for an independent supply of an item visits, at most one entry for each
+//! module.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::mem::size_of;
@@ -634,7 +636,7 @@ impl Index {
     /// order of the declarations.
     fn delivered(&self, module: usize, name: &str, at: usize) -> Vec<(&GlobRead, Vec<Held>)> {
         let mut found = self.read_lists(module, name, at);
-        let redelivered = self.redelivered(&found, name, at);
+        let redelivered = self.redelivered(module, &found, name, at);
         for ((read, held), redelivered) in found.iter_mut().zip(redelivered) {
             if redelivered || self.drops_companions(read, name, at) {
                 held.retain(|entry| !entry.1.is_companion());
@@ -658,19 +660,28 @@ impl Index {
         found
     }
 
-    /// For each glob read of `found`, the reads of one module and the items
+    /// For each glob read of `found`, the reads of `module` and the items
     /// their views hold under `name` in the name space at `at`, whether
     /// another of them delivers as itself an item that the read delivers as
-    /// itself, from a module that binds the name itself, as a definition or
-    /// an explicit import, and delivers none of the read's companions: what
-    /// such a read delivers no glob of the module passed on to it. An item a
-    /// cycle of globs carries back through the module itself would otherwise
-    /// drop the very companions it was passed on with. A binding of the name
-    /// that reads it through the module's own globs, and so through the read
-    /// itself, holds the companions as well while the read delivers them, so
-    /// it never justifies their drop: rustc reads that binding as the
-    /// ambiguity.
-    fn redelivered(&self, found: &[(&GlobRead, Vec<Held>)], name: &str, at: usize) -> Vec<bool> {
+    /// itself, and delivers none of the read's companions, from a module
+    /// that holds the item apart from `module`: one that binds the name
+    /// itself, as a definition or an explicit import, or whose globs bring
+    /// the item in from such a module through modules other than `module`
+    /// (see [`Index::globs_supply`]). That module already holds the item
+    /// when a cycle of globs carries it back to `module` with the
+    /// companions, so rustc drops them. An item a cycle of globs carries back
+    /// through `module` itself would otherwise drop the very companions it
+    /// was passed on with. A binding of the name that reads it through the
+    /// module's own globs, and so through the read itself, holds the
+    /// companions as well while the read delivers them, so it never
+    /// justifies their drop: rustc reads that binding as the ambiguity.
+    fn redelivered(
+        &self,
+        module: usize,
+        found: &[(&GlobRead, Vec<Held>)],
+        name: &str,
+        at: usize,
+    ) -> Vec<bool> {
         let firm: Vec<Vec<ItemId>> = found
             .iter()
             .map(|(_, held)| {
@@ -691,8 +702,7 @@ impl Index {
         (0..found.len())
             .map(|this| {
                 (0..found.len()).any(|other| {
-                    own[other]
-                        && found[other].0.view != found[this].0.view
+                    found[other].0.view != found[this].0.view
                         && firm[other].iter().any(|id| firm[this].contains(id))
                         && !found[this].1.iter().any(|entry| {
                             entry.1.is_companion()
@@ -701,9 +711,49 @@ impl Index {
                                     .binary_search_by_key(&entry.0, |held| held.0)
                                     .is_ok()
                         })
+                        && (own[other]
+                            || firm[other].iter().any(|id| {
+                                firm[this].contains(id)
+                                    && self.globs_supply(
+                                        found[other].0.target,
+                                        module,
+                                        name,
+                                        at,
+                                        *id,
+                                    )
+                            }))
                 })
             })
             .collect()
+    }
+
+    /// True when the globs of `from` bring in `id` under `name` in the name
+    /// space at `at` from a module that binds it itself, as a definition or
+    /// an explicit import, through globs of modules other than `avoid` that
+    /// do not bind the name themselves: `from` holds `id` apart from what
+    /// `avoid` passes on.
+    fn globs_supply(&self, from: usize, avoid: usize, name: &str, at: usize, id: ItemId) -> bool {
+        let mut seen = BTreeSet::from([from, avoid]);
+        let mut work = vec![from];
+        while let Some(next) = work.pop() {
+            for glob in self.globs_of(next) {
+                for &target in &self.glob_reach[*glob] {
+                    if !seen.insert(target) {
+                        continue;
+                    }
+                    match self.scopes[target]
+                        .get(name)
+                        .map(|entry| &entry.defs[at])
+                        .filter(|defs| !defs.is_empty())
+                    {
+                        Some(defs) if defs.get(id).is_some() => return true,
+                        Some(_) => {}
+                        None => work.push(target),
+                    }
+                }
+            }
+        }
+        false
     }
 
     /// True when the glob read `read` drops its companions under `name` in
@@ -768,7 +818,7 @@ impl Index {
                 .collect();
             for (name, at) in names {
                 let found = self.read_lists(module, name, *at);
-                let redelivered = self.redelivered(&found, name, *at);
+                let redelivered = self.redelivered(module, &found, name, *at);
                 for ((read, held), redelivered) in found.iter().zip(redelivered) {
                     if redelivered
                         && held.iter().any(|entry| entry.1.is_companion())
