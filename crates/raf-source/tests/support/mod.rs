@@ -19,12 +19,6 @@ pub(crate) mod shapes;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc;
-use std::thread;
-use std::time::Duration;
-
-/// How long an operation may take before the test calls it blocked.
-const WATCHDOG: Duration = Duration::from_secs(10);
 
 /// A fresh directory under the system temporary directory, removed on drop.
 pub(crate) struct Scratch {
@@ -84,7 +78,9 @@ impl Scratch {
     }
 
     /// Make `name` a FIFO. Opening one for a blocking read waits for a
-    /// writer, so a test that finishes within the watchdog never did.
+    /// writer, so a test that returns never opened it that way: every open of
+    /// the disk tree is an `O_PATH` reference or an `O_NONBLOCK` open, and the
+    /// unit tests of the disk tree check the flags of each.
     #[cfg(unix)]
     pub(crate) fn fifo(&self, name: &str) -> PathBuf {
         let path = self.path(name);
@@ -105,17 +101,4 @@ impl Drop for Scratch {
         // Teardown of a temporary directory; a leftover fails nothing.
         drop(fs::remove_dir_all(&self.base));
     }
-}
-
-/// Run `work` on its own thread and return its result, failing the test when
-/// it has not finished within the watchdog time.
-pub(crate) fn within_watchdog<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
-    let (sender, receiver) = mpsc::channel();
-    thread::spawn(move || {
-        // The receiver is gone only when the watchdog already fired.
-        drop(sender.send(work()));
-    });
-    receiver
-        .recv_timeout(WATCHDOG)
-        .expect("the operation blocked past the watchdog")
 }

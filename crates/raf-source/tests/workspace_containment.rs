@@ -3,8 +3,9 @@
 
 //! The containment cases of `DiskTree`, run through `Workspace::load`. Each
 //! fixture sits in a fresh temporary directory beside an outside sentinel that
-//! is a FIFO wherever one is needed: reading it would block, and every load
-//! runs under a watchdog, so a test that passes never read it.
+//! is a FIFO wherever one is needed: a blocking read of it would never return,
+//! so a test that passes never read it. The unit tests of the disk tree check
+//! that every open is an `O_PATH` reference or an `O_NONBLOCK` open.
 
 #![cfg(unix)]
 
@@ -14,8 +15,8 @@ use raf_source::{
     Budget, DiskTree, EntryKind, LoadError, LoadErrorKind, Origin, RelPath, TargetProblem, Tree,
     TreeError, Workspace,
 };
+use support::Scratch;
 use support::counting::Counting;
-use support::{Scratch, within_watchdog};
 
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
 
@@ -30,7 +31,7 @@ fn fixture() -> Scratch {
 
 fn load(scratch: &Scratch) -> Result<Workspace, LoadError> {
     let tree = DiskTree::new(scratch.path("root")).expect("tree");
-    within_watchdog(move || Workspace::load(&tree, &["."]))
+    Workspace::load(&tree, &["."])
 }
 
 fn outside_root(error: &LoadError) -> bool {
@@ -148,10 +149,8 @@ fn a_symlinked_manifest_to_outside_is_refused_beside_one_to_a_file_inside() {
     // Two packages with one name: the link is read and found to repeat `demo`.
     let error = load(&accepted).expect_err("duplicate name through the link");
     assert!(matches!(error.kind, LoadErrorKind::Target(_)), "{error}");
-    let packages = within_watchdog({
-        let tree = DiskTree::new(accepted.path("root/real")).expect("tree");
-        move || Workspace::load(&tree, &["."]).map(|ws| ws.packages().len())
-    });
+    let tree = DiskTree::new(accepted.path("root/real")).expect("tree");
+    let packages = Workspace::load(&tree, &["."]).map(|ws| ws.packages().len());
     assert_eq!(packages.expect("loads"), 1);
 }
 
@@ -162,7 +161,7 @@ fn a_directory_symlink_loop_ends_with_an_error_and_a_plain_directory_symlink_is_
     scratch.link("root/crates/a", "b");
     scratch.link("root/crates/b", "a");
     let tree = DiskTree::new(scratch.path("root")).expect("tree");
-    let error = within_watchdog(move || Workspace::load(&tree, &["crates"])).expect_err("loop");
+    let error = Workspace::load(&tree, &["crates"]).expect_err("loop");
     assert!(
         matches!(&error.kind, LoadErrorKind::Tree(e) if matches!(**e, TreeError::SymlinkLoop { .. })),
         "{error}"
@@ -172,7 +171,7 @@ fn a_directory_symlink_loop_ends_with_an_error_and_a_plain_directory_symlink_is_
     scratch.dir("root/crates/real");
     scratch.link("root/crates/link", scratch.path("root/crates/real"));
     let tree = DiskTree::new(scratch.path("root")).expect("tree");
-    let error = within_watchdog(move || Workspace::load(&tree, &["crates"])).expect_err("symlink");
+    let error = Workspace::load(&tree, &["crates"]).expect_err("symlink");
     assert!(matches!(error.kind, LoadErrorKind::DirSymlink), "{error}");
     assert_eq!(error.file.as_str(), "crates/link");
 
@@ -185,7 +184,7 @@ fn a_directory_symlink_loop_ends_with_an_error_and_a_plain_directory_symlink_is_
         scratch.path("root/crates/readme.txt"),
     );
     let tree = DiskTree::new(scratch.path("root")).expect("tree");
-    assert!(within_watchdog(move || Workspace::load(&tree, &["crates"])).is_ok());
+    assert!(Workspace::load(&tree, &["crates"]).is_ok());
 }
 
 #[test]
@@ -291,7 +290,7 @@ fn discover_with(link: impl FnOnce(&Scratch)) -> Result<Workspace, LoadError> {
     scratch.file("root/crates/file.txt", "text");
     link(&scratch);
     let tree = DiskTree::new(scratch.path("root")).expect("tree");
-    within_watchdog(move || Workspace::load(&tree, &["crates"]))
+    Workspace::load(&tree, &["crates"])
 }
 
 #[test]

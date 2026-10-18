@@ -185,6 +185,7 @@ bindings:
     - raf_source::tree::disk::tests::swap::a_file_whose_directory_is_moved_out_after_verification_is_refused_after_the_read
     - raf_source::tree::disk::tests::swap::an_entry_whose_directory_is_swapped_for_an_outside_symlink_is_refused
     - raf_source::tree::disk::tests::swap::an_outside_fifo_reached_by_a_swap_before_the_open_is_never_opened
+    - raf_source::tree::disk::tests::strategy::every_open_that_resolves_a_name_is_a_reference_or_does_not_block
     - raf_source::tree::disk::tests::swap::a_swap_before_the_open_undone_before_the_check_is_refused
     - raf_source::tree::disk::tests::swap::a_swap_flipped_at_every_hook_point_is_refused
     - raf_source::tree::disk::tests::strategy::every_strategy_follows_an_absolute_in_root_link_spelled_through_a_linked_parent
@@ -2311,6 +2312,10 @@ duplicates.
     a swap before the open, with a writer blocked in its own open of the FIFO: the
     read is `OutsideRoot` and the writer is never released, because no reader opened
     the FIFO;
+  - under each strategy, every open that resolves a name below the root, for reads,
+    identities, entries and listings that reach a FIFO or lead to one, is an `O_PATH`
+    reference or an `O_NONBLOCK` open. The flags are checked before the open is made,
+    so a regression that drops the flag fails the check and does not wait on the FIFO;
   - under each strategy on Linux, the containment fixtures of the disk backend: an
     outside symlink and a chain to it refused beside in-root links, a `..` after an
     outside directory symlink, a FIFO and a directory named as a file, listings and
@@ -2760,6 +2765,7 @@ duplicates.
 | `raf_source::tree::disk::tests::strategy::a_link_that_climbs_back_into_the_root_is_read_only_by_canonicalisation` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::strategy::a_path_three_hundred_deep_is_walked_under_a_limit_of_sixty_four_descriptors` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::strategy::a_symlink_that_becomes_a_directory_during_a_step_is_stepped_again` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::strategy::every_open_that_resolves_a_name_is_a_reference_or_does_not_block` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::strategy::every_strategy_follows_an_absolute_in_root_link_spelled_through_a_linked_parent` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::strategy::every_strategy_refuses_an_outside_symlink_and_reads_in_root_links` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::strategy::every_strategy_reports_entry_kinds_and_refuses_an_outside_directory` | test | [Verification](#verification) |

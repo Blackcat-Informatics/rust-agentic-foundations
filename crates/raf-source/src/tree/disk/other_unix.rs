@@ -291,6 +291,8 @@ impl Walk<'_> {
         if directory {
             flags |= OFlags::DIRECTORY;
         }
+        #[cfg(test)]
+        self.tree.note_open(flags.bits());
         match openat(&self.current, name.as_os_str(), flags, Mode::empty()) {
             Ok(_) if last && self.final_link => Err(not_regular(self.shown)),
             Ok(opened) if last => {

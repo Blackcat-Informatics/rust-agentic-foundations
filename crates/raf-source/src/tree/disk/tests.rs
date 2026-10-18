@@ -54,19 +54,6 @@ impl Drop for Scratch {
     }
 }
 
-/// Run `work` on its own thread; fail when it has not finished in 10 seconds.
-#[cfg(unix)]
-fn within_watchdog<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
-    let (sender, receiver) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        // The receiver is gone only when the watchdog already fired.
-        drop(sender.send(work()));
-    });
-    receiver
-        .recv_timeout(std::time::Duration::from_secs(10))
-        .expect("the operation blocked past the watchdog")
-}
-
 fn write(path: &Path, text: &str) {
     fs::write(path, text).expect("write file");
 }
@@ -371,7 +358,7 @@ mod swap {
             let mut tree = tree_with(&root, strategy);
             tree.before_open = Some(park_and_link(&root, &outside_dir));
 
-            let result = within_watchdog(move || tree.read(&rel("dir/file.rs"), 1024));
+            let result = tree.read(&rel("dir/file.rs"), 1024);
 
             assert_outside(&result, strategy);
         }
@@ -399,14 +386,12 @@ mod swap {
                 let mut tree = tree_with(&root, strategy);
                 tree.after_verify = Some(move_out_and_link(&root, &outside_dir));
 
-                let result = within_watchdog(move || {
-                    let path = rel("dir/file.rs");
-                    if unseen {
-                        tree.read_unseen(&path, 1024, &|_| false).map(|_| ())
-                    } else {
-                        tree.read(&path, 1024).map(|_| ())
-                    }
-                });
+                let path = rel("dir/file.rs");
+                let result = if unseen {
+                    tree.read_unseen(&path, 1024, &|_| false).map(|_| ())
+                } else {
+                    tree.read(&path, 1024).map(|_| ())
+                };
 
                 assert!(
                     matches!(result, Err(TreeError::OutsideRoot { .. })),
@@ -423,7 +408,7 @@ mod swap {
             let mut tree = tree_with(&root, strategy);
             tree.before_open = Some(park_and_link(&root, &outside_dir));
 
-            let result = within_watchdog(move || tree.list(&rel("dir/sub")));
+            let result = tree.list(&rel("dir/sub"));
 
             assert_outside(&result, strategy);
         }
@@ -436,7 +421,7 @@ mod swap {
             let mut tree = tree_with(&root, strategy);
             tree.after_verify = Some(move_out_and_link(&root, &outside_dir));
 
-            let result = within_watchdog(move || tree.list(&rel("dir/sub")));
+            let result = tree.list(&rel("dir/sub"));
 
             assert_outside(&result, strategy);
         }
@@ -473,7 +458,7 @@ mod swap {
                     tree.after_verify = Some(move_out_and_link(&root, &outside_dir));
                 }
 
-                let result = within_watchdog(move || tree.entry(&rel("dir/sub/only_outside")));
+                let result = tree.entry(&rel("dir/sub/only_outside"));
 
                 assert!(
                     matches!(result, Err(TreeError::OutsideRoot { .. })),
@@ -562,7 +547,7 @@ mod swap {
         let mut tree = tree_with(&root, strategy);
         tree.before_open = Some(park_and_link(&root, &outside_dir));
 
-        let result = within_watchdog(move || tree.read(&rel("dir/file.rs"), 1024));
+        let result = tree.read(&rel("dir/file.rs"), 1024);
         let released = opened.recv_timeout(std::time::Duration::from_secs(1));
 
         // Release the writer whatever happened, so its thread ends.
@@ -630,7 +615,7 @@ mod swap {
                 tree.before_open = Some(park_and_link(&root, &outside_dir));
                 tree.after_open = Some(undo_park(&root));
 
-                let result = within_watchdog(move || call(&tree));
+                let result = call(&tree);
 
                 assert!(
                     matches!(result, Err(TreeError::OutsideRoot { .. })),
@@ -667,7 +652,7 @@ mod swap {
             tree.after_open = Some(hook(&flip));
             tree.after_verify = Some(hook(&flip));
 
-            let result = within_watchdog(move || tree.read(&rel("dir/secret.rs"), 1024));
+            let result = tree.read(&rel("dir/secret.rs"), 1024);
 
             assert_outside(&result, strategy);
         }
@@ -717,8 +702,8 @@ mod strategy {
         (scratch, root)
     }
 
-    fn read(tree: DiskTree, path: &'static str) -> Result<String, TreeError> {
-        within_watchdog(move || tree.read(&rel(path), 1024))
+    fn read(tree: &DiskTree, path: &str) -> Result<String, TreeError> {
+        tree.read(&rel(path), 1024)
     }
 
     #[test]
@@ -734,7 +719,7 @@ mod strategy {
             symlink("out.rs", &root.join("chain.rs"));
 
             for refused in ["out.rs", "chain.rs"] {
-                let result = read(tree_with(&root, strategy), refused);
+                let result = read(&tree_with(&root, strategy), refused);
                 assert!(
                     matches!(result, Err(TreeError::OutsideRoot { .. })),
                     "{strategy:?} {refused}: {result:?}"
@@ -1065,7 +1050,7 @@ mod strategy {
             symlink(scratch.dir.join("outside/inner"), &root.join("vendored"));
             write(&root.join("x.rs"), "the lexical clamp would read this");
 
-            let result = read(tree_with(&root, strategy), "vendored/../x.rs");
+            let result = read(&tree_with(&root, strategy), "vendored/../x.rs");
 
             assert!(
                 matches!(result, Err(TreeError::OutsideRoot { .. })),
@@ -1082,14 +1067,12 @@ mod strategy {
             scratch.dir("root/sub");
             let tree = tree_with(&root, strategy);
 
-            let (pipe, sub, kind, real) = within_watchdog(move || {
-                (
-                    tree.read(&rel("pipe.rs"), 1024),
-                    tree.identity(&rel("sub")),
-                    tree.entry(&rel("pipe.rs")),
-                    tree.read(&rel("real.rs"), 1024),
-                )
-            });
+            let (pipe, sub, kind, real) = (
+                tree.read(&rel("pipe.rs"), 1024),
+                tree.identity(&rel("sub")),
+                tree.entry(&rel("pipe.rs")),
+                tree.read(&rel("real.rs"), 1024),
+            );
 
             assert!(
                 matches!(pipe, Err(TreeError::NotRegular { .. })),
@@ -1101,6 +1084,59 @@ mod strategy {
             );
             assert_eq!(kind.expect("entry"), Some(EntryKind::Other), "{strategy:?}");
             assert_eq!(real.expect("regular"), "real", "{strategy:?}");
+        }
+    }
+
+    /// Every open that resolves a name is an `O_PATH` reference or an
+    /// `O_NONBLOCK` open, so none waits on a FIFO. The calls reach a FIFO
+    /// inside the root, a FIFO behind an outside link, and a directory; those
+    /// that must reach an open record at least one (the Linux strategy refuses
+    /// the outside link before it opens anything).
+    #[test]
+    fn every_open_that_resolves_a_name_is_a_reference_or_does_not_block() {
+        for &strategy in STRATEGIES {
+            let (scratch, root) = fixture();
+            make_fifo(&root.join("pipe.rs"));
+            scratch.dir("root/sub");
+            write(&root.join("sub/inner.rs"), "inner");
+            symlink(
+                scratch.dir.join("outside/sentinel.rs"),
+                &root.join("out.rs"),
+            );
+            let tree = tree_with(&root, strategy);
+
+            let mut seen = 0;
+            let mut recorded = |call: &str, opens: bool| {
+                let flags = tree.recorded_opens();
+                assert!(
+                    !opens || flags.len() > seen,
+                    "{strategy:?} {call}: no open recorded"
+                );
+                seen = flags.len();
+                assert!(
+                    flags.iter().all(|&flags| never_blocks(flags)),
+                    "{strategy:?} {call}: {flags:?}"
+                );
+            };
+            let _ = tree.read(&rel("pipe.rs"), 1024);
+            recorded("read of a FIFO", true);
+            let _ = tree.read(&rel("out.rs"), 1024);
+            recorded("read through an outside link to a FIFO", false);
+            let _ = tree.read_unseen(&rel("pipe.rs"), 1024, &|_| false);
+            recorded("read_unseen of a FIFO", true);
+            let _ = tree.identity(&rel("pipe.rs"));
+            recorded("identity of a FIFO", true);
+            let _ = tree.entry(&rel("pipe.rs"));
+            recorded("entry of a FIFO", false);
+            let _ = tree.entry(&rel("sub/inner.rs"));
+            recorded("entry of a file below a directory", true);
+            let _ = tree.list(&rel("pipe.rs"));
+            recorded("list of a FIFO", false);
+            assert_eq!(
+                tree.read(&rel("sub/inner.rs"), 1024).expect("read"),
+                "inner"
+            );
+            recorded("read of a regular file", true);
         }
     }
 

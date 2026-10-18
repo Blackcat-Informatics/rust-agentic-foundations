@@ -221,6 +221,18 @@ impl Handle {
     }
 }
 
+/// True when an open with `flags` returns at once on a FIFO: an `O_PATH`
+/// reference performs no I/O, and an `O_NONBLOCK` open does not wait for the
+/// other end.
+#[cfg(all(test, unix))]
+fn never_blocks(flags: u32) -> bool {
+    #[cfg(target_os = "linux")]
+    let path = libc::O_PATH.cast_unsigned();
+    #[cfg(not(target_os = "linux"))]
+    let path = 0;
+    flags & (path | libc::O_NONBLOCK.cast_unsigned()) != 0
+}
+
 /// A tree read from a directory on disk.
 ///
 /// The root is canonicalised once, in [`DiskTree::new`]. A symlink inside the
@@ -244,6 +256,9 @@ pub struct DiskTree {
     /// before the status of the entry is read.
     #[cfg(all(test, unix))]
     mid_step: Option<Hook>,
+    /// The flags of every open that resolves a name below the root.
+    #[cfg(all(test, unix))]
+    opens: std::sync::Mutex<Vec<u32>>,
 }
 
 impl std::fmt::Debug for DiskTree {
@@ -287,7 +302,28 @@ impl DiskTree {
             after_verify: None,
             #[cfg(all(test, unix))]
             mid_step: None,
+            #[cfg(all(test, unix))]
+            opens: std::sync::Mutex::new(Vec::new()),
         })
+    }
+
+    /// Record the flags of an open that is about to resolve a name below the
+    /// root, and require that it cannot wait. The check runs before the open,
+    /// so a regression that drops the flag fails here and never reaches a
+    /// FIFO that would block it.
+    #[cfg(all(test, unix))]
+    fn note_open(&self, flags: u32) {
+        assert!(
+            never_blocks(flags),
+            "an open of a name below the root could block: flags {flags:#o}"
+        );
+        self.opens.lock().expect("the open record").push(flags);
+    }
+
+    /// The flags of every open recorded so far, oldest first.
+    #[cfg(all(test, unix))]
+    fn recorded_opens(&self) -> Vec<u32> {
+        self.opens.lock().expect("the open record").clone()
     }
 
     /// The path on disk that `path` names, before any symlink is followed.
