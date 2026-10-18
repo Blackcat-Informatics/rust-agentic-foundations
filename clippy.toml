@@ -3,4 +3,15 @@
 
 # Intentionally minimal. Clippy reads the MSRV from `rust-version` in
 # Cargo.toml, so no `msrv` key is set here. Lint levels live in
-# [workspace.lints] in Cargo.toml.
+# [workspace.lints] in Cargo.toml. The disallowed items below are the clock.
+
+# Reading a clock or sleeping is how a test comes to assert time. The one
+# production reading (`exec/clock.rs` in `raf-workplan`) carries an allow with
+# its reason; tests drive a scripted clock instead.
+disallowed-types = [
+    { path = "std::time::Instant", reason = "a clock reading makes a test time-dependent; script the clock, and read it only in raf-workplan's exec/clock.rs" },
+    { path = "std::time::SystemTime", reason = "a wall-clock reading makes a test time-dependent; script the clock instead" },
+]
+disallowed-methods = [
+    { path = "std::thread::sleep", reason = "a sleep makes a test time-dependent; wait on an event or script the clock instead" },
+]

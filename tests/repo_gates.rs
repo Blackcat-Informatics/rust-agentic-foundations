@@ -16,14 +16,18 @@
 //!   the root, and every workspace manifest inherits them;
 //! * the fuzz harness `deny.toml` is the root `deny.toml` plus its one
 //!   crate-scoped licence exception;
-//! * no tracked Rust file under `crates/raf-source/src` or
-//!   `crates/raf-source/tests` names a clock or a wait on one, so no test of
-//!   that crate measures or asserts time (its `examples/` are exempt).
+//! * no tracked Rust file under the sources and tests of `raf-source`,
+//!   `raf-okf`, `raf-workplan` and `cargo-workplan`, the examples of
+//!   `raf-workplan` and the root `tests/` names a clock or a wait on one, so no
+//!   test measures or asserts time. `raf-source` also refuses `Duration` and
+//!   `elapsed`; the other crates may name them, because the workplan runner's
+//!   limits and its scripted data are made of them. Exactly two files are
+//!   exempt: the runner's one clock reading and this file.
 //!
 //! Each gate is a pure function over text or bytes, and each has a named
 //! negative fixture below that breaks exactly one thing. Test names start with
-//! `licenses_`, `issue_refs_`, `citation_`, `lints_`, `deny_` or `time_in_raf_source_`, which names the gate a test
-//! belongs to; `make licenses` and `make issue-refs` run the whole binary. Only
+//! `licenses_`, `issue_refs_`, `citation_`, `lints_`, `deny_` or
+//! `time_in_crates_`, which names the gate a test belongs to; `make licenses` and `make issue-refs` run the whole binary. Only
 //! the standard library is used.
 
 mod support;
@@ -248,15 +252,17 @@ fn scan_tree(root: &Path, paths: &[PathBuf]) -> (Vec<String>, usize) {
     (hits, scanned)
 }
 
-/// The directories of `raf-source` whose Rust files may not name a clock. Its
-/// `examples/` are binaries, not tests, and are not listed.
-const CLOCK_FREE: [&str; 2] = ["crates/raf-source/src", "crates/raf-source/tests"];
+/// One clock rule: the Rust files under `dirs` may not name any of `words`.
+struct ClockRule {
+    dirs: &'static [&'static str],
+    words: &'static [&'static str],
+}
 
 /// The spellings that read a clock or wait on one, each matched as a whole
 /// word: the `std::time` and `core::time` modules, the timer modules of async
 /// runtimes, the types that carry a reading or a span, a sleep, and the waits
 /// and socket options that carry a timeout.
-const CLOCK_WORDS: [&str; 13] = [
+const SOURCE_CLOCK_WORDS: &[&str] = &[
     "std::time",
     "core::time",
     "tokio::time",
@@ -272,6 +278,64 @@ const CLOCK_WORDS: [&str; 13] = [
     "elapsed",
 ];
 
+/// The spellings the other crates may not name. `Duration`, `elapsed`,
+/// `timeout`, `with_timeout` and `wall` are absent on purpose: the workplan
+/// runner's limits and its scripted data are made of them.
+const CRATE_CLOCK_WORDS: &[&str] = &[
+    "Instant",
+    "SystemTime",
+    "UNIX_EPOCH",
+    "tokio::time",
+    "core::time",
+    "sleep",
+    "recv_timeout",
+    "wait_timeout",
+    "park_timeout",
+    "set_read_timeout",
+    "set_write_timeout",
+];
+
+/// The clock rules. The `examples/` of `raf-source` are binaries, not tests,
+/// and are not listed.
+const CLOCK_RULES: [ClockRule; 2] = [
+    ClockRule {
+        dirs: &["crates/raf-source/src", "crates/raf-source/tests"],
+        words: SOURCE_CLOCK_WORDS,
+    },
+    ClockRule {
+        dirs: &[
+            "crates/raf-okf/src",
+            "crates/raf-okf/tests",
+            "crates/raf-workplan/src",
+            "crates/raf-workplan/tests",
+            "crates/raf-workplan/examples",
+            "crates/cargo-workplan/src",
+            "crates/cargo-workplan/tests",
+            "tests",
+        ],
+        words: CRATE_CLOCK_WORDS,
+    },
+];
+
+/// The two files no rule judges: the one place the runner reads the clock, and
+/// the gate's own file, which defines the word tables and the fixtures.
+const CLOCK_CLOCK_FILE: &str = "crates/raf-workplan/src/exec/clock.rs";
+const CLOCK_GATE_FILE: &str = "tests/repo_gates.rs";
+const CLOCK_EXEMPT: [&str; 2] = [CLOCK_CLOCK_FILE, CLOCK_GATE_FILE];
+
+/// The rule that judges `path`, when it is a Rust file in a ruled directory
+/// and not an exempt file.
+fn clock_rule(path: &Path) -> Option<&'static ClockRule> {
+    if path.extension().is_none_or(|ext| ext != "rs")
+        || CLOCK_EXEMPT.iter().any(|exempt| path == Path::new(exempt))
+    {
+        return None;
+    }
+    CLOCK_RULES
+        .iter()
+        .find(|rule| rule.dirs.iter().any(|dir| path.starts_with(dir)))
+}
+
 /// True when `word` occurs in `line` with no identifier character on either side.
 fn has_word(line: &str, word: &str) -> bool {
     let identifier = |c: char| c.is_alphanumeric() || c == '_';
@@ -282,17 +346,15 @@ fn has_word(line: &str, word: &str) -> bool {
     })
 }
 
-/// One `path:line: word` entry per clock spelling in `text`, when `path` is a
-/// Rust file under a clock-free directory; nothing for any other path.
+/// One `path:line: word` entry per clock spelling in `text`, when a rule
+/// judges `path`; nothing for any other path.
 fn clock_hits(path: &Path, text: &str) -> Vec<String> {
-    let in_scope = path.extension().is_some_and(|ext| ext == "rs")
-        && CLOCK_FREE.iter().any(|dir| path.starts_with(dir));
-    if !in_scope {
+    let Some(rule) = clock_rule(path) else {
         return Vec::new();
-    }
+    };
     let mut hits = Vec::new();
     for (index, line) in text.lines().enumerate() {
-        for word in CLOCK_WORDS {
+        for word in rule.words {
             if has_word(line, word) {
                 hits.push(format!("{}:{}: {word}", path.display(), index + 1));
             }
@@ -529,12 +591,31 @@ fn issue_refs_tracked_files_are_clean() {
 }
 
 #[test]
-fn time_in_raf_source_tracked_files_name_no_clock() {
+fn time_in_crates_tracked_files_name_no_clock() {
     let root = gate_root();
+    let tracked = tracked_paths();
+    for exempt in CLOCK_EXEMPT {
+        assert!(
+            tracked.iter().any(|path| path == Path::new(exempt)),
+            "time-in-crates: the exempt file {exempt} is not tracked; drop the exemption"
+        );
+    }
+    let clock = read_tracked(&root, Path::new(CLOCK_CLOCK_FILE));
+    let clock = decode_text(&clock).expect("the clock file is text");
+    assert!(
+        has_word(&clock, "Instant"),
+        "time-in-crates: {CLOCK_CLOCK_FILE} no longer names Instant; drop the exemption"
+    );
+    let gate = read_tracked(&root, Path::new(CLOCK_GATE_FILE));
+    let gate = decode_text(&gate).expect("the gate file is text");
+    assert!(
+        gate.contains(&format!("const {}_RULES", "CLOCK")),
+        "time-in-crates: {CLOCK_GATE_FILE} no longer defines the rule table; drop the exemption"
+    );
     let mut hits = Vec::new();
     let mut scanned = 0;
-    for path in tracked_paths() {
-        if CLOCK_FREE.iter().any(|dir| path.starts_with(dir)) {
+    for path in tracked {
+        if clock_rule(&path).is_some() {
             scanned += 1;
             let bytes = read_tracked(&root, &path);
             if let Some(text) = decode_text(&bytes) {
@@ -542,10 +623,10 @@ fn time_in_raf_source_tracked_files_name_no_clock() {
             }
         }
     }
-    assert!(scanned > 0, "no file of raf-source was scanned");
+    assert!(scanned > 0, "no ruled file was scanned");
     assert!(
         hits.is_empty(),
-        "time-in-raf-source: {} hits; count work or tree calls instead of reading a clock:\n  {}",
+        "time-in-crates: {} hits; count work or script a clock instead of reading one:\n  {}",
         hits.len(),
         hits.join("\n  ")
     );
@@ -851,7 +932,7 @@ fn issue_refs_scans_text_files_and_skips_binary_ones() {
 }
 
 // ---------------------------------------------------------------------------
-// Fixtures: clocks in raf-source
+// Fixtures: clocks in the crates
 // ---------------------------------------------------------------------------
 
 /// A planted reading of the clock, assembled so that this file stays clean.
@@ -859,8 +940,13 @@ fn planted() -> String {
     format!("let started = std::{}::{}::now();\n", "time", "Instant")
 }
 
+/// A planted reading that both word tables refuse.
+fn planted_instant() -> String {
+    format!("let started = {}::now();\n", "Instant")
+}
+
 #[test]
-fn time_in_raf_source_rejects_a_planted_clock_reading_with_file_and_line() {
+fn time_in_crates_rejects_a_planted_clock_reading_with_file_and_line() {
     let text = format!("fn clean() {{}}\n{}", planted());
     let hits = clock_hits(Path::new("crates/raf-source/tests/a.rs"), &text);
     assert_eq!(
@@ -873,7 +959,22 @@ fn time_in_raf_source_rejects_a_planted_clock_reading_with_file_and_line() {
 }
 
 #[test]
-fn time_in_raf_source_rejects_each_spelling_in_the_library_and_the_tests() {
+fn time_in_crates_rejects_a_planted_reading_in_every_directory_of_the_table() {
+    let text = format!("fn clean() {{}}\n{}", planted_instant());
+    for rule in &CLOCK_RULES {
+        for dir in rule.dirs {
+            let path = format!("{dir}/nested/x.rs");
+            assert_eq!(
+                clock_hits(Path::new(&path), &text),
+                vec![format!("{path}:2: Instant")],
+                "{path}"
+            );
+        }
+    }
+}
+
+#[test]
+fn time_in_crates_rejects_each_source_spelling_in_the_library_and_the_tests() {
     for (word, line) in [
         ("Duration", "let d = Duration::from_secs(1);"),
         ("SystemTime", "let t = SystemTime::now();"),
@@ -901,24 +1002,113 @@ fn time_in_raf_source_rejects_each_spelling_in_the_library_and_the_tests() {
 }
 
 #[test]
-fn time_in_raf_source_passes_the_clean_neighbour() {
-    let text = "fn count(tree: &Counting) -> usize { tree.reads() }\n\
-                // an instantaneous step, a duration-free count, sleepless\n\
-                fn Instantiate() {}\n";
+fn time_in_crates_rejects_each_crate_spelling_in_every_other_directory() {
+    for (word, line) in [
+        ("Instant", "let t = Instant::now();"),
+        ("SystemTime", "let t = SystemTime::now();"),
+        ("UNIX_EPOCH", "let t = UNIX_EPOCH;"),
+        ("tokio::time", "tokio::time::pause();"),
+        ("core::time", "use core::time::Span;"),
+        ("sleep", "std::thread::sleep(pause);"),
+        ("recv_timeout", "receiver.recv_timeout(limit)"),
+        ("wait_timeout", "condvar.wait_timeout(guard, limit)"),
+        ("park_timeout", "std::thread::park_timeout(limit);"),
+        ("set_read_timeout", "socket.set_read_timeout(limit)"),
+        ("set_write_timeout", "socket.set_write_timeout(limit)"),
+    ] {
+        for dir in CLOCK_RULES[1].dirs {
+            let path = format!("{dir}/x.rs");
+            let hits = clock_hits(Path::new(&path), line);
+            assert!(
+                hits.contains(&format!("{path}:1: {word}")),
+                "{path}: {line}: {hits:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn time_in_crates_lets_the_runner_name_durations_and_limits() {
+    let text = "let limit = Duration::from_secs(5);\n\
+                let took = report.elapsed;\n\
+                let b = Budget::with_timeout(limit);\n\
+                let wall = 3; let timeout = 1;\n";
+    for path in [
+        "crates/raf-okf/src/a.rs",
+        "crates/raf-workplan/tests/a.rs",
+        "crates/cargo-workplan/src/a.rs",
+        "tests/a.rs",
+    ] {
+        assert_eq!(
+            clock_hits(Path::new(path), text),
+            Vec::<String>::new(),
+            "{path}"
+        );
+    }
+    let hits = clock_hits(Path::new("crates/raf-source/src/a.rs"), text);
+    assert!(hits.contains(&"crates/raf-source/src/a.rs:1: Duration".to_owned()));
+    assert!(hits.contains(&"crates/raf-source/src/a.rs:2: elapsed".to_owned()));
+}
+
+#[test]
+fn time_in_crates_exempts_the_clock_file_but_not_its_neighbour() {
+    let text = planted_instant();
     assert_eq!(
-        clock_hits(Path::new("crates/raf-source/tests/a.rs"), text),
+        clock_hits(Path::new(CLOCK_CLOCK_FILE), &text),
         Vec::<String>::new()
+    );
+    assert_eq!(
+        clock_hits(Path::new("crates/raf-workplan/src/exec/system.rs"), &text),
+        vec!["crates/raf-workplan/src/exec/system.rs:1: Instant".to_owned()]
     );
 }
 
 #[test]
-fn time_in_raf_source_exempts_the_examples_and_other_crates_and_other_files() {
+fn time_in_crates_exempts_the_gate_file_but_not_its_neighbours() {
+    let text = planted_instant();
+    assert_eq!(
+        clock_hits(Path::new(CLOCK_GATE_FILE), &text),
+        Vec::<String>::new()
+    );
+    for path in ["tests/support/mod.rs", "tests/docs_contract.rs"] {
+        assert_eq!(
+            clock_hits(Path::new(path), &text),
+            vec![format!("{path}:1: Instant")],
+            "{path}"
+        );
+    }
+}
+
+#[test]
+fn time_in_crates_passes_the_clean_neighbour() {
+    let text = "fn count(tree: &Counting) -> usize { tree.reads() }\n\
+                // an instantaneous step, a duration-free count, sleepless\n\
+                fn Instantiate() {}\n\
+                let state = \"sleeping\";\n";
+    for path in [
+        "crates/raf-source/tests/a.rs",
+        "crates/raf-okf/src/a.rs",
+        "crates/cargo-workplan/tests/a.rs",
+    ] {
+        assert_eq!(clock_hits(Path::new(path), text), Vec::<String>::new());
+    }
+}
+
+#[test]
+fn time_in_crates_exempts_the_examples_and_paths_outside_every_rule() {
     let text = planted();
     for path in [
         "crates/raf-source/examples/registry_scan.rs",
-        "crates/raf-okf/src/lib.rs",
         "crates/raf-source/README.md",
         "crates/raf-source/src_notes/a.rs",
+        "crates/raf-okf/README.md",
+        "crates/raf-okf/benches/a.rs",
+        "crates/cargo-workplan/examples/a.rs",
+        "fuzz/fuzz_targets/a.rs",
+        "docs/a.rs",
+        "docs/CLOCK.md",
+        "README.md",
+        "build.rs",
     ] {
         assert!(clock_hits(Path::new(path), &text).is_empty(), "{path}");
     }

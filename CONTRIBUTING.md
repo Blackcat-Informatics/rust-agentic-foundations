@@ -86,6 +86,13 @@ make help    # list every target
   development-process wording in any tracked text file. Documents describe the
   system, not the history that produced it. It and `make licenses` run the Rust
   gates in `tests/repo_gates.rs`, so they are a subset of `make test`.
+- **No clock in tests.** The `time_in_crates_` gate in `tests/repo_gates.rs` fails
+  when Rust under `raf-source`, `raf-okf`, `raf-workplan`, `cargo-workplan` or the
+  root `tests/` names a clock reading or a sleep (`Instant`, `SystemTime`,
+  `UNIX_EPOCH`, `sleep`, the `*_timeout` waits; `raf-source` also refuses
+  `Duration` and `elapsed`). Only `crates/raf-workplan/src/exec/clock.rs` and the
+  gate file are exempt, and `make clippy` disallows the same types and `sleep`.
+  Script a clock in the test instead.
 
 ## Versioning & releases
 

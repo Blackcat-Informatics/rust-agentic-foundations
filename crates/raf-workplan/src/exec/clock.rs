@@ -9,6 +9,13 @@
 //! [`WallClock`] is the real reading; it is the only implementation outside
 //! tests.
 
+#![allow(
+    clippy::disallowed_types,
+    clippy::disallowed_methods,
+    reason = "this file is the one place the runner reads the clock and sleeps; \
+              everything else is driven through the Clock trait"
+)]
+
 use std::thread;
 use std::time::{Duration, Instant};
 

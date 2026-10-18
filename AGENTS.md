@@ -44,7 +44,7 @@ of `raf-workplan` over the tracked documents, the self-workplan test
 (`tests/self_workplan.rs`), which runs the workplan gate from disk and requires
 every assessment to be current and accepted, and the repository gates
 (`tests/repo_gates.rs`: licence digests, issue-reference and process-wording
-scan, version agreement); the census gate joins them when `raf-census` is
+scan, version agreement, and the clock gate below); the census gate joins them when `raf-census` is
 built.
 
 ### Crates
@@ -148,6 +148,21 @@ make hooks   # point core.hooksPath at .githooks for this clone
   lives once, in `raf_workplan::refs`, which `raf-workplan` also applies to the
   documents it loads; the gate test files call it and share one file list in
   `tests/support/mod.rs`.
+- **No test reads a clock.** The `time_in_crates_` gate in `tests/repo_gates.rs`
+  fails when a tracked Rust file under `raf-source`, `raf-okf`, `raf-workplan` (its
+  `src`, `tests` and `examples`), `cargo-workplan` or the root `tests/` names a
+  clock or a wait on one. `raf-source` refuses `std::time`, `core::time`,
+  `tokio::time`, `Instant`, `Duration`, `SystemTime`, `sleep`, `elapsed` and the
+  `recv_timeout`, `wait_timeout`, `park_timeout`, `set_read_timeout` and
+  `set_write_timeout` calls. The other crates refuse the same set without
+  `std::time`, `Duration` and `elapsed` (the runner's limits and scripted data are
+  made of them) and add `UNIX_EPOCH`. Two files are exempt:
+  `crates/raf-workplan/src/exec/clock.rs`, the one clock reading, and
+  `tests/repo_gates.rs`, which defines the words; the gate fails if either stops
+  being tracked or stops doing that. `clippy.toml` also disallows
+  `std::time::Instant`, `std::time::SystemTime` and `std::thread::sleep`, so
+  `make clippy` rejects a new reading anywhere an `allow` with a reason does not
+  say otherwise.
 - **Never bypass a hook or a gate.** Do not pass `--no-verify`, do not edit a hook
   to pass, and do not weaken a gate or a lint to get green. Fix the cause.
 - A missing tool is a hard failure, not a skip. `make reuse` needs `uvx` or
