@@ -12,6 +12,10 @@
 //! accepted probes and, under each, one assertion for every item of the
 //! program: the assertion `const _: () = assert!(probe::TAG == k);` fails
 //! to compile unless the probe names the item tagged `k`.
+//!
+//! A probe is also asked one name space at a time, for the order check: its
+//! path as a type alias and as the expression of a function body, with no
+//! evaluation of either.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::process::{Command, Stdio};
@@ -45,6 +49,15 @@ pub(crate) struct Diagnostic {
     /// The line of the primary span.
     pub(crate) line: Option<usize>,
 }
+
+/// The message of the diagnostic `rustc` gives for an import it cannot settle
+/// because the imports and globs it depends on lead back to it. It has no
+/// error code.
+const UNDETERMINABLE_MESSAGE: &str = "cannot determine resolution for the import";
+
+/// The code a [`Verdict::Rejected`] holds for the diagnostic of
+/// [`UNDETERMINABLE_MESSAGE`].
+pub(crate) const UNDETERMINABLE: &str = "undeterminable-import";
 
 /// The program `rustc` is run as; `RUSTC` when set, as cargo sets it.
 fn tool() -> std::ffi::OsString {
@@ -183,6 +196,18 @@ fn unowned(diagnostic: &Diagnostic) -> bool {
     diagnostic.line.is_none() && !diagnostic.text.starts_with("aborting due to")
 }
 
+/// The code of an error: its error code, [`UNDETERMINABLE`] for the
+/// diagnostic of an import `rustc` cannot settle, and otherwise empty.
+fn code_of(error: &Diagnostic) -> String {
+    error.code.clone().unwrap_or_else(|| {
+        if error.text.starts_with(UNDETERMINABLE_MESSAGE) {
+            UNDETERMINABLE.to_owned()
+        } else {
+            String::new()
+        }
+    })
+}
+
 /// Judge every probe of `program` with `rustc`. `None` when the crate holds
 /// an error on a line that cannot be dropped.
 pub(crate) fn judge(program: &Program) -> Option<Judged> {
@@ -211,10 +236,9 @@ pub(crate) fn judge(program: &Program) -> Option<Judged> {
             let Some(line) = error.line else { continue };
             match rendered.owners.get(line - 1) {
                 Some(Owner::Decl(at)) => refused.push(*at),
-                Some(Owner::Probe(probe)) => rejected
-                    .entry(*probe)
-                    .or_default()
-                    .push(error.code.clone().unwrap_or_default()),
+                Some(Owner::Probe(probe)) => {
+                    rejected.entry(*probe).or_default().push(code_of(error));
+                }
                 Some(Owner::Frame | Owner::Assert(..)) | None => return None,
             }
         }
@@ -261,18 +285,45 @@ pub(crate) fn judge(program: &Program) -> Option<Judged> {
     None
 }
 
-/// Whether `rustc` accepts the probe of `program`, which holds one, by one
-/// compile and without naming what it resolves to. Errors in the rest of the
-/// crate are not the probe's. Used on a program `rustc` has judged, declared
-/// in another order, to see whether the order decides what it answers.
-pub(crate) fn accepts_probe(program: &Program) -> bool {
-    let rendered = program.render(&[0], &BTreeMap::new());
-    !errors(&compile(&rendered.source)).any(|error| {
-        matches!(
-            error.line.and_then(|line| rendered.owners.get(line - 1)),
-            Some(Owner::Probe(_))
-        )
-    })
+/// What `rustc` says of a path in one name space.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SpaceVerdict {
+    /// The path names an item.
+    Resolves,
+    /// The path is refused as ambiguous (E0659).
+    Ambiguous,
+    /// The path names nothing, for any other reason.
+    Unresolved,
+}
+
+/// What `rustc` says of the path of the probe of `program`, which holds one,
+/// in the type name space and in the value name space, by one compile and
+/// without naming what it resolves to. The path is written as a type alias and
+/// as the expression of a function body, so that each name space is asked
+/// alone, and the verdict is read from the errors on the line of each. Errors
+/// elsewhere in the crate are not the probe's. Used on a program `rustc` has
+/// judged, declared in another order, to see whether the order decides what it
+/// answers.
+pub(crate) fn space_verdicts(program: &Program) -> [(Space, SpaceVerdict); 2] {
+    let split = program.render_by_space(0);
+    let diagnostics = compile(&split.rendered.source);
+    let verdict = |line: usize| {
+        let codes: Vec<Option<&str>> = errors(&diagnostics)
+            .filter(|error| error.line == Some(line))
+            .map(|error| error.code.as_deref())
+            .collect();
+        if codes.is_empty() {
+            SpaceVerdict::Resolves
+        } else if codes.contains(&Some("E0659")) {
+            SpaceVerdict::Ambiguous
+        } else {
+            SpaceVerdict::Unresolved
+        }
+    };
+    [
+        (Space::Type, verdict(split.type_line)),
+        (Space::Value, verdict(split.value_line)),
+    ]
 }
 
 fn rendered_accepts(all: &[usize], rejected: &BTreeMap<usize, Vec<String>>) -> Vec<usize> {
@@ -330,7 +381,7 @@ fn identify(
                 }
                 Some(Owner::Decl(at)) => refused.push(at),
                 Some(Owner::Probe(probe)) => {
-                    now_rejected.push((probe, error.code.clone().unwrap_or_default()));
+                    now_rejected.push((probe, code_of(error)));
                 }
                 other => panic!(
                     "rustc refused the accepted probes at {other:?}: {}\n{}",

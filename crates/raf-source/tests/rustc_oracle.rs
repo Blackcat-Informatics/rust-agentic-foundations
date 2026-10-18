@@ -11,11 +11,30 @@
 //! that matches no known class fails the test.
 //!
 //! A known gap of the index: in some programs where globs and imports of one
-//! name lead back to each other, the index finds that the imports form a
-//! cycle in a name space (`ResolveError::Cyclic`) and refuses the probe,
-//! while `rustc` settles the cycle and accepts the probe. These divergences
-//! are counted as `cycle` and are not failures; the index does not settle such
-//! a cycle as `rustc` does, and the corpus records each known shape.
+//! name lead back to each other, the two sides settle the cycle differently.
+//! Either the index finds that the imports form a cycle in a name space
+//! (`ResolveError::Cyclic`) and refuses the probe where `rustc` accepts it, or
+//! `rustc` gives up on the probe with "cannot determine resolution for the
+//! import" where the index resolves it. These divergences are counted as
+//! `cycle` and are not failures; the index does not settle such a cycle as
+//! `rustc` does, and the corpus records each known shape. The first direction
+//! counts only when the other name space agrees. The second is told by the
+//! diagnostic, which has no error code, and by the import graph of the
+//! program having a cycle among the modules the probe's module reaches. The
+//! trade-off: a cyclic program whose probe `rustc` refuses with that
+//! diagnostic is counted as this gap, so a fault of the index about a rule
+//! on such a program would show only under another diagnostic.
+//!
+//! Whether `rustc` answers a probe differently when the declarations come in
+//! another order, in a name space where the two sides disagree, is asked for
+//! every kind of disagreement, whichever way the index errs, after
+//! `documented` (and, where `rustc` accepts a probe the index refuses as a
+//! cycle, after `cycle`). A rule bug on a probe that `rustc` answers order-dependently
+//! cannot be told from the order dependence. It is asked one name space at a
+//! time: the path as a type alias
+//! and as the expression of a function body, so that a `use`, which `rustc`
+//! accepts when either name space binds, does not hide a name space whose
+//! answer changes.
 //!
 //! The committed programs under `fuzz/corpus/rustc-oracle` are replayed with
 //! a fixed list of seeds. `RAF_ORACLE_PROGRAMS` raises the number of
@@ -34,7 +53,7 @@ use std::thread;
 use raf_source::{MemoryTree, Namespace, ResolveError, Workspace};
 use support::program::{CRATE, Probe, Program, Space, random_program};
 use support::random::Draw;
-use support::rustc::{self, Judged, Verdict};
+use support::rustc::{self, Judged, SpaceVerdict, UNDETERMINABLE, Verdict};
 
 /// The seeds of the default run. The programs of a seed are drawn one after
 /// the other from a generator of that seed.
@@ -91,10 +110,15 @@ enum Class {
     /// refusing it in another, so that no answer that does not depend on the
     /// order can be its answer in all of them.
     Order,
-    /// A known gap of the index: it finds the imports that make up a name in
-    /// one name space to form a cycle, and refuses the probe with
-    /// [`ResolveError::Cyclic`], where `rustc` accepts the probe. No
-    /// ambiguity or visibility rule is involved: the cycle is among globs
+    /// A known gap of the index, in two directions. It finds the imports
+    /// that make up a name in one name space to form a cycle and refuses the
+    /// probe with [`ResolveError::Cyclic`] where `rustc` accepts the probe and
+    /// the other name space agrees; or `rustc` gives up on the probe, "cannot
+    /// determine resolution for the import", in a program whose imports have
+    /// a cycle that reaches the probe's module, where the index resolves it;
+    /// that test of the graph is loose, since a child module that names or
+    /// globs an ancestor counts as a cycle, and the diagnostic is the real
+    /// filter. No ambiguity or visibility rule is involved: the cycle is among globs
     /// and imports that bind the name, which the index does not settle as
     /// `rustc` does.
     Cycle,
@@ -234,6 +258,40 @@ fn space_kind(wanted: Option<u32>, answer: &Answer) -> Option<Kind> {
     }
 }
 
+/// The name spaces in which the two sides disagree about a probe: those where
+/// `rustc` accepts the probe and the index answers otherwise, and, for a probe
+/// `rustc` refuses, those where the index finds an item.
+fn disagreeing_spaces(rustc: &Verdict, index: &IndexVerdict) -> Vec<Space> {
+    let spaces = |wanted: &dyn Fn(Space, &Answer) -> bool| {
+        [(Space::Type, &index.ty), (Space::Value, &index.value)]
+            .into_iter()
+            .filter(|(space, answer)| wanted(*space, answer))
+            .map(|(space, _)| space)
+            .collect()
+    };
+    match rustc {
+        Verdict::Rejected(_) => spaces(&|_, answer| answer.tag().is_some()),
+        Verdict::Accepted { ty, value } => spaces(&|space, answer| {
+            let wanted = match space {
+                Space::Type => *ty,
+                Space::Value => *value,
+            };
+            space_kind(wanted, answer).is_some()
+        }),
+    }
+}
+
+/// Whether, in a probe `rustc` accepts, every name space the two sides
+/// disagree about is one the index finds cyclic.
+fn only_cycles_diverge(rustc: &Verdict, index: &IndexVerdict) -> bool {
+    let Verdict::Accepted { ty, value } = rustc else {
+        return false;
+    };
+    [(*ty, &index.ty), (*value, &index.value)]
+        .into_iter()
+        .all(|(wanted, answer)| *answer == Answer::Cyclic || space_kind(wanted, answer).is_none())
+}
+
 /// Whether the two sides disagree about one probe.
 fn compare(rustc: &Verdict, index: &IndexVerdict) -> Option<Kind> {
     match rustc {
@@ -261,15 +319,20 @@ struct Facts<'a> {
     /// Whether the index finds the probed name ambiguous in some module of
     /// the program when that module reads it.
     ambiguous_in_a_module: &'a dyn Fn() -> bool,
-    /// Whether `rustc` answers the probe differently when the declarations
-    /// of the program come in another order.
-    order_dependent: &'a dyn Fn() -> bool,
+    /// Whether `rustc` answers the probe differently in some of the name
+    /// spaces given when the declarations of the program come in another
+    /// order.
+    order_dependent: &'a dyn Fn(&[Space]) -> bool,
+    /// Whether the imports of the program form a cycle among the modules the
+    /// probe's module reaches.
+    cycle_reaches_probe: &'a dyn Fn() -> bool,
 }
 
 /// Which class a disagreement is.
 fn classify(kind: Kind, rustc: &Verdict, index: &IndexVerdict, facts: &Facts<'_>) -> Class {
     let when_visible = facts.when_visible;
     let ambiguous_in_a_module = facts.ambiguous_in_a_module;
+    let spaces = disagreeing_spaces(rustc, index);
     if kind == Kind::AcceptedButRefused {
         // The index refuses a name that rustc resolves. The documented case
         // is the glob re-export that rustc only warns about.
@@ -277,17 +340,18 @@ fn classify(kind: Kind, rustc: &Verdict, index: &IndexVerdict, facts: &Facts<'_>
         if ambiguous && (facts.warned_when_exported)() {
             return Class::Documented;
         }
-        // An import cycle in a name space, with no ambiguity in either, is
-        // the gap of the index that the class records.
+        // An import cycle in a name space, with no ambiguity in either and
+        // the other name space agreeing, is the gap of the index that the
+        // class records.
         let cyclic = index.ty == Answer::Cyclic || index.value == Answer::Cyclic;
-        if cyclic && !ambiguous {
+        if cyclic && !ambiguous && only_cycles_diverge(rustc, index) {
             return Class::Cycle;
         }
         // If rustc itself answers the probe differently in another order of
         // the declarations, no answer that does not depend on the order is
         // its answer. Anything else it accepts and the index refuses is a
         // disagreement to fix or to report.
-        if (facts.order_dependent)() {
+        if (facts.order_dependent)(&spaces) {
             return Class::Order;
         }
         return Class::Unclassified;
@@ -298,12 +362,18 @@ fn classify(kind: Kind, rustc: &Verdict, index: &IndexVerdict, facts: &Facts<'_>
     // ambiguity (rule 2) or did not see the binding at all (rule 1). A
     // disagreement that does not is `rustc` answering by the order of the
     // declarations, or one to fix or to report.
-    if !when_visible() {
-        return if (facts.order_dependent)() {
-            Class::Order
-        } else {
-            Class::Unclassified
-        };
+    let visible = when_visible();
+    if (facts.order_dependent)(&spaces) {
+        return Class::Order;
+    }
+    // The other direction of the cycle gap: rustc cannot settle an import
+    // cycle and gives up on the probe, where the index resolves it.
+    let undeterminable = matches!(rustc, Verdict::Rejected(codes) if codes.iter().any(|code| code == UNDETERMINABLE));
+    if kind == Kind::RefusedButResolves && undeterminable && (facts.cycle_reaches_probe)() {
+        return Class::Cycle;
+    }
+    if !visible {
+        return Class::Unclassified;
     }
     // A name two globs of one module bring in as different items is
     // ambiguous there. A reader that cannot access one of the globs gets the
@@ -337,15 +407,35 @@ fn warns_of_ambiguous_re_export(exported: &Program) -> bool {
 /// The number of other orders of the declarations tried for a program.
 const ORDERS_TRIED: usize = 12;
 
-/// Whether `rustc` answers the probe differently in another order of the
-/// declarations of the program, among [`ORDERS_TRIED`] orders drawn from a
-/// fixed seed (see [`Program::shuffled`]): it accepts a probe it refused as
-/// written, or refuses one it accepted. Only the probe's own errors count.
-fn rustc_depends_on_order(program: &Program, probe: usize, verdict: &Verdict) -> bool {
-    let accepted = matches!(verdict, Verdict::Accepted { .. });
+/// Whether `rustc` answers the probe differently in some of `spaces` when
+/// the declarations of the program come in another order, among the order as
+/// written and [`ORDERS_TRIED`] orders drawn from a fixed seed (see
+/// [`Program::shuffled`]): the name space is resolved in one, ambiguous in
+/// another, or refused in a third. Only the probe's own errors count.
+fn rustc_depends_on_order(program: &Program, probe: usize, spaces: &[Space]) -> bool {
     let alone = program.only_probe(probe);
     let mut draw = Draw::seeded(0x0de2_0001);
-    (0..ORDERS_TRIED).any(|_| rustc::accepts_probe(&alone.shuffled(&mut draw)) != accepted)
+    let mut answers: Vec<Vec<SpaceVerdict>> = Vec::new();
+    let mut note = |program: &Program| {
+        let verdicts = rustc::space_verdicts(program);
+        answers.push(
+            spaces
+                .iter()
+                .map(|space| {
+                    verdicts
+                        .iter()
+                        .find(|(asked, _)| asked == space)
+                        .expect("both name spaces are asked")
+                        .1
+                })
+                .collect(),
+        );
+    };
+    note(&alone);
+    for _ in 0..ORDERS_TRIED {
+        note(&alone.shuffled(&mut draw));
+    }
+    (0..spaces.len()).any(|at| answers.iter().any(|each| each[at] != answers[0][at]))
 }
 
 /// Whether the index finds the name of `probe` ambiguous in some module of
@@ -466,7 +556,8 @@ fn evaluate_with(program: &Program, tamper: &dyn Fn(IndexVerdict) -> IndexVerdic
                             warns_of_ambiguous_re_export(&program.with_public_modules(at))
                         },
                         ambiguous_in_a_module: &|| ambiguous_in_a_module(&ws, &program, at),
-                        order_dependent: &|| rustc_depends_on_order(&program, at, verdict),
+                        order_dependent: &|spaces| rustc_depends_on_order(&program, at, spaces),
+                        cycle_reaches_probe: &|| program.import_cycle_reaches(at),
                     },
                 ),
                 rustc: verdict.clone(),

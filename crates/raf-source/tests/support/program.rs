@@ -97,6 +97,9 @@ pub(crate) struct UseDecl {
     pub(crate) glob: bool,
     /// The name a named import binds.
     pub(crate) binding: Option<String>,
+    /// The module path as written, such as `crate::m0` or `super`, that the
+    /// glob brings in or the named import takes its name from.
+    pub(crate) from: String,
 }
 
 /// What a line of a program is.
@@ -113,6 +116,7 @@ enum Line {
         vis: Vis,
         glob: bool,
         binding: Option<String>,
+        from: String,
     },
     Other,
 }
@@ -168,20 +172,23 @@ fn read_line(text: &str) -> Line {
         .strip_prefix("use ")
         .and_then(|rest| rest.strip_suffix(';'))
     {
-        if rest.ends_with("::*") {
+        if let Some(from) = rest.strip_suffix("::*") {
             return Line::Use {
                 vis,
                 glob: true,
                 binding: None,
+                from: from.to_owned(),
             };
         }
-        let binding = rest
+        let (path, alias) = rest
             .rsplit_once(" as ")
-            .map_or_else(|| rest.rsplit("::").next(), |(_, alias)| Some(alias));
+            .map_or((rest, None), |(path, alias)| (path, Some(alias)));
+        let (from, last) = path.rsplit_once("::").unwrap_or(("", path));
         return Line::Use {
             vis,
             glob: false,
-            binding: binding.map(str::to_owned),
+            binding: Some(alias.unwrap_or(last).to_owned()),
+            from: from.to_owned(),
         };
     }
     Line::Other
@@ -212,6 +219,22 @@ pub(crate) struct Rendered {
     pub(crate) source: String,
     /// The owner of each line, from the first.
     pub(crate) owners: Vec<Owner>,
+}
+
+/// What a rendering writes at the end of a module, given its canonical path
+/// and where to put each line.
+trait Emit: Fn(&str, &mut dyn FnMut(&str, Owner)) {}
+
+impl<F: Fn(&str, &mut dyn FnMut(&str, Owner))> Emit for F {}
+
+/// A program rendered with one probe asked as a question per name space.
+#[derive(Debug)]
+pub(crate) struct SplitRendered {
+    pub(crate) rendered: Rendered,
+    /// The line, counted from 1, of the question in the type name space.
+    pub(crate) type_line: usize,
+    /// The line, counted from 1, of the question in the value name space.
+    pub(crate) value_line: usize,
 }
 
 /// A library crate and the questions asked of it.
@@ -295,13 +318,6 @@ impl Program {
         include: &[usize],
         asserts: &BTreeMap<usize, Vec<String>>,
     ) -> Rendered {
-        let mut source = String::new();
-        let mut owners = Vec::new();
-        let mut put = |text: &str, owner: Owner| {
-            source.push_str(text);
-            source.push('\n');
-            owners.push(owner);
-        };
         let probes_of = |module: &str| -> Vec<usize> {
             include
                 .iter()
@@ -309,7 +325,7 @@ impl Program {
                 .filter(|at| self.probes[*at].module == module)
                 .collect()
         };
-        let emit = |module: &str, put: &mut dyn FnMut(&str, Owner)| {
+        self.assemble(&|module, put| {
             for at in probes_of(module) {
                 put(
                     &format!("use {} as probe{at};", self.probes[at].path),
@@ -319,6 +335,47 @@ impl Program {
                     put(line, Owner::Assert(at, index));
                 }
             }
+        })
+    }
+
+    /// The text of the library root with the probe `probe` written as two
+    /// separate questions in its module: a type alias of the path, which asks
+    /// the type name space, and a function that reads the path as an
+    /// expression, which asks the value name space. Neither is an import, and
+    /// neither is evaluated.
+    pub(crate) fn render_by_space(&self, probe: usize) -> SplitRendered {
+        let path = &self.probes[probe].path;
+        let type_text = format!("type __t = {path};");
+        let value_text = format!("fn __v() {{ let _ = {path}; }}");
+        let rendered = self.assemble(&|module, put| {
+            if self.probes[probe].module == module {
+                put(&type_text, Owner::Probe(probe));
+                put(&value_text, Owner::Probe(probe));
+            }
+        });
+        let line_of = |text: &str| {
+            rendered
+                .source
+                .lines()
+                .position(|line| line == text)
+                .map(|at| at + 1)
+        };
+        SplitRendered {
+            type_line: line_of(&type_text).expect("the type question is written"),
+            value_line: line_of(&value_text).expect("the value question is written"),
+            rendered,
+        }
+    }
+
+    /// The lines of the program with `emit` writing what goes at the end of
+    /// each module, whose canonical path it is given, and of the crate root.
+    fn assemble(&self, emit: &dyn Emit) -> Rendered {
+        let mut source = String::new();
+        let mut owners = Vec::new();
+        let mut put = |text: &str, owner: Owner| {
+            source.push_str(text);
+            source.push('\n');
+            owners.push(owner);
         };
         let mut stack = vec![CRATE.to_owned()];
         for (at, text) in self.lines.iter().enumerate() {
@@ -360,12 +417,19 @@ impl Program {
     pub(crate) fn uses(&self) -> Vec<UseDecl> {
         let mut found = Vec::new();
         self.walk(|_, module, line| {
-            if let Line::Use { vis, glob, binding } = line {
+            if let Line::Use {
+                vis,
+                glob,
+                binding,
+                from,
+            } = line
+            {
                 found.push(UseDecl {
                     module: module.to_owned(),
                     vis,
                     glob,
                     binding,
+                    from,
                 });
             }
         });
@@ -410,6 +474,88 @@ impl Program {
             probes: vec![self.probes[probe].clone()],
             expect: None,
         }
+    }
+
+    /// The modules of the program, as canonical paths, root first.
+    fn modules(&self) -> Vec<String> {
+        let mut found = vec![CRATE.to_owned()];
+        self.walk(|_, module, line| {
+            if let Line::Open(name) = line {
+                found.push(format!("{module}::{name}"));
+            }
+        });
+        found
+    }
+
+    /// The module a path written in `module` reads its names from: the path
+    /// followed through `crate`, `self`, `super` and the modules of the
+    /// program as far as it names modules, and no further, since a name after
+    /// that may come from a glob.
+    fn module_read_by(modules: &BTreeSet<String>, module: &str, path: &str) -> String {
+        let mut at = module.to_owned();
+        for (index, segment) in path.split("::").enumerate() {
+            let next = match segment {
+                "crate" if index == 0 => CRATE.to_owned(),
+                "self" if index == 0 => at.clone(),
+                "super" => at
+                    .rsplit_once("::")
+                    .map_or(at.clone(), |(up, _)| up.to_owned()),
+                name => format!("{at}::{name}"),
+            };
+            if !modules.contains(&next) {
+                break;
+            }
+            at = next;
+        }
+        at
+    }
+
+    /// Whether the imports of the program, with the probe `probe` taken as
+    /// one more import of its module, form a cycle among the modules that the
+    /// probe's module reaches. The graph holds an edge from a module to each
+    /// module its `use` declarations read, from the probe's module to the
+    /// module its path reads, and from each module to its child modules, since
+    /// a glob or a path passes through the names of modules. It is built from
+    /// the declarations, not from the text of the program, and over-approximates
+    /// the cycles `rustc` cannot settle.
+    pub(crate) fn import_cycle_reaches(&self, probe: usize) -> bool {
+        let modules: BTreeSet<String> = self.modules().into_iter().collect();
+        let mut edges: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for module in &modules {
+            if let Some((parent, _)) = module.rsplit_once("::") {
+                edges
+                    .entry(parent.to_owned())
+                    .or_default()
+                    .insert(module.clone());
+            }
+        }
+        for decl in self.uses() {
+            let read = Self::module_read_by(&modules, &decl.module, &decl.from);
+            edges.entry(decl.module).or_default().insert(read);
+        }
+        let probed = &self.probes[probe];
+        let from = probed
+            .path
+            .rsplit_once("::")
+            .map_or("self", |(from, _)| from);
+        let read = Self::module_read_by(&modules, &probed.module, from);
+        edges.entry(probed.module.clone()).or_default().insert(read);
+        // The modules reachable in one step or more from `start`.
+        let reached = |start: &str| {
+            let mut seen: BTreeSet<String> = BTreeSet::new();
+            let mut todo: Vec<String> = edges.get(start).into_iter().flatten().cloned().collect();
+            while let Some(next) = todo.pop() {
+                if seen.insert(next.clone()) {
+                    todo.extend(edges.get(&next).into_iter().flatten().cloned());
+                }
+            }
+            seen
+        };
+        let from_reader = reached(&probed.module);
+        from_reader
+            .iter()
+            .chain([&probed.module])
+            .any(|module| reached(module).contains(module))
     }
 
     /// The index of the line that closes the module opened at `open`.
