@@ -1336,11 +1336,13 @@ impl Drop for Scratch {
     }
 }
 
-/// A path that is not a regular file is refused by its inspection, before it
-/// is opened: the device `/dev/null` and a directory named like a document
-/// give the typed refusal, a symlink is refused rather than followed, and a
-/// regular file is read. No FIFO is opened here, since a loader that opened
-/// one would block.
+/// A path that is not a regular file is refused by the inspection that comes
+/// before `open`, not by the check on the opened handle: the device
+/// `/dev/null` and a directory named like a document open without blocking,
+/// so only the text of the refusal tells the two checks apart, and it must be
+/// the pre-open one. That is what keeps a FIFO from being opened, since an
+/// open of a FIFO with no writer blocks. No FIFO is opened here. A symlink is
+/// refused rather than followed, and a regular file is read.
 #[cfg(unix)]
 #[test]
 fn refuses_non_regular_files_instead_of_reading_them() {
@@ -1355,7 +1357,7 @@ fn refuses_non_regular_files_instead_of_reading_them() {
         assert!(
             outcome
                 .as_ref()
-                .is_err_and(|e| e.contains("not a regular file") && e.contains(name)),
+                .is_err_and(|e| e.ends_with(&format!("{name} is not a regular file"))),
             "{name}: {outcome:?}"
         );
     }
