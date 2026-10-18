@@ -5,7 +5,7 @@ type: Capability
 id: cap:source-index
 title: "Source index"
 description: "The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #[path], and a symbol and use-alias index."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_source::Tree
@@ -1314,6 +1314,9 @@ end; that is checked in release builds too, and a round that decides nothing mor
 `Internal` load error. Of two routes to one item the one that uses no
 glob decides `via_glob`.
 
+> [!PROPOSED change:source-index]
+> Two more rules of rustc decide what a reader can see through globs, and the answer does not depend on the order of the declarations. First, a named `pub use`, or a glob, that reads a binding through a glob its module cannot access keeps the narrower of its own visibility and the visibility of the binding it reads, measured on the ancestor chain of the importing module, so a module that globs such a re-export cannot read a name that rustc hides from it: with `mod x { pub struct A; }` and `mod m { use crate::x::*; pub mod c { pub use super::A; } }`, the module `m` reads the struct `A` through `c`, and a module outside `m` that globs `c` does not. Routes to one item combine by the widest, so an item that a capped re-export and a wider glob both bring in is as visible as the wider. Second, a name that two globs of a module bring in as different items is ambiguous in that module, and it is visible to every reader that can access at least one of the items: such a reader gets `ResolveError::Ambiguous` listing every candidate, also the item it could reach only through a glob it cannot access, where rustc refuses the path (usually as E0659, in one shape as E0573), and a reader that can access none of the items finds nothing. One item reached through both globs is one candidate, and a name that only one glob brings in is not ambiguous. The ambiguity passes to the readers of a glob of the module. An import that a reader cannot name still keeps its name from the globs, and a module's own item shadows its globs for every reader, so neither makes the name ambiguous. A path through a module that two globs bring in as different modules is ambiguous, also for a name only one of the two modules has. Where rustc's own answer depends on the order of the declarations, as when the glob that brought a name in first decides, the index gives one fixed answer, the ambiguity, in every order.
+
 `resolve(path)` takes a canonical path such as `demo::inner::go` (a segment may be
 written as a raw identifier: `r#match` and `match` are the same name) and tries the type,
 value and macro name spaces in that order; `resolve_in(path, namespace)` takes one. A
@@ -1378,6 +1381,12 @@ names the `X` of `p-two`, and a name that is no package of the workspace is
 `UnknownPackage`. A symbol that a
 macro generates is not indexed, and the documentation of the capabilities that rely on
 the index says so.
+
+> [!PROPOSED change:source-index]
+> `resolve_from(module, path)` resolves a path as a `use` written in the module `module` would (a canonical module path such as `demo::inner`), trying the type, value and macro name spaces in that order, and `resolve_from_in(module, path, namespace)` takes one name space. The reading module is the viewer: the path starts as code of that module starts it (`crate`, `self`, `super`, a name the module binds, or a crate of the extern prelude) and each segment counts only the bindings that module can access, as rustc settles an import, where `resolve` takes a canonical path and checks no visibility. A path that names nothing the module can access is `NotFound`, one that names several symbols is `Ambiguous`, and a module that is not in the index is `ResolveError::UnknownModule`.
+
+> [!PROPOSED change:source-index]
+> Work is counted and not timed. A segment of a member or exclude pattern is matched in at most (pieces + 1) × (name length + 2) steps, where the pieces are the stars, the letters and classes of the segment. The cost that remains is the directories below a root times the wildcard excludes: the directories a pattern finds are each tested once against the wildcard excludes, an exclude with more segments than the path is skipped without a step, and 4096 duplicate excludes are one wildcard tested twice. The cost of a path is linear in its length: a path of 50,000 segments, found or missing, is read at most four times for each segment and looked up at most twice for each segment, in a debug build as in a release build.
 
 **Exported items.** `Workspace::exported_items(target)` lists the public surface of
 a library or binary target: the items another crate can name through its crate
@@ -1518,6 +1527,9 @@ name privately, list in walk steps and glob view reads that grow in step with th
 names, and 3000 of them are charged under 32 MiB beyond the load; walking the
 reach again for each name would make the steps grow with the square of the names.
 
+> [!PROPOSED change:source-index]
+> The two visibility rules of the use-alias index reach the surface as follows. A listing that meets the second rule, a name that two globs of a listed module bring in as different items, fails with `ExportError::Resolve(ResolveError::Ambiguous(_))` and lists every candidate, whatever the order of the declarations. The first rule never lists an item that is reached only through a re-export it caps: the surface requires every `use` declaration on the way to be `pub`, and a binding read through a private glob has no route of `pub` declarations, so the `pub use` of such a re-export lists the items it binds on its own and not the one behind the glob.
+
 **API surface.** The data structs a caller reads, `Package`, `Target`, `SourceFile`,
 `Reach`, `Entry` and `SpanFact`, are `#[non_exhaustive]` like `Item`, so adding a field
 is not a breaking change: a pattern over one names the fields it reads and ends in
@@ -1578,6 +1590,9 @@ for id in ws.target_ids() {
 }
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
+
+> [!PROPOSED change:source-index]
+> Resolve a path as a `use` written in a module would with `ws.resolve_from(module, path)`, or in one name space with `ws.resolve_from_in(module, path, namespace)`, for a `module` such as `"demo::inner"`. The reading module is the viewer: `ws.resolve_from("demo::b", "crate::a::go")` finds `demo::a::go` when `go` is `pub` in `a`, and a private item of `a` is `ResolveError::NotFound` for `b`. A module that is not in the index is `ResolveError::UnknownModule`.
 
 ## Examples
 
@@ -1667,6 +1682,13 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
   reading module cannot access, is the other item for that module, where rustc refuses
   the path, usually as an ambiguity (E0659) and sometimes as a name that is not there
   (E0573).
+
+> [!PROPOSED change:source-index]
+> - The index settles a cycle of globs and imports differently from rustc in some programs, in both directions: it refuses a name with `Cyclic` where rustc accepts the probe, and it resolves a name where rustc reports that it cannot determine the resolution of the import; some ambiguity shapes inside glob cycles differ as well, where the index calls a name ambiguous or resolves it and rustc does the opposite.
+> - Where rustc's own answer depends on the order of the declarations, as when the first binding of a glob ambiguity decides, the index gives one answer in every order.
+> - A companion item, one a module's glob view holds only because it rides with another item of an ambiguous name, that reaches a module before an explicit import supplies the same item can stay in that module's glob view, so the answer of such a module can depend on the order of the declarations in rare shapes, and the internal consistency check of a debug build can stop the load.
+> - Of the two visibility rules of the Contract, the first never lists an item through the re-export it caps, since the surface requires every `use` declaration on the way to be `pub`, and the second fails a listing that meets it with `Ambiguous`, as rustc refuses the path.
+
 - `workspace.members` and `workspace.exclude` hold at most 4096 entries each.
 - The text of an error shows input-derived text with control characters escaped by
   `char::escape_debug`, which also doubles a backslash, so it is safe to print to a
@@ -2133,6 +2155,10 @@ duplicates.
   that is `NotFound` and one of 50,000 segments through a module that imports itself
   that resolves, each answered with at most four segment reads and two name lookups
   for each segment plus two, counted in the walk and stopped at that count.
+
+> [!PROPOSED change:source-index]
+> - `resolve_from`: a use path counts only what the reading module can access: the module itself, a child of it and a public item of a sibling resolve, and a private item of a module read from outside it and a module private to the one that declares it are `NotFound`; it is read in one name space or in each in turn; a module that is not in the workspace is `UnknownModule`, and a text that is no path is `Invalid`.
+
 - Missing-glob fixtures: a module with `pub use self::missing::*;`, a module that globs
   it, `crate::a::gone::*`, `super::a::inner::nothing::*` and an import of a name the
   missing glob would bring in load, and each lookup that reads one of those globs is
@@ -2250,6 +2276,10 @@ duplicates.
   orders it compiles, binding `m28::Y`, and in the other half it reports E0659. RAF's
   `Ambiguous` in every order is deliberate, as it agrees with rustc wherever rustc
   reports an error and does not depend on the order.
+
+> [!PROPOSED change:source-index]
+> - Visibility rules of rustc for globs, each in every order of the declarations (the blocks of the crate and the declarations of the module permuted together, each order giving one answer) and each beside a neighbour that resolves: a struct `A` that a module reads through a private glob and a `pub use` re-exports is not found by a reader outside that module and is found by the module, while the function `A` the module defines is found by both; the same re-export of a binding that a `pub` glob or a `pub(crate)` glob makes accessible stays as visible as the re-export; a chain of two re-exports through two private globs is capped twice; an item that a capped re-export and a wider glob both bring in is as visible as the wider; and a glob re-export of a private item is no wider than the item. A name that two globs bring in as two structs, one through a private glob, is `Ambiguous` for a reader of either glob and for a reader of a glob of that module, as rustc's E0659; a module and a struct of one name are ambiguous in the type name space and the unit struct resolves in the value name space; a refusal in one name space leaves the other resolved; and a name that the private glob does not bring in twice still resolves for a reader outside. An import a reader cannot name still keeps its name from the globs, as does an import of a value for the type name space; a path through a module that two globs bring in as different modules is `Ambiguous`, also for a name only one of them has. In the shapes where a cycle of globs carries an item or a module back to a module that already holds it, a hidden item makes no ambiguity, an ambiguity a cycle carries beside a glob of one of its items has one answer, a hidden module a cycle carries back beside the module itself makes no ambiguity, and a companion item an explicit import in a cycle supplies keeps both candidates, in every order, where rustc's own answer is the same or depends on the order.
+
 - Trait-key fixtures through `use` declarations: `use std;` with `impl
   std::fmt::Display for &Foo` in editions 2018, 2021 and 2024 and in a 2015 module, keyed
   `std::fmt::Display`, beside `use nope;`, which is refused; `pub use serde;` with `use
@@ -2468,6 +2498,10 @@ duplicates.
   its module beside a private one; a listing over the item-bytes budget left by the
   load is a `Budget` error of `ItemBytes` naming the file and line, beside the same
   tree with a larger budget, which lists every item.
+
+> [!PROPOSED change:source-index]
+> - The two visibility rules on the surface, each in every order: a crate whose root has `pub use m::c::*;`, where `m` reads a struct `A` through a private glob and `c` re-exports it, lists the function `A` that `m` defines and not the struct, beside the same crate with a `pub` glob in `m`, which lists both; a name that two globs of `m` bring in as two structs, one through a private glob, fails the listing with `ExportError::Resolve(ResolveError::Ambiguous(_))` for `pub use m::*;` and for `pub use m::Y;`, beside a private glob that brings in another name, which lists what the public glob does, and one item reached through both globs, which lists.
+
 - Stack and work: 20,000 chained `pub use` re-exports and a chain of 20,000 `pub`
   globs list on a thread of 2 MiB in debug and release builds.
 - On this repository, the surface of each library and binary lists without an
@@ -2478,6 +2512,9 @@ duplicates.
   `cargo-workplan` binary exports nothing.
 - The `load-workspace` fuzz target lists the surface of every target of each
   workspace that loads, hidden items included.
+
+> [!PROPOSED change:source-index]
+> - A differential test against rustc (`rustc_oracle`): generated library crates of several modules, with private, `pub` and `pub(crate)` globs, named and glob re-exports, shadowing, and a struct and a function of one name, are asked the same questions by both. A question is a `use` of a path as seen from a chosen module. rustc accepts or refuses it and, when it accepts, a second compile tags the item it names; the index answers through `resolve_from_in`, in each name space. A disagreement is classified as the first of the rule on re-export visibility, the rule on ambiguity through an inaccessible glob, `documented` (the glob re-export that rustc only warns about and resolves while the index refuses), `order` (rustc answers differently when the declarations come in another order, asked one name space at a time), `cycle` (the index refuses a cycle with `Cyclic` where rustc accepts, or resolves where rustc cannot determine the import) or `unclassified`. The two rules and `unclassified` fail the test; the other three are counted and printed, because they are the limits of the Constraints. The default test draws 64 programs from eight fixed seeds, and `RAF_ORACLE_PROGRAMS` sets the number of programs for a full run; it asserts that programs were judged and that rustc accepted and refused probes, so a run that compares nothing fails. The last full runs, in a release build with the rustc of the pinned toolchain (1.101.0-nightly, 21b707e3f), were 5,522 and 11,044 programs: no disagreement of the first rule, none of the second, none unclassified. A second test replays the committed programs under `fuzz/corpus/rustc-oracle`, each marked with the class it must show (`agree`, `documented`, `order` or `cycle`), and fails if one shows another class or none; a negative fixture makes the index answer wrongly and requires the divergence to be reported beside the right answer, another requires a divergence that matches no class to be `unclassified`, and the minimiser drops what a divergence does not need and keeps its class. The helper that writes the corpus is run by hand and is not bound.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
