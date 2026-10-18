@@ -833,7 +833,7 @@ fn a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged() {
     assert_eq!(fixture.owed(), Vec::<String>::new());
 
     // Ten thousand bound symbols, each named in the section: the context and
-    // the obligations are found in bounded time, and a record of ten thousand
+    // the obligations are found, and a record of ten thousand
     // inputs is over the document bound, so it is refused and nothing is
     // written.
     let named = |count: usize| {

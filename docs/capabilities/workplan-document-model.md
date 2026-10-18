@@ -724,8 +724,9 @@ touches, and the obligations those sections receive are defined by
   does not exist. The work is counted, not timed: a section of many fenced blocks
   is read once, each character and each blanked range stepped over once, and the
   count at three sizes grows by no more than its second size did; the claims of
-  many capabilities are judged against sets built once, with one look for each
-  slug of each claim. A count sees the steps that are counted: a loop added
+  many capabilities are judged against sets built once, each record entered
+  once, and each slug of each claim is asked of the sets twice, a number the
+  lookups of sets that count their own lookups pin exactly. A count sees the steps that are counted: a loop added
   elsewhere is not seen by it. The tallies are cfg(test)-only counters whose own
   tests pin that a count adds what it is given, that each kind has its own
   counter, that the tallies reset between measures, and that a ceiling panics at

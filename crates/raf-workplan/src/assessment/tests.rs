@@ -384,19 +384,29 @@ fn the_bindings_are_tested_against_the_names_once_to_find_a_strong_one_and_once_
     for count in [2_000, 10_000] {
         let paths: Vec<String> = (0..count).map(|n| format!("demo::f{n}")).collect();
         let tested = |names: &BTreeSet<String>| {
-            let (inputs, tally) = measure(2 * count + 10, || {
+            let (inputs, tally) = measure(6 * count + 10, || {
                 symbol_inputs(names, paths.iter().map(String::as_str))
             });
-            (inputs.len(), tally.get(Work::NamingLookups))
+            (
+                inputs.len(),
+                tally.get(Work::NamingLookups),
+                tally.get(Work::NamedLookups),
+            )
         };
+        // Each unnamed path of two segments asks the names three times (its
+        // whole path, then its last segment for a weak name and for a
+        // strong one); a path named in full asks once.
         // Nothing is named: every binding is an input, found out by looking
         // at all of them, then named.
-        assert_eq!(tested(&named(&[])), (count, 2 * count));
+        assert_eq!(tested(&named(&[])), (count, 2 * count, 6 * count));
         // The last is named: the first look runs to it.
         let last = format!("demo::f{}", count - 1);
-        assert_eq!(tested(&named(&[last.as_str()])), (1, 2 * count));
+        assert_eq!(
+            tested(&named(&[last.as_str()])),
+            (1, 2 * count, 6 * count - 4)
+        );
         // The first is named: the first look ends at it.
-        assert_eq!(tested(&named(&["demo::f0"])), (1, 1 + count));
+        assert_eq!(tested(&named(&["demo::f0"])), (1, 1 + count, 3 * count - 1));
     }
 }
 
@@ -430,6 +440,14 @@ fn a_long_contract_is_read_once_and_its_symbols_are_named_in_one_pass() {
     assert!(prose.lines().count() > 12_000);
     assert_eq!(tally.get(Work::ContractLines), prose.lines().count() + 1);
     assert_eq!(tally.get(Work::NamingLookups), 2 * 2_000);
+    assert_eq!(tally.get(Work::NamedLookups), 6 * 2_000);
+    // The paragraph the lines make is read for its code spans once.
+    let paragraph: usize = prose
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| line.len() + 1)
+        .sum();
+    assert_eq!(tally.get(Work::ParagraphBytes), paragraph);
 
     let spans = (0..2_000).fold(String::new(), |mut text, n| {
         let _ = write!(text, "`demo::f{n}` ");
@@ -444,4 +462,5 @@ fn a_long_contract_is_read_once_and_its_symbols_are_named_in_one_pass() {
     assert_eq!(context.symbols.len(), 2_000);
     assert!(context.symbols.iter().all(|symbol| symbol.named));
     assert_eq!(tally.get(Work::NamingLookups), 1 + 2_000);
+    assert_eq!(tally.get(Work::NamedLookups), 1 + 2_000);
 }

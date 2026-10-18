@@ -20,7 +20,7 @@ use crate::lifecycle::Impact;
 use crate::lookup::{CHANGE_PREFIX, capability_path};
 use crate::model::IndexSlot;
 use crate::roadmap::{self, Gap};
-use crate::work::{Work, add};
+use crate::work::{Counted, Work, add};
 use crate::{Loaded, Workplan};
 
 use super::{
@@ -199,17 +199,23 @@ fn proposal_owed(capability: &str, section: Part, path: &str, line: Option<usize
 /// findings. The slugs are listed once, not looked up for each item.
 fn items(plan: &Workplan<'_>, record: &Loaded<Change>, found: &mut Vec<Obligation>) {
     let value = record.value();
-    let known: BTreeSet<&str> = plan
-        .changes()
-        .iter()
-        .filter_map(|change| change.value().header.id.strip_prefix(CHANGE_PREFIX))
-        .inspect(|_| add(Work::SlugsListed, 1))
-        .collect();
+    let known = Counted::new(
+        Work::SlugLookups,
+        plan.changes()
+            .iter()
+            .filter_map(|change| change.value().header.id.strip_prefix(CHANGE_PREFIX))
+            .inspect(|_| add(Work::SlugsListed, 1))
+            .collect::<BTreeSet<&str>>(),
+    );
     let unloaded = plan.unloaded();
-    let unloaded: BTreeSet<&str> = unloaded
-        .iter()
-        .filter_map(|id| id.strip_prefix(CHANGE_PREFIX))
-        .collect();
+    let unloaded = Counted::new(
+        Work::SlugLookups,
+        unloaded
+            .iter()
+            .filter_map(|id| id.strip_prefix(CHANGE_PREFIX))
+            .inspect(|_| add(Work::SlugsListed, 1))
+            .collect::<BTreeSet<&str>>(),
+    );
     for (index, item) in value.items.iter().enumerate() {
         add(Work::OutcomeChecks, 1);
         let problem = match &item.outcome {

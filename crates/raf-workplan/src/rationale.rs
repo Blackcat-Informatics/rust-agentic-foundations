@@ -178,7 +178,10 @@ fn extent(headings: &[&Heading], index: usize, end: usize) -> Range<usize> {
 /// of the range.
 fn has_item(body: &Body, lines: &Range<usize>) -> bool {
     let prose = body.prose_lines();
-    let first = prose.partition_point(|line| line.line() < lines.start);
+    let first = prose.partition_point(|line| {
+        add(Work::RangeStarts, 1);
+        line.line() < lines.start
+    });
     prose[first..]
         .iter()
         .take_while(|line| line.line() < lines.end)
@@ -393,6 +396,14 @@ mod tests {
             .count()
     }
 
+    /// The most steps `calls` searches for the start of a range may take among
+    /// `lines` prose lines: a binary search takes at most `log2(lines) + 3`
+    /// each, where a scan from the first line takes `lines` and, over `calls`
+    /// searches, passes this by a factor that grows with the page.
+    fn search_steps(calls: usize, lines: usize) -> usize {
+        calls * (lines.ilog2() as usize + 4)
+    }
+
     /// Twenty thousand empty conditions headings on a page, each with a line
     /// of prose and no list item, are each judged against their own lines
     /// only: the next heading of the level ends each list at once, and the
@@ -401,9 +412,16 @@ mod tests {
     fn empty_conditions_headings_are_each_judged_against_their_own_lines() {
         for count in [1_000, 20_000] {
             let text = page(&"## Conditions to revisit\n\nNone.\n\n".repeat(count));
-            let (findings, tally) =
-                judged(&[("docs/architecture/layers.md", &text)], 2 * count + 10);
+            let (findings, tally) = judged(
+                &[("docs/architecture/layers.md", &text)],
+                2 * count + 10 + search_steps(count, count + 10),
+            );
             assert_eq!(of_kind(&findings, "decision-conditions-missing"), count);
+            let starts = tally.get(Work::RangeStarts);
+            assert!(
+                0 < starts && starts <= search_steps(count, count),
+                "{starts}"
+            );
             // Every heading but the last is followed by one of its level.
             assert_eq!(tally.get(Work::ConditionsScan), count - 1);
             assert_eq!(tally.get(Work::ProseLinesScanned), count);
@@ -420,8 +438,15 @@ mod tests {
         for count in [1_000, 20_000] {
             let pairs = "### Decision\n\nD.\n\n### Conditions to revisit\n\n- C.\n\n".repeat(count);
             let text = capability(&pairs);
-            let (findings, tally) =
-                judged(&[("docs/capabilities/alpha.md", &text)], 2 * count + 10);
+            let (findings, tally) = judged(
+                &[("docs/capabilities/alpha.md", &text)],
+                2 * count + 10 + search_steps(count, 2 * count + 10),
+            );
+            let starts = tally.get(Work::RangeStarts);
+            assert!(
+                0 < starts && starts <= search_steps(count, 2 * count + 10),
+                "{starts}"
+            );
             assert_eq!(of_kind(&findings, "explanation-conditions-missing"), 0);
             assert_eq!(tally.get(Work::ConditionsScan), count - 1);
             assert_eq!(tally.get(Work::ProseLinesScanned), count);
@@ -430,8 +455,15 @@ mod tests {
             let empty =
                 "### Decision\n\nD.\n\n### Conditions to revisit\n\nNone.\n\n".repeat(count);
             let text = capability(&empty);
-            let (findings, tally) =
-                judged(&[("docs/capabilities/alpha.md", &text)], 2 * count + 10);
+            let (findings, tally) = judged(
+                &[("docs/capabilities/alpha.md", &text)],
+                2 * count + 10 + search_steps(count, 2 * count + 10),
+            );
+            let starts = tally.get(Work::RangeStarts);
+            assert!(
+                0 < starts && starts <= search_steps(count, 2 * count + 10),
+                "{starts}"
+            );
             assert_eq!(of_kind(&findings, "explanation-conditions-missing"), count);
             assert_eq!(tally.get(Work::ConditionsScan), count - 1);
             assert_eq!(tally.get(Work::ProseLinesScanned), count);

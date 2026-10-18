@@ -704,6 +704,12 @@ fn hostile_text_is_read_in_linear_time() {
             phrases[units - 1] = tested;
         }
         let [one, two, three] = phrases;
+        if name == "openers" {
+            // No word, so no phrase is tested.
+            assert_eq!(phrases, [0; 3]);
+        } else {
+            assert!(one > 0, "{name}");
+        }
         assert!(three + one <= 2 * two, "{name}: {one}, {two}, {three}");
     }
     let long = "will ".repeat(180_000);
@@ -792,7 +798,7 @@ fn moves_to_ghosts(items: usize, others: usize) -> (Reconciled, crate::work::Tal
     let plan = Workplan::load(&tree, &source);
     // No kind of work is owed more than the items and the records, with
     // room for the rest of the reconciliation.
-    let (list, tally) = measure(items + others + 1_000, || plan.reconcile("shape"));
+    let (list, tally) = measure(2 * items + others + 1_000, || plan.reconcile("shape"));
     (list.expect("reconciles"), tally)
 }
 
@@ -813,6 +819,9 @@ fn moves_to_unknown_records_cost_the_same_with_few_records_as_with_many() {
         // The record `shape` and the ones beside it.
         assert_eq!(tally.get(Work::SlugsListed), others + 1, "{others}");
         outcome_checks.push(tally.get(Work::OutcomeChecks));
+        // Each move to a change that does not exist asks the loaded slugs and
+        // then the slugs that did not load.
+        assert_eq!(tally.get(Work::SlugLookups), 2 * items, "{others}");
     }
     assert_eq!(outcome_checks, [items, items]);
 }

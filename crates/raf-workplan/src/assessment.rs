@@ -633,18 +633,22 @@ pub(crate) enum Naming {
 /// `::`-suffixes that a span holds as a whole path.
 pub(crate) fn naming(named: &BTreeSet<String>, path: &str) -> Naming {
     add(Work::NamingLookups, 1);
+    let named = |text: &str| {
+        add(Work::NamedLookups, 1);
+        named.contains(text)
+    };
     let mut rest = path;
     loop {
         match rest.split_once("::") {
             Some((_, tail)) => {
-                if named.contains(rest) {
+                if named(rest) {
                     return Naming::Strong;
                 }
                 rest = tail;
             }
             // The last segment alone; a path of one segment is whole.
-            None if named.contains(rest) && rest.len() < path.len() => return Naming::Weak,
-            None if named.contains(rest) => return Naming::Strong,
+            None if named(rest) && rest.len() < path.len() => return Naming::Weak,
+            None if named(rest) => return Naming::Strong,
             None => return Naming::Unnamed,
         }
     }

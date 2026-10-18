@@ -44,7 +44,7 @@ use raf_source::{ItemId, ResolveError, Workspace};
 
 use crate::bindings::{self, ExampleKind};
 use crate::finding::kind;
-use crate::work::{Work, add};
+use crate::work::{Counted, Work, add};
 use crate::{Finding, Loaded};
 
 /// One of the seven sections of a capability, named by the capability id.
@@ -1342,22 +1342,29 @@ fn add_claims(
     present: &BTreeSet<String>,
     findings: &mut Vec<Finding>,
 ) {
-    let loaded: HashSet<&str> = evidence
-        .iter()
-        .inspect(|_| add(Work::ClaimChecks, 1))
-        .map(|record| record.value().header.id.as_str())
-        .collect();
-    let covered: HashSet<(&str, &str)> = evidence
-        .iter()
-        .flat_map(|record| {
-            record
-                .value()
-                .covers
-                .iter()
-                .map(|capability| (record.value().header.id.as_str(), capability.as_str()))
-        })
-        .inspect(|_| add(Work::ClaimChecks, 1))
-        .collect();
+    let loaded = Counted::new(
+        Work::ClaimLookups,
+        evidence
+            .iter()
+            .inspect(|_| add(Work::ClaimChecks, 1))
+            .map(|record| record.value().header.id.as_str())
+            .collect::<HashSet<&str>>(),
+    );
+    let covered = Counted::new(
+        Work::ClaimLookups,
+        evidence
+            .iter()
+            .flat_map(|record| {
+                record
+                    .value()
+                    .covers
+                    .iter()
+                    .map(|capability| (record.value().header.id.as_str(), capability.as_str()))
+            })
+            .inspect(|_| add(Work::ClaimChecks, 1))
+            .collect::<HashSet<(&str, &str)>>(),
+    );
+    let present = Counted::new(Work::ClaimLookups, present);
     let prefix = DocType::Evidence.id_prefix();
     for cap in caps {
         let capability = cap.value().header.id.as_str();
@@ -1923,6 +1930,7 @@ fn names_in_code_span(text: &str, path: &str) -> bool {
 /// The contents of the code spans of one paragraph: a run of backticks opens
 /// a span that the next run of the same length closes.
 fn code_spans(paragraph: &str) -> Vec<&str> {
+    add(Work::ParagraphBytes, paragraph.len());
     let bytes = paragraph.as_bytes();
     let run = |from: usize| bytes[from..].iter().take_while(|b| **b == b'`').count();
     let mut spans = Vec::new();
@@ -2124,7 +2132,7 @@ mod tests {
         claims: usize,
         records: usize,
         slugs: &[String],
-    ) -> (usize, usize) {
+    ) -> (usize, usize, usize) {
         let ids: Vec<String> = (0..capabilities).map(|n| format!("c{n}")).collect();
         let marker = format!("<!-- raf:claim evidence={} -->\n", slugs.join(","));
         let purpose = format!("Purpose.\n{}", format!("\nx\n{marker}").repeat(claims));
@@ -2159,7 +2167,7 @@ mod tests {
         )
         .expect("a workspace");
         // The slugs of the claims, and the records entered into the sets once.
-        let ceiling = capabilities * claims * slugs.len() + records * (capabilities + 1);
+        let ceiling = 2 * capabilities * claims * slugs.len() + records * (capabilities + 1);
         let ((claim_edges, missing), tally) = measure(ceiling, || {
             let plan = Workplan::load(&tree, &source);
             let missing = plan
@@ -2173,7 +2181,11 @@ mod tests {
             claim_edges,
             capabilities * claims * records_named(slugs, records)
         );
-        (tally.get(Work::ClaimChecks), missing)
+        (
+            tally.get(Work::ClaimChecks),
+            tally.get(Work::ClaimLookups),
+            missing,
+        )
     }
 
     /// How many of `slugs` name one of the first `records` records.
@@ -2196,13 +2208,17 @@ mod tests {
     fn the_claims_of_many_capabilities_are_judged_against_sets_built_once() {
         let slugs: Vec<String> = ["r0", "r1", "ghost"].map(String::from).to_vec();
         for (capabilities, claims, records) in [(4, 500, 3), (8, 250, 40)] {
-            let (checks, missing) = judge_claims(capabilities, claims, records, &slugs);
+            let (checks, lookups, missing) = judge_claims(capabilities, claims, records, &slugs);
             let total_slugs = capabilities * claims * slugs.len();
             // Each record enters `loaded` once and `covered` once for each
             // capability it covers.
             let entered = records + records * capabilities;
             assert_eq!(checks, total_slugs + entered, "{capabilities} x {claims}");
             assert_eq!(missing, capabilities * claims, "one finding per ghost");
+            // Each slug is looked up among the loaded records, and then among
+            // the records the capability is covered by or among those that
+            // exist as files: two lookups for each slug.
+            assert_eq!(lookups, 2 * total_slugs, "{capabilities} x {claims}");
         }
     }
 

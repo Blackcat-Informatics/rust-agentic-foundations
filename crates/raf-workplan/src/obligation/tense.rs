@@ -161,9 +161,9 @@ const MARKER_WORD: &str = "proposed";
 /// Whether the words from `at` spell `phrase`. The marker word counts only in
 /// the case of prose.
 fn matches_at<T>(words: &[Word<'_, T>], at: usize, phrase: &str) -> bool {
-    add(Work::PhraseTests, 1);
     let mut spelled = false;
     for (offset, part) in phrase.split(' ').enumerate() {
+        add(Work::PhraseTests, 1);
         let Some(word) = words.get(at + offset) else {
             return false;
         };

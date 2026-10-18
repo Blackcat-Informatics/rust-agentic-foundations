@@ -11,6 +11,10 @@
 //! instead of running to the end. The tallies belong to the calling thread, so
 //! only work done on that thread is counted.
 
+use std::borrow::Borrow;
+use std::collections::{BTreeSet, HashSet};
+use std::hash::Hash;
+
 /// One kind of work that is counted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Work {
@@ -42,11 +46,69 @@ pub(crate) enum Work {
     ExclusionTests,
     /// A public item, re-export or test judged for coverage.
     EntriesJudged,
+    /// A slug looked up in a set the claims are judged against.
+    ClaimLookups,
+    /// A slug looked up in a set of change slugs.
+    SlugLookups,
+    /// A path looked up among the paths a section names.
+    NamedLookups,
+    /// A byte of a paragraph read for its code spans.
+    ParagraphBytes,
+    /// A line compared while the first prose line of a range is found.
+    RangeStarts,
+}
+
+/// A set that can be asked whether it holds a value.
+pub(crate) trait Holds<Q: ?Sized> {
+    /// Whether the set holds `value`.
+    fn holds(&self, value: &Q) -> bool;
+}
+
+impl<T: Eq + Hash + Borrow<Q>, Q: Eq + Hash + ?Sized> Holds<Q> for HashSet<T> {
+    fn holds(&self, value: &Q) -> bool {
+        self.contains(value)
+    }
+}
+
+impl<T: Ord + Borrow<Q>, Q: Ord + ?Sized> Holds<Q> for BTreeSet<T> {
+    fn holds(&self, value: &Q) -> bool {
+        self.contains(value)
+    }
+}
+
+impl<S: Holds<Q>, Q: ?Sized> Holds<Q> for &S {
+    fn holds(&self, value: &Q) -> bool {
+        (**self).holds(value)
+    }
+}
+
+/// A set whose every lookup is counted as one unit of a kind of [`Work`]. The
+/// count is part of the lookup, so a lookup that does not go through the set
+/// is not counted.
+pub(crate) struct Counted<S> {
+    set: S,
+    work: Work,
+}
+
+impl<S> Counted<S> {
+    /// `set`, counting its lookups as `work`.
+    pub(crate) const fn new(work: Work, set: S) -> Self {
+        Self { set, work }
+    }
+
+    /// Whether the set holds `value`; counts one lookup.
+    pub(crate) fn contains<Q: ?Sized>(&self, value: &Q) -> bool
+    where
+        S: Holds<Q>,
+    {
+        add(self.work, 1);
+        self.set.holds(value)
+    }
 }
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 14;
+const KINDS: usize = 19;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -65,6 +127,11 @@ const ALL: [Work; KINDS] = [
     Work::SlugsListed,
     Work::ExclusionTests,
     Work::EntriesJudged,
+    Work::ClaimLookups,
+    Work::SlugLookups,
+    Work::NamedLookups,
+    Work::ParagraphBytes,
+    Work::RangeStarts,
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].
