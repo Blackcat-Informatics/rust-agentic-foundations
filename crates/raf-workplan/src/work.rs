@@ -28,11 +28,13 @@ pub(crate) enum Work {
     ProseLinesScanned,
     /// A heading judged by the rules of current rationale.
     HeadingsScanned,
+    /// A binding path tested against the paths a section names.
+    NamingLookups,
 }
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 7;
+const KINDS: usize = 8;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -44,6 +46,7 @@ const ALL: [Work; KINDS] = [
     Work::ConditionsScan,
     Work::ProseLinesScanned,
     Work::HeadingsScanned,
+    Work::NamingLookups,
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].

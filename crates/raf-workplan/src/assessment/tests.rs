@@ -8,11 +8,14 @@
 use std::collections::BTreeSet;
 
 use raf_okf::{Body, CapabilitySection, Document, InputKind, Profile, Rule};
+use raf_source::{MemoryTree, Workspace};
 
 use super::{
     AssessError, InputChange, MovedInput, Naming, is_authored, naming, parse_subject, record_slug,
     symbol_inputs,
 };
+use crate::Workplan;
+use crate::work::{Work, measure, measure_kind};
 
 #[test]
 fn the_record_slug_is_the_capability_slug_and_the_section_and_no_two_sections_share_one() {
@@ -315,4 +318,130 @@ fn widening_a_section_with_weak_names_never_removes_an_input() {
         let (before, after) = (inputs(&text), inputs(&wider));
         assert!(before.is_subset(&after), "{code:?}\n{text}\n{wider}");
     }
+}
+
+// --- the work of judging a section --------------------------------------------
+
+/// The most lines of a long Contract that may be read while it is judged: a
+/// pass that reads them again for each line stops here at once instead of
+/// running to the end.
+const LINES: usize = 12_100;
+
+/// A repository with the crate `demo` of `symbols` functions and the
+/// capability `omega`, bound to all of them, whose Contract is `contract`.
+fn omega(symbols: usize, contract: &str) -> (MemoryTree, Workspace) {
+    use std::fmt::Write as _;
+
+    let mut lib = String::new();
+    let mut paths = Vec::new();
+    for n in 0..symbols {
+        writeln!(lib, "pub fn f{n}() {{}}").expect("a string takes the text");
+        paths.push(format!("demo::f{n}"));
+    }
+    let source = Workspace::load(
+        &MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+            ),
+            ("src/lib.rs", lib.as_str()),
+        ]),
+        &["."],
+    )
+    .expect("a workspace");
+    let mut sections = String::new();
+    for name in [
+        "Purpose",
+        "Contract",
+        "Usage",
+        "Examples",
+        "Constraints",
+        "Explanation",
+        "Verification",
+    ] {
+        let text = if name == "Contract" {
+            contract
+        } else {
+            "Text."
+        };
+        write!(sections, "## {name}\n\n{text}\n\n").expect("a string takes the text");
+    }
+    let document = format!(
+        "---\ntype: Capability\nid: cap:omega\ntitle: Omega\ndescription: Omega.\n\
+         state: implementing\nbindings:\n  code: [{}]\n  tests: []\n  examples: []\n\
+         depends: []\n---\n\n# Omega\n\n{sections}",
+        paths.join(", ")
+    );
+    let tree = MemoryTree::from([("docs/capabilities/omega.md", document.as_str())]);
+    (tree, source)
+}
+
+/// Every binding is tested against the names of a section once to find
+/// whether any is named strongly and once more to say how it is named, and
+/// the first strong name ends the first look.
+#[test]
+fn the_bindings_are_tested_against_the_names_once_to_find_a_strong_one_and_once_to_name_them() {
+    for count in [2_000, 10_000] {
+        let paths: Vec<String> = (0..count).map(|n| format!("demo::f{n}")).collect();
+        let tested = |names: &BTreeSet<String>| {
+            let (inputs, tally) = measure(2 * count + 10, || {
+                symbol_inputs(names, paths.iter().map(String::as_str))
+            });
+            (inputs.len(), tally.get(Work::NamingLookups))
+        };
+        // Nothing is named: every binding is an input, found out by looking
+        // at all of them, then named.
+        assert_eq!(tested(&named(&[])), (count, 2 * count));
+        // The last is named: the first look runs to it.
+        let last = format!("demo::f{}", count - 1);
+        assert_eq!(tested(&named(&[last.as_str()])), (1, 2 * count));
+        // The first is named: the first look ends at it.
+        assert_eq!(tested(&named(&["demo::f0"])), (1, 1 + count));
+    }
+}
+
+/// A Contract of twelve thousand lines is read once, line by line, for the
+/// paths its code spans name, and each of the bound symbols is tested once
+/// for how it is named.
+#[test]
+fn a_long_contract_is_read_once_and_its_symbols_are_named_in_one_pass() {
+    use std::fmt::Write as _;
+
+    let line = "The window keeps the values it was given, in order, and no more.\n";
+    let contract = format!("\n{}", line.repeat(12_000));
+    let (tree, source) = omega(2_000, &contract);
+    let plan = Workplan::load(&tree, &source);
+    let (context, tally) = measure_kind(Work::ContractLines, LINES, || {
+        plan.assess_context("cap:omega#contract")
+    });
+    let context = context.expect("a context");
+    // Nothing is named, so every binding is an input.
+    assert_eq!(context.symbols.len(), 2_000);
+    assert!(context.symbols.iter().all(|symbol| !symbol.named));
+    let cap = &plan.capabilities()[0];
+    let section = cap
+        .body()
+        .sections()
+        .iter()
+        .find(|section| section.slug() == "contract")
+        .expect("the Contract");
+    let prose = crate::graph::prose_of(cap.body(), section).expect("the section");
+    // One look for each line, and one for the end of the text.
+    assert!(prose.lines().count() > 12_000);
+    assert_eq!(tally.get(Work::ContractLines), prose.lines().count() + 1);
+    assert_eq!(tally.get(Work::NamingLookups), 2 * 2_000);
+
+    let spans = (0..2_000).fold(String::new(), |mut text, n| {
+        let _ = write!(text, "`demo::f{n}` ");
+        text
+    });
+    let (tree, source) = omega(2_000, &format!("\n{spans}\n"));
+    let plan = Workplan::load(&tree, &source);
+    let (context, tally) = measure_kind(Work::NamingLookups, 2_010, || {
+        plan.assess_context("cap:omega#contract")
+    });
+    let context = context.expect("a context");
+    assert_eq!(context.symbols.len(), 2_000);
+    assert!(context.symbols.iter().all(|symbol| symbol.named));
+    assert_eq!(tally.get(Work::NamingLookups), 1 + 2_000);
 }

@@ -77,6 +77,7 @@ use crate::graph::{BindingKind, SectionId, code_span_paths, prose_of};
 use crate::lifecycle::section_digest;
 use crate::lookup::write_findings;
 use crate::record::{self, Record, RecordError, RecordOptions};
+use crate::work::{Work, add};
 use crate::{Finding, Loaded, Workplan};
 
 /// The prefix of a capability id.
@@ -631,6 +632,7 @@ pub(crate) enum Naming {
 /// `path` (see [`Naming`]): the strongest of its whole path and each of its
 /// `::`-suffixes that a span holds as a whole path.
 pub(crate) fn naming(named: &BTreeSet<String>, path: &str) -> Naming {
+    add(Work::NamingLookups, 1);
     let mut rest = path;
     loop {
         match rest.split_once("::") {
