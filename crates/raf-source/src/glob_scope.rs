@@ -281,23 +281,52 @@ struct Supply {
     /// For each name and name space, the modules that bind the name there
     /// themselves.
     binders: BTreeMap<(SharedStr, usize), Vec<usize>>,
-    /// For each item, name and name space, and reading module left out or
-    /// none, the modules that hold the item as itself under the name, apart
-    /// from the module left out: those that bind it themselves, and those a
-    /// glob read brings it in to from one of them, through views that hold
-    /// it as itself and modules that do not bind the name themselves.
-    holders: BTreeMap<(ItemId, SharedStr, usize, Option<usize>), BTreeSet<usize>>,
-    /// For each item, name and name space, and module among its holders,
-    /// the holders that module's glob reads lead to, through views that hold
-    /// it as itself, until a module that binds the name itself.
-    leads: BTreeMap<(ItemId, SharedStr, usize, usize), BTreeSet<usize>>,
-    /// The glob reads looked at and the modules found, not yet charged.
-    steps: usize,
+    /// For each item, name and name space, the modules that hold the item as
+    /// itself under the name and which of them every way to each passes
+    /// through (see [`Holding`]).
+    holdings: BTreeMap<(ItemId, SharedStr, usize), Holding>,
+    /// A refusal by the budget during a search, returned once it ends.
+    refused: Option<LoadError>,
+}
+
+/// The modules that hold an item as itself under a name, and their
+/// dominators. The holders are the modules that bind the name themselves
+/// with the item, and those a glob read brings it in to from a holder,
+/// through a view that holds it as itself, where the reading module does not
+/// bind the name itself. From a root above the modules that bind it, a
+/// holder dominates another when every way from the root to the other passes
+/// through it: a holder keeps the item apart from a module exactly when the
+/// module does not dominate it, as leaving the module out leaves a way to it.
+#[derive(Default)]
+struct Holding {
+    /// The place of each holder in the tree of dominators, as the entry and
+    /// the exit of a walk of the tree: one dominates another when its span
+    /// holds the other's.
+    span: BTreeMap<usize, (usize, usize)>,
+}
+
+impl Holding {
+    /// True when `module` holds the item.
+    fn holds(&self, module: usize) -> bool {
+        self.span.contains_key(&module)
+    }
+
+    /// True when every way to the holder `held` passes through `module`.
+    fn dominates(&self, module: usize, held: usize) -> bool {
+        match (self.span.get(&module), self.span.get(&held)) {
+            (Some(outer), Some(inner)) => outer.0 <= inner.0 && inner.1 <= outer.1,
+            _ => false,
+        }
+    }
 }
 
 /// What the search for the holders of an item charges for each glob read it
-/// looks at and each module it finds: an entry of a set of modules.
+/// looks at, each holder it finds and each step of finding their dominators:
+/// an entry of a set of modules.
 const SUPPLY_STEP_BYTES: usize = btree_entry::<usize, ()>();
+
+/// No node: the parent or ancestor of the root of the holder graph.
+const NONE: usize = usize::MAX;
 
 /// What a view allocates at most beyond its class and its names: its record,
 /// its entry among the views of every module and class (with a copy of the
@@ -725,6 +754,15 @@ impl Index {
     /// module's own globs, and so through the read itself, holds the
     /// companions as well while the read delivers them, so it never
     /// justifies their drop: rustc reads that binding as the ambiguity.
+    ///
+    /// The reads are answered together: for each item a read with
+    /// companions delivers as itself, the reads that deliver it are listed
+    /// once, the widest first, and the reads with the same companions, which
+    /// leave out the same reads, take for each item the widest read left and
+    /// the widest of another view, asking `supplied` only of those, in that
+    /// order. So the answer costs a step for each item each read holds and
+    /// each read left out for each set of companions, and not one for each
+    /// pair of reads.
     fn redelivered(
         &self,
         module: usize,
@@ -733,49 +771,108 @@ impl Index {
         at: usize,
         supplied: &mut dyn FnMut(usize, ItemId) -> bool,
     ) -> Vec<Option<Level>> {
-        let firm: Vec<Vec<Held>> = found
+        let companions: Vec<Vec<ItemId>> = found
             .iter()
             .map(|(_, held)| {
                 held.iter()
-                    .filter(|entry| !entry.1.is_companion())
-                    .copied()
+                    .filter(|entry| entry.1.is_companion())
+                    .map(|entry| entry.0)
                     .collect()
             })
             .collect();
-        (0..found.len())
-            .map(|this| {
-                if !found[this].1.iter().any(|entry| entry.1.is_companion()) {
-                    return None;
+        let mut answer = vec![None; found.len()];
+        if companions.iter().all(Vec::is_empty) {
+            return answer;
+        }
+        // The items asked: those a read with companions delivers as itself.
+        let asked: BTreeSet<ItemId> = found
+            .iter()
+            .zip(&companions)
+            .filter(|(_, companions)| !companions.is_empty())
+            .flat_map(|((_, held), _)| held.iter())
+            .filter(|entry| !entry.1.is_companion())
+            .map(|entry| entry.0)
+            .collect();
+        let hidden: BTreeSet<ItemId> = companions.iter().flatten().copied().collect();
+        // For each item asked, the reads that deliver it as itself, at the
+        // level `module` holds it through each, the widest first, with
+        // whether the read's module binds the name itself; and for each
+        // companion, the reads that deliver it in any way. Whether a module
+        // holds the item apart from `module` is asked only of a read that
+        // is not left out, in that order, until the answer is known.
+        let mut supporters: BTreeMap<ItemId, Vec<(Level, usize, bool)>> = BTreeMap::new();
+        let mut carriers: BTreeMap<ItemId, Vec<usize>> = BTreeMap::new();
+        for (other, (read, held)) in found.iter().enumerate() {
+            let own = self.binds_itself(read.target, name, at);
+            let glob = self.level_of(&self.uses[read.glob].vis, module);
+            for (id, level) in held {
+                if hidden.contains(id) {
+                    carriers.entry(*id).or_default().push(other);
                 }
-                let mut widest: Option<Level> = None;
-                for other in 0..found.len() {
-                    if found[other].0.view == found[this].0.view
-                        || found[this].1.iter().any(|entry| {
-                            entry.1.is_companion()
-                                && found[other]
-                                    .1
-                                    .binary_search_by_key(&entry.0, |held| held.0)
-                                    .is_ok()
-                        })
-                    {
-                        continue;
-                    }
-                    let target = found[other].0.target;
-                    let own = self.binds_itself(target, name, at);
-                    let glob = self.level_of(&self.uses[found[other].0.glob].vis, module);
-                    for (id, level) in &firm[other] {
-                        if !firm[this].iter().any(|held| held.0 == *id)
-                            || !(own || supplied(target, *id))
-                        {
-                            continue;
+                if !level.is_companion() && asked.contains(id) {
+                    supporters
+                        .entry(*id)
+                        .or_default()
+                        .push((self.meet(glob, *level), other, own));
+                }
+            }
+        }
+        for list in supporters.values_mut() {
+            list.sort_by_key(|(level, other, _)| (self.width(*level), *other));
+        }
+        // The reads with the same companions leave out the same supporters,
+        // so they are answered together: for each item, the widest
+        // supporter left, and the widest of another view than that one's.
+        let mut groups: BTreeMap<&[ItemId], Vec<usize>> = BTreeMap::new();
+        for (this, companions) in companions.iter().enumerate() {
+            if !companions.is_empty() {
+                groups.entry(companions.as_slice()).or_default().push(this);
+            }
+        }
+        for (companions, members) in groups {
+            let left_out: BTreeSet<usize> = companions
+                .iter()
+                .flat_map(|id| carriers.get(id).into_iter().flatten())
+                .copied()
+                .collect();
+            let mut best: BTreeMap<ItemId, [Option<(Level, usize)>; 2]> = BTreeMap::new();
+            for &this in &members {
+                let view = found[this].0.view;
+                for (id, _) in found[this].1.iter().filter(|entry| !entry.1.is_companion()) {
+                    let pair = best.entry(*id).or_insert_with(|| {
+                        let mut pair = [None, None];
+                        for &(level, other, own) in supporters.get(id).into_iter().flatten() {
+                            if left_out.contains(&other)
+                                || !(own || supplied(found[other].0.target, *id))
+                            {
+                                continue;
+                            }
+                            let seen = found[other].0.view;
+                            match pair {
+                                [None, _] => pair[0] = Some((level, seen)),
+                                [Some((_, first)), None] if first != seen => {
+                                    pair[1] = Some((level, seen));
+                                    break;
+                                }
+                                _ => {}
+                            }
                         }
-                        let met = self.meet(glob, *level);
-                        widest = Some(widest.map_or(met, |known| self.wider(known, met)));
+                        pair
+                    });
+                    let chosen = match *pair {
+                        [Some((level, seen)), _] if seen != view => Some(level),
+                        [_, Some((level, _))] => Some(level),
+                        _ => None,
+                    };
+                    if let Some(level) = chosen {
+                        answer[this] = Some(
+                            answer[this].map_or(level, |known: Level| self.wider(known, level)),
+                        );
                     }
                 }
-                widest
-            })
-            .collect()
+            }
+        }
+        answer
     }
 
     /// True when `module` binds `name` itself in the name space at `at`, as
@@ -828,11 +925,12 @@ impl Index {
     /// one. That is only asked here, of tables that no longer change, and
     /// only for a read that holds companions: the modules that hold an item
     /// under a name are found once, from the modules that bind it, along the
-    /// glob reads whose views hold it, and again without the reading module
-    /// only when the reading module is among them. So a chain of globs costs
-    /// a step for each link and each item, name and name space asked, and
-    /// each step is charged as an entry of a set of modules
-    /// ([`SUPPLY_STEP_BYTES`]).
+    /// glob reads whose views hold it, with their dominators, which answer
+    /// for every reading module at once (see [`Holding`]). So the search
+    /// costs a step for each glob read of a holder, each holder and each
+    /// step of finding the dominators, once for each item, name and name
+    /// space asked, and each step is charged as an entry of a set of modules
+    /// ([`SUPPLY_STEP_BYTES`]) before it is made.
     ///
     /// The names of each view that hold a companion, and for each module
     /// those of the views its globs read, are listed as temporaries that are
@@ -878,14 +976,14 @@ impl Index {
             for (name, at) in names {
                 let found = self.read_lists(module, name, *at);
                 let supply = supply.get_or_insert_with(|| self.supply(&companions));
+                let charge =
+                    |steps: usize| meter.items(steps * SUPPLY_STEP_BYTES, &file, Some(line));
                 let redelivered = self.redelivered(module, &found, name, *at, &mut |from, id| {
-                    self.supplied(supply, from, module, name, *at, id)
+                    self.supplied(supply, &charge, from, module, name, *at, id)
                 });
-                meter.items(
-                    std::mem::take(&mut supply.steps) * SUPPLY_STEP_BYTES,
-                    &file,
-                    Some(line),
-                )?;
+                if let Some(refused) = supply.refused.take() {
+                    return Err(refused);
+                }
                 for ((read, _), redelivered) in found.iter().zip(redelivered) {
                     let Some(level) = redelivered else {
                         continue;
@@ -964,117 +1062,140 @@ impl Index {
 
     /// True when `from` holds `id` as itself under `name` in the name space
     /// at `at` apart from the reading module `reader` (see
-    /// [`Index::record_drops`]): it holds the item, and its glob reads do not
-    /// lead to the reading module, or they lead to the item without it.
+    /// [`Index::record_drops`]): it holds the item, and the reading module
+    /// does not dominate it among the holders (see [`Holding`]), so the
+    /// item reaches it by a way that does not pass through the reading
+    /// module. A refusal by the budget answers false and is kept in
+    /// `supply`.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "one question, the search state and the budget it is charged to"
+    )]
     fn supplied(
         &self,
         supply: &mut Supply,
+        charge: &dyn Fn(usize) -> Result<(), LoadError>,
         from: usize,
         reader: usize,
         name: &SharedStr,
         at: usize,
         id: ItemId,
     ) -> bool {
-        if !self.holders(supply, name, at, id, None).contains(&from) {
+        if supply.refused.is_some() || from == reader {
             return false;
         }
-        if !self.leads(supply, name, at, id, from).contains(&reader) {
-            return true;
-        }
-        self.holders(supply, name, at, id, Some(reader))
-            .contains(&from)
-    }
-
-    /// The holders of `id` under `name` in the name space at `at` that the
-    /// glob reads of `from`, one of them, lead to (see [`Supply::leads`]),
-    /// found once.
-    fn leads<'s>(
-        &self,
-        supply: &'s mut Supply,
-        name: &SharedStr,
-        at: usize,
-        id: ItemId,
-        from: usize,
-    ) -> &'s BTreeSet<usize> {
-        let key = (id, name.clone(), at, from);
-        if !supply.leads.contains_key(&key) {
-            let mut found: BTreeSet<usize> = BTreeSet::new();
-            let mut work = vec![from];
-            let mut steps = 0;
-            while let Some(next) = work.pop() {
-                for read in self.reads_of(next) {
-                    steps += 1;
-                    tally::add(Work::SupplySteps, 1);
-                    let target = read.target;
-                    if found.contains(&target)
-                        || !self.holds_firm(read.view, name, at, id)
-                        || !supply.holders[&(id, name.clone(), at, None)].contains(&target)
-                    {
-                        continue;
-                    }
-                    found.insert(target);
-                    if !self.binds_itself(target, name, at) {
-                        work.push(target);
-                    }
+        let key = (id, name.clone(), at);
+        if !supply.holdings.contains_key(&key) {
+            match self.holding(supply, charge, name, at, id) {
+                Ok(holding) => {
+                    supply.holdings.insert(key.clone(), holding);
+                }
+                Err(refused) => {
+                    supply.refused = Some(refused);
+                    return false;
                 }
             }
-            supply.steps += steps + found.len();
-            supply.leads.insert(key.clone(), found);
         }
-        &supply.leads[&key]
+        let holding = &supply.holdings[&key];
+        holding.holds(from) && !holding.dominates(reader, from)
     }
 
-    /// The modules that hold `id` as itself under `name` in the name space at
-    /// `at`, leaving out `without` (see [`Supply::holders`]), found once.
-    fn holders<'s>(
+    /// The holders of `id` under `name` in the name space at `at` and their
+    /// dominators (see [`Holding`]): the holders are found from the modules
+    /// that bind the name with the item, along the glob reads whose views
+    /// hold it, and the dominators by the algorithm of Lengauer and Tarjan,
+    /// with path compression. Each glob read looked at, each holder and each
+    /// step of the algorithm is charged before it is made.
+    fn holding(
         &self,
-        supply: &'s mut Supply,
+        supply: &Supply,
+        charge: &dyn Fn(usize) -> Result<(), LoadError>,
         name: &SharedStr,
         at: usize,
         id: ItemId,
-        without: Option<usize>,
-    ) -> &'s BTreeSet<usize> {
-        let key = (id, name.clone(), at, without);
-        if !supply.holders.contains_key(&key) {
-            let mut found: BTreeSet<usize> = BTreeSet::new();
-            let mut work: Vec<usize> = Vec::new();
-            for &module in supply
-                .binders
-                .get(&(name.clone(), at))
-                .into_iter()
-                .flatten()
+    ) -> Result<Holding, LoadError> {
+        let mut step = |count: usize| {
+            tally::add(Work::SupplySteps, count);
+            charge(count)
+        };
+        // The graph: node 0 is the root, above each module that binds the
+        // name with the item; an edge leads from a holder to a module that
+        // a glob read of a view that holds the item brings it in to.
+        let mut nodes: Vec<usize> = vec![NONE];
+        let mut place: BTreeMap<usize, usize> = BTreeMap::new();
+        let mut successors: Vec<Vec<usize>> = vec![Vec::new()];
+        for &module in supply
+            .binders
+            .get(&(name.clone(), at))
+            .into_iter()
+            .flatten()
+        {
+            if self.scopes[module]
+                .get(name.as_str())
+                .is_some_and(|entry| entry.defs[at].get(id).is_some())
+                && !place.contains_key(&module)
             {
-                if Some(module) != without
-                    && self.scopes[module]
-                        .get(name.as_str())
-                        .is_some_and(|entry| entry.defs[at].get(id).is_some())
-                {
-                    found.insert(module);
-                    work.push(module);
-                }
+                step(1)?;
+                place.insert(module, nodes.len());
+                successors[0].push(nodes.len());
+                nodes.push(module);
+                successors.push(Vec::new());
             }
-            let mut steps = found.len();
-            while let Some(next) = work.pop() {
-                for &(module, place) in &supply.readers[next] {
-                    steps += 1;
-                    tally::add(Work::SupplySteps, 1);
-                    if Some(module) == without
-                        || found.contains(&module)
-                        || self.binds_itself(module, name, at)
-                    {
-                        continue;
-                    }
-                    let read = &self.globs.reads[module][place];
-                    if self.holds_firm(read.view, name, at, id) {
-                        found.insert(module);
-                        work.push(module);
-                    }
-                }
-            }
-            supply.steps += steps;
-            supply.holders.insert(key.clone(), found);
         }
-        &supply.holders[&key]
+        let mut next = 1;
+        while next < nodes.len() {
+            let held = nodes[next];
+            for &(module, at_read) in &supply.readers[held] {
+                step(1)?;
+                if self.binds_itself(module, name, at)
+                    || !self.holds_firm(self.globs.reads[module][at_read].view, name, at, id)
+                {
+                    continue;
+                }
+                let node = if let Some(node) = place.get(&module) {
+                    *node
+                } else {
+                    step(1)?;
+                    place.insert(module, nodes.len());
+                    nodes.push(module);
+                    successors.push(Vec::new());
+                    nodes.len() - 1
+                };
+                successors[next].push(node);
+            }
+            next += 1;
+        }
+        let dominator = dominators(&successors, &mut step)?;
+        // Each holder's span in a walk of the tree of dominators.
+        let mut children: Vec<Vec<usize>> = vec![Vec::new(); nodes.len()];
+        for (node, parent) in dominator.iter().enumerate().skip(1) {
+            if *parent != NONE {
+                children[*parent].push(node);
+            }
+        }
+        let mut span = vec![(0, 0); nodes.len()];
+        let mut clock = 0;
+        let mut walk: Vec<(usize, usize)> = vec![(0, 0)];
+        while let Some((node, child)) = walk.pop() {
+            if child == 0 {
+                span[node].0 = clock;
+                clock += 1;
+            }
+            if let Some(&next) = children[node].get(child) {
+                step(1)?;
+                walk.push((node, child + 1));
+                walk.push((next, 0));
+            } else {
+                span[node].1 = clock;
+                clock += 1;
+            }
+        }
+        Ok(Holding {
+            span: place
+                .into_iter()
+                .map(|(module, node)| (module, span[node]))
+                .collect(),
+        })
     }
 
     /// True when a glob of `module` brings in something under `name` in the
@@ -1852,10 +1973,103 @@ impl Index {
     }
 }
 
+/// The immediate dominator of each node of the graph `successors`, whose
+/// root is node 0 and whose every node the root reaches, by the algorithm of
+/// Lengauer and Tarjan with path compression; [`NONE`] for the root. Each
+/// edge looked at and each node numbered is counted to `step` before.
+fn dominators(
+    successors: &[Vec<usize>],
+    step: &mut dyn FnMut(usize) -> Result<(), LoadError>,
+) -> Result<Vec<usize>, LoadError> {
+    let count = successors.len();
+    let mut predecessors: Vec<Vec<usize>> = vec![Vec::new(); count];
+    for (node, next) in successors.iter().enumerate() {
+        for &to in next {
+            step(1)?;
+            predecessors[to].push(node);
+        }
+    }
+    // Number the nodes in a depth-first walk from the root.
+    let mut number = vec![NONE; count];
+    let mut vertex: Vec<usize> = Vec::with_capacity(count);
+    let mut parent = vec![NONE; count];
+    let mut walk: Vec<(usize, usize)> = vec![(0, NONE)];
+    while let Some((node, from)) = walk.pop() {
+        if number[node] != NONE {
+            continue;
+        }
+        step(1)?;
+        number[node] = vertex.len();
+        vertex.push(node);
+        parent[node] = from;
+        for &to in successors[node].iter().rev() {
+            if number[to] == NONE {
+                walk.push((to, node));
+            }
+        }
+    }
+    let mut semi: Vec<usize> = number.clone();
+    let mut ancestor = vec![NONE; count];
+    let mut label: Vec<usize> = (0..count).collect();
+    let mut dominator = vec![NONE; count];
+    let mut bucket: Vec<Vec<usize>> = vec![Vec::new(); count];
+    let mut path: Vec<usize> = Vec::new();
+    let mut eval =
+        |node: usize, ancestor: &mut Vec<usize>, label: &mut Vec<usize>, semi: &[usize]| {
+            if ancestor[node] == NONE {
+                return node;
+            }
+            let mut at = node;
+            while ancestor[ancestor[at]] != NONE {
+                path.push(at);
+                at = ancestor[at];
+            }
+            while let Some(at) = path.pop() {
+                let up = ancestor[at];
+                if semi[label[up]] < semi[label[at]] {
+                    label[at] = label[up];
+                }
+                ancestor[at] = ancestor[up];
+            }
+            label[node]
+        };
+    for &node in vertex.iter().skip(1).rev() {
+        for &from in &predecessors[node] {
+            step(1)?;
+            if number[from] == NONE {
+                continue;
+            }
+            let least = eval(from, &mut ancestor, &mut label, &semi);
+            if semi[least] < semi[node] {
+                semi[node] = semi[least];
+            }
+        }
+        bucket[vertex[semi[node]]].push(node);
+        let up = parent[node];
+        ancestor[node] = up;
+        for waiting in std::mem::take(&mut bucket[up]) {
+            step(1)?;
+            let least = eval(waiting, &mut ancestor, &mut label, &semi);
+            dominator[waiting] = if semi[least] < semi[waiting] {
+                least
+            } else {
+                up
+            };
+        }
+    }
+    for &node in vertex.iter().skip(1) {
+        if dominator[node] != vertex[semi[node]] {
+            dominator[node] = dominator[dominator[node]];
+        }
+    }
+    Ok(dominator)
+}
+
 #[cfg(test)]
 mod tests {
     //! The search for the modules that hold an item apart from a reading
-    //! module grows in step with the chain of globs it searches.
+    //! module grows in step with the globs it searches, whatever the shape
+    //! of the chain, and does not run for a read that holds no companion.
 
     use std::fmt::Write as _;
 
@@ -1867,39 +2081,69 @@ mod tests {
 
     /// The most the search may count while one crate loads: a search that
     /// runs once for each reader over the whole chain passes it at once.
-    const CEILING: usize = 200 * UNIT;
+    const CEILING: usize = 400 * UNIT;
 
     const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n";
 
-    /// A chain of `n` pass-through globs of the module `d`, which defines a
-    /// struct `X`, and `n` readers that each glob the end of the chain and
-    /// `a`, which globs `d` publicly and `p`, which defines another `X`,
-    /// privately: each reader reads `p::X` only as a companion of `d::X`,
-    /// which the chain also brings in apart from the reader.
-    fn chain(n: usize) -> String {
-        let mut lib = String::from(
-            "pub mod d { pub struct X {} }\npub mod p { pub struct X {} }\n\
-             pub mod a { pub use crate::d::*; use crate::p::*; }\npub mod c0 { pub use crate::d::*; }\n",
-        );
+    /// The modules every input starts with: `d` defines a struct `X`, `p`
+    /// defines another, and `a` globs `d` publicly and `p` privately, so a
+    /// reader of `a` reads `p::X` only as a companion of `d::X`.
+    const BASE: &str = "pub mod d { pub struct X {} }\npub mod p { pub struct X {} }\n\
+                        pub mod a { pub use crate::d::*; use crate::p::*; }\n";
+
+    /// A chain of `n` pass-through globs of `d`, `c0` to `c{n-1}`, `c0`
+    /// globbing `d` and the modules `extra` names, and `n` readers that each
+    /// glob `a`, the end of the chain and what `more` names for the reader.
+    fn chain(n: usize, extra: &str, more: &dyn Fn(usize) -> String) -> String {
+        let mut lib = String::from(BASE);
+        writeln!(lib, "pub mod c0 {{ pub use crate::d::*; {extra} }}").expect("write");
         for i in 1..n {
             writeln!(lib, "pub mod c{i} {{ pub use crate::c{}::*; }}", i - 1).expect("write");
         }
         for i in 0..n {
             writeln!(
                 lib,
-                "pub mod r{i} {{ pub use crate::a::*; pub use crate::c{}::*; }}",
-                n - 1
+                "pub mod r{i} {{ pub use crate::a::*; pub use crate::c{}::*; {} }}",
+                n - 1,
+                more(i)
             )
             .expect("write");
         }
         lib
     }
 
-    /// What loading `chain(n)` counts of the search, after checking that a
-    /// reader reads `X` as `d::X` alone.
-    fn counted(n: usize) -> usize {
-        let text = chain(n);
-        let tree: MemoryTree = [("Cargo.toml", DEMO), ("src/lib.rs", text.as_str())]
+    /// The chain, each reader holding the companion.
+    fn plain(n: usize) -> String {
+        chain(n, "", &|_| String::new())
+    }
+
+    /// The chain whose start also globs every reader: each reader holds
+    /// the item through the chain and back from the readers, so each lies
+    /// on a way to the others.
+    fn fan_in(n: usize) -> String {
+        let mut readers = String::new();
+        for i in 0..n {
+            write!(readers, "pub use crate::r{i}::*; ").expect("write");
+        }
+        chain(n, &readers, &|_| String::new())
+    }
+
+    /// The chain whose readers each also glob the one before: a second
+    /// chain, of the readers, nested on the first.
+    fn nested(n: usize) -> String {
+        chain(n, "", &|i| {
+            if i == 0 {
+                String::new()
+            } else {
+                format!("pub use crate::r{}::*;", i - 1)
+            }
+        })
+    }
+
+    /// What loading `lib` counts of the search, and what `self::X` is read
+    /// as from `demo::r0` in the type name space.
+    fn counted(lib: &str) -> (usize, String) {
+        let tree: MemoryTree = [("Cargo.toml", DEMO), ("src/lib.rs", lib)]
             .into_iter()
             .collect();
         let (ws, tally) = measure_kind(Work::SupplySteps, CEILING, || {
@@ -1907,23 +2151,71 @@ mod tests {
         });
         let found = ws
             .resolve_from_in("demo::r0", "self::X", Namespace::Type)
-            .unwrap_or_else(|e| panic!("{e:?}"));
-        assert_eq!(found.path, "demo::d::X");
-        tally.get(Work::SupplySteps)
+            .map_or_else(|e| format!("{e:?}"), |found| found.path);
+        (tally.get(Work::SupplySteps), found)
     }
 
-    #[test]
-    fn the_holders_of_an_item_apart_from_each_reader_of_a_chain_of_globs_are_found_in_steps_linear_in_the_chain()
-     {
-        // The holders of `d::X` are found once for the load and the reads
-        // of the end of the chain followed once: searching the chain again
-        // for each reader grows with the square of the chain.
-        let counts = [1, 2, 3].map(|units| counted(units * UNIT));
+    /// The counts of the search for `build` at one, two and three units,
+    /// each reader reading `d::X` alone, and the asserted growth: the count
+    /// is nonzero and the third unit adds no more than the second.
+    fn assert_linear(build: &dyn Fn(usize) -> String) {
+        let counts = [1, 2, 3].map(|units| {
+            let (count, found) = counted(&build(units * UNIT));
+            assert_eq!(found, "demo::d::X");
+            count
+        });
         let [one, two, three] = counts;
         assert!(one > 0, "the search counted nothing: {counts:?}");
         assert!(
             three + one <= 2 * two,
             "the search grows faster than the chain: {counts:?}"
         );
+    }
+
+    #[test]
+    fn the_holders_of_an_item_apart_from_each_reader_of_a_chain_of_globs_are_found_in_steps_linear_in_the_chain()
+     {
+        // The holders of `d::X` and their dominators are found once for the
+        // load: searching the chain again for each reader grows with the
+        // square of the chain.
+        assert_linear(&plain);
+    }
+
+    #[test]
+    fn the_holders_of_an_item_apart_from_readers_the_start_of_the_chain_globs_back_are_found_in_steps_linear_in_the_chain()
+     {
+        // Each reader lies on a way to the item for every other reader, so
+        // a search without each reader in turn grows with the square of the
+        // readers; the dominators answer for all of them at once.
+        assert_linear(&fan_in);
+    }
+
+    #[test]
+    fn the_holders_of_an_item_apart_from_readers_that_form_a_chain_of_their_own_are_found_in_steps_linear_in_the_chains()
+     {
+        assert_linear(&nested);
+    }
+
+    #[test]
+    fn a_read_that_holds_no_companion_starts_no_search_for_the_holders_of_its_items() {
+        // Each reader reads `X` as `d::X` beside a companion through `a`,
+        // and as `e::X` through `e1` and `e2`, which both carry it from `e`:
+        // only the read of `a` holds a companion, and it shares no item with
+        // the other reads, so nothing is searched, as large as the chain is.
+        let mut lib = String::from(BASE);
+        lib.push_str(
+            "pub mod e { pub struct X {} }\npub mod e1 { pub use crate::e::*; }\n\
+             pub mod e2 { pub use crate::e::*; }\n",
+        );
+        for i in 0..3 * UNIT {
+            writeln!(
+                lib,
+                "pub mod r{i} {{ pub use crate::a::*; pub use crate::e1::*; pub use crate::e2::*; }}"
+            )
+            .expect("write");
+        }
+        let (count, found) = counted(&lib);
+        assert_eq!(count, 0);
+        assert!(found.starts_with("Ambiguous"), "{found}");
     }
 }
