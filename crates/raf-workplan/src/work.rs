@@ -30,11 +30,19 @@ pub(crate) enum Work {
     HeadingsScanned,
     /// A binding path tested against the paths a section names.
     NamingLookups,
+    /// A byte of a line walked or searched while its words are found.
+    ScanBytes,
+    /// A phrase tested against the words at one position.
+    PhraseTests,
+    /// An item of a change record judged for its outcome.
+    OutcomeChecks,
+    /// A change put into the set of slugs the moves of a record are judged against.
+    SlugsListed,
 }
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 8;
+const KINDS: usize = 12;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -47,6 +55,10 @@ const ALL: [Work; KINDS] = [
     Work::ProseLinesScanned,
     Work::HeadingsScanned,
     Work::NamingLookups,
+    Work::ScanBytes,
+    Work::PhraseTests,
+    Work::OutcomeChecks,
+    Work::SlugsListed,
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].

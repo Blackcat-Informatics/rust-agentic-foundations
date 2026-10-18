@@ -20,6 +20,7 @@ use crate::lifecycle::Impact;
 use crate::lookup::{CHANGE_PREFIX, capability_path};
 use crate::model::IndexSlot;
 use crate::roadmap::{self, Gap};
+use crate::work::{Work, add};
 use crate::{Loaded, Workplan};
 
 use super::{
@@ -202,6 +203,7 @@ fn items(plan: &Workplan<'_>, record: &Loaded<Change>, found: &mut Vec<Obligatio
         .changes()
         .iter()
         .filter_map(|change| change.value().header.id.strip_prefix(CHANGE_PREFIX))
+        .inspect(|_| add(Work::SlugsListed, 1))
         .collect();
     let unloaded = plan.unloaded();
     let unloaded: BTreeSet<&str> = unloaded
@@ -209,6 +211,7 @@ fn items(plan: &Workplan<'_>, record: &Loaded<Change>, found: &mut Vec<Obligatio
         .filter_map(|id| id.strip_prefix(CHANGE_PREFIX))
         .collect();
     for (index, item) in value.items.iter().enumerate() {
+        add(Work::OutcomeChecks, 1);
         let problem = match &item.outcome {
             None => OutcomeProblem::Missing,
             Some(Outcome::Moved(target)) if *target == value.header.slug => {

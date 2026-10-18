@@ -7,7 +7,7 @@ subject: cap:workplan-reconcile#verification
 inputs:
   - kind: section
     name: cap:workplan-reconcile#verification
-    digest: 65b67a7ec44d7d62e65d7cc0c21d9b6e48f796f1879a77ce1ac872dc30fdc955
+    digest: 5ad08ece62fc1acfc7f9c10f29f8dbbe13851d3c920453f9c9816e18f973256d
   - kind: symbol
     name: raf_workplan::Workplan::impact
     digest: 10268188ad8f1b4edd6b7279bd236e78f8dafb7e853e0bceb339363b2135c59a
@@ -61,7 +61,7 @@ inputs:
     digest: e06f6932f7a3f48e86afee6bf34ccdd62165d8cf47a430820690bc09696e0bdc
   - kind: symbol
     name: raf_workplan::obligation
-    digest: 0acae68a39e8868c4f303be7e9e063a063ec183ffa2326ffec6cc19bc23d5917
+    digest: 8b9b2a464b5a639a5330755adf40144349ff6a45c40a6cd26dc8325b8da0e68f
   - kind: symbol
     name: raf_workplan::obligation::ClaimProblem
     digest: 326c239924ff76836c168c30cfe1286e5f1095150e492064d5c833d6e6afab29

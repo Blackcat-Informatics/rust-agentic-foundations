@@ -145,16 +145,15 @@ bindings:
     - raf_workplan::test_crate::obligations::a_delivered_capability_that_breaks_another_rule_too_is_not_read_as_unbound
     - raf_workplan::test_crate::obligations::a_hundred_thousand_lines_are_a_hundred_thousand_obligations_in_order
     - raf_workplan::test_crate::obligations::a_listed_capability_that_is_not_loaded_is_an_error_and_not_a_skipped_one
-    - raf_workplan::test_crate::obligations::a_very_long_line_is_one_obligation_and_is_read_in_linear_time
+    - raf_workplan::test_crate::obligations::a_very_long_line_is_one_obligation
     - raf_workplan::test_crate::obligations::an_unknown_change_is_not_a_change_that_did_not_load
     - raf_workplan::test_crate::obligations::an_unterminated_fence_hides_the_rest_of_the_section
     - raf_workplan::test_crate::obligations::an_unterminated_fence_in_an_earlier_section_hides_the_headings_after_it
     - raf_workplan::test_crate::obligations::capabilities_that_bind_nothing_owe_no_binding
     - raf_workplan::test_crate::obligations::fixing_one_fault_removes_exactly_its_lines
-    - raf_workplan::test_crate::obligations::moves_to_unknown_records_cost_the_same_with_few_records_as_with_many
     - raf_workplan::test_crate::obligations::needed_is_a_typed_value_whose_text_starts_with_the_contract_string
     - raf_workplan::test_crate::obligations::only_the_capabilities_the_change_lists_are_judged
-    - raf_workplan::test_crate::obligations::text_that_is_read_as_wording_at_a_hostile_size_does_not_hang
+    - raf_workplan::test_crate::obligations::text_that_is_read_as_wording_at_a_hostile_size_owes_nothing
     - raf_workplan::test_crate::obligations::the_baseline_owes_nothing_and_check_agrees
     - raf_workplan::test_crate::obligations::the_change_is_found_with_or_without_its_prefix
     - raf_workplan::test_crate::obligations::the_proposals_are_those_of_the_graph_for_this_change_only
@@ -215,6 +214,7 @@ bindings:
     - raf_workplan::obligation::tests::every_phrase_has_a_sentence_that_finds_it_and_every_hit_is_a_phrase
     - raf_workplan::obligation::tests::generated_blocks_are_not_read
     - raf_workplan::obligation::tests::hostile_text_is_read_in_linear_time
+    - raf_workplan::obligation::tests::moves_to_unknown_records_cost_the_same_with_few_records_as_with_many
     - raf_workplan::obligation::tests::near_misses_are_not_hits
     - raf_workplan::obligation::tests::only_prose_is_read_and_the_hit_names_its_section_and_line
     - raf_workplan::obligation::tests::only_the_marker_name_is_exempt_in_capitals
@@ -516,6 +516,13 @@ in these two places, so update the usage example and the lifecycle explanation".
 - A `contract_effect: none` fixture asserting the lighter list.
 - A determinism check: two runs print identical output, and the exit code is 0 only
   for an empty list.
+- Cost: text of one very long line of a phrase, of no space, of link openers that
+  never close, of a hundred thousand short lines and of wrapped phrases that never
+  complete is read with the bytes walked equal to the bytes of its lines and the
+  phrases tested growing by no more at the third size than at the second; and a
+  change record of eight thousand items that move to changes that do not exist is
+  judged with the same count of items beside ten records as beside two thousand,
+  the slugs of the changes listed once. The work is counted, not timed.
 - Scenario A and Scenario B are described in
   [the completion gate](./workplan-complete-gate.md) and use `reconcile` at each step.
 - One fixture per trace kind: a claim on a missing, a failing and an over-limit
@@ -593,6 +600,7 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::obligation::tests::every_phrase_has_a_sentence_that_finds_it_and_every_hit_is_a_phrase` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::generated_blocks_are_not_read` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::hostile_text_is_read_in_linear_time` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::moves_to_unknown_records_cost_the_same_with_few_records_as_with_many` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::near_misses_are_not_hits` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::only_prose_is_read_and_the_hit_names_its_section_and_line` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::only_the_marker_name_is_exempt_in_capitals` | test | [Verification](#verification) |
@@ -672,7 +680,7 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::test_crate::obligations::a_delivered_capability_that_breaks_another_rule_too_is_not_read_as_unbound` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::a_hundred_thousand_lines_are_a_hundred_thousand_obligations_in_order` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::a_listed_capability_that_is_not_loaded_is_an_error_and_not_a_skipped_one` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::obligations::a_very_long_line_is_one_obligation_and_is_read_in_linear_time` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::a_very_long_line_is_one_obligation` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::an_unknown_change_is_not_a_change_that_did_not_load` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::an_unterminated_fence_hides_the_rest_of_the_section` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::an_unterminated_fence_in_an_earlier_section_hides_the_headings_after_it` | test | [Verification](#verification) |
@@ -684,12 +692,11 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::test_crate::obligations::equal_inputs_print_equal_output` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by_none` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::fixing_one_fault_removes_exactly_its_lines` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::obligations::moves_to_unknown_records_cost_the_same_with_few_records_as_with_many` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::needed_is_a_typed_value_whose_text_starts_with_the_contract_string` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::only_the_capabilities_the_change_lists_are_judged` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::reconcile_writes_nothing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::text_of_a_proposed_block_is_not_read_for_wording` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::obligations::text_that_is_read_as_wording_at_a_hostile_size_does_not_hang` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::text_that_is_read_as_wording_at_a_hostile_size_owes_nothing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::the_baseline_owes_nothing_and_check_agrees` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::the_binding_obligations_are_the_gaps_of_the_roadmap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::the_change_is_found_with_or_without_its_prefix` | test | [Verification](#verification) |
