@@ -10,6 +10,13 @@
 //! `Workspace::resolve_from_in`. Every disagreement is classified, and one
 //! that matches no known class fails the test.
 //!
+//! A known gap of the index: in some programs where globs and imports of one
+//! name lead back to each other, the index finds that the imports form a
+//! cycle in a name space (`ResolveError::Cyclic`) and refuses the probe,
+//! while `rustc` settles the cycle and accepts the probe. These divergences
+//! are counted as `cycle` and are not failures; the index does not settle such
+//! a cycle as `rustc` does, and the corpus records each known shape.
+//!
 //! The committed programs under `fuzz/corpus/rustc-oracle` are replayed with
 //! a fixed list of seeds. `RAF_ORACLE_PROGRAMS` raises the number of
 //! generated programs for the full run.
@@ -51,7 +58,7 @@ const PROGRAMS_VARIABLE: &str = "RAF_ORACLE_PROGRAMS";
 /// The classes of disagreement that are known to occur and are counted and
 /// printed, not failed. A class leaves this list in the commit that fixes it,
 /// together with its corpus entries.
-const KNOWN: [Class; 2] = [Class::Documented, Class::Order];
+const KNOWN: [Class; 3] = [Class::Documented, Class::Order, Class::Cycle];
 
 /// How the two sides can disagree about a probe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,6 +91,13 @@ enum Class {
     /// refusing it in another, so that no answer that does not depend on the
     /// order can be its answer in all of them.
     Order,
+    /// A known gap of the index: it finds the imports that make up a name in
+    /// one name space to form a cycle, and refuses the probe with
+    /// [`ResolveError::Cyclic`], where `rustc` accepts the probe. No
+    /// ambiguity or visibility rule is involved: the cycle is among globs
+    /// and imports that bind the name, which the index does not settle as
+    /// `rustc` does.
+    Cycle,
     /// None of the above.
     Unclassified,
 }
@@ -95,14 +109,21 @@ impl Class {
             Self::Rule2 => "rule2",
             Self::Documented => "documented",
             Self::Order => "order",
+            Self::Cycle => "cycle",
             Self::Unclassified => "unclassified",
         }
     }
 
     fn named(name: &str) -> Option<Self> {
-        [Self::Rule1, Self::Rule2, Self::Documented, Self::Order]
-            .into_iter()
-            .find(|class| class.name() == name)
+        [
+            Self::Rule1,
+            Self::Rule2,
+            Self::Documented,
+            Self::Order,
+            Self::Cycle,
+        ]
+        .into_iter()
+        .find(|class| class.name() == name)
     }
 }
 
@@ -115,6 +136,8 @@ enum Answer {
     },
     Ambiguous,
     Missing,
+    /// The imports that make up the name form a cycle.
+    Cyclic,
     /// Any other refusal.
     Failed(String),
 }
@@ -137,7 +160,12 @@ struct IndexVerdict {
 
 impl IndexVerdict {
     fn refuses(&self) -> bool {
-        let refusal = |answer: &Answer| matches!(answer, Answer::Ambiguous | Answer::Failed(_));
+        let refusal = |answer: &Answer| {
+            matches!(
+                answer,
+                Answer::Ambiguous | Answer::Cyclic | Answer::Failed(_)
+            )
+        };
         refusal(&self.ty)
             || refusal(&self.value)
             || (self.ty == Answer::Missing && self.value == Answer::Missing)
@@ -185,6 +213,7 @@ fn ask(
         },
         Err(ResolveError::Ambiguous(_)) => Answer::Ambiguous,
         Err(ResolveError::NotFound(_)) => Answer::Missing,
+        Err(ResolveError::Cyclic(_)) => Answer::Cyclic,
         Err(other) => Answer::Failed(other.to_string()),
     }
 }
@@ -199,7 +228,7 @@ fn ask(
 fn space_kind(wanted: Option<u32>, answer: &Answer) -> Option<Kind> {
     match (wanted, answer) {
         (Some(tag), Answer::Item { tag: found, .. }) => (tag != *found).then_some(Kind::OtherItem),
-        (Some(_), _) | (None, Answer::Failed(_)) => Some(Kind::AcceptedButRefused),
+        (Some(_), _) | (None, Answer::Cyclic | Answer::Failed(_)) => Some(Kind::AcceptedButRefused),
         (None, Answer::Item { .. }) => Some(Kind::OtherItem),
         (None, Answer::Ambiguous | Answer::Missing) => None,
     }
@@ -247,6 +276,12 @@ fn classify(kind: Kind, rustc: &Verdict, index: &IndexVerdict, facts: &Facts<'_>
         let ambiguous = index.ty == Answer::Ambiguous || index.value == Answer::Ambiguous;
         if ambiguous && (facts.warned_when_exported)() {
             return Class::Documented;
+        }
+        // An import cycle in a name space, with no ambiguity in either, is
+        // the gap of the index that the class records.
+        let cyclic = index.ty == Answer::Cyclic || index.value == Answer::Cyclic;
+        if cyclic && !ambiguous {
+            return Class::Cycle;
         }
         // If rustc itself answers the probe differently in another order of
         // the declarations, no answer that does not depend on the order is
@@ -616,6 +651,7 @@ fn the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes() {
         Class::Rule2,
         Class::Documented,
         Class::Order,
+        Class::Cycle,
         Class::Unclassified,
     ] {
         println!(

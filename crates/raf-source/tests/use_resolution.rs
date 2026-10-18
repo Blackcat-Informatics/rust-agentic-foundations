@@ -3894,6 +3894,107 @@ fn an_import_a_reader_cannot_name_still_keeps_its_name_from_the_globs_in_every_o
 }
 
 #[test]
+fn an_import_of_a_value_a_reader_cannot_name_leaves_the_type_of_its_name_to_the_globs_in_every_order()
+ {
+    // `s1` imports the function `m2::C` privately and globs `m0`, which
+    // brings in the struct `m1::C`; `s0` globs `s1` and `m2`, and `s1`
+    // re-exports `s0::C` as `B`, which `m2` imports. The private import binds
+    // `C` in the value name space only, so once it is settled the glob's
+    // struct reaches `s0`, which cannot name the import: `s0::C` is the
+    // struct and the function, and so are `s1::B` and `m2::B`, never the
+    // struct `m1::B` that the glob of `s1` brings in under `B`. rustc accepts
+    // each read below, and refuses `B` at the root (E0432), in every order.
+    // Neighbour: where `m2` defines a struct `C` too, the private import
+    // binds it in both name spaces, keeps the glob's struct from `s0`, and
+    // `s0` reads `m2`'s struct through its other glob.
+    let reads: &[Read] = &[
+        ("demo::m2", "self::B", TYPE),
+        ("demo::m2", "self::B", VALUE),
+        ("demo::m0::s1", "self::B", TYPE),
+        ("demo::m0::s1", "self::C", TYPE),
+        ("demo::m0::s1", "self::C", VALUE),
+        ("demo::m0::s0", "self::C", TYPE),
+        ("demo", "self::B", TYPE),
+        ("demo", "self::C", TYPE),
+        ("demo", "self::C", VALUE),
+    ];
+    let s0 = ["pub use crate::m0::s1::*;", "pub use crate::m2::*;"];
+    let s1 = [
+        "use crate::m2::C;",
+        "pub(crate) use super::*;",
+        "pub use crate::m0::s0::C as B;",
+    ];
+    // Both orders of `s0` and each declaration of `s1` first, in the first
+    // shape; the neighbour in the written order of the two.
+    let inner = |all: bool| {
+        let mut orders = vec![(s0, s1)];
+        if all {
+            for (s0, s1) in [
+                (s0, [s1[1], s1[2], s1[0]]),
+                (s0, [s1[2], s1[0], s1[1]]),
+                ([s0[1], s0[0]], s1),
+                ([s0[1], s0[0]], [s1[1], s1[2], s1[0]]),
+                ([s0[1], s0[0]], [s1[2], s1[0], s1[1]]),
+            ] {
+                orders.push((s0, s1));
+            }
+        }
+        orders
+    };
+    for (all, m2, expected) in [
+        (
+            true,
+            &["use crate::m0::s1::B;", "pub fn C() {}"][..],
+            [
+                "demo::m1::C",
+                "demo::m2::C",
+                "demo::m1::C",
+                "demo::m1::C",
+                "demo::m2::C",
+                "demo::m1::C",
+                "not found",
+                "not found",
+                "demo::m2::C",
+            ],
+        ),
+        (
+            false,
+            &["use crate::m0::s1::B;", "pub fn C() {}", "pub struct C {}"][..],
+            [
+                "demo::m2::C",
+                "demo::m2::C",
+                "demo::m2::C",
+                "demo::m2::C",
+                "demo::m2::C",
+                "demo::m2::C",
+                "not found",
+                "demo::m2::C",
+                "demo::m2::C",
+            ],
+        ),
+    ] {
+        for (s0, s1) in inner(all) {
+            let m0 = [
+                "pub use crate::m1::*;".to_owned(),
+                format!("pub mod s0 {{ {} }}", s0.join(" ")),
+                format!("pub mod s1 {{ {} }}", s1.join(" ")),
+            ];
+            let m0: Vec<&str> = m0.iter().map(String::as_str).collect();
+            let (found, loads) = reads_in_every_order(
+                &[
+                    "pub use crate::m2::*;",
+                    "pub mod m1 { pub struct C {} pub struct B {} }",
+                ],
+                &[("mod m2", m2), ("pub mod m0", &m0)],
+                reads,
+            );
+            assert_eq!(found, expected, "{m2:?} {s0:?} {s1:?}");
+            assert_eq!(loads, 24 * (1..=m2.len()).product::<usize>() * 6);
+        }
+    }
+}
+
+#[test]
 fn a_hidden_item_does_not_make_a_name_ambiguous_where_a_glob_cycle_delivers_the_item_held_in_every_order()
  {
     // `m` globs the root, which globs `x` and `m`, and globs `p` privately:
@@ -3934,6 +4035,66 @@ fn a_hidden_item_does_not_make_a_name_ambiguous_where_a_glob_cycle_delivers_the_
         ]
     );
     assert_eq!(loads, 720);
+}
+
+#[test]
+fn an_ambiguity_a_glob_cycle_carries_beside_a_glob_of_one_of_its_items_is_one_answer_in_every_order()
+ {
+    // `m2` globs the root, whose private struct `A` it reads, and its own
+    // child `s1` privately, which brings in `s0::A` (a struct and a
+    // function) through `m3`: `A` is ambiguous in `m2` in the type name
+    // space. `m0` globs `m2` privately, and `m3` with a `pub` glob, which
+    // brings in `s0::A` alone; `m1` globs `m0`. rustc refuses `A` in `m2`
+    // in every order (E0659). In `m0` and `m1` its answer depends on the
+    // order of the declarations: by which of its globs brought the name into
+    // `m2` first, `m0` reads the type `A` as `s0::A` or refuses it (E0659),
+    // and `m1` reads it as `s0::A` or finds no type `A`. The index reads the
+    // ambiguity of `m2` as visible as its most visible item, the root's
+    // struct, which `m0` can access, so `m0` holds the two items through
+    // two globs, and `m1` reads both, in every order. The function is
+    // `s0::A` everywhere.
+    let reads: &[Read] = &[
+        ("demo::m2", "self::A", TYPE),
+        ("demo::m2", "self::A", VALUE),
+        ("demo::m0", "self::A", TYPE),
+        ("demo::m0", "self::A", VALUE),
+        ("demo::m1", "self::A", TYPE),
+        ("demo::m1", "self::A", VALUE),
+    ];
+    let m2 = [
+        "mod s1 { pub(crate) use crate::m3::*; }",
+        "use crate::m2::s1::*;",
+        "pub use crate::*;",
+        "pub mod s0 { pub struct A {} pub fn A() {} }",
+    ];
+    let both = ambiguous_between("demo::A", "demo::m2::s0::A");
+    for first in 0..m2.len() {
+        let rotated: Vec<&str> = m2[first..].iter().chain(&m2[..first]).copied().collect();
+        let m2 = format!("mod m2 {{ {} }}", rotated.join(" "));
+        let (found, loads) = reads_in_every_order(
+            &[
+                "struct A {}",
+                "mod m3 { pub(crate) use crate::m2::s0::*; }",
+                &m2,
+                "mod m1 { pub(crate) use crate::m0::*; }",
+            ],
+            &[("mod m0", &["use crate::m2::*;", "pub use crate::m3::*;"])],
+            reads,
+        );
+        assert_eq!(
+            found,
+            [
+                both.clone(),
+                "demo::m2::s0::A".to_owned(),
+                both.clone(),
+                "demo::m2::s0::A".to_owned(),
+                both.clone(),
+                "demo::m2::s0::A".to_owned(),
+            ],
+            "{m2}"
+        );
+        assert_eq!(loads, 240);
+    }
 }
 
 #[test]

@@ -637,15 +637,19 @@ impl Index {
                 .any(|position| !self.use_free[*position][slot(ns)])
     }
 
-    /// [`Index::blocked`] as a glob of `module` in `importer` sees it: only
-    /// the imports that `importer` can name count, and one that a cycle left
-    /// to the globs of `module` still counts until it is decided, as rustc
-    /// brings a glob binding into other modules only once no single import
-    /// may still bind the name ([`Index::left_to_globs`]).
+    /// [`Index::blocked`] as a glob of `module` in `importer` sees it: an
+    /// import that `importer` can name counts, and so does one it cannot name
+    /// while the globs of `module` bring the name in, as the import keeps
+    /// what they bring in from every importer until it is decided (see
+    /// [`Index::blocked_in`]); one that a cycle left to the globs of
+    /// `module` still counts until it is decided, as rustc brings a glob
+    /// binding into other modules only once no single import may still bind
+    /// the name ([`Index::left_to_globs`]).
     fn blocked_for(&self, module: usize, name: &str, at: usize, importer: usize) -> bool {
         self.imports_of(module, name).iter().any(|position| {
             (!self.use_free[*position][at] || self.left_to_globs(*position, at))
-                && self.is_visible(&self.uses[*position].vis, module, importer)
+                && (self.is_visible(&self.uses[*position].vis, module, importer)
+                    || self.globbed_any(module, name, at))
         })
     }
 
@@ -748,7 +752,9 @@ impl Index {
 
     /// The places that keep `name` of `module` open through its globs in the
     /// name space at `at`: the name in each module one of those globs reaches
-    /// where it is not settled for `module`.
+    /// where it is not settled for `module`. None where `module` defines the
+    /// name there: the definition shadows its globs for every reader, a path
+    /// that reads the name it imports itself among them.
     fn pending_sources(&self, module: usize, name: &str, at: usize) -> Vec<(usize, String, usize)> {
         self.pending_sources_for(module, name, at, None)
     }
@@ -764,6 +770,13 @@ impl Index {
         viewer: Option<usize>,
     ) -> Vec<(usize, String, usize)> {
         let mut sources = Vec::new();
+        if self.scopes[module].get(name).is_some_and(|entry| {
+            entry.defs[at]
+                .iter()
+                .any(|(_, origin)| origin.link.is_none())
+        }) {
+            return sources;
+        }
         for glob in self.globs_of(module).iter().filter(|glob| {
             viewer.is_none_or(|viewer| self.is_visible(&self.uses[**glob].vis, module, viewer))
         }) {
