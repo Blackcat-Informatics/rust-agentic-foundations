@@ -18,6 +18,7 @@ use crate::index::{Index, UseKind};
 use crate::item::{ItemId, Namespace, SharedStr, SymbolKind};
 use crate::modtree::TargetId;
 use crate::settle::{Source, slot};
+use crate::work::{self, Work};
 
 /// The items a walk reached, and the modules a keyword path named.
 #[derive(Debug, Default)]
@@ -690,6 +691,7 @@ impl Index {
         // what the importing module can access counts.
         let viewer = matches!(heads, Heads::Use { .. }).then_some(from);
         for (offset, seg) in segs.iter().enumerate().skip(next_index) {
+            work::add(Work::SegmentReads, 1);
             let last = offset + 1 == segs.len();
             let ns = if last { last_ns } else { Namespace::Type };
             if seg == "super" && state.items.is_empty() {
@@ -1204,6 +1206,7 @@ impl Index {
         // cost its length, not its length squared.
         let mut prefix = String::with_capacity(text.len());
         for (taken, seg) in (1..=segs.len()).zip(segs) {
+            work::add(Work::SegmentReads, 1);
             if taken > 1 {
                 prefix.push_str("::");
             }
@@ -1384,6 +1387,7 @@ impl Index {
         // The prefix grows by one segment a step, as in [`Index::resolve_in`].
         let mut prefix = String::new();
         segs.iter().take(segs.len().saturating_sub(1)).any(|seg| {
+            work::add(Work::SegmentReads, 1);
             if !prefix.is_empty() {
                 prefix.push_str("::");
             }
@@ -1446,6 +1450,8 @@ impl Index {
 mod tests {
     use super::ResolveError;
     use crate::item::ItemId;
+    use crate::work::{self, Work};
+    use crate::{MemoryTree, Workspace};
 
     /// An escape sequence, a bidirectional override and a line break.
     const HOSTILE: &str = "a\u{1b}[2J\u{202e}\r\nb";
@@ -1502,5 +1508,42 @@ mod tests {
                 "{text}"
             );
         }
+    }
+
+    #[test]
+    fn a_path_of_fifty_thousand_segments_reads_each_segment_a_bounded_number_of_times() {
+        const SEGMENTS: usize = 50_000;
+        let manifest = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
+        let tree: MemoryTree = [
+            ("Cargo.toml", manifest),
+            (
+                "src/lib.rs",
+                "pub mod m { pub use crate::m; pub fn end() {} }\n",
+            ),
+        ]
+        .into_iter()
+        .collect();
+        let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+        let missing = format!("demo{}", "::a".repeat(SEGMENTS));
+        let deep = format!("demo{}::end", "::m".repeat(SEGMENTS));
+        // A path is walked in each name space and scanned once for a block it
+        // cannot see into, so a segment is read a few times and not once for
+        // each segment before it. The bound is also the ceiling, so a walk
+        // that starts again from the crate root for each prefix stops at once.
+        let segments = SEGMENTS + 2;
+        let reads = 4 * segments;
+        let lookups = 2 * segments;
+        let (answer, tally) = work::measure(reads, || ws.resolve(&missing));
+        assert_eq!(answer, Err(ResolveError::NotFound(missing.clone())));
+        assert!(tally.get(Work::SegmentReads) > 0);
+        assert!(tally.get(Work::SegmentReads) <= reads);
+        assert!(tally.get(Work::Lookups) > 0);
+        assert!(tally.get(Work::Lookups) <= lookups);
+        let (answer, tally) = work::measure(reads, || ws.resolve(&deep));
+        assert_eq!(answer.expect("the deep path resolves").path, "demo::m::end");
+        assert!(tally.get(Work::SegmentReads) > 0);
+        assert!(tally.get(Work::SegmentReads) <= reads);
+        assert!(tally.get(Work::Lookups) > 0);
+        assert!(tally.get(Work::Lookups) <= lookups);
     }
 }

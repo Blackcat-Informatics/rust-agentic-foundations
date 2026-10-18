@@ -207,7 +207,7 @@ bindings:
     - raf_source::test_crate::resolve_paths::a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path
     - raf_source::test_crate::resolve_paths::a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it
     - raf_source::test_crate::resolve_paths::a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found
-    - raf_source::test_crate::resolve_paths::a_path_of_fifty_thousand_segments_resolves_in_linear_time
+    - raf_source::resolve::tests::a_path_of_fifty_thousand_segments_reads_each_segment_a_bounded_number_of_times
     - raf_source::test_crate::resolve_paths::globs_of_dependencies_in_one_module_leave_a_missing_name_not_found
     - raf_source::test_crate::resolve_paths::a_cycle_of_globs_stays_cyclic_beside_globs_that_resolve
     - raf_source::test_crate::resolve_paths::a_cycle_is_reported_before_a_glob_that_names_nothing
@@ -2124,8 +2124,8 @@ duplicates.
   `Self`, each `Invalid` in every name space beside `demo::a::x` and the names
   `crates`, `selfish` and `Selves`, which resolve; a missing path of 50,000 segments
   that is `NotFound` and one of 50,000 segments through a module that imports itself
-  that resolves, together in under a second in a debug build and under 100 ms in a
-  release build.
+  that resolves, each answered with at most four segment reads and two name lookups
+  for each segment plus two, counted in the walk and stopped at that count.
 - Missing-glob fixtures: a module with `pub use self::missing::*;`, a module that globs
   it, `crate::a::gone::*`, `super::a::inner::nothing::*` and an import of a name the
   missing glob would bring in load, and each lookup that reads one of those globs is
@@ -2482,6 +2482,7 @@ duplicates.
 | `raf_source::item::tests::an_item_record_is_at_most_two_hundred_fifty_six_bytes` | test | [Verification](#verification) |
 | `raf_source::members::tests::distinct_patterns_at_both_caps_are_tested_a_bounded_number_of_times` | test | [Verification](#verification) |
 | `raf_source::members::tests::duplicate_patterns_are_compiled_and_tested_once` | test | [Verification](#verification) |
+| `raf_source::resolve::tests::a_path_of_fifty_thousand_segments_reads_each_segment_a_bounded_number_of_times` | test | [Verification](#verification) |
 | `raf_source::resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped` | test | [Verification](#verification) |
 | `raf_source::settle::tests::a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room` | test | [Verification](#verification) |
 | `raf_source::settle::tests::a_round_that_decides_nothing_more_or_a_settle_too_many_is_reported_in_every_build` | test | [Verification](#verification) |
@@ -2624,7 +2625,6 @@ duplicates.
 | `raf_source::test_crate::resolve_paths::a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::a_name_found_through_a_glob_beside_a_glob_that_names_nothing_fails` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path` | test | [Verification](#verification) |
-| `raf_source::test_crate::resolve_paths::a_path_of_fifty_thousand_segments_resolves_in_linear_time` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::globs_of_dependencies_in_one_module_leave_a_missing_name_not_found` | test | [Verification](#verification) |
 | `raf_source::test_crate::source_text::a_budget_refusal_in_a_crlf_file_names_the_same_line_as_in_an_lf_file` | test | [Verification](#verification) |
 | `raf_source::test_crate::source_text::a_byte_order_mark_leaves_the_lines_of_the_text_where_they_are` | test | [Verification](#verification) |

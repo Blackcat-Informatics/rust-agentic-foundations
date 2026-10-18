@@ -4,8 +4,6 @@
 //! What `resolve` accepts as a canonical path, and what it answers for a path
 //! whose lookups read a glob that names nothing.
 
-use std::time::{Duration, Instant};
-
 use raf_source::{MemoryTree, Namespace, ResolveError, Workspace};
 
 fn lib(text: &str) -> Workspace {
@@ -339,27 +337,6 @@ fn a_name_found_through_a_glob_beside_a_glob_that_names_nothing_fails() {
             .map(|found| found.path),
         Ok("demo::Top".to_owned())
     );
-}
-
-#[test]
-fn a_path_of_fifty_thousand_segments_resolves_in_linear_time() {
-    let ws = lib("pub mod m { pub use crate::m; pub fn end() {} }\n");
-    let missing = format!("demo{}", "::a".repeat(50_000));
-    let deep = format!("demo{}::end", "::m".repeat(50_000));
-    let started = Instant::now();
-    assert_eq!(
-        ws.resolve(&missing),
-        Err(ResolveError::NotFound(missing.clone()))
-    );
-    assert_eq!(path_of(&ws, &deep), "demo::m::end");
-    let took = started.elapsed();
-    // Under 100 ms in a release build; a debug build is several times slower.
-    let bound = if cfg!(debug_assertions) {
-        Duration::from_secs(1)
-    } else {
-        Duration::from_millis(100)
-    };
-    assert!(took < bound, "took {took:?}");
 }
 
 /// The path the answer names, or the error.

@@ -27,6 +27,7 @@ use crate::index::{Index, UseDecl, UseKind, binding_bytes};
 use crate::item::{ItemId, Namespace};
 use crate::meter::Meter;
 use crate::resolve::{Fail, Heads, Hit, Walked, places};
+use crate::work::{self, Work};
 
 /// How a name came to be bound in a module.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -502,6 +503,7 @@ impl Index {
         let Some(viewer) = viewer.filter(|viewer| *viewer != module) else {
             return self.lookup_in(module, ns, name, own);
         };
+        work::add(Work::Lookups, 1);
         let entry = self.scopes[module].get(name);
         let at = slot(ns);
         if let Some(defs) = entry
@@ -578,6 +580,7 @@ impl Index {
         name: &str,
         own: Option<usize>,
     ) -> Option<(Cow<'_, Bound>, bool)> {
+        work::add(Work::Lookups, 1);
         let entry = self.scopes[module].get(name);
         let at = slot(ns);
         if own.is_some_and(|position| self.binds_name(position, module, name)) {
