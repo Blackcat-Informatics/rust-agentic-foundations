@@ -636,9 +636,13 @@ impl Index {
                         // as different items is ambiguous in the module, and
                         // a path cannot start with it, also where only one
                         // of the items has what the path goes on to name.
-                        // Definitions and imports of one name are
-                        // alternatives under `cfg`, and all of them count.
-                        if from_glob && segs.len() > 1 && bound.len() > 1 {
+                        // The `cfg` alternatives of one module are one
+                        // candidate, and so are definitions and imports of
+                        // one name, which all count.
+                        if from_glob
+                            && segs.len() > 1
+                            && self.several_symbols(bound.keys().copied())
+                        {
                             return Err(Fail::Ambiguous(self.sorted(bound.keys().copied())));
                         }
                         for (id, origin) in bound.iter() {
@@ -727,9 +731,10 @@ impl Index {
                         // ambiguous in the module, and a path cannot go
                         // through it, as in rustc: also where only one of the
                         // items has what the path goes on to name. The
-                        // definitions and imports of a name, which are
-                        // alternatives under `cfg`, all count instead.
-                        if from_glob && !last && bound.len() > 1 {
+                        // `cfg` alternatives of one module are one
+                        // candidate, and the definitions and imports of a
+                        // name all count.
+                        if from_glob && !last && self.several_symbols(bound.keys().copied()) {
                             return Err(Fail::Ambiguous(self.sorted(bound.keys().copied())));
                         }
                         for (id, origin) in bound.iter() {
@@ -1330,6 +1335,19 @@ impl Index {
             chain: self.chain_for(text, hit, first),
             sites,
         })
+    }
+
+    /// True when `ids` are more than one symbol: a symbol is one path and
+    /// kind in one crate, so the `cfg` alternatives of one module, which the
+    /// index keeps as several items, are one.
+    fn several_symbols(&self, ids: impl Iterator<Item = ItemId>) -> bool {
+        let groups: BTreeSet<(TargetId, &str, SymbolKind)> = ids
+            .map(|id| {
+                let item = &self.items[id.0];
+                (item.target, item.path.as_str(), item.kind)
+            })
+            .collect();
+        groups.len() > 1
     }
 
     /// The module whose canonical path is `path`, such as `demo::inner`.

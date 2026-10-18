@@ -717,3 +717,99 @@ fn definitions_and_imports_of_one_name_under_cfg_are_alternatives_at_any_segment
         );
     }
 }
+
+#[test]
+fn the_cfg_alternatives_of_one_module_a_glob_brings_in_are_one_candidate_in_every_order() {
+    // Two versions of the module `sys` under mutually exclusive `cfg`: the
+    // index keeps both, as one symbol whose contents merge, and a glob
+    // brings in both. rustc has only the active one, and accepts every one
+    // of these paths in both editions and in every order of the declarations.
+    // They are no ambiguity, at the first segment of a path (a `use` of
+    // `sys::Fd` and the import it settles) and at a later one.
+    let reads: &[Read] = &[
+        ("demo::tests", "sys::Fd", TYPE),
+        ("demo::tests", "sys::Fd", VALUE),
+        ("demo::tests", "self::sys::Fd", TYPE),
+        ("demo::tests", "crate::sys::Fd", TYPE),
+        ("demo::b::deep", "sys::Fd", TYPE),
+        ("demo::tests", "crate::b::sys::Fd", TYPE),
+        ("demo::tests", "b::sys::Fd", TYPE),
+    ];
+    let (found, loads) = in_every_order(
+        lib,
+        &[
+            "#[cfg(unix)] pub mod sys { pub struct Fd; }",
+            "#[cfg(not(unix))] pub mod sys { pub struct Fd; }",
+            "pub mod a { #[cfg(unix)] pub mod sys { pub struct Fd; } #[cfg(not(unix))] pub mod sys { pub struct Fd; } }",
+        ],
+        &[
+            (
+                "pub mod tests",
+                &[
+                    "use super::*;",
+                    "use sys::Fd as Mine;",
+                    "use b::sys::Fd as Far;",
+                ],
+            ),
+            (
+                "pub mod b",
+                &["pub use crate::a::*;", "pub mod deep { use super::*; }"],
+            ),
+        ],
+        |ws| {
+            let mut all: Vec<String> = reads
+                .iter()
+                .map(|(module, path, ns)| read_as(ws, module, path, *ns))
+                .collect();
+            all.extend(
+                ["demo::tests::Mine", "demo::tests::Far"]
+                    .iter()
+                    .map(|path| resolved_as(ws, path)),
+            );
+            all
+        },
+    );
+    assert_eq!(
+        found,
+        [
+            "demo::sys::Fd",
+            "demo::sys::Fd",
+            "demo::sys::Fd",
+            "demo::sys::Fd",
+            "demo::a::sys::Fd",
+            "demo::a::sys::Fd",
+            "demo::a::sys::Fd",
+            "demo::sys::Fd",
+            "demo::a::sys::Fd",
+        ]
+    );
+    // 5 top-level blocks in every order, and the declarations of the two
+    // modules in every order.
+    assert_eq!(loads, 120 * 6 * 2);
+}
+
+#[test]
+fn two_different_modules_of_one_name_stay_ambiguous_beside_the_cfg_alternatives_of_one() {
+    // `p` has two `cfg` versions of `sys` and `q` has another module `sys`:
+    // a glob of both brings in two modules, and rustc refuses the path
+    // (E0659) at the first segment and at a later one.
+    let reads: &[Read] = &[
+        ("demo::m", "sys::Fd", TYPE),
+        ("demo::m", "crate::m::sys::Fd", TYPE),
+        ("demo::m", "self::sys::Fd", TYPE),
+    ];
+    let (found, loads) = reads_in_every_order(
+        &[
+            "pub mod p { #[cfg(unix)] pub mod sys { pub struct Fd; } #[cfg(not(unix))] pub mod sys { pub struct Fd; } }",
+            "pub mod q { pub mod sys { pub struct Fd; } }",
+        ],
+        &[(
+            "pub mod m",
+            &["pub use crate::p::*;", "pub use crate::q::*;"],
+        )],
+        reads,
+    );
+    let both = "ambiguous [\"demo::p::sys\", \"demo::p::sys\", \"demo::q::sys\"]";
+    assert_eq!(found, vec![both; reads.len()]);
+    assert_eq!(loads, 6 * 2);
+}
