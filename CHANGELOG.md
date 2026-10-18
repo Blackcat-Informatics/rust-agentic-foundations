@@ -17,7 +17,12 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   for every reader that can access at least one of the items, and such a reader
   gets `ResolveError::Ambiguous` listing every candidate, as rustc refuses the
   path; a path through a module that two globs bring in as different modules is
-  ambiguous in the same way. Both rules hold in every declaration order.
+  ambiguous in the same way. For a name that two globs bring in as different
+  items the reader gets `Ambiguous` in every declaration order. Where an explicit
+  import, or a glob of a module that defines the item, supplies an item that
+  another glob also carries as a companion (a hidden item riding along with
+  it), the index gives that item, one answer in every order, even where rustc
+  refuses the crate in some orders and accepts it in others.
   `Workspace::resolve_from(module, path)` and `resolve_from_in` resolve a path as
   a `use` written in the named module would, and `ResolveError::UnknownModule`
   names a module that is not in the index. The crate's resolution is compared
@@ -30,6 +35,17 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   stops the load in the shapes fixed. The crate's tests no longer read the clock:
   they count work through a counting tree and test-only tallies, and the
   repository gate refuses clock use in the crate's source and tests.
+- **`raf-source`:** a path whose first segment is a bare name that two globs bring
+  in as different modules is ambiguous, as a later segment is, and an import that
+  starts with it binds nothing. The `cfg` alternatives of one module that a glob
+  brings in are one candidate at any segment. `Workspace::resolve_from` and
+  `resolve_from_in` answer `Ambiguous`, as `resolve` does, for a reading module
+  of a crate name that libraries of several packages share. A companion item
+  that an explicit import or a defining glob supplies, one that arrives where the
+  reader cannot access it, or one that a cycle of globs carries back, no longer
+  makes the answer depend on the order of the declarations. The comparison with
+  rustc probes bare first segments and fails an index answer that changes with
+  the order of the declarations.
 - **`raf-okf`:** reads and writes the RAF profile of OKF documents. It parses
   Markdown with YAML frontmatter in a closed subset, validates the closed key sets
   and typed values of capability, change and architecture documents and reports
