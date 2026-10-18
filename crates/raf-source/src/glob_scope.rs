@@ -43,9 +43,12 @@
 //! whose module has no view passes nothing on, and costs nothing for each
 //! name its view gains. So a chain of globs costs what it brings in, once for
 //! each link, and a module that a thousand modules glob is read by a thousand
-//! globs from one table. A fan-in of very many globs onto one module that a
-//! chain of globs also reaches back costs more than that: each companion that
-//! arrives at the module reads the lists of all its reads again. A glob that reads a view another glob of its module
+//! globs from one table. Three shapes cost more than that, because each
+//! companion that arrives at a module reads and copies the lists of all its
+//! reads again: a fan-in of private globs onto one module (a quadratic term),
+//! the prelude pattern, where a root globs many children and each child globs
+//! its parent (quadratic), and a hub that many siblings glob and that globs
+//! them back, partly privately (about cubic). A glob that reads a view another glob of its module
 //! with the same visibility already reads passes nothing on, and what a
 //! module exports is gathered from each view its globs read once, so a module
 //! that globs one module many times over costs a read for each glob and not a
