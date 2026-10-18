@@ -728,6 +728,11 @@ fn listed(members: &str, files: &[(&str, &str)]) -> MemoryTree {
     all.into_iter().collect()
 }
 
+// The step bound of the matcher is held by the unit test
+// `glob::tests::a_segment_is_matched_in_at_most_pattern_times_name_steps`, which
+// has a ceiling on the steps. This test shows the outcome through the whole
+// load; without that bound a matcher that backtracked without limit would make
+// it wait, not fail.
 #[test]
 fn a_star_heavy_member_pattern_that_matches_no_directory_leaves_the_member_alone() {
     let pattern = format!("crates/{}b", "*a".repeat(24));

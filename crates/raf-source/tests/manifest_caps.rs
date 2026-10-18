@@ -127,6 +127,7 @@ fn exclude_at_the_cap_loads_and_one_over_is_refused() {
     assert!(at.tree.count(Op::Entry) > 0);
     let over = load(&["p".to_owned()], &globs(CAP + 1, "q"));
     assert_eq!(over.ops(), refused_at_the_manifest().ops());
+    assert!(refused_at_the_manifest().tree.count(Op::Read) > 0);
     refused_key(over.result, "workspace.exclude", CAP + 1);
 }
 
@@ -147,6 +148,7 @@ fn members_at_the_cap_loads_and_one_over_is_refused() {
     assert_eq!(at.tree.count(Op::Read), reference.tree.count(Op::Read));
     let over = load(&with(globs(CAP, "m"), "p"), &[]);
     assert_eq!(over.ops(), refused_at_the_manifest().ops());
+    assert!(refused_at_the_manifest().tree.count(Op::Read) > 0);
     refused_key(over.result, "workspace.members", CAP + 1);
 }
 

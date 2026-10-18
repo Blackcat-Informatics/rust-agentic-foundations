@@ -253,15 +253,23 @@ fn scan_tree(root: &Path, paths: &[PathBuf]) -> (Vec<String>, usize) {
 const CLOCK_FREE: [&str; 2] = ["crates/raf-source/src", "crates/raf-source/tests"];
 
 /// The spellings that read a clock or wait on one, each matched as a whole
-/// word: the `std::time` module, the types that carry a reading or a span, a
-/// sleep, and a receive with a timeout.
-const CLOCK_WORDS: [&str; 6] = [
+/// word: the `std::time` and `core::time` modules, the timer modules of async
+/// runtimes, the types that carry a reading or a span, a sleep, and the waits
+/// and socket options that carry a timeout.
+const CLOCK_WORDS: [&str; 13] = [
     "std::time",
+    "core::time",
+    "tokio::time",
     "Instant",
     "Duration",
     "SystemTime",
     "sleep",
     "recv_timeout",
+    "wait_timeout",
+    "park_timeout",
+    "set_read_timeout",
+    "set_write_timeout",
+    "elapsed",
 ];
 
 /// True when `word` occurs in `line` with no identifier character on either side.
@@ -871,11 +879,23 @@ fn time_in_raf_source_rejects_each_spelling_in_the_library_and_the_tests() {
         ("SystemTime", "let t = SystemTime::now();"),
         ("sleep", "std::thread::sleep(pause);"),
         ("recv_timeout", "receiver.recv_timeout(limit)"),
+        ("core::time", "use core::time::Duration as D;"),
+        ("tokio::time", "tokio::time::sleep(pause).await;"),
+        ("wait_timeout", "condvar.wait_timeout(guard, limit)"),
+        ("park_timeout", "std::thread::park_timeout(limit);"),
+        ("set_read_timeout", "socket.set_read_timeout(limit)"),
+        ("set_write_timeout", "socket.set_write_timeout(limit)"),
+        ("elapsed", "let took = started.elapsed();"),
     ] {
         for dir in ["crates/raf-source/src", "crates/raf-source/tests"] {
             let path = format!("{dir}/nested/x.rs");
             let hits = clock_hits(Path::new(&path), line);
-            assert_eq!(hits, vec![format!("{path}:1: {word}")], "{line}");
+            // A line can carry two spellings (`core::time::Duration`): the
+            // spelling under test is reported among the hits, at line 1.
+            assert!(
+                hits.contains(&format!("{path}:1: {word}")),
+                "{line}: {hits:?}"
+            );
         }
     }
 }
