@@ -18,11 +18,15 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   gets `ResolveError::Ambiguous` listing every candidate, as rustc refuses the
   path; a path through a module that two globs bring in as different modules is
   ambiguous in the same way. For a name that two globs bring in as different
-  items the reader gets `Ambiguous` in every declaration order. Where an explicit
-  import, or a glob of a module that defines the item, supplies an item that
+  items the reader gets `Ambiguous` in every declaration order. Where a definition
+  or an explicit import, or a glob of a module that defines or imports the item
+  and is reached other than through the reading module, supplies an item that
   another glob also carries as a companion (a hidden item riding along with
-  it), the index gives that item, one answer in every order, even where rustc
-  refuses the crate in some orders and accepts it in others.
+  it), the index gives that item in every order, and an import that reads the
+  name through the glob that carries the companion supplies nothing, so the name
+  stays `Ambiguous`. Where rustc's own answer varies with the order of the
+  declarations, the index gives one answer in every order, the ambiguity for some
+  shapes and the item for others.
   `Workspace::resolve_from(module, path)` and `resolve_from_in` resolve a path as
   a `use` written in the named module would, and `ResolveError::UnknownModule`
   names a module that is not in the index. The crate's resolution is compared
@@ -48,10 +52,13 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   the order of the declarations.
 - **`raf-source`:** an item or a module that a cycle of globs carries back to a
   module beside a glob that holds it from elsewhere no longer leaves a hidden
-  companion next to it, so the name resolves as rustc has it in every order of
-  the declarations instead of `Ambiguous`. The search for the modules that hold
-  an item apart from a reading module is found once for each link of a chain of
-  globs, kept for every reader, and charged to the budget of the load. The
+  companion next to it, so the name resolves to the item, the same in every order
+  of the declarations, instead of `Ambiguous`. Whether a module holds an item
+  apart from each reading module is answered for all of them from one dominator
+  tree for each item, name and name space, each step charged to the budget of the
+  load before it is made. A fan-in of very many globs onto one module that a chain
+  of globs also reaches back still costs more than linear in the number of globs
+  to settle. The
   comparison with rustc draws from two families of seeds by default, selects one
   with `RAF_ORACLE_SEED_BASE`, lists every divergence with `RAF_ORACLE_LIST` and
   states its runs on both families; the glob and import cycles that the index

@@ -7,7 +7,7 @@ subject: cap:source-index#constraints
 inputs:
   - kind: section
     name: cap:source-index#constraints
-    digest: 6bfe7d3f5dde5b1f731aff5cfc4478702144b363ffefb78604a618f1448fc72e
+    digest: db467fd9e656a6fb837a8b14ecc16eb78b6a1161344a0e067f5bdc13af09d5cb
   - kind: symbol
     name: raf_source::Budget
     digest: 112cd1e623c2c1c3f5b568ff36d5fd8914bcdba242888abc79525048c7445634
