@@ -662,11 +662,12 @@ Further checks:
   SIGINT and SIGTERM and each process is sent SIGCONT afterwards, so only
   SIGKILL passes; this holds also with no `kill` program on `PATH`, and the
   process the runner started is reaped. A group signal that finds no live
-  member is done, and so is one refused with `EPERM` once the leader has ended,
-  as macOS answers while the only member is exiting: the leader is then sent
+  member is done, and so is one refused with `EPERM` once the leader has ended on
+  macOS, which answers so while the only member is exiting: the leader is then sent
   SIGKILL itself and collected, and counts as ended only when that signal is
   delivered or finds it gone, so a leader still running is killed and reaped
-  first. Any other refusal is reported, since the group may still be running.
+  first. Any other refusal, and `EPERM` on any other system, is reported, since
+  the group may still be running.
   A process that writes more than a pipe
   holds to both streams runs to its end under the clock that never moves, so
   the two streams are read at once. Nothing tests that the clock the runner

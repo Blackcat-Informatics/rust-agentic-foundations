@@ -362,8 +362,11 @@ fn kill_group(child: &mut Child) -> io::Result<()> {
     // macOS answers EPERM, not ESRCH, when the group holds only processes that
     // are exiting or have exited but are not reaped yet. The leader having
     // ended is what tells that case from a group that cannot be signalled, and
-    // it is looked at only then.
-    let leader_ended = signalled == Err(rustix::io::Errno::PERM) && leader_ended(child);
+    // it is looked at only then. Elsewhere EPERM means a live member that may
+    // not be signalled, and is always reported.
+    let leader_ended = cfg!(target_os = "macos")
+        && signalled == Err(rustix::io::Errno::PERM)
+        && leader_ended(child);
     group_signal_outcome(signalled, leader_ended)
 }
 
@@ -397,7 +400,8 @@ fn leader_signal_ends_it(signalled: &io::Result<()>) -> bool {
 /// What a failed or successful group signal means. A group with no live member
 /// (`ESRCH`) is done; so is one that answers `EPERM` while its leader has
 /// ended, because a group signal fails only when it reached no member, and the
-/// leader could be signalled, so it was already exiting (macOS). Any other
+/// leader could be signalled, so it was already exiting (macOS only: `kill_group` passes `leader_ended` as
+/// false elsewhere). Any other
 /// failure means the group may still be running and is reported.
 #[cfg(unix)]
 fn group_signal_outcome(
