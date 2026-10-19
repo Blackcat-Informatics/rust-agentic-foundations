@@ -10,7 +10,7 @@ inputs:
     digest: faa728c9674dbfea1a37ea8958a557ecc9364671b334d64a01d35a97936280f7
   - kind: symbol
     name: raf_source::Budget
-    digest: 242f1926d6604c413d1a1096592859122796b066eb2841ebe161db5f6354d9b4
+    digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
   - kind: symbol
     name: raf_source::DiskTree
     digest: 8de0bd6cf52eb2437cddff8545a4af80ca0f68b9da0a70b705a32f026eeaef63

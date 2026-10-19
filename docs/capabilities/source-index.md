@@ -698,7 +698,7 @@ change:
 
 - `max_total_bytes` (`TotalBytes`) bounds the bytes the load reads, source files
   and manifests together. Its default is min(1 GiB, max(256 MiB, 4 × the largest
-  crate)) over the newest version of each of 1177 crates of a local registry, whose
+  crate)) over the newest version of each of 1271 crates of a local registry, whose
   largest load read 16.9 MB (`linux-raw-sys`), so it is 256 MiB.
 - `max_item_bytes` (`ItemBytes`, 512 MiB) bounds what the index and the module walk
   allocate. Every charge is an upper bound of the allocations it covers, derived from

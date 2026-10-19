@@ -528,6 +528,17 @@ fn misplaced(ws: &Workspace) -> Vec<String> {
 
 // --- the scan, in the parent --------------------------------------------------
 
+/// The arguments the parent gives a child: `--one <dir> --max-work <N>`, the
+/// shape [`parse_one`] reads.
+fn child_args(dir: &Path, max_work: usize) -> Vec<std::ffi::OsString> {
+    vec![
+        "--one".into(),
+        dir.as_os_str().to_owned(),
+        "--max-work".into(),
+        max_work.to_string().into(),
+    ]
+}
+
 /// Run one crate in a child process, under an address-space limit of
 /// `max_memory` bytes and a work limit of `max_work`, and give its line.
 fn run_child(exe: &Path, krate: &Crate, max_work: usize, max_memory: u64) -> String {
@@ -538,10 +549,7 @@ fn run_child(exe: &Path, krate: &Crate, max_work: usize, max_memory: u64) -> Str
             max_memory / 1024
         ))
         .arg(exe)
-        .arg("--one")
-        .arg(&krate.dir)
-        .arg("--max-work")
-        .arg(max_work.to_string())
+        .args(child_args(&krate.dir, max_work))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -719,6 +727,19 @@ mod tests {
             strings(&[]),
         ] {
             assert_eq!(parse_one(&refused), None, "{refused:?}");
+        }
+    }
+
+    #[test]
+    fn the_child_is_given_the_limit_it_was_asked_for() {
+        for limit in [1, 42, Budget::Work.limit() - 1] {
+            let args: Vec<String> = child_args(Path::new("/r/a-1.0.0"), limit)
+                .into_iter()
+                .map(|arg| arg.into_string().unwrap())
+                .collect();
+            assert_eq!(args[2], "--max-work");
+            assert_eq!(args[3], limit.to_string());
+            assert_eq!(parse_one(&args), Some(("/r/a-1.0.0", limit)));
         }
     }
 
