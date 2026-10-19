@@ -52,57 +52,98 @@
 //! access, so it is not gathered name by name, and a fan-in of private globs
 //! onto one module costs what a fan-in of `pub` globs does.
 //!
-//! What the globs of a module bring in under a name is read again, when a
-//! companion or an item a class cannot access arrives, only from the reads
-//! of the module whose view holds the name: the tables keep the views that
-//! hold each name and the reads of each module by the view they read, and
-//! the views that hold the name are looked at to find those reads while they
-//! are fewer than the reads of the module, else every read is. Under a name
-//! that no view holds a companion under, each read delivers what its view
-//! holds, so the lists are read where they are and not copied, and the
-//! routes of the reads to each item are combined as they come. So a fan-in
-//! of globs that each carry a companion costs a reading of one read for each
-//! name at the module they fan into, found among the few views that hold
-//! the name. Three shapes cost more than that: the prelude pattern, where a
-//! root globs many children and each child globs its parent (quadratic:
-//! every name of the root's view is passed to each child, and every gain of
-//! the view passed on to each), a hub that many siblings glob and that globs
-//! them back, partly privately (about cubic: once a private glob brings an
-//! item into the hub, every name that arrives at its view for the siblings
-//! is read again from every read of the hub whose view holds it, and the
-//! views that hold it are looked at to find those reads), and that hub where
-//! each two siblings define an item of one name, so that every name carries
-//! a companion and keeps the exact reading (cubic, where the resolver from
+//! A glob whose level no view of its module can access, as the private glob
+//! of a child of its parent that the parent globs, is a covert reader of its
+//! view: everything it brings in is an item no importer of the module can
+//! access, which matters only under a name a view of the module holds too,
+//! where it stands beside what that view holds, and for whether the views
+//! learn that the module's globs bring in what they cannot access. So such
+//! a read is not given the view's names: it is given those a view of its
+//! module holds too, and when its view gains a name it is looked at only
+//! where a view of its module holds the name or does not know yet what it
+//! cannot access, found from the views that hold the name and from the
+//! view's open readers. It is listed among the covert readers before its
+//! names arrive, so what its view gains through a cycle of globs while they
+//! arrive reaches the module too. Every reader of a view keeps the turn it
+//! came to read it in, and a gain is told to the active and the covert
+//! readers in their turns, and the names of a view to a covert read in their
+//! order, so the imports that wait on a name are queued again, and a name
+//! with a companion is read again, in the order an active read of each would
+//! have made: an import of a cycle can be decided by the order it is tried
+//! in, and the reading again of a name with a companion by what the views
+//! hold when it runs. A module with a `pub(in path)`
+//! visibility, whose levels can change as the tables settle, reads no view
+//! covertly. So the prelude pattern, a root that globs many children that
+//! each glob their parent, costs what its names do.
+//!
+//! Under a name that no view holds a companion under, a view that holds the
+//! name takes what arrives as the change it brings: an item it holds as
+//! widely changes nothing, tested without a copy; an item it can access is
+//! added; and one it cannot access, and does not hold, is exposed beside
+//! what it holds. That is what reading the name again from the globs would
+//! give: such a view holds everything the module's globs brought in under
+//! the name that its class can access and nothing they brought in that it
+//! cannot, which would have added a companion. An item the class can access
+//! that first arrives under a name at a view that knows its module brings
+//! in what it cannot access is taken as it comes too, where nothing of the
+//! kind stands under the name: the view records the names under which only
+//! such items reached it while it did not hold them, and the views its
+//! module reads through a glob its class cannot access are looked at, while
+//! they are fewer than the reads a reading again would look at. A name a
+//! reading again set after a change to the module's bindings or imports of
+//! it, and a module with a `pub(in path)` visibility, keep the reading
+//! again. So a hub that many siblings glob and that globs them back, partly
+//! privately, costs what its names do, as the resolver from before the two
+//! visibility rules did, quadratic in the siblings.
+//!
+//! What the globs of a module bring in under a name is read again, where a
+//! companion or an item a class cannot access arrives otherwise, only from
+//! the reads of the module whose view holds the name: the tables keep the
+//! views that hold each name and the reads of each module by the view they
+//! read, and the views that hold the name are looked at to find those reads
+//! while they are fewer than the reads of the module, else every read is.
+//! Under a name that no view holds a companion under, each read delivers
+//! what its view holds, so the lists are read where they are and not copied,
+//! and the routes of the reads to each item are combined as they come. So a
+//! fan-in of globs that each carry a companion costs a reading of one read
+//! for each name at the module they fan into, found among the few views that
+//! hold the name. One shape costs more than that: a hub that many siblings
+//! glob and that globs them back, partly privately, where each two siblings
+//! define an item of one name, so that every name carries a companion and
+//! keeps the exact reading at each arrival (cubic, where the resolver from
 //! before the two visibility rules was quadratic: 7.5 to 8.2 times the
 //! instructions per doubling of the siblings where that resolver took 3.8
-//! to 4.1, and 423 times its count at 800 siblings). A reading again at a
-//! module with many globs looks at the views that hold the name, at most
-//! one fewer than the module's reads: on generated modules that each glob
-//! privately a module of one struct, publicly many empty modules and then a
-//! module whose names many other views hold, the views looked at grow with
-//! the cube of the number of modules.
+//! to 4.1, and 422 times its count at 800 siblings).
 //!
-//! Every view, each name and item it holds, each glob's read of a view and
-//! each gain while it waits to be passed on is charged to the glob-bytes
-//! budget ([`Budget::GlobBytes`](crate::Budget::GlobBytes)) as an upper bound
-//! of what it allocates, derived from the layout of the containers that hold
-//! it (see `crate::cost`). The budget bounds what is held at once: what a gain
-//! held is released once it is passed on, and what the tables of one settle
-//! hold is released when they are built again. Each charge is made before
-//! the allocation it covers.
+//! Every view, each name and item it holds, each glob's read of a view, each
+//! covert and open reader of a view, each view a view's module reads through
+//! a glob its class cannot access, each name a view dropped what its class
+//! cannot access under and each name a reading again set, and each gain while
+//! it waits to be passed on is charged to the glob-bytes budget
+//! ([`Budget::GlobBytes`](crate::Budget::GlobBytes)) as an upper bound of what
+//! it allocates, derived from the layout of the containers that hold it (see
+//! `crate::cost`). The budget bounds what is held at once: what a gain held is
+//! released once it is passed on, and what the tables of one settle hold is
+//! released when they are built again. Each charge is made before the
+//! allocation it covers.
 //!
 //! The steps of that work are charged to the work budget
 //! ([`Budget::Work`](crate::Budget::Work)) before they are made, and never
 //! given back: each glob read listed and each name gathered when a view is
 //! built, and each name probed in a view read through a glob the class cannot
 //! access, each reader a change is passed on to (and each name a new reader
-//! is given), each glob read of a module looked at when what its globs bring
-//! in under a name is read again or the drops of its reads are recorded, and
-//! each view that holds the name looked at to find those reads, and each step
-//! of the search for the modules that hold an item apart from a reading
-//! module. So the three shapes above are charged as their work grows, faster
-//! than their bytes, and refused at the limit before they are settled to the
-//! end.
+//! is given), each name of a view a covert read probes or looks at and each
+//! it passes on, each name its module waits on, each covert reader and open
+//! reader looked at when the view grows and each view that holds the name
+//! looked at to find them, each item held and each new one looked at when a
+//! change taken as it comes is exposed, the record of the dropped names and
+//! each view read through a glob the class cannot access looked at when an
+//! item first arrives, each glob read of a module looked at when what its
+//! globs bring in under a name is read again or the drops of its reads are
+//! recorded, and each view that holds the name looked at to find those reads,
+//! and each step of the search for the modules that hold an item apart from a
+//! reading module. So every shape is charged as its work grows, and refused
+//! at the limit before it is settled to the end.
 //!
 //! A few temporaries are not charged, each bounded by a constant factor of
 //! what another budget already charges and dropped before the next is made:
@@ -111,10 +152,12 @@
 //! routes that a lookup of what the globs of a module bring in under one name
 //! returns, and the routes it combines for each item, the lists of the places
 //! of the reads of a module whose view holds a name, one for each such view,
-//! listed for one reading, the names
-//! that hold companions, listed while the drops the settled tables show are
-//! recorded. The search for the modules that hold an
-//! item apart from a reading module is charged for each step it makes (see
+//! listed for one reading, the names that hold companions, listed while the
+//! drops the settled tables show are recorded, the names a covert read passes
+//! on and the items of each, at most the entries of the views, and the covert
+//! readers a gain is passed on to and the open readers it closes, at most the
+//! readers of the view. The search for the modules that hold an item apart
+//! from a reading module is charged for each step it makes (see
 //! `SUPPLY_STEP_BYTES`); its tree of dominators, one entry for each module of
 //! the holder graph, is built once for an item and name and dropped when the
 //! drops are recorded.
@@ -207,6 +250,22 @@ type Held = (ItemId, Level);
 /// What a module exports under each name, in each name space.
 type Exported = Vec<(String, [Vec<Held>; 3])>;
 
+/// What a view gathers: what its module exports under each name, whether
+/// its globs bring in an item its class cannot access, and the names under
+/// which they bring in only such items (see [`Index::gather`]).
+type Gathered = (Exported, bool, Vec<(SharedStr, usize)>);
+
+/// The covert readers of a view that a gain can change, by module, each with
+/// its first covert read of the view and its turn, and the open readers that
+/// no longer are (see [`Index::covert_changed`]).
+type Changed = (Vec<(usize, (usize, usize))>, Vec<usize>);
+
+/// A covert reader told of a gain in its turn: the turn, the module, its
+/// first covert read of the view, and whether the gain arrives through it,
+/// or only what waits on the name in the module is told (see
+/// [`Index::covert_told`]).
+type Told = (usize, usize, usize, bool);
+
 /// The glob reads whose companions are dropped: for each glob import and
 /// module it reaches, the names whose companions the read does not deliver,
 /// in each name space, to the importers that can access the widest level
@@ -229,9 +288,15 @@ pub(crate) struct View {
     /// The items each name stands for.
     names: BTreeMap<SharedStr, Lists>,
     /// The globs that read the view and whose module has a view that what
-    /// they bring in reaches: each glob's module and its place among the
-    /// module's reads.
-    active: Vec<(usize, usize)>,
+    /// they bring in reaches: each glob's module, its place among the
+    /// module's reads and its turn, in the order of their turns.
+    active: Vec<(usize, usize, usize)>,
+    /// The turn of the next glob that reads the view from a module with
+    /// views: a gain of the view is told to its active and covert readers in
+    /// the order of their turns, the order in which they came to read it so,
+    /// which is the order in which the imports that wait on its names are
+    /// queued again.
+    turns: usize,
     /// The other globs that read the view, by module.
     passive: BTreeMap<usize, Vec<usize>>,
     /// The places among the reads of each module that reads the view of
@@ -245,6 +310,73 @@ pub(crate) struct View {
     /// class cannot access beside those it can (see [`Index::exposed`]), so
     /// a view for which it is false gathers a name from what arrives alone.
     hidden: bool,
+    /// What the view records of the globs that read it covertly and of
+    /// what the globs of its target bring in that its class cannot access,
+    /// made the first time it records one (see [`Unseen`]).
+    unseen: Option<Box<Unseen>>,
+}
+
+/// What a view records of the globs that read it covertly and of what the
+/// globs of its target bring in that its class cannot access: most views
+/// record none of it, so it is made, and charged, the first time a view
+/// records one.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct Unseen {
+    /// The globs that read the view from a module that has views, none of
+    /// which can access what the glob brings in, by module: their places
+    /// among the module's reads, each with its turn. Such a glob is not
+    /// given the view's names, only those a view of its module holds, and it
+    /// is looked at when the view grows only to tell the module what it
+    /// cannot access.
+    covert: BTreeMap<usize, Vec<(usize, usize)>>,
+    /// The modules among the covert readers that had a view that did not
+    /// yet know that its module's globs bring in what it cannot access,
+    /// when they were last looked at: only these, and those with a view
+    /// that holds a name the view gains, can be changed by the gain. A
+    /// module that stops reading the view covertly leaves them.
+    open: BTreeSet<usize>,
+    /// The views the target reads through a glob whose level the class
+    /// cannot access: every item they bring in is one it cannot access.
+    hiding: BTreeSet<usize>,
+    /// The names, each in a name space, under which the globs of the target
+    /// brought in only items the class cannot access while the view did
+    /// not hold the name, under a name that no view held a companion under:
+    /// with the views of `hiding`, where an item the class cannot access
+    /// under a name that the view does not hold can stand (see
+    /// [`Index::hides_nothing`]).
+    dropped: BTreeSet<(SharedStr, usize)>,
+}
+
+/// The record of a view that has recorded nothing (see [`Unseen`]).
+static NO_UNSEEN: Unseen = Unseen {
+    covert: BTreeMap::new(),
+    open: BTreeSet::new(),
+    hiding: BTreeSet::new(),
+    dropped: BTreeSet::new(),
+};
+
+impl View {
+    /// What the view records of its covert readers and of what its class
+    /// cannot access.
+    fn unseen(&self) -> &Unseen {
+        self.unseen.as_deref().unwrap_or(&NO_UNSEEN)
+    }
+
+    /// That record, made empty the first time, which is charged before it
+    /// is made (see [`View::unseen_bytes`]).
+    fn unseen_mut(&mut self) -> &mut Unseen {
+        self.unseen.get_or_insert_with(Box::default)
+    }
+
+    /// What making the view's record of what it cannot see allocates: its
+    /// box, the first time.
+    fn unseen_bytes(&self) -> usize {
+        if self.unseen.is_some() {
+            0
+        } else {
+            size_of::<Unseen>()
+        }
+    }
 }
 
 /// A glob import's read of the view of one of its targets.
@@ -298,6 +430,11 @@ pub(crate) struct GlobTables {
     /// For each name, the views that hold it in any name space, in the order
     /// they took it; a view never gives a name up.
     holding: HashMap<SharedStr, Vec<usize>>,
+    /// The views, names and name spaces whose items a reading again after a
+    /// change to the module's bindings or imports of the name set from the
+    /// globs (see [`Index::refresh`]): an arrival there is read again, never
+    /// passed on as the change it brings (see [`Index::arrive`]).
+    exact: BTreeSet<(usize, SharedStr, usize)>,
 }
 
 /// The glob reads of a module that may bring in a name: every read, in the
@@ -510,7 +647,7 @@ const VIEW_BYTES: usize = vec_slot::<View>()
     + vec_slot::<usize>()
     + vec_first::<usize>()
     + btree_map::<SharedStr, Lists>()
-    + vec_first::<(usize, usize)>()
+    + vec_first::<(usize, usize, usize)>()
     + 2 * btree_map::<usize, Vec<usize>>();
 
 /// What a name of a view allocates at most beyond its text: its entry and its
@@ -525,7 +662,7 @@ const READ_BYTES: usize = vec_slot::<GlobRead>()
     + btree_entry::<(usize, usize), ()>()
     + btree_entry::<(usize, usize, usize), ()>()
     + vec_first::<GlobRead>()
-    + 2 * vec_slot::<(usize, usize)>()
+    + 2 * vec_slot::<(usize, usize, usize)>()
     + btree_entry::<usize, Vec<usize>>()
     + vec_first::<usize>()
     + vec_slot::<usize>();
@@ -557,6 +694,30 @@ const fn holder_bytes(first: bool) -> usize {
         } else {
             0
         }
+}
+
+/// What a glob read listed among the covert readers of a view allocates: its
+/// place and turn in the list of its module, with the entry and first room
+/// of that list for the module's first such read of the view, and the first
+/// room of the table for the view's first covert reader.
+const fn covert_bytes(first_of_module: bool, first_of_view: bool) -> usize {
+    vec_slot::<(usize, usize)>()
+        + if first_of_module {
+            btree_entry::<usize, Vec<(usize, usize)>>() + vec_first::<(usize, usize)>()
+        } else {
+            0
+        }
+        + if first_of_view {
+            btree_map::<usize, Vec<(usize, usize)>>()
+        } else {
+            0
+        }
+}
+
+/// What an entry of a set of `T` of the tables allocates: its entry, and
+/// the first room of the set for its first.
+const fn set_bytes<T>(first: bool) -> usize {
+    btree_entry::<T, ()>() + if first { btree_map::<T, ()>() } else { 0 }
 }
 
 /// What a waiting import's name is told: the imports that wait on a name of
@@ -887,6 +1048,23 @@ impl Index {
                     .companions
                     .get(name)
                     .is_some_and(|spaces| spaces[at]))
+    }
+
+    /// True when a glob of `module` at `level` is covert: the module has
+    /// views and none of their classes can access the level, so every item
+    /// the glob brings in is one that no importer of the module can access
+    /// (what a glob brings in is no wider than the glob, and a class that
+    /// cannot access a level cannot access a narrower one). Never for a
+    /// module with a `pub(in path)` visibility, whose levels can change as
+    /// the tables settle, nor in the reference mode of the tests.
+    fn covert_level(&self, module: usize, level: Level) -> bool {
+        !Self::exact_mode()
+            && !self.exports_by_path(module)
+            && !self.exports_of(module).is_empty()
+            && self
+                .exports_of(module)
+                .iter()
+                .all(|view| !self.allowed(module, &self.globs.views[*view].class, level))
     }
 
     /// The reads of the globs of `module` whose view holds `name` in some
@@ -1692,6 +1870,9 @@ impl Index {
     /// Of the items `held`, sorted by item, with repeats, keep each item once
     /// at its widest level.
     fn widest(&self, held: &mut Vec<Held>) {
+        if held.len() < 2 {
+            return;
+        }
         held.sort_unstable_by(|left, right| {
             left.0
                 .cmp(&right.0)
@@ -1785,15 +1966,30 @@ impl Index {
         site: usize,
         meter: &Meter,
     ) -> Result<Vec<Held>, LoadError> {
+        Ok(self.exported(target, class, name, at, site, meter)?.0)
+    }
+
+    /// [`Index::export_ids`], and whether the globs of `target` deliver an
+    /// item under `name` in the name space at `at`: false where the target
+    /// binds the name itself or keeps it from its globs.
+    fn exported(
+        &self,
+        target: usize,
+        class: &[bool],
+        name: &str,
+        at: usize,
+        site: usize,
+        meter: &Meter,
+    ) -> Result<(Vec<Held>, bool), LoadError> {
         if let Some(defs) = self.scopes[target]
             .get(name)
             .map(|entry| &entry.defs[at])
             .filter(|defs| !defs.is_empty())
         {
-            return Ok(self.defs_held(target, class, defs));
+            return Ok((self.defs_held(target, class, defs), false));
         }
         if self.blocked_in(target, name, at) {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), false));
         }
         let reads = self.reads_holding(target, name);
         self.charge_steps(reads.scanned() + reads.len(), site, meter)?;
@@ -1803,7 +1999,8 @@ impl Index {
         } else {
             self.split_globs_plain(target, reads, class, name, at)
         };
-        Ok(self.exposed(seen, hidden))
+        let delivered = !seen.is_empty() || !hidden.is_empty();
+        Ok((self.exposed(seen, hidden), delivered))
     }
 
     /// What the glob reads `reads` of `target` bring in under `name`, as the
@@ -1914,7 +2111,8 @@ impl Index {
             if known.is_none() {
                 bytes += shared_text(name.len()) + hash_entry::<SharedStr>();
             }
-            Some(known.unwrap_or_else(|| SharedStr::from(name)))
+            let text = known.is_none();
+            Some((known.unwrap_or_else(|| SharedStr::from(name)), text))
         };
         // A companion may be the first held under the name.
         if fresh.iter().any(|entry| entry.1.is_companion())
@@ -1923,57 +2121,65 @@ impl Index {
             bytes += hash_entry::<(SharedStr, [bool; 3])>();
         }
         self.charge_tables(bytes, self.globs.views[view].site, meter)?;
-        // Each entry as the view holds it once added: as wide as the wider
-        // of the two routes, a companion only if both are.
-        let finals: Vec<Held> = fresh
-            .iter()
-            .map(|entry| {
-                let known = self.globs.views[view].names.get(name).and_then(|lists| {
-                    lists[at]
-                        .binary_search_by_key(&entry.0, |known| known.0)
-                        .ok()
-                        .map(|place| lists[at][place].1)
-                });
-                let Some(known) = known else { return *entry };
-                let mut level = if self.width(entry.1) < self.width(known) {
-                    entry.1.plain()
-                } else {
-                    known.plain()
-                };
-                if known.is_companion() && entry.1.is_companion() {
-                    level = level.companion();
-                }
-                (entry.0, level)
-            })
-            .collect();
+        // Each entry as the view holds it once added: an item new to the
+        // view as it comes, and one it holds as wide as the wider of the two
+        // routes, a companion only if both are.
+        let widened: Option<Vec<Held>> = (new < fresh.len()).then(|| {
+            fresh
+                .iter()
+                .map(|entry| {
+                    let known = self.globs.views[view].names.get(name).and_then(|lists| {
+                        lists[at]
+                            .binary_search_by_key(&entry.0, |known| known.0)
+                            .ok()
+                            .map(|place| lists[at][place].1)
+                    });
+                    let Some(known) = known else { return *entry };
+                    let mut level = if self.width(entry.1) < self.width(known) {
+                        entry.1.plain()
+                    } else {
+                        known.plain()
+                    };
+                    if known.is_companion() && entry.1.is_companion() {
+                        level = level.companion();
+                    }
+                    (entry.0, level)
+                })
+                .collect()
+        });
+        let finals = widened.as_deref().unwrap_or(&fresh);
         #[cfg(test)]
-        self.assert_widened(view, name, at, &finals);
-        self.store_entries(view, name, at, key, &finals);
+        self.assert_widened(view, name, at, finals);
+        self.store_entries(view, name, at, key, finals);
         Ok(fresh)
     }
 
     /// Store `finals`, charged, as the items of `name` in the name space at
     /// `at` of `view`: with `key`, the shared text of a name new to the
-    /// view, which puts the view among the holders of the name, and a
+    /// view, which puts the view among the holders of the name and is
+    /// stored as the load's copy of the text when that is new too, and a
     /// companion among them flags the name in its name space.
     fn store_entries(
         &mut self,
         view: usize,
         name: &str,
         at: usize,
-        key: Option<SharedStr>,
+        key: Option<(SharedStr, bool)>,
         finals: &[Held],
     ) {
         if finals.iter().any(|entry| entry.1.is_companion()) {
             let key = key
-                .clone()
+                .as_ref()
+                .map(|(key, _)| key.clone())
                 .or_else(|| self.globs.strings.get(name).cloned())
                 .expect("a name a view holds is interned");
             self.globs.companions.entry(key).or_default()[at] = true;
         }
         let lists = match key {
-            Some(key) => {
-                self.globs.strings.insert(key.clone());
+            Some((key, text)) => {
+                if text {
+                    self.globs.strings.insert(key.clone());
+                }
                 self.globs
                     .holding
                     .entry(key.clone())
@@ -2055,28 +2261,19 @@ impl Index {
             class: class.into(),
             names: BTreeMap::new(),
             active: Vec::new(),
+            turns: 0,
             passive: BTreeMap::new(),
             places: BTreeMap::new(),
             site,
             hidden: false,
+            unseen: None,
         });
         self.globs.view_of.insert((target, class.into()), view);
         self.globs.exports[target].push(view);
         // The target's reads whose globs reach the view now pass on what
-        // they bring in.
-        for read in 0..self.globs.reads[target].len() {
-            let read_view = self.globs.reads[target][read].view;
-            let readers = &mut self.globs.views[read_view];
-            if let Some(list) = readers.passive.get_mut(&target)
-                && let Some(place) = list.iter().position(|known| *known == read)
-            {
-                list.remove(place);
-                if list.is_empty() {
-                    readers.passive.remove(&target);
-                }
-                readers.active.push((target, read));
-            }
-        }
+        // they bring in, and those no view of the target can access are
+        // covert.
+        self.turn_readers(target, site, meter)?;
         // What the target exports to the class, gathered in one pass over
         // its bindings and over the views its globs that reach the class
         // read, then added to the view. Every read of one view brings in the
@@ -2111,10 +2308,33 @@ impl Index {
                 .map(|(source, _)| self.globs.views[*source].names.len())
                 .sum::<usize>();
         self.charge_steps(names, site, meter)?;
-        let (content, any_hidden) = self.gather(target, class, shown, hidden, site, meter)?;
+        let (content, any_hidden, dropped) =
+            self.gather(target, class, shown, hidden, site, meter)?;
+        let hiding: Vec<usize> = hidden.iter().map(|(source, _)| *source).collect();
         drop(sources);
         meter.release_globs(listed);
         self.globs.views[view].hidden = any_hidden;
+        // A view that does not know that the target's globs bring in what it
+        // cannot access makes the target an open reader of each view it
+        // reads covertly (see [`Index::covert_told`]).
+        if !any_hidden {
+            for read in 0..self.globs.reads[target].len() {
+                let read_view = self.globs.reads[target][read].view;
+                if self.globs.views[read_view]
+                    .unseen()
+                    .covert
+                    .contains_key(&target)
+                {
+                    self.note_open(read_view, target, site, meter)?;
+                }
+            }
+        }
+        for source in hiding {
+            self.note_hiding(view, source, site, meter)?;
+        }
+        for (name, at) in dropped {
+            self.note_dropped(view, name, at, site, meter)?;
+        }
         for (name, lists) in content {
             for (at, ids) in lists.into_iter().enumerate() {
                 self.add_to_view(view, &name, at, &ids, meter)?;
@@ -2122,6 +2342,137 @@ impl Index {
         }
         meter.release_globs(gathered);
         Ok(view)
+    }
+
+    /// Turn the readers of the reads of `target` once it has a new view:
+    /// a passive read becomes active where a view of the target can access
+    /// what its glob brings in and covert where none can (see
+    /// [`Index::covert_level`]), and a covert read becomes active where the
+    /// new view can, leaving the covert and the open readers of its view.
+    /// What a covert reader's entry allocates is charged for the glob
+    /// import at `site`.
+    fn turn_readers(&mut self, target: usize, site: usize, meter: &Meter) -> Result<(), LoadError> {
+        for read in 0..self.globs.reads[target].len() {
+            let read_view = self.globs.reads[target][read].view;
+            let level = self.level_of(&self.uses[self.globs.reads[target][read].glob].vis, target);
+            let shown = !self.covert_level(target, level);
+            let readers = &self.globs.views[read_view];
+            let passive = readers
+                .passive
+                .get(&target)
+                .and_then(|list| list.iter().position(|known| *known == read));
+            if let Some(at) = passive {
+                if !shown {
+                    let covert = &readers.unseen().covert;
+                    let bytes = covert_bytes(!covert.contains_key(&target), covert.is_empty())
+                        + readers.unseen_bytes();
+                    self.charge_tables(bytes, site, meter)?;
+                }
+                let readers = &mut self.globs.views[read_view];
+                let list = readers.passive.get_mut(&target).expect("listed");
+                list.remove(at);
+                if list.is_empty() {
+                    readers.passive.remove(&target);
+                }
+                let turn = readers.turns;
+                readers.turns += 1;
+                if shown {
+                    readers.active.push((target, read, turn));
+                } else {
+                    readers
+                        .unseen_mut()
+                        .covert
+                        .entry(target)
+                        .or_default()
+                        .push((read, turn));
+                }
+            } else if shown
+                && let Some(at) = readers
+                    .unseen()
+                    .covert
+                    .get(&target)
+                    .and_then(|list| list.iter().position(|known| known.0 == read))
+            {
+                // The read keeps its turn among the active readers.
+                let readers = &mut self.globs.views[read_view];
+                let unseen = readers.unseen_mut();
+                let list = unseen.covert.get_mut(&target).expect("listed");
+                let (_, turn) = list.remove(at);
+                if list.is_empty() {
+                    unseen.covert.remove(&target);
+                    unseen.open.remove(&target);
+                }
+                let place = readers.active.partition_point(|known| known.2 < turn);
+                readers.active.insert(place, (target, read, turn));
+            }
+        }
+        Ok(())
+    }
+
+    /// Record `module` among the open covert readers of `view` (see
+    /// [`Index::covert_told`]), charging the record for the glob import at
+    /// `site` the first time.
+    fn note_open(
+        &mut self,
+        view: usize,
+        module: usize,
+        site: usize,
+        meter: &Meter,
+    ) -> Result<(), LoadError> {
+        let unseen = &self.globs.views[view];
+        let open = &unseen.unseen().open;
+        if open.contains(&module) {
+            return Ok(());
+        }
+        let bytes = set_bytes::<usize>(open.is_empty()) + unseen.unseen_bytes();
+        self.charge_tables(bytes, site, meter)?;
+        self.globs.views[view].unseen_mut().open.insert(module);
+        Ok(())
+    }
+
+    /// Record that the target of `view` reads `source` through a glob whose
+    /// level the class of the view cannot access, charging the record for
+    /// the glob import at `site` the first time.
+    fn note_hiding(
+        &mut self,
+        view: usize,
+        source: usize,
+        site: usize,
+        meter: &Meter,
+    ) -> Result<(), LoadError> {
+        let unseen = &self.globs.views[view];
+        let hiding = &unseen.unseen().hiding;
+        if hiding.contains(&source) {
+            return Ok(());
+        }
+        let bytes = set_bytes::<usize>(hiding.is_empty()) + unseen.unseen_bytes();
+        self.charge_tables(bytes, site, meter)?;
+        self.globs.views[view].unseen_mut().hiding.insert(source);
+        Ok(())
+    }
+
+    /// Record that the globs of the target of `view` brought in under `name`
+    /// in the name space at `at` only items the class of the view cannot
+    /// access while it did not hold the name, charging the record for the
+    /// glob import at `site` the first time.
+    fn note_dropped(
+        &mut self,
+        view: usize,
+        name: SharedStr,
+        at: usize,
+        site: usize,
+        meter: &Meter,
+    ) -> Result<(), LoadError> {
+        let unseen = &self.globs.views[view];
+        let dropped = &unseen.unseen().dropped;
+        let key = (name, at);
+        if dropped.contains(&key) {
+            return Ok(());
+        }
+        let bytes = set_bytes::<(SharedStr, usize)>(dropped.is_empty()) + unseen.unseen_bytes();
+        self.charge_tables(bytes, site, meter)?;
+        self.globs.views[view].unseen_mut().dropped.insert(key);
+        Ok(())
     }
 
     /// What `target` exports to `class` under each name, as the tables
@@ -2156,7 +2507,7 @@ impl Index {
         covert: &[(usize, Level)],
         site: usize,
         meter: &Meter,
-    ) -> Result<(Exported, bool), LoadError> {
+    ) -> Result<Gathered, LoadError> {
         let mut content: BTreeMap<&'s str, [Vec<Held>; 3]> = BTreeMap::new();
         let mut outside: BTreeMap<(&'s str, usize), Vec<Held>> = BTreeMap::new();
         let mut blocked: BTreeMap<(&'s str, usize), bool> = BTreeMap::new();
@@ -2202,14 +2553,27 @@ impl Index {
         let (any_hidden, probed) =
             self.gather_covert(target, class, covert, &content, &mut outside, site, meter)?;
         let mut gathered: Exported = Vec::with_capacity(content.len());
+        let mut dropped: Vec<(SharedStr, usize)> = Vec::new();
         for (name, mut lists) in content {
             for (at, ids) in lists.iter_mut().enumerate() {
                 let hidden = outside.remove(&(name, at)).unwrap_or_default();
+                let plain = !self.flagged(name, at);
+                // Items the class cannot access under a name it reads
+                // nothing of are dropped: the name is recorded where no view
+                // holds a companion under it (see [`Index::hides_nothing`]).
+                if plain && ids.is_empty() && !hidden.is_empty() {
+                    let key = self
+                        .globs
+                        .strings
+                        .get(name)
+                        .expect("a name a view holds is interned");
+                    dropped.push((key.clone(), at));
+                }
                 // Items the class cannot access, and companions, are read
                 // again from the globs, as each delivers them (see
                 // [`Index::delivered`]), under a name that a view holds a
                 // companion under.
-                *ids = if !self.flagged(name, at)
+                *ids = if plain
                     || (hidden.is_empty() && !ids.iter().any(|held| held.1.is_companion()))
                 {
                     self.exposed(std::mem::take(ids), hidden)
@@ -2220,7 +2584,7 @@ impl Index {
             gathered.push((name.to_owned(), lists));
         }
         meter.release_globs(probed);
-        Ok((gathered, any_hidden))
+        Ok((gathered, any_hidden, dropped))
     }
 
     /// What the views `covert`, read by globs of `target` whose level
@@ -2354,8 +2718,10 @@ impl Index {
     /// Record that the glob import at `glob` reaches `target`: it reads the
     /// view of the target for its module's class, made if there is none, and
     /// what the view holds is passed on to its module, a step of work for
-    /// each name in each name space. Reading the same view again does
-    /// nothing.
+    /// each name in each name space, unless no view of the module can access
+    /// the glob, when the read is covert (see [`Index::read_covert`]). The
+    /// views of the module whose class cannot access the glob record the
+    /// view it reads. Reading the same view again does nothing.
     pub(crate) fn read_glob(
         &mut self,
         glob: usize,
@@ -2390,12 +2756,26 @@ impl Index {
             .push(read);
         self.globs.read_by.insert((glob, view));
         let level = self.level_of(&self.uses[glob].vis, module);
+        // The views of the module whose class cannot access the glob's level
+        // learn that the view it reads brings in only what they cannot
+        // access (see [`Index::hides_nothing`]).
+        if !Self::exact_mode() && !self.exports_by_path(module) {
+            for place in 0..self.exports_of(module).len() {
+                let own = self.globs.exports[module][place];
+                if !self.allowed(module, &self.globs.views[own].class, level) {
+                    self.note_hiding(own, view, glob, meter)?;
+                }
+            }
+        }
         // A glob of the module with the same level already reads the view:
         // this one passes on nothing more, so it is neither an active nor a
         // passive reader, and a module that reads one table through many
         // such globs passes on what the table holds once.
         let first = self.globs.passing.insert((module, view, level));
         let passes = first && !self.exports_of(module).is_empty();
+        if passes && self.covert_level(module, level) {
+            return self.read_covert(module, read, view, glob, waiters, meter);
+        }
         if !passes {
             if first {
                 self.globs.views[view]
@@ -2411,20 +2791,22 @@ impl Index {
             }
             return Ok(());
         }
-        self.globs.views[view].active.push((module, read));
+        let turn = self.globs.views[view].turns;
+        self.globs.views[view].turns += 1;
+        self.globs.views[view].active.push((module, read, turn));
         // Each name of the view, one at a time: passing one on can add to
         // this view too, through a cycle of globs, and what it adds is passed
         // on then.
         let mut after: Option<SharedStr> = None;
         loop {
+            let names = &self.globs.views[view].names;
             let next = match &after {
-                None => self.globs.views[view].names.iter().next(),
-                Some(name) => self.globs.views[view]
-                    .names
+                None => names.iter().next(),
+                Some(name) => names
                     .range::<SharedStr, _>((Excluded(name), Unbounded))
                     .next(),
             };
-            let Some((name, lists)) = next.map(|(name, lists)| (name.clone(), lists.clone()))
+            let Some((name, lists)) = next.map(|(name, lists)| (name.clone(), (**lists).clone()))
             else {
                 return Ok(());
             };
@@ -2440,9 +2822,178 @@ impl Index {
         }
     }
 
+    /// Record the read at `read` of the globs of `module`, by the glob at
+    /// `glob`, of `view` as covert (see [`Index::covert_level`]), and pass on
+    /// what it can change. It is listed among the covert readers of the
+    /// view before anything is passed on, so an item the view gains through
+    /// a cycle of globs while its names arrive reaches the module, as every
+    /// later gain of the view does (see [`Index::covert_told`]). What waits
+    /// on a name of the view in the module is told, as for a passive read:
+    /// a step for each name the module waits on. The views of the module
+    /// learn that its globs bring in an item they cannot access once the
+    /// view holds a name that the module neither binds nor keeps from the
+    /// globs, probed name by name until one tells, a step each, while a view
+    /// of the module does not know it yet. And each name that a view of the
+    /// module holds and the view holds too, in the same name space, arrives
+    /// as an active read would pass it on, a step each (see
+    /// [`Index::covert_due`]): under any other name an arrival through the
+    /// read finds nothing to add. That is what an active read of the view
+    /// would change, without a step for each of the view's names.
+    fn read_covert(
+        &mut self,
+        module: usize,
+        read: usize,
+        view: usize,
+        glob: usize,
+        waiters: &mut dyn Waiters,
+        meter: &Meter,
+    ) -> Result<(), LoadError> {
+        let unseen = &self.globs.views[view];
+        let covert = &unseen.unseen().covert;
+        let bytes =
+            covert_bytes(!covert.contains_key(&module), covert.is_empty()) + unseen.unseen_bytes();
+        self.charge_tables(bytes, glob, meter)?;
+        let readers = &mut self.globs.views[view];
+        let turn = readers.turns;
+        readers.turns += 1;
+        readers
+            .unseen_mut()
+            .covert
+            .entry(module)
+            .or_default()
+            .push((read, turn));
+        let waited = waiters.waited_in(module);
+        self.covert_steps(waited.len(), glob, meter)?;
+        if self
+            .exports_of(module)
+            .iter()
+            .any(|own| !self.globs.views[*own].hidden)
+        {
+            let mut found = false;
+            for (name, lists) in &self.globs.views[view].names {
+                self.covert_steps(1, glob, meter)?;
+                if (0..3).any(|at| {
+                    !lists[at].is_empty()
+                        && !self.binds_itself(module, name, at)
+                        && !self.blocked_in(module, name, at)
+                }) {
+                    found = true;
+                    break;
+                }
+            }
+            if found {
+                for place in 0..self.globs.exports[module].len() {
+                    let own = self.globs.exports[module][place];
+                    self.globs.views[own].hidden = true;
+                }
+            }
+        }
+        if self
+            .exports_of(module)
+            .iter()
+            .any(|own| !self.globs.views[*own].hidden)
+        {
+            self.note_open(view, module, glob, meter)?;
+        }
+        // In the order of the view's names, as an active read gives them:
+        // what waits on a name in the module is told before the name
+        // arrives.
+        let mut waits = waited.iter().peekable();
+        for (name, at) in self.covert_due(module, view, glob, meter)? {
+            while let Some(waiting) = waits.next_if(|waiting| waiting.as_str() <= name.as_str()) {
+                if self.globs.views[view].names.contains_key(waiting.as_str()) {
+                    waiters.wake(module, waiting);
+                }
+            }
+            self.covert_steps(1, glob, meter)?;
+            let ids = self.globs.views[view].names[name.as_str()][at].clone();
+            let mut work = Vec::new();
+            self.arrive(module, read, &name, at, &ids, &mut work, waiters, meter)?;
+            self.pass_on(work, glob, waiters, meter)?;
+        }
+        for waiting in waits {
+            if self.globs.views[view].names.contains_key(waiting.as_str()) {
+                waiters.wake(module, waiting);
+            }
+        }
+        Ok(())
+    }
+
+    /// The names, each in a name space, that a view of `module` holds and
+    /// `view` holds too, and that the module neither binds nor keeps from
+    /// the globs, in order: found from the smaller side, the names of the
+    /// module's views or those of `view`, a step for each name looked at,
+    /// charged for the glob at `glob`. An arrival through a covert read
+    /// under any other name only tells the module's views that its globs
+    /// bring in what they cannot access (see [`Index::arrive`]).
+    fn covert_due(
+        &self,
+        module: usize,
+        view: usize,
+        glob: usize,
+        meter: &Meter,
+    ) -> Result<Vec<(SharedStr, usize)>, LoadError> {
+        let own = self.exports_of(module);
+        let source = &self.globs.views[view].names;
+        let holds = |names: &BTreeMap<SharedStr, Lists>, name: &str, at: usize| {
+            names.get(name).is_some_and(|lists| !lists[at].is_empty())
+        };
+        let open = |name: &str, at: usize| {
+            !self.binds_itself(module, name, at) && !self.blocked_in(module, name, at)
+        };
+        let held: usize = own
+            .iter()
+            .map(|own| self.globs.views[*own].names.len())
+            .sum();
+        let mut due: Vec<(SharedStr, usize)> = Vec::new();
+        if held <= source.len() {
+            self.covert_steps(held, glob, meter)?;
+            for own in own {
+                for (name, lists) in &self.globs.views[*own].names {
+                    for (at, ids) in lists.iter().enumerate() {
+                        if !ids.is_empty() && holds(source, name, at) && open(name, at) {
+                            due.push((name.clone(), at));
+                        }
+                    }
+                }
+            }
+            due.sort_unstable();
+            due.dedup();
+        } else {
+            self.covert_steps(source.len(), glob, meter)?;
+            for (name, lists) in source {
+                for (at, ids) in lists.iter().enumerate() {
+                    if !ids.is_empty()
+                        && own
+                            .iter()
+                            .any(|own| holds(&self.globs.views[*own].names, name, at))
+                        && open(name, at)
+                    {
+                        due.push((name.clone(), at));
+                    }
+                }
+            }
+        }
+        Ok(due)
+    }
+
+    /// Charge `units` steps of the covert reads of the glob tables (see
+    /// [`Index::read_covert`]), for the glob import at `site`, and count them.
+    fn covert_steps(&self, units: usize, site: usize, meter: &Meter) -> Result<(), LoadError> {
+        tally::add(Work::CovertChecks, units);
+        self.charge_steps(units, site, meter)
+    }
+
     /// Recompute what `module` exports under `name` to each of its classes,
     /// after its bindings of the name or an import of the name changed, and
-    /// pass on what that adds.
+    /// pass on what that adds. Where the name is read again from the globs,
+    /// neither bound by the module nor kept from its globs, and they deliver
+    /// an item under it, the view, name and name space are recorded, charged
+    /// as glob bytes, and every later arrival there is read as it is where a
+    /// change is not taken as it comes (see [`Index::arrival`]): items the
+    /// globs brought in while the module was kept from them did not tell the
+    /// view that its class cannot access them. Where they deliver none, none
+    /// came in, and what comes in later arrives as usual.
     pub(crate) fn refresh(
         &mut self,
         module: usize,
@@ -2450,11 +3001,15 @@ impl Index {
         waiters: &mut dyn Waiters,
         meter: &Meter,
     ) -> Result<(), LoadError> {
-        for view in self.exports_of(module).to_vec() {
-            let class = self.globs.views[view].class.clone();
+        for place in 0..self.exports_of(module).len() {
+            let view = self.globs.exports[module][place];
             let site = self.globs.views[view].site;
             for at in 0..3 {
-                let ids = self.export_ids(module, &class, name, at, site, meter)?;
+                let class = &self.globs.views[view].class;
+                let (ids, delivered) = self.exported(module, class, name, at, site, meter)?;
+                if delivered {
+                    self.mark_exact(view, name, at, site, meter)?;
+                }
                 let fresh = self.add_to_view(view, name, at, &ids, meter)?;
                 if !fresh.is_empty() {
                     let grown = Grown {
@@ -2467,6 +3022,42 @@ impl Index {
                 }
             }
         }
+        Ok(())
+    }
+
+    /// Record that a reading again after a change to the bindings or imports
+    /// of `name` set what `view` holds of it in the name space at `at`,
+    /// charging the record, and the name's text the first time the tables
+    /// hold it, for the glob import at `site`.
+    fn mark_exact(
+        &mut self,
+        view: usize,
+        name: &str,
+        at: usize,
+        site: usize,
+        meter: &Meter,
+    ) -> Result<(), LoadError> {
+        let key = if let Some(key) = self.globs.strings.get(name) {
+            if self.globs.exact.contains(&(view, key.clone(), at)) {
+                return Ok(());
+            }
+            key.clone()
+        } else {
+            self.charge_tables(
+                shared_text(name.len()) + hash_entry::<SharedStr>(),
+                site,
+                meter,
+            )?;
+            let key = SharedStr::from(name);
+            self.globs.strings.insert(key.clone());
+            key
+        };
+        self.charge_tables(
+            set_bytes::<(usize, SharedStr, usize)>(self.globs.exact.is_empty()),
+            site,
+            meter,
+        )?;
+        self.globs.exact.insert((view, key, at));
         Ok(())
     }
 
@@ -2515,10 +3106,23 @@ impl Index {
                     waiters.wake(module, &grown.name);
                 }
             }
-            // Passing on adds names to views, never readers, so the list of
-            // readers stays as it is meanwhile.
+            // Passing on adds names to views, never readers, so the lists of
+            // readers stay as they are meanwhile. The covert readers the gain
+            // can change, and those where something waits on the name, take
+            // their turns among the active readers (see
+            // [`Index::covert_told`]).
+            let told = if self.globs.views[grown.view].unseen().covert.is_empty() {
+                Vec::new()
+            } else {
+                self.covert_told(&grown, &*waiters, meter)?
+            };
+            let mut next = 0;
             for reader in 0..self.globs.views[grown.view].active.len() {
-                let (module, read) = self.globs.views[grown.view].active[reader];
+                let (module, read, turn) = self.globs.views[grown.view].active[reader];
+                while let Some(&covert) = told.get(next).filter(|covert| covert.0 < turn) {
+                    self.tell_covert(&grown, covert, &mut work, &mut room, waiters, meter)?;
+                    next += 1;
+                }
                 let glob = self.globs.reads[module][read].glob;
                 // Each reader the change is passed on to is a step of work.
                 self.charge_steps(1, glob, meter)?;
@@ -2541,18 +3145,231 @@ impl Index {
                     meter,
                 )?;
             }
+            for covert in &told[next..] {
+                self.tell_covert(&grown, *covert, &mut work, &mut room, waiters, meter)?;
+            }
             meter.release_globs(grown.bytes());
         }
         meter.release_globs(room);
         Ok(())
     }
 
+    /// The covert readers of the view of `grown` to tell of the gain (see
+    /// [`Index::read_covert`]), in the order of their turns: each the gain
+    /// can change arrives through its first covert read of the view (see
+    /// [`Index::covert_changed`]), and of the others, each where something
+    /// waits on the name is told so, found from the smaller side of the
+    /// modules that wait on it and the covert readers, a step for each
+    /// looked at, charged to the glob the view was made for. The open
+    /// readers whose views all know now what they cannot access leave them.
+    /// Told in their turns among the active readers, they are told in the
+    /// order an active read of each would have been, so the imports that
+    /// wait on the name are queued again in that order.
+    fn covert_told(
+        &mut self,
+        grown: &Grown,
+        waiters: &dyn Waiters,
+        meter: &Meter,
+    ) -> Result<Vec<Told>, LoadError> {
+        let site = self.globs.views[grown.view].site;
+        let (due, closed) = self.covert_changed(grown, site, meter)?;
+        if let Some(unseen) = self.globs.views[grown.view].unseen.as_mut() {
+            for module in closed {
+                unseen.open.remove(&module);
+            }
+        }
+        let readers = &self.globs.views[grown.view].unseen().covert;
+        let mut told: Vec<Told> = due
+            .iter()
+            .map(|&(module, (read, turn))| (turn, module, read, true))
+            .collect();
+        if let Some(modules) = waiters.waiting_on(&grown.name) {
+            self.covert_steps(modules.len().min(readers.len()), site, meter)?;
+            let waiting: Vec<usize> = if modules.len() <= readers.len() {
+                modules
+                    .iter()
+                    .copied()
+                    .filter(|module| readers.contains_key(module))
+                    .collect()
+            } else {
+                readers
+                    .keys()
+                    .copied()
+                    .filter(|module| modules.contains(module))
+                    .collect()
+            };
+            for module in waiting {
+                if due.binary_search_by_key(&module, |entry| entry.0).is_err() {
+                    let (read, turn) = readers[&module][0];
+                    told.push((turn, module, read, false));
+                }
+            }
+        }
+        told.sort_unstable();
+        Ok(told)
+    }
+
+    /// Tell the covert reader `told` of the gain `grown` (see
+    /// [`Index::covert_told`]): the gain arrives through its read, queueing
+    /// what that adds in `work`, its room charged as it grows, as
+    /// [`Index::pass_on`] does for the active readers; or what waits on the
+    /// name in its module is told.
+    fn tell_covert(
+        &mut self,
+        grown: &Grown,
+        told: Told,
+        work: &mut Vec<Grown>,
+        room: &mut usize,
+        waiters: &mut dyn Waiters,
+        meter: &Meter,
+    ) -> Result<(), LoadError> {
+        let (_, module, read, arrives) = told;
+        if !arrives {
+            waiters.wake(module, &grown.name);
+            return Ok(());
+        }
+        let glob = self.globs.reads[module][read].glob;
+        let before = work.len();
+        self.arrive(
+            module,
+            read,
+            &grown.name,
+            grown.at,
+            &grown.ids,
+            work,
+            waiters,
+            meter,
+        )?;
+        let grew = (work.capacity() * size_of::<Grown>()).saturating_sub(*room);
+        *room += grew;
+        self.charge_work(
+            grew + work[before..].iter().map(Grown::bytes).sum::<usize>(),
+            glob,
+            meter,
+        )
+    }
+
+    /// The covert readers of the view of `grown` that the gain can change,
+    /// by module, each with its first covert read of the view and its turn,
+    /// and the open readers whose views all know now that their globs bring
+    /// in what they cannot access (see [`Index::covert_told`]). Only two
+    /// kinds of covert reader can be changed: a module with a view that does
+    /// not yet know what it cannot access, among the view's open readers,
+    /// and a module with a view that holds the name, a target of the views
+    /// that hold the name, found from the smaller side, those views or the
+    /// covert readers. Each module found is looked at, and is changed unless
+    /// the gain cannot change anything there (see [`Index::covert_inert`]);
+    /// each view that holds the name and open reader looked at to find them
+    /// is a step too, charged for the glob import at `site`.
+    fn covert_changed(
+        &self,
+        grown: &Grown,
+        site: usize,
+        meter: &Meter,
+    ) -> Result<Changed, LoadError> {
+        let flagged = self.flagged(&grown.name, grown.at);
+        let readers = self.globs.views[grown.view].unseen();
+        let mut found: Vec<usize> = Vec::new();
+        // The view that grew holds the name, so the views that hold it are
+        // fewer than the covert readers only where those are two or more.
+        let holders = if readers.covert.len() > 1 {
+            self.globs
+                .holding
+                .get(grown.name.as_str())
+                .map(Vec::as_slice)
+                .filter(|holders| holders.len() < readers.covert.len())
+        } else {
+            None
+        };
+        if let Some(holders) = holders {
+            self.covert_steps(holders.len(), site, meter)?;
+            found.extend(
+                holders
+                    .iter()
+                    .map(|view| self.globs.views[*view].target)
+                    .filter(|module| readers.covert.contains_key(module)),
+            );
+        }
+        self.covert_steps(readers.open.len(), site, meter)?;
+        let mut closed: Vec<usize> = Vec::new();
+        for module in &readers.open {
+            if self
+                .exports_of(*module)
+                .iter()
+                .any(|own| !self.globs.views[*own].hidden)
+            {
+                found.push(*module);
+            } else {
+                closed.push(*module);
+            }
+        }
+        let mut due: Vec<(usize, (usize, usize))> = Vec::new();
+        if holders.is_some() || !found.is_empty() {
+            if holders.is_none() {
+                found.extend(readers.covert.keys().copied());
+            }
+            found.sort_unstable();
+            found.dedup();
+            for module in found {
+                self.covert_steps(1, site, meter)?;
+                if !self.covert_inert(module, grown, flagged) {
+                    due.push((module, readers.covert[&module][0]));
+                }
+            }
+        } else {
+            for (module, reads) in &readers.covert {
+                self.covert_steps(1, site, meter)?;
+                if !self.covert_inert(*module, grown, flagged) {
+                    due.push((*module, reads[0]));
+                }
+            }
+        }
+        Ok((due, closed))
+    }
+
+    /// True when `grown` arriving at `module` through a covert read can
+    /// change nothing: every view of the module already knows that its globs
+    /// bring in what it cannot access, and either does not hold the name in
+    /// the name space, so an item it cannot access has nothing to stand
+    /// beside, or holds every item that arrives, under a name that no view
+    /// holds a companion under and that a reading again did not set (see
+    /// [`Index::arrive`]): an item the view cannot access and already holds
+    /// adds no companion.
+    fn covert_inert(&self, module: usize, grown: &Grown, flagged: bool) -> bool {
+        self.exports_of(module).iter().all(|own| {
+            let view = &self.globs.views[*own];
+            view.hidden
+                && view
+                    .names
+                    .get(grown.name.as_str())
+                    .map(|lists| &lists[grown.at])
+                    .filter(|held| !held.is_empty())
+                    .is_none_or(|held| {
+                        !flagged
+                            && !self.is_exact(*own, &grown.name, grown.at)
+                            && grown.ids.iter().all(|(id, _)| {
+                                held.binary_search_by_key(id, |known| known.0).is_ok()
+                            })
+                    })
+        })
+    }
+
+    /// True when a reading again after a change to the bindings or imports
+    /// of `name` set what `view` holds of it in the name space at `at` from
+    /// the globs (see [`Index::refresh`]).
+    fn is_exact(&self, view: usize, name: &SharedStr, at: usize) -> bool {
+        !self.globs.exact.is_empty() && self.globs.exact.contains(&(view, name.clone(), at))
+    }
+
     /// Pass on what the read at `read` of the globs of `module` brought in,
     /// the items `ids` of `name` in the name space at `at`: tell what waits
     /// on the name there, and add the items to each view of the module that
     /// the glob reaches where nothing shadows the globs, queueing what that
-    /// adds in `work`. Reading the module's table again for the name is
-    /// charged as work for each of its glob reads (see [`Index::export_ids`]).
+    /// adds in `work`. A view takes them as the change they bring where it
+    /// holds the name, under a name that no view holds a companion under
+    /// (see [`Index::delta`]), and otherwise as [`Index::arrival`] tells.
+    /// Reading the module's table again for the name is charged as work for
+    /// each of its glob reads (see [`Index::export_ids`]).
     #[expect(
         clippy::too_many_arguments,
         reason = "one change passed on, the place it arrives at and the two sinks"
@@ -2569,10 +3386,7 @@ impl Index {
         meter: &Meter,
     ) -> Result<(), LoadError> {
         waiters.wake(module, name);
-        if self.scopes[module]
-            .get(name.as_str())
-            .is_some_and(|entry| !entry.defs[at].is_empty())
-        {
+        if self.binds_itself(module, name, at) {
             return Ok(());
         }
         let glob = self.globs.reads[module][read].glob;
@@ -2580,39 +3394,37 @@ impl Index {
         if self.blocked_in(module, name, at) {
             return Ok(());
         }
-        for view in self.exports_of(module).to_vec() {
-            let class = self.globs.views[view].class.clone();
-            let (mut seen, mut hidden) = (Vec::new(), Vec::new());
-            self.glob_held(module, &class, level, ids, (&mut seen, &mut hidden));
-            let known = self.globs.views[view].names.get(name.as_str());
-            let held = known.map_or(&[][..], |lists| lists[at].as_slice());
-            let passed = if !seen.is_empty() {
-                // Items the class can access arrive. Where the globs of the
-                // module bring in items it cannot access, those join them,
-                // whichever glob they came through, so the table of the
-                // module is read again for the name. So it is where a
-                // companion arrives: another glob of the module may deliver
-                // the item it was carried with, which drops it (see
-                // [`Index::delivered`]).
-                if self.globs.views[view].hidden || !hidden.is_empty() {
-                    self.globs.views[view].hidden = true;
-                    self.export_ids(module, &class, name, at, glob, meter)?
-                } else if seen.iter().any(|held| held.1.is_companion()) {
-                    self.export_ids(module, &class, name, at, glob, meter)?
-                } else {
-                    self.widest(&mut seen);
-                    seen
+        // Under a name that no view holds a companion under, in a module
+        // whose levels do not change as the tables settle, a view that holds
+        // the name takes the change as it comes (see [`Index::delta`]).
+        let plain = !self.flagged(name, at) && !self.exports_by_path(module);
+        for place in 0..self.globs.exports[module].len() {
+            let view = self.globs.exports[module][place];
+            let own = &self.globs.views[view];
+            let held = own
+                .names
+                .get(name.as_str())
+                .map(|lists| lists[at].as_slice())
+                .filter(|held| !held.is_empty());
+            let passed = match held {
+                Some(held) if plain && !self.is_exact(view, name, at) => {
+                    if let Some(any_hidden) = self.unchanged(module, &own.class, level, held, ids) {
+                        tally::add(Work::Deltas, 1);
+                        if any_hidden {
+                            self.globs.views[view].hidden = true;
+                        }
+                        continue;
+                    }
+                    self.delta(module, view, name, at, level, ids, glob, meter)?
                 }
-            } else if !hidden.is_empty() && !held.is_empty() {
-                // Nothing the class can access arrives, and what it already
-                // reads under the name is now ambiguous with the items that
-                // arrive, unless the read they arrive through drops them as
-                // companions: the table of the module is read again for the
-                // name (see [`Index::delivered`]).
-                self.globs.views[view].hidden = true;
-                self.export_ids(module, &class, name, at, glob, meter)?
-            } else {
-                self.globs.views[view].hidden |= !hidden.is_empty();
+                held => {
+                    let holds = held.is_some();
+                    self.arrival(
+                        module, view, name, at, level, ids, holds, plain, glob, meter,
+                    )?
+                }
+            };
+            let Some(passed) = passed else {
                 continue;
             };
             let fresh = self.add_to_view(view, name, at, &passed, meter)?;
@@ -2626,6 +3438,219 @@ impl Index {
             }
         }
         Ok(())
+    }
+
+    /// Whether the items `ids` that a glob at `level` of `module` brings in
+    /// change nothing in a view of the module for `class` that holds `held`
+    /// under their name, a name that no view holds a companion under: each
+    /// is held, and as widely where the class can access it. Tested without
+    /// a copy; `Some` with whether one of them is an item the class cannot
+    /// access when they change nothing, `None` when they change something.
+    fn unchanged(
+        &self,
+        module: usize,
+        class: &[bool],
+        level: Level,
+        held: &[Held],
+        ids: &[Held],
+    ) -> Option<bool> {
+        let mut any_hidden = false;
+        for (id, item) in ids {
+            debug_assert!(!item.is_companion(), "no companion under an unflagged name");
+            let met = self.meet(level, *item).plain();
+            let shown = self.allowed(module, class, met);
+            any_hidden |= !shown;
+            let kept = held
+                .binary_search_by_key(id, |known| known.0)
+                .is_ok_and(|place| !shown || self.width(held[place].1) <= self.width(met));
+            if !kept {
+                return None;
+            }
+        }
+        Some(any_hidden)
+    }
+
+    /// What `view` of `module`, which holds `name` in the name space at
+    /// `at`, a name that no view holds a companion under, takes of the items
+    /// `ids` that a glob at `level` of the module brings in, which change
+    /// something there (see [`Index::unchanged`]). Such a view holds
+    /// everything the globs of the module brought in under the name that its
+    /// class can access and nothing they brought in that it cannot, which
+    /// would have added a companion: the view took the name from a gathering
+    /// or a reading again of the globs, which expose every item, or from
+    /// what arrived while no item it cannot access had (see
+    /// [`Index::arrival`]), and a reading again after a change to the
+    /// module's bindings or imports of the name keeps it out of this path.
+    /// So an item it can access is added as it comes, and one it cannot
+    /// access and does not hold makes the name ambiguous, exposed beside
+    /// what the view holds, a step for each item held and each new one,
+    /// charged for the glob at `glob`; either way the view learns whether
+    /// an item it cannot access arrived.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "one change arriving at one view, the glob it came through and the budget"
+    )]
+    fn delta(
+        &mut self,
+        module: usize,
+        view: usize,
+        name: &SharedStr,
+        at: usize,
+        level: Level,
+        ids: &[Held],
+        glob: usize,
+        meter: &Meter,
+    ) -> Result<Option<Vec<Held>>, LoadError> {
+        let own = &self.globs.views[view];
+        let held = &own.names[name.as_str()][at];
+        let (mut seen, mut hidden) = (Vec::new(), Vec::new());
+        self.glob_held(module, &own.class, level, ids, (&mut seen, &mut hidden));
+        let newly: Vec<Held> = hidden
+            .iter()
+            .copied()
+            .filter(|(id, _)| held.binary_search_by_key(id, |known| known.0).is_err())
+            .collect();
+        let passed = if newly.is_empty() {
+            self.widest(&mut seen);
+            seen
+        } else {
+            let steps = held.len() + newly.len();
+            tally::add(Work::Exposures, steps);
+            self.charge_steps(steps, glob, meter)?;
+            let mut all = held.clone();
+            all.extend(seen);
+            self.exposed(all, newly)
+        };
+        if !hidden.is_empty() {
+            self.globs.views[view].hidden = true;
+        }
+        Ok(Some(passed))
+    }
+
+    /// What `view` of `module`, which `holds` the name or not, takes of the
+    /// items `ids` that a glob at `level` of the module brings in under
+    /// `name` in the name space at `at`, where it does not take them as they
+    /// come (see [`Index::delta`]), or `None` when it takes nothing; `plain`
+    /// when no view holds a companion under the name and the module's
+    /// levels do not change as the tables settle. Items the class can
+    /// access arrive under a name the view does not hold: once the globs of
+    /// the module have brought in an item it cannot access, the view takes
+    /// them as they come where it can tell that no such item stands under
+    /// the name (see [`Index::hides_nothing`]). Items the class can access
+    /// arrive otherwise:
+    /// where the globs of the module bring in items it cannot access, those
+    /// join them, whichever glob they came through, so the table of the
+    /// module is read again for the name, and so it is where a companion
+    /// arrives, as another glob of the module may deliver the item it was
+    /// carried with, which drops it (see [`Index::delivered`]). Where only
+    /// items the class cannot access arrive and it already reads the name,
+    /// that is now ambiguous with them unless the read they arrive through
+    /// drops them as companions, so the table is read again too; where it
+    /// does not read the name they have nothing to stand beside. Either way
+    /// the view learns whether an item it cannot access arrived. A reading
+    /// again is charged for the glob at `glob`.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "one change arriving at one view, the glob it came through and the budget"
+    )]
+    fn arrival(
+        &mut self,
+        module: usize,
+        view: usize,
+        name: &SharedStr,
+        at: usize,
+        level: Level,
+        ids: &[Held],
+        holds: bool,
+        plain: bool,
+        glob: usize,
+        meter: &Meter,
+    ) -> Result<Option<Vec<Held>>, LoadError> {
+        let own = &self.globs.views[view];
+        let class: &[bool] = &own.class;
+        let (mut seen, mut hidden) = (Vec::new(), Vec::new());
+        self.glob_held(module, class, level, ids, (&mut seen, &mut hidden));
+        let fresh = plain && !holds && !self.is_exact(view, name, at);
+        let (passed, hide) = if !seen.is_empty() {
+            if own.hidden
+                && hidden.is_empty()
+                && fresh
+                && self.hides_nothing(module, view, name, at, glob, meter)?
+            {
+                self.widest(&mut seen);
+                (Some(seen), false)
+            } else if own.hidden || !hidden.is_empty() {
+                (
+                    Some(self.export_ids(module, class, name, at, glob, meter)?),
+                    true,
+                )
+            } else if seen.iter().any(|held| held.1.is_companion()) {
+                (
+                    Some(self.export_ids(module, class, name, at, glob, meter)?),
+                    false,
+                )
+            } else {
+                self.widest(&mut seen);
+                (Some(seen), false)
+            }
+        } else if !hidden.is_empty() && holds {
+            (
+                Some(self.export_ids(module, class, name, at, glob, meter)?),
+                true,
+            )
+        } else {
+            if fresh && !hidden.is_empty() {
+                let site = self.globs.views[view].site;
+                self.note_dropped(view, name.clone(), at, site, meter)?;
+            }
+            (None, !hidden.is_empty())
+        };
+        if hide {
+            self.globs.views[view].hidden = true;
+        }
+        Ok(passed)
+    }
+
+    /// True when no item that the class of `view` cannot access stands
+    /// under `name` in the name space at `at` among what the globs of
+    /// `module` have brought in, a name the view does not hold and that no
+    /// view holds a companion under: none has been dropped there (see
+    /// [`Unseen::dropped`]), and no view the module reads through a glob whose
+    /// level the class cannot access holds the name there. Items that the
+    /// globs bring in later arrive, and are passed on, as the view holds the
+    /// name then (see [`Index::delta`]). A step for the record and each such
+    /// view, charged for the glob at `glob`; false without a step where they
+    /// are as many as the reads that a reading again of the name would look
+    /// at (see [`Index::reads_holding`]).
+    fn hides_nothing(
+        &self,
+        module: usize,
+        view: usize,
+        name: &SharedStr,
+        at: usize,
+        glob: usize,
+        meter: &Meter,
+    ) -> Result<bool, LoadError> {
+        let own = self.globs.views[view].unseen();
+        let again = self
+            .globs
+            .holding
+            .get(name.as_str())
+            .map_or(0, Vec::len)
+            .min(self.reads_of(module).len());
+        if own.hiding.len() >= again {
+            return Ok(false);
+        }
+        let steps = 1 + own.hiding.len();
+        tally::add(Work::HiddenChecks, steps);
+        self.charge_steps(steps, glob, meter)?;
+        Ok(!own.dropped.contains(&(name.clone(), at))
+            && own.hiding.iter().all(|source| {
+                self.globs.views[*source]
+                    .names
+                    .get(name.as_str())
+                    .is_none_or(|lists| lists[at].is_empty())
+            }))
     }
 
     /// Record that a glob of `module` reaches `target`, charging the edge
@@ -2787,6 +3812,9 @@ mod shapes;
 
 #[cfg(test)]
 mod equivalence;
+
+#[cfg(test)]
+mod incremental;
 
 #[cfg(test)]
 mod tests {
@@ -3090,18 +4118,44 @@ mod work_budget {
     /// glob it gains adds.
     type Slope = (&'static str, fn(usize) -> String, usize);
 
+    /// Each shape and the polynomial its steps follow, at even sizes for
+    /// the hubs (see [`the_glob_table_work_of_each_shape_is_the_count_of_its_steps`]).
+    const SHAPES: [Counted; 10] = [
+        ("chain", chain, |n| 2 * n),
+        ("many items", many_items, |n| 2 * n),
+        ("fan-in of pub globs", pub_fan_in, |n| 6 * n),
+        ("fan-in of private globs", private_fan_in, |n| 4 * n + 2),
+        ("companion fan-in", companion_fan_in, |n| 64 * n),
+        ("prelude", prelude, |n| 19 * n - 5),
+        ("hub", hub, |n| 4 * n * n + 4 * n + 2),
+        ("ambiguous hub", ambiguous_hub, |n| {
+            4 * n * n * n + 14 * n * n + 4 - 36 * n
+        }),
+        ("lookups", lookups, |n| 4 * n + 2),
+        ("holder scan", holder_scan, |n| 14 * n * n + 6 * n + 2),
+    ];
+
+    /// The polynomial of the shape named `name` in [`SHAPES`].
+    fn pinned(name: &str) -> fn(usize) -> usize {
+        SHAPES
+            .iter()
+            .find(|(shape, ..)| *shape == name)
+            .map(|(.., steps)| *steps)
+            .expect("a pinned shape")
+    }
+
     #[test]
     fn the_glob_table_work_of_each_shape_is_the_count_of_its_steps() {
-        // Counted at n, 2n, 3n and 4n, the steps of each shape follow these
-        // polynomials exactly, and their leading terms are how the work of
-        // each shape grows: linearly for the chain, the module of many items
-        // globbed from many modules, the fan-in of `pub` globs, the fan-in
-        // of private globs, the fan-in of globs that carry companions and
-        // the lookups, with the square of the globs for the prelude, and
-        // with the cube for the hub, the hub whose names carry companions
-        // and the module whose names many views hold. Each load makes the
-        // work of its tables twice: once while its imports settle and again
-        // once they are.
+        // Counted at n, 2n, 3n and 4n, the steps of each shape follow the
+        // polynomials of `SHAPES` exactly, and their leading terms are how
+        // the work of each shape grows: linearly for the chain, the module
+        // of many items globbed from many modules, the fan-in of `pub`
+        // globs, the fan-in of private globs, the fan-in of globs that carry
+        // companions, the prelude and the lookups, with the square of the
+        // globs for the hub and the module whose names many views hold, and
+        // with the cube for the hub whose names carry companions. Each load
+        // makes the work of its tables twice: once while its imports settle
+        // and again once they are.
         //
         // The fan-in of private globs makes, in each build, a step for each
         // glob read of `t` listed, one for the name of each `m<i>` and one
@@ -3109,40 +4163,45 @@ mod work_budget {
         // gathers no name of a view that `u` cannot access through a private
         // glob. Each name of the fan-in of globs that carry companions is
         // read again from the one read of `t` whose view holds it, not from
-        // all n, found by looking at the four views that hold the name, and
-        // the drops look at that read and those four views for each name:
-        // 26n steps beside the 34n of building and passing on. The prelude's
-        // views of the children for the root read nothing again, and its
-        // quadratic term is the names of the root's view passed to each
-        // child and the gains of that view passed on to each. The hub reads
-        // again from every read of the hub each name that arrives at its
-        // view for the siblings once that view has taken an item they cannot
-        // access, and looks at the views that hold the name while they are
-        // fewer than the reads: two cubic terms. The module whose names many
-        // views hold reads each name again at each `t<i>` from its one read
-        // whose view holds the name, 4n^2 readings, and looks at the views
-        // that hold the name to find it, 6n^3 + 4n^2 of them: every view
-        // looked at is a step.
-        let shapes: [Counted; 10] = [
-            ("chain", chain, |n| 2 * n),
-            ("many items", many_items, |n| 2 * n),
-            ("fan-in of pub globs", pub_fan_in, |n| 6 * n),
-            ("fan-in of private globs", private_fan_in, |n| 4 * n + 2),
-            ("companion fan-in", companion_fan_in, |n| 60 * n),
-            ("prelude", prelude, |n| 4 * n * n + 12 * n),
-            ("hub", hub, |n| 2 * n * n * n + 4 * n * n + 2 - 2 * n),
-            ("ambiguous hub", ambiguous_hub, |n| {
-                4 * n * n * n + 14 * n * n + 4 - 36 * n
-            }),
-            ("lookups", lookups, |n| 4 * n + 2),
-            ("holder scan", holder_scan, |n| {
-                6 * n * n * n + 14 * n * n + 8 * n + 2
-            }),
-        ];
+        // all n, found by looking at the four views that hold the name
+        // (20n), and the drops look at that read and those four views for
+        // each name (10n); each `a<i>` reads `p<i>` covertly, as its view
+        // for `t` cannot access the private glob: the read probes one name
+        // of `p<i>`'s view, looks at one name to find those both views hold
+        // and passes `X<i>` on in two name spaces (8n), which makes it
+        // ambiguous beside `d<i>::X<i>`, exposed from the item held and the
+        // new one (8n), beside the 18n of building and passing on. Each
+        // child's glob of its parent in the prelude is covert, as the
+        // child's view for the root cannot access it: the read probes the
+        // names of the root's view until one the child neither binds nor
+        // keeps from the globs tells, looks at the child's one name to find
+        // those both views hold, which the child binds, and passes none on;
+        // each gain of the root's view is passed on only to a child whose
+        // view holds the name, found by looking at the two views that hold
+        // it rather than at every child that reads the view covertly (6n -
+        // 6), beside the 13n + 1 of building it. The hub reads nothing
+        // again: its private globs of the odd siblings are covert, each name
+        // that comes back to the hub through an even sibling is found held,
+        // and each gain of an odd sibling's view looks at the hub once
+        // (n^2), beside the names of the hub's view given to each sibling
+        // (2n^2) and the gains of the siblings' views passed on to the hub
+        // (n^2 - 2n), and 4n + 2 steps of building the views. The hub whose
+        // names carry companions reads each name again from the reads of the
+        // hub whose views hold it, and looks at the views that hold the name
+        // while they are fewer than the reads: cubic. Each `X<k>` of the
+        // module whose names many views hold first arrives at the view of
+        // each `t<i>` for `u<i>`, which knows that `t<i>`'s private glob of
+        // `h` brings in what `u<i>` cannot access, and is taken as it comes
+        // once the record of the names that view dropped and `h`'s view show
+        // that nothing of the kind stands under `X<k>`: two steps for each
+        // of the 4n^2 first arrivals, and no view that holds the name is
+        // looked at, beside the names given to the new readers (4n^2) and
+        // gathered (2n^2 + 2n + 2) and 4n steps of reads listed and covert
+        // probes.
         // Every shape and size is counted before the test judges, so a
         // count that changes names each shape it changes.
         let mut wrong = Vec::new();
-        for (shape, build, steps) in shapes {
+        for (shape, build, steps) in SHAPES {
             for n in [8, 16, 24, 32] {
                 let (counted, expected) = (work(&build(n)), steps(n));
                 if counted != expected {
@@ -3159,15 +4218,16 @@ mod work_budget {
         // glob it gains, from 8 globs to 16, from 16 to 24 and from 24 to
         // 32: 2 for each link of the chain and each module that globs the
         // module of many items, 6 for each `pub` glob of a fan-in, 4 for
-        // each private glob of a fan-in, 60 for each glob of a fan-in of
-        // globs that carry companions, and 4 for each glob and named import
-        // of the lookups.
-        let slopes: [Slope; 6] = [
+        // each private glob of a fan-in, 64 for each glob of a fan-in of
+        // globs that carry companions, 19 for each child of the prelude,
+        // and 4 for each glob and named import of the lookups.
+        let slopes: [Slope; 7] = [
             ("chain", chain, 2),
             ("many items", many_items, 2),
             ("fan-in of pub globs", pub_fan_in, 6),
             ("fan-in of private globs", private_fan_in, 4),
-            ("companion fan-in", companion_fan_in, 60),
+            ("companion fan-in", companion_fan_in, 64),
+            ("prelude", prelude, 19),
             ("lookups", lookups, 4),
         ];
         let mut wrong = Vec::new();
@@ -3187,17 +4247,27 @@ mod work_budget {
     #[test]
     fn doubling_a_shape_multiplies_its_work_as_fast_as_the_shape_grows() {
         let doubled = |build: fn(usize) -> String| (work(&build(32)), work(&build(64)));
-        let (small, large) = doubled(hub);
-        assert!(large > 4 * small, "hub: {small} then {large}");
-        let (small, large) = doubled(prelude);
-        assert!(large > 2 * small, "prelude: {small} then {large}");
-        // The module whose names many views hold grows with the cube of n,
-        // as each of its readings again looks at the views that hold the
-        // name: 211202 steps at 32 and 1630722 at 64, more than seven times.
-        let (small, large) = doubled(holder_scan);
-        assert!(large > 7 * small, "holder scan: {small} then {large}");
-        // The work of the chain and of the fan-ins grows with them, as each
-        // glob passes on what it brings in, and at most doubles.
+        // The hub and the module whose names many views hold grow with the
+        // square of n: 4226 and 16642 steps at 32 and 64 siblings, and 14530
+        // and 57730 steps at 32 and 64, more than three times and less than
+        // four.
+        for (shape, build) in [
+            ("hub", hub as fn(usize) -> String),
+            ("holder scan", holder_scan),
+        ] {
+            let (small, large) = doubled(build);
+            assert!(
+                3 * small < large && large < 4 * small,
+                "{shape}: {small} then {large}"
+            );
+        }
+        // The hub whose names carry companions grows with the cube of its
+        // siblings: 19396 steps at 16 and 144260 at 32, more than seven
+        // times.
+        let (small, large) = (work(&ambiguous_hub(16)), work(&ambiguous_hub(32)));
+        assert!(large > 7 * small, "ambiguous hub: {small} then {large}");
+        // The work of the chain and the fan-ins grows with them, as each glob
+        // passes on what it brings in, and at most doubles.
         for (shape, build) in [
             ("chain", chain as fn(usize) -> String),
             ("fan-in of private globs", private_fan_in),
@@ -3209,6 +4279,45 @@ mod work_budget {
                 "{shape}: {small} then {large}"
             );
         }
+    }
+
+    #[test]
+    fn the_pinned_work_of_each_shape_grows_from_200_to_800_within_its_bound_for_each_doubling() {
+        // By the polynomials the work test pins, for each doubling of n from
+        // 200 to 400 and from 400 to 800: the chain, the module of many items
+        // and the fan-ins at most double their steps, the prelude grows at
+        // most 3.4 times (2.00), the hub at most 4.3 times (4.00), the
+        // lookups at most 4.4 times (2.00) and the module whose names many
+        // views hold at most 4.3 times (4.00), while the hub whose names
+        // carry companions grows about eight times, with the cube.
+        let growth = |name: &str| {
+            let steps = pinned(name);
+            [(200, 400), (400, 800)].map(|(small, large)| {
+                let [small, large] = [steps(small), steps(large)]
+                    .map(|count| u32::try_from(count).map_or(f64::from(u32::MAX), f64::from));
+                large / small
+            })
+        };
+        let mut wrong = Vec::new();
+        for (shape, bound) in [
+            ("chain", 2.0),
+            ("many items", 2.0),
+            ("fan-in of pub globs", 2.0),
+            ("fan-in of private globs", 2.0),
+            ("companion fan-in", 2.0),
+            ("prelude", 3.4),
+            ("hub", 4.3),
+            ("lookups", 4.4),
+            ("holder scan", 4.3),
+        ] {
+            let ratios = growth(shape);
+            if ratios.iter().any(|ratio| *ratio > bound) {
+                wrong.push(format!("{shape}: {ratios:?} per doubling, above {bound}"));
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+        let cubic = growth("ambiguous hub");
+        assert!(cubic.iter().all(|ratio| *ratio > 7.9), "{cubic:?}");
     }
 
     #[test]
@@ -3268,11 +4377,15 @@ mod settling {
     //! module bring in under a name and the glob reads it looks at, the
     //! glob reads looked at while the drops are recorded, the lists of the
     //! views copied, the glob reads that the lookups of what the globs
-    //! bring in look at and the routes they make, and the views that hold a
-    //! name looked at to find the reads whose view holds it. The pins are
-    //! what the settling counts as it reads and copies the views, so a
-    //! settling that reads or copies them otherwise changes them and pins its
-    //! own.
+    //! bring in look at and the routes they make, the views that hold a
+    //! name looked at to find the reads whose view holds it, the steps of
+    //! the reads that no view of their module can access, the arrivals
+    //! taken as the change they bring and the items such an arrival
+    //! exposes, and the records looked at when an item first arrives under
+    //! a name at a view that knows its module brings in what it cannot
+    //! access. The pins are what the settling counts as it reads and copies
+    //! the views, so a settling that reads or copies them otherwise changes
+    //! them and pins its own.
 
     use super::shapes::{
         MANIFEST, ambiguous_hub, chain, companion_fan_in, holder_scan, hub, lookups, many_items,
@@ -3286,7 +4399,7 @@ mod settling {
     const N: usize = 8;
 
     /// The kinds of work pinned, in the order of a [`Pin`].
-    const KINDS: [Work; 7] = [
+    const KINDS: [Work; 11] = [
         Work::Recomputations,
         Work::RecomputedReads,
         Work::DropReads,
@@ -3294,10 +4407,14 @@ mod settling {
         Work::LookupReads,
         Work::LookupRoutes,
         Work::HolderScans,
+        Work::CovertChecks,
+        Work::Deltas,
+        Work::Exposures,
+        Work::HiddenChecks,
     ];
 
     /// The count of each kind of [`KINDS`] at a size.
-    type Pin = [fn(usize) -> usize; 7];
+    type Pin = [fn(usize) -> usize; 11];
 
     /// Nothing counted.
     const fn none(_n: usize) -> usize {
@@ -3305,7 +4422,7 @@ mod settling {
     }
 
     /// What loading `lib` counts of each kind of [`KINDS`].
-    fn counted(lib: &str) -> [usize; 7] {
+    fn counted(lib: &str) -> [usize; 11] {
         let tree: MemoryTree = [("Cargo.toml", MANIFEST), ("src/lib.rs", lib)]
             .into_iter()
             .collect();
@@ -3317,7 +4434,7 @@ mod settling {
 
     /// Assert that the shape `build` counts what `pin` gives at n, 2n and
     /// 3n, and return the counts, by size and kind.
-    fn assert_pinned(shape: &str, build: fn(usize) -> String, pin: Pin) -> [[usize; 7]; 3] {
+    fn assert_pinned(shape: &str, build: fn(usize) -> String, pin: Pin) -> [[usize; 11]; 3] {
         [1, 2, 3].map(|units| {
             let n = units * N;
             let counts = counted(&build(n));
@@ -3337,7 +4454,7 @@ mod settling {
 
     /// The counts of one kind, the place of `work` in [`KINDS`], at n, 2n
     /// and 3n.
-    fn of(counts: &[[usize; 7]; 3], work: Work) -> [usize; 3] {
+    fn of(counts: &[[usize; 11]; 3], work: Work) -> [usize; 3] {
         let place = KINDS
             .iter()
             .position(|kind| *kind == work)
@@ -3349,26 +4466,28 @@ mod settling {
     fn the_settling_of_a_chain_of_globs_counts_its_pinned_polynomials_at_n_2n_and_3n() {
         // Each link passes on what it brings in: nothing is read again or
         // copied, and nothing is looked up through the globs.
-        assert_pinned("chain", chain, [none; 7]);
+        assert_pinned("chain", chain, [none; 11]);
     }
 
     #[test]
     fn the_settling_of_a_module_of_many_items_globbed_from_many_modules_counts_its_pinned_polynomials_at_n_2n_and_3n()
      {
-        assert_pinned("many items", many_items, [none; 7]);
+        assert_pinned("many items", many_items, [none; 11]);
     }
 
     #[test]
     fn the_settling_of_a_fan_in_of_pub_globs_counts_its_pinned_polynomials_at_n_2n_and_3n() {
-        assert_pinned("fan-in of pub globs", pub_fan_in, [none; 7]);
+        assert_pinned("fan-in of pub globs", pub_fan_in, [none; 11]);
     }
 
     #[test]
     fn the_settling_of_a_fan_in_of_private_globs_counts_its_pinned_polynomials_at_n_2n_and_3n() {
         // The view of `t` for `u` is read through private globs that `u`
         // cannot access: nothing of what they bring in is gathered name by
-        // name, so nothing is read again or copied.
-        assert_pinned("fan-in of private globs", private_fan_in, [none; 7]);
+        // name, so nothing is read again or copied. The reads are listed
+        // among the covert readers when the view is made, and their views
+        // never grow after it.
+        assert_pinned("fan-in of private globs", private_fan_in, [none; 11]);
     }
 
     #[test]
@@ -3376,20 +4495,27 @@ mod settling {
      {
         // Each name arrives at `t` with a companion and is read again from
         // the one read of `t` whose view holds it, found by looking at the
-        // four views that hold the name, and at each `a<i>` from its two
-        // reads; the drops look at the reads of `t` whose view holds a name
-        // with a companion, found the same way: every count grows linearly.
+        // four views that hold the name; the drops look at the reads of `t`
+        // whose view holds a name with a companion, found the same way. Each
+        // `a<i>` reads `p<i>` covertly: `p<i>::X<i>` arrives at its view,
+        // which holds `d<i>::X<i>`, in each name space, as the change it
+        // brings, which is not nothing: it is exposed beside it, two items
+        // each. Every count grows linearly.
         let counts = assert_pinned(
             "fan-in of globs that carry companions",
             companion_fan_in,
             [
-                |n| 8 * n,
-                |n| 12 * n,
+                |n| 4 * n,
+                |n| 4 * n,
                 |n| 2 * n,
                 |n| 6 * n,
                 none,
                 none,
                 |n| 24 * n,
+                |n| 8 * n,
+                none,
+                |n| 8 * n,
+                none,
             ],
         );
         for work in [
@@ -3398,6 +4524,8 @@ mod settling {
             Work::DropReads,
             Work::ListCopies,
             Work::HolderScans,
+            Work::CovertChecks,
+            Work::Exposures,
         ] {
             assert_eq!(second_difference(of(&counts, work)), 0, "{work:?}");
         }
@@ -3408,12 +4536,11 @@ mod settling {
      {
         // At 100, 200 and 400 globs: the fan-in of private globs reads
         // nothing again, and the fan-in of globs that carry companions
-        // reads each name again 8 times for each glob, looking at 12 reads
-        // for each glob, one read of `t` for each reading at `t` and the
-        // two reads of `a<i>` for each at `a<i>`, however many reads `t`
-        // has, and at 24 views that hold a name for each glob, the four
-        // views that hold its name for each reading at `t` and for each
-        // name the drops ask of `t`.
+        // reads each name again 4 times for each glob, each time at `t`
+        // from the one read whose view holds the name, however many reads
+        // `t` has, and looks at 24 views that hold a name for each glob, the
+        // four that hold its name for each reading at `t` and for each name
+        // the drops ask of `t`.
         for n in [100, 200, 400] {
             let private = counted(&private_fan_in(n));
             assert_eq!(
@@ -3424,7 +4551,7 @@ mod settling {
             let carried = counted(&companion_fan_in(n));
             assert_eq!(
                 [carried[0], carried[1], carried[6]],
-                [8 * n, 12 * n, 24 * n],
+                [4 * n, 4 * n, 24 * n],
                 "fan-in of globs that carry companions of {n}"
             );
         }
@@ -3434,36 +4561,59 @@ mod settling {
     fn the_settling_of_the_prelude_pattern_counts_its_pinned_polynomials_at_n_2n_and_3n() {
         // The view of each child for the root is read through the child's
         // private glob of the root, which the root cannot access: it is not
-        // gathered name by name, and nothing is read again or copied.
-        assert_pinned("prelude", prelude, [none; 7]);
+        // gathered name by name, nothing is read again or copied, and the
+        // child's read of the root's view is covert. Each gain of the
+        // root's view looks at the views that hold the gained name, not at
+        // every child that reads the view covertly, so the covert steps
+        // grow linearly.
+        let counts = assert_pinned(
+            "prelude",
+            prelude,
+            [
+                none,
+                none,
+                none,
+                none,
+                none,
+                none,
+                none,
+                |n| 8 * n - 5,
+                none,
+                none,
+                none,
+            ],
+        );
+        assert_eq!(second_difference(of(&counts, Work::CovertChecks)), 0);
     }
 
     #[test]
     fn the_settling_of_a_hub_counts_its_pinned_polynomials_at_n_2n_and_3n() {
-        // Once a private glob brings an item into the hub, every name that
-        // arrives at its view for the siblings is read again from the reads
-        // of the hub whose views hold it, all n once the name has spread:
-        // the readings grow with the square of the siblings and the reads
-        // they look at with the cube, and so do the views that hold the
-        // name looked at to find those reads while they are fewer than the
-        // reads of the hub. No name has a companion, so no list is copied.
+        // Nothing is read again: the hub's private globs of the odd
+        // siblings are covert, and each gain of an odd sibling's view looks
+        // at the hub once, finding that it holds what arrives; each name
+        // that comes back to the hub through an even sibling arrives at a
+        // view that holds it and changes nothing, tested without a copy.
+        // Both grow with the square of the siblings, as the names do.
         let counts = assert_pinned(
             "hub",
             hub,
             [
-                |n| 2 * n * n - 2 * n,
-                |n| n * n * n + n * n,
                 none,
                 none,
                 none,
                 none,
-                |n| n * n * n - n * n - 6 * n,
+                none,
+                none,
+                none,
+                |n| n * n,
+                |n| n * n - 2 * n,
+                none,
+                none,
             ],
         );
-        assert_eq!(
-            second_difference(of(&counts, Work::Recomputations)),
-            4 * 8 * 8
-        );
+        for work in [Work::CovertChecks, Work::Deltas] {
+            assert_eq!(second_difference(of(&counts, work)), 2 * 8 * 8, "{work:?}");
+        }
     }
 
     #[test]
@@ -3474,7 +4624,8 @@ mod settling {
         // whose views hold it, found from the views that hold the name while
         // they are fewer than the reads, and its lists are copied, and the
         // drops look at each read of each sibling for the names that hold
-        // one.
+        // one. The hub's private globs of the odd siblings are covert, and
+        // each gain of an odd sibling's view looks at the hub once.
         assert_pinned(
             "hub whose names carry companions",
             ambiguous_hub,
@@ -3486,6 +4637,10 @@ mod settling {
                 none,
                 none,
                 |n| 2 * n * n * n - 2 * n * n - 24 * n,
+                |n| 2 * n * n - 4 * n,
+                none,
+                none,
+                none,
             ],
         );
     }
@@ -3503,9 +4658,33 @@ mod settling {
         // debug build walks each import once more against the settled
         // tables.
         let pin: Pin = if cfg!(debug_assertions) {
-            [none, none, none, none, |n| 25 * n * n + n, |n| 17 * n, none]
+            [
+                none,
+                none,
+                none,
+                none,
+                |n| 25 * n * n + n,
+                |n| 17 * n,
+                none,
+                none,
+                none,
+                none,
+                none,
+            ]
         } else {
-            [none, none, none, none, |n| 22 * n * n + n, |n| 15 * n, none]
+            [
+                none,
+                none,
+                none,
+                none,
+                |n| 22 * n * n + n,
+                |n| 15 * n,
+                none,
+                none,
+                none,
+                none,
+                none,
+            ]
         };
         let counts = assert_pinned("lookups", lookups, pin);
         let leading = if cfg!(debug_assertions) { 25 } else { 22 };
@@ -3519,30 +4698,34 @@ mod settling {
     #[test]
     fn the_settling_of_a_module_whose_names_many_views_hold_counts_its_pinned_polynomials_at_n_2n_and_3n()
      {
-        // Each `X<k>` arrives at the view of each `t<i>` for `u<i>`, which
-        // holds an item `u<i>` cannot access, and is read again from the one
-        // read of `t<i>` whose view holds it, once in each build: 4n^2
-        // readings, each looking at one read. To find it each reading looks
-        // at the views that hold the name, the views of `d`, of the `b<j>`
-        // and of the `t<i>` that have taken it, about 1.5n + 1 of them, fewer
-        // than the 2n + 7 reads of `t<i>`: 6n^3 + 4n^2 views, growing with
-        // the cube, a step of work each (see `work_budget`).
+        // Each `X<k>` first arrives at the view of each `t<i>` for `u<i>`,
+        // which knows that `t<i>`'s private glob of `h` brings in an item
+        // `u<i>` cannot access, once in each build: 4n^2 first arrivals.
+        // Each is taken as it comes once the record of the names the view
+        // dropped and `h`'s view, read through a glob `u<i>` cannot access,
+        // show that no such item stands under `X<k>`: two steps each, and
+        // nothing is read again, so no view that holds the name is looked
+        // at to find the reads whose view holds it.
         let counts = assert_pinned(
             "module whose names many views hold",
             holder_scan,
             [
-                |n| 4 * n * n,
-                |n| 4 * n * n,
                 none,
                 none,
                 none,
                 none,
-                |n| 6 * n * n * n + 4 * n * n,
+                none,
+                none,
+                none,
+                |n| 2 * n,
+                none,
+                none,
+                |n| 8 * n * n,
             ],
         );
         assert_eq!(
-            second_difference(of(&counts, Work::Recomputations)),
-            8 * 8 * 8
+            second_difference(of(&counts, Work::HiddenChecks)),
+            8 * 2 * 8 * 8
         );
     }
 }
@@ -3666,7 +4849,9 @@ mod table_bytes {
     //! the reads of its module of its view. Each is counted exactly on a
     //! small crate, from the layout rules and, on a 64-bit target, as bytes.
 
-    use super::{Held, Index, Level, Nobody};
+    use std::mem::size_of;
+
+    use super::{Held, Index, Level, Nobody, Unseen, covert_bytes, set_bytes};
     use crate::cost::{
         btree_entry, btree_map, hash_entry, hash_map, shared_text, vec_first, vec_slot,
     };
@@ -3817,7 +5002,7 @@ mod table_bytes {
                 + vec_slot::<usize>()
                 + vec_first::<usize>()
                 + btree_map::<SharedStr, super::Lists>()
-                + vec_first::<(usize, usize)>()
+                + vec_first::<(usize, usize, usize)>()
                 + 2 * btree_map::<usize, Vec<usize>>()
         );
         // The first read of `a` of the view: its record, its place, and the
@@ -3839,7 +5024,7 @@ mod table_bytes {
 
     /// The first room of the tables of a load of three modules.
     #[cfg(target_pointer_width = "64")]
-    const BASE_BYTES: usize = 2624;
+    const BASE_BYTES: usize = 2688;
 
     /// What the four names of the test are charged.
     #[cfg(target_pointer_width = "64")]
@@ -3847,5 +5032,145 @@ mod table_bytes {
 
     /// What the view and its two reads are charged.
     #[cfg(target_pointer_width = "64")]
-    const READ_VIEW_BYTES: (usize, [usize; 2]) = (1563, [757, 590]);
+    const READ_VIEW_BYTES: (usize, [usize; 2]) = (1627, [789, 622]);
+
+    /// The tables of [`emptied`] with a view of `a` for importers outside
+    /// it, such as `d`, which can access `a`'s `pub` glob of `d` but not its
+    /// private one: the index, the meter, `a`, `d`, the two glob imports of
+    /// `a`, the view and its class.
+    fn viewed_from_outside() -> (Index, Meter, usize, usize, [usize; 2], usize, Box<[bool]>) {
+        let (mut index, meter, a, d, globs, _) = emptied();
+        let outside = index.class_for(a, d);
+        let view = index
+            .make_view(a, &outside, globs[0], &meter)
+            .expect("made");
+        (index, meter, a, d, globs, view, outside)
+    }
+
+    /// What running `run` on `index` charges to the glob tables.
+    fn charged(index: &mut Index, run: &dyn Fn(&mut Index)) -> usize {
+        let before = index.globs.charged;
+        run(index);
+        index.globs.charged - before
+    }
+
+    #[test]
+    fn each_covert_reader_open_reader_and_view_read_through_a_glob_a_class_cannot_access_is_charged_its_entry_and_the_first_room_of_its_table()
+     {
+        let (mut index, meter, a, d, globs, view, outside) = viewed_from_outside();
+        let metered = &meter;
+        let read = |glob: usize| {
+            move |index: &mut Index| {
+                index
+                    .read_glob(glob, d, &mut Nobody, metered)
+                    .expect("read");
+            }
+        };
+        // The `pub` glob makes the view of `d` for `a` and reads it, as an
+        // active reader; the private glob reads it covertly. Besides its
+        // record and its place, the covert read is charged its entry among
+        // the views `a`'s view cannot access through a glob, its entry among
+        // the covert readers of `d`'s view, and, as `d`'s view holds nothing
+        // yet, so `a`'s view does not know what it cannot access, its entry
+        // among the open readers, each with the first room of its table,
+        // and the record of each of the two views where it is first made.
+        let public = charged(&mut index, &read(globs[0]));
+        let private = charged(&mut index, &read(globs[1]));
+        let d_view = index.globs.exports[d][0];
+        assert!(index.globs.views[d_view].unseen().covert.contains_key(&a));
+        assert!(index.globs.views[d_view].unseen().open.contains(&a));
+        assert_eq!(
+            index.globs.views[view]
+                .unseen()
+                .hiding
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![d_view]
+        );
+        let made = super::VIEW_BYTES + 2 * outside.len();
+        let place = vec_slot::<usize>();
+        let first_places = btree_entry::<usize, Vec<usize>>() + vec_first::<usize>();
+        let expected_public = made + super::READ_BYTES + place + first_places;
+        let expected_private = super::READ_BYTES
+            + place
+            + set_bytes::<usize>(true)
+            + covert_bytes(true, true)
+            + set_bytes::<usize>(true)
+            + 2 * size_of::<Unseen>();
+        assert_eq!([public, private], [expected_public, expected_private]);
+        assert_eq!(
+            covert_bytes(true, true),
+            vec_slot::<(usize, usize)>()
+                + btree_entry::<usize, Vec<(usize, usize)>>()
+                + vec_first::<(usize, usize)>()
+                + btree_map::<usize, Vec<(usize, usize)>>()
+        );
+        assert_eq!(
+            set_bytes::<usize>(true),
+            btree_entry::<usize, ()>() + btree_map::<usize, ()>()
+        );
+        #[cfg(target_pointer_width = "64")]
+        assert_eq!([public, private], COVERT_READ_BYTES);
+    }
+
+    #[test]
+    fn each_name_a_view_dropped_and_each_name_a_reading_again_set_is_charged_its_entry_and_the_first_room_of_its_record()
+     {
+        let (mut index, meter, _, _, globs, view, _) = viewed_from_outside();
+        let site = globs[0];
+        let x = SharedStr::from("X");
+        // The names that a view dropped what its class cannot access under:
+        // the first with the first room of the set and the view's record,
+        // made then, another its entry, and one recorded again nothing.
+        let drop_at = |at: usize| {
+            let (x, meter) = (x.clone(), &meter);
+            move |index: &mut Index| {
+                index
+                    .note_dropped(view, x.clone(), at, site, meter)
+                    .expect("noted");
+            }
+        };
+        let dropped = [0, 1, 1].map(|at| charged(&mut index, &drop_at(at)));
+        assert_eq!(
+            dropped,
+            [
+                set_bytes::<(SharedStr, usize)>(true) + size_of::<Unseen>(),
+                set_bytes::<(SharedStr, usize)>(false),
+                0
+            ]
+        );
+        // The names a reading again set from the globs: one the tables never
+        // held is charged its text too, the first entry the first room of the
+        // record, and one recorded again nothing.
+        let mark_at = |at: usize| {
+            let meter = &meter;
+            move |index: &mut Index| {
+                index
+                    .mark_exact(view, "Q", at, site, meter)
+                    .expect("marked");
+            }
+        };
+        let exact = [0, 1, 1].map(|at| charged(&mut index, &mark_at(at)));
+        assert_eq!(
+            exact,
+            [
+                shared_text(1)
+                    + hash_entry::<SharedStr>()
+                    + set_bytes::<(usize, SharedStr, usize)>(true),
+                set_bytes::<(usize, SharedStr, usize)>(false),
+                0
+            ]
+        );
+        #[cfg(target_pointer_width = "64")]
+        assert_eq!((dropped, exact), RECORD_BYTES);
+    }
+
+    /// What the two reads of `d` by `a` are charged.
+    #[cfg(target_pointer_width = "64")]
+    const COVERT_READ_BYTES: [usize; 2] = [2416, 1743];
+
+    /// What the dropped names and the names read again are charged.
+    #[cfg(target_pointer_width = "64")]
+    const RECORD_BYTES: ([usize; 3], [usize; 3]) = ([490, 106, 0], [586, 135, 0]);
 }

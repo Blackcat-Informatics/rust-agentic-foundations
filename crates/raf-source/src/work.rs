@@ -58,11 +58,29 @@ pub(crate) enum Work {
     /// A view that holds a name, looked at to find the glob reads of a module
     /// whose view holds the name.
     HolderScans,
+    /// A step of a glob read whose module has views, none of which can
+    /// access what the glob brings in: a name of the view it reads probed or
+    /// looked at when the read is made, a name passed on to the module then,
+    /// a waiting name of the module looked up, and the read looked at when
+    /// its view grows.
+    CovertChecks,
+    /// An arrival at a view that holds the name, under a name that no view
+    /// holds a companion under, found to change nothing, tested without a
+    /// copy.
+    Deltas,
+    /// An item held, or an item that cannot be accessed and is new, looked
+    /// at when such an arrival makes the name ambiguous in the view.
+    Exposures,
+    /// The record of the names under which a view dropped what its class
+    /// cannot access, or a view its module reads through a glob whose level
+    /// the class cannot access, looked at when an item it can access first
+    /// arrives under a name.
+    HiddenChecks,
 }
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 17;
+const KINDS: usize = 21;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -84,6 +102,10 @@ const ALL: [Work; KINDS] = [
     Work::LookupReads,
     Work::LookupRoutes,
     Work::HolderScans,
+    Work::CovertChecks,
+    Work::Deltas,
+    Work::Exposures,
+    Work::HiddenChecks,
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].
