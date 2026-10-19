@@ -1,0 +1,20 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "## Context\n`crates/raf-source/examples/registry_scan.rs` is an example binary that scans a registry of crates. It measures time: it applies a per-crate timeout and polls with `sleep`. The repository rule is that time-based testing and wall-clock measurement are not allowed; the source-index crate's tests were converted to counted work and a repository gate keeps clock spellings out of the crate's source and tests, and the gate exempts `examples/`.\n\n## Scope\n- [ ] Replace the per-crate timeout and the sleep poll with a bound on counted work (the index already reports `Usage` and refuses at its budgets), or remove the example if its purpose is served by the differential test against rustc.\n- [ ] Extend the gate to cover `examples/` once the example is clean, or state in the gate why it stays exempt.\n\n## Acceptance criteria\n- [ ] `grep -nE 'std::time|Instant|Duration|sleep|recv_timeout|SystemTime' crates/raf-source/examples` is empty, or the example is gone.\n- [ ] The repository gate passes with `examples/` in scope.\n",
+  "closedAt": null,
+  "comments": [],
+  "createdAt": "2026-10-18T06:41:51Z",
+  "labels": [],
+  "milestone": null,
+  "number": 27,
+  "state": "OPEN",
+  "title": "raf-source: the registry scan example reads the clock",
+  "updatedAt": "2026-10-18T06:41:51Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/27"
+}

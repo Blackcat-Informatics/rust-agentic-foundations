@@ -1,0 +1,49 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "line": 5,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Replace the per-crate timeout and the sleep poll with a bound on counted work (the index already reports `Usage` and refuses at its budgets), or remove the example if its purpose is served by the differential test against rustc.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B2",
+      "line": 6,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Extend the gate to cover `examples/` once the example is clean, or state in the gate why it stays exempt.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B3",
+      "line": 9,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `grep -nE 'std::time|Instant|Duration|sleep|recv_timeout|SystemTime' crates/raf-source/examples` is empty, or the example is gone.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B4",
+      "line": 10,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] The repository gate passes with `examples/` in scope.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    }
+  ],
+  "silent_comments": []
+}
