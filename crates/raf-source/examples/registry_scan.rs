@@ -34,7 +34,7 @@
 //!
 //! The counter also does not see the lookups of settling: a module with n globs
 //! and n named imports of a name the globs re-export makes a work count of 4n+2
-//! and visits about 25n^2 glob reads, so a crate of that shape is not refused by
+//! and visits about 22n^2 glob reads, so a crate of that shape is not refused by
 //! `--max-work`. Such a load can run long.
 //!
 //! There is no `--timeout` flag and no `timeout` outcome: a bound by time

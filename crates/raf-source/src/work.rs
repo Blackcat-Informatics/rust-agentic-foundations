@@ -50,8 +50,10 @@ pub(crate) enum Work {
     /// A glob read of a module looked at by a lookup of what the globs of the
     /// module bring in under a name.
     LookupReads,
-    /// A route of a glob read to an item, made and combined into the bindings
-    /// that a lookup of what the globs of a module bring in returns.
+    /// A route to an item made and offered to the bindings that a lookup of
+    /// what the globs of a module bring in returns: one for each glob read
+    /// and item under a name that a view holds a companion under, and one
+    /// for each item, its routes combined first, under any other.
     LookupRoutes,
 }
 
