@@ -4,14 +4,16 @@
 //! Tests of the system runner.
 //!
 //! The runs of real processes go through [`SystemRunner::run_with`] with a
-//! clock the test controls, so no test reads or waits on the clock of the
-//! machine. Under [`Frozen`] every look reads the same time, so only the end of
-//! the process or an output bound can end the run, and the time a run reports
-//! is that reading exactly. Under [`Stepped`] each pause the runner asks for
-//! moves the reading by that much, so the limit passes after a bounded number
-//! of looks whatever the speed of the host. Both count every reading and every
-//! pause and fail the test past a ceiling, so a runner that never decides, or
-//! that stops pausing, fails instead of spinning.
+//! clock the test controls, so no test here asserts on, or waits for, the
+//! clock of the machine; only the list pass in [`cargo`] runs under it, as a
+//! watchdog whose reading nothing asserts. Under [`Frozen`] every look reads
+//! the same time, so only the end of the process or an output bound can end
+//! the run, and the time a run reports is that reading exactly. Under
+//! [`Stepped`] each pause the runner asks for moves the reading by that much,
+//! so the limit passes after a bounded number of looks whatever the speed of
+//! the host. Both count every reading and every pause and fail the test past
+//! a ceiling, so a runner that never decides, or that stops pausing, fails
+//! instead of spinning.
 //!
 //! A process that has to outlive its limit first ignores SIGHUP, SIGINT and
 //! SIGTERM, writes its process id to a FIFO (the pids) and blocks reading
