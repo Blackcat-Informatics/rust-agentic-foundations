@@ -159,8 +159,8 @@ make hooks   # point core.hooksPath at .githooks for this clone
   `elapsed` (the runner's limits and scripted data are made of them) and add
   `UNIX_EPOCH`. A name with a `_` suffix counts as the name, so `sleep_ms`,
   `sleep_until`, `park_timeout_ms`, `wait_timeout_ms` and `wait_timeout_while` are
-  refused too. The `examples` of `raf-source` are binaries outside the gate and
-  are judged by clippy only. Two files are exempt:
+  refused too. The `examples` of `raf-source` are judged by the same stricter rule
+  as its `src` and `tests`. Two files are exempt:
   `crates/raf-workplan/src/exec/clock.rs`, the one clock reading, and
   `tests/repo_gates.rs`, which defines the words; the gate fails if either stops
   being tracked or stops doing that. `clippy.toml` also disallows
