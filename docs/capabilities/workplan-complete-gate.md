@@ -89,6 +89,9 @@ bindings:
     - raf_workplan::exec::system::tests::any_other_failure_is_reported_even_after_the_leader_exited
     - raf_workplan::exec::system::tests::a_group_whose_leader_exited_before_the_kill_is_killed_without_error
     - raf_workplan::exec::system::tests::terminating_a_leader_that_exited_before_the_kill_succeeds
+    - raf_workplan::exec::system::tests::a_signal_to_the_leader_ends_it_only_when_delivered_or_it_is_gone
+    - raf_workplan::exec::system::tests::a_leader_that_exited_has_ended_and_is_collected
+    - raf_workplan::exec::system::tests::a_leader_still_running_is_killed_and_collected_before_it_counts_as_ended
     - raf_workplan::exec::system::tests::the_verdict_follows_its_precedence
     - raf_workplan::exec::system::tests::a_zero_limit_is_passed_at_once_unless_the_run_is_done
     - raf_workplan::exec::system::tests::the_pauses_double_up_to_the_ceiling_and_stay_there
@@ -658,7 +661,13 @@ Further checks:
   the rest of their script after the kill, though the script ignores SIGHUP,
   SIGINT and SIGTERM and each process is sent SIGCONT afterwards, so only
   SIGKILL passes; this holds also with no `kill` program on `PATH`, and the
-  process the runner started is reaped. A process that writes more than a pipe
+  process the runner started is reaped. A group signal that finds no live
+  member is done, and so is one refused with `EPERM` once the leader has ended,
+  as macOS answers while the only member is exiting: the leader is then sent
+  SIGKILL itself and collected, and counts as ended only when that signal is
+  delivered or finds it gone, so a leader still running is killed and reaped
+  first. Any other refusal is reported, since the group may still be running.
+  A process that writes more than a pipe
   holds to both streams runs to its end under the clock that never moves, so
   the two streams are read at once. Nothing tests that the clock the runner
   uses outside the tests measures real time: a clock of the machine that always
@@ -761,10 +770,13 @@ Further checks:
 | `raf_workplan::exec::system::tests::a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_limit` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_group_that_already_exited_is_done` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_group_whose_leader_exited_before_the_kill_is_killed_without_error` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_leader_still_running_is_killed_and_collected_before_it_counts_as_ended` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_leader_that_exited_has_ended_and_is_collected` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_process_inside_its_limit_passes` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_process_that_never_stops_writing_is_killed_at_the_bound` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_process_that_outlives_its_limit_is_killed` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_refused_signal_is_done_only_when_the_leader_has_exited` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_signal_to_the_leader_ends_it_only_when_delivered_or_it_is_gone` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_zero_limit_is_passed_at_once_unless_the_run_is_done` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::any_other_failure_is_reported_even_after_the_leader_exited` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::both_streams_are_drained_at_once` | test | [Verification](#verification) |

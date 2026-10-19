@@ -360,26 +360,55 @@ fn kill_group(child: &mut Child) -> io::Result<()> {
     let pid = Pid::from_raw(raw).ok_or_else(|| io::Error::other("the process id is not valid"))?;
     let signalled = kill_process_group(pid, Signal::KILL);
     // macOS answers EPERM, not ESRCH, when the group holds only processes that
-    // have already exited but are not reaped yet. The leader having exited is
-    // what tells that case from a group that cannot be signalled.
-    let leader_exited = matches!(child.try_wait(), Ok(Some(_)));
-    group_signal_outcome(signalled, leader_exited)
+    // are exiting or have exited but are not reaped yet. The leader having
+    // ended is what tells that case from a group that cannot be signalled, and
+    // it is looked at only then.
+    let leader_ended = signalled == Err(rustix::io::Errno::PERM) && leader_ended(child);
+    group_signal_outcome(signalled, leader_ended)
+}
+
+/// Whether the leader has ended, collecting it when it has.
+///
+/// A leader that is still exiting is not yet seen by `try_wait` on macOS,
+/// although the group signal already passed it over. The leader is the child
+/// itself, so it is sent SIGKILL directly: when that is delivered, or finds the
+/// leader already on its way out, the leader ends and the wait that follows
+/// returns once it has (`terminate` waits for it in any case). A leader that
+/// refuses its own signal has not ended and is not waited for.
+#[cfg(unix)]
+fn leader_ended(child: &mut Child) -> bool {
+    if matches!(child.try_wait(), Ok(Some(_))) {
+        return true;
+    }
+    leader_signal_ends_it(&child.kill()) && child.wait().is_ok()
+}
+
+/// Whether a SIGKILL sent to the leader itself means it ends: it was delivered,
+/// or the leader has no live process left (`ESRCH`). Any other failure, such as
+/// `EPERM`, means the leader may go on running.
+#[cfg(unix)]
+fn leader_signal_ends_it(signalled: &io::Result<()>) -> bool {
+    match signalled {
+        Ok(()) => true,
+        Err(error) => rustix::io::Errno::from_io_error(error) == Some(rustix::io::Errno::SRCH),
+    }
 }
 
 /// What a failed or successful group signal means. A group with no live member
 /// (`ESRCH`) is done; so is one that answers `EPERM` while its leader has
-/// already exited, because only unreaped processes are left (macOS). Any other
+/// ended, because a group signal fails only when it reached no member, and the
+/// leader could be signalled, so it was already exiting (macOS). Any other
 /// failure means the group may still be running and is reported.
 #[cfg(unix)]
 fn group_signal_outcome(
     signalled: Result<(), rustix::io::Errno>,
-    leader_exited: bool,
+    leader_ended: bool,
 ) -> io::Result<()> {
     use rustix::io::Errno;
 
     match signalled {
         Ok(()) | Err(Errno::SRCH) => Ok(()),
-        Err(Errno::PERM) if leader_exited => Ok(()),
+        Err(Errno::PERM) if leader_ended => Ok(()),
         Err(errno) => Err(errno.into()),
     }
 }

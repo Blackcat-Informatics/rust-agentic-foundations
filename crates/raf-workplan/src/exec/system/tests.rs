@@ -45,7 +45,9 @@ use std::os::unix::process::CommandExt as _;
 use std::process::{Command, Stdio};
 
 #[cfg(unix)]
-use super::{SystemRunner, group_signal_outcome, kill_group, terminate};
+use super::{
+    SystemRunner, group_signal_outcome, kill_group, leader_ended, leader_signal_ends_it, terminate,
+};
 #[cfg(unix)]
 use crate::exec::clock::Clock;
 #[cfg(unix)]
@@ -106,6 +108,45 @@ fn a_refused_signal_is_done_only_when_the_leader_has_exited() {
 #[test]
 fn any_other_failure_is_reported_even_after_the_leader_exited() {
     assert!(group_signal_outcome(Err(Errno::INVAL), true).is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_signal_to_the_leader_ends_it_only_when_delivered_or_it_is_gone() {
+    assert!(leader_signal_ends_it(&Ok(())));
+    assert!(leader_signal_ends_it(&Err(Errno::SRCH.into())));
+    assert!(!leader_signal_ends_it(&Err(Errno::PERM.into())));
+    assert!(!leader_signal_ends_it(&Err(io::Error::other(
+        "not an errno"
+    ))));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_leader_that_exited_has_ended_and_is_collected() {
+    let mut child = exited_group_leader();
+    assert!(leader_ended(&mut child));
+    let status = child.try_wait().expect("a status").expect("collected");
+    assert_eq!(status.code(), Some(0), "the leader's own exit is kept");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_leader_still_running_is_killed_and_collected_before_it_counts_as_ended() {
+    use std::os::unix::process::ExitStatusExt as _;
+
+    // `cat` blocks on a pipe the test holds open, so it is running until the
+    // signal ends it.
+    let mut child = Command::new("cat")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .spawn()
+        .expect("cat starts");
+    assert!(leader_ended(&mut child));
+    let status = child.try_wait().expect("a status").expect("collected");
+    assert_eq!(status.signal(), Some(9), "the leader ended by SIGKILL");
 }
 
 const MS: fn(u64) -> Duration = Duration::from_millis;
@@ -787,13 +828,13 @@ impl Process {
     fn ended(&self) -> bool {
         use rustix::event::{PollFd, PollFlags, Timespec, poll};
 
-        let now = Timespec {
+        let no_wait = Timespec {
             tv_sec: 0,
             tv_nsec: 0,
         };
         let mut fds = [PollFd::new(&self.fd, PollFlags::IN)];
         loop {
-            match poll(&mut fds, Some(&now)) {
+            match poll(&mut fds, Some(&no_wait)) {
                 Ok(_) => return fds[0].revents().contains(PollFlags::IN),
                 Err(Errno::INTR) => {}
                 Err(error) => panic!("poll of the pidfd of {}: {error}", self.pid.as_raw_pid()),
