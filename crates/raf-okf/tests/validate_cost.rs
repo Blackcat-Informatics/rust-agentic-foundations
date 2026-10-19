@@ -1,19 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The cost of `Profile::validate` on documents at the size cap: it grows with
-//! the size of the document, not with the product of two of its lists.
-
-use std::time::{Duration, Instant};
+//! Documents at the size cap, with the most entries of each list that fit,
+//! validate. The work that validation does on them is counted by the unit tests
+//! of `profile::cost_tests`.
 
 use raf_okf::{Document, MAX_TEXT_BYTES, Profile, RafDocument, Rule};
-
-/// What a validation of a document at the cap may take. A linear pass takes a
-/// few milliseconds; the product of two lists of this size took half a second.
-/// The bound is checked in a release build only: a debug build runs an order
-/// of magnitude slower and a wall-clock bound there would be noise. `make
-/// test-release` runs this file in release.
-const RELEASE_BOUND: Duration = Duration::from_millis(100);
 
 /// A change record at the size cap: as many `changes` entries as fit, and as
 /// many `affects` entries, one per change.
@@ -68,45 +60,33 @@ fn capability_at_the_cap() -> (String, usize) {
     (text, sections)
 }
 
-fn assert_within_bound(elapsed: Duration, what: &str) {
-    if !cfg!(debug_assertions) {
-        assert!(
-            elapsed < RELEASE_BOUND,
-            "validating {what} took {elapsed:?}, the bound is {RELEASE_BOUND:?}"
-        );
-    }
-}
-
-fn timed(text: &str, path: &str) -> (Duration, Result<RafDocument, Vec<raf_okf::Violation>>) {
+fn validate(text: &str, path: &str) -> Result<RafDocument, Vec<raf_okf::Violation>> {
     let document = Document::parse(text).expect("the probe is a document");
-    let started = Instant::now();
-    let result = Profile.validate(&document, path);
-    (started.elapsed(), result)
+    Profile.validate(&document, path)
 }
 
 #[test]
-fn a_change_at_the_cap_with_maximal_affects_and_changes_validates_within_the_bound() {
+fn a_change_with_maximal_affects_and_changes_validates_at_the_cap() {
     let (text, count) = change_at_the_cap();
     assert!(text.len() <= MAX_TEXT_BYTES && text.len() > MAX_TEXT_BYTES - 64);
     assert!(count > 20_000, "the probe holds only {count} entries");
-    let (elapsed, result) = timed(&text, "work/changes/probe.md");
+    let result = validate(&text, "work/changes/probe.md");
     let Ok(RafDocument::Change(change)) = result else {
         panic!("the probe is a valid change: {result:?}");
     };
     assert_eq!(change.changes.len(), count);
     assert_eq!(change.affects.len(), count);
-    assert_within_bound(elapsed, &format!("{count} changes and affects"));
 }
 
 #[test]
-fn a_capability_at_the_cap_with_many_sections_and_blocks_validates_within_the_bound() {
+fn a_capability_with_many_sections_and_blocks_is_refused_for_a_duplicated_section_at_the_cap() {
     let (text, sections) = capability_at_the_cap();
     assert!(text.len() <= MAX_TEXT_BYTES && text.len() > MAX_TEXT_BYTES - 16);
     assert!(
         sections > 30_000,
         "the probe holds only {sections} sections"
     );
-    let (elapsed, result) = timed(&text, "docs/capabilities/probe.md");
+    let result = validate(&text, "docs/capabilities/probe.md");
     let violations = result.expect_err("repeated and missing sections are violations");
     assert!(
         violations
@@ -115,7 +95,6 @@ fn a_capability_at_the_cap_with_many_sections_and_blocks_validates_within_the_bo
         "{} violations, none for the duplicated section",
         violations.len()
     );
-    assert_within_bound(elapsed, &format!("{sections} sections and 10000 blocks"));
 }
 
 /// An evidence record at the size cap: as many `values` as fit, each with its
@@ -151,15 +130,14 @@ fn evidence_at_the_cap() -> (String, usize) {
 }
 
 #[test]
-fn an_evidence_record_at_the_cap_with_maximal_values_and_limits_validates_within_the_bound() {
+fn an_evidence_record_with_maximal_values_and_limits_validates_at_the_cap() {
     let (text, count) = evidence_at_the_cap();
     assert!(text.len() <= MAX_TEXT_BYTES && text.len() > MAX_TEXT_BYTES - 64);
     assert!(count > 40_000, "the probe holds only {count} measures");
-    let (elapsed, result) = timed(&text, "work/evidence/probe.md");
+    let result = validate(&text, "work/evidence/probe.md");
     let Ok(RafDocument::Evidence(evidence)) = result else {
         panic!("the probe is a valid evidence record: {result:?}");
     };
     assert_eq!(evidence.values.len(), count);
     assert_eq!(evidence.limits.len(), count);
-    assert_within_bound(elapsed, &format!("{count} values and limits"));
 }

@@ -1092,7 +1092,6 @@ mod stubs {
     use std::os::unix::fs::OpenOptionsExt as _;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
     use super::*;
 
@@ -1103,18 +1102,25 @@ mod stubs {
     }
 
     impl Scratch {
+        /// The name is this process and a count, made with `create_dir`, so
+        /// a directory left by an earlier process with the same id is passed
+        /// over and two scratch directories are never one.
         fn new() -> Self {
             static COUNTER: AtomicUsize = AtomicUsize::new(0);
-            let nanos = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_or(0, |d| d.as_nanos());
-            let root = std::env::temp_dir().join(format!(
-                "raf-workplan-exec-{}-{nanos}-{}",
-                std::process::id(),
-                COUNTER.fetch_add(1, Ordering::Relaxed)
-            ));
-            fs::create_dir_all(root.join("bin")).expect("a bin directory");
-            fs::create_dir_all(root.join("work")).expect("a work directory");
+            let root = loop {
+                let root = std::env::temp_dir().join(format!(
+                    "raf-workplan-exec-{}-{}",
+                    std::process::id(),
+                    COUNTER.fetch_add(1, Ordering::Relaxed)
+                ));
+                match fs::create_dir(&root) {
+                    Ok(()) => break root,
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                    Err(error) => panic!("{}: {error}", root.display()),
+                }
+            };
+            fs::create_dir(root.join("bin")).expect("a bin directory");
+            fs::create_dir(root.join("work")).expect("a work directory");
             let root = fs::canonicalize(root).expect("a canonical scratch directory");
             Self { root }
         }
@@ -1395,265 +1401,14 @@ echo to-stderr >&2"#;
         );
     }
 
-    // ------------------------------------------------------------ time bound
-
-    #[test]
-    fn a_process_that_outlives_its_limit_is_killed() {
-        let _lock = serial();
-        let scratch = Scratch::new();
-        let stub = scratch.stub("slow", "exec sleep 30");
-        let limits = Limits::query().with_timeout(Duration::from_millis(400));
-        let started = Instant::now();
-        let error = scratch
-            .runner(&stub)
-            .run(&Invocation::git_version(), &limits)
-            .unwrap_err();
-        let waited = started.elapsed();
-        let ExecError::Timeout {
-            timeout,
-            elapsed,
-            command,
-        } = &error
-        else {
-            panic!("not a timeout: {error:?}");
-        };
-        assert_eq!(*timeout, Duration::from_millis(400));
-        assert!(*elapsed >= *timeout, "{elapsed:?}");
-        assert_eq!(command, "git --version");
-        assert!(waited < Duration::from_secs(10), "killed late: {waited:?}");
-        let text = error.to_string();
-        assert!(
-            text.contains("killed") && text.contains("no verdict"),
-            "{text}"
-        );
-    }
-
-    #[test]
-    fn a_process_inside_its_limit_passes() {
-        let _lock = serial();
-        let scratch = Scratch::new();
-        let stub = scratch.stub("quick", "sleep 0.1\necho done");
-        let limits = Limits::query().with_timeout(Duration::from_secs(20));
-        let output = scratch
-            .runner(&stub)
-            .run(&Invocation::git_version(), &limits)
-            .unwrap();
-        assert!(output.success());
-        assert_eq!(output.stdout, b"done\n");
-        assert!(output.elapsed >= Duration::from_millis(100));
-        assert!(output.elapsed < Duration::from_secs(20));
-    }
-
-    /// Whether the process exists and is not a zombie.
-    fn alive(pid: u32) -> bool {
-        match fs::read_to_string(format!("/proc/{pid}/stat")) {
-            Ok(stat) => {
-                let after = stat
-                    .rsplit_once(')')
-                    .map_or("", |(_, rest)| rest.trim_start());
-                !after.starts_with('Z')
-            }
-            Err(_) => {
-                if Path::new("/proc/self").exists() {
-                    false
-                } else {
-                    std::process::Command::new("kill")
-                        .args(["-0", &pid.to_string()])
-                        .stderr(std::process::Stdio::null())
-                        .status()
-                        .is_ok_and(|status| status.success())
-                }
-            }
-        }
-    }
-
-    /// Run a stub that starts a child holding the output pipes, let the run
-    /// time out, and require that the child is gone afterwards.
-    fn family_does_not_outlive_the_kill(scratch: &Scratch) {
-        // The stub starts a child that keeps the output pipes open, as a test
-        // binary started by cargo does.
-        let stub = scratch.stub("family", "sleep 60 &\necho $! > \"${0%/*}/pid\"\nwait");
-        // The limit leaves a loaded machine time to start the shell and write the pid
-        // before the limit runs out.
-        let limits = Limits::query().with_timeout(Duration::from_secs(3));
-        let started = Instant::now();
-        let error = scratch
-            .runner(&stub)
-            .run(&Invocation::git_version(), &limits)
-            .unwrap_err();
-        assert!(matches!(error, ExecError::Timeout { .. }), "{error:?}");
-        assert!(started.elapsed() < Duration::from_secs(20));
-        let pid: u32 = scratch.text("pid").trim().parse().expect("a pid");
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while alive(pid) && Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(20));
-        }
-        assert!(!alive(pid), "process {pid} outlived the kill");
-    }
-
-    #[test]
-    fn what_the_process_started_does_not_outlive_the_kill() {
-        let _lock = serial();
-        family_does_not_outlive_the_kill(&Scratch::new());
-    }
-
-    #[test]
-    fn the_group_is_killed_when_no_kill_program_is_on_the_path() {
-        const MARKER: &str = "RAF_EXEC_TEST_WITHOUT_KILL";
-        const NAME: &str = "stubs::the_group_is_killed_when_no_kill_program_is_on_the_path";
-        if std::env::var_os(MARKER).is_none() {
-            // Start this test again in a process whose PATH holds `sleep` and
-            // nothing else, since the path of this process cannot be changed.
-            let _lock = serial();
-            let scratch = Scratch::new();
-            let sleep = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
-                .map(|dir| dir.join("sleep"))
-                .find(|candidate| candidate.is_file())
-                .expect("a sleep program on the path");
-            std::os::unix::fs::symlink(&sleep, scratch.bin().join("sleep")).unwrap();
-            let output = std::process::Command::new(std::env::current_exe().unwrap())
-                .args(["--exact", NAME, "--nocapture", "--test-threads=1"])
-                .env("PATH", scratch.bin())
-                .env(MARKER, "1")
-                .output()
-                .expect("the test binary starts");
-            let log = String::from_utf8_lossy(&output.stdout).into_owned()
-                + &String::from_utf8_lossy(&output.stderr);
-            assert!(output.status.success(), "{log}");
-            assert!(
-                log.contains("1 passed"),
-                "the inner test did not run: {log}"
-            );
-            return;
-        }
-        // The precondition: this process can start no `kill` program by name.
-        let missing = std::process::Command::new("kill").status().unwrap_err();
-        assert_eq!(missing.kind(), std::io::ErrorKind::NotFound);
-        let _lock = serial();
-        family_does_not_outlive_the_kill(&Scratch::new());
-    }
-
-    #[test]
-    fn a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_limit() {
-        let _lock = serial();
-        let scratch = Scratch::new();
-        // The stub exits at once and leaves a child holding the pipes.
-        let stub = scratch.stub("orphan", "sleep 60 &\necho $! > \"${0%/*}/pid\"\nexit 0");
-        let limits = Limits::query().with_timeout(Duration::from_millis(500));
-        let started = Instant::now();
-        let error = scratch
-            .runner(&stub)
-            .run(&Invocation::git_version(), &limits)
-            .unwrap_err();
-        assert!(matches!(error, ExecError::Timeout { .. }), "{error:?}");
-        assert!(started.elapsed() < Duration::from_secs(10));
-        let pid: u32 = scratch.text("pid").trim().parse().expect("a pid");
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while alive(pid) && Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(20));
-        }
-        assert!(!alive(pid), "process {pid} outlived the kill");
-    }
-
     // ---------------------------------------------------------- output bound
 
-    /// A stub that writes this many bytes to a stream.
-    fn writer(scratch: &Scratch, bytes: usize, to_stderr: bool) -> PathBuf {
-        let redirect = if to_stderr { " >&2" } else { "" };
+    /// A stub that writes this many bytes to standard output.
+    fn writer(scratch: &Scratch, bytes: usize) -> PathBuf {
         scratch.stub(
-            if to_stderr {
-                "writes-stderr"
-            } else {
-                "writes-stdout"
-            },
-            &format!("head -c {bytes} /dev/zero | tr '\\0' x{redirect}"),
+            "writes-stdout",
+            &format!("head -c {bytes} /dev/zero | tr '\\0' x"),
         )
-    }
-
-    #[test]
-    fn output_at_the_bound_passes_and_one_byte_over_is_refused_on_each_stream() {
-        let _lock = serial();
-        let limits = Limits::query().with_max_output(1000);
-        for to_stderr in [false, true] {
-            let scratch = Scratch::new();
-            let stream = if to_stderr {
-                Stream::Stderr
-            } else {
-                Stream::Stdout
-            };
-
-            let at = writer(&scratch, 1000, to_stderr);
-            let output = scratch
-                .runner(&at)
-                .run(&Invocation::git_version(), &limits)
-                .unwrap();
-            let kept = if to_stderr {
-                &output.stderr
-            } else {
-                &output.stdout
-            };
-            assert_eq!(kept.len(), 1000, "{stream}");
-
-            let over_scratch = Scratch::new();
-            let over = writer(&over_scratch, 1001, to_stderr);
-            let error = over_scratch
-                .runner(&over)
-                .run(&Invocation::git_version(), &limits)
-                .unwrap_err();
-            let ExecError::OutputTooLarge {
-                stream: seen,
-                limit,
-                command,
-                elapsed,
-            } = &error
-            else {
-                panic!("not an output error: {error:?}");
-            };
-            assert_eq!(*seen, stream);
-            assert_eq!(*limit, 1000);
-            assert_eq!(command, "git --version");
-            assert!(error.to_string().contains("1000 bytes"), "{error}");
-            // The kill records the time the process ran.
-            assert!(*elapsed > Duration::ZERO, "{error:?}");
-            assert!(
-                error
-                    .to_string()
-                    .contains(&format!("in {:.1} s and was killed", elapsed.as_secs_f64())),
-                "{error}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_process_that_never_stops_writing_is_killed_at_the_bound() {
-        let _lock = serial();
-        let scratch = Scratch::new();
-        let stub = scratch.stub("endless", "exec yes");
-        let limits = Limits::query()
-            .with_max_output(4096)
-            .with_timeout(Duration::from_secs(60));
-        let started = Instant::now();
-        let error = scratch
-            .runner(&stub)
-            .run(&Invocation::git_version(), &limits)
-            .unwrap_err();
-        let ran = started.elapsed();
-        assert!(
-            matches!(
-                error,
-                ExecError::OutputTooLarge {
-                    stream: Stream::Stdout,
-                    elapsed,
-                    ..
-                } if elapsed > Duration::ZERO && elapsed <= ran
-            ),
-            "{error:?}"
-        );
-        assert!(
-            started.elapsed() < Duration::from_secs(10),
-            "killed late: {:?}",
-            started.elapsed()
-        );
     }
 
     #[test]
@@ -1663,7 +1418,7 @@ echo to-stderr >&2"#;
         // 17 MiB passes under the 64 MiB bound of cargo metadata and fails
         // under the default.
         let size = 17 * 1024 * 1024;
-        let stub = writer(&scratch, size, false);
+        let stub = writer(&scratch, size);
         let metadata = scratch
             .runner(&stub)
             .run(&Invocation::git_version(), &Limits::metadata())
@@ -1671,7 +1426,7 @@ echo to-stderr >&2"#;
         assert_eq!(metadata.stdout.len(), size);
 
         let other = Scratch::new();
-        let stub = writer(&other, size, false);
+        let stub = writer(&other, size);
         let error = other
             .runner(&stub)
             .run(&Invocation::git_version(), &Limits::query())
@@ -1683,29 +1438,6 @@ echo to-stderr >&2"#;
             ),
             "{error:?}"
         );
-    }
-
-    #[test]
-    fn both_streams_are_drained_at_once() {
-        let _lock = serial();
-        let scratch = Scratch::new();
-        // Standard error is written in full first, then standard output. A
-        // runner that read standard output to its end before standard error
-        // would wait for output that cannot come until error is read.
-        let stub = scratch.stub(
-            "both",
-            "head -c 400000 /dev/zero | tr '\\0' e >&2\nhead -c 400000 /dev/zero | tr '\\0' o",
-        );
-        let limits = Limits::query().with_timeout(Duration::from_secs(30));
-        let output = scratch
-            .runner(&stub)
-            .run(&Invocation::git_version(), &limits)
-            .unwrap();
-        assert!(output.success());
-        assert_eq!(output.stderr.len(), 400_000);
-        assert_eq!(output.stdout.len(), 400_000);
-        assert!(output.stderr.iter().all(|b| *b == b'e'));
-        assert!(output.stdout.iter().all(|b| *b == b'o'));
     }
 
     #[test]

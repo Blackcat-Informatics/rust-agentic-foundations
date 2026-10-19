@@ -11,8 +11,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
+use super::clock::{Clock, WallClock};
 use super::{ExecError, Invocation, Limits, Output, Program, Programs, Runner, Stream};
 
 /// The longest pause between two looks at a running process.
@@ -84,6 +85,18 @@ impl SystemRunner {
 
 impl Runner for SystemRunner {
     fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
+        self.run_with(invocation, limits, WallClock::start)
+    }
+}
+
+impl SystemRunner {
+    /// Run the invocation, starting `start` just before the process is.
+    fn run_with<C: Clock>(
+        &self,
+        invocation: &Invocation,
+        limits: &Limits,
+        start: impl FnOnce() -> C,
+    ) -> Result<Output, ExecError> {
         let command_text = invocation.to_string();
         let program = self.program_path(invocation)?;
         let trusted = invocation.program() == Program::Trusted;
@@ -108,13 +121,14 @@ impl Runner for SystemRunner {
             use std::os::unix::process::CommandExt as _;
             command.process_group(0);
         }
-        let started = Instant::now();
+        let mut clock = start();
         let mut child = command.spawn().map_err(|error| ExecError::Spawn {
             command: command_text.clone(),
             program: program.display().to_string(),
             kind: error.kind(),
             message: error.to_string(),
         })?;
+        clock.spawned(child.id());
         let (Some(stdout), Some(stderr)) = (child.stdout.take(), child.stderr.take()) else {
             let failure = ExecError::Io {
                 command: command_text.clone(),
@@ -125,26 +139,26 @@ impl Runner for SystemRunner {
         let bound = limits.max_output();
         let out = Capture::start(stdout, bound);
         let err = Capture::start(stderr, bound);
-        let outcome = wait(&mut child, &out, &err, limits.timeout(), started);
+        let outcome = wait(&mut child, &out, &err, limits.timeout(), &mut clock);
         let failure = match outcome {
             Wait::Done(code, stdout, stderr) => {
                 return Ok(Output {
                     code,
                     stdout,
                     stderr,
-                    elapsed: started.elapsed(),
+                    elapsed: clock.elapsed(),
                 });
             }
             Wait::Over(stream) => ExecError::OutputTooLarge {
                 command: command_text.clone(),
                 stream,
                 limit: bound,
-                elapsed: started.elapsed(),
+                elapsed: clock.elapsed(),
             },
             Wait::Late => ExecError::Timeout {
                 command: command_text.clone(),
                 timeout: limits.timeout(),
-                elapsed: started.elapsed(),
+                elapsed: clock.elapsed(),
             },
             Wait::Failed(error) => ExecError::Io {
                 command: command_text.clone(),
@@ -216,25 +230,71 @@ enum Wait {
     Failed(io::Error),
 }
 
+/// What one look at a run decides, from what the look found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Look {
+    /// A stream passed its bound.
+    Over(Stream),
+    /// The process exited and both streams reached their end.
+    Done,
+    /// The wall-clock limit passed.
+    Late,
+    /// Nothing is decided; look again after a pause.
+    Again,
+}
+
+/// The stream that passed its bound, the standard output first.
+fn overflow(overflow_out: bool, overflow_err: bool) -> Option<Stream> {
+    if overflow_out {
+        Some(Stream::Stdout)
+    } else if overflow_err {
+        Some(Stream::Stderr)
+    } else {
+        None
+    }
+}
+
+/// Decide a look. A passed bound beats a finished run, and a finished run
+/// beats the limit; the limit is passed once `elapsed` reaches `timeout`.
+fn verdict(
+    overflow_out: bool,
+    overflow_err: bool,
+    done: bool,
+    elapsed: Duration,
+    timeout: Duration,
+) -> Look {
+    if let Some(stream) = overflow(overflow_out, overflow_err) {
+        Look::Over(stream)
+    } else if done {
+        Look::Done
+    } else if elapsed >= timeout {
+        Look::Late
+    } else {
+        Look::Again
+    }
+}
+
+/// The pause after this one: twice as long, up to [`POLL_CEILING`].
+fn next_pause(pause: Duration) -> Duration {
+    (pause * 2).min(POLL_CEILING)
+}
+
 /// Poll the process and the two captures until all three are finished, a bound
 /// is passed, the limit passes, or something fails.
-fn wait(
+fn wait<C: Clock>(
     child: &mut Child,
     out: &Capture,
     err: &Capture,
     timeout: Duration,
-    started: Instant,
+    clock: &mut C,
 ) -> Wait {
     let mut status: Option<ExitStatus> = None;
     let mut stdout: Option<Vec<u8>> = None;
     let mut stderr: Option<Vec<u8>> = None;
     let mut pause = Duration::from_millis(1);
     loop {
-        if out.overflowed() {
-            return Wait::Over(Stream::Stdout);
-        }
-        if err.overflowed() {
-            return Wait::Over(Stream::Stderr);
+        if let Some(stream) = overflow(out.overflowed(), err.overflowed()) {
+            return Wait::Over(stream);
         }
         if status.is_none() {
             match child.try_wait() {
@@ -255,25 +315,22 @@ fn wait(
             }
         }
         // A stream that overflowed has just been reported as a result too.
-        if out.overflowed() {
-            return Wait::Over(Stream::Stdout);
+        let done = status.is_some() && stdout.is_some() && stderr.is_some();
+        let elapsed = clock.elapsed();
+        match verdict(out.overflowed(), err.overflowed(), done, elapsed, timeout) {
+            Look::Over(stream) => return Wait::Over(stream),
+            Look::Done => {
+                return Wait::Done(
+                    status.and_then(|status| status.code()),
+                    stdout.unwrap_or_default(),
+                    stderr.unwrap_or_default(),
+                );
+            }
+            Look::Late => return Wait::Late,
+            Look::Again => {}
         }
-        if err.overflowed() {
-            return Wait::Over(Stream::Stderr);
-        }
-        if let (Some(status), Some(_), Some(_)) = (status, &stdout, &stderr) {
-            return Wait::Done(
-                status.code(),
-                stdout.unwrap_or_default(),
-                stderr.unwrap_or_default(),
-            );
-        }
-        let remaining = timeout.saturating_sub(started.elapsed());
-        if remaining.is_zero() {
-            return Wait::Late;
-        }
-        thread::sleep(pause.min(remaining));
-        pause = (pause * 2).min(POLL_CEILING);
+        clock.pause(pause.min(timeout.saturating_sub(elapsed)));
+        pause = next_pause(pause);
     }
 }
 
@@ -303,88 +360,62 @@ fn kill_group(child: &mut Child) -> io::Result<()> {
     let pid = Pid::from_raw(raw).ok_or_else(|| io::Error::other("the process id is not valid"))?;
     let signalled = kill_process_group(pid, Signal::KILL);
     // macOS answers EPERM, not ESRCH, when the group holds only processes that
-    // have already exited but are not reaped yet. The leader having exited is
-    // what tells that case from a group that cannot be signalled.
-    let leader_exited = matches!(child.try_wait(), Ok(Some(_)));
-    group_signal_outcome(signalled, leader_exited)
+    // are exiting or have exited but are not reaped yet. The leader having
+    // ended is what tells that case from a group that cannot be signalled, and
+    // it is looked at only then. Elsewhere EPERM means a live member that may
+    // not be signalled, and is always reported.
+    let leader_ended = cfg!(target_os = "macos")
+        && signalled == Err(rustix::io::Errno::PERM)
+        && leader_ended(child);
+    group_signal_outcome(signalled, leader_ended)
+}
+
+/// Whether the leader has ended, collecting it when it has.
+///
+/// A leader that is still exiting is not yet seen by `try_wait` on macOS,
+/// although the group signal already passed it over. The leader is the child
+/// itself, so it is sent SIGKILL directly: when that is delivered, or finds the
+/// leader already on its way out, the leader ends and the wait that follows
+/// returns once it has (`terminate` waits for it in any case). A leader that
+/// refuses its own signal has not ended and is not waited for.
+#[cfg(unix)]
+fn leader_ended(child: &mut Child) -> bool {
+    if matches!(child.try_wait(), Ok(Some(_))) {
+        return true;
+    }
+    leader_signal_ends_it(&child.kill()) && child.wait().is_ok()
+}
+
+/// Whether a SIGKILL sent to the leader itself means it ends: it was delivered,
+/// or the leader has no live process left (`ESRCH`). Any other failure, such as
+/// `EPERM`, means the leader may go on running.
+#[cfg(unix)]
+fn leader_signal_ends_it(signalled: &io::Result<()>) -> bool {
+    match signalled {
+        Ok(()) => true,
+        Err(error) => rustix::io::Errno::from_io_error(error) == Some(rustix::io::Errno::SRCH),
+    }
 }
 
 /// What a failed or successful group signal means. A group with no live member
 /// (`ESRCH`) is done; so is one that answers `EPERM` while its leader has
-/// already exited, because only unreaped processes are left (macOS). Any other
+/// ended, because a group signal fails only when it reached no member, and the
+/// leader could be signalled, so it was already exiting (macOS only: `kill_group` passes `leader_ended` as
+/// false elsewhere). Any other
 /// failure means the group may still be running and is reported.
 #[cfg(unix)]
 fn group_signal_outcome(
     signalled: Result<(), rustix::io::Errno>,
-    leader_exited: bool,
+    leader_ended: bool,
 ) -> io::Result<()> {
     use rustix::io::Errno;
 
     match signalled {
         Ok(()) | Err(Errno::SRCH) => Ok(()),
-        Err(Errno::PERM) if leader_exited => Ok(()),
+        Err(Errno::PERM) if leader_ended => Ok(()),
         Err(errno) => Err(errno.into()),
     }
 }
 
-#[cfg(all(test, unix))]
-mod tests {
-    use rustix::io::Errno;
-
-    use rustix::process::{Pid, WaitId, WaitIdOptions, waitid};
-    use std::os::unix::process::CommandExt as _;
-    use std::process::{Command, Stdio};
-
-    use super::{group_signal_outcome, kill_group, terminate};
-
-    /// A process in a group of its own that has exited and is not reaped yet.
-    fn exited_group_leader() -> std::process::Child {
-        let mut command = Command::new("sh");
-        command
-            .args(["-c", "exit 0"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .process_group(0);
-        let child = command.spawn().expect("sh starts");
-        // Block until the shell has exited without collecting it, so the group
-        // holds only an exited, unreaped process whatever the host's speed.
-        let pid = Pid::from_raw(i32::try_from(child.id()).expect("a pid")).expect("a pid");
-        waitid(
-            WaitId::Pid(pid),
-            WaitIdOptions::EXITED | WaitIdOptions::NOWAIT,
-        )
-        .expect("the shell exits");
-        child
-    }
-
-    #[test]
-    fn a_group_whose_leader_exited_before_the_kill_is_killed_without_error() {
-        let mut child = exited_group_leader();
-        kill_group(&mut child).expect("an exited, unreaped group is done");
-        child.wait().expect("the leader is collected");
-    }
-
-    #[test]
-    fn terminating_a_leader_that_exited_before_the_kill_succeeds() {
-        let mut child = exited_group_leader();
-        terminate(&mut child).expect("an exited leader is terminated");
-    }
-
-    #[test]
-    fn a_group_that_already_exited_is_done() {
-        assert!(group_signal_outcome(Ok(()), false).is_ok());
-        assert!(group_signal_outcome(Err(Errno::SRCH), false).is_ok());
-    }
-
-    #[test]
-    fn a_refused_signal_is_done_only_when_the_leader_has_exited() {
-        assert!(group_signal_outcome(Err(Errno::PERM), true).is_ok());
-        assert!(group_signal_outcome(Err(Errno::PERM), false).is_err());
-    }
-
-    #[test]
-    fn any_other_failure_is_reported_even_after_the_leader_exited() {
-        assert!(group_signal_outcome(Err(Errno::INVAL), true).is_err());
-    }
-}
+#[cfg(test)]
+mod tests;

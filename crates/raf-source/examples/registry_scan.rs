@@ -552,6 +552,12 @@ fn drain<R: std::io::Read + Send + 'static>(pipe: Option<R>) -> thread::JoinHand
 
 /// The exit status of `child`, or `None` once it has run for `timeout` and
 /// has been stopped.
+#[allow(
+    clippy::disallowed_types,
+    clippy::disallowed_methods,
+    reason = "this example binary still polls a real child against the wall clock; \
+              it is not a test and asserts no time"
+)]
 fn wait(child: &mut Child, timeout: Duration) -> std::io::Result<Option<std::process::ExitStatus>> {
     let started = Instant::now();
     loop {

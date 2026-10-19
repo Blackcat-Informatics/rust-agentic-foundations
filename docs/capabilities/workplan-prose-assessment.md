@@ -18,7 +18,7 @@ bindings:
     - raf_workplan::test_crate::assessments::a_bound_symbol_named_by_its_last_segment_is_an_input_beside_one_named_in_full
     - raf_workplan::test_crate::assessments::a_capability_that_does_not_load_is_refused_and_a_section_of_generated_blocks_only_does_not_load
     - raf_workplan::test_crate::assessments::a_common_word_that_is_the_last_segment_of_a_binding_does_not_narrow_the_inputs
-    - raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged_within_bounds
+    - raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged
     - raf_workplan::test_crate::assessments::a_method_named_by_its_type_and_name_is_an_input_and_its_sibling_is_not
     - raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it
     - raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current
@@ -32,12 +32,14 @@ bindings:
     - raf_workplan::test_crate::assessments::each_refusal_writes_nothing_and_its_neighbour_records
     - raf_workplan::test_crate::assessments::the_context_is_the_same_for_a_human_and_an_agent_and_holds_what_the_assessor_reads
     - raf_workplan::test_crate::assessments::with_no_bound_symbol_named_every_bound_symbol_is_an_input
+    - raf_workplan::assessment::tests::a_long_contract_is_read_once_and_its_symbols_are_named_in_one_pass
     - raf_workplan::assessment::tests::a_moved_input_names_its_kind_its_name_and_how_it_moved
     - raf_workplan::assessment::tests::a_section_of_generated_blocks_and_comments_only_is_not_authored_and_one_word_is
     - raf_workplan::assessment::tests::a_subject_is_a_capability_and_one_of_the_seven_sections
     - raf_workplan::assessment::tests::a_weak_name_adds_an_input_and_never_ends_the_every_binding_rule
     - raf_workplan::assessment::tests::a_whole_path_or_a_suffix_of_two_segments_is_strong_and_the_last_segment_alone_is_weak
     - raf_workplan::assessment::tests::authored_text_is_what_the_profile_calls_a_section_that_is_not_empty
+    - raf_workplan::assessment::tests::the_bindings_are_tested_against_the_names_once_to_find_a_strong_one_and_once_to_name_them
     - raf_workplan::assessment::tests::the_record_slug_is_the_capability_slug_and_the_section_and_no_two_sections_share_one
     - raf_workplan::assessment::tests::widening_a_section_with_weak_names_never_removes_an_input
     - raf_workplan::test_crate::assessments::an_edit_inside_a_bound_module_moves_the_assessment_and_a_sibling_edit_does_not
@@ -241,9 +243,13 @@ sections to rewrite and the evidence still missing, and an assessor resolves the
   refused with nothing written, beside a neighbour that records; one SPDX field
   alone is refused and the two together are written.
 - A section of ten thousand named symbols and one near the document bound are
-  judged in bounded time; the record of ten thousand named symbols is over the
-  document bound and is refused with nothing written, and the record of eight
-  thousand is written, is current, and goes stale naming the one symbol edited.
+  recorded and judged. The work is counted, not timed: a Contract of twelve
+  thousand lines is read once, line by line, and each bound symbol is tested
+  against the names of the section once to find whether any is named strongly and
+  once more to say how it is named. The record of ten thousand named symbols is
+  over the document bound and is refused with nothing written, and the record of
+  eight thousand is written, is current, and goes stale naming the one symbol
+  edited.
 - A subject is a capability and one of the seven sections, and its record slug is
   the capability slug and the section, which no two sections share; a capability
   that does not load is refused; a section of generated blocks and comments only
@@ -268,18 +274,20 @@ sections to rewrite and the evidence still missing, and an assessor resolves the
 | --- | --- | --- |
 | `raf_workplan::Workplan::assess_context` | doctest | [Verification](#verification) |
 | `raf_workplan::assessment::record_slug` | doctest | [Verification](#verification) |
+| `raf_workplan::assessment::tests::a_long_contract_is_read_once_and_its_symbols_are_named_in_one_pass` | test | [Verification](#verification) |
 | `raf_workplan::assessment::tests::a_moved_input_names_its_kind_its_name_and_how_it_moved` | test | [Verification](#verification) |
 | `raf_workplan::assessment::tests::a_section_of_generated_blocks_and_comments_only_is_not_authored_and_one_word_is` | test | [Verification](#verification) |
 | `raf_workplan::assessment::tests::a_subject_is_a_capability_and_one_of_the_seven_sections` | test | [Verification](#verification) |
 | `raf_workplan::assessment::tests::a_weak_name_adds_an_input_and_never_ends_the_every_binding_rule` | test | [Verification](#verification) |
 | `raf_workplan::assessment::tests::a_whole_path_or_a_suffix_of_two_segments_is_strong_and_the_last_segment_alone_is_weak` | test | [Verification](#verification) |
 | `raf_workplan::assessment::tests::authored_text_is_what_the_profile_calls_a_section_that_is_not_empty` | test | [Verification](#verification) |
+| `raf_workplan::assessment::tests::the_bindings_are_tested_against_the_names_once_to_find_a_strong_one_and_once_to_name_them` | test | [Verification](#verification) |
 | `raf_workplan::assessment::tests::the_record_slug_is_the_capability_slug_and_the_section_and_no_two_sections_share_one` | test | [Verification](#verification) |
 | `raf_workplan::assessment::tests::widening_a_section_with_weak_names_never_removes_an_input` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::assessments::a_bound_symbol_named_by_its_last_segment_is_an_input_beside_one_named_in_full` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::assessments::a_capability_that_does_not_load_is_refused_and_a_section_of_generated_blocks_only_does_not_load` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::assessments::a_common_word_that_is_the_last_segment_of_a_binding_does_not_narrow_the_inputs` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged_within_bounds` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::assessments::a_method_named_by_its_type_and_name_is_an_input_and_its_sibling_is_not` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current` | test | [Verification](#verification) |

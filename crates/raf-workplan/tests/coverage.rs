@@ -9,7 +9,6 @@ mod support;
 
 use std::fmt::Write as _;
 use std::path::Path;
-use std::time::{Duration, Instant};
 
 use raf_okf::Location;
 use raf_source::{LoadOptions, MemoryTree, Workspace};
@@ -669,7 +668,7 @@ fn the_table_and_the_json_carry_the_same_entries_escaped() {
 }
 
 #[test]
-fn a_crate_with_thousands_of_items_and_tests_is_judged_in_bounded_time() {
+fn a_crate_with_thousands_of_items_and_tests_is_judged() {
     const MODULES: usize = 60;
     const ITEMS: usize = 50;
     let mut lib = String::new();
@@ -715,10 +714,8 @@ fn a_crate_with_thousands_of_items_and_tests_is_judged_in_bounded_time() {
         "[]",
         Some(coverage_with("[big]", &rows)),
     );
-    let started = Instant::now();
     let report = report_of(&repo, &source);
     let findings = findings_of(&repo, &source);
-    let elapsed = started.elapsed();
     let big = report.package("big").expect("big");
     assert_eq!(big.packages()[0].items(), MODULES * (ITEMS + 1));
     assert_eq!(big.packages()[0].covered_items(), MODULES / 2 * (ITEMS + 1));
@@ -726,7 +723,6 @@ fn a_crate_with_thousands_of_items_and_tests_is_judged_in_bounded_time() {
     assert_eq!(big.tests().len(), MODULES / 2 * 20);
     assert_eq!(big.excluded().len(), MODULES / 2 * 20);
     assert_eq!(findings.len(), MODULES / 2 * (ITEMS + 1) + MODULES / 2 * 20);
-    assert!(elapsed < Duration::from_secs(60), "{elapsed:?}");
 }
 
 #[test]

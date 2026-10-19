@@ -9,7 +9,6 @@ mod support;
 
 use std::fmt::Write as _;
 use std::fs;
-use std::time::{Duration, Instant};
 
 use raf_okf::{
     Actor, AssessmentRecord, AssessmentVerdict, CapabilitySection, CoverageRecord, EvidenceRecord,
@@ -958,22 +957,6 @@ fn a_symbolic_link_on_the_way_to_the_record_is_refused() {
 // Hostile input
 // ---------------------------------------------------------------------------
 
-/// What the load of the hostile repositories below may take in a release
-/// build; a debug build is not timed.
-const RELEASE_BOUND: Duration = Duration::from_secs(5);
-
-fn timed_check(repo: &Repo) -> (Duration, Vec<raf_workplan::Finding>) {
-    let started = Instant::now();
-    let findings = check(repo);
-    (started.elapsed(), findings)
-}
-
-fn within_bound(elapsed: Duration, what: &str) {
-    if !cfg!(debug_assertions) {
-        assert!(elapsed < RELEASE_BOUND, "{what} took {elapsed:?}");
-    }
-}
-
 #[test]
 fn a_record_at_the_size_bound_with_the_most_measures_loads() {
     let head = evidence_record()
@@ -992,9 +975,8 @@ fn a_record_at_the_size_bound_with_the_most_measures_loads() {
     let text = format!("{head}{values}{limits}---\n");
     assert!(text.len() <= MAX_TEXT_BYTES && count > 40_000);
     let (repo, _) = with_record(&text);
-    let (elapsed, findings) = timed_check(&repo);
+    let findings = check(&repo);
     assert_clean(&findings);
-    within_bound(elapsed, &format!("a record with {count} values and limits"));
     // One byte over the bound is refused by the reader, and a file the read
     // bound stops is refused by name.
     let mut repo = valid();
@@ -1008,7 +990,7 @@ fn a_record_at_the_size_bound_with_the_most_measures_loads() {
 }
 
 #[test]
-fn a_hundred_thousand_claims_load_in_time_linear_in_their_number() {
+fn a_hundred_thousand_claims_load_with_one_finding_each() {
     // Four capabilities at the size bound, each holding as many claims as
     // fit, every claim naming a record that exists and one that does not.
     let mut repo = with_records();
@@ -1042,15 +1024,11 @@ fn a_hundred_thousand_claims_load_in_time_linear_in_their_number() {
         "for: [cap:alpha]",
         &format!("for: [cap:alpha, {}]", listed.join(", ")),
     );
-    let (elapsed, findings) = timed_check(&repo);
+    let findings = check(&repo);
     assert_eq!(claims, 100_000);
     assert!(documents >= 4, "{documents} documents");
     assert_eq!(findings.len(), claims, "one finding per unknown citation");
     assert!(findings.iter().all(|f| f.kind == "claim-evidence-missing"));
-    within_bound(
-        elapsed,
-        &format!("{claims} claims in {documents} capabilities"),
-    );
     on_plan(&repo, |plan| {
         assert_eq!(plan.graph().claims().len(), claims);
         assert_eq!(plan.graph().claims_on("evidence:bound").len(), claims);

@@ -8,13 +8,8 @@
 
 mod support;
 
-use std::time::{Duration, Instant};
-
 use serde_json::Value;
 use support::{BLOCKS, Repo, Run, array, capability, change, member_names, strings};
-
-/// No fixture may take longer than this, builds included.
-const BUDGET: Duration = Duration::from_secs(300);
 
 /// A repository with the capability `fixture` bound as given (tests, then
 /// examples) and the change `shape` that lists it.
@@ -36,18 +31,6 @@ fn fixture(tag: &str, tests: &str, examples: &str) -> Repo {
     );
     repo.sync();
     repo
-}
-
-/// Run `args` and require that it took less than the budget.
-fn timed(repo: &Repo, args: &[&str]) -> Run {
-    let started = Instant::now();
-    let run = repo.run(args);
-    assert!(
-        started.elapsed() < BUDGET,
-        "{args:?} ran {:?}",
-        started.elapsed()
-    );
-    run
 }
 
 /// The lines of a run with the output of `cargo` cut from a failing line: what
@@ -89,7 +72,7 @@ fn one_passing_and_one_failing_test_print_one_line_each_and_exit_one() {
         "[]",
     );
     let before = repo.snapshot();
-    let run = timed(&repo, &["verify", "shape"]).expect(1);
+    let run = repo.run(&["verify", "shape"]).expect(1);
     let lines = run.lines();
     assert_eq!(lines.len(), 2, "{run:#?}");
     // Sorted by capability, list and path: `fails` before `passes`.
@@ -117,7 +100,7 @@ fn every_binding_passing_exits_zero() {
         "[demo::tests::passes]",
         "[demo::example_crate::good]",
     );
-    let run = timed(&repo, &["verify", "shape"]).expect(0);
+    let run = repo.run(&["verify", "shape"]).expect(0);
     assert_eq!(
         run.lines(),
         [
@@ -134,7 +117,7 @@ fn a_failing_example_and_a_binding_that_proves_nothing_are_failures() {
         "[demo::tests::passes]",
         "[demo::example_crate::exiting, demo::example_crate::good, demo::real]",
     );
-    let run = timed(&repo, &["verify", "shape"]).expect(1);
+    let run = repo.run(&["verify", "shape"]).expect(1);
     let lines = run.lines();
     assert_eq!(lines.len(), 4, "{run:#?}");
     assert_eq!(lines[0], PASS);
@@ -171,9 +154,9 @@ fn no_slug_runs_every_capability_and_a_slug_only_the_ones_the_change_lists() {
     );
     repo.sync();
     // The change lists `fixture` only: its test passes.
-    timed(&repo, &["verify", "shape"]).expect(0);
+    repo.run(&["verify", "shape"]).expect(0);
     // Without a slug the failing test of `other` is run too.
-    let all = timed(&repo, &["verify"]).expect(1);
+    let all = repo.run(&["verify"]).expect(1);
     let lines = all.lines();
     assert_eq!(lines.len(), 2, "{all:#?}");
     assert_eq!(lines[0], PASS);

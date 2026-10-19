@@ -68,14 +68,14 @@ bindings:
     - raf_workplan::test_crate::bound::an_integration_test_with_a_hyphen_runs_under_its_cargo_name
     - raf_workplan::test_crate::bound::a_function_that_is_not_a_test_is_refused_before_any_process
     - raf_workplan::test_crate::bound::hostile_bindings_are_unresolved_and_never_reach_cargo
-    - raf_workplan::test_crate::bound::a_test_that_never_ends_is_killed_and_refused_with_the_time_it_ran
+    - raf_workplan::exec::system::tests::cargo::a_test_that_never_ends_is_killed_and_refused_with_the_time_it_ran
     - raf_workplan::test_crate::bound::documentation_tests_follow_the_rules_in_edition_2021
     - raf_workplan::test_crate::bound::documentation_tests_follow_the_rules_in_edition_2024
     - raf_workplan::test_crate::bound::an_item_path_that_begins_with_a_hyphen_never_reaches_cargo
     - raf_workplan::test_crate::bound::an_example_that_exits_zero_passes_and_one_that_does_not_fails
     - raf_workplan::test_crate::bound::a_hyphenated_example_runs_under_its_cargo_name
     - raf_workplan::test_crate::bound::an_example_that_reads_standard_input_sees_it_closed
-    - raf_workplan::test_crate::bound::an_example_that_never_ends_is_killed_and_reported_with_the_time_it_ran
+    - raf_workplan::exec::system::tests::cargo::an_example_that_never_ends_is_killed_and_reported_with_the_time_it_ran
     - raf_workplan::test_crate::exec::the_patterns_are_the_ones_the_documents_state
     - raf_workplan::test_crate::exec::every_pattern_refuses_hostile_values
     - raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table
@@ -83,13 +83,20 @@ bindings:
     - raf_workplan::test_crate::exec::stubs::every_row_reaches_a_process_as_exactly_its_argv
     - raf_workplan::test_crate::exec::stubs::a_stub_named_by_cargo_runs_for_cargo_and_a_stub_on_the_path_when_it_is_unset
     - raf_workplan::test_crate::exec::stubs::standard_input_is_closed
-    - raf_workplan::test_crate::exec::stubs::a_process_that_outlives_its_limit_is_killed
+    - raf_workplan::exec::system::tests::a_process_that_outlives_its_limit_is_killed
     - raf_workplan::exec::system::tests::a_group_that_already_exited_is_done
     - raf_workplan::exec::system::tests::a_refused_signal_is_done_only_when_the_leader_has_exited
     - raf_workplan::exec::system::tests::any_other_failure_is_reported_even_after_the_leader_exited
     - raf_workplan::exec::system::tests::a_group_whose_leader_exited_before_the_kill_is_killed_without_error
     - raf_workplan::exec::system::tests::terminating_a_leader_that_exited_before_the_kill_succeeds
-    - raf_workplan::test_crate::exec::stubs::output_at_the_bound_passes_and_one_byte_over_is_refused_on_each_stream
+    - raf_workplan::exec::system::tests::a_signal_to_the_leader_ends_it_only_when_delivered_or_it_is_gone
+    - raf_workplan::exec::system::tests::a_leader_that_exited_has_ended_and_is_collected
+    - raf_workplan::exec::system::tests::a_leader_still_running_is_killed_and_collected_before_it_counts_as_ended
+    - raf_workplan::exec::system::tests::the_verdict_follows_its_precedence
+    - raf_workplan::exec::system::tests::a_zero_limit_is_passed_at_once_unless_the_run_is_done
+    - raf_workplan::exec::system::tests::the_pauses_double_up_to_the_ceiling_and_stay_there
+    - raf_workplan::exec::system::tests::the_capture_stops_one_byte_past_its_bound_and_flags_the_overflow
+    - raf_workplan::exec::system::tests::output_at_the_bound_passes_and_one_byte_over_is_refused_on_each_stream
     - raf_workplan::test_crate::verify::one_passing_and_one_failing_test_print_one_line_each_and_the_run_fails
     - raf_workplan::test_crate::verify::no_slug_runs_every_capability_and_a_slug_only_the_ones_the_change_lists
     - raf_workplan::test_crate::verify::examples_and_doc_tests_are_run_and_judged_by_their_proof
@@ -122,19 +129,19 @@ bindings:
     - raf_workplan::test_crate::exec::each_newtype_is_built_only_by_its_pattern
     - raf_workplan::test_crate::exec::every_pattern_accepts_what_it_states
     - raf_workplan::test_crate::exec::every_pattern_refuses_what_it_does_not_state
-    - raf_workplan::test_crate::exec::stubs::a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_limit
+    - raf_workplan::exec::system::tests::a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_limit
     - raf_workplan::test_crate::exec::stubs::a_failing_exit_code_and_a_signal_are_outputs_and_not_errors
     - raf_workplan::test_crate::exec::stubs::a_file_that_cannot_be_executed_is_a_spawn_error
-    - raf_workplan::test_crate::exec::stubs::a_process_inside_its_limit_passes
-    - raf_workplan::test_crate::exec::stubs::a_process_that_never_stops_writing_is_killed_at_the_bound
-    - raf_workplan::test_crate::exec::stubs::both_streams_are_drained_at_once
+    - raf_workplan::exec::system::tests::a_process_inside_its_limit_passes
+    - raf_workplan::exec::system::tests::a_process_that_never_stops_writing_is_killed_at_the_bound
+    - raf_workplan::exec::system::tests::both_streams_are_drained_at_once
     - raf_workplan::test_crate::exec::stubs::nothing_else_is_added_to_the_environment
     - raf_workplan::test_crate::exec::stubs::output_is_returned_byte_for_byte
     - raf_workplan::test_crate::exec::stubs::the_c_locale_is_set_when_the_output_is_parsed_and_left_alone_otherwise
     - raf_workplan::test_crate::exec::stubs::the_default_bound_is_sixteen_mebibytes_and_a_larger_one_is_a_parameter
-    - raf_workplan::test_crate::exec::stubs::the_group_is_killed_when_no_kill_program_is_on_the_path
+    - raf_workplan::exec::system::tests::the_group_is_killed_when_no_kill_program_is_on_the_path
     - raf_workplan::test_crate::exec::stubs::the_process_runs_in_the_working_directory
-    - raf_workplan::test_crate::exec::stubs::what_the_process_started_does_not_outlive_the_kill
+    - raf_workplan::exec::system::tests::what_the_process_started_does_not_outlive_the_kill
     - raf_workplan::test_crate::exec::the_fake_answers_a_scripted_invocation_and_records_it
     - raf_workplan::test_crate::exec::the_fake_applies_the_output_bound_as_the_real_runner_does
     - raf_workplan::test_crate::exec::the_fake_applies_the_time_limit_as_the_real_runner_does
@@ -612,9 +619,20 @@ Further checks:
   are refused with the message that asks for a runnable doc test; and an item path
   that begins with `-` never reaches `cargo`: bound, it does not resolve, and given
   to the plan, it is refused by its pattern.
-- An example fixture: a hyphenated example target runs, an example that reads stdin
-  sees it closed, and an example that does not exit within the timeout fails the
-  binding.
+- An example fixture: a hyphenated example target runs, and an example that reads
+  stdin sees it closed.
+- A never-ending fixture, on Linux: a bound test and a bound example that never
+  end by themselves run through the executor and the real `cargo` with a limit of
+  5 seconds. The list pass of the test runs under the clock of the machine and the
+  limit of the gate, and the run under a clock that moves only by the pauses the
+  runner asks for, so the limit passes after a bounded number of looks and nothing
+  waits for it. Each fails its binding with the reason `ran 5.0 s of its 5 s
+  limit`, pinned word for word, as a run that timed out after exactly 5 seconds;
+  the test binary that `cargo` started is in the group `cargo` leads, ignores
+  SIGHUP, SIGINT and SIGTERM, and never runs the rest of its test after the kill,
+  so only SIGKILL to the group passes; and the passing test beside the one that
+  never ends passes. On other systems the mapping of a kill to a failed binding is
+  pinned through the fake runner only.
 - A `verify` fixture with one passing and one failing bound test, asserting per-binding
   output and exit codes 0 and 1.
 
@@ -634,8 +652,27 @@ Further checks:
   left as they are.
 - A kill at the timeout and a kill for too much output each fail the binding with
   a reason that gives the time it ran and the limit it passed, pinned word for
-  word, and the run keeps that time; the real runner gives the time of an output
-  kill, more than zero and no more than the call took.
+  word, and the run keeps that time. The time the real runner gives is the
+  reading of the runner's clock at the kill, pinned with a test clock: under a
+  clock that moves only by the pauses the runner asks for, a kill at the limit
+  gives exactly the limit, and under a clock that never moves, a kill for too much
+  output and a run that ends each give that clock's reading. On Linux a process
+  killed at its limit, and one it started that holds the output pipes, never run
+  the rest of their script after the kill, though the script ignores SIGHUP,
+  SIGINT and SIGTERM and each process is sent SIGCONT afterwards, so only
+  SIGKILL passes; this holds also with no `kill` program on `PATH`, and the
+  process the runner started is reaped. A group signal that finds no live
+  member is done, and so is one refused with `EPERM` once the leader has ended on
+  macOS, which answers so while the only member is exiting: the leader is then sent
+  SIGKILL itself and collected, and counts as ended only when that signal is
+  delivered or finds it gone, so a leader still running is killed and reaped
+  first. Any other refusal, and `EPERM` on any other system, is reported, since
+  the group may still be running.
+  A process that writes more than a pipe
+  holds to both streams runs to its end under the clock that never moves, so
+  the two streams are read at once. Nothing tests that the clock the runner
+  uses outside the tests measures real time: a clock of the machine that always
+  read zero would pass every one of these tests, a limit that is accepted.
 - The headline counts sections for condition 6: one section whose assessment has
   three moved inputs (its text and two bound symbols) prints three
   `assessment-stale` lines under `3 obligations, 1 section without a current
@@ -731,11 +768,28 @@ Further checks:
 | `raf_workplan::bound::tests::zero_passed_failed_and_ignored_results_are_read` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::zero_passed_is_unresolved_even_with_exit_status_zero` | test | [Verification](#verification) |
 | `raf_workplan::exec` | doctest | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_limit` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_group_that_already_exited_is_done` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_group_whose_leader_exited_before_the_kill_is_killed_without_error` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_leader_still_running_is_killed_and_collected_before_it_counts_as_ended` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_leader_that_exited_has_ended_and_is_collected` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_process_inside_its_limit_passes` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_process_that_never_stops_writing_is_killed_at_the_bound` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_process_that_outlives_its_limit_is_killed` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_refused_signal_is_done_only_when_the_leader_has_exited` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_signal_to_the_leader_ends_it_only_when_delivered_or_it_is_gone` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_zero_limit_is_passed_at_once_unless_the_run_is_done` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::any_other_failure_is_reported_even_after_the_leader_exited` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::both_streams_are_drained_at_once` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::cargo::a_test_that_never_ends_is_killed_and_refused_with_the_time_it_ran` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::cargo::an_example_that_never_ends_is_killed_and_reported_with_the_time_it_ran` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::output_at_the_bound_passes_and_one_byte_over_is_refused_on_each_stream` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::terminating_a_leader_that_exited_before_the_kill_succeeds` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::the_capture_stops_one_byte_past_its_bound_and_flags_the_overflow` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::the_group_is_killed_when_no_kill_program_is_on_the_path` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::the_pauses_double_up_to_the_ceiling_and_stay_there` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::the_verdict_follows_its_precedence` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::what_the_process_started_does_not_outlive_the_kill` | test | [Verification](#verification) |
 | `raf_workplan::exec::tests::a_literal_is_the_only_free_text_and_it_is_static` | test | [Verification](#verification) |
 | `raf_workplan::exec::tests::a_rejected_value_never_becomes_an_argument` | test | [Verification](#verification) |
 | `raf_workplan::exec::tests::every_variant_is_walked` | test | [Verification](#verification) |
@@ -756,9 +810,7 @@ Further checks:
 | `raf_workplan::test_crate::bound::a_process_that_cannot_start_is_an_error_and_not_a_verdict` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_test_behind_a_disabled_feature_lists_nothing_and_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_test_of_a_binary_runs_under_bin` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::bound::a_test_that_never_ends_is_killed_and_refused_with_the_time_it_ran` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::an_example_that_exits_zero_passes_and_one_that_does_not_fails` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::bound::an_example_that_never_ends_is_killed_and_reported_with_the_time_it_ran` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::an_example_that_reads_standard_input_sees_it_closed` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::an_ignored_test_is_listed_and_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::an_integration_test_with_a_hyphen_runs_under_its_cargo_name` | test | [Verification](#verification) |
@@ -817,24 +869,16 @@ Further checks:
 | `raf_workplan::test_crate::exec::every_pattern_accepts_what_it_states` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::every_pattern_refuses_hostile_values` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::every_pattern_refuses_what_it_does_not_state` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::stubs::a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_limit` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::a_failing_exit_code_and_a_signal_are_outputs_and_not_errors` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::a_file_that_cannot_be_executed_is_a_spawn_error` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::stubs::a_process_inside_its_limit_passes` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::stubs::a_process_that_never_stops_writing_is_killed_at_the_bound` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::stubs::a_process_that_outlives_its_limit_is_killed` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::a_stub_named_by_cargo_runs_for_cargo_and_a_stub_on_the_path_when_it_is_unset` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::stubs::both_streams_are_drained_at_once` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::every_row_reaches_a_process_as_exactly_its_argv` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::nothing_else_is_added_to_the_environment` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::stubs::output_at_the_bound_passes_and_one_byte_over_is_refused_on_each_stream` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::output_is_returned_byte_for_byte` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::standard_input_is_closed` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::the_c_locale_is_set_when_the_output_is_parsed_and_left_alone_otherwise` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::the_default_bound_is_sixteen_mebibytes_and_a_larger_one_is_a_parameter` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::stubs::the_group_is_killed_when_no_kill_program_is_on_the_path` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::the_process_runs_in_the_working_directory` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::stubs::what_the_process_started_does_not_outlive_the_kill` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::the_fake_answers_a_scripted_invocation_and_records_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::the_fake_applies_the_output_bound_as_the_real_runner_does` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::the_fake_applies_the_time_limit_as_the_real_runner_does` | test | [Verification](#verification) |

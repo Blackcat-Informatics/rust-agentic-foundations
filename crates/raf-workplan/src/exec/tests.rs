@@ -318,8 +318,6 @@ fn a_literal_is_the_only_free_text_and_it_is_static() {
 #[cfg(unix)]
 mod no_shell {
     use std::fs;
-    use std::io::Write as _;
-    use std::os::unix::fs::OpenOptionsExt as _;
 
     use super::super::{Invocation, Limits, Program, Programs, Runner, SystemRunner};
     use super::{Arg, Literal};
@@ -330,20 +328,23 @@ mod no_shell {
             std::env::temp_dir().join(format!("raf-workplan-exec-unit-{}", std::process::id()));
         fs::create_dir_all(&root).unwrap();
         let stub = root.join("record");
-        {
-            let mut file = fs::OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .mode(0o755)
-                .open(&stub)
-                .unwrap();
-            write!(
-                file,
-                "#!/bin/sh\nprintf '%s\\0' \"$@\" > \"${{0%/*}}/argv\"\n"
-            )
+        let source = root.join("record.txt");
+        fs::write(
+            &source,
+            "#!/bin/sh\nprintf '%s\\0' \"$@\" > \"${0%/*}/argv\"\n",
+        )
+        .unwrap();
+        // A process of its own makes the stub executable, so this process never
+        // holds it open for writing: a process that another test starts at the
+        // same moment cannot inherit such a descriptor and make the run below
+        // fail with "text file busy".
+        let made = std::process::Command::new("/bin/sh")
+            .args(["-c", "cp \"$1\" \"$2\" && chmod 755 \"$2\"", "sh"])
+            .arg(&source)
+            .arg(&stub)
+            .status()
             .unwrap();
-        }
+        assert!(made.success(), "the stub is written");
         let hostile = "a b;touch pwned $(touch pwned) `touch pwned` *";
         let args = [
             "--",

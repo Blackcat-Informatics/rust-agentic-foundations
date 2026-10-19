@@ -10,7 +10,7 @@ inputs:
     digest: 767243fe9a6179da32347417eff4eee1e26edc872f7a5a91f20785ce25e09f19
   - kind: symbol
     name: raf_workplan::rationale
-    digest: f1c23d01088375b617b4c2566048838705f333d863f353b2dd26402541eb6325
+    digest: f6bafef4cf9f29beb35be14720061fef3510c4c90a8bf0e985406abf85ed08aa
 verdict: accepted
 by: agent
 ---

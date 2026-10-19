@@ -137,7 +137,7 @@ bindings:
     - raf_workplan::test_crate::records::create_never_replaces_a_file
     - raf_workplan::test_crate::records::replace_puts_new_text_in_place_of_an_existing_record_only
     - raf_workplan::test_crate::records::a_record_that_would_not_load_clean_is_not_written
-    - raf_workplan::test_crate::records::a_hundred_thousand_claims_load_in_time_linear_in_their_number
+    - raf_workplan::test_crate::records::a_hundred_thousand_claims_load_with_one_finding_each
     - raf_workplan::test_crate::digest::each_kind_hashes_its_documented_encoding
     - raf_workplan::test_crate::digest::a_digest_is_the_same_on_every_run
     - raf_workplan::test_crate::digest::crlf_and_lf_give_the_same_digest
@@ -303,9 +303,20 @@ bindings:
     - raf_workplan::digest::tests::symbol_definitions_are_deduplicated_by_source_key_and_ordered
     - raf_workplan::digest::tests::the_encoding_is_unambiguous_across_names_texts_and_fields
     - raf_workplan::finding::tests::each_location_answers_to_exactly_one_accessor
-    - raf_workplan::graph::tests::a_section_of_many_blocks_is_read_in_linear_time
+    - raf_workplan::graph::tests::a_section_of_many_blocks_is_read_in_work_linear_in_its_blocks
     - raf_workplan::graph::tests::ten_thousand_named_paths_are_found_in_one_pass
+    - raf_workplan::graph::tests::the_claims_of_many_capabilities_are_judged_against_sets_built_once
     - raf_workplan::graph::tests::the_paths_of_the_code_spans_are_the_paths_names_in_code_span_accepts
+    - raf_workplan::work::tests::a_counter_increments_by_what_is_added
+    - raf_workplan::work::tests::a_limited_kind_panics_at_its_ceiling
+    - raf_workplan::work::tests::a_limited_measure_counts_the_other_kinds_without_a_ceiling
+    - raf_workplan::work::tests::a_measure_that_panicked_leaves_neither_counts_nor_ceiling_behind
+    - raf_workplan::work::tests::every_kind_has_its_own_counter
+    - raf_workplan::work::tests::passing_the_ceiling_panics_at_once
+    - raf_workplan::work::tests::reaching_the_ceiling_is_allowed
+    - raf_workplan::work::tests::the_panic_comes_before_the_work_that_follows_it
+    - raf_workplan::work::tests::the_result_of_the_closure_is_returned
+    - raf_workplan::work::tests::the_tallies_are_reset_between_measures
     - raf_workplan::test_crate::digest::a_module_stands_for_its_files_and_the_modules_below_it_and_a_sibling_does_not_move_it
   examples:
     - raf_workplan::Gate
@@ -708,8 +719,18 @@ touches, and the obligations those sections receive are defined by
   the tree byte-identical, and the same writes through the real directory go
   through; with `work/coverage` a link to `docs` and `docs/default.md` there,
   `replace` of the coverage record is refused and the document keeps its text.
-- Cost fixtures: a record at the size bound with the most measures, and a hundred
-  thousand claims, load in time linear in their size.
+- Cost fixtures: a record at the size bound with the most measures loads, and a
+  hundred thousand claims load with one finding for each citation of a record that
+  does not exist. The work is counted, not timed: a section of many fenced blocks
+  is read once, each character and each blanked range stepped over once, and the
+  count at three sizes grows by no more than its second size did; the claims of
+  many capabilities are judged against sets built once, each record entered
+  once, and each slug of each claim is asked of the sets twice, a number the
+  lookups of sets that count their own lookups pin exactly. A count sees the steps that are counted: a loop added
+  elsewhere is not seen by it. The tallies are cfg(test)-only counters whose own
+  tests pin that a count adds what it is given, that each kind has its own
+  counter, that the tallies reset between measures, and that a ceiling panics at
+  the step that passes it and is cleared when a measure ends, even by a panic.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
@@ -723,8 +744,9 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::digest::tests::symbol_definitions_are_deduplicated_by_source_key_and_ordered` | test | [Verification](#verification) |
 | `raf_workplan::digest::tests::the_encoding_is_unambiguous_across_names_texts_and_fields` | test | [Verification](#verification) |
 | `raf_workplan::finding::tests::each_location_answers_to_exactly_one_accessor` | test | [Verification](#verification) |
-| `raf_workplan::graph::tests::a_section_of_many_blocks_is_read_in_linear_time` | test | [Verification](#verification) |
+| `raf_workplan::graph::tests::a_section_of_many_blocks_is_read_in_work_linear_in_its_blocks` | test | [Verification](#verification) |
 | `raf_workplan::graph::tests::ten_thousand_named_paths_are_found_in_one_pass` | test | [Verification](#verification) |
+| `raf_workplan::graph::tests::the_claims_of_many_capabilities_are_judged_against_sets_built_once` | test | [Verification](#verification) |
 | `raf_workplan::graph::tests::the_paths_of_the_code_spans_are_the_paths_names_in_code_span_accepts` | test | [Verification](#verification) |
 | `raf_workplan::plain::check` | doctest | [Contract](#contract) |
 | `raf_workplan::test_crate::bindings::a_binding_through_a_re_export_resolves_to_its_definition` | test | [Verification](#verification) |
@@ -893,7 +915,7 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::records::a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_claim_on_unknown_evidence_names_the_file_and_the_line` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_directory_link_inside_the_root_on_the_way_to_a_record_is_refused_and_a_real_directory_is_not` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::a_hundred_thousand_claims_load_in_time_linear_in_their_number` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_hundred_thousand_claims_load_with_one_finding_each` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_record_at_the_size_bound_with_the_most_measures_loads` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_record_in_the_directory_of_another_type_is_wrong_directory` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_clean` | test | [Verification](#verification) |
@@ -970,6 +992,16 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::states::rejects_proposed_section_missing_from_affects` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::surfaces_the_single_document_state_rules_from_the_profile` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::the_blocks_of_a_capability_that_does_not_validate_still_name_a_record` | test | [Verification](#verification) |
+| `raf_workplan::work::tests::a_counter_increments_by_what_is_added` | test | [Verification](#verification) |
+| `raf_workplan::work::tests::a_limited_kind_panics_at_its_ceiling` | test | [Verification](#verification) |
+| `raf_workplan::work::tests::a_limited_measure_counts_the_other_kinds_without_a_ceiling` | test | [Verification](#verification) |
+| `raf_workplan::work::tests::a_measure_that_panicked_leaves_neither_counts_nor_ceiling_behind` | test | [Verification](#verification) |
+| `raf_workplan::work::tests::every_kind_has_its_own_counter` | test | [Verification](#verification) |
+| `raf_workplan::work::tests::passing_the_ceiling_panics_at_once` | test | [Verification](#verification) |
+| `raf_workplan::work::tests::reaching_the_ceiling_is_allowed` | test | [Verification](#verification) |
+| `raf_workplan::work::tests::the_panic_comes_before_the_work_that_follows_it` | test | [Verification](#verification) |
+| `raf_workplan::work::tests::the_result_of_the_closure_is_returned` | test | [Verification](#verification) |
+| `raf_workplan::work::tests::the_tallies_are_reset_between_measures` | test | [Verification](#verification) |
 <!-- raf:generated:end -->
 
 <!-- raf:generated:relationships -->

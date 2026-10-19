@@ -104,6 +104,9 @@
 
 pub mod render;
 
+#[cfg(test)]
+mod tests;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
@@ -115,6 +118,7 @@ use raf_source::{
 
 use crate::finding::kind;
 use crate::graph::{BindingKind, Graph, ScopeEdge};
+use crate::work::{Work, add};
 use crate::{Finding, Loaded, Workplan};
 
 /// The path of the coverage record.
@@ -792,6 +796,7 @@ fn exclusion_for<'r>(
 ) -> Option<&'r Exclusion> {
     let mut first = None;
     for (exclusion, hit) in exclusions.iter().zip(matched.iter_mut()) {
+        add(Work::ExclusionTests, 1);
         if matches(exclusion, paths.iter().copied()) {
             *hit = true;
             first.get_or_insert(exclusion);
@@ -838,6 +843,7 @@ impl Judge<'_> {
     /// is neither covered nor excluded, and `matching` the paths an exclusion
     /// is matched against.
     fn judge(&mut self, gap: Gap, matching: &[&str], covered: bool) {
+        add(Work::EntriesJudged, 1);
         let exclusion = exclusion_for(self.exclusions, &mut self.matched, matching);
         if let Some(count) = self.counts.get_mut(gap.package.as_str()) {
             let (seen, hit) = if gap.kind.is_code() {

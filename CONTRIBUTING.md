@@ -75,7 +75,7 @@ make help    # list every target
   cargo-fuzz@0.13.2`); a missing tool is a failure. `make msrv` and `make fmt` cover
   the fuzz manifest too.
 - **Release tests and cross-check.** `make test-release` runs the `raf-source` tests
-  and the `raf-okf` validation cost probe in release mode. `make cross-check` runs
+  in release mode. `make cross-check` runs
   `cargo check -p raf-source` for `x86_64-apple-darwin` and `x86_64-pc-windows-gnu`;
   install them with `rustup target add`, because a missing target is a failure.
 - **REUSE.** `make reuse` runs `uvx reuse@6.2.0 lint`, so it needs `uv` (or set
@@ -86,6 +86,18 @@ make help    # list every target
   development-process wording in any tracked text file. Documents describe the
   system, not the history that produced it. It and `make licenses` run the Rust
   gates in `tests/repo_gates.rs`, so they are a subset of `make test`.
+- **No clock in tests.** The `time_in_crates_` gate in `tests/repo_gates.rs` fails
+  when Rust under the `src`, `tests` or `examples` of any crate in `crates/`, or
+  under the root `tests/`, names a clock reading or a wait on one (`Instant`,
+  `SystemTime`, `UNIX_EPOCH`, `sleep`, the `*_timeout` waits, and each of these
+  with a `_` suffix such as `sleep_ms` or `wait_timeout_while`; `raf-source` also
+  refuses `Duration` and `elapsed`). Only `crates/raf-workplan/src/exec/clock.rs`
+  and the gate file are exempt. The examples of `raf-source` are binaries outside
+  the gate, covered by clippy only: `make clippy` disallows the same types, the
+  sleeps and the timeout waits everywhere an `allow` with a reason does not say
+  otherwise. Script a clock in the test instead. A test that runs a real process
+  still goes through the runner's wall clock as a watchdog; it asserts nothing
+  about the time.
 
 ## Versioning & releases
 

@@ -20,8 +20,8 @@
 //! completion gate is preceded by a comment that quotes the sentence. The
 //! projects are generated from the templates in `support/`: a crate with its
 //! own `[workspace]`, a template `Cargo.lock`, no dependency and a pinned
-//! edition, one target directory for the test binary, the explicit `$CARGO`,
-//! and a wall-clock budget per project. Nothing is a shell script.
+//! edition, one target directory for the test binary and the explicit `$CARGO`.
+//! Nothing is a shell script.
 
 mod support;
 
@@ -478,7 +478,6 @@ fn redesign(project: &Project, redesign: &Redesign, before: usize) -> (Commits, 
     revisions.push(step.settle());
     revisions.push(step.deliver());
     project.land(redesign.slug);
-    project.within_budget();
     (
         Commits {
             slug: redesign.slug,
@@ -796,7 +795,6 @@ fn several_redesigns_leave_one_readable_present() {
         .map(|version| format!("{:?}", streaming::bindings(version).code))
         .collect();
     assert_eq!(bindings.len(), 5);
-    project.within_budget();
 }
 
 // --- scenario B ------------------------------------------------------------------
@@ -1438,7 +1436,6 @@ fn planning_produces_the_documentation() {
     );
     let finished = project.commit("docs: complete the first window API");
     assert_delivered_account(&project, &settled, &finished);
-    project.within_budget();
 }
 
 #[test]
@@ -1522,7 +1519,6 @@ fn a_document_that_merely_exists_does_not_satisfy_the_scenario() {
             "obligations:example-failing examples",
         ],
     );
-    project.within_budget();
 }
 
 #[test]
@@ -1588,7 +1584,6 @@ fn a_thin_document_is_not_the_account_the_scenario_builds() {
     assess_on_disk(project.root(), window::CHANGE);
     assert_eq!(Account::of(&project).faults(), Vec::<&str>::new());
     completed(&project, window::CHANGE, window::DOCUMENT);
-    project.within_budget();
 }
 
 /// Replace the only `from` in `text`.
@@ -1761,5 +1756,4 @@ fn each_fault_of_the_account_has_a_document_that_breaks_only_it() {
         project.git(&["checkout", "-q", "--", broken.path]);
     }
     assert_eq!(Account::of(&project).faults(), Vec::<&str>::new());
-    project.within_budget();
 }

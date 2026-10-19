@@ -86,7 +86,7 @@ pub(crate) fn check_handle(
     on_handle: &fs::Metadata,
 ) -> Result<(), String> {
     if !on_handle.file_type().is_file() {
-        return Err(format!("{shown} is not a regular file"));
+        return Err(format!("{shown} is not a regular file once opened"));
     }
     #[cfg(unix)]
     {

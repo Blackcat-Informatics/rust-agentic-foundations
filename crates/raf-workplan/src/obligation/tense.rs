@@ -33,6 +33,8 @@
 
 use raf_okf::{Body, CapabilitySection};
 
+use crate::work::{Work, add};
+
 /// The phrases, each of one to three words.
 ///
 /// The list is short on purpose; each phrase says that something is not true
@@ -161,6 +163,7 @@ const MARKER_WORD: &str = "proposed";
 fn matches_at<T>(words: &[Word<'_, T>], at: usize, phrase: &str) -> bool {
     let mut spelled = false;
     for (offset, part) in phrase.split(' ').enumerate() {
+        add(Work::PhraseTests, 1);
         let Some(word) = words.get(at + offset) else {
             return false;
         };
@@ -183,6 +186,7 @@ fn word_spans(text: &str) -> Vec<(usize, usize)> {
             break;
         };
         let next = at + c.len_utf8();
+        add(Work::ScanBytes, c.len_utf8());
         if c.is_alphanumeric() || c == '_' {
             word.get_or_insert(at);
         } else {
@@ -195,6 +199,7 @@ fn word_spans(text: &str) -> Vec<(usize, usize)> {
                 at = text[next..]
                     .find(')')
                     .map_or(text.len(), |close| next + close + 1);
+                add(Work::ScanBytes, at - next);
                 continue;
             }
         }

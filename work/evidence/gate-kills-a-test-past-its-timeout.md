@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: CC-BY-4.0
 type: Evidence
 id: evidence:gate-kills-a-test-past-its-timeout
-subject: binding:raf_workplan::test_crate::bound::a_test_that_never_ends_is_killed_and_refused_with_the_time_it_ran
+subject: binding:raf_workplan::exec::system::tests::cargo::a_test_that_never_ends_is_killed_and_refused_with_the_time_it_ran
 inputs:
   - kind: symbol
     name: raf_workplan::bound
@@ -16,7 +16,7 @@ inputs:
     digest: fb60f3294ddb18cc2419096842b25f9150af9ff572c6fb766d261b35fc0363f1
   - kind: symbol
     name: raf_workplan::exec
-    digest: f4ba016e212c3ee2f4b15b7a8e5608a5b7dce5833ca1f42284bb8fc3618b4c94
+    digest: 19826c31d83dc7c831f39001d8c53361fb61ccb08a71989761b57193edcef553
   - kind: symbol
     name: raf_workplan::exec::Invocation
     digest: 541e0874a2cbff738b60b6c3762db18dc00952583480afab0cac3e52a7a4e65d

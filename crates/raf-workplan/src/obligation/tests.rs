@@ -8,6 +8,7 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use raf_okf::{Actor, Body, CapabilitySection, ContractEffect, InputKind};
+use raf_source::{MemoryTree, Workspace};
 
 use super::tense::{self, PHRASES};
 use super::{
@@ -15,8 +16,9 @@ use super::{
     ObligationKind, OutcomeProblem, OverLimit, Part, Place, Reconciled, RunProblem, Subject,
     SyncProblem, suppressed,
 };
-use crate::BindingKind;
 use crate::assessment::{InputChange, MovedInput};
+use crate::work::{Work, measure};
+use crate::{BindingKind, Workplan};
 
 // --- the kinds ---------------------------------------------------------------
 
@@ -649,10 +651,67 @@ fn an_unterminated_fence_hides_the_rest_and_does_not_panic() {
     assert_eq!(hits[0].phrase, "will");
 }
 
+/// A hostile shape of text: its name, how it is built from a count, and the
+/// fewest hits it gives.
+type Shape = (&'static str, fn(usize) -> String, usize);
+
+/// The most any kind of work may count while one text is read: a scan that
+/// does work per pair of positions stops here at once instead of running to
+/// the end.
+fn ceiling(bytes: usize) -> usize {
+    (PHRASES.len() + 4) * bytes
+}
+
+/// The bytes walked and the phrases tested while `text` is scanned, and the
+/// hits.
+fn scanned(text: &str) -> (usize, usize, Vec<(usize, &'static str)>) {
+    let (hits, tally) = measure(ceiling(text.len()), || found(text));
+    (
+        tally.get(Work::ScanBytes),
+        tally.get(Work::PhraseTests),
+        hits,
+    )
+}
+
+/// Hostile text is read in work linear in its size: one huge line of the
+/// phrase, one of no space at all, a line of link openers without a close,
+/// and many short lines. Every byte of every line is walked once, whatever
+/// the shape; and for each shape, built at one, two and three units, the
+/// phrases tested grow with the text, the third unit adding no more than the
+/// second did.
 #[test]
 fn hostile_text_is_read_in_linear_time() {
-    // One huge line of the phrase, one of no space at all, a line of link
-    // openers without a close, and many short lines.
+    const UNIT: usize = 20_000;
+    let shapes: [Shape; 6] = [
+        ("long", |n| "will ".repeat(n * 9), 1),
+        ("solid", |n| "will".repeat(n * 10), 0),
+        ("openers", |n| "](".repeat(n * 10), 0),
+        ("many", |n| "will\n".repeat(n * 5), 1_000),
+        ("wrapped", |n| "is\n".repeat(n * 5), 0),
+        ("alternating", |n| "is\nplanned\n".repeat(n * 2), 1_000),
+    ];
+    for (name, make, per_unit) in shapes {
+        let mut phrases = [0; 3];
+        for units in 1..=3 {
+            let text = make(units * UNIT / 10);
+            let (bytes, tested, hits) = scanned(&text);
+            // Each byte of each line, and no line break, is walked once.
+            let walked: usize = text.lines().map(str::len).sum();
+            assert_eq!(bytes, walked, "{name} x {units}");
+            if per_unit > 0 {
+                assert!(hits.len() >= per_unit, "{name} x {units}");
+            }
+            phrases[units - 1] = tested;
+        }
+        let [one, two, three] = phrases;
+        if name == "openers" {
+            // No word, so no phrase is tested.
+            assert_eq!(phrases, [0; 3]);
+        } else {
+            assert!(one > 0, "{name}");
+        }
+        assert!(three + one <= 2 * two, "{name}: {one}, {two}, {three}");
+    }
     let long = "will ".repeat(180_000);
     assert_eq!(found(&long), [(1, "will")]);
     let solid = "will".repeat(200_000);
@@ -665,6 +724,106 @@ fn hostile_text_is_read_in_linear_time() {
     assert_eq!(found(&wrapped), []);
     let alternating = "is\nplanned\n".repeat(50_000);
     assert_eq!(found(&alternating).len(), 50_000);
+}
+
+/// A repository of the capability `omega` and a change `shape` of `items`
+/// items that each move to a change that does not exist, beside `others`
+/// records that are done, judged by `reconcile`; and the work it counted.
+fn moves_to_ghosts(items: usize, others: usize) -> (Reconciled, crate::work::Tally) {
+    use std::fmt::Write as _;
+
+    let mut sections = String::new();
+    for name in [
+        "Purpose",
+        "Contract",
+        "Usage",
+        "Examples",
+        "Constraints",
+        "Explanation",
+        "Verification",
+    ] {
+        write!(sections, "## {name}\n\nText.\n\n").expect("a string takes the text");
+    }
+    let omega = format!(
+        "---\ntype: Capability\nid: cap:omega\ntitle: Omega\ndescription: Omega.\n\
+         state: designed\nbindings:\n  code: []\n  tests: []\n  examples: []\n\
+         depends: []\n---\n\n# Omega\n\n{sections}"
+    );
+    let record = |slug: &str, items: &str| {
+        let items = if items.is_empty() {
+            "items: []\n".to_string()
+        } else {
+            format!("items:\n{items}")
+        };
+        format!(
+            "---\ntype: Change\nid: change:{slug}\ntitle: Change {slug}\n\
+             description: Changes {slug}.\nchanges: [cap:omega]\naffects:\n  \
+             - cap:omega#contract\ncontract_effect: changes\n{items}---\n\n\
+             ## Summary\n\nChanges it.\n"
+        )
+    };
+    let moves = (0..items).fold(String::new(), |mut text, n| {
+        let _ = write!(
+            text,
+            "  - claim: \"claim {n}\"\n    outcome: moved:change:ghost-{n}\n"
+        );
+        text
+    });
+    let mut files = vec![
+        ("docs/capabilities/omega.md".to_string(), omega),
+        ("work/changes/shape.md".to_string(), record("shape", &moves)),
+    ];
+    for n in 0..others {
+        let done = "  - claim: \"done\"\n    outcome: implemented\n";
+        files.push((
+            format!("work/changes/more-{n}.md"),
+            record(&format!("more-{n}"), done),
+        ));
+    }
+    let tree: MemoryTree = files
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    let source = Workspace::load(
+        &MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+            ),
+            ("src/lib.rs", ""),
+        ]),
+        &["."],
+    )
+    .expect("a workspace");
+    let plan = Workplan::load(&tree, &source);
+    // No kind of work is owed more than the items and the records, with
+    // room for the rest of the reconciliation.
+    let (list, tally) = measure(2 * items + others + 1_000, || plan.reconcile("shape"));
+    (list.expect("reconciles"), tally)
+}
+
+/// The slugs of the changes are listed once, not looked up for each item, so
+/// the records beside a record of many items add no work per item: with ten
+/// records and with two thousand, the same items are judged the same number
+/// of times, and the slugs listed are the records.
+#[test]
+fn moves_to_unknown_records_cost_the_same_with_few_records_as_with_many() {
+    let items = 8_000;
+    let mut outcome_checks = Vec::new();
+    for others in [10, 2_000] {
+        let (list, tally) = moves_to_ghosts(items, others);
+        assert_eq!(
+            list.of_kind(ObligationKind::ItemWithoutOutcome).count(),
+            items
+        );
+        // The record `shape` and the ones beside it.
+        assert_eq!(tally.get(Work::SlugsListed), others + 1, "{others}");
+        outcome_checks.push(tally.get(Work::OutcomeChecks));
+        // Each move to a change that does not exist asks the loaded slugs and
+        // then the slugs that did not load.
+        assert_eq!(tally.get(Work::SlugLookups), 2 * items, "{others}");
+    }
+    assert_eq!(outcome_checks, [items, items]);
 }
 
 #[test]

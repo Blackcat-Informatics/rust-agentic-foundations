@@ -9,15 +9,10 @@
 
 mod support;
 
-use std::time::{Duration, Instant};
-
 use raf_workplan::exec::Programs;
 use raf_workplan::lifecycle::Lifecycle;
 use serde_json::{Value, json};
-use support::{BLOCKS, Repo, Run, array, capability, change, changed, member_names, strings};
-
-/// No fixture may take longer than this, builds included.
-const BUDGET: Duration = Duration::from_secs(300);
+use support::{BLOCKS, Repo, array, capability, change, changed, member_names, strings};
 
 const RECORD: &str = "work/changes/shape.md";
 const CAP: &str = "docs/capabilities/fixture.md";
@@ -65,17 +60,6 @@ fn ready(tag: &str) -> Repo {
     shaped(tag, "delivered", PASSES, GOOD, DONE)
 }
 
-fn timed(repo: &Repo, args: &[&str]) -> Run {
-    let started = Instant::now();
-    let run = repo.run(args);
-    assert!(
-        started.elapsed() < BUDGET,
-        "{args:?} ran {:?}",
-        started.elapsed()
-    );
-    run
-}
-
 /// The text the library gives for a refusal of the same repository.
 fn library(repo: &Repo, slug: &str) -> String {
     Lifecycle::open(Programs::new(repo.root()))
@@ -89,7 +73,7 @@ fn library(repo: &Repo, slug: &str) -> String {
 fn a_capability_left_implementing_is_refused_and_nothing_is_written() {
     let repo = shaped("complete-implementing", "implementing", PASSES, GOOD, DONE);
     let before = repo.worktree();
-    let run = timed(&repo, &["change", "complete", "shape"]).expect(1);
+    let run = repo.run(&["change", "complete", "shape"]).expect(1);
     assert_eq!(
         run.lines(),
         [
@@ -107,7 +91,7 @@ fn a_capability_left_implementing_is_refused_and_nothing_is_written() {
     // The neighbour: the author sets the state and it completes.
     repo.edit(CAP, "state: implementing", "state: delivered");
     repo.sync();
-    timed(&repo, &["change", "complete", "shape"]).expect(0);
+    repo.run(&["change", "complete", "shape"]).expect(0);
 }
 
 #[test]
@@ -115,7 +99,7 @@ fn a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_c
     let repo = ready("complete-done");
     repo.run(&["check"]).expect(1);
     let before = repo.worktree();
-    let run = timed(&repo, &["change", "complete", "shape"]).expect(0);
+    let run = repo.run(&["change", "complete", "shape"]).expect(0);
     assert_eq!(
         run.stdout,
         "completed: removed work/changes/shape.md\nrewrote docs/capabilities/fixture.md\n"
@@ -179,7 +163,7 @@ fn every_failure_is_listed_and_each_condition_is_named_in_json() {
         "items:\n  - claim: \"fixture is shaped\"",
     );
     let before = repo.worktree();
-    let run = timed(&repo, &["change", "complete", "shape"]).expect(1);
+    let run = repo.run(&["change", "complete", "shape"]).expect(1);
     assert_eq!(
         run.lines()[0],
         "refused: 1 obligation, 1 item without outcome, 1 finding once the record is removed"
@@ -189,7 +173,9 @@ fn every_failure_is_listed_and_each_condition_is_named_in_json() {
     assert!(run.stdout.contains("[no-open-record]"));
     assert_eq!(repo.worktree(), before);
 
-    let json = timed(&repo, &["--format", "json", "change", "complete", "shape"]).expect(1);
+    let json = repo
+        .run(&["--format", "json", "change", "complete", "shape"])
+        .expect(1);
     let objects = array(&json);
     assert_eq!(objects[0]["kind"], "refused");
     assert_eq!(objects[0]["failures"], 3);
@@ -266,7 +252,7 @@ fn a_failing_example_stands_under_conditions_one_and_five() {
         "[demo::example_crate::exiting]",
         DONE,
     );
-    let run = timed(&repo, &["change", "complete", "shape"]).expect(1);
+    let run = repo.run(&["change", "complete", "shape"]).expect(1);
     assert_eq!(
         run.lines()[0],
         "refused: 1 obligation, 1 bound example failing"
@@ -293,7 +279,7 @@ fn a_failing_example_stands_under_conditions_one_and_five() {
     assert!(repo.root().join(RECORD).is_file());
     // Once the example builds and runs the change completes.
     repo.put("examples/exiting.rs", support::GOOD_EXAMPLE);
-    timed(&repo, &["change", "complete", "shape"]).expect(0);
+    repo.run(&["change", "complete", "shape"]).expect(0);
 }
 
 #[test]
@@ -306,7 +292,7 @@ fn a_failing_bound_test_is_condition_five_and_the_record_stays() {
         DONE,
     );
     let before = repo.worktree();
-    let run = timed(&repo, &["change", "complete", "shape"]).expect(1);
+    let run = repo.run(&["change", "complete", "shape"]).expect(1);
     assert_eq!(run.lines()[0], "refused: 1 bound test failing");
     assert!(
         run.lines()[1].starts_with("fail cap:fixture tests `demo::tests::fails`: "),
@@ -324,7 +310,7 @@ fn a_failing_bound_test_is_condition_five_and_the_record_stays() {
     // The neighbour: the test that passes.
     repo.edit(CAP, "[demo::tests::fails]", PASSES);
     repo.sync();
-    timed(&repo, &["change", "complete", "shape"]).expect(0);
+    repo.run(&["change", "complete", "shape"]).expect(0);
 }
 
 #[test]
@@ -332,7 +318,7 @@ fn a_stale_generated_block_is_refused_until_the_sync_is_run() {
     let repo = shaped("complete-stale", "implementing", PASSES, GOOD, DONE);
     // The catalogue lists the capability under the state it is in.
     repo.edit(CAP, "state: implementing", "state: delivered");
-    let run = timed(&repo, &["change", "complete", "shape"]).expect(1);
+    let run = repo.run(&["change", "complete", "shape"]).expect(1);
     assert!(
         run.lines()[0].starts_with("refused: 1 obligation, 1 stale generated block"),
         "{run:#?}"
@@ -340,7 +326,7 @@ fn a_stale_generated_block_is_refused_until_the_sync_is_run() {
     assert!(run.stdout.contains("generated-stale"), "{run:#?}");
     assert!(repo.root().join(RECORD).is_file());
     repo.run(&["docs", "sync"]).expect(0);
-    timed(&repo, &["change", "complete", "shape"]).expect(0);
+    repo.run(&["change", "complete", "shape"]).expect(0);
 }
 
 #[test]

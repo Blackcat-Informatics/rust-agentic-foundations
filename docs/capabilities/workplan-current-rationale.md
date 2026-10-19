@@ -13,7 +13,7 @@ bindings:
     - raf_workplan::test_crate::rationale::a_capability_link_to_a_missing_page_or_heading_fails_the_link_check
     - raf_workplan::test_crate::rationale::a_decision_page_linked_from_a_capability_with_its_conditions_passes
     - raf_workplan::test_crate::rationale::a_decision_page_without_conditions_to_revisit_is_reported_by_name
-    - raf_workplan::test_crate::rationale::a_hundred_thousand_headings_and_an_unterminated_fence_are_judged_in_bounded_time
+    - raf_workplan::test_crate::rationale::a_hundred_thousand_headings_and_an_unterminated_fence_are_judged
     - raf_workplan::test_crate::rationale::a_link_from_a_capability_a_change_or_another_page_links_the_page
     - raf_workplan::test_crate::rationale::an_empty_conditions_list_is_reported_and_a_list_item_with_text_passes
     - raf_workplan::test_crate::rationale::an_explanation_decision_without_conditions_is_reported_and_with_them_passes
@@ -22,6 +22,9 @@ bindings:
     - raf_workplan::test_crate::rationale::headings_match_exactly_at_their_level
     - raf_workplan::test_crate::rationale::no_page_is_reported_unlinked_while_a_document_that_may_link_it_does_not_load
     - raf_workplan::test_crate::rationale::the_findings_are_the_same_on_every_run_in_file_and_line_order
+    - raf_workplan::rationale::tests::a_hundred_thousand_headings_are_each_read_once
+    - raf_workplan::rationale::tests::empty_conditions_headings_are_each_judged_against_their_own_lines
+    - raf_workplan::rationale::tests::the_decisions_of_an_explanation_are_each_judged_against_their_own_lines
     - raf_workplan::test_crate::rationale::the_valid_fixture_links_its_page_from_gamma
     - raf_workplan::test_crate::rationale::this_repository_links_each_architecture_page_from_a_capability
     - raf_workplan::rationale::tests::a_line_without_a_marker_or_without_text_is_no_list_item
@@ -177,7 +180,12 @@ history in their working context.
   unterminated fence runs to the end of the document.
 - A capability link to a missing page, or to a missing heading, fails the link check.
 - The findings are the same on every run and come in the order of files and lines.
-  A page with a hundred thousand headings is judged in bounded time.
+  A page with a hundred thousand headings is judged, and so is one whose
+  conditions lie behind an unterminated fence. The work is counted, not timed:
+  each heading is read once, and the list of a conditions heading is read from its
+  own first line to the next heading of its level, however many headings and lines
+  come before it, at twenty thousand empty lists on a page and twenty thousand
+  decisions in an Explanation.
 - Headings match exactly at their level; no page is reported unlinked while a
   document that may link it does not load; a list item is a marker, a space or a tab
   and text with a letter or a digit, and a line without a marker or without text is none.
@@ -191,12 +199,15 @@ history in their working context.
 | Item | Kind | Section |
 | --- | --- | --- |
 | `raf_workplan::rationale` | doctest | [Verification](#verification) |
+| `raf_workplan::rationale::tests::a_hundred_thousand_headings_are_each_read_once` | test | [Verification](#verification) |
 | `raf_workplan::rationale::tests::a_line_without_a_marker_or_without_text_is_no_list_item` | test | [Verification](#verification) |
 | `raf_workplan::rationale::tests::a_list_item_is_a_marker_a_space_and_text_with_a_letter_or_a_digit` | test | [Verification](#verification) |
+| `raf_workplan::rationale::tests::empty_conditions_headings_are_each_judged_against_their_own_lines` | test | [Verification](#verification) |
+| `raf_workplan::rationale::tests::the_decisions_of_an_explanation_are_each_judged_against_their_own_lines` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::rationale::a_capability_link_to_a_missing_page_or_heading_fails_the_link_check` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::rationale::a_decision_page_linked_from_a_capability_with_its_conditions_passes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::rationale::a_decision_page_without_conditions_to_revisit_is_reported_by_name` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::rationale::a_hundred_thousand_headings_and_an_unterminated_fence_are_judged_in_bounded_time` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::a_hundred_thousand_headings_and_an_unterminated_fence_are_judged` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::rationale::a_link_from_a_capability_a_change_or_another_page_links_the_page` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::rationale::an_empty_conditions_list_is_reported_and_a_list_item_with_text_passes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::rationale::an_explanation_decision_without_conditions_is_reported_and_with_them_passes` | test | [Verification](#verification) |

@@ -43,6 +43,7 @@
 //! # Ok::<(), raf_workplan::exec::ExecError>(())
 //! ```
 
+mod clock;
 mod fake;
 mod invocation;
 mod pattern;

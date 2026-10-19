@@ -8,29 +8,28 @@
 //! templates below: its own `[workspace]`, a template `Cargo.lock`, no
 //! dependency and a pinned edition, so nothing is fetched and no enclosing
 //! workspace is read. Each builds into a target directory of its own, beside it
-//! and removed with it (named in the fixture's `.cargo/config.toml`, so the
-//! environment of this process is not touched): fixtures that name the same
-//! package share a build fingerprint, so one directory for all of them lets a
-//! sibling's `cargo` rewrite or lock an executable another is running. `cargo`
-//! is the one that started this test binary (`$CARGO`).
-//! Every test asserts a wall-clock budget. A refusal before any process is run
-//! with a `cargo` that does not exist, so a refusal that started a process
-//! would fail as an error, not pass.
+//! in a scratch directory and removed with it (named in the fixture's
+//! `.cargo/config.toml`, so the environment of this process is not touched):
+//! fixtures that name the same package share a build fingerprint, so one
+//! directory for all of them lets a sibling's `cargo` rewrite or lock an
+//! executable another is running. `cargo` is the one that started this test
+//! binary (`$CARGO`). A refusal before any process is run with a `cargo` that
+//! does not exist, so a refusal that started a process would fail as an error,
+//! not pass.
+//!
+//! A test or an example that never ends is killed at its limit under a clock
+//! the test controls, which only the tests inside the library can give the
+//! runner; those tests are in `exec::system::tests::cargo`, on Linux.
 
 use std::fmt::Write as _;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use raf_source::{DiskTree, MemoryTree, Workspace};
 use raf_workplan::Workplan;
-use raf_workplan::bound::{BoundOutcome, Ended, Evidence, Executor, Refusal};
-use raf_workplan::exec::{ExecError, Limits, Programs, SystemRunner};
-
-/// No fixture may take longer than this, builds included.
-const BUDGET: Duration = Duration::from_secs(300);
+use raf_workplan::bound::{BoundOutcome, Evidence, Executor, Refusal};
+use raf_workplan::exec::{ExecError, Programs, SystemRunner};
 
 /// The `cargo` that runs this test binary: `$CARGO` as `cargo test` sets it.
 fn cargo() -> PathBuf {
@@ -42,30 +41,19 @@ fn cargo() -> PathBuf {
 
 /// A generated crate, removed when dropped together with its target directory.
 struct Fixture {
+    /// The scratch directory that holds the crate and its target directory.
+    scratch: PathBuf,
     dir: PathBuf,
-    target: PathBuf,
-    package: String,
     source: Workspace,
-    started: Instant,
 }
 
 impl Fixture {
     /// A crate named `package` of this edition. `manifest` is appended to its
     /// manifest and `files` are written below the crate directory.
     fn new(package: &str, edition: &str, manifest: &str, files: &[(&str, &str)]) -> Self {
-        static COUNTER: AtomicUsize = AtomicUsize::new(0);
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos());
-        let dir = std::env::temp_dir().join(format!(
-            "raf-bound-{}-{nanos}-{}",
-            std::process::id(),
-            COUNTER.fetch_add(1, Ordering::Relaxed)
-        ));
-        let target = dir.with_file_name(format!(
-            "{}-target",
-            dir.file_name().and_then(|n| n.to_str()).expect("a name")
-        ));
+        let scratch = scratch();
+        let dir = scratch.join("crate");
+        let target = scratch.join("target");
         let put = |path: &str, text: &str| {
             let target = dir.join(path);
             fs::create_dir_all(target.parent().expect("a file has a directory"))
@@ -96,11 +84,9 @@ impl Fixture {
         let source = Workspace::load(&DiskTree::new(&dir).expect("a tree"), &["."])
             .expect("the fixture loads");
         Self {
+            scratch,
             dir,
-            target,
-            package: package.to_string(),
             source,
-            started: Instant::now(),
         }
     }
 
@@ -119,30 +105,9 @@ impl Fixture {
         ))
     }
 
-    /// Build what a binding needs before a short limit applies to it, so that
-    /// the limit measures the run and not the compile.
-    fn warm(&self, args: &[&str]) {
-        let status = Command::new(cargo())
-            .args(args)
-            .arg("--frozen")
-            .current_dir(&self.dir)
-            .output()
-            .expect("cargo starts");
-        assert!(
-            status.status.success(),
-            "{}",
-            String::from_utf8_lossy(&status.stderr)
-        );
-    }
-
-    /// Run the binding `entry` of `list` with `runner` and these limits.
-    fn judge(
-        &self,
-        runner: &SystemRunner,
-        list: &str,
-        entry: &str,
-        limits: Option<(Limits, Limits)>,
-    ) -> Result<Evidence, ExecError> {
+    /// Run the binding `entry` of `list` with `runner` and the limits of the
+    /// gate.
+    fn judge(&self, runner: &SystemRunner, list: &str, entry: &str) -> Result<Evidence, ExecError> {
         let doc = capability(list, entry);
         let docs = MemoryTree::from([("docs/capabilities/fixture.md", doc.as_str())]);
         let plan = Workplan::load(&docs, &self.source);
@@ -156,26 +121,21 @@ impl Fixture {
             "{entry} must resolve: {:?}",
             binding.resolution()
         );
-        let mut executor = Executor::new(&self.source, runner).expect("the index lists its tests");
-        if let Some((build, example)) = limits {
-            executor = executor.with_limits(build, example);
-        }
-        executor.run(binding)
+        Executor::new(&self.source, runner)
+            .expect("the index lists its tests")
+            .run(binding)
     }
 
     /// Run a binding with the real `cargo` and the limits of the gate.
     fn run(&self, list: &str, entry: &str) -> Evidence {
-        let evidence = self
-            .judge(&self.runner(), list, entry, None)
-            .unwrap_or_else(|error| panic!("{entry}: {error}"));
-        self.within_budget();
-        evidence
+        self.judge(&self.runner(), list, entry)
+            .unwrap_or_else(|error| panic!("{entry}: {error}"))
     }
 
     /// A binding that must be refused before any process starts.
     fn refused(&self, list: &str, entry: &str) -> Refusal {
         let evidence = self
-            .judge(&self.runner_without_cargo(), list, entry, None)
+            .judge(&self.runner_without_cargo(), list, entry)
             .unwrap_or_else(|error| panic!("{entry} started a process: {error}"));
         assert!(evidence.runs().is_empty(), "{evidence}");
         match evidence.outcome() {
@@ -183,21 +143,30 @@ impl Fixture {
             other => panic!("{entry}: {other:?}"),
         }
     }
-
-    fn within_budget(&self) {
-        assert!(
-            self.started.elapsed() < BUDGET,
-            "the fixture {} took {:?}, over its budget of {BUDGET:?}",
-            self.package,
-            self.started.elapsed()
-        );
-    }
 }
 
 impl Drop for Fixture {
     fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.dir);
-        let _ = fs::remove_dir_all(&self.target);
+        let _ = fs::remove_dir_all(&self.scratch);
+    }
+}
+
+/// A directory of its own under the directory of temporary files. Its name is
+/// this process and a count, made with `create_dir`, so two fixtures never
+/// share one; a name left by an earlier process is skipped.
+fn scratch() -> PathBuf {
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+    loop {
+        let path = std::env::temp_dir().join(format!(
+            "raf-bound-{}-{}",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        match fs::create_dir(&path) {
+            Ok(()) => return path,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => panic!("{}: {error}", path.display()),
+        }
     }
 }
 
@@ -308,11 +277,6 @@ mod tests {
     #[test]
     #[ignore]
     fn skipped() {}
-
-    #[test]
-    fn forever() {
-        std::thread::sleep(std::time::Duration::from_secs(120));
-    }
 }
 ";
 
@@ -387,7 +351,6 @@ fn a_passing_test_passes_on_one_listed_entry_and_one_passed() {
         (proof.listed, proof.passed, proof.failed, proof.ignored),
         (Some(1), Some(1), Some(0), Some(0))
     );
-    assert!(evidence.wall() > Duration::ZERO);
 }
 
 #[test]
@@ -536,41 +499,6 @@ fn hostile_bindings_are_unresolved_and_never_reach_cargo() {
             }
         }
     }
-}
-
-#[test]
-fn a_test_that_never_ends_is_killed_and_refused_with_the_time_it_ran() {
-    let fixture = tests_fixture();
-    // Build the test binary first, so the limit measures the run.
-    fixture.warm(&["test", "--no-run"]);
-    let limit = Duration::from_secs(5);
-    let limits = (
-        Limits::build().with_timeout(limit),
-        Limits::example().with_timeout(limit),
-    );
-    let started = Instant::now();
-    let evidence = fixture
-        .judge(
-            &fixture.runner(),
-            "tests",
-            "fx_tests::tests::forever",
-            Some(limits),
-        )
-        .expect("a kill is a verdict");
-    let waited = started.elapsed();
-    let reason = failed(&evidence);
-    assert!(
-        reason.contains("killed") && reason.contains("5 s limit"),
-        "{reason}"
-    );
-    assert_eq!(
-        evidence.runs().last().map(raf_workplan::bound::Run::ended),
-        Some(Ended::TimedOut)
-    );
-    assert!(evidence.wall() >= limit, "{:?}", evidence.wall());
-    assert!(waited >= limit && waited < limit * 12, "{waited:?}");
-    // The same fixture, with the limit of the gate, still passes its neighbour.
-    passed(&fixture.run("tests", "fx_tests::tests::passes"));
 }
 
 // ------------------------------------------------------- documentation tests
@@ -796,7 +724,6 @@ fn doc_rules(edition: &str) {
         "{bare}"
     );
     assert_eq!(bare.runs().len(), 1);
-    fixture.within_budget();
 }
 
 #[test]
@@ -843,10 +770,6 @@ fn examples_fixture() -> Fixture {
             (
                 "examples/stdin-closed.rs",
                 "use std::io::Read;\n\nfn main() {\n    let mut text = String::new();\n    let read = std::io::stdin().read_to_string(&mut text).expect(\"stdin reads\");\n    std::process::exit(if read == 0 { 0 } else { 7 });\n}\n",
-            ),
-            (
-                "examples/forever.rs",
-                "fn main() {\n    std::thread::sleep(std::time::Duration::from_secs(120));\n}\n",
             ),
         ],
     )
@@ -895,55 +818,12 @@ fn an_example_that_reads_standard_input_sees_it_closed() {
 }
 
 #[test]
-fn an_example_that_never_ends_is_killed_and_reported_with_the_time_it_ran() {
-    let fixture = examples_fixture();
-    fixture.warm(&["build", "--examples"]);
-    let limit = Duration::from_secs(5);
-    let limits = (
-        Limits::build().with_timeout(limit),
-        Limits::example().with_timeout(limit),
-    );
-    let started = Instant::now();
-    let evidence = fixture
-        .judge(
-            &fixture.runner(),
-            "examples",
-            "fx_examples::example_crate::forever",
-            Some(limits),
-        )
-        .expect("a kill is a verdict");
-    let waited = started.elapsed();
-    let reason = failed(&evidence);
-    assert!(
-        reason.contains("killed") && reason.contains("5 s limit"),
-        "{reason}"
-    );
-    assert_eq!(
-        evidence.runs().last().map(raf_workplan::bound::Run::ended),
-        Some(Ended::TimedOut)
-    );
-    assert!(waited >= limit && waited < limit * 12, "{waited:?}");
-    // The neighbour passes under the same limits.
-    let neighbour = fixture
-        .judge(
-            &fixture.runner(),
-            "examples",
-            "fx_examples::example_crate::pass",
-            Some(limits),
-        )
-        .expect("the neighbour runs");
-    passed(&neighbour);
-    fixture.within_budget();
-}
-
-#[test]
 fn a_process_that_cannot_start_is_an_error_and_not_a_verdict() {
     let fixture = examples_fixture();
     let result = fixture.judge(
         &fixture.runner_without_cargo(),
         "examples",
         "fx_examples::example_crate::pass",
-        None,
     );
     assert!(matches!(result, Err(ExecError::Spawn { .. })), "{result:?}");
 }

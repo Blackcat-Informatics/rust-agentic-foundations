@@ -15,7 +15,6 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
-use std::time::{Duration, Instant};
 
 use raf_workplan::exec::Programs;
 use raf_workplan::lifecycle::Lifecycle;
@@ -23,9 +22,6 @@ use raf_workplan::{Finding, Gate, SyncOptions, Workplan};
 
 use super::checkout::{git, git_exact};
 use super::disk::{Scratch, put, read, snapshot};
-
-/// No project may take longer than this, builds included.
-pub(crate) const BUDGET: Duration = Duration::from_secs(300);
 
 /// The copyright text of the SPDX lines the fixtures write.
 pub(crate) const COPYRIGHT: &str = "2026 Example Org <dev@example.org>";
@@ -64,7 +60,6 @@ pub(crate) fn spdx_comments() -> String {
 /// A project in a scratch directory, removed when dropped.
 pub(crate) struct Project {
     scratch: Scratch,
-    started: Instant,
 }
 
 impl Project {
@@ -99,10 +94,7 @@ impl Project {
             put(root, super::COVERAGE, &super::open_coverage());
         }
         git(root, &["init", "-q", "-b", "main"]);
-        Self {
-            scratch,
-            started: Instant::now(),
-        }
+        Self { scratch }
     }
 
     /// The root of the project and of its git work tree.
@@ -237,19 +229,5 @@ impl Project {
     pub(crate) fn lifecycle(&self) -> Lifecycle {
         Lifecycle::open(self.programs())
             .unwrap_or_else(|error| panic!("the project opens: {error}"))
-    }
-
-    /// Require that the project, builds included, is within its budget.
-    pub(crate) fn within_budget(&self) {
-        assert!(
-            self.started.elapsed() < BUDGET,
-            "the project took {:?}, over its budget of {BUDGET:?}",
-            self.started.elapsed()
-        );
-    }
-
-    /// The time since the project was created.
-    pub(crate) fn elapsed(&self) -> Duration {
-        self.started.elapsed()
     }
 }

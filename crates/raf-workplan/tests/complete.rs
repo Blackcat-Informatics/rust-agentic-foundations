@@ -20,7 +20,6 @@ mod support;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
 
 use raf_okf::{Actor, AssessmentVerdict};
 use raf_source::RelPath;
@@ -36,9 +35,6 @@ use support::changes::{DONE, capability, record};
 use support::checkout::git;
 use support::disk::{Scratch, put, read, snapshot};
 use support::evidence::{Evidence, digest_of};
-
-/// No fixture may take longer than this, builds included.
-const BUDGET: Duration = Duration::from_secs(300);
 
 const CAP: &str = "docs/capabilities/fixture.md";
 const INDEX: &str = "docs/capabilities/index.md";
@@ -247,7 +243,6 @@ fn other_record(spec: Spec) -> Spec {
 /// A generated repository, removed when dropped.
 struct Fixture {
     scratch: Scratch,
-    started: Instant,
     real: bool,
 }
 
@@ -290,11 +285,7 @@ impl Fixture {
         if real {
             git(root, &["init", "-q", "-b", "main"]);
         }
-        let fixture = Self {
-            scratch,
-            started: Instant::now(),
-            real,
-        };
+        let fixture = Self { scratch, real };
         fixture.resync();
         // The sections the change affects are assessed as they stand, so the
         // gate is judged on what each fixture is about.
@@ -403,20 +394,9 @@ impl Fixture {
     }
 
     fn complete(&self) -> Completion {
-        let completion = self
-            .lifecycle()
+        self.lifecycle()
             .complete("shape")
-            .unwrap_or_else(|error| panic!("complete should answer: {error}"));
-        self.within_budget();
-        completion
-    }
-
-    fn within_budget(&self) {
-        assert!(
-            self.started.elapsed() < BUDGET,
-            "the fixture took {:?}, over its budget of {BUDGET:?}",
-            self.started.elapsed()
-        );
+            .unwrap_or_else(|error| panic!("complete should answer: {error}"))
     }
 }
 
@@ -1128,7 +1108,6 @@ fn each_kind_of_obligation_is_a_reconcile_line_in_a_git_repository_and_fixing_it
             .unwrap_or_else(|error| panic!("{name} repaired: reconcile answers: {error}"));
         assert_eq!(repaired.of_kind(case.kind).count(), 0, "{name}: {repaired}");
         assert!(repaired.is_empty(), "{name}: {repaired}");
-        fixture.within_budget();
     }
 }
 

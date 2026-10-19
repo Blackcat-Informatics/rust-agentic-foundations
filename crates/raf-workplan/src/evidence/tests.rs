@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use raf_okf::{Actor, EvidenceSubject, EvidenceVerdict, Measure, Number};
 use raf_source::{DiskTree, Workspace};
@@ -21,8 +21,8 @@ use raf_source::{DiskTree, Workspace};
 use super::{EvidenceError, EvidenceRequest, Failed, MeasureError, VerdictSource, WriteMode};
 use crate::digest::Digest;
 use crate::exec::{
-    ExecError, FakeRunner, Invocation, Limits, Output, Program, Programs, Runner, SystemRunner,
-    TrustedArgv,
+    BUILD_TIMEOUT, ExecError, FakeRunner, Invocation, Limits, Output, Program, Programs, Runner,
+    SystemRunner, TrustedArgv,
 };
 use crate::record::{RecordError, RecordOptions};
 use crate::{LinkContext, Workplan};
@@ -184,7 +184,6 @@ fn measure(name: &str, value: &str) -> Measure {
 struct Bounded {
     inner: SystemRunner,
     max_output: Option<usize>,
-    timeout: Option<Duration>,
 }
 
 impl Runner for Bounded {
@@ -192,9 +191,6 @@ impl Runner for Bounded {
         let mut limits = *limits;
         if let Some(max) = self.max_output {
             limits = limits.with_max_output(max);
-        }
-        if let Some(timeout) = self.timeout {
-            limits = limits.with_timeout(timeout);
         }
         self.inner.run(invocation, &limits)
     }
@@ -388,38 +384,36 @@ fn the_command_is_asked_with_the_bounds_of_a_build_and_the_callers_locale() {
     assert_eq!(calls[0].command(), "cargo bench --bench=parse");
     assert_eq!(*calls[0].limits(), Limits::trusted());
     assert_eq!(calls[0].limits().max_output(), 16 * 1024 * 1024);
-    assert_eq!(calls[0].limits().timeout(), Duration::from_mins(30));
+    assert_eq!(calls[0].limits().timeout(), BUILD_TIMEOUT);
     assert!(!calls[0].limits().c_locale());
 }
 
-#[cfg(unix)]
 #[test]
 fn a_run_killed_at_its_time_limit_records_fail_and_its_neighbour_passes() {
+    let script = ["/bin/sh", "-c", "echo peak=1", "sh"];
+    let answer = || Output::new(Some(0), b"peak=1\n".to_vec(), Vec::new());
+    let past = FakeRunner::new().on(
+        Program::Trusted,
+        &script,
+        Ok(answer().with_elapsed(BUILD_TIMEOUT + Duration::from_millis(1))),
+    );
     let root = Root::new("timeout");
-    let runner = Bounded {
-        inner: SystemRunner::new(Programs::new(root.path())),
-        max_output: None,
-        timeout: Some(Duration::from_secs(1)),
-    };
-    let started = Instant::now();
     let recorded = root
-        .record_with(&runner, &request(sh("echo peak=1; sleep 30", &[])))
+        .record_with(&past, &request(sh("echo peak=1", &[])))
         .expect("a killed run is recorded");
-    assert!(started.elapsed() < Duration::from_secs(20));
     assert_eq!(recorded.record.verdict, EvidenceVerdict::Fail);
     assert_eq!(recorded.failed, [Failed::TimedOut]);
     assert_eq!(recorded.record.values.len(), 0);
+    let calls = past.calls();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(*calls[0].limits(), Limits::trusted());
     // With a limit, the killed run is still recorded as `fail`, with the
     // limit as given and no value: its limit is not "never printed".
     let limited = Root::new("timeout-limit");
     let recorded = limited
         .record_with(
-            &Bounded {
-                inner: SystemRunner::new(Programs::new(limited.path())),
-                max_output: None,
-                timeout: Some(Duration::from_secs(1)),
-            },
-            &request(sh("echo peak=1; sleep 30", &[])).limits(vec![measure("peak", "5")]),
+            &past,
+            &request(sh("echo peak=1", &[])).limits(vec![measure("peak", "5")]),
         )
         .expect("a killed run with a limit is recorded");
     assert_eq!(recorded.record.verdict, EvidenceVerdict::Fail);
@@ -431,19 +425,18 @@ fn a_run_killed_at_its_time_limit_records_fail_and_its_neighbour_passes() {
         text.contains("verdict: fail") && text.contains("limits:\n  peak: 5\n"),
         "{text}"
     );
-    // The neighbour within the limit passes.
+    // The neighbour that took exactly the limit passes.
+    let at = FakeRunner::new().on(
+        Program::Trusted,
+        &script,
+        Ok(answer().with_elapsed(BUILD_TIMEOUT)),
+    );
     let quick = Root::new("timeout-neighbour");
     let recorded = quick
-        .record_with(
-            &Bounded {
-                inner: SystemRunner::new(Programs::new(quick.path())),
-                max_output: None,
-                timeout: Some(Duration::from_secs(20)),
-            },
-            &request(sh("echo peak=1", &[])),
-        )
+        .record_with(&at, &request(sh("echo peak=1", &[])))
         .expect("recorded");
     assert_eq!(recorded.record.verdict, EvidenceVerdict::Pass);
+    assert_eq!(recorded.record.values, [measure("peak", "1")]);
 }
 
 #[cfg(unix)]
@@ -453,7 +446,6 @@ fn output_past_the_bound_is_an_error_and_writes_nothing_and_output_at_it_records
     let runner = |max| Bounded {
         inner: SystemRunner::new(Programs::new(root.path())),
         max_output: Some(max),
-        timeout: None,
     };
     // 4096 bytes of a line that is not a measure.
     let script = "i=0; while [ $i -lt 512 ]; do printf 'xxxxxxx\\n'; i=$((i+1)); done";
