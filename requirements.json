@@ -1,0 +1,16 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "line": 3,
+      "rules": [
+        "modal"
+      ],
+      "text": "Constraint: `exclusion_for` marks every exclusion that matches an entry, not only the first one it keeps, so that an exclusion no entry uses can be reported. An index must still return every matching exclusion for each entry (and the report of unused exclusions must stay the same); an index that stops at the first match would hide unused exclusions.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    }
+  ],
+  "silent_comments": []
+}

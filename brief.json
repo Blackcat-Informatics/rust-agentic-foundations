@@ -1,0 +1,44 @@
+{
+  "issue": 29,
+  "repo": "Blackcat-Informatics/rust-agentic-foundations",
+  "forge": "github",
+  "title": "Index the coverage product instead of pinning entries x exclusions",
+  "state": "OPEN",
+  "adrs": [],
+  "linked_issues": {},
+  "link_relations": {},
+  "related": [
+    {
+      "number": 21,
+      "title": "Replace wall-clock assertions in tests with operation or allocation counts",
+      "state": "CLOSED"
+    }
+  ],
+  "defect_classes": {
+    "none": 8
+  },
+  "prior_attempts": {
+    "commits": [],
+    "branches": [],
+    "prs": [
+      {
+        "number": 30,
+        "title": "Replace wall-clock assertions in tests with operation counts and scripted clocks",
+        "state": "MERGED",
+        "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/30",
+        "this_stage": false
+      }
+    ],
+    "own_branch": "paudley/29-index-the-coverage-product-instead-of"
+  },
+  "coverage": [
+    "issue #29 + 0 comment(s) via github",
+    "link crawl: no `#N` references in the issue or its comments",
+    "forge search on ['Index', 'coverage', 'product']: 1 other item(s)",
+    "GhpRsq-Defect-Class trailers: 1 distinct class(es) in the last 200 commits",
+    "prior attempts: 0 commit(s) citing #29 (second parents walked), 0 other branch(es) named for it",
+    "PRs citing #29: 1",
+    "requirement candidates: 1 line(s); 0 comment(s) matched no rule",
+    "referenced artifacts: 0 path(s) (0 on disk), 1 identifier(s), 0 workspace package(s), 0 URL(s)"
+  ]
+}
