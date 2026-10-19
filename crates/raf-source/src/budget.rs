@@ -69,10 +69,15 @@ pub enum Budget {
     /// never given back: each glob read listed and each name gathered when a
     /// view is built, each name a new reader is given, each reader a change is
     /// passed on to, each glob read read again when what a module's globs
-    /// bring in under a name is read again, and each step of the search for the modules that hold an item
-    /// apart from a reading module. These are the steps whose number grows
-    /// faster than the bytes of the tables on some shapes of globs, so the
-    /// budget bounds the work of settling them whatever their bytes.
+    /// bring in under a name is read again, each step of the search for the modules that hold an item
+    /// apart from a reading module, and each glob read a lookup of what the
+    /// globs of a module bring in looks at, with each view looked at to find
+    /// those reads, charged at the next checkpoint of the load. These are the
+    /// steps whose number grows faster than the bytes of the tables on some
+    /// shapes of globs, so the budget bounds the work of settling them
+    /// whatever their bytes. A query after the load counts the steps of its
+    /// own lookups against the same budget, with the limit
+    /// [`LoadOptions::max_query_work`](crate::LoadOptions::max_query_work).
     Work,
 }
 
@@ -125,10 +130,13 @@ const RECURSION: usize = crate::parse::PARSE_STACK_BYTES / (2 * RECURSION_UNIT_B
 /// 320,000 tokens to keep the peak below 512 MiB.
 const FILE_TOKENS: usize = 2_000_000;
 
-/// The default limit of the glob table work of one load, 2^31 steps: the same
-/// on every target. It admits every load of a local registry of 1271 crates,
-/// the most work of one being 34343004 steps, with a margin of about 62 times;
-/// a hub of 1024 siblings is the first shape of the hub pattern to pass it.
+/// The default limit of the glob table work of one load, 2^31 steps, and of
+/// the lookup steps of one query after it: the same on every target. It
+/// admits every load of a local registry of 1271 crates, the most work of
+/// one being 158090 steps with its lookups, with a margin of more than ten
+/// thousand times; a hub of 23170 siblings is the first shape of the hub
+/// pattern to pass it, and a hub of 812 siblings whose names carry
+/// companions the first of that pattern.
 const WORK: usize = 1 << 31;
 
 impl Budget {

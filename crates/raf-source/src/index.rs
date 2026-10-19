@@ -30,7 +30,7 @@ use crate::item::{
     Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl,
 };
 use crate::manifest::DependencyKind;
-use crate::meter::Meter;
+use crate::meter::{LookupCount, Meter};
 use crate::modtree::{TargetId, Visit};
 use crate::path::RelPath;
 use crate::settle::{Entry, Origin, Scope};
@@ -353,8 +353,11 @@ pub(crate) struct Index {
     /// last tried, by position; empty for a named import.
     pub(crate) glob_reach: Vec<BTreeSet<usize>>,
     /// What the globs of the settled tables reach and which of them name
-    /// nothing, computed by the first `resolve` that needs it.
-    pub(crate) glob_facts: std::sync::OnceLock<crate::resolve::GlobFacts>,
+    /// nothing, computed once the index is built.
+    pub(crate) glob_facts: crate::resolve::GlobFacts,
+    /// The lookup steps made since the last checkpoint of the load, drained
+    /// into its work there; zero once the index is built.
+    pub(crate) lookups: LookupCount,
     /// What the glob imports of each module bring in (see
     /// [`crate::glob_scope`]).
     pub(crate) globs: GlobTables,
@@ -385,6 +388,11 @@ pub(crate) struct Store<'m> {
 }
 
 impl Store<'_> {
+    /// The meter of the load.
+    pub(crate) fn meter(&self) -> &Meter {
+        self.meter
+    }
+
     /// The shared copy of `text` and what it costs the first time.
     pub(crate) fn intern(&mut self, text: &str) -> (SharedStr, usize) {
         self.strings.intern(text)
@@ -921,7 +929,8 @@ impl Index {
             use_empty: Vec::new(),
             glob_closed: Vec::new(),
             glob_reach: Vec::new(),
-            glob_facts: std::sync::OnceLock::new(),
+            glob_facts: crate::resolve::GlobFacts::default(),
+            lookups: LookupCount::default(),
             globs: GlobTables::default(),
             import_reach: ImportReach::default(),
             extern_names: BTreeMap::new(),
@@ -1030,6 +1039,8 @@ impl Index {
         index.settle_agreed(store.meter)?;
         index.attach_impls(impls, &mut store)?;
         index.finish();
+        index.settle_glob_facts(store.meter)?;
+        index.lookups_charged()?;
         Ok(index)
     }
 

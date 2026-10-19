@@ -4,6 +4,7 @@
 //! What one load spends against its work and memory budgets.
 
 use std::cell::Cell;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind};
@@ -40,7 +41,8 @@ pub struct Usage {
     pub work: usize,
 }
 
-/// The running totals of one load, checked against its limits.
+/// The running totals of one load, or of one query after it, checked
+/// against their limits.
 pub(crate) struct Meter {
     options: LoadOptions,
     total_bytes: Cell<usize>,
@@ -52,6 +54,87 @@ pub(crate) struct Meter {
     max_recursion: Cell<usize>,
     max_directory_depth: Cell<usize>,
     work: Cell<usize>,
+    /// The most steps of work: `max_work` for a load, `max_query_work` for
+    /// a query after it.
+    work_limit: usize,
+    /// For a query, the module whose lookup first made the work pass the
+    /// limit: the query is refused at its next checkpoint, naming it.
+    query_passed: Cell<Option<usize>>,
+}
+
+/// The lookup steps a load makes while it builds its index: each glob read
+/// that a lookup of what the globs of a module bring in under a name looks
+/// at, and each view that holds the name looked at to find those reads.
+/// They are made by code that answers and cannot refuse, so they are
+/// counted here as they are made and drained into the work of the load at
+/// its next checkpoint, which can (see `Index::settle_lookups`). An atomic,
+/// so that the index stays `Sync`; it clones and compares by its count, so
+/// the index keeps its derives. The count is zero once the index is built:
+/// a query after the load counts on its own meter (see [`Steps`]), and a
+/// debug build checks that none counts here.
+#[derive(Debug, Default)]
+pub(crate) struct LookupCount {
+    /// The steps counted since the last take.
+    count: AtomicUsize,
+    /// True once the index is built, until its tables are settled again:
+    /// a lookup counted here then is a query's, counted in the wrong place.
+    built: AtomicBool,
+}
+
+impl LookupCount {
+    /// Count `steps` more. Only the thread that builds the index counts, so
+    /// the count is read and written apart.
+    pub(crate) fn add(&self, steps: usize) {
+        debug_assert!(
+            !self.built.load(Ordering::Relaxed),
+            "a lookup after the load counted on the count of the load"
+        );
+        self.count
+            .store(self.get().saturating_add(steps), Ordering::Relaxed);
+    }
+
+    /// The steps counted since the last take, and none left.
+    pub(crate) fn take(&self) -> usize {
+        self.count.swap(0, Ordering::Relaxed)
+    }
+
+    /// The steps counted since the last take.
+    pub(crate) fn get(&self) -> usize {
+        self.count.load(Ordering::Relaxed)
+    }
+
+    /// Mark the index built, or settled again when `built` is false.
+    pub(crate) fn built(&self, built: bool) {
+        self.built.store(built, Ordering::Relaxed);
+    }
+}
+
+impl Clone for LookupCount {
+    fn clone(&self) -> Self {
+        Self {
+            count: AtomicUsize::new(self.get()),
+            built: AtomicBool::new(self.built.load(Ordering::Relaxed)),
+        }
+    }
+}
+
+impl PartialEq for LookupCount {
+    fn eq(&self, other: &Self) -> bool {
+        self.get() == other.get()
+    }
+}
+
+impl Eq for LookupCount {}
+
+/// Where a lookup of what the globs of a module bring in counts its steps.
+#[derive(Clone, Copy)]
+pub(crate) enum Steps<'m> {
+    /// The load: on the index's [`LookupCount`], drained into the work of
+    /// the load at its next checkpoint.
+    Load,
+    /// A query after the load: on the query's own meter, against the limit
+    /// of the work of one query.
+    Query(&'m Meter),
 }
 
 /// A refusal by one budget, naming the file and the line.
@@ -84,7 +167,41 @@ impl Meter {
             max_recursion: Cell::new(0),
             max_directory_depth: Cell::new(0),
             work: Cell::new(0),
+            work_limit: options.max_work,
+            query_passed: Cell::new(None),
         }
+    }
+
+    /// The meter of one query after a load made with `options`: its work is
+    /// the lookup steps of the query, from zero, against `max_query_work`.
+    pub(crate) fn query(options: &LoadOptions) -> Self {
+        Self {
+            work_limit: options.max_query_work,
+            ..Self::new(options)
+        }
+    }
+
+    /// Count `units` lookup steps of a query, made in `module`. The count is
+    /// not refused here, where the lookup answers; the first count that
+    /// passes the limit records its module, and the query is refused at its
+    /// next checkpoint (see [`Meter::query_passed`]).
+    pub(crate) fn count_query(&self, units: usize, module: usize) {
+        let sum = self.work.get().saturating_add(units);
+        self.work.set(sum);
+        if sum > self.work_limit && self.query_passed.get().is_none() {
+            self.query_passed.set(Some(module));
+        }
+    }
+
+    /// The module whose lookup made the work of the query pass its limit,
+    /// if one did.
+    pub(crate) fn query_passed(&self) -> Option<usize> {
+        self.query_passed.get()
+    }
+
+    /// The most steps of work this meter allows.
+    pub(crate) fn work_limit(&self) -> usize {
+        self.work_limit
     }
 
     pub(crate) fn options(&self) -> &LoadOptions {
@@ -149,7 +266,7 @@ impl Meter {
         file: &RelPath,
         line: Option<usize>,
     ) -> Result<(), LoadError> {
-        let limit = self.options.max_work;
+        let limit = self.work_limit;
         #[cfg(test)]
         charges::record(units);
         add(&self.work, units, limit).map_err(|()| over_budget(Budget::Work, limit, file, line))

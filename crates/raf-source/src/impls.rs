@@ -17,8 +17,9 @@ use crate::index::{
     ImplDecl, Index, MEMBERS_BYTES, Store, UseDecl, UseKind, combine, member_bytes,
 };
 use crate::item::{ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl};
+use crate::meter::Steps;
 use crate::path::RelPath;
-use crate::resolve::{Fail, Heads, Walked};
+use crate::resolve::{Fail, Heads, LOAD_WALK, Walked};
 
 /// The crates every package can name without declaring them.
 const SYSROOT: [&str; 5] = ["std", "core", "alloc", "proc_macro", "test"];
@@ -213,7 +214,7 @@ impl Index {
             if !visited.insert((at, path.clone())) {
                 continue;
             }
-            let walked = match self.walk(at, &path, colon, Namespace::Type, heads) {
+            let walked = match self.walk(at, &path, colon, Namespace::Type, heads, Steps::Load) {
                 Ok(walked) => walked,
                 // A path that names nothing names no type.
                 Err(
@@ -224,6 +225,7 @@ impl Index {
                 ) => {
                     continue;
                 }
+                Err(Fail::Budget(_)) => unreachable!("{LOAD_WALK}"),
             };
             for id in walked.items.keys() {
                 match self.items[id.0].kind {
@@ -289,7 +291,7 @@ impl Index {
         {
             return None;
         }
-        let carried = self.globbed_outside(module, head);
+        let carried = self.globbed_outside(module, head, Steps::Load);
         if carried.is_empty() {
             return None;
         }
@@ -300,9 +302,10 @@ impl Index {
             out.push(path);
         }
         for position in carried {
-            let (Some(real), UseKind::Named { segs: through, .. }) =
-                (self.outside_crate(position), &self.uses[position].kind)
-            else {
+            let (Some(real), UseKind::Named { segs: through, .. }) = (
+                self.outside_crate(position, Steps::Load),
+                &self.uses[position].kind,
+            ) else {
                 continue;
             };
             let mut path = vec![real];
@@ -491,7 +494,7 @@ impl Index {
         while at < segs.len() {
             let seg = &segs[at];
             if let Some((bound, from_glob)) =
-                self.lookup_in(cur, Namespace::Type, seg, reading.own())
+                self.lookup_in(cur, Namespace::Type, seg, reading.own(), Steps::Load)
             {
                 // Every item the name is bound to is a way the path can go:
                 // an `extern crate` item stands for the crate it names, a
@@ -724,7 +727,7 @@ impl Index {
             let UseKind::Glob { segs } = &u.kind else {
                 continue;
             };
-            match self.glob_targets(position) {
+            match self.glob_targets(position, Steps::Load) {
                 // A glob of a local enum brings in its variants, in the type
                 // and the value name spaces. A variant is neither a trait nor
                 // a module, so the glob gives no prefix.
@@ -946,6 +949,7 @@ impl Index {
             Heads::Code {
                 test: Self::test_code(decl),
             },
+            Steps::Load,
         ) {
             Ok(walked) => {
                 if let Some(key) = self.walked_key(&walked, written) {
@@ -975,6 +979,7 @@ impl Index {
             }
             // A path in code is never ambiguous at its first segment.
             Err(Fail::Missing(_) | Fail::SuperAboveRoot | Fail::Ambiguous(_)) => {}
+            Err(Fail::Budget(_)) => unreachable!("{LOAD_WALK}"),
         }
         let paths = self
             .absolute(
@@ -1090,12 +1095,14 @@ impl Index {
             let self_type: String = fact.self_type.split_whitespace().collect();
             if fact.trait_segments.is_none() && local.is_empty() {
                 self.attach_unresolved(&decl, own.as_ref(), &self_type, store)?;
+                self.settle_impl_lookups(store, &decl)?;
                 continue;
             }
             let trait_key = match (&fact.trait_segments, local.is_empty()) {
                 (Some(tr), true) => Some(Arc::new(self.trait_key(&decl, tr)?)),
                 _ => None,
             };
+            self.settle_impl_lookups(store, &decl)?;
             if let Some(key) = &trait_key {
                 // One key for the members of the block, charged once.
                 let bytes = match &**key {
@@ -1179,6 +1186,14 @@ impl Index {
         Ok(())
     }
 
+    /// A checkpoint of the lookups of the load for the impl block `decl`:
+    /// what its paths looked up since the last one is charged to the work of
+    /// the load at the impl's line (see [`Index::settle_lookups`]), so what
+    /// passes the limit is the lookups of one impl.
+    fn settle_impl_lookups(&self, store: &Store<'_>, decl: &ImplDecl<'_>) -> Result<(), LoadError> {
+        self.drain_lookups(store.meter(), &decl.file, Some(decl.fact.line))
+    }
+
     /// True when the glob path of `decl` names local enums only.
     fn globs_local_enum(&self, decl: &UseDecl, segs: &[String]) -> bool {
         self.walk(
@@ -1190,6 +1205,7 @@ impl Index {
                 test: decl.test,
                 own: None,
             },
+            Steps::Load,
         )
         .is_ok_and(|walked| {
             !walked.items.is_empty()
@@ -1340,7 +1356,7 @@ impl Index {
             module
         };
         let bound_modules = |at: usize, name: &str| -> BTreeSet<usize> {
-            self.lookup(at, Namespace::Type, name)
+            self.lookup(at, Namespace::Type, name, Steps::Load)
                 .map_or_default(|(bound, _)| {
                     bound.keys().flat_map(|id| self.modules_for(*id)).collect()
                 })

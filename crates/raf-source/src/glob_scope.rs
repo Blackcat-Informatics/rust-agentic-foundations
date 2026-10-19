@@ -145,6 +145,19 @@
 //! reading module. So every shape is charged as its work grows, and refused
 //! at the limit before it is settled to the end.
 //!
+//! The lookups of what the globs of a module bring in under a name
+//! ([`Index::globbed`], [`Index::globbed_any`]) are charged too: each glob
+//! read they look at and each view that holds the name looked at to find
+//! those reads is a step. They are made by code that answers and cannot
+//! refuse, so during the load they are counted on the index as they are
+//! made and charged at the next checkpoint, after each import tried, each
+//! node of the graph of the imports left undecided, each component of it
+//! decided and each decision made, each glob read again and each import
+//! walked again, and each impl attached: a load is refused there, by the
+//! same budget, past its limit by at most the lookups of one such step. A
+//! query after the load counts its own on a meter of its own, from zero,
+//! against `max_query_work`.
+//!
 //! A few temporaries are not charged, each bounded by a constant factor of
 //! what another budget already charges and dropped before the next is made:
 //! the visibilities of each module, listed once for each item and `use`
@@ -171,7 +184,7 @@ use crate::error::LoadError;
 use crate::facts::Vis;
 use crate::index::Index;
 use crate::item::{ItemId, Namespace, SharedStr};
-use crate::meter::Meter;
+use crate::meter::{Meter, Steps};
 use crate::resolve::Heads;
 use crate::settle::{Bound, vis_key};
 use crate::work::{self as tally, Work};
@@ -921,7 +934,7 @@ impl Index {
 
     /// The level a binding with the visibility `vis` in `home` is accessible
     /// at: `pub(in path)` names an ancestor of `home` or `home` itself.
-    pub(crate) fn level_of(&self, vis: &Vis, home: usize) -> Level {
+    pub(crate) fn level_of(&self, vis: &Vis, home: usize, steps: Steps<'_>) -> Level {
         match vis {
             Vis::Public => Level::PUBLIC,
             Vis::Inherited => Level::within(home),
@@ -933,20 +946,20 @@ impl Index {
                     .map_or(Level::NOBODY, Level::within),
                 other => other
                     .strip_prefix("in ")
-                    .map_or(Level::NOBODY, |written| self.level_in(written, home)),
+                    .map_or(Level::NOBODY, |written| self.level_in(written, home, steps)),
             },
         }
     }
 
     /// The level of `pub(in written)` in `home`.
-    fn level_in(&self, written: &str, home: usize) -> Level {
+    fn level_in(&self, written: &str, home: usize, steps: Steps<'_>) -> Level {
         let segs: Vec<String> = written
             .split_whitespace()
             .collect::<String>()
             .split("::")
             .map(str::to_owned)
             .collect();
-        let Ok(walked) = self.walk(home, &segs, false, Namespace::Type, Heads::Local) else {
+        let Ok(walked) = self.walk(home, &segs, false, Namespace::Type, Heads::Local, steps) else {
             return Level::NOBODY;
         };
         let mut modules = walked.modules;
@@ -1165,15 +1178,19 @@ impl Index {
     /// visibility, or public when any route is, and the others are the
     /// distinct visibilities of the other routes, sorted. So one route is
     /// made for each item, and no list is copied.
-    pub(crate) fn globbed(&self, module: usize, name: &str, at: usize) -> Bound {
+    ///
+    /// Each read looked at, and each view that holds the name looked at to
+    /// find the reads, is a lookup step, counted where `steps` says.
+    pub(crate) fn globbed(&self, module: usize, name: &str, at: usize, steps: Steps<'_>) -> Bound {
         let reads = self.reads_holding(module, name);
+        self.count_lookups(steps, module, reads.scanned(), reads.len());
         if !self.flagged(name, at) {
-            return self.globbed_plain(module, reads, name, at);
+            return self.globbed_plain(module, reads, name, at, steps);
         }
         let mut bound = Bound::new();
         for (read, held) in self.delivered(module, reads, name, at, None, Work::LookupReads) {
             let decl = &self.uses[read.glob];
-            let own = self.level_of(&decl.vis, module);
+            let own = self.level_of(&decl.vis, module, steps);
             for (id, level) in &held {
                 tally::add(Work::LookupRoutes, 1);
                 let met = self.meet(own, *level);
@@ -1191,7 +1208,14 @@ impl Index {
     /// [`Index::globbed`] under a name that no view holds a companion
     /// under, from the glob reads `reads` of `module`: the routes of the
     /// reads to each item combined in place, and one route made for each.
-    fn globbed_plain(&self, module: usize, reads: Holders<'_>, name: &str, at: usize) -> Bound {
+    fn globbed_plain(
+        &self,
+        module: usize,
+        reads: Holders<'_>,
+        name: &str,
+        at: usize,
+        steps: Steps<'_>,
+    ) -> Bound {
         let mut items: Vec<Routes<'_>> = Vec::new();
         for read in reads {
             tally::add(Work::LookupReads, 1);
@@ -1204,7 +1228,7 @@ impl Index {
                 continue;
             };
             let decl = &self.uses[read.glob];
-            let own = self.level_of(&decl.vis, module);
+            let own = self.level_of(&decl.vis, module, steps);
             for (id, level) in held {
                 let met = self.meet(own, *level);
                 let vis = if met == own {
@@ -1417,7 +1441,7 @@ impl Index {
         let mut carriers: BTreeMap<ItemId, Vec<usize>> = BTreeMap::new();
         for (other, (read, held)) in found.iter().enumerate() {
             let own = self.binds_itself(read.target, name, at);
-            let glob = self.level_of(&self.uses[read.glob].vis, module);
+            let glob = self.level_of(&self.uses[read.glob].vis, module, Steps::Load);
             for (id, level) in held {
                 if hidden.contains(id) {
                     carriers.entry(*id).or_default().push(other);
@@ -1828,15 +1852,50 @@ impl Index {
     }
 
     /// True when a glob of `module` brings in something under `name` in the
-    /// name space at `at`.
-    pub(crate) fn globbed_any(&self, module: usize, name: &str, at: usize) -> bool {
-        self.reads_holding(module, name).any(|read| {
+    /// name space at `at`. Each read looked at, up to the first that brings
+    /// something in, and each view that holds the name looked at to find the
+    /// reads, is a lookup step, counted where `steps` says.
+    pub(crate) fn globbed_any(
+        &self,
+        module: usize,
+        name: &str,
+        at: usize,
+        steps: Steps<'_>,
+    ) -> bool {
+        tally::add(Work::AnyLookups, 1);
+        let mut reads = self.reads_holding(module, name);
+        let mut visited = 0;
+        let found = reads.any(|read| {
             tally::add(Work::LookupReads, 1);
+            visited += 1;
             self.globs.views[read.view]
                 .names
                 .get(name)
                 .is_some_and(|lists| !lists[at].is_empty())
-        })
+        });
+        self.count_lookups(steps, module, reads.scanned(), visited);
+        found
+    }
+
+    /// Count the lookup steps of a lookup in `module` where `steps` says:
+    /// `reads` glob reads looked at and `scanned` views that hold the name
+    /// looked at to find them. During the load they go to the index's
+    /// count, which is drained into the work of the load at its next
+    /// checkpoint (see [`Index::settle_lookups`]); after it, to the meter of
+    /// the query.
+    fn count_lookups(&self, steps: Steps<'_>, module: usize, scanned: usize, reads: usize) {
+        tally::add(Work::LookupScans, scanned);
+        let units = scanned + reads;
+        if units == 0 {
+            return;
+        }
+        match steps {
+            Steps::Load => self.lookups.add(units),
+            Steps::Query(meter) => {
+                tally::add(Work::LookupCharges, units);
+                meter.count_query(units, module);
+            }
+        }
     }
 
     /// True when an explicit import of `module` that binds `name` keeps the
@@ -1859,7 +1918,7 @@ impl Index {
             .filter_map(|(id, origin)| {
                 origin
                     .visibilities()
-                    .map(|vis| self.level_of(vis, module))
+                    .map(|vis| self.level_of(vis, module, Steps::Load))
                     .filter(|level| self.allowed(module, class, *level))
                     .reduce(|left, right| self.wider(left, right))
                     .map(|level| (*id, level))
@@ -2018,7 +2077,7 @@ impl Index {
         for (read, held) in
             self.delivered(target, reads, name, at, Some(class), Work::RecomputedReads)
         {
-            let glob = self.level_of(&self.uses[read.glob].vis, target);
+            let glob = self.level_of(&self.uses[read.glob].vis, target, Steps::Load);
             self.glob_held(target, class, glob, &held, (&mut seen, &mut hidden));
         }
         (seen, hidden)
@@ -2046,7 +2105,7 @@ impl Index {
             else {
                 continue;
             };
-            let glob = self.level_of(&self.uses[read.glob].vis, target);
+            let glob = self.level_of(&self.uses[read.glob].vis, target, Steps::Load);
             self.glob_held(target, class, glob, held, (&mut seen, &mut hidden));
         }
         (seen, hidden)
@@ -2294,7 +2353,12 @@ impl Index {
         let mut sources: Vec<(usize, Level)> = self
             .reads_of(target)
             .iter()
-            .map(|read| (read.view, self.level_of(&self.uses[read.glob].vis, target)))
+            .map(|read| {
+                (
+                    read.view,
+                    self.level_of(&self.uses[read.glob].vis, target, Steps::Load),
+                )
+            })
             .collect();
         sources.sort_unstable_by_key(|(source, glob)| (covert(*glob), *source, *glob));
         sources.dedup();
@@ -2354,7 +2418,11 @@ impl Index {
     fn turn_readers(&mut self, target: usize, site: usize, meter: &Meter) -> Result<(), LoadError> {
         for read in 0..self.globs.reads[target].len() {
             let read_view = self.globs.reads[target][read].view;
-            let level = self.level_of(&self.uses[self.globs.reads[target][read].glob].vis, target);
+            let level = self.level_of(
+                &self.uses[self.globs.reads[target][read].glob].vis,
+                target,
+                Steps::Load,
+            );
             let shown = !self.covert_level(target, level);
             let readers = &self.globs.views[read_view];
             let passive = readers
@@ -2755,7 +2823,7 @@ impl Index {
             .or_default()
             .push(read);
         self.globs.read_by.insert((glob, view));
-        let level = self.level_of(&self.uses[glob].vis, module);
+        let level = self.level_of(&self.uses[glob].vis, module, Steps::Load);
         // The views of the module whose class cannot access the glob's level
         // learn that the view it reads brings in only what they cannot
         // access (see [`Index::hides_nothing`]).
@@ -3390,7 +3458,7 @@ impl Index {
             return Ok(());
         }
         let glob = self.globs.reads[module][read].glob;
-        let level = self.level_of(&self.uses[glob].vis, module);
+        let level = self.level_of(&self.uses[glob].vis, module, Steps::Load);
         if self.blocked_in(module, name, at) {
             return Ok(());
         }
@@ -3817,6 +3885,9 @@ mod equivalence;
 mod incremental;
 
 #[cfg(test)]
+mod lookups;
+
+#[cfg(test)]
 mod tests {
     //! The search for the modules that hold an item apart from a reading
     //! module grows in step with the globs it searches, whatever the shape
@@ -4131,7 +4202,7 @@ mod work_budget {
         ("ambiguous hub", ambiguous_hub, |n| {
             4 * n * n * n + 14 * n * n + 4 - 36 * n
         }),
-        ("lookups", lookups, |n| 4 * n + 2),
+        ("lookups", lookups, |n| 22 * n * n + 5 * n + 2),
         ("holder scan", holder_scan, |n| 14 * n * n + 6 * n + 2),
     ];
 
@@ -4151,11 +4222,22 @@ mod work_budget {
         // the work of each shape grows: linearly for the chain, the module
         // of many items globbed from many modules, the fan-in of `pub`
         // globs, the fan-in of private globs, the fan-in of globs that carry
-        // companions, the prelude and the lookups, with the square of the
-        // globs for the hub and the module whose names many views hold, and
+        // companions and the prelude, with the square of the globs for the
+        // hub, the module whose names many views hold and the lookups, and
         // with the cube for the hub whose names carry companions. Each load
         // makes the work of its tables twice: once while its imports settle
-        // and again once they are.
+        // and again once they are. The steps of the lookups of what the
+        // globs of a module bring in are charged too, each glob read a
+        // lookup looks at and each view that holds the name looked at to find
+        // those reads.
+        //
+        // The lookups make 4n + 2 steps of building their tables, and each
+        // of the n imports of `t` looks `X` up in what the n globs of `t`
+        // bring in each time it is walked, at the reads of `t` whose view
+        // holds `X`, all n once each view holds it: 22n^2 + n reads looked
+        // at (never fewer views hold `X` than `t` has reads, so no view is
+        // looked at to find them). The other shapes look nothing up through
+        // their globs.
         //
         // The fan-in of private globs makes, in each build, a step for each
         // glob read of `t` listed, one for the name of each `m<i>` and one
@@ -4219,16 +4301,14 @@ mod work_budget {
         // 32: 2 for each link of the chain and each module that globs the
         // module of many items, 6 for each `pub` glob of a fan-in, 4 for
         // each private glob of a fan-in, 64 for each glob of a fan-in of
-        // globs that carry companions, 19 for each child of the prelude,
-        // and 4 for each glob and named import of the lookups.
-        let slopes: [Slope; 7] = [
+        // globs that carry companions and 19 for each child of the prelude.
+        let slopes: [Slope; 6] = [
             ("chain", chain, 2),
             ("many items", many_items, 2),
             ("fan-in of pub globs", pub_fan_in, 6),
             ("fan-in of private globs", private_fan_in, 4),
             ("companion fan-in", companion_fan_in, 64),
             ("prelude", prelude, 19),
-            ("lookups", lookups, 4),
         ];
         let mut wrong = Vec::new();
         for (shape, build, slope) in slopes {
@@ -4287,7 +4367,7 @@ mod work_budget {
         // 200 to 400 and from 400 to 800: the chain, the module of many items
         // and the fan-ins at most double their steps, the prelude grows at
         // most 3.4 times (2.00), the hub at most 4.3 times (4.00), the
-        // lookups at most 4.4 times (2.00) and the module whose names many
+        // lookups at most 4.4 times (4.00) and the module whose names many
         // views hold at most 4.3 times (4.00), while the hub whose names
         // carry companions grows about eight times, with the cube.
         let growth = |name: &str| {

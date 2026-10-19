@@ -44,7 +44,7 @@ use crate::error::{Esc, LoadError};
 use crate::facts::{SpanFact, TestRole, Vis};
 use crate::index::{Index, UseDecl, UseKind};
 use crate::item::{ItemId, Namespace, SymbolKind};
-use crate::meter::Meter;
+use crate::meter::{Meter, Steps, over_budget};
 use crate::modtree::TargetId;
 use crate::path::RelPath;
 use crate::resolve::{Fail, ResolveError};
@@ -1380,7 +1380,7 @@ impl<'a> Surface<'a> {
                 continue;
             }
             let path = format!("{}::*", visit.path);
-            match index.glob_targets(glob) {
+            match index.glob_targets(glob, Steps::Query(self.meter)) {
                 Ok(_) => {}
                 Err(Fail::Missing(_)) => {
                     if index.glob_broken(glob) {
@@ -1401,6 +1401,9 @@ impl<'a> Surface<'a> {
                 // The load refuses a `super` above the crate root.
                 Err(Fail::SuperAboveRoot) => {
                     return Err(ExportError::Resolve(ResolveError::Invalid(path)));
+                }
+                Err(Fail::Budget(refused)) => {
+                    return Err(ExportError::Budget(index.refused_load(refused)));
                 }
             }
         }
@@ -1439,7 +1442,12 @@ impl<'a> Surface<'a> {
                 },
                 None => hidden,
             };
-            match index.resolve(&format!("{at_path}::{name}"), None, Some(package)) {
+            match index.resolve(
+                &format!("{at_path}::{name}"),
+                None,
+                Some(package),
+                self.meter,
+            ) {
                 Err(ResolveError::NotFound(_)) => self.keep_reexport(
                     format!("{}::{name}", visit.path),
                     written(decl),
@@ -1448,6 +1456,12 @@ impl<'a> Surface<'a> {
                     decl.line,
                     visit.hidden || hidden || decl.doc_hidden,
                 )?,
+                Err(ResolveError::Budget {
+                    budget,
+                    limit,
+                    file,
+                    line,
+                }) => return Err(ExportError::Budget(over_budget(budget, limit, &file, line))),
                 Err(other) => return Err(ExportError::Resolve(other)),
                 Ok(_) => {}
             }

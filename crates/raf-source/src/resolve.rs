@@ -13,10 +13,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt;
 
-use crate::error::Esc;
+use crate::budget::Budget;
+use crate::error::{Esc, LoadError};
 use crate::index::{Index, UseKind};
 use crate::item::{ItemId, Namespace, SharedStr, SymbolKind};
+use crate::meter::{Meter, Steps, over_budget};
 use crate::modtree::TargetId;
+use crate::path::RelPath;
 use crate::settle::{Source, slot};
 use crate::work::{self, Work};
 
@@ -75,6 +78,24 @@ pub(crate) enum Fail {
     /// the glob brings in and the crate roots of the workspace that the crate
     /// name stands for.
     Ambiguous(Vec<ItemId>),
+    /// The lookups of a query after the load passed the limit of its work
+    /// (see [`Index::query_refusal`]). Only a walk of a query fails so: the
+    /// lookups of the load are refused at its checkpoints.
+    Budget(Refused),
+}
+
+/// Why a walk of the load is never refused for its work: only a walk of a
+/// query counts its lookups on a meter it is refused by, and the lookups of
+/// the load are charged at its checkpoints.
+pub(crate) const LOAD_WALK: &str = "a walk of the load is never refused for its work";
+
+/// The refusal of a query whose lookups passed the limit of its work.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Refused {
+    /// The limit of the work of one query.
+    limit: usize,
+    /// The module whose lookup passed it.
+    module: usize,
 }
 
 /// The globs of the settled tables whose paths resolve, with the modules
@@ -208,6 +229,25 @@ pub enum ResolveError {
         /// The path of the module that declares the glob.
         module: String,
     },
+    /// The lookups of the query passed the limit of the work of one query,
+    /// [`LoadOptions::max_query_work`](crate::LoadOptions::max_query_work):
+    /// the glob reads its lookups of what the globs of a module bring in
+    /// looked at, and the views that hold a name looked at to find them,
+    /// counted from zero for each query. The answer is not given. This is
+    /// the refusal a load gets from the same budget,
+    /// [`LoadErrorKind::Budget`](crate::LoadErrorKind::Budget): `budget` is
+    /// [`Budget::Work`], `limit` the limit that applied, and `file` and
+    /// `line` name the declaration of the module whose lookup passed it.
+    Budget {
+        /// The budget passed, [`Budget::Work`].
+        budget: Budget,
+        /// The limit that applied.
+        limit: usize,
+        /// The file of the declaration of the module whose lookup passed it.
+        file: RelPath,
+        /// The line of that declaration, when it has one.
+        line: Option<usize>,
+    },
 }
 
 impl fmt::Display for ResolveError {
@@ -237,6 +277,16 @@ impl fmt::Display for ResolveError {
                 Esc(path),
                 Esc(glob),
                 Esc(module)
+            ),
+            Self::Budget {
+                budget,
+                limit,
+                file,
+                line,
+            } => write!(
+                f,
+                "the query is over budget: {}",
+                over_budget(*budget, *limit, file, *line)
             ),
         }
     }
@@ -355,7 +405,7 @@ impl Index {
     /// prelude standing for no library of the workspace, or one with a
     /// leading `::`; in edition 2015, the crate an `extern crate` item at the
     /// crate root names, or the crate the compiler puts there.
-    pub(crate) fn outside_crate(&self, position: usize) -> Option<String> {
+    pub(crate) fn outside_crate(&self, position: usize, steps: Steps<'_>) -> Option<String> {
         let decl = &self.uses[position];
         let UseKind::Named { segs, .. } = &decl.kind else {
             return None;
@@ -370,7 +420,7 @@ impl Index {
         };
         if self.crate_relative(decl.module, head, decl.leading_colon, heads) {
             let root = self.modules[decl.module].root;
-            return match self.lookup(root, Namespace::Type, head) {
+            return match self.lookup(root, Namespace::Type, head, steps) {
                 // An `extern crate` item of a crate outside the index.
                 Some((bound, _)) => match bound.keys().collect::<Vec<_>>().as_slice() {
                     [id] if self.modules_for(**id).next().is_none() => {
@@ -383,7 +433,7 @@ impl Index {
         }
         let unbound = decl.leading_colon
             || (self
-                .lookup_in(decl.module, Namespace::Type, head, Some(position))
+                .lookup_in(decl.module, Namespace::Type, head, Some(position), steps)
                 .is_none()
                 && !self.blocked(decl.module, head, Namespace::Type, Some(position)));
         let mut roots = BTreeSet::new();
@@ -401,13 +451,13 @@ impl Index {
     /// crate outside the index is not one: the index cannot tell its name
     /// space, and only the type name space collides with a crate (`use
     /// quote::quote;` brings in a macro).
-    pub(crate) fn globbed_outside(&self, from: usize, name: &str) -> Vec<usize> {
+    pub(crate) fn globbed_outside(&self, from: usize, name: &str, steps: Steps<'_>) -> Vec<usize> {
         let mut seen = BTreeSet::from([from]);
         let mut work = vec![from];
         let mut found = Vec::new();
         while let Some(module) = work.pop() {
             for glob in self.globs_of(module) {
-                let Ok(targets) = self.glob_targets(*glob) else {
+                let Ok(targets) = self.glob_targets(*glob, steps) else {
                     continue;
                 };
                 for target in targets {
@@ -421,9 +471,9 @@ impl Index {
                             matches!(&import.kind, UseKind::Named { segs, .. } if segs.len() == 1);
                         if crate_alias
                             && !self.use_resolved[*position]
-                            && self.is_visible(&import.vis, target, from)
+                            && self.is_visible(&import.vis, target, from, steps)
                             && self
-                                .outside_crate(*position)
+                                .outside_crate(*position, steps)
                                 .is_some_and(|krate| krate != name)
                         {
                             found.push(*position);
@@ -513,6 +563,7 @@ impl Index {
         ns: Namespace,
         first: &str,
         heads: Heads,
+        steps: Steps<'_>,
     ) -> Result<(), Fail> {
         let wait = || {
             Err(Fail::Missing(vec![Source {
@@ -534,7 +585,7 @@ impl Index {
         // a glob that brings the name in later makes the path ambiguous,
         // which the settled tables are checked for (see
         // [`Index::settle_agreed`]).
-        let pending = self.pending_at(from, first, slot(ns), None, heads.own());
+        let pending = self.pending_at(from, first, slot(ns), None, heads.own(), steps);
         let rest = || if pending { wait() } else { Ok(()) };
         let Heads::Use { test, own } = heads else {
             return rest();
@@ -553,7 +604,7 @@ impl Index {
         }
         // An alias of another crate that a glob carries collides with the
         // crate, though what it binds is never settled in the index.
-        let carried = self.globbed_outside(from, first);
+        let carried = self.globbed_outside(from, first, steps);
         if carried.is_empty() {
             return rest();
         }
@@ -572,6 +623,10 @@ impl Index {
 
     /// The state after the first segment of a path, and the index of the
     /// segment to read next.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the first segment is read as the walk reads it, noting what it read and counting its lookups"
+    )]
     fn start(
         &self,
         from: usize,
@@ -580,6 +635,7 @@ impl Index {
         last_ns: Namespace,
         heads: Heads,
         reads: &mut Option<&mut Vec<Source>>,
+        steps: Steps<'_>,
     ) -> Result<(Walked, usize), Fail> {
         let mut state = Walked::default();
         let Some(first) = segs.first() else {
@@ -621,9 +677,9 @@ impl Index {
                         Namespace::Type
                     };
                     note(reads, from, ns, first);
-                    let lookup = self.lookup_in(from, ns, first, heads.own());
+                    let lookup = self.lookup_in(from, ns, first, heads.own(), steps);
                     if lookup.is_none() {
-                        self.unbound_use_head(from, ns, first, heads)?;
+                        self.unbound_use_head(from, ns, first, heads, steps)?;
                     }
                     if let Some((bound, from_glob)) = lookup {
                         if let (true, Namespace::Type, Heads::Use { test, .. }) =
@@ -681,13 +737,23 @@ impl Index {
         leading_colon: bool,
         last_ns: Namespace,
         heads: Heads,
+        steps: Steps<'_>,
     ) -> Result<Walked, Fail> {
-        self.walk_noting(from, segs, leading_colon, last_ns, heads, None)
+        self.walk_noting(from, segs, leading_colon, last_ns, heads, None, steps)
     }
 
     /// [`Index::walk`], adding to `reads` every place whose binding the walk
     /// looked up, found or not: what its answer depends on while the tables
     /// settle.
+    ///
+    /// The lookup steps of the walk are counted where `steps` says. In a
+    /// query after the load the walk is refused with [`Fail::Budget`] once
+    /// they pass the limit of the query: after its first segment and after
+    /// each segment it reads.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "a walk reads one path from one module under one reading, noting what it read and counting its lookups"
+    )]
     pub(crate) fn walk_noting(
         &self,
         from: usize,
@@ -696,9 +762,11 @@ impl Index {
         last_ns: Namespace,
         heads: Heads,
         mut reads: Option<&mut Vec<Source>>,
+        steps: Steps<'_>,
     ) -> Result<Walked, Fail> {
         let (mut state, next_index) =
-            self.start(from, segs, leading_colon, last_ns, heads, &mut reads)?;
+            self.start(from, segs, leading_colon, last_ns, heads, &mut reads, steps)?;
+        Self::query_refusal(steps).map_err(Fail::Budget)?;
         self.one_crate(&state.modules, next_index)?;
         // A `use` path reads each module as rustc resolves an import: only
         // what the importing module can access counts.
@@ -725,7 +793,7 @@ impl Index {
             let mut missing = Vec::new();
             for module in containers {
                 note(&mut reads, module, ns, seg);
-                match self.lookup_seen(module, ns, seg, heads.own(), viewer) {
+                match self.lookup_seen(module, ns, seg, heads.own(), viewer, steps) {
                     Some((bound, from_glob)) => {
                         // A name two globs bring in as different items is
                         // ambiguous in the module, and a path cannot go
@@ -775,6 +843,7 @@ impl Index {
                     }
                 }
             }
+            Self::query_refusal(steps).map_err(Fail::Budget)?;
             if found.is_empty() {
                 return Err(Fail::Missing(missing));
             }
@@ -816,6 +885,7 @@ impl Index {
         &self,
         position: usize,
         resolved_mode: bool,
+        steps: Steps<'_>,
     ) -> (Vec<usize>, Vec<ItemId>, Vec<Source>) {
         let decl = &self.uses[position];
         let UseKind::Named { segs, .. } = &decl.kind else {
@@ -834,6 +904,7 @@ impl Index {
                     own: Some(position),
                 },
                 Some(&mut reads),
+                steps,
             ) {
                 ambiguous.extend(ids);
             }
@@ -885,8 +956,22 @@ impl Index {
     /// `UnresolvedGlob` when a lookup of the walk, at `reads`, or of the paths
     /// of those imports reads a glob whose path names nothing past its first
     /// segment; else `NotFound`.
-    fn unbound(&self, missing: &[Source], reads: &[Source], text: &str) -> ResolveError {
-        let cyclic = missing.iter().any(|source| self.waits_on_cycle(source));
+    ///
+    /// A query whose lookups pass its limit on the way is refused with
+    /// [`ResolveError::Budget`] instead.
+    fn unbound(
+        &self,
+        missing: &[Source],
+        reads: &[Source],
+        text: &str,
+        steps: Steps<'_>,
+    ) -> ResolveError {
+        let cyclic = missing
+            .iter()
+            .any(|source| self.waits_on_cycle(source, steps));
+        if let Err(refused) = Self::query_refusal(steps) {
+            return self.refused(refused);
+        }
         if cyclic {
             return ResolveError::Cyclic(text.to_owned());
         }
@@ -903,7 +988,10 @@ impl Index {
             if !seen.insert(position) {
                 continue;
             }
-            let (following, items, reads) = self.import_walks(position, true);
+            let (following, items, reads) = self.import_walks(position, true, steps);
+            if let Err(refused) = Self::query_refusal(steps) {
+                return self.refused(refused);
+            }
             ambiguous.extend(items);
             work.extend(following);
             through.extend(reads);
@@ -980,12 +1068,13 @@ impl Index {
         let UseKind::Glob { segs } = &decl.kind else {
             return GlobPath::Nothing;
         };
-        let sources = match self.glob_targets(position) {
+        let sources = match self.glob_targets(position, Steps::Load) {
             Ok(targets) => return GlobPath::Resolves(targets),
             Err(Fail::Missing(sources)) => sources,
             Err(Fail::SuperAboveRoot | Fail::SeveralCrates { .. } | Fail::Ambiguous(_)) => {
                 return GlobPath::Nothing;
             }
+            Err(Fail::Budget(_)) => unreachable!("{LOAD_WALK}"),
         };
         let head = self.walk(
             decl.module,
@@ -996,6 +1085,7 @@ impl Index {
                 test: decl.test,
                 own: Some(position),
             },
+            Steps::Load,
         );
         // A first segment that names nothing in the workspace, or a path
         // that goes on in a crate outside it, is a dependency.
@@ -1016,49 +1106,62 @@ impl Index {
     /// cannot see through, or that reads a glob whose path is unknown, a
     /// dependency glob or one that is not reported in turn.
     fn glob_facts(&self) -> &GlobFacts {
-        self.glob_facts.get_or_init(|| {
-            let mut reach: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
-            let mut misses: BTreeMap<usize, Vec<Source>> = BTreeMap::new();
-            let mut unknown: Vec<usize> = Vec::new();
-            for &glob in &self.glob_imports {
-                match self.glob_path(glob) {
-                    GlobPath::Resolves(targets) => {
-                        reach.insert(glob, targets);
+        &self.glob_facts
+    }
+
+    /// Compute [`GlobFacts`] from the settled tables, once the index is
+    /// built. The lookups of the walk of each glob's path are charged to the
+    /// work of the load at a checkpoint naming the glob.
+    ///
+    /// # Errors
+    ///
+    /// Returns the `Budget` [`LoadError`] of the work budget when the lookups
+    /// pass its limit.
+    pub(crate) fn settle_glob_facts(&mut self, meter: &Meter) -> Result<(), LoadError> {
+        let mut reach: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
+        let mut misses: BTreeMap<usize, Vec<Source>> = BTreeMap::new();
+        let mut unknown: Vec<usize> = Vec::new();
+        for &glob in &self.glob_imports {
+            let path = self.glob_path(glob);
+            self.settle_lookups(meter, glob)?;
+            match path {
+                GlobPath::Resolves(targets) => {
+                    reach.insert(glob, targets);
+                }
+                GlobPath::Misses(sources) => {
+                    misses.insert(glob, sources);
+                }
+                GlobPath::Unknown => unknown.push(glob),
+                GlobPath::Nothing => {}
+            }
+        }
+        // Which missing globs each glob would make unknown: those that
+        // miss at a place that reads it.
+        let mut readers: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+        for (glob, sources) in &misses {
+            for source in sources {
+                if !self.imports_of(source.module, &source.name).is_empty() {
+                    unknown.push(*glob);
+                }
+                for other in self.globs_read(&reach, source.module, source.ns, &source.name) {
+                    if other != *glob {
+                        readers.entry(other).or_default().push(*glob);
                     }
-                    GlobPath::Misses(sources) => {
-                        misses.insert(glob, sources);
-                    }
-                    GlobPath::Unknown => unknown.push(glob),
-                    GlobPath::Nothing => {}
                 }
             }
-            // Which missing globs each glob would make unknown: those that
-            // miss at a place that reads it.
-            let mut readers: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
-            for (glob, sources) in &misses {
-                for source in sources {
-                    if !self.imports_of(source.module, &source.name).is_empty() {
-                        unknown.push(*glob);
-                    }
-                    for other in self.globs_read(&reach, source.module, source.ns, &source.name) {
-                        if other != *glob {
-                            readers.entry(other).or_default().push(*glob);
-                        }
-                    }
-                }
+        }
+        let mut opaque: BTreeSet<usize> = BTreeSet::new();
+        while let Some(glob) = unknown.pop() {
+            if opaque.insert(glob) {
+                unknown.extend(readers.get(&glob).into_iter().flatten().copied());
             }
-            let mut opaque: BTreeSet<usize> = BTreeSet::new();
-            while let Some(glob) = unknown.pop() {
-                if opaque.insert(glob) {
-                    unknown.extend(readers.get(&glob).into_iter().flatten().copied());
-                }
-            }
-            let broken = misses
-                .into_keys()
-                .filter(|glob| !opaque.contains(glob))
-                .collect();
-            GlobFacts { reach, broken }
-        })
+        }
+        let broken = misses
+            .into_keys()
+            .filter(|glob| !opaque.contains(glob))
+            .collect();
+        self.glob_facts = GlobFacts { reach, broken };
+        Ok(())
     }
 
     /// The failure that [`Index::resolve`] reports for a path `text` whose
@@ -1101,6 +1204,66 @@ impl Index {
             .map(|glob| self.glob_error(glob, text))
     }
 
+    /// The refusal of a query whose lookups passed the limit of its work,
+    /// once they have: the walks of the query check it after each segment,
+    /// and the query before it answers. Never for the load, whose lookups
+    /// are refused at its checkpoints.
+    pub(crate) fn query_refusal(steps: Steps<'_>) -> Result<(), Refused> {
+        if let Steps::Query(meter) = steps
+            && let Some(module) = meter.query_passed()
+        {
+            return Err(Refused {
+                limit: meter.work_limit(),
+                module,
+            });
+        }
+        Ok(())
+    }
+
+    /// The answer of a query, or its refusal when its lookups passed the
+    /// limit of its work on the way: the refusal comes first.
+    fn query_checked(
+        &self,
+        steps: Steps<'_>,
+        answer: Result<Resolution, ResolveError>,
+    ) -> Result<Resolution, ResolveError> {
+        match Self::query_refusal(steps) {
+            Err(refused) => Err(self.refused(refused)),
+            Ok(()) => answer,
+        }
+    }
+
+    /// The [`ResolveError::Budget`] of a refused query.
+    pub(crate) fn refused(&self, refused: Refused) -> ResolveError {
+        let (file, line) = self.module_site(refused.module);
+        ResolveError::Budget {
+            budget: Budget::Work,
+            limit: refused.limit,
+            file,
+            line,
+        }
+    }
+
+    /// The [`LoadError`] of a refused query, as the public surface reports
+    /// it ([`ExportError::Budget`](crate::ExportError::Budget)).
+    pub(crate) fn refused_load(&self, refused: Refused) -> LoadError {
+        let (file, line) = self.module_site(refused.module);
+        over_budget(Budget::Work, refused.limit, &file, line)
+    }
+
+    /// The file and line that name `module`: its `mod` item, or for a crate
+    /// root the root file of its target, with no line.
+    pub(crate) fn module_site(&self, module: usize) -> (RelPath, Option<usize>) {
+        if self.modules[module].parent.is_some()
+            && let Some(id) = self.module_items(module).first()
+        {
+            let item = &self.items[id.0];
+            return (item.file.clone(), Some(item.name_line));
+        }
+        let target = &self.targets[self.modules[module].target.index()];
+        (target.root.clone(), None)
+    }
+
     /// True when the path of the glob import at `position` names nothing in
     /// the workspace past its first segment, so a lookup that reads it fails
     /// with [`ResolveError::UnresolvedGlob`].
@@ -1126,7 +1289,12 @@ impl Index {
             .min()
     }
 
-    pub(crate) fn origin_of(&self, source: &Source, id: ItemId) -> Option<crate::settle::Origin> {
+    pub(crate) fn origin_of(
+        &self,
+        source: &Source,
+        id: ItemId,
+        steps: Steps<'_>,
+    ) -> Option<crate::settle::Origin> {
         let ns = slot(source.ns);
         let defs = self.scopes[source.module]
             .get(&source.name)
@@ -1134,13 +1302,13 @@ impl Index {
         match defs {
             Some(origin) => Some(origin.clone()),
             None => self
-                .globbed(source.module, &source.name, ns)
+                .globbed(source.module, &source.name, ns, steps)
                 .get(id)
                 .cloned(),
         }
     }
 
-    fn chain_for(&self, requested: &str, hit: &Hit, id: ItemId) -> Vec<String> {
+    fn chain_for(&self, requested: &str, hit: &Hit, id: ItemId, steps: Steps<'_>) -> Vec<String> {
         let mut chain = Vec::new();
         let Some(mut at) = hit.last.clone() else {
             chain.push(requested.to_owned());
@@ -1152,7 +1320,7 @@ impl Index {
         while visited.insert(at.clone()) {
             chain.push(format!("{}::{}", self.modules[at.module].path, at.name));
             let next = self
-                .origin_of(&at, id)
+                .origin_of(&at, id, steps)
                 .and_then(|origin| origin.link)
                 .and_then(|link| link.source);
             match next {
@@ -1178,9 +1346,18 @@ impl Index {
         ns: Namespace,
         text: &str,
         walks: &mut Walks,
+        steps: Steps<'_>,
     ) -> Result<(), ResolveError> {
         let start = walks.reads.len();
-        let walk = self.walk_noting(root, rest, false, ns, Heads::Local, Some(&mut walks.reads));
+        let walk = self.walk_noting(
+            root,
+            rest,
+            false,
+            ns,
+            Heads::Local,
+            Some(&mut walks.reads),
+            steps,
+        );
         if walk.is_ok()
             && walks.reads[start..]
                 .iter()
@@ -1204,6 +1381,7 @@ impl Index {
             Err(Fail::SuperAboveRoot) => {
                 return Err(ResolveError::Invalid(text.to_owned()));
             }
+            Err(Fail::Budget(refused)) => return Err(self.refused(refused)),
         }
         Ok(())
     }
@@ -1216,6 +1394,7 @@ impl Index {
         ns: Namespace,
         text: &str,
         package: Option<&str>,
+        steps: Steps<'_>,
     ) -> Result<Resolution, ResolveError> {
         let mut walks = Walks::default();
         // The prefix grows by one segment a step, so the prefixes of a path
@@ -1249,7 +1428,7 @@ impl Index {
             }
             for root in roots {
                 if taken < segs.len() {
-                    self.walk_from_root(root, &segs[taken..], ns, text, &mut walks)?;
+                    self.walk_from_root(root, &segs[taken..], ns, text, &mut walks, steps)?;
                 } else if ns == Namespace::Type
                     && let Some(item) = self.root_items.get(&root)
                 {
@@ -1288,13 +1467,17 @@ impl Index {
                 }
             }
         }
-        self.conclude(&found, &missing, &reads, text, ns, from_keys)
+        self.conclude(&found, &missing, &reads, text, ns, from_keys, steps)
     }
 
     /// What a walk found, as the answer: the unbound error when it found
     /// nothing, ambiguity when it found several symbols, and the symbol
     /// otherwise. `from_keys` is true when the items come from the foreign
     /// keys and not from a walk.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the answer is concluded from what one walk found, read and missed, counting its lookups"
+    )]
     fn conclude(
         &self,
         found: &BTreeMap<ItemId, Hit>,
@@ -1303,9 +1486,10 @@ impl Index {
         text: &str,
         ns: Namespace,
         from_keys: bool,
+        steps: Steps<'_>,
     ) -> Result<Resolution, ResolveError> {
         if found.is_empty() {
-            return Err(self.unbound(missing, reads, text));
+            return Err(self.unbound(missing, reads, text, steps));
         }
         // One symbol is one path and kind in one crate. Items of two targets
         // at one path are two symbols, whatever order they were found in; the
@@ -1332,7 +1516,7 @@ impl Index {
             path: self.items[first.0].path.to_string(),
             namespace: ns,
             via_glob: hit.via_glob,
-            chain: self.chain_for(text, hit, first),
+            chain: self.chain_for(text, hit, first, steps),
             sites,
         })
     }
@@ -1386,6 +1570,20 @@ impl Index {
         module: &str,
         path: &str,
         ns: Option<Namespace>,
+        meter: &Meter,
+    ) -> Result<Resolution, ResolveError> {
+        let steps = Steps::Query(meter);
+        let answer = self.resolve_from_counted(module, path, ns, steps);
+        self.query_checked(steps, answer)
+    }
+
+    /// [`Index::resolve_from`], its lookup steps counted where `steps` says.
+    fn resolve_from_counted(
+        &self,
+        module: &str,
+        path: &str,
+        ns: Option<Namespace>,
+        steps: Steps<'_>,
     ) -> Result<Resolution, ResolveError> {
         let from = self
             .module_named(module)?
@@ -1409,17 +1607,26 @@ impl Index {
         };
         for space in spaces {
             let mut reads = Vec::new();
-            let walk = self.walk_noting(from, &segs, leading_colon, space, heads, Some(&mut reads));
+            let walk = self.walk_noting(
+                from,
+                &segs,
+                leading_colon,
+                space,
+                heads,
+                Some(&mut reads),
+                steps,
+            );
             if walk.is_ok() && reads.iter().any(|source| self.bound_by_undecided(source)) {
                 return Err(ResolveError::Cyclic(text));
             }
             let outcome = match walk {
-                Ok(walked) => self.conclude(&walked.items, &[], &reads, &text, space, false),
-                Err(Fail::Missing(missing)) => Err(self.unbound(&missing, &reads, &text)),
+                Ok(walked) => self.conclude(&walked.items, &[], &reads, &text, space, false, steps),
+                Err(Fail::Missing(missing)) => Err(self.unbound(&missing, &reads, &text, steps)),
                 Err(Fail::SeveralCrates { roots: ids, .. } | Fail::Ambiguous(ids)) => {
                     Err(ResolveError::Ambiguous(ids))
                 }
                 Err(Fail::SuperAboveRoot) => Err(ResolveError::Invalid(path.to_owned())),
+                Err(Fail::Budget(refused)) => Err(self.refused(refused)),
             };
             match outcome {
                 Err(ResolveError::NotFound(_)) => {}
@@ -1453,12 +1660,28 @@ impl Index {
     }
 
     /// Resolve `path`, trying the type, value and macro name spaces in turn,
-    /// among the crates of `package` when one is given.
+    /// among the crates of `package` when one is given. The lookup steps are
+    /// counted on `meter`, the meter of the query: one that passes its limit
+    /// is refused with [`ResolveError::Budget`], whatever it would answer.
     pub(crate) fn resolve(
         &self,
         path: &str,
         ns: Option<Namespace>,
         package: Option<&str>,
+        meter: &Meter,
+    ) -> Result<Resolution, ResolveError> {
+        let steps = Steps::Query(meter);
+        let answer = self.resolve_counted(path, ns, package, steps);
+        self.query_checked(steps, answer)
+    }
+
+    /// [`Index::resolve`], its lookup steps counted where `steps` says.
+    fn resolve_counted(
+        &self,
+        path: &str,
+        ns: Option<Namespace>,
+        package: Option<&str>,
+        steps: Steps<'_>,
     ) -> Result<Resolution, ResolveError> {
         if let Some(name) = package
             && !self.editions.contains_key(name)
@@ -1481,7 +1704,7 @@ impl Index {
         let text = segs.join("::");
         let spaces: Vec<Namespace> = ns.map_or_else(|| Namespace::ALL.to_vec(), |one| vec![one]);
         for space in spaces {
-            match self.resolve_in(&segs, space, &text, package) {
+            match self.resolve_in(&segs, space, &text, package, steps) {
                 Ok(resolution) => return Ok(resolution),
                 Err(ResolveError::NotFound(_)) => {}
                 Err(other) => return Err(other),
@@ -1521,6 +1744,13 @@ mod tests {
                 glob: hostile(),
                 module: hostile(),
             },
+            ResolveError::Budget {
+                budget: crate::Budget::Work,
+                limit: 7,
+                file: crate::RelPath::new(&format!("src/{}.rs", hostile()))
+                    .expect("a relative path"),
+                line: Some(3),
+            },
         ];
         for error in &all {
             match error {
@@ -1531,7 +1761,8 @@ mod tests {
                 | ResolveError::UnresolvedSelf(_)
                 | ResolveError::UnknownPackage(_)
                 | ResolveError::UnknownModule(_)
-                | ResolveError::UnresolvedGlob { .. } => {}
+                | ResolveError::UnresolvedGlob { .. }
+                | ResolveError::Budget { .. } => {}
             }
         }
         all

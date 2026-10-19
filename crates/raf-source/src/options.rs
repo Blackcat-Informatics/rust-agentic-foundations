@@ -10,10 +10,11 @@ pub const DEFAULT_MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
 
 /// Limits a caller sets for one load.
 ///
-/// The token budget, the byte budgets and the work budget default to the
-/// limits of [`Budget::FileTokens`], [`Budget::TotalBytes`],
-/// [`Budget::ItemBytes`], [`Budget::FactBytes`], [`Budget::GlobBytes`] and
-/// [`Budget::Work`]. A load that passes one is refused with
+/// The token budget, the byte budgets and the work budgets of the load and
+/// of each query after it default to the limits of [`Budget::FileTokens`],
+/// [`Budget::TotalBytes`], [`Budget::ItemBytes`], [`Budget::FactBytes`],
+/// [`Budget::GlobBytes`] and [`Budget::Work`]. A load that passes one is
+/// refused with
 /// [`LoadErrorKind::Budget`](crate::LoadErrorKind::Budget), naming the budget,
 /// the limit that applied and the file.
 ///
@@ -50,6 +51,15 @@ pub struct LoadOptions {
     /// are made and never given back (see [`Budget::Work`]). Defaults to the
     /// limit of [`Budget::Work`].
     pub max_work: usize,
+    /// The most lookup steps one query after the load may make: a call of
+    /// [`Workspace::resolve`](crate::Workspace::resolve), its variants or
+    /// [`Workspace::exported_items_with`](crate::Workspace::exported_items_with),
+    /// each counted from zero. A query that passes it fails with
+    /// [`ResolveError::Budget`](crate::ResolveError::Budget) or
+    /// [`ExportError::Budget`](crate::ExportError::Budget), naming
+    /// [`Budget::Work`] and this limit. Defaults to the limit of
+    /// [`Budget::Work`].
+    pub max_query_work: usize,
 }
 
 impl Default for LoadOptions {
@@ -62,6 +72,7 @@ impl Default for LoadOptions {
             max_fact_bytes: Budget::FactBytes.limit(),
             max_glob_bytes: Budget::GlobBytes.limit(),
             max_work: Budget::Work.limit(),
+            max_query_work: Budget::Work.limit(),
         }
     }
 }

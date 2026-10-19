@@ -76,11 +76,22 @@ pub(crate) enum Work {
     /// the class cannot access, looked at when an item it can access first
     /// arrives under a name.
     HiddenChecks,
+    /// A lookup of whether the globs of a module bring in anything under a
+    /// name.
+    AnyLookups,
+    /// A view that holds a name, looked at by a lookup of what the globs of
+    /// a module bring in under it to find the glob reads whose view holds
+    /// the name.
+    LookupScans,
+    /// A lookup step charged to a work budget: a glob read a lookup looks at
+    /// or a view it looks at to find them, charged to the work of the load at
+    /// a checkpoint or counted on the meter of a query.
+    LookupCharges,
 }
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 21;
+const KINDS: usize = 24;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -106,6 +117,9 @@ const ALL: [Work; KINDS] = [
     Work::Deltas,
     Work::Exposures,
     Work::HiddenChecks,
+    Work::AnyLookups,
+    Work::LookupScans,
+    Work::LookupCharges,
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].

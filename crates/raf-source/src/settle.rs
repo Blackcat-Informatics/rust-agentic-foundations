@@ -25,8 +25,9 @@ use crate::facts::Vis;
 use crate::glob_scope::{Nobody, Waiters, ambiguity_seen};
 use crate::index::{Index, UseDecl, UseKind, binding_bytes};
 use crate::item::{ItemId, Namespace};
-use crate::meter::Meter;
-use crate::resolve::{Fail, Heads, Hit, Walked, places};
+use crate::meter::{Meter, Steps};
+use crate::path::RelPath;
+use crate::resolve::{Fail, Heads, Hit, LOAD_WALK, Walked, places};
 use crate::work::{self, Work};
 
 /// How a name came to be bound in a module.
@@ -368,7 +369,13 @@ impl Index {
 
     /// True when a binding with visibility `vis`, in the scope of `home`, can
     /// be named from `importer`.
-    pub(crate) fn is_visible(&self, vis: &Vis, home: usize, importer: usize) -> bool {
+    pub(crate) fn is_visible(
+        &self,
+        vis: &Vis,
+        home: usize,
+        importer: usize,
+        steps: Steps<'_>,
+    ) -> bool {
         match vis {
             Vis::Public => true,
             Vis::Inherited => self.within(importer, home),
@@ -385,7 +392,7 @@ impl Index {
                         .split("::")
                         .map(str::to_owned)
                         .collect();
-                    self.walk(home, &segs, false, Namespace::Type, Heads::Local)
+                    self.walk(home, &segs, false, Namespace::Type, Heads::Local, steps)
                         .is_ok_and(|walked| {
                             let mut modules = walked.modules;
                             modules
@@ -474,8 +481,9 @@ impl Index {
         module: usize,
         ns: Namespace,
         name: &str,
+        steps: Steps<'_>,
     ) -> Option<(Cow<'_, Bound>, bool)> {
-        self.lookup_in(module, ns, name, None)
+        self.lookup_in(module, ns, name, None, steps)
     }
 
     /// [`Index::lookup`] for the path of the named import at `own`. An import
@@ -499,9 +507,10 @@ impl Index {
         name: &str,
         own: Option<usize>,
         viewer: Option<usize>,
+        steps: Steps<'_>,
     ) -> Option<(Cow<'_, Bound>, bool)> {
         let Some(viewer) = viewer.filter(|viewer| *viewer != module) else {
-            return self.lookup_in(module, ns, name, own);
+            return self.lookup_in(module, ns, name, own, steps);
         };
         work::add(Work::Lookups, 1);
         let entry = self.scopes[module].get(name);
@@ -511,7 +520,7 @@ impl Index {
             .filter(|defs| !defs.is_empty())
         {
             return self
-                .seen_by(Cow::Borrowed(defs), module, viewer)
+                .seen_by(Cow::Borrowed(defs), module, viewer, steps)
                 .map(|bound| (bound, false));
         }
         // An explicit import that `viewer` cannot name still hides the
@@ -519,8 +528,13 @@ impl Index {
         if self.blocked(module, name, ns, own) {
             return None;
         }
-        self.seen_globbed(Cow::Owned(self.globbed(module, name, at)), module, viewer)
-            .map(|bound| (bound, true))
+        self.seen_globbed(
+            Cow::Owned(self.globbed(module, name, at, steps)),
+            module,
+            viewer,
+            steps,
+        )
+        .map(|bound| (bound, true))
     }
 
     /// The bindings of `bound`, in `module`, that `viewer` can access, or
@@ -530,8 +544,9 @@ impl Index {
         bound: Cow<'a, Bound>,
         module: usize,
         viewer: usize,
+        steps: Steps<'_>,
     ) -> Option<Cow<'a, Bound>> {
-        self.seen_in(bound, module, viewer, false)
+        self.seen_in(bound, module, viewer, false, steps)
     }
 
     /// [`Index::seen_by`] for what the globs of `module` bring in: a name that
@@ -543,8 +558,9 @@ impl Index {
         bound: Cow<'a, Bound>,
         module: usize,
         viewer: usize,
+        steps: Steps<'_>,
     ) -> Option<Cow<'a, Bound>> {
-        self.seen_in(bound, module, viewer, true)
+        self.seen_in(bound, module, viewer, true, steps)
     }
 
     /// The one definition of what `viewer` reads of `bound`; `globs` is
@@ -555,11 +571,12 @@ impl Index {
         module: usize,
         viewer: usize,
         globs: bool,
+        steps: Steps<'_>,
     ) -> Option<Cow<'a, Bound>> {
         let visible = |origin: &Origin| {
             origin
                 .visibilities()
-                .any(|vis| self.is_visible(vis, module, viewer))
+                .any(|vis| self.is_visible(vis, module, viewer, steps))
         };
         let seen = bound.iter().filter(|(_, origin)| visible(origin)).count();
         if seen == bound.len() || globs && ambiguity_seen(bound.len(), seen) {
@@ -579,6 +596,7 @@ impl Index {
         ns: Namespace,
         name: &str,
         own: Option<usize>,
+        steps: Steps<'_>,
     ) -> Option<(Cow<'_, Bound>, bool)> {
         work::add(Work::Lookups, 1);
         let entry = self.scopes[module].get(name);
@@ -612,7 +630,7 @@ impl Index {
                 return None;
             }
         }
-        let globbed = self.globbed(module, name, at);
+        let globbed = self.globbed(module, name, at, steps);
         (!globbed.is_empty()).then_some((Cow::Owned(globbed), true))
     }
 
@@ -648,11 +666,18 @@ impl Index {
     /// `module` still counts until it is decided, as rustc brings a glob
     /// binding into other modules only once no single import may still bind
     /// the name ([`Index::left_to_globs`]).
-    fn blocked_for(&self, module: usize, name: &str, at: usize, importer: usize) -> bool {
+    fn blocked_for(
+        &self,
+        module: usize,
+        name: &str,
+        at: usize,
+        importer: usize,
+        steps: Steps<'_>,
+    ) -> bool {
         self.imports_of(module, name).iter().any(|position| {
             (!self.use_free[*position][at] || self.left_to_globs(*position, at))
-                && (self.is_visible(&self.uses[*position].vis, module, importer)
-                    || self.globbed_any(module, name, at))
+                && (self.is_visible(&self.uses[*position].vis, module, importer, steps)
+                    || self.globbed_any(module, name, at, steps))
         })
     }
 
@@ -670,6 +695,7 @@ impl Index {
         at: usize,
         importer: Option<usize>,
         except: Option<usize>,
+        steps: Steps<'_>,
     ) -> bool {
         // Only an import keeps a name from the globs: with none that the
         // globs of the module reach, none may still bring it in.
@@ -681,7 +707,8 @@ impl Index {
         while let Some((from, viewer, skip)) = work.pop() {
             for glob in self.globs_of(from) {
                 if skip == Some(*glob)
-                    || viewer.is_some_and(|to| !self.is_visible(&self.uses[*glob].vis, from, to))
+                    || viewer
+                        .is_some_and(|to| !self.is_visible(&self.uses[*glob].vis, from, to, steps))
                 {
                     continue;
                 }
@@ -696,7 +723,7 @@ impl Index {
                     {
                         continue;
                     }
-                    if self.blocked_for(target, name, at, from) {
+                    if self.blocked_for(target, name, at, from, steps) {
                         return true;
                     }
                     if seen.insert(target) {
@@ -710,22 +737,30 @@ impl Index {
 
     /// True when a glob of `module` that `importer` can name, when one is
     /// given, is not settled.
-    fn open_glob(&self, module: usize, importer: Option<usize>) -> bool {
+    fn open_glob(&self, module: usize, importer: Option<usize>, steps: Steps<'_>) -> bool {
         self.globs_of(module).iter().any(|glob| {
             !self.glob_closed[*glob]
-                && importer.is_none_or(|from| self.is_visible(&self.uses[*glob].vis, module, from))
+                && importer
+                    .is_none_or(|from| self.is_visible(&self.uses[*glob].vis, module, from, steps))
         })
     }
 
     /// True when what `target` binds to `name` in the name space at `at` is
     /// not settled for `importer`, which globs it: it binds nothing there
     /// yet, and an explicit import or a glob of it may still.
-    fn undetermined_for(&self, target: usize, name: &str, at: usize, importer: usize) -> bool {
+    fn undetermined_for(
+        &self,
+        target: usize,
+        name: &str,
+        at: usize,
+        importer: usize,
+        steps: Steps<'_>,
+    ) -> bool {
         self.scopes[target]
             .get(name)
             .is_none_or(|entry| entry.defs[at].is_empty())
-            && (self.blocked_for(target, name, at, importer)
-                || self.pending_at(target, name, at, Some(importer), None))
+            && (self.blocked_for(target, name, at, importer, steps)
+                || self.pending_at(target, name, at, Some(importer), None, steps))
     }
 
     /// True when the walk that found `source` unbound waits on an import that
@@ -733,14 +768,14 @@ impl Index {
     /// a glob may still bring it in, one that keeps it from a module the glob
     /// reaches. The settling of the tables leaves such imports only in a
     /// cycle and among those that wait on one.
-    pub(crate) fn waits_on_cycle(&self, source: &Source) -> bool {
+    pub(crate) fn waits_on_cycle(&self, source: &Source, steps: Steps<'_>) -> bool {
         let mut seen: BTreeSet<(usize, String, usize)> = BTreeSet::new();
         let mut work = vec![(source.module, source.name.clone(), slot(source.ns))];
         while let Some((module, name, at)) = work.pop() {
             if !seen.insert((module, name.clone(), at)) {
                 continue;
             }
-            if self.open_glob(module, None)
+            if self.open_glob(module, None, steps)
                 || self
                     .imports_of(module, &name)
                     .iter()
@@ -748,7 +783,7 @@ impl Index {
             {
                 return true;
             }
-            work.extend(self.pending_sources(module, &name, at));
+            work.extend(self.pending_sources(module, &name, at, steps));
         }
         false
     }
@@ -758,8 +793,14 @@ impl Index {
     /// where it is not settled for `module`. None where `module` defines the
     /// name there: the definition shadows its globs for every reader, a path
     /// that reads the name it imports itself among them.
-    fn pending_sources(&self, module: usize, name: &str, at: usize) -> Vec<(usize, String, usize)> {
-        self.pending_sources_for(module, name, at, None)
+    fn pending_sources(
+        &self,
+        module: usize,
+        name: &str,
+        at: usize,
+        steps: Steps<'_>,
+    ) -> Vec<(usize, String, usize)> {
+        self.pending_sources_for(module, name, at, None, steps)
     }
 
     /// [`Index::pending_sources`] through the globs of `module` that
@@ -771,6 +812,7 @@ impl Index {
         name: &str,
         at: usize,
         viewer: Option<usize>,
+        steps: Steps<'_>,
     ) -> Vec<(usize, String, usize)> {
         let mut sources = Vec::new();
         if self.scopes[module].get(name).is_some_and(|entry| {
@@ -781,10 +823,11 @@ impl Index {
             return sources;
         }
         for glob in self.globs_of(module).iter().filter(|glob| {
-            viewer.is_none_or(|viewer| self.is_visible(&self.uses[**glob].vis, module, viewer))
+            viewer
+                .is_none_or(|viewer| self.is_visible(&self.uses[**glob].vis, module, viewer, steps))
         }) {
             for &target in &self.glob_reach[*glob] {
-                if self.undetermined_for(target, name, at, module) {
+                if self.undetermined_for(target, name, at, module, steps) {
                     sources.push((target, name.to_owned(), at));
                 }
             }
@@ -845,8 +888,12 @@ impl Index {
     }
 
     /// The modules the path of the glob import at `position` names.
-    pub(crate) fn glob_targets(&self, position: usize) -> Result<BTreeSet<usize>, Fail> {
-        self.glob_targets_noting(position, None)
+    pub(crate) fn glob_targets(
+        &self,
+        position: usize,
+        steps: Steps<'_>,
+    ) -> Result<BTreeSet<usize>, Fail> {
+        self.glob_targets_noting(position, None, steps)
     }
 
     /// [`Index::glob_targets`], adding to `reads` the places the walk of the
@@ -856,6 +903,7 @@ impl Index {
         &self,
         position: usize,
         reads: Option<&mut Vec<Source>>,
+        steps: Steps<'_>,
     ) -> Result<BTreeSet<usize>, Fail> {
         let decl = &self.uses[position];
         let UseKind::Glob { segs } = &decl.kind else {
@@ -871,6 +919,7 @@ impl Index {
                 own: Some(position),
             },
             reads,
+            steps,
         )?;
         let mut targets = walked.modules;
         targets.extend(walked.items.keys().flat_map(|id| self.modules_for(*id)));
@@ -967,6 +1016,7 @@ impl Index {
     /// does not hold, so the number does not grow with a chain of imports:
     /// two for a chain of imports that bind nothing, one for a cycle.
     fn settle(&mut self, meter: &Meter) -> Result<usize, LoadError> {
+        self.lookups.built(false);
         for decl in &self.uses {
             match &decl.kind {
                 UseKind::Named { segs, .. } | UseKind::Glob { segs } => {
@@ -1134,7 +1184,7 @@ impl Index {
     /// a glob outside it, which the graph did not hold, waits for the next
     /// round.
     fn settle_stuck(&mut self, pending: &mut Pending, meter: &Meter) -> Result<bool, LoadError> {
-        let graph = self.blocker_graph();
+        let graph = self.blocker_graph(meter)?;
         if graph.imports.is_empty() {
             return Ok(false);
         }
@@ -1165,7 +1215,11 @@ impl Index {
             // Every component of a wave is decided against the tables as the
             // wave found them, then the decisions are made together.
             let mut acts = Vec::new();
+            // The import each decision is named by at its checkpoint: its
+            // own, or the one its component was reached from.
+            let mut named = Vec::new();
             for &at in &wave {
+                let origin = graph.origin(found[at][0]);
                 state[at] = if after[at].iter().any(|next| state[*next] == Decided::Cyclic) {
                     Decided::Cyclic
                 } else if after[at].iter().any(|next| state[*next] == Decided::Again) {
@@ -1173,10 +1227,17 @@ impl Index {
                 } else {
                     self.decide(&graph, &found[at], pending, &mut acts)
                 };
+                self.settle_lookups(meter, origin)?;
+                named.extend(
+                    acts[named.len()..]
+                        .iter()
+                        .map(|act| act.import().unwrap_or(origin)),
+                );
             }
             changed |= !acts.is_empty();
-            for act in acts {
+            for (act, position) in acts.into_iter().zip(named) {
                 self.act(act, pending, meter)?;
+                self.settle_lookups(meter, position)?;
             }
             self.drain(pending, meter)?;
             let mut next_wave = Vec::new();
@@ -1196,7 +1257,11 @@ impl Index {
     /// The blocker graph of the undecided named imports, a node for each name
     /// space an import is undecided in, and of the unsettled globs (see
     /// [`Index::settle_stuck`]).
-    fn blocker_graph(&self) -> Blockers {
+    ///
+    /// The lookups of each node are charged at a checkpoint once it is
+    /// built (see [`Index::settle_lookups`]), naming its import, or for a
+    /// place the import it was first reached from.
+    fn blocker_graph(&self, meter: &Meter) -> Result<Blockers, LoadError> {
         let members = self.graph_members();
         let node_of: BTreeMap<(usize, Option<usize>), usize> = members
             .iter()
@@ -1205,84 +1270,103 @@ impl Index {
             .collect();
         let mut graph = Blockers {
             places: Vec::new(),
+            origins: Vec::new(),
             place_of: BTreeMap::new(),
             successors: vec![Vec::new(); members.len()],
             imports: members,
         };
         let mut work = Vec::new();
         for node in 0..graph.imports.len() {
-            let (position, at) = graph.imports[node];
-            let decl = &self.uses[position];
-            if let Some(at) = at {
-                for (module, name, ns, head) in self.places_read_in(position, at) {
-                    if !self.binds_name(position, module, &name) {
-                        let viewer = (module != decl.module).then_some(decl.module);
-                        let next = graph.place((module, name, ns, None, head, viewer), &mut work);
-                        graph.successors[node].push(next);
-                        continue;
-                    }
-                    // The name it binds itself, which it reads as rustc
-                    // does, without itself: what the globs of its module may
-                    // bring in.
-                    for glob in self.globs_of(module) {
-                        if !head && !self.glob_closed[*glob] {
-                            graph.successors[node].push(node_of[&(*glob, None)]);
-                        }
-                    }
-                    for (target, name, ns) in self.pending_sources(module, &name, ns) {
-                        let next =
-                            graph.place((target, name, ns, None, false, Some(module)), &mut work);
-                        graph.successors[node].push(next);
+            let position = graph.imports[node].0;
+            self.import_node(&mut graph, node, &node_of, &mut work);
+            graph.origins.resize(graph.places.len(), position);
+            self.settle_lookups(meter, position)?;
+        }
+        while let Some(node) = work.pop() {
+            let origin = graph.origin(node);
+            graph.successors[node] = self.place_successors(&mut graph, node, &node_of, &mut work);
+            graph.origins.resize(graph.places.len(), origin);
+            self.settle_lookups(meter, origin)?;
+        }
+        Ok(graph)
+    }
+
+    /// The successors of the import at `node` of `graph`: the places its
+    /// path reads, or for a glob the globs it waits on (see
+    /// [`Index::blocker_graph`]). New places are queued in `work`.
+    fn import_node(
+        &self,
+        graph: &mut Blockers,
+        node: usize,
+        node_of: &BTreeMap<(usize, Option<usize>), usize>,
+        work: &mut Vec<usize>,
+    ) {
+        let (position, at) = graph.imports[node];
+        let decl = &self.uses[position];
+        if let Some(at) = at {
+            for (module, name, ns, head) in self.places_read_in(position, at) {
+                if !self.binds_name(position, module, &name) {
+                    let viewer = (module != decl.module).then_some(decl.module);
+                    let next = graph.place((module, name, ns, None, head, viewer), work);
+                    graph.successors[node].push(next);
+                    continue;
+                }
+                // The name it binds itself, which it reads as rustc
+                // does, without itself: what the globs of its module may
+                // bring in.
+                for glob in self.globs_of(module) {
+                    if !head && !self.glob_closed[*glob] {
+                        graph.successors[node].push(node_of[&(*glob, None)]);
                     }
                 }
-                continue;
-            }
-            // A glob waits on the places its path reads, or once it resolves
-            // on the globs of its targets that are not settled.
-            let mut reads = Vec::new();
-            if let Ok(targets) = self.glob_targets_noting(position, Some(&mut reads)) {
-                for target in targets {
-                    for glob in self.globs_of(target) {
-                        if !self.glob_closed[*glob]
-                            && self.is_visible(&self.uses[*glob].vis, target, decl.module)
-                        {
-                            graph.successors[node].push(node_of[&(*glob, None)]);
-                        }
-                    }
-                }
-            } else {
-                // A place of its own module is read without the glob. The
-                // first segment read under the name of a crate of the extern
-                // prelude waits on no glob of the module, as for a named
-                // import (see [`Index::places_read_in`]): two globs of
-                // dependencies do not wait on each other.
-                let places: BTreeSet<Place> = reads
-                    .into_iter()
-                    .map(|source| {
-                        let own = source.module == decl.module;
-                        let except = own.then_some(position);
-                        let viewer = (!own).then_some(decl.module);
-                        let head = own && self.prelude_head(position, &source.name);
-                        (
-                            source.module,
-                            source.name,
-                            slot(source.ns),
-                            except,
-                            head,
-                            viewer,
-                        )
-                    })
-                    .collect();
-                for place in places {
-                    let next = graph.place(place, &mut work);
+                for (target, name, ns) in self.pending_sources(module, &name, ns, Steps::Load) {
+                    let next = graph.place((target, name, ns, None, false, Some(module)), work);
                     graph.successors[node].push(next);
                 }
             }
+            return;
         }
-        while let Some(node) = work.pop() {
-            graph.successors[node] = self.place_successors(&mut graph, node, &node_of, &mut work);
+        // A glob waits on the places its path reads, or once it resolves
+        // on the globs of its targets that are not settled.
+        let mut reads = Vec::new();
+        if let Ok(targets) = self.glob_targets_noting(position, Some(&mut reads), Steps::Load) {
+            for target in targets {
+                for glob in self.globs_of(target) {
+                    if !self.glob_closed[*glob]
+                        && self.is_visible(&self.uses[*glob].vis, target, decl.module, Steps::Load)
+                    {
+                        graph.successors[node].push(node_of[&(*glob, None)]);
+                    }
+                }
+            }
+        } else {
+            // A place of its own module is read without the glob. The
+            // first segment read under the name of a crate of the extern
+            // prelude waits on no glob of the module, as for a named
+            // import (see [`Index::places_read_in`]): two globs of
+            // dependencies do not wait on each other.
+            let places: BTreeSet<Place> = reads
+                .into_iter()
+                .map(|source| {
+                    let own = source.module == decl.module;
+                    let except = own.then_some(position);
+                    let viewer = (!own).then_some(decl.module);
+                    let head = own && self.prelude_head(position, &source.name);
+                    (
+                        source.module,
+                        source.name,
+                        slot(source.ns),
+                        except,
+                        head,
+                        viewer,
+                    )
+                })
+                .collect();
+            for place in places {
+                let next = graph.place(place, work);
+                graph.successors[node].push(next);
+            }
         }
-        graph
     }
 
     /// The successors of the place at `node` of `graph`: what it waits on
@@ -1299,10 +1383,19 @@ impl Index {
             graph.places[node - graph.imports.len()].clone();
         // What `viewer`, the module whose path reads the place, cannot
         // access does not count, as rustc resolves an import.
-        let seen = |vis: &Vis| viewer.is_none_or(|viewer| self.is_visible(vis, module, viewer));
+        let seen = |vis: &Vis| {
+            viewer.is_none_or(|viewer| self.is_visible(vis, module, viewer, Steps::Load))
+        };
         let mut next = Vec::new();
         if self
-            .lookup_seen(module, Namespace::ALL[at], &name, except, viewer)
+            .lookup_seen(
+                module,
+                Namespace::ALL[at],
+                &name,
+                except,
+                viewer,
+                Steps::Load,
+            )
             .is_none()
         {
             for position in self.imports_of(module, &name) {
@@ -1321,7 +1414,9 @@ impl Index {
                     next.push(node_of[&(*glob, None)]);
                 }
             }
-            for (target, name, at) in self.pending_sources_for(module, &name, at, viewer) {
+            for (target, name, at) in
+                self.pending_sources_for(module, &name, at, viewer, Steps::Load)
+            {
                 next.push(graph.place((target, name, at, None, false, Some(module)), work));
             }
         }
@@ -1376,6 +1471,7 @@ impl Index {
                 own: Some(position),
             },
             Some(&mut reads),
+            Steps::Load,
         );
         reads
             .into_iter()
@@ -1398,7 +1494,7 @@ impl Index {
         let Some(head) = segs.first() else {
             return false;
         };
-        let sources = match self.glob_targets(position) {
+        let sources = match self.glob_targets(position, Steps::Load) {
             Ok(_) => return true,
             Err(Fail::Missing(sources)) => sources,
             Err(_) => return false,
@@ -1454,12 +1550,20 @@ impl Index {
                 continue;
             }
             if self
-                .lookup_seen(module, Namespace::ALL[at], &name, None, Some(viewer))
+                .lookup_seen(
+                    module,
+                    Namespace::ALL[at],
+                    &name,
+                    None,
+                    Some(viewer),
+                    Steps::Load,
+                )
                 .is_some()
             {
                 continue;
             }
-            let visible = |vis: &Vis| module == viewer || self.is_visible(vis, module, viewer);
+            let visible =
+                |vis: &Vis| module == viewer || self.is_visible(vis, module, viewer, Steps::Load);
             if self.imports_of(module, &name).iter().any(|position| {
                 !self.use_decided[*position][at]
                     && !self.use_free[*position][at]
@@ -1474,7 +1578,7 @@ impl Index {
                 return true;
             }
             work.extend(
-                self.pending_sources_for(module, &name, at, Some(viewer))
+                self.pending_sources_for(module, &name, at, Some(viewer), Steps::Load)
                     .into_iter()
                     .map(|(target, name, at)| (target, name, at, false, module)),
             );
@@ -1518,7 +1622,7 @@ impl Index {
             // cycle with imports, or one whose path waits on a cycle, is not.
             let resolved = globs
                 .iter()
-                .all(|position| self.glob_targets(*position).is_ok());
+                .all(|position| self.glob_targets(*position, Steps::Load).is_ok());
             // Globs whose paths are each held at their first segment, which
             // only the globs of the module could bring in, wait on nothing
             // but one another: none can resolve before another does, so none
@@ -1641,7 +1745,7 @@ impl Index {
             let last = segs.last()?;
             for &at in spaces {
                 if name != last {
-                    let globbed = self.globbed_any(decl.module, name, at);
+                    let globbed = self.globbed_any(decl.module, name, at, Steps::Load);
                     if !self.use_bound[position].iter().any(|bound| *bound) || globbed {
                         return None;
                     }
@@ -1655,6 +1759,7 @@ impl Index {
                         test: decl.test,
                         own: Some(position),
                     },
+                    Steps::Load,
                 );
                 match walk {
                     Err(Fail::Missing(sources)) => {
@@ -1668,9 +1773,15 @@ impl Index {
                             let answered = source.module == decl.module
                                 || self
                                     .seen_globbed(
-                                        Cow::Owned(self.globbed(place.0, &place.1, place.2)),
+                                        Cow::Owned(self.globbed(
+                                            place.0,
+                                            &place.1,
+                                            place.2,
+                                            Steps::Load,
+                                        )),
                                         place.0,
                                         decl.module,
+                                        Steps::Load,
                                     )
                                     .is_some();
                             if answered && graph.nodes_of(&place).any(|node| nodes.contains(&node))
@@ -1682,6 +1793,7 @@ impl Index {
                     Err(Fail::Ambiguous(_) | Fail::SeveralCrates { .. } | Fail::SuperAboveRoot) => {
                         return None;
                     }
+                    Err(Fail::Budget(_)) => unreachable!("{LOAD_WALK}"),
                     Ok(_) => {}
                 }
             }
@@ -1698,7 +1810,7 @@ impl Index {
                     && self.scopes[*module]
                         .get(name)
                         .is_none_or(|entry| entry.defs[*at].is_empty())
-                    && self.globbed_any(*module, name, *at)
+                    && self.globbed_any(*module, name, *at, Steps::Load)
             })
             .collect();
         Some(fallbacks)
@@ -1799,7 +1911,8 @@ impl Index {
                 // the module it reads, as rustc resolves the import.
                 let viewer = decl.module;
                 let visible = |vis: &Vis| {
-                    source.module == viewer || self.is_visible(vis, source.module, viewer)
+                    source.module == viewer
+                        || self.is_visible(vis, source.module, viewer, Steps::Load)
                 };
                 !outside_head
                     && (self.binds_name(position, source.module, &source.name)
@@ -1809,16 +1922,22 @@ impl Index {
                             .any(|other| {
                                 self.keeps_out(*other, source.module, &source.name, at, inside)
                             }))
-                    && !self.open_glob(source.module, Some(viewer))
+                    && !self.open_glob(source.module, Some(viewer), Steps::Load)
                     && self
-                        .pending_sources_for(source.module, &source.name, at, Some(viewer))
+                        .pending_sources_for(
+                            source.module,
+                            &source.name,
+                            at,
+                            Some(viewer),
+                            Steps::Load,
+                        )
                         .into_iter()
                         .all(|place| !self.may_bind_without(place, source.module, inside))
                     && self
                         .globs_of(source.module)
                         .iter()
                         .filter(|glob| visible(&self.uses[**glob].vis))
-                        .all(|glob| self.glob_targets(*glob).is_ok())
+                        .all(|glob| self.glob_targets(*glob, Steps::Load).is_ok())
             })
     }
 
@@ -1835,7 +1954,8 @@ impl Index {
         at: usize,
         inside: &BTreeSet<usize>,
     ) -> bool {
-        let left_empty = self.use_empty[other][at] && !self.globbed_any(module, name, at);
+        let left_empty =
+            self.use_empty[other][at] && !self.globbed_any(module, name, at, Steps::Load);
         !inside.contains(&other) && !self.use_free[other][at] && !left_empty
     }
 
@@ -1862,14 +1982,19 @@ impl Index {
             }
             let entry = self.scopes[module].get(&name);
             if entry.is_some_and(|entry| {
-                self.seen_by(Cow::Borrowed(&entry.defs[at]), module, viewer)
+                self.seen_by(Cow::Borrowed(&entry.defs[at]), module, viewer, Steps::Load)
                     .is_some()
             }) || self
-                .seen_globbed(Cow::Owned(self.globbed(module, &name, at)), module, viewer)
+                .seen_globbed(
+                    Cow::Owned(self.globbed(module, &name, at, Steps::Load)),
+                    module,
+                    viewer,
+                    Steps::Load,
+                )
                 .is_some()
-                || self.open_glob(module, Some(viewer))
+                || self.open_glob(module, Some(viewer), Steps::Load)
                 || self.imports_of(module, &name).iter().any(|other| {
-                    self.is_visible(&self.uses[*other].vis, module, viewer)
+                    self.is_visible(&self.uses[*other].vis, module, viewer, Steps::Load)
                         && self.keeps_out(*other, module, &name, at, inside)
                 })
             {
@@ -1900,15 +2025,15 @@ impl Index {
         for glob in self
             .globs_of(module)
             .iter()
-            .filter(|glob| self.is_visible(&self.uses[**glob].vis, module, viewer))
+            .filter(|glob| self.is_visible(&self.uses[**glob].vis, module, viewer, Steps::Load))
         {
             for &target in &self.glob_reach[*glob] {
                 let kept = self.imports_of(target, name).iter().any(|position| {
                     inside.contains(position)
                         && !self.use_free[*position][at]
-                        && self.is_visible(&self.uses[*position].vis, target, module)
+                        && self.is_visible(&self.uses[*position].vis, target, module, Steps::Load)
                 });
-                if kept || self.undetermined_for(target, name, at, module) {
+                if kept || self.undetermined_for(target, name, at, module, Steps::Load) {
                     sources.push((target, name.to_owned(), at));
                 }
             }
@@ -1986,21 +2111,32 @@ impl Index {
             self.settle(meter)?;
             settles += 1;
             self.within_settles(settles)?;
-            let ambiguous: Vec<bool> = (0..self.uses.len())
-                .map(|position| self.use_ambiguous[position] || self.walks_ambiguous(position))
-                .collect();
+            let mut ambiguous: Vec<bool> = Vec::with_capacity(self.uses.len());
+            for position in 0..self.uses.len() {
+                ambiguous.push(self.use_ambiguous[position] || self.walks_ambiguous(position));
+                self.settle_lookups(meter, position)?;
+            }
             // Drops are recorded only from tables that are final for the
             // held imports: tables settled again for a newly held import are
             // thrown away.
             let first = (0..self.uses.len()).find(|at| ambiguous[*at] && !held[*at]);
             let dropped = if first.is_none() {
-                self.record_drops(meter)?
+                let dropped = self.record_drops(meter)?;
+                if let Some(&glob) = self.glob_imports.first() {
+                    self.settle_lookups(meter, glob)?;
+                }
+                dropped
             } else {
                 0
             };
             let Some(first) = first.or_else(|| (dropped > 0).then(|| self.glob_imports[0])) else {
                 #[cfg(debug_assertions)]
-                self.check_settled();
+                {
+                    self.check_settled();
+                    // The check is no work of the load: its lookups are not
+                    // charged, so a load costs what it does in every build.
+                    self.lookups.take();
+                }
                 return Ok(settles);
             };
             let decl = &self.uses[first];
@@ -2029,7 +2165,7 @@ impl Index {
     /// rebuilt once they are settled; this is the invariant that makes the
     /// two agree. Run in debug builds.
     #[cfg(debug_assertions)]
-    fn check_settled(&self) {
+    pub(crate) fn check_settled(&self) {
         let mut at = 0;
         while let Some(&first) = self.named_imports.get(at) {
             let decl = &self.uses[first];
@@ -2100,7 +2236,10 @@ impl Index {
     fn walks_ambiguous(&self, position: usize) -> bool {
         let decl = &self.uses[position];
         let UseKind::Named { segs, .. } = &decl.kind else {
-            return matches!(self.glob_targets(position), Err(Fail::Ambiguous(_)));
+            return matches!(
+                self.glob_targets(position, Steps::Load),
+                Err(Fail::Ambiguous(_))
+            );
         };
         matches!(
             self.walk(
@@ -2112,12 +2251,69 @@ impl Index {
                     test: decl.test,
                     own: Some(position),
                 },
+                Steps::Load,
             ),
             Err(Fail::Ambiguous(_))
         )
     }
 
     /// Run the queue until it is empty.
+    /// Check that every lookup step of the load was charged at a checkpoint
+    /// once the index is built: none is left on the count, which serves the
+    /// load only (a query counts on its own meter). One left is a bug,
+    /// reported as `Internal`.
+    pub(crate) fn lookups_charged(&self) -> Result<(), LoadError> {
+        let left = self.lookups.take();
+        if left == 0 {
+            self.lookups.built(true);
+            return Ok(());
+        }
+        let file = self
+            .uses
+            .first()
+            .map_or_else(|| self.targets[0].root.clone(), |decl| decl.file.clone());
+        Err(LoadError::new(
+            &file,
+            None,
+            LoadErrorKind::Internal {
+                what: format!(
+                    "{left} lookup steps of the load were made after its last checkpoint"
+                ),
+            },
+        ))
+    }
+
+    /// A checkpoint of the lookups of the load: the lookup steps made since
+    /// the last one (see [`LookupCount`](crate::meter::LookupCount)) are
+    /// charged to the work of the load for the import at `position`, which
+    /// made them, and the load is refused there, as at any charge of glob
+    /// table work, once the work passes its limit. The lookups answer as
+    /// they always do on the way, so what passes the limit is the lookups of
+    /// one step: one import tried, one node of the graph of the imports left
+    /// undecided, one component of it decided, one decision made, one glob
+    /// read again or one import walked again (see
+    /// [`Index::settle_impl_lookups`] for the impls).
+    pub(crate) fn settle_lookups(&self, meter: &Meter, position: usize) -> Result<(), LoadError> {
+        let decl = &self.uses[position];
+        self.drain_lookups(meter, &decl.file, Some(decl.line))
+    }
+
+    /// Charge the lookup steps made since the last checkpoint to the work
+    /// of the load for the declaration at `line` of `file`.
+    pub(crate) fn drain_lookups(
+        &self,
+        meter: &Meter,
+        file: &RelPath,
+        line: Option<usize>,
+    ) -> Result<(), LoadError> {
+        let steps = self.lookups.take();
+        if steps == 0 {
+            return Ok(());
+        }
+        work::add(Work::LookupCharges, steps);
+        meter.work(steps, file, line)
+    }
+
     fn drain(&mut self, pending: &mut Pending, meter: &Meter) -> Result<(), LoadError> {
         while let Some(position) = pending.queue.pop_front() {
             pending.queued.remove(&position);
@@ -2143,6 +2339,7 @@ impl Index {
             for (module, name) in bound {
                 self.touch(module, &name, pending, meter)?;
             }
+            self.settle_lookups(meter, position)?;
         }
         Ok(())
     }
@@ -2159,16 +2356,19 @@ impl Index {
         // What each glob's path reaches in the settled tables. A path read
         // against tables whose globs are cleared could reach something else,
         // as a crate a glob of the module shadows.
-        let reached: Vec<(usize, BTreeSet<usize>)> = self
-            .glob_imports
-            .iter()
-            .filter_map(|position| Some((*position, self.glob_targets(*position).ok()?)))
-            .collect();
+        let mut reached: Vec<(usize, BTreeSet<usize>)> = Vec::new();
+        for &position in &self.glob_imports {
+            if let Ok(targets) = self.glob_targets(position, Steps::Load) {
+                reached.push((position, targets));
+            }
+            self.settle_lookups(meter, position)?;
+        }
         self.reset_globs(meter)?;
         for (position, targets) in reached {
             for target in targets {
                 self.read_glob(position, target, &mut Nobody, meter)?;
             }
+            self.settle_lookups(meter, position)?;
         }
         Ok(())
     }
@@ -2201,6 +2401,7 @@ impl Index {
                     ns,
                     heads,
                     Some(&mut reads),
+                    Steps::Load,
                 );
                 ends[at + 1] = reads.len();
                 (ns, walk)
@@ -2240,6 +2441,7 @@ impl Index {
                 | Fail::SeveralCrates { .. }
                 | Fail::Ambiguous(_),
             ) => Vec::new(),
+            Err(Fail::Budget(_)) => unreachable!("{LOAD_WALK}"),
         }
     }
 
@@ -2385,18 +2587,18 @@ impl Index {
         let Some(last) = &hit.last else {
             return decl.vis.clone();
         };
-        let Some(origin) = self.origin_of(last, id) else {
+        let Some(origin) = self.origin_of(last, id, Steps::Load) else {
             return decl.vis.clone();
         };
         let Some(cap) = origin
             .visibilities()
-            .filter(|vis| self.is_visible(vis, last.module, decl.module))
-            .map(|vis| self.level_of(vis, last.module))
+            .filter(|vis| self.is_visible(vis, last.module, decl.module, Steps::Load))
+            .map(|vis| self.level_of(vis, last.module, Steps::Load))
             .reduce(|left, right| self.wider(left, right))
         else {
             return decl.vis.clone();
         };
-        let own = self.level_of(&decl.vis, decl.module);
+        let own = self.level_of(&decl.vis, decl.module, Steps::Load);
         let met = self.meet(own, cap);
         if met == own {
             decl.vis.clone()
@@ -2452,15 +2654,15 @@ impl Index {
         let UseKind::Named { name, .. } = &decl.kind else {
             return true;
         };
-        let globbed = self.globbed(decl.module, name, at);
+        let globbed = self.globbed(decl.module, name, at, Steps::Load);
         let readers = pending.waiters(decl.module, name);
         readers.into_iter().flatten().all(|reader| {
             let viewer = self.uses[*reader].module;
             *reader == position
                 || self
-                    .seen_globbed(Cow::Borrowed(&globbed), decl.module, viewer)
+                    .seen_globbed(Cow::Borrowed(&globbed), decl.module, viewer, Steps::Load)
                     .is_none_or(|seen| {
-                        self.is_visible(&decl.vis, decl.module, viewer)
+                        self.is_visible(&decl.vis, decl.module, viewer, Steps::Load)
                             && seen
                                 .keys()
                                 .all(|id| items.iter().any(|(item, _)| item == id))
@@ -2514,7 +2716,7 @@ impl Index {
             return Ok(());
         }
         let mut reads = Vec::new();
-        let targets = self.glob_targets_noting(position, Some(&mut reads));
+        let targets = self.glob_targets_noting(position, Some(&mut reads), Steps::Load);
         pending.wait(position, reads);
         let mut settled = false;
         match targets {
@@ -2524,7 +2726,7 @@ impl Index {
                 // name is.
                 settled = targets
                     .iter()
-                    .all(|target| !self.open_glob(*target, Some(decl.module)));
+                    .all(|target| !self.open_glob(*target, Some(decl.module), Steps::Load));
                 for target in targets {
                     pending.watching.entry(target).or_default().insert(position);
                     self.record_glob_edge(position, decl.module, target, meter)?;
@@ -2541,6 +2743,7 @@ impl Index {
             Err(Fail::SuperAboveRoot | Fail::SeveralCrates { .. } | Fail::Ambiguous(_)) => {
                 settled = true;
             }
+            Err(Fail::Budget(_)) => unreachable!("{LOAD_WALK}"),
         }
         if settled {
             self.close_glob(position, pending);
@@ -2567,11 +2770,23 @@ impl Index {
 struct Blockers {
     imports: Vec<(usize, Option<usize>)>,
     places: Vec<Place>,
+    /// For each place, the import whose node it was first reached from:
+    /// the checkpoints of the lookups of the place name it.
+    origins: Vec<usize>,
     place_of: BTreeMap<Place, usize>,
     successors: Vec<Vec<usize>>,
 }
 
 impl Blockers {
+    /// The import of the node `node`: its own, or for a place the import it
+    /// was first reached from.
+    fn origin(&self, node: usize) -> usize {
+        match node.checked_sub(self.imports.len()) {
+            Some(place) => self.origins[place],
+            None => self.imports[node].0,
+        }
+    }
+
     /// The node of `place`, added and queued in `work` the first time.
     fn place(&mut self, place: Place, work: &mut Vec<usize>) -> usize {
         if let Some(node) = self.place_of.get(&place) {
@@ -2657,6 +2872,20 @@ enum Act {
     /// Leave the place to the globs of its module for the imports of a cycle
     /// that keep it from them.
     Fallback(Vec<usize>, (usize, String, usize)),
+}
+
+impl Act {
+    /// The import the decision is for: the first of the imports a fallback
+    /// leaves the place to.
+    fn import(&self) -> Option<usize> {
+        match self {
+            Self::Settle(position, ..)
+            | Self::Hold(position)
+            | Self::Requeue(position)
+            | Self::CloseGlob(position) => Some(*position),
+            Self::Fallback(keepers, _) => keepers.first().copied(),
+        }
+    }
 }
 
 /// How a component of the blocker graph was decided in one round.

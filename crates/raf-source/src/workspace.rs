@@ -16,7 +16,7 @@ use crate::manifest::{
     self, Dependency, EditionDecl, Manifest, PackageDecl, PathSource, WorkspaceDependency,
 };
 use crate::members::members;
-use crate::meter::{Meter, Usage};
+use crate::meter::{Meter, Steps, Usage};
 use crate::modtree::{Reach, TargetId, Visited, Walker, tidy};
 use crate::options::LoadOptions;
 use crate::path::{PathError, RelPath};
@@ -81,9 +81,19 @@ pub struct Workspace {
     index: Index,
     usage: Usage,
     /// The options of the load, whose item-bytes budget also bounds what a
-    /// query such as [`Workspace::exported_items`] holds.
+    /// query such as [`Workspace::exported_items`] holds, and whose
+    /// `max_query_work` bounds the lookups of each query.
     options: LoadOptions,
 }
+
+/// A workspace is shared between threads that query it at once: each query
+/// counts its lookups on a meter of its own, and the count of the load's
+/// lookups in the index is an atomic. Nothing else would say so if a field
+/// stopped being `Send` or `Sync`, so this does, when the crate is built.
+const _: fn() = || {
+    fn shared<T: Send + Sync>() {}
+    shared::<Workspace>();
+};
 
 impl PartialEq for Workspace {
     fn eq(&self, other: &Self) -> bool {
@@ -234,6 +244,15 @@ impl Workspace {
         &self.index
     }
 
+    /// The meter of one query: each call of [`Workspace::resolve`], its
+    /// variants and [`Workspace::exported_items_with`] counts its lookup
+    /// steps from zero on its own, against
+    /// [`LoadOptions::max_query_work`](crate::LoadOptions::max_query_work),
+    /// so the queries share nothing and run at once on other threads.
+    fn query_meter(&self) -> Meter {
+        Meter::query(&self.options)
+    }
+
     /// What the load spent against its budgets: the bytes it read, kept in the
     /// index and in the facts of its files, the most tokens of one file and
     /// the deepest directory it entered.
@@ -367,11 +386,13 @@ impl Workspace {
     /// (see [`Workspace::resolve_in_package`]), [`ResolveError::Cyclic`] when
     /// the imports on the way form a cycle,
     /// [`ResolveError::UnresolvedGlob`] when a lookup on the way reads a glob
-    /// whose path names nothing past its first segment, and
+    /// whose path names nothing past its first segment,
     /// [`ResolveError::Invalid`] when the text is not a path, a path keyword
-    /// among its segments included.
+    /// among its segments included, and [`ResolveError::Budget`] when the
+    /// lookups of the query pass
+    /// [`LoadOptions::max_query_work`](crate::LoadOptions::max_query_work).
     pub fn resolve(&self, path: &str) -> Result<Resolution, ResolveError> {
-        self.index.resolve(path, None, None)
+        self.index.resolve(path, None, None, &self.query_meter())
     }
 
     /// Resolve a canonical path in one name space.
@@ -380,7 +401,8 @@ impl Workspace {
     ///
     /// As [`Workspace::resolve`].
     pub fn resolve_in(&self, path: &str, namespace: Namespace) -> Result<Resolution, ResolveError> {
-        self.index.resolve(path, Some(namespace), None)
+        self.index
+            .resolve(path, Some(namespace), None, &self.query_meter())
     }
 
     /// Resolve a canonical path among the crates of one package, named by its
@@ -397,7 +419,8 @@ impl Workspace {
         package: &str,
         path: &str,
     ) -> Result<Resolution, ResolveError> {
-        self.index.resolve(path, None, Some(package))
+        self.index
+            .resolve(path, None, Some(package), &self.query_meter())
     }
 
     /// Resolve the path of a `use` declaration written in the module `module`
@@ -438,7 +461,8 @@ impl Workspace {
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn resolve_from(&self, module: &str, path: &str) -> Result<Resolution, ResolveError> {
-        self.index.resolve_from(module, path, None)
+        self.index
+            .resolve_from(module, path, None, &self.query_meter())
     }
 
     /// [`Workspace::resolve_from`] in one name space.
@@ -452,7 +476,8 @@ impl Workspace {
         path: &str,
         namespace: Namespace,
     ) -> Result<Resolution, ResolveError> {
-        self.index.resolve_from(module, path, Some(namespace))
+        self.index
+            .resolve_from(module, path, Some(namespace), &self.query_meter())
     }
 
     /// The inherent impl blocks whose self type names no struct, enum or
@@ -556,7 +581,7 @@ impl Workspace {
         else {
             return Err(ExportError::NotLibraryOrBinary(target));
         };
-        let meter = Meter::new(&self.options);
+        let meter = self.query_meter();
         meter
             .items(self.usage.item_bytes, &found.root, None)
             .map_err(ExportError::Budget)?;
@@ -569,7 +594,7 @@ impl Workspace {
             .filter(|reach| reach.target == target)
             .map(|reach| reach.module_path.as_str())
             .collect();
-        Surface::new(
+        let listed = Surface::new(
             &self.index,
             target,
             &found.crate_path,
@@ -577,7 +602,13 @@ impl Workspace {
             &meter,
             &hidden_files,
         )
-        .list()
+        .list();
+        // A surface whose lookups passed the limit of the query is refused,
+        // whatever it listed.
+        match Index::query_refusal(Steps::Query(&meter)) {
+            Err(refused) => Err(ExportError::Budget(self.index.refused_load(refused))),
+            Ok(()) => listed,
+        }
     }
 
     /// The test functions: the data a caller needs to run one with

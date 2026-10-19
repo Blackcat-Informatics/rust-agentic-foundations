@@ -32,10 +32,10 @@
 //! the work counter does not see is not stopped; parsing, the one such stretch
 //! the index has, is bounded by the token budget.
 //!
-//! The counter also does not see the lookups of settling: a module with n globs
-//! and n named imports of a name the globs re-export makes a work count of 4n+2
-//! and visits about 22n^2 glob reads, so a crate of that shape is not refused by
-//! `--max-work`. Such a load can run long.
+//! The counter also counts the lookups of settling, each glob read a lookup of
+//! what the globs of a module bring in looks at: a module with n globs and n
+//! named imports of a name the globs re-export makes 22n^2 + 5n + 2 steps, so
+//! a crate of that shape is refused by `--max-work` as its lookups grow.
 //!
 //! There is no `--timeout` flag and no `timeout` outcome: a bound by time
 //! needs a clock and a child stopped from outside, and a count needs neither,
