@@ -839,9 +839,7 @@ impl<'r> ExclusionIndex<'r> {
 fn mark(found: Option<&Vec<usize>>, matched: &mut [bool], first: &mut Option<usize>) {
     for &position in found.into_iter().flatten() {
         add(Work::ExclusionMarks, 1);
-        if let Some(hit) = matched.get_mut(position) {
-            *hit = true;
-        }
+        matched[position] = true;
         *first = Some(first.map_or(position, |seen| seen.min(position)));
     }
 }
