@@ -12,7 +12,8 @@
 //!
 //! The shapes are those of `tests/support/shapes/globs.rs`, by name:
 //! `chain`, `many-items`, `pub-fan-in`, `private-fan-in`,
-//! `companion-fan-in`, `prelude`, `hub`, `ambiguous-hub` and `lookups`. The
+//! `companion-fan-in`, `prelude`, `hub`, `ambiguous-hub`, `lookups` and
+//! `holder-scan`. The
 //! shape is the library of one package in a `MemoryTree`, loaded once with
 //! the default options, and the paths the shape names are resolved from the
 //! crate root; each answer is printed, one a line. The example calls only

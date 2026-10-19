@@ -26,7 +26,7 @@ pub(crate) struct GlobShape {
 }
 
 /// Every shape, in a stable order.
-pub(crate) const ALL: [GlobShape; 9] = [
+pub(crate) const ALL: [GlobShape; 10] = [
     GlobShape {
         name: "chain",
         text: chain,
@@ -98,6 +98,17 @@ pub(crate) const ALL: [GlobShape; 9] = [
                 "demo::d::X".to_owned(),
                 "demo::g0::X".to_owned(),
                 format!("demo::g{}::X", n - 1),
+            ]
+        },
+    },
+    GlobShape {
+        name: "holder-scan",
+        text: holder_scan,
+        paths: |n| {
+            vec![
+                "demo::u0::X0".to_owned(),
+                format!("demo::u{0}::X{0}", n - 1),
+                "demo::w0::X0".to_owned(),
             ]
         },
     },
@@ -221,6 +232,43 @@ fn hub_of(n: usize, per: usize) -> String {
             i / per
         )
         .expect("write");
+    }
+    lib
+}
+
+/// A module `d` of `n` structs `X<k>`, which `n` modules `b<j>` glob
+/// publicly, each globbed privately by a module `w<j>`, so that a table of
+/// each `b<j>` holds every `X<k>`; `n` modules `t<i>`, each globbed by a
+/// module `u<i>`, that glob privately a module `h` of one struct, so that a
+/// table of each `t<i>` for `u<i>` holds an item `u<i>` cannot access, and
+/// publicly `2n + 5` empty modules `p<k>` and then `d`. Each `X<k>` that
+/// arrives at the table of a `t<i>` is read again from the one read of
+/// `t<i>` whose table holds it, and the tables that hold it, about `2n` of
+/// them, fewer than the `2n + 7` reads of `t<i>`, are looked at to find it.
+pub(crate) fn holder_scan(n: usize) -> String {
+    let pads = 2 * n + 5;
+    let mut lib = String::from("pub mod d {");
+    for k in 0..n {
+        write!(lib, " pub struct X{k};").expect("write");
+    }
+    lib.push_str(" }\npub mod h { pub struct Z; }\n");
+    for j in 0..n {
+        writeln!(
+            lib,
+            "pub mod b{j} {{ pub use crate::d::*; }}\npub mod w{j} {{ use crate::b{j}::*; }}"
+        )
+        .expect("write");
+    }
+    for k in 0..pads {
+        writeln!(lib, "pub mod p{k} {{ }}").expect("write");
+    }
+    for i in 0..n {
+        writeln!(lib, "pub mod u{i} {{ pub use crate::t{i}::*; }}").expect("write");
+        write!(lib, "pub mod t{i} {{ use crate::h::*;").expect("write");
+        for k in 0..pads {
+            write!(lib, " pub use crate::p{k}::*;").expect("write");
+        }
+        lib.push_str(" pub use crate::d::*; }\n");
     }
     lib
 }

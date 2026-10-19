@@ -55,11 +55,14 @@ pub(crate) enum Work {
     /// and item under a name that a view holds a companion under, and one
     /// for each item, its routes combined first, under any other.
     LookupRoutes,
+    /// A view that holds a name, looked at to find the glob reads of a module
+    /// whose view holds the name.
+    HolderScans,
 }
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 16;
+const KINDS: usize = 17;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -80,6 +83,7 @@ const ALL: [Work; KINDS] = [
     Work::ListCopies,
     Work::LookupReads,
     Work::LookupRoutes,
+    Work::HolderScans,
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].
