@@ -1,0 +1,36 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "## Problem\n\nThe repository rules now forbid time-based testing: no timing runs, wall-clock benchmarks, sleep-based waits or timing assertions. Measure with `perf` or by counting allocations. Several tests added by the planning-essay work still assert on elapsed wall-clock time.\n\n## Scope\n\nConvert each wall-clock bound to an operation count, an allocation count or a `perf` measurement, keeping the guarantee each test protects (bounded validation cost, bounded assessment and rationale work, bounded exported-items resolution, bounded evidence runs):\n\n- `crates/raf-source/tests/exported_items.rs` (Instant and Duration bounds)\n- `crates/raf-okf/tests/validate_cost.rs` (release bound of 100 ms)\n- `crates/raf-workplan/tests/assessments.rs` (60 s budget)\n- `crates/raf-workplan/tests/rationale.rs` (60 s bound)\n- `crates/raf-workplan/src/evidence/tests.rs` (elapsed bound on a killed command)\n- the runner's own timeout and output-kill tests, where a count or a deterministic signal can replace the wait\n\n## Acceptance\n\n- `grep -rn \"Instant::now\" crates/*/tests crates/*/src` finds no assertion on elapsed time.\n- Every converted test still fails on a mutant that removes the bound it protects.\n- `make check` passes and hosted CI is green.\n",
+  "closedAt": null,
+  "comments": [
+    {
+      "id": "IC_kwDOVFffUs8AAAABdDnUjA",
+      "author": {
+        "login": "paudley"
+      },
+      "authorAssociation": "MEMBER",
+      "body": "Additional scope found while working on the source index: `raf-source` has its own elapsed-time tests beyond `exported_items.rs`. Tests that assert or measure wall-clock time (names end in `..._in_time_linear_in_its_names`, `..._in_linear_time`, `..._in_bounded_time_and_bytes`, `..._load_at_once`, `..._is_refused_at_once`, `..._quickly_...`, `..._in_under_a_second`, `..._takes_time_in_proportion_...`, and the watchdog tests of `tree::disk::tests`) live in `resolve_paths`, `manifest_caps`, `trait_keys`, `module_tree`, `exported_items`, `prescan_budgets`, `symbol_index`, `facts` and `tree::disk`. Each needs the same conversion to an operation or allocation count. Until then a whole-crate `cargo test -p raf-source` runs them; the per-test skip list is long, so the conversion is the real fix.\n",
+      "createdAt": "2026-10-18T02:52:36Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/21#issuecomment-6244914316",
+      "viewerDidAuthor": true
+    }
+  ],
+  "createdAt": "2026-10-17T16:27:46Z",
+  "labels": [],
+  "milestone": null,
+  "number": 21,
+  "state": "OPEN",
+  "title": "Replace wall-clock assertions in tests with operation or allocation counts",
+  "updatedAt": "2026-10-18T02:52:36Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/21"
+}

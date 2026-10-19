@@ -1,0 +1,137 @@
+{
+  "paths": [
+    {
+      "ref": "crates/raf-source/tests/exported_items.rs",
+      "path": "/home/paudley/Active/rust-agentic-foundations/crates/raf-source/tests/exported_items.rs",
+      "where": "repo",
+      "exists": true,
+      "kind": "file",
+      "lines": 1669,
+      "licence": "SPDX: MIT OR Apache-2.0 OR MulanPSL-2.0",
+      "commits": [
+        "1c5a765db fix(raf-source): a companion the settled tables drop is dropped from the start of the next settle, so its answer no longer depends on the order",
+        "f1603cd70 test(raf-source): the listing tests count glob view reads and walk steps instead of reading the clock, and a gate keeps the clock out of the crate",
+        "79fb59834 fix(raf-source): refuse a name that globs bring in as different items when the reader can access one",
+        "e0a75e9e1 fix(raf-source): a re-export is no more visible than the binding it re-exports",
+        "5f5049baa test(raf-source): compare use-path resolution with rustc on generated programs",
+        "0738a45e3 test(raf-source): pin the first carrying glob as the site of a re-export two globs bring in",
+        "8844239ea feat(raf-source): list the exported items of a target"
+      ]
+    },
+    {
+      "ref": "crates/raf-okf/tests/validate_cost.rs",
+      "path": "/home/paudley/Active/rust-agentic-foundations/crates/raf-okf/tests/validate_cost.rs",
+      "where": "repo",
+      "exists": true,
+      "kind": "file",
+      "lines": 165,
+      "licence": "SPDX: MIT OR Apache-2.0 OR MulanPSL-2.0",
+      "commits": [
+        "de0b842d2 feat(raf-workplan): load evidence, assessment and coverage records with a shared digest",
+        "671850b2b perf(raf-okf): validate affects and generated blocks without quadratic scans"
+      ]
+    },
+    {
+      "ref": "crates/raf-workplan/tests/assessments.rs",
+      "path": "/home/paudley/Active/rust-agentic-foundations/crates/raf-workplan/tests/assessments.rs",
+      "where": "repo",
+      "exists": true,
+      "kind": "file",
+      "lines": 965,
+      "licence": "SPDX: MIT OR Apache-2.0 OR MulanPSL-2.0",
+      "commits": [
+        "16d3648f8 fix(raf-workplan): never write a record or a generated block through a linked directory",
+        "6b317fc6b feat(raf-workplan): two-way coverage of public items and tests",
+        "bb415d37c feat(raf-workplan): prose assessments, their obligations and a sixth completion condition"
+      ]
+    },
+    {
+      "ref": "crates/raf-workplan/tests/rationale.rs",
+      "path": "/home/paudley/Active/rust-agentic-foundations/crates/raf-workplan/tests/rationale.rs",
+      "where": "repo",
+      "exists": true,
+      "kind": "file",
+      "lines": 608,
+      "licence": "SPDX: MIT OR Apache-2.0 OR MulanPSL-2.0",
+      "commits": [
+        "c54db19d2 feat(raf-workplan): check current rationale pages and decisions"
+      ]
+    },
+    {
+      "ref": "crates/raf-workplan/src/evidence/tests.rs",
+      "path": "/home/paudley/Active/rust-agentic-foundations/crates/raf-workplan/src/evidence/tests.rs",
+      "where": "repo",
+      "exists": true,
+      "kind": "file",
+      "lines": 966,
+      "licence": "SPDX: MIT OR Apache-2.0 OR MulanPSL-2.0",
+      "commits": [
+        "16d3648f8 fix(raf-workplan): never write a record or a generated block through a linked directory",
+        "9bacdb380 feat(raf-workplan): evidence records, claims and their obligations"
+      ]
+    },
+    {
+      "ref": "exported_items.rs",
+      "path": "/home/paudley/Active/rust-agentic-foundations/exported_items.rs",
+      "where": "repo",
+      "exists": false,
+      "kind": "",
+      "lines": null,
+      "licence": "",
+      "commits": []
+    }
+  ],
+  "identifiers": [
+    {
+      "name": "perf",
+      "files": 16
+    },
+    {
+      "name": "tree::disk::tests",
+      "files": 3
+    },
+    {
+      "name": "resolve_paths",
+      "files": 1
+    },
+    {
+      "name": "manifest_caps",
+      "files": 1
+    },
+    {
+      "name": "trait_keys",
+      "files": 3
+    },
+    {
+      "name": "module_tree",
+      "files": 4
+    },
+    {
+      "name": "exported_items",
+      "files": 17
+    },
+    {
+      "name": "prescan_budgets",
+      "files": 2
+    },
+    {
+      "name": "symbol_index",
+      "files": 3
+    },
+    {
+      "name": "facts",
+      "files": 36
+    },
+    {
+      "name": "tree::disk",
+      "files": 4
+    }
+  ],
+  "packages": [
+    "raf-okf",
+    "raf-source",
+    "raf-workplan"
+  ],
+  "urls": [],
+  "truncated": []
+}
