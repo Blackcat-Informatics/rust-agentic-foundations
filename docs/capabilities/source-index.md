@@ -770,6 +770,10 @@ change:
   of n private globs onto a module that another module globs makes 4n^2 + 6n, the
   prelude pattern of n children n(15n + 17)/2, and a hub that n siblings glob and that
   globs them back, every other one privately, 2n^3 + 4n^2 + 4n.
+  The default admits every load of a local registry of 1271 crates (newest version
+  of each; 1251 load): the most work of one was 34343004 steps (`web-sys`), a
+  sixty-second of the limit. A hub of 1024 siblings is the first of that shape to
+  pass it.
 
 A load over a budget is a `Budget` error that names the budget, the limit that
 applied and the file, with the line where there is one. `Workspace::usage` reports
