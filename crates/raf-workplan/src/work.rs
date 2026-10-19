@@ -42,8 +42,13 @@ pub(crate) enum Work {
     OutcomeChecks,
     /// A change put into the set of slugs the moves of a record are judged against.
     SlugsListed,
-    /// An exclusion of the coverage record tested against the paths of one entry.
-    ExclusionTests,
+    /// An exclusion of the coverage record put into the index of the exclusions.
+    ExclusionsIndexed,
+    /// A path of an entry, or a module it is below, looked up in the index of
+    /// the exclusions.
+    IndexLookups,
+    /// An exclusion that a lookup found marked as matched.
+    ExclusionMarks,
     /// A public item, re-export or test judged for coverage.
     EntriesJudged,
     /// A slug looked up in a set the claims are judged against.
@@ -108,7 +113,7 @@ impl<S> Counted<S> {
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 19;
+const KINDS: usize = 21;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -125,7 +130,9 @@ const ALL: [Work; KINDS] = [
     Work::PhraseTests,
     Work::OutcomeChecks,
     Work::SlugsListed,
-    Work::ExclusionTests,
+    Work::ExclusionsIndexed,
+    Work::IndexLookups,
+    Work::ExclusionMarks,
     Work::EntriesJudged,
     Work::ClaimLookups,
     Work::SlugLookups,
@@ -144,6 +151,11 @@ impl Tally {
     /// The count of one kind of work.
     pub(crate) const fn get(&self, work: Work) -> usize {
         self.0[work as usize]
+    }
+
+    /// The count of every kind of work together.
+    pub(crate) fn total(&self) -> usize {
+        self.0.iter().sum()
     }
 }
 
@@ -246,6 +258,7 @@ mod tests {
         for (index, work) in ALL.into_iter().enumerate() {
             assert_eq!(tally.get(work), index + 1, "{work:?}");
         }
+        assert_eq!(tally.total(), ALL.len() * (ALL.len() + 1) / 2);
     }
 
     #[test]
