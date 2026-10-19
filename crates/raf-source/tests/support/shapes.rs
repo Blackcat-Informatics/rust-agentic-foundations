@@ -5,7 +5,10 @@
 //!
 //! Each generator returns a file whose only top-level item is named in the
 //! shape's expected symbol list. The committed fuzz corpus holds the same
-//! texts under the names below.
+//! texts under the names below. The shapes of glob imports whose settling
+//! is counted are in [`globs`].
+
+pub(crate) mod globs;
 
 /// A named source text and the symbols a correct index holds for it.
 pub(crate) struct Shape {

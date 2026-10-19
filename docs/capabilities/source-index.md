@@ -5,7 +5,7 @@ type: Capability
 id: cap:source-index
 title: "Source index"
 description: "The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #[path], and a symbol and use-alias index."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_source::Tree
@@ -221,6 +221,18 @@ bindings:
     - raf_source::glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps
     - raf_source::glob_scope::work_budget::doubling_a_shape_multiplies_its_work_as_fast_as_the_shape_grows
     - raf_source::glob_scope::work_budget::a_settle_heavy_shape_is_refused_at_the_charge_that_passes_a_small_limit
+    - raf_source::glob_scope::settling::the_settling_of_a_chain_of_globs_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::settling::the_settling_of_a_module_of_many_items_globbed_from_many_modules_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::settling::the_settling_of_a_fan_in_of_pub_globs_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::settling::the_settling_of_a_fan_in_of_private_globs_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::settling::the_settling_of_a_fan_in_of_globs_that_carry_companions_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::settling::the_settling_of_the_prelude_pattern_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::settling::the_settling_of_a_hub_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::settling::the_settling_of_a_hub_whose_names_carry_companions_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::settling::the_settling_of_many_named_imports_through_many_globs_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::equivalence::the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_corpus_program_in_three_orders
+    - raf_source::glob_scope::equivalence::an_answer_that_differs_between_the_two_modes_is_reported_with_its_load_and_both_answers
+    - raf_source::work::tests::the_table_holds_every_kind_once_at_the_place_of_its_counter
     - raf_source::meter::tests::work_up_to_the_limit_is_accepted_and_the_charge_that_passes_it_is_refused
     - raf_source::meter::tests::work_is_never_released_and_each_meter_counts_from_zero
     - raf_source::test_crate::resolve_paths::globs_of_dependencies_in_one_module_leave_a_missing_name_not_found
@@ -1912,6 +1924,12 @@ duplicates.
   whole load. A meter accepts work up to its limit and refuses the charge that passes
   it, holding the limit and that charge; it never releases work, and each meter
   counts from zero.
+
+> [!PROPOSED change:source-index]
+> - Glob table work fixtures, counted: the steps of a chain of n globs, a module of n public functions that each of n modules globs, a fan-in of n `pub` globs, a fan-in of n private globs, a fan-in of n `pub` globs of modules that each bring in a struct through a `pub` glob beside another of its name through a private one, the prelude pattern of n children, a hub of n siblings, a hub of n siblings each two of which define a struct of one name, and a module with n private globs of modules that glob one struct and n named imports of it are 2n, 2n, 6n, 4n^2 + 6n, 4n^2 + 30n, n(15n + 17)/2, 2n^3 + 4n^2 + 4n, 4n^3 + 8n^2 - 4n and 4n + 2 at n of 8, 16, 24 and 32. Doubling n from 32 to 64 multiplies the count of the hub by more than four and those of the prelude and the fan-in of private globs by more than two, and the count of the chain grows and at most doubles. The fan-in of private globs, the prelude and the hub of 32, each at a limit a tenth of the way through its charges, are refused by the work budget naming the line of a glob, at the charge that passes the limit: the charges made are those of the whole load up to that one, and the count at the refusal is the limit and that charge, below the count of the whole load. A meter accepts work up to its limit and refuses the charge that passes it, holding the limit and that charge; it never releases work, and each meter counts from zero.
+> - Settling tallies, counted at n of 8, 16 and 24 for the same nine shapes: each reading again of what the globs of a module bring in under a name for a class of its importers, the glob reads such readings look at, the glob reads looked at while the drops are recorded, the lists of views copied for a glob read, and the glob reads that lookups of what the globs bring in look at and the routes they make. The chain, the module of many items and the fan-in of `pub` globs count none of them. The fan-in of private globs reads again 4n times, looking at 4n^2 reads and copying 4n lists; the fan-in of globs that carry companions reads again 8n times, looking at 4n^2 + 8n reads, copies 14n lists and looks at 2n^2 reads for the drops; the prelude reads again, looks at reads and copies lists 2n^2 - n times each; the hub reads again 2n^2 times, looking at 2n^3 reads and copying n^3 + n^2 lists; the hub whose names carry companions reads again 8n^2 - 12n times, looking at 4n^3 - 8n reads, copies 2n^3 + 8n^2 - 12n lists and looks at 2n^2 reads for the drops; the module of many named imports reads nothing again, and its lookups look at 25n^2 + n reads and make 15n^2 routes from 15n^2 copied lists in a release build, and 28n^2 + n, 17n^2 and 17n^2 in a debug build, which walks each import once more against the settled tables. The table of the counted kinds holds each kind once, at the place of its counter.
+> - An equivalence test of the settling against its reference mode, a mode of the tests that makes a load settle every name and every read as the glob scope tables settle them: the 64 programs of each seed family of the differential test and the committed corpus, each as written and in two more orders of its declarations, are loaded in both modes, and every probe in the three name spaces, `self::A`, `self::B`, `self::C`, `self::s0`, `self::s1` and `self::s2` in the type and the value name space from every module with a `use` declaration, and the exported surface are the same. The test asserts the number of programs and loads it judged, more than a hundred answers for each load, ambiguous answers and refused surfaces among them, and glob tables built in each mode; a negative fixture requires a changed, an added and a dropped answer to be reported with the load, and the mode to end with the run it was asked for, also when the run panics. While the tests load, each entry added to a view is checked to be new, or to hold its item at least as widely and as itself where it held it so: a view only grows.
+> - Three examples are run by hand and are not bound: `shape_cost` loads one of the nine shapes at a size and resolves a few paths through it, for an instruction count of the load with `perf stat`; `ws_cost` loads a workspace from disk, read-only, lists the surface of each library, resolves every path listed and prints a digest, and a load that is refused fails the run; `answer_dump` writes every answer of the equivalence test for the programs of both seed families and the corpus, in as many orders as asked, or a digest of each load, so that the answers of two trees can be compared with `diff`. None reads a clock.
 - Unit fixtures of the structures the bounds rely on: a column of a short line, a
   long line and a long line of two-byte characters, before, on and after an index
   mark, turns into its byte offset, and a column or line past the text is refused;
@@ -2585,6 +2603,17 @@ duplicates.
 | `raf_source::facts::tests::a_large_attribute_on_a_verbatim_use_group_is_read_once_for_all_its_members` | test | [Verification](#verification) |
 | `raf_source::facts::tests::a_long_line_of_wide_characters_is_indexed_once_for_all_its_positions` | test | [Verification](#verification) |
 | `raf_source::glob::tests::a_segment_is_matched_in_at_most_pattern_times_name_steps` | test | [Verification](#verification) |
+| `raf_source::glob_scope::equivalence::an_answer_that_differs_between_the_two_modes_is_reported_with_its_load_and_both_answers` | test | [Verification](#verification) |
+| `raf_source::glob_scope::equivalence::the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_corpus_program_in_three_orders` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_a_chain_of_globs_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_a_fan_in_of_globs_that_carry_companions_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_a_fan_in_of_private_globs_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_a_fan_in_of_pub_globs_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_a_hub_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_a_hub_whose_names_carry_companions_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_a_module_of_many_items_globbed_from_many_modules_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_many_named_imports_through_many_globs_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_the_prelude_pattern_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
 | `raf_source::glob_scope::tests::a_read_that_holds_no_companion_starts_no_search_for_the_holders_of_its_items` | test | [Verification](#verification) |
 | `raf_source::glob_scope::tests::the_dominators_of_seeded_random_graphs_follow_their_definition` | test | [Verification](#verification) |
 | `raf_source::glob_scope::tests::the_dominators_of_small_holder_graphs_follow_their_definition` | test | [Verification](#verification) |
@@ -2932,4 +2961,5 @@ duplicates.
 | `raf_source::tree::disk::tests::swap::an_entry_whose_directory_is_swapped_for_an_outside_symlink_is_refused` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::swap::an_outside_fifo_reached_by_a_swap_before_the_open_is_never_opened` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::the_handle_path_verifier_refuses_a_path_outside_the_root_beside_one_inside` | test | [Verification](#verification) |
+| `raf_source::work::tests::the_table_holds_every_kind_once_at_the_place_of_its_counter` | test | [Verification](#verification) |
 <!-- raf:generated:end -->

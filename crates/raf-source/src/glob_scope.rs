@@ -416,6 +416,55 @@ impl Waiters for Nobody {
     }
 }
 
+/// The reference mode of the tests: a load made in [`reference::exact`] is
+/// settled as the glob scope tables settle every name and every read, so
+/// that the equivalence test can compare the answers of loads made in that
+/// mode with those of loads made out of it. Every name and read is settled
+/// one way, so a load makes the same steps in both modes; the mode counts
+/// the builds of the glob tables made in each, so the test can tell that the
+/// loads it compares were made in the mode it asked for.
+#[cfg(test)]
+pub(crate) mod reference {
+    use std::cell::Cell;
+
+    thread_local! {
+        /// Whether the loads of this thread are made in the reference mode.
+        static EXACT: Cell<bool> = const { Cell::new(false) };
+        /// The builds of the glob tables of this thread, out of the
+        /// reference mode and in it.
+        static BUILDS: Cell<[usize; 2]> = const { Cell::new([0; 2]) };
+    }
+
+    /// Puts the mode back as it was when a run in the reference mode ends,
+    /// even by a panic.
+    struct Restore(bool);
+
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            EXACT.set(self.0);
+        }
+    }
+
+    /// Run `run` in the reference mode.
+    pub(crate) fn exact<T>(run: impl FnOnce() -> T) -> T {
+        let _restore = Restore(EXACT.replace(true));
+        run()
+    }
+
+    /// Count a build of the glob tables in the mode of this thread.
+    pub(crate) fn built() {
+        let mut builds = BUILDS.get();
+        builds[usize::from(EXACT.get())] += 1;
+        BUILDS.set(builds);
+    }
+
+    /// The builds of the glob tables this thread has made, out of the
+    /// reference mode and in it.
+    pub(crate) fn builds() -> [usize; 2] {
+        BUILDS.get()
+    }
+}
+
 impl Index {
     /// Record how deep each module lies and whether a visibility of it reads
     /// the tables, once for the load, and charge them. Nothing is recorded
@@ -481,6 +530,8 @@ impl Index {
         let Some(&first) = self.glob_imports.first() else {
             return Ok(());
         };
+        #[cfg(test)]
+        reference::built();
         self.charge_tables(base_bytes(self.modules.len()), first, meter)?;
         self.globs.exports = vec![Vec::new(); self.modules.len()];
         self.globs.reads = vec![Vec::new(); self.modules.len()];
@@ -681,10 +732,11 @@ impl Index {
     /// than the glob, nor than the binding it reads.
     pub(crate) fn globbed(&self, module: usize, name: &str, at: usize) -> Bound {
         let mut bound = Bound::new();
-        for (read, held) in self.delivered(module, name, at, None) {
+        for (read, held) in self.delivered(module, name, at, None, Work::LookupReads) {
             let decl = &self.uses[read.glob];
             let own = self.level_of(&decl.vis, module);
             for (id, level) in &held {
+                tally::add(Work::LookupRoutes, 1);
                 let met = self.meet(own, *level);
                 let vis = if met == own {
                     decl.vis.clone()
@@ -717,15 +769,17 @@ impl Index {
     /// module holds it. Without, what the module itself reads. While the
     /// tables settle, only a read from a module that binds the name itself
     /// justifies a drop; one whose globs bring the item in is asked only of
-    /// the settled tables (see [`Index::record_drops`]).
+    /// the settled tables (see [`Index::record_drops`]). Each glob read
+    /// looked at is counted as `visits`.
     fn delivered(
         &self,
         module: usize,
         name: &str,
         at: usize,
         class: Option<&[bool]>,
+        visits: Work,
     ) -> Vec<(&GlobRead, Vec<Held>)> {
-        let mut found = self.read_lists(module, name, at);
+        let mut found = self.read_lists(module, name, at, visits);
         let redelivered = self.redelivered(module, &found, name, at, &mut |_, _| false);
         let seen = |level: Option<Level>| {
             level.is_some_and(|level| class.is_none_or(|class| self.allowed(module, class, level)))
@@ -739,14 +793,23 @@ impl Index {
     }
 
     /// The items of the view each glob read of `module` reads under `name`
-    /// in the name space at `at`, for the reads whose view holds any.
-    fn read_lists(&self, module: usize, name: &str, at: usize) -> Vec<(&GlobRead, Vec<Held>)> {
+    /// in the name space at `at`, for the reads whose view holds any. Each
+    /// glob read looked at is counted as `visits`, and each list copied.
+    fn read_lists(
+        &self,
+        module: usize,
+        name: &str,
+        at: usize,
+        visits: Work,
+    ) -> Vec<(&GlobRead, Vec<Held>)> {
         let mut found: Vec<(&GlobRead, Vec<Held>)> = Vec::new();
         for read in self.reads_of(module) {
+            tally::add(visits, 1);
             let Some(lists) = self.globs.views[read.view].names.get(name) else {
                 continue;
             };
             if !lists[at].is_empty() {
+                tally::add(Work::ListCopies, 1);
                 found.push((read, lists[at].clone()));
             }
         }
@@ -992,7 +1055,7 @@ impl Index {
                 .flat_map(|read| &companions[read.view])
                 .collect();
             for (name, at) in names {
-                let found = self.read_lists(module, name, *at);
+                let found = self.read_lists(module, name, *at, Work::DropReads);
                 let supply = supply.get_or_insert_with(|| self.supply(&companions));
                 let charge = |steps: usize| {
                     meter.items(steps * SUPPLY_STEP_BYTES, &file, Some(line))?;
@@ -1230,6 +1293,7 @@ impl Index {
     /// name space at `at`.
     pub(crate) fn globbed_any(&self, module: usize, name: &str, at: usize) -> bool {
         self.reads_of(module).iter().any(|read| {
+            tally::add(Work::LookupReads, 1);
             self.globs.views[read.view]
                 .names
                 .get(name)
@@ -1370,6 +1434,7 @@ impl Index {
             return Ok(Vec::new());
         }
         self.charge_steps(self.reads_of(target).len(), site, meter)?;
+        tally::add(Work::Recomputations, 1);
         let (seen, hidden) = self.split_globs_delivered(target, class, name, at);
         Ok(self.exposed(seen, hidden))
     }
@@ -1385,7 +1450,7 @@ impl Index {
         at: usize,
     ) -> (Vec<Held>, Vec<Held>) {
         let (mut seen, mut hidden) = (Vec::new(), Vec::new());
-        for (read, held) in self.delivered(target, name, at, Some(class)) {
+        for (read, held) in self.delivered(target, name, at, Some(class), Work::RecomputedReads) {
             let glob = self.level_of(&self.uses[read.glob].vis, target);
             self.glob_held(target, class, glob, &held, (&mut seen, &mut hidden));
         }
@@ -1474,6 +1539,8 @@ impl Index {
                 (entry.0, level)
             })
             .collect();
+        #[cfg(test)]
+        self.assert_widened(view, name, at, &finals);
         let lists = match key {
             Some(key) => {
                 self.globs.strings.insert(key.clone());
@@ -1491,6 +1558,28 @@ impl Index {
             }
         }
         Ok(fresh)
+    }
+
+    /// Fail unless each entry of `finals` is new to the items of `name` in
+    /// the name space at `at` of `view`, or holds an item it already holds
+    /// at least as widely, and as itself where it was: a view is only added
+    /// to or widened, never narrowed or made a companion again.
+    #[cfg(test)]
+    fn assert_widened(&self, view: usize, name: &str, at: usize, finals: &[Held]) {
+        let Some(lists) = self.globs.views[view].names.get(name) else {
+            return;
+        };
+        for (id, level) in finals {
+            if let Ok(place) = lists[at].binary_search_by_key(id, |known| known.0) {
+                let known = lists[at][place].1;
+                assert!(
+                    self.width(*level) <= self.width(known)
+                        && (known.is_companion() || !level.is_companion()),
+                    "the view {view} narrows {id:?} under {name} in the name space {at}: \
+                     {known:?} to {level:?}"
+                );
+            }
+        }
     }
 
     /// Charge `bytes` of the tables, for the glob import at `site`.
@@ -2129,6 +2218,17 @@ fn dominators(
 }
 
 #[cfg(test)]
+#[path = "../tests/support/shapes/globs.rs"]
+#[allow(
+    dead_code,
+    reason = "the unit tests build the shapes; the examples also resolve their paths"
+)]
+mod shapes;
+
+#[cfg(test)]
+mod equivalence;
+
+#[cfg(test)]
 mod tests {
     //! The search for the modules that hold an item apart from a reading
     //! module grows in step with the globs it searches, whatever the shape
@@ -2397,70 +2497,12 @@ mod work_budget {
     //! refused at the charge that passes the limit, before its tables are
     //! settled to the end.
 
-    use std::fmt::Write as _;
-
+    use super::shapes::{
+        MANIFEST as DEMO, ambiguous_hub, chain, companion_fan_in, hub, lookups, many_items,
+        prelude, private_fan_in, pub_fan_in,
+    };
     use crate::meter::charges;
     use crate::{Budget, LoadError, LoadErrorKind, LoadOptions, MemoryTree, Workspace};
-
-    const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
-
-    /// A chain of `n` globs: each module globs the next, and the last
-    /// defines one function.
-    fn chain(n: usize) -> String {
-        let mut lib = String::new();
-        for i in 0..n {
-            writeln!(lib, "mod m{i} {{ pub use super::m{}::*; }}", i + 1).expect("write");
-        }
-        writeln!(lib, "pub mod m{n} {{ pub fn f() {{}} }}").expect("write");
-        lib
-    }
-
-    /// A fan-in of `n` private globs onto `t`, each of a module of one
-    /// struct, and `u`, declared after `t`, globbing `t`.
-    fn private_fan_in(n: usize) -> String {
-        let mut lib = String::from("pub mod t {");
-        for i in 0..n {
-            write!(lib, " use crate::m{i}::*;").expect("write");
-        }
-        lib.push_str(" }\npub mod u { pub use crate::t::*; }\n");
-        for i in 0..n {
-            writeln!(lib, "pub mod m{i} {{ pub struct T{i}; }}").expect("write");
-        }
-        lib
-    }
-
-    /// The prelude pattern: the crate root globs each of `n` children, and
-    /// each child, which defines one struct, globs its parent.
-    fn prelude(n: usize) -> String {
-        let mut lib = String::new();
-        for i in 0..n {
-            writeln!(
-                lib,
-                "pub use c{i}::*;\npub mod c{i} {{ use super::*; pub struct T{i}; }}"
-            )
-            .expect("write");
-        }
-        lib
-    }
-
-    /// A hub that `n` sibling modules glob and that globs each of them back,
-    /// every other one privately; each sibling defines one struct.
-    fn hub(n: usize) -> String {
-        let mut lib = String::from("pub mod hub {");
-        for i in 0..n {
-            let vis = if i % 2 == 0 { "pub " } else { "" };
-            write!(lib, " {vis}use crate::s{i}::*;").expect("write");
-        }
-        lib.push_str(" }\n");
-        for i in 0..n {
-            writeln!(
-                lib,
-                "pub mod s{i} {{ pub use crate::hub::*; pub struct T{i}; }}"
-            )
-            .expect("write");
-        }
-        lib
-    }
 
     fn load(lib: &str, max_work: usize) -> Result<Workspace, LoadError> {
         let tree: MemoryTree = [("Cargo.toml", DEMO), ("src/lib.rs", lib)]
@@ -2481,24 +2523,47 @@ mod work_budget {
             .work
     }
 
+    /// A shape: its name, its source at a size and its steps at a size.
+    type Counted = (&'static str, fn(usize) -> String, fn(usize) -> usize);
+
     #[test]
     fn the_glob_table_work_of_each_shape_is_the_count_of_its_steps() {
-        // Counted at several sizes, the steps of each shape follow these
+        // Counted at n, 2n, 3n and 4n, the steps of each shape follow these
         // polynomials exactly, and their leading terms are how the work of
-        // each shape grows: linearly for the chain, with the square of the
-        // globs for the fan-in of private globs and for the prelude, and
-        // with the cube for the hub. Each load makes the work of its tables
-        // twice: once while its imports settle and again once they are.
-        for n in [8, 16, 32] {
-            assert_eq!(work(&chain(n)), 2 * n, "chain of {n}");
-            assert_eq!(work(&private_fan_in(n)), 4 * n * n + 6 * n, "fan-in of {n}");
-            assert_eq!(work(&prelude(n)), n * (15 * n + 17) / 2, "prelude of {n}");
-            assert_eq!(
-                work(&hub(n)),
-                2 * n * n * n + 4 * n * n + 4 * n,
-                "hub of {n}"
-            );
+        // each shape grows: linearly for the chain, the module of many items
+        // globbed from many modules, the fan-in of `pub` globs and the
+        // lookups, with the square of the globs for the fan-in of private
+        // globs, the fan-in of globs that carry companions and the prelude,
+        // and with the cube for the hub and the hub whose names carry
+        // companions. Each load makes the work of its tables twice: once
+        // while its imports settle and again once they are.
+        let shapes: [Counted; 9] = [
+            ("chain", chain, |n| 2 * n),
+            ("many items", many_items, |n| 2 * n),
+            ("fan-in of pub globs", pub_fan_in, |n| 6 * n),
+            ("fan-in of private globs", private_fan_in, |n| {
+                4 * n * n + 6 * n
+            }),
+            ("companion fan-in", companion_fan_in, |n| 4 * n * n + 30 * n),
+            ("prelude", prelude, |n| n * (15 * n + 17) / 2),
+            ("hub", hub, |n| 2 * n * n * n + 4 * n * n + 4 * n),
+            ("ambiguous hub", ambiguous_hub, |n| {
+                4 * n * n * n + 8 * n * n - 4 * n
+            }),
+            ("lookups", lookups, |n| 4 * n + 2),
+        ];
+        // Every shape and size is counted before the test judges, so a
+        // count that changes names each shape it changes.
+        let mut wrong = Vec::new();
+        for (shape, build, steps) in shapes {
+            for n in [8, 16, 24, 32] {
+                let (counted, expected) = (work(&build(n)), steps(n));
+                if counted != expected {
+                    wrong.push(format!("{shape} of {n}: {counted}, not {expected}"));
+                }
+            }
         }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 
     #[test]
@@ -2568,5 +2633,247 @@ mod work_budget {
             assert_eq!(spent, limit + all[place], "{shape}");
             assert!(spent < total, "{shape}: {spent} of {total}");
         }
+    }
+}
+
+#[cfg(test)]
+mod settling {
+    //! What the settling of the glob views of each shape counts, pinned
+    //! exactly at n, 2n and 3n: each reading again of what the globs of a
+    //! module bring in under a name and the glob reads it looks at, the
+    //! glob reads looked at while the drops are recorded, the lists of the
+    //! views copied, and the glob reads that the lookups of what the globs
+    //! bring in look at and the routes they make. The pins are what the
+    //! settling counts as it reads and copies the views, so a settling that
+    //! reads or copies them otherwise changes them and pins its own.
+
+    use super::shapes::{
+        MANIFEST, ambiguous_hub, chain, companion_fan_in, hub, lookups, many_items, prelude,
+        private_fan_in, pub_fan_in,
+    };
+    use crate::work::{Work, measure};
+    use crate::{MemoryTree, Workspace};
+
+    /// The smallest size each shape is counted at, and so the step between
+    /// the sizes: an even size, as the hubs need.
+    const N: usize = 8;
+
+    /// The kinds of work pinned, in the order of a [`Pin`].
+    const KINDS: [Work; 6] = [
+        Work::Recomputations,
+        Work::RecomputedReads,
+        Work::DropReads,
+        Work::ListCopies,
+        Work::LookupReads,
+        Work::LookupRoutes,
+    ];
+
+    /// The count of each kind of [`KINDS`] at a size.
+    type Pin = [fn(usize) -> usize; 6];
+
+    /// Nothing counted.
+    const fn none(_n: usize) -> usize {
+        0
+    }
+
+    /// What loading `lib` counts of each kind of [`KINDS`].
+    fn counted(lib: &str) -> [usize; 6] {
+        let tree: MemoryTree = [("Cargo.toml", MANIFEST), ("src/lib.rs", lib)]
+            .into_iter()
+            .collect();
+        let (_, tally) = measure(usize::MAX, || {
+            Workspace::load(&tree, &["."]).unwrap_or_else(|error| panic!("loads: {error}"))
+        });
+        KINDS.map(|work| tally.get(work))
+    }
+
+    /// Assert that the shape `build` counts what `pin` gives at n, 2n and
+    /// 3n, and return the counts, by size and kind.
+    fn assert_pinned(shape: &str, build: fn(usize) -> String, pin: Pin) -> [[usize; 6]; 3] {
+        [1, 2, 3].map(|units| {
+            let n = units * N;
+            let counts = counted(&build(n));
+            let expected = pin.map(|count| count(n));
+            assert_eq!(counts, expected, "{shape} of {n}: {KINDS:?}");
+            counts
+        })
+    }
+
+    /// Of counts at n, 2n and 3n, the second difference: zero when they
+    /// grow linearly.
+    fn second_difference([one, two, three]: [usize; 3]) -> isize {
+        let [one, two, three] =
+            [one, two, three].map(|count| isize::try_from(count).expect("a small count"));
+        three - 2 * two + one
+    }
+
+    /// The counts of one kind, the place of `work` in [`KINDS`], at n, 2n
+    /// and 3n.
+    fn of(counts: &[[usize; 6]; 3], work: Work) -> [usize; 3] {
+        let place = KINDS
+            .iter()
+            .position(|kind| *kind == work)
+            .expect("a pinned kind");
+        counts.map(|at| at[place])
+    }
+
+    #[test]
+    fn the_settling_of_a_chain_of_globs_counts_its_pinned_polynomials_at_n_2n_and_3n() {
+        // Each link passes on what it brings in: nothing is read again or
+        // copied, and nothing is looked up through the globs.
+        assert_pinned("chain", chain, [none; 6]);
+    }
+
+    #[test]
+    fn the_settling_of_a_module_of_many_items_globbed_from_many_modules_counts_its_pinned_polynomials_at_n_2n_and_3n()
+     {
+        assert_pinned("many items", many_items, [none; 6]);
+    }
+
+    #[test]
+    fn the_settling_of_a_fan_in_of_pub_globs_counts_its_pinned_polynomials_at_n_2n_and_3n() {
+        assert_pinned("fan-in of pub globs", pub_fan_in, [none; 6]);
+    }
+
+    #[test]
+    fn the_settling_of_a_fan_in_of_private_globs_counts_its_pinned_polynomials_at_n_2n_and_3n() {
+        // The view of `t` for `u` reads each of the 2n names again, once in
+        // each build of the tables, and each reading again looks at all n
+        // reads of `t` and copies the one list that holds the name: the
+        // readings grow linearly and the reads they look at quadratically.
+        let counts = assert_pinned(
+            "fan-in of private globs",
+            private_fan_in,
+            [|n| 4 * n, |n| 4 * n * n, none, |n| 4 * n, none, none],
+        );
+        assert_eq!(second_difference(of(&counts, Work::Recomputations)), 0);
+        assert_eq!(
+            second_difference(of(&counts, Work::RecomputedReads)),
+            8 * 8 * 8
+        );
+    }
+
+    #[test]
+    fn the_settling_of_a_fan_in_of_globs_that_carry_companions_counts_its_pinned_polynomials_at_n_2n_and_3n()
+     {
+        // Each name arrives at `t` with a companion and is read again from
+        // all n reads of `t` and the reads of `a<i>`; the drops look at each
+        // read of `t` for each name that holds a companion.
+        let counts = assert_pinned(
+            "fan-in of globs that carry companions",
+            companion_fan_in,
+            [
+                |n| 8 * n,
+                |n| 4 * n * n + 8 * n,
+                |n| 2 * n * n,
+                |n| 14 * n,
+                none,
+                none,
+            ],
+        );
+        assert_eq!(second_difference(of(&counts, Work::ListCopies)), 0);
+        assert_eq!(
+            second_difference(of(&counts, Work::RecomputedReads)),
+            8 * 8 * 8
+        );
+    }
+
+    #[test]
+    fn the_settling_of_the_prelude_pattern_counts_its_pinned_polynomials_at_n_2n_and_3n() {
+        // The view of each child for the root reads again every name of
+        // the root's view that its private glob brings in, from its one
+        // read: the readings, the reads and the copies each grow
+        // quadratically.
+        let counts = assert_pinned(
+            "prelude",
+            prelude,
+            [
+                |n| 2 * n * n - n,
+                |n| 2 * n * n - n,
+                none,
+                |n| 2 * n * n - n,
+                none,
+                none,
+            ],
+        );
+        assert_eq!(
+            second_difference(of(&counts, Work::Recomputations)),
+            4 * 8 * 8
+        );
+    }
+
+    #[test]
+    fn the_settling_of_a_hub_counts_its_pinned_polynomials_at_n_2n_and_3n() {
+        // Once a private glob brings an item into the hub, every name that
+        // arrives at its view for the siblings is read again from all n
+        // reads of the hub: the readings grow with the square of the
+        // siblings and the reads they look at with the cube.
+        assert_pinned(
+            "hub",
+            hub,
+            [
+                |n| 2 * n * n,
+                |n| 2 * n * n * n,
+                none,
+                |n| n * n * n + n * n,
+                none,
+                none,
+            ],
+        );
+    }
+
+    #[test]
+    fn the_settling_of_a_hub_whose_names_carry_companions_counts_its_pinned_polynomials_at_n_2n_and_3n()
+     {
+        // Every name the siblings read through the hub carries a companion,
+        // so each arrival of one is read again, and the drops look at each
+        // read of each sibling for the names that hold one.
+        assert_pinned(
+            "hub whose names carry companions",
+            ambiguous_hub,
+            [
+                |n| 8 * n * n - 12 * n,
+                |n| 4 * n * n * n - 8 * n,
+                |n| 2 * n * n,
+                |n| 2 * n * n * n + 8 * n * n - 12 * n,
+                none,
+                none,
+            ],
+        );
+    }
+
+    #[test]
+    fn the_settling_of_many_named_imports_through_many_globs_counts_its_pinned_polynomials_at_n_2n_and_3n()
+     {
+        // Nothing is read again, but each of the n imports looks `X` up in
+        // what the n globs of `t` bring in at each of its walks: every walk
+        // looks at all n reads of `t` and makes a route for each that holds
+        // the name, so both grow with the square of the imports. A debug
+        // build walks each import once more against the settled tables.
+        let pin: Pin = if cfg!(debug_assertions) {
+            [
+                none,
+                none,
+                none,
+                |n| 17 * n * n,
+                |n| 28 * n * n + n,
+                |n| 17 * n * n,
+            ]
+        } else {
+            [
+                none,
+                none,
+                none,
+                |n| 15 * n * n,
+                |n| 25 * n * n + n,
+                |n| 15 * n * n,
+            ]
+        };
+        let counts = assert_pinned("lookups", lookups, pin);
+        let leading = if cfg!(debug_assertions) { 28 } else { 25 };
+        assert_eq!(
+            second_difference(of(&counts, Work::LookupReads)),
+            2 * leading * 8 * 8
+        );
     }
 }

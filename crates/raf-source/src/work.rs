@@ -35,11 +35,29 @@ pub(crate) enum Work {
     /// A glob read looked at by the search for the modules that hold an item
     /// apart from a reading module.
     SupplySteps,
+    /// A reading again of what the globs of a module bring in under one name,
+    /// in one name space, for one class of its importers, while the glob
+    /// tables settle.
+    Recomputations,
+    /// A glob read of a module looked at by such a reading again.
+    RecomputedReads,
+    /// A glob read of a module looked at while the drops that the settled
+    /// tables show are recorded.
+    DropReads,
+    /// A list of the items that a view holds under a name, copied for a glob
+    /// read that reads the view.
+    ListCopies,
+    /// A glob read of a module looked at by a lookup of what the globs of the
+    /// module bring in under a name.
+    LookupReads,
+    /// A route of a glob read to an item, made and combined into the bindings
+    /// that a lookup of what the globs of a module bring in returns.
+    LookupRoutes,
 }
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 10;
+const KINDS: usize = 16;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -54,6 +72,12 @@ const ALL: [Work; KINDS] = [
     Work::ViewReads,
     Work::WalkSteps,
     Work::SupplySteps,
+    Work::Recomputations,
+    Work::RecomputedReads,
+    Work::DropReads,
+    Work::ListCopies,
+    Work::LookupReads,
+    Work::LookupRoutes,
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].
@@ -167,6 +191,16 @@ mod tests {
         });
         for (index, work) in ALL.into_iter().enumerate() {
             assert_eq!(tally.get(work), index + 1, "{work:?}");
+        }
+    }
+
+    #[test]
+    fn the_table_holds_every_kind_once_at_the_place_of_its_counter() {
+        // A kind left out of the table, or listed twice or out of order,
+        // would share or lose a counter: each kind's place in the table is
+        // the place of its counter.
+        for (index, work) in ALL.into_iter().enumerate() {
+            assert_eq!(work as usize, index, "{work:?}");
         }
     }
 
