@@ -218,6 +218,11 @@ bindings:
     - raf_source::glob_scope::tests::a_read_that_holds_no_companion_starts_no_search_for_the_holders_of_its_items
     - raf_source::glob_scope::tests::the_dominators_of_small_holder_graphs_follow_their_definition
     - raf_source::glob_scope::tests::the_dominators_of_seeded_random_graphs_follow_their_definition
+    - raf_source::glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps
+    - raf_source::glob_scope::work_budget::doubling_a_shape_multiplies_its_work_as_fast_as_the_shape_grows
+    - raf_source::glob_scope::work_budget::a_settle_heavy_shape_is_refused_at_the_charge_that_passes_a_small_limit
+    - raf_source::meter::tests::work_up_to_the_limit_is_accepted_and_the_charge_that_passes_it_is_refused
+    - raf_source::meter::tests::work_is_never_released_and_each_meter_counts_from_zero
     - raf_source::test_crate::resolve_paths::globs_of_dependencies_in_one_module_leave_a_missing_name_not_found
     - raf_source::test_crate::resolve_paths::a_cycle_of_globs_stays_cyclic_beside_globs_that_resolve
     - raf_source::test_crate::resolve_paths::a_cycle_is_reported_before_a_glob_that_names_nothing
@@ -263,6 +268,7 @@ bindings:
     - raf_source::test_crate::load_budgets::modules_that_glob_one_another_are_refused_over_the_glob_budget_naming_a_glob
     - raf_source::test_crate::load_budgets::glob_tables_of_a_generated_binding_crate_are_charged_what_they_keep
     - raf_source::test_crate::load_budgets::repeated_globs_of_one_module_are_charged_once_for_what_it_holds
+    - raf_source::test_crate::load_budgets::glob_table_work_at_the_work_budget_loads_and_one_step_less_is_refused
     - raf_source::cost::tests::a_map_of_one_entry_is_covered_by_what_a_map_costs_once
     - raf_source::cost::tests::a_list_is_charged_at_least_its_room
     - raf_source::cost::tests::a_hash_table_is_charged_at_least_its_buckets
@@ -687,7 +693,7 @@ error that names the file and the line of the declaration.
 
 **Work and memory bounds.** Discovery and the expansion of `workspace.members`
 patterns enter at most 128 directories below their root (`DirectoryDepth`), on a stack
-of their own; a deeper directory is a `Budget` error that names it, which a chain of 20000 directories in memory meets on a thread of 2 MiB in a debug build and in a release build, and a chain of 2100 on disk meets with 4 MiB resident. Four byte budgets bound one load. Each is a default that `LoadOptions` can
+of their own; a deeper directory is a `Budget` error that names it, which a chain of 20000 directories in memory meets on a thread of 2 MiB in a debug build and in a release build, and a chain of 2100 on disk meets with 4 MiB resident. Four byte budgets and a work budget bound one load. Each is a default that `LoadOptions` can
 change:
 
 - `max_total_bytes` (`TotalBytes`) bounds the bytes the load reads, source files
@@ -748,10 +754,27 @@ change:
   them, of a generated binding crate of 600 child modules, each globbing a parent that
   globs each child, and of a random network of 1000 modules, each keeps at most one
   byte of glob tables for each 1.5 it is charged.
+- `max_work` (`Work`, 2147483648 steps, which is 2^31) bounds the glob table work of
+  one load: the steps whose number grows faster than the bytes of the tables on some
+  shapes of globs (see Constraints). A step is a glob read listed or a name gathered
+  when a glob table is built, a reader a change is passed on to, a name a new reader
+  of a table is given, a glob read of a module read again when what its globs bring
+  in under a name is read again (as it is when an item its readers cannot access, or
+  a companion of an ambiguity, arrives), and a step of the search for the modules
+  that hold an item apart from a reading module. Each is charged before it is made
+  and never released, over every settle of the tables, so the count is the work of
+  the whole load, and a refusal comes at the charge that makes the count pass the
+  limit, naming the glob import it was made for. A load without glob imports makes
+  none. The limit is the same on every target and below the largest `usize` of a
+  32-bit one. Counted on generated shapes, a chain of n globs makes 2n steps, a fan-in
+  of n private globs onto a module that another module globs makes 4n^2 + 6n, the
+  prelude pattern of n children n(15n + 17)/2, and a hub that n siblings glob and that
+  globs them back, every other one privately, 2n^3 + 4n^2 + 4n.
 
 A load over a budget is a `Budget` error that names the budget, the limit that
 applied and the file, with the line where there is one. `Workspace::usage` reports
-what a load spent against each, and for the glob tables the most they held at once.
+what a load spent against each, for the glob tables the most they held at once, and
+for the work the steps it made.
 Two figures follow, measured in a release build:
 
 1. Retained memory. What a load keeps of its index, its source text, its facts and its
@@ -784,7 +807,7 @@ module exports reads each table it holds once and is charged before it is alloca
 holds the work queue of the imports and, each time it runs empty, the graph of the
 imports still undecided and the places they wait on; no budget counts them, and they
 are dropped once the tables are settled. They grow with the undecided imports times
-the places their paths read through globs, and no budget bounds the work to decide them: 100 modules that glob the crate root, which globs each of them, each with an import of a name that nothing defines, settle at a peak of 87 MiB resident, of which the glob tables are charged 2.5 MiB, and 200 such modules settle at a peak of 555 MiB resident, of which the glob tables are charged 9.7 MB: the memory no budget counts can pass the glob budget.
+the places their paths read through globs, and no budget bounds the work to decide them (the work budget counts the steps of the glob tables, not those of the queue and the graph): 100 modules that glob the crate root, which globs each of them, each with an import of a name that nothing defines, settle at a peak of 87 MiB resident, of which the glob tables are charged 2.5 MiB, and 200 such modules settle at a peak of 555 MiB resident, of which the glob tables are charged 9.7 MB: the memory no budget counts can pass the glob budget.
 
 Parsing then runs on a dedicated thread, named after the file, with a stack of 64
 MiB (`PARSE_STACK_BYTES`), which is a stated constant and not the stack of the
@@ -1129,8 +1152,8 @@ name of its target (`--lib`, `--bin <name>` or `--test <name>`) and its path ins
 crate, which is what `cargo test -p <package> --test <target> <name>` needs;
 `usage()` gives what the load spent against its budgets: the bytes read, charged to
 the index and to the facts, the most charged to the glob tables at once, the most
-tokens of one file, the highest value of the recursion counter in one file and the
-deepest directory entered. The index
+tokens of one file, the highest value of the recursion counter in one file, the
+deepest directory entered and the steps of glob table work made. The index
 has no order that depends on the tree implementation: two loads of one tree are equal,
 and the same regular files on disk and in memory give equal indexes.
 
@@ -1343,7 +1366,7 @@ end; that is checked in release builds too, and a round that decides nothing mor
 `Internal` load error. Of two routes to one item the one that uses no
 glob decides `via_glob`.
 
-A chain of globs costs what each link brings in, once for each link; three other shapes cost more to settle, and the Constraints state them. Which modules hold an item under a name apart from a reading module is asked only of a read that holds companions, over the settled tables, and is found once for each item, name and name space asked: the holders are found from the modules that bind the name with the item, along the glob reads whose views hold it, and one dominator tree of them answers for every reading module at once, a module holding the item apart from the reading module exactly when the reading module does not dominate it. So the search costs a step for each glob read of a holder, each holder and each step of finding the dominators, and not a search of the chain for each reader of it. Each step is charged to the budget of the load as an entry of a set of modules before it is made.
+A chain of globs costs what each link brings in, once for each link; three other shapes cost more to settle, and the Constraints state them. Which modules hold an item under a name apart from a reading module is asked only of a read that holds companions, over the settled tables, and is found once for each item, name and name space asked: the holders are found from the modules that bind the name with the item, along the glob reads whose views hold it, and one dominator tree of them answers for every reading module at once, a module holding the item apart from the reading module exactly when the reading module does not dominate it. So the search costs a step for each glob read of a holder, each holder and each step of finding the dominators, and not a search of the chain for each reader of it. Each step is charged to the budget of the load as an entry of a set of modules, and to the work budget as a step, before it is made.
 
 Two more rules of rustc decide what a reader can see through globs. First, a named `pub use`, or a glob, that reads a binding through a glob its module cannot access keeps the narrower of its own visibility and the visibility of the binding it reads, measured on the ancestor chain of the importing module, so a module that globs such a re-export cannot read a name that rustc hides from it. With `mod x { pub struct A; }` and `mod m { use crate::x::*; pub mod c { pub use super::*; } }`, a crate that rustc accepts, the module `m` reads the struct `A` as `c::A` and a module outside `m` does not: `resolve_from("demo::m", "c::A")` finds `demo::x::A`, and `resolve_from("demo", "m::c::A")` is `NotFound`, where rustc refuses `use m::c::A;` in the crate root (E0603). Routes to one item combine by the widest, so an item that a capped re-export and a wider glob both bring in is as visible as the wider. Second, a name that two globs of a module bring in as different items is ambiguous in that module, and it is visible to every reader that can access at least one of the items: such a reader gets `ResolveError::Ambiguous` listing every candidate, also the item it could reach only through a glob it cannot access, where rustc refuses the path (usually as E0659, in one shape as E0573), and a reader that can access none of the items finds nothing. One item reached through both globs is one candidate, and a name that only one glob brings in is not ambiguous. The ambiguity passes to the readers of a glob of the module. An import that a reader cannot name still keeps its name from the globs, and a module's own item shadows its globs for every reader, so neither makes the name ambiguous. A path through a module that two globs bring in as different modules is ambiguous, also for a name only one of the two modules has, and so is a path whose first segment is a bare name that two globs bring in as different modules, as a later segment is: `s::A`, read in a module whose globs bring in `p::s` and `q::s`, is `Ambiguous` in that module, in its child that globs it and in a module that globs it, in the type and in the value name space, and an import that starts with that name binds nothing, as rustc refuses it (E0659). Two globs that bring in one module are one candidate, and so are the two `cfg` alternatives of one module that a glob brings in, at the first segment and at a later one, so those paths resolve.
 
@@ -1688,7 +1711,7 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
   never a pass.
 - The work queue and the graph of undecided imports that settling the scope tables
   builds are not budgeted: they are dropped once the tables are settled, and they grow
-  with the undecided imports times the places their paths read through globs, and no budget bounds the work to decide them (see Work and memory bounds).
+  with the undecided imports times the places their paths read through globs, and no budget bounds the work to decide them; the work budget counts the steps of the glob tables, not those of the queue and the graph (see Work and memory bounds).
 - Resolution covers items the source defines. Items from dependencies are outside the
   index and resolve to a not-found failure.
 - An item that syn returns as tokens is indexed only in the three shapes the Contract
@@ -1697,7 +1720,7 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
   attribute macro, fails the whole load with `UnsupportedItem`, naming the file and line.
 - The index settles a cycle of globs and imports differently from rustc in some programs, in both directions: it refuses a name with `Cyclic` where rustc accepts the probe, and it resolves a name where rustc reports that it cannot determine the resolution of the import; some ambiguity shapes inside glob cycles differ as well, where the index calls a name ambiguous or resolves it and rustc does the opposite.
 - For some glob ambiguities rustc's own answer depends on the order of the declarations, the first binding of the name that reaches a module deciding; the index gives one fixed answer, the same in every order, which is the ambiguity for some shapes and the item for others, and which rustc gives in some of its orders and not in the others.
-- Settling the glob views costs more than linear in the number of globs on three shapes, because the views re-read and copy the reads of a module each time a hidden companion arrives. The search for a supply is not the cause: it is linear and charged. The counts are instructions of a release build for a load and a few paths resolved. A plain chain of globs, a module with many items, a fan-in of `pub` globs and a fan-in of globs that each carry a companion are linear, as they were in the resolver from before the two rules (1.04 to 1.15 times its count on the first three and 1.55 times on the companion fan-in). A fan-in of private globs onto one module was linear before the rules and now gains a quadratic term (3.0 times the old count at 4,000 globs). The prelude pattern, a root that does `pub use child::*` for n children that each do `use super::*`, was superlinear before the rules (2.3 to 3.4 times per doubling) and is now quadratic (20 times the old count at 500 children and 34 times at 2,000). A hub that n sibling modules glob and that globs them back, half of them privately, was quadratic before the rules (about 4 times per doubling) and is now about cubic: each doubling of n multiplies the count by 7.6 to 8.9, and it is 127 times the old count at 1,000 globs. No budget bounds the time of these loads.
+- Settling the glob views costs more than linear in the number of globs on three shapes, because the views re-read and copy the reads of a module each time a hidden companion arrives. The search for a supply is not the cause: it is linear and charged. The counts are instructions of a release build for a load and a few paths resolved. A plain chain of globs, a module with many items, a fan-in of `pub` globs and a fan-in of globs that each carry a companion are linear, as they were in the resolver from before the two rules (1.04 to 1.15 times its count on the first three and 1.55 times on the companion fan-in). A fan-in of private globs onto one module was linear before the rules and now gains a quadratic term (3.0 times the old count at 4,000 globs). The prelude pattern, a root that does `pub use child::*` for n children that each do `use super::*`, was superlinear before the rules (2.3 to 3.4 times per doubling) and is now quadratic (20 times the old count at 500 children and 34 times at 2,000). A hub that n sibling modules glob and that globs them back, half of them privately, was quadratic before the rules (about 4 times per doubling) and is now about cubic: each doubling of n multiplies the count by 7.6 to 8.9, and it is 127 times the old count at 1,000 globs. The work budget (`max_work`) counts the steps of that re-reading and copying, so on these shapes its count grows as their work does: with the square of the globs on the fan-in of private globs and on the prelude, with the cube on the hub, and linearly on a plain chain. A load that passes it is refused at the charge that passes it, before its tables are settled to the end. The budget counts steps; it does not measure time.
 - `workspace.members` and `workspace.exclude` hold at most 4096 entries each.
 - The text of an error shows input-derived text with control characters escaped by
   `char::escape_debug`, which also doubles a backslash, so it is safe to print to a
@@ -1864,8 +1887,25 @@ duplicates.
   binding crate of 200 child modules is charged at least the bytes of glob tables it
   keeps. A module that globs one module of 2000 names 400 times over, globbed by
   another, is charged under a kilobyte for each more glob, in either order of
-  declaration, and is refused by the glob budget one byte below what it is charged. `usage()` reports the spent bytes, the most tokens, the highest recursion
-  value and the deepest directory, and an item record is at most 256 bytes.
+  declaration, and is refused by the glob budget one byte below what it is charged.
+  The glob table work of a module globbed through a chain of two globs is ten steps:
+  it loads at a limit of ten and is refused at nine, naming the line of the glob whose
+  table passes it, and a load without a glob loads at a limit of none. `usage()`
+  reports the spent bytes, the most tokens, the highest recursion value, the deepest
+  directory and the work, which is none for a load without a glob, and an item record
+  is at most 256 bytes.
+- Glob table work fixtures, counted: the steps of a chain of n globs, a fan-in of n
+  private globs, the prelude pattern of n children and a hub of n siblings are 2n,
+  4n^2 + 6n, n(15n + 17)/2 and 2n^3 + 4n^2 + 4n at n of 8, 16 and 32. Doubling n from 32
+  to 64 multiplies the count of the hub by more than four and those of the prelude and
+  the fan-in by more than two, and the count of the chain grows and at most doubles. The fan-in,
+  the prelude and the hub of 32, each at a limit a tenth of the way through its
+  charges, are refused by the work budget naming the line of a glob, at the charge
+  that passes the limit: the charges made are those of the whole load up to that one,
+  and the count at the refusal is the limit and that charge, below the count of the
+  whole load. A meter accepts work up to its limit and refuses the charge that passes
+  it, holding the limit and that charge; it never releases work, and each meter
+  counts from zero.
 - Unit fixtures of the structures the bounds rely on: a column of a short line, a
   long line and a long line of two-byte characters, before, on and after an index
   mark, turns into its byte offset, and a column or line past the text is refused;
@@ -2519,7 +2559,7 @@ duplicates.
 - Fixtures of the order-independent shapes, each in every order of the declarations. The companion shape above, with `B` a struct, reads `B` and an import of it in `mm` as `m2::B` in all 120 orders, also with a `pub(crate)` import in `w` or a `pub(crate)` glob of `w` in `mm`, and with `B` a module that the path goes on through, where `mm` reads `self::B::X` and an import of it as `m2::B::X`; with a cycle of globs through `m0` and `mm` and a module `rr` that globs `mm`, the four reads give `m2::B` in all 720 orders. In these four rustc refuses the crate (E0659) when `m0` comes before `w` and accepts it when `w` comes first. A companion that reaches a module where the reader cannot access it is dropped as the glob that carried it drops it: `B` in `m2::s0` is `m0::s0::B` in 72 orders, where rustc accepts it in 54 and refuses it in the others, and `crate::m1::B` read from two modules along a chain of globs is `m1::s0::B` in 720 orders, as rustc has it in every order. The import that reads `B` through the glob that carries the companion keeps the ambiguity between the two structs in 120 orders, as rustc does. The surface of a crate refused for a module name that a glob cycle carries lists the same two candidates in 720 orders, where rustc compiles the crate and only warns. A path that starts with a bare name that two globs bring in as different modules is `Ambiguous` in 144 orders, for eleven reads in the module, in its child and in a module that globs it, in both name spaces, and an import that starts with it binds nothing in 1,440 loads; beside it the same name brought in as one module resolves in 720 orders. The two `cfg` alternatives of one module that a glob brings in resolve at the first segment and at a later one in 1,440 loads, and stay ambiguous beside a different module of the same name. Two libraries that share a crate name give `Ambiguous` listing both crate roots to `resolve` and to `resolve_from` and `resolve_from_in` for a reading module of that crate, in each name space, beside a crate of one library, which reads as before.
 - Fixtures of an item or a module that a glob cycle carries back to a module beside a glob that holds it apart from the cycle, each in every order of the declarations, where rustc gives the same answer in every order. When a glob delivers the item from a module whose globs do not reach the reading module, the reading module drops the companion that the cycle carries with it: `crate::m0::A`, read from `m3::s1`, is `m1::A` in the value name space and is not found in the type name space in 288 loads, and `s0::B`, read from `m0::s0`, is `m1::s0::B` in the type name space, where the bare first segment names the module that the cycle carries back and not the companion beside it, and is not found in the value name space, in 144 loads. Where the glob that holds the item apart from the cycle reaches its definition through another glob, `crate::m0::A` read from `m3::s1` is `m1::A` in 144 loads and `crate::B` read from `m2::s1` is `m1::B` in 48. Four programs of these shapes are committed under `fuzz/corpus/rustc-oracle`, each marked `agree`.
 - Fixtures of a holder that reads the item back from the reader: with `r` globbing `a` publicly, which brings in `d::X` with `p::X` as a companion, and `d` privately, and `r::t` globbing `r` and globbed by `r`, `self::X` is `d::X` in `r` and in `r::t` and `Ambiguous` between `d::X` and `p::X` in `o`, a module outside `r` that globs `r`, in 120 orders of the declarations of the crate and 144 of the modules `r` holds, where rustc accepts `d::X` in some orders and refuses `X` as ambiguous in others.
-- The search for the modules that hold an item apart from a reading module is counted by a test-only tally of its steps. Over a chain of pass-through globs of one module read by as many readers as the chain has links, over the same chain whose start globs every reader back and over a chain whose readers glob one another in turn, the steps for one, two and three units grow linearly, so a search that ran again for each reader would exceed the bound. A read that holds no companion starts no search, however large the chain. The dominators are checked against their definition on small graphs and on seeded random graphs.
+- The search for the modules that hold an item apart from a reading module is counted by a test-only tally of its steps. Over a chain of pass-through globs of one module read by as many readers as the chain has links, over the same chain whose start globs every reader back and over a chain whose readers glob one another in turn, the steps for one, two and three units grow linearly, so a search that ran again for each reader would exceed the bound, and the glob table work of each load counts at least the steps of its search, each of which is charged to the work budget. A read that holds no companion starts no search, however large the chain. The dominators are checked against their definition on small graphs and on seeded random graphs.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
@@ -2545,9 +2585,14 @@ duplicates.
 | `raf_source::glob_scope::tests::the_holders_of_an_item_apart_from_each_reader_of_a_chain_of_globs_are_found_in_steps_linear_in_the_chain` | test | [Verification](#verification) |
 | `raf_source::glob_scope::tests::the_holders_of_an_item_apart_from_readers_that_form_a_chain_of_their_own_are_found_in_steps_linear_in_the_chains` | test | [Verification](#verification) |
 | `raf_source::glob_scope::tests::the_holders_of_an_item_apart_from_readers_the_start_of_the_chain_globs_back_are_found_in_steps_linear_in_the_chain` | test | [Verification](#verification) |
+| `raf_source::glob_scope::work_budget::a_settle_heavy_shape_is_refused_at_the_charge_that_passes_a_small_limit` | test | [Verification](#verification) |
+| `raf_source::glob_scope::work_budget::doubling_a_shape_multiplies_its_work_as_fast_as_the_shape_grows` | test | [Verification](#verification) |
+| `raf_source::glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps` | test | [Verification](#verification) |
 | `raf_source::item::tests::an_item_record_is_at_most_two_hundred_fifty_six_bytes` | test | [Verification](#verification) |
 | `raf_source::members::tests::distinct_patterns_at_both_caps_are_tested_a_bounded_number_of_times` | test | [Verification](#verification) |
 | `raf_source::members::tests::duplicate_patterns_are_compiled_and_tested_once` | test | [Verification](#verification) |
+| `raf_source::meter::tests::work_is_never_released_and_each_meter_counts_from_zero` | test | [Verification](#verification) |
+| `raf_source::meter::tests::work_up_to_the_limit_is_accepted_and_the_charge_that_passes_it_is_refused` | test | [Verification](#verification) |
 | `raf_source::resolve::tests::a_path_of_fifty_thousand_segments_reads_each_segment_a_bounded_number_of_times` | test | [Verification](#verification) |
 | `raf_source::resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped` | test | [Verification](#verification) |
 | `raf_source::settle::tests::a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room` | test | [Verification](#verification) |
@@ -2627,6 +2672,7 @@ duplicates.
 | `raf_source::test_crate::load_budgets::a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::each_costly_shape_at_the_token_limit_loads_and_one_more_token_is_refused` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::each_large_fact_payload_is_charged_and_refused_at_its_line_once_over_the_fact_budget` | test | [Verification](#verification) |
+| `raf_source::test_crate::load_budgets::glob_table_work_at_the_work_budget_loads_and_one_step_less_is_refused` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::glob_tables_of_a_generated_binding_crate_are_charged_what_they_keep` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::index_records_at_the_item_budget_load_and_one_byte_less_is_refused` | test | [Verification](#verification) |

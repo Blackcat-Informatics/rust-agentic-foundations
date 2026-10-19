@@ -8,6 +8,19 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
+- **`raf-source`:** a work budget bounds the glob tables of a load by count.
+  `Budget::Work` ("glob table work steps") counts each step of glob table work
+  one load makes, before it is made and never released: each glob read listed
+  and each name gathered when a table is built, each reader a change is passed
+  on to, each glob read of a module read again when what its globs bring in under
+  a name is read again, and each step of the search for the modules that hold an
+  item apart from a reading module. These are the steps whose number grows with
+  the square or the cube of the globs on the fan-in of private globs, the prelude
+  pattern and the hub, so those loads are now refused at the limit instead of
+  settling to the end. `LoadOptions::max_work` sets the limit, by default that of
+  `Budget::Work` (2^31 steps); a load that passes it is a `Budget` error naming
+  the file and line of a glob, and `Usage::work` reports the steps a load made,
+  none for a load without glob imports. `Budget::ALL` has fifteen entries.
 - **`raf-source`:** `use` paths follow two more visibility rules of rustc. A named
   re-export or a glob that reads a binding through a glob the importing module
   cannot access keeps the narrower of its own visibility and the visibility of

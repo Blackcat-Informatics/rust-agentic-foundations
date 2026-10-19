@@ -10,9 +10,10 @@ pub const DEFAULT_MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
 
 /// Limits a caller sets for one load.
 ///
-/// The token budget and the byte budgets default to the limits of
-/// [`Budget::FileTokens`], [`Budget::TotalBytes`], [`Budget::ItemBytes`],
-/// [`Budget::FactBytes`] and [`Budget::GlobBytes`]. A load that passes one is refused with
+/// The token budget, the byte budgets and the work budget default to the
+/// limits of [`Budget::FileTokens`], [`Budget::TotalBytes`],
+/// [`Budget::ItemBytes`], [`Budget::FactBytes`], [`Budget::GlobBytes`] and
+/// [`Budget::Work`]. A load that passes one is refused with
 /// [`LoadErrorKind::Budget`](crate::LoadErrorKind::Budget), naming the budget,
 /// the limit that applied and the file.
 ///
@@ -45,6 +46,10 @@ pub struct LoadOptions {
     /// The most bytes the glob scope tables of one load may hold. Defaults to
     /// the limit of [`Budget::GlobBytes`].
     pub max_glob_bytes: usize,
+    /// The most steps of glob table work one load may make, counted as they
+    /// are made and never given back (see [`Budget::Work`]). Defaults to the
+    /// limit of [`Budget::Work`].
+    pub max_work: usize,
 }
 
 impl Default for LoadOptions {
@@ -56,6 +61,7 @@ impl Default for LoadOptions {
             max_item_bytes: Budget::ItemBytes.limit(),
             max_fact_bytes: Budget::FactBytes.limit(),
             max_glob_bytes: Budget::GlobBytes.limit(),
+            max_work: Budget::Work.limit(),
         }
     }
 }

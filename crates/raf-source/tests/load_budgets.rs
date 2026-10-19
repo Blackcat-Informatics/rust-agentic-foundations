@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
 //! The work and memory budgets of a load: the tokens of one file, the bytes a
-//! load reads, the bytes of index records, the bytes of file facts and the
-//! bytes of glob tables. Each is shown at its limit, where the load succeeds,
-//! and one over, where it is refused with a `Budget` error that names the
-//! budget and the file.
+//! load reads, the bytes of index records, the bytes of file facts, the bytes
+//! of glob tables and the steps of glob table work. Each is shown at its
+//! limit, where the load succeeds, and one over, where it is refused with a
+//! `Budget` error that names the budget and the file.
 
 use std::fmt::Write as _;
 
@@ -434,6 +434,8 @@ fn the_default_budgets_are_the_stated_limits() {
     assert_eq!(Budget::ItemBytes.limit(), 512 << 20);
     assert_eq!(Budget::FactBytes.limit(), 256 << 20);
     assert_eq!(Budget::GlobBytes.limit(), 512 << 20);
+    assert_eq!(options.max_work, Budget::Work.limit());
+    assert_eq!(Budget::Work.limit(), 1 << 31);
     assert_eq!(Budget::DirectoryDepth.limit(), 128);
 }
 
@@ -460,6 +462,8 @@ fn usage_reports_what_a_load_spent() {
     assert_eq!(spent.max_recursion, 4);
     // Discovery entered `src/a`, two levels below the root.
     assert_eq!(spent.max_directory_depth, 2);
+    // A load without glob imports makes no glob table work.
+    assert_eq!(spent.work, 0);
 }
 
 /// A library whose `leaf.rs` is reached under 2^`levels` module paths: each
@@ -653,6 +657,49 @@ fn glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused() {
         glob_bytes_of("pub mod a { pub fn f() {} }\npub use a::f;\n"),
         0
     );
+}
+
+#[test]
+fn glob_table_work_at_the_work_budget_loads_and_one_step_less_is_refused() {
+    let text = "pub mod a { pub fn f() {} pub struct S; }\n\
+                pub mod b { pub use crate::a::*; }\n\
+                pub mod c { pub use crate::b::*; }\n";
+    let files = [("src/lib.rs", text)];
+    // The tables are built while the imports settle and again once they
+    // are, and each build makes the view of `a`, gathering its two names,
+    // and the view of `b`, listing its one glob read and gathering the two
+    // names of the view of `a`: five steps, twice.
+    let spent = usage(&files).work;
+    assert_eq!(spent, 10);
+    let mut options = LoadOptions::default();
+    options.max_work = spent;
+    let ws = load_with(&files, &options).expect("at the limit");
+    assert_eq!(
+        ws.resolve("demo::c::f").expect("resolves").path,
+        "demo::a::f"
+    );
+    assert_eq!(ws.usage().work, spent);
+    options.max_work = spent - 1;
+    let (budget, limit, line) = refused(load_with(&files, &options), "src/lib.rs");
+    assert_eq!((budget, limit), (Budget::Work, spent - 1));
+    // The glob of `c`, which makes the view of `b`, passes the limit.
+    assert_eq!(line, Some(3));
+    let error = load_with(&files, &options).expect_err("over the budget");
+    assert!(
+        error
+            .to_string()
+            .contains("exceeds the budget for glob table work steps (9)"),
+        "{error}"
+    );
+    // A load without a glob makes no glob table work, so a limit of none
+    // admits it.
+    options.max_work = 0;
+    let ws = load_with(
+        &[("src/lib.rs", "pub mod a { pub fn f() {} }\npub use a::f;\n")],
+        &options,
+    )
+    .expect("no glob table work");
+    assert_eq!(ws.usage().work, 0);
 }
 
 #[test]
