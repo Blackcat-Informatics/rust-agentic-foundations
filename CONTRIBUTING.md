@@ -87,12 +87,17 @@ make help    # list every target
   system, not the history that produced it. It and `make licenses` run the Rust
   gates in `tests/repo_gates.rs`, so they are a subset of `make test`.
 - **No clock in tests.** The `time_in_crates_` gate in `tests/repo_gates.rs` fails
-  when Rust under `raf-source`, `raf-okf`, `raf-workplan`, `cargo-workplan` or the
-  root `tests/` names a clock reading or a sleep (`Instant`, `SystemTime`,
-  `UNIX_EPOCH`, `sleep`, the `*_timeout` waits; `raf-source` also refuses
-  `Duration` and `elapsed`). Only `crates/raf-workplan/src/exec/clock.rs` and the
-  gate file are exempt, and `make clippy` disallows the same types and `sleep`.
-  Script a clock in the test instead.
+  when Rust under the `src`, `tests` or `examples` of any crate in `crates/`, or
+  under the root `tests/`, names a clock reading or a wait on one (`Instant`,
+  `SystemTime`, `UNIX_EPOCH`, `sleep`, the `*_timeout` waits, and each of these
+  with a `_` suffix such as `sleep_ms` or `wait_timeout_while`; `raf-source` also
+  refuses `Duration` and `elapsed`). Only `crates/raf-workplan/src/exec/clock.rs`
+  and the gate file are exempt. The examples of `raf-source` are binaries outside
+  the gate, covered by clippy only: `make clippy` disallows the same types, the
+  sleeps and the timeout waits everywhere an `allow` with a reason does not say
+  otherwise. Script a clock in the test instead. A test that runs a real process
+  still goes through the runner's wall clock as a watchdog; it asserts nothing
+  about the time.
 
 ## Versioning & releases
 

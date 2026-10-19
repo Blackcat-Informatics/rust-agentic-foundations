@@ -148,21 +148,28 @@ make hooks   # point core.hooksPath at .githooks for this clone
   lives once, in `raf_workplan::refs`, which `raf-workplan` also applies to the
   documents it loads; the gate test files call it and share one file list in
   `tests/support/mod.rs`.
-- **No test reads a clock.** The `time_in_crates_` gate in `tests/repo_gates.rs`
-  fails when a tracked Rust file under `raf-source`, `raf-okf`, `raf-workplan` (its
-  `src`, `tests` and `examples`), `cargo-workplan` or the root `tests/` names a
-  clock or a wait on one. `raf-source` refuses `std::time`, `core::time`,
-  `tokio::time`, `Instant`, `Duration`, `SystemTime`, `sleep`, `elapsed` and the
-  `recv_timeout`, `wait_timeout`, `park_timeout`, `set_read_timeout` and
-  `set_write_timeout` calls. The other crates refuse the same set without
-  `std::time`, `Duration` and `elapsed` (the runner's limits and scripted data are
-  made of them) and add `UNIX_EPOCH`. Two files are exempt:
+- **No test asserts time.** The `time_in_crates_` gate in `tests/repo_gates.rs`
+  fails when a tracked Rust file under the `src`, `tests` or `examples` of any
+  crate in `crates/`, or under the root `tests/`, names a clock or a wait on one;
+  the directories come from `crates/*`, so a new crate is judged without a change
+  to the gate. `raf-source` refuses `std::time`, `core::time`, `tokio::time`,
+  `Instant`, `Duration`, `SystemTime`, `sleep`, `elapsed` and the `recv_timeout`,
+  `wait_timeout`, `park_timeout`, `set_read_timeout` and `set_write_timeout`
+  calls. The other crates refuse the same set without `std::time`, `Duration` and
+  `elapsed` (the runner's limits and scripted data are made of them) and add
+  `UNIX_EPOCH`. A name with a `_` suffix counts as the name, so `sleep_ms`,
+  `sleep_until`, `park_timeout_ms`, `wait_timeout_ms` and `wait_timeout_while` are
+  refused too. The `examples` of `raf-source` are binaries outside the gate and
+  are judged by clippy only. Two files are exempt:
   `crates/raf-workplan/src/exec/clock.rs`, the one clock reading, and
   `tests/repo_gates.rs`, which defines the words; the gate fails if either stops
   being tracked or stops doing that. `clippy.toml` also disallows
-  `std::time::Instant`, `std::time::SystemTime` and `std::thread::sleep`, so
-  `make clippy` rejects a new reading anywhere an `allow` with a reason does not
-  say otherwise.
+  `std::time::Instant`, `std::time::SystemTime`, the `std::thread` sleeps and
+  `park_timeout` waits, the `Condvar` timeout waits and `Receiver::recv_timeout`,
+  so `make clippy` rejects a new reading anywhere an `allow` with a reason does
+  not say otherwise. A test that runs a real process through `SystemRunner::run`
+  still goes through the runner's wall clock, as a watchdog for its limit; no
+  test asserts what that clock reads.
 - **Never bypass a hook or a gate.** Do not pass `--no-verify`, do not edit a hook
   to pass, and do not weaken a gate or a lint to get green. Fix the cause.
 - A missing tool is a hard failure, not a skip. `make reuse` needs `uvx` or
