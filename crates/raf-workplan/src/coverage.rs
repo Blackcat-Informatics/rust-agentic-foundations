@@ -107,7 +107,7 @@ pub mod render;
 #[cfg(test)]
 mod tests;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 
 use raf_okf::{CoverageRecord, DocType, Exclusion, ExclusionItem, Location};
@@ -777,32 +777,71 @@ fn first_segment(path: &str) -> &str {
     path.split_once("::").map_or(path, |(first, _)| first)
 }
 
-/// Whether `exclusion` matches an item or test with these paths.
-fn matches<'p>(exclusion: &Exclusion, mut paths: impl Iterator<Item = &'p str>) -> bool {
-    match &exclusion.item {
-        ExclusionItem::Item(item) => paths.any(|path| path == item),
-        ExclusionItem::Prefix(prefix) => paths.any(|path| {
-            path.strip_prefix(prefix.as_str())
-                .is_some_and(|rest| rest.starts_with("::"))
-        }),
+/// The exclusions of the record by the path each names, and whether each has
+/// matched an entry yet.
+///
+/// An item exclusion is held under its path and matches a path equal to it; a
+/// prefix exclusion is held under its module path and matches a path whose
+/// proper ancestors, as [`ancestors`] gives them, hold that module path. So an
+/// entry costs one lookup for each of its paths and each module above it, and
+/// nothing for each exclusion. The positions held are those of the exclusions
+/// in the record, which are also those of `matched`.
+struct ExclusionIndex<'r> {
+    exclusions: &'r [Exclusion],
+    items: HashMap<&'r str, Vec<usize>>,
+    prefixes: HashMap<&'r str, Vec<usize>>,
+    matched: Vec<bool>,
+}
+
+impl<'r> ExclusionIndex<'r> {
+    /// The index of `exclusions`, none of them matched.
+    fn new(exclusions: &'r [Exclusion]) -> Self {
+        let mut items: HashMap<&str, Vec<usize>> = HashMap::new();
+        let mut prefixes: HashMap<&str, Vec<usize>> = HashMap::new();
+        for (position, exclusion) in exclusions.iter().enumerate() {
+            add(Work::ExclusionsIndexed, 1);
+            let (by_path, path) = match &exclusion.item {
+                ExclusionItem::Item(path) => (&mut items, path),
+                ExclusionItem::Prefix(path) => (&mut prefixes, path),
+            };
+            by_path.entry(path.as_str()).or_default().push(position);
+        }
+        Self {
+            exclusions,
+            items,
+            prefixes,
+            matched: vec![false; exclusions.len()],
+        }
+    }
+
+    /// The first exclusion in the order of the record that matches an entry
+    /// with these paths, marking every exclusion that does. With no exclusion
+    /// nothing is looked up.
+    fn exclusion_for(&mut self, paths: &[&str]) -> Option<&'r Exclusion> {
+        if self.exclusions.is_empty() {
+            return None;
+        }
+        let mut first = None;
+        for path in paths {
+            add(Work::IndexLookups, 1);
+            mark(self.items.get(path), &mut self.matched, &mut first);
+            for module in ancestors(path).skip(1) {
+                add(Work::IndexLookups, 1);
+                mark(self.prefixes.get(module), &mut self.matched, &mut first);
+            }
+        }
+        first.and_then(|position| self.exclusions.get(position))
     }
 }
 
-/// The first exclusion that matches the paths, marking every one that does.
-fn exclusion_for<'r>(
-    exclusions: &'r [Exclusion],
-    matched: &mut [bool],
-    paths: &[&str],
-) -> Option<&'r Exclusion> {
-    let mut first = None;
-    for (exclusion, hit) in exclusions.iter().zip(matched.iter_mut()) {
-        add(Work::ExclusionTests, 1);
-        if matches(exclusion, paths.iter().copied()) {
-            *hit = true;
-            first.get_or_insert(exclusion);
-        }
+/// Mark the exclusions at `found` as matched, and keep in `first` the
+/// smallest position seen.
+fn mark(found: Option<&Vec<usize>>, matched: &mut [bool], first: &mut Option<usize>) {
+    for &position in found.into_iter().flatten() {
+        add(Work::ExclusionMarks, 1);
+        matched[position] = true;
+        *first = Some(first.map_or(position, |seen| seen.min(position)));
     }
-    first
 }
 
 /// The text of a listing error, with the symbols an ambiguous name names, so
@@ -832,8 +871,7 @@ fn order(gap: &Gap) -> (&str, &str, &str, usize) {
 struct Judge<'a> {
     source: &'a Workspace,
     bound: Bound,
-    exclusions: &'a [Exclusion],
-    matched: Vec<bool>,
+    index: ExclusionIndex<'a>,
     counts: BTreeMap<&'a str, PackageCoverage>,
     report: CoverageReport,
 }
@@ -844,7 +882,7 @@ impl Judge<'_> {
     /// is matched against.
     fn judge(&mut self, gap: Gap, matching: &[&str], covered: bool) {
         add(Work::EntriesJudged, 1);
-        let exclusion = exclusion_for(self.exclusions, &mut self.matched, matching);
+        let exclusion = self.index.exclusion_for(matching);
         if let Some(count) = self.counts.get_mut(gap.package.as_str()) {
             let (seen, hit) = if gap.kind.is_code() {
                 (&mut count.items, &mut count.covered_items)
@@ -1080,8 +1118,7 @@ fn compute(
     let mut judge = Judge {
         source,
         bound: Bound::of(graph, source),
-        exclusions,
-        matched: vec![false; exclusions.len()],
+        index: ExclusionIndex::new(exclusions),
         counts,
         report: CoverageReport::default(),
     };
@@ -1112,10 +1149,11 @@ fn compute(
     }
     let Judge {
         mut report,
-        matched,
+        index,
         counts,
         ..
     } = judge;
+    let matched = index.matched;
     report.code.sort_by(|a, b| order(a).cmp(&order(b)));
     report.tests.sort_by(|a, b| order(a).cmp(&order(b)));
     report

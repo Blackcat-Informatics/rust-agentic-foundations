@@ -338,6 +338,14 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   not load, `check` reports its own findings and no `coverage-item-unbound`,
   `coverage-test-unbound` or `coverage-reexport-unbound`, in place of one finding
   for every item and test that document binds.
+- **`raf-workplan` coverage exclusions by index:** the exclusions of the coverage
+  record are put into an index once, an item by its path and a prefix by its
+  module, and each public item, re-export and test looks up each of its paths and
+  each module above them, so the work of judging coverage grows with the entries
+  plus the exclusions and not with their product. The index finds every exclusion
+  that matches an entry and marks each, so an exclusion that matches nothing is
+  reported as `coverage-exclusion-unmatched`, and the first in the record gives
+  the reason; the report and the findings of `check` are unchanged.
 - **`raf-workplan` the caller's command in messages:** the text of a trusted
   `Invocation`, which the messages of `ExecError` quote, is the command as
   `TrustedArgv::text` writes it and the evidence record stores it, each word a

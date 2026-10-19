@@ -35,10 +35,15 @@ bindings:
     - raf_workplan::test_crate::coverage::the_first_matching_exclusion_gives_the_reason
     - raf_workplan::test_crate::coverage::a_capability_that_does_not_load_gives_its_own_findings_and_no_cascade_of_gaps
     - raf_workplan::test_crate::coverage::a_re_export_written_through_super_names_the_path_super_reaches
-    - raf_workplan::coverage::tests::every_exclusion_is_tested_against_every_entry_exactly_once
-    - raf_workplan::coverage::tests::the_exclusions_tested_grow_with_the_entries_and_no_faster
-    - raf_workplan::coverage::tests::the_exclusions_tested_grow_with_the_exclusions_and_no_faster
-    - raf_workplan::coverage::tests::without_exclusions_the_entries_are_judged_and_nothing_is_tested
+    - raf_workplan::coverage::tests::the_exclusions_are_indexed_once_and_each_entry_looks_up_its_paths_and_their_modules
+    - raf_workplan::coverage::tests::without_exclusions_the_entries_are_judged_and_nothing_is_looked_up
+    - raf_workplan::coverage::tests::the_work_grows_with_the_entries_and_no_faster
+    - raf_workplan::coverage::tests::the_work_grows_with_the_exclusions_and_no_faster
+    - raf_workplan::coverage::tests::the_work_grows_with_the_entries_and_the_exclusions_together_and_no_faster
+    - raf_workplan::coverage::tests::every_kind_of_work_is_held_to_a_ceiling_linear_in_the_entries_and_the_exclusions
+    - raf_workplan::coverage::tests::an_exclusion_that_another_matches_first_is_marked_and_only_one_that_matches_nothing_is_reported
+    - raf_workplan::coverage::tests::the_index_finds_the_first_match_and_marks_what_testing_every_exclusion_finds
+    - raf_workplan::coverage::tests::equal_exclusions_on_a_hand_built_list_are_both_marked_and_the_first_is_the_match
   examples:
     - raf_workplan::Workplan::coverage_report
 depends: [cap:workplan-document-model, cap:source-index, cap:workplan-evidence-claims]
@@ -253,12 +258,26 @@ stops compiling or running it receives an `example-failing` obligation.
   the report and a finding in `scope`.
 - Reports are identical across two runs on the same tree, and a crate with thousands
   of items and tests is judged with the counts, the gaps and the excluded entries of
-  its report right. The work of judging is entries times exclusions, pinned exactly
-  and counted, not timed: each entry is judged once, and each exclusion is tested
-  against each entry, because the first match gives the reason and every match is
-  marked so that an exclusion that matches nothing can be reported. With the
-  exclusions fixed the tests grow with the entries, with the entries fixed they grow
-  with the exclusions, and with no exclusion nothing is tested.
+  its report right. The work of judging grows with the entries plus the exclusions,
+  counted and not timed: each entry is judged once, each exclusion is put into an
+  index once, and each entry looks up each of its paths and each module above them,
+  the same lookups for ten times the exclusions. The work grows with the entries at
+  fixed exclusions, with the exclusions at fixed entries, and, the two grown
+  together, no faster than their sum; every kind of it stays under a ceiling linear
+  in their sum, which testing each exclusion against each entry passes. With no
+  exclusion nothing is looked up. The packages a record needs are found by testing
+  the first segment of each exclusion against each target of the workspace, so that
+  work is exclusions times targets and does not grow with the entries.
+- The index finds every exclusion that matches an entry, not only the first, and
+  marks each: an exclusion whose entries another exclusion matches first, a prefix
+  before an item or an item before a prefix, is not reported as matching nothing,
+  one that matches nothing is, and the first in the record gives the reason. Over
+  every item and prefix exclusion of the paths of one to four segments of `a`, `b`
+  and `bc`, against every entry of one or two of those paths, the index gives the
+  first match and marks the exclusions that testing each exclusion against each path
+  gives, in the order of the record and in the reverse order, and the same on an
+  index built again; two equal exclusions of a hand-built list are both marked and
+  the first is the match.
 - A `scope` entry that is a crate name and not a package name is
   `scope-crate-missing`, naming the package it means, and the package name is in
   scope.
@@ -286,10 +305,15 @@ stops compiling or running it receives an `example-failing` obligation.
 | Item | Kind | Section |
 | --- | --- | --- |
 | `raf_workplan::Workplan::coverage_report` | doctest | [Verification](#verification) |
-| `raf_workplan::coverage::tests::every_exclusion_is_tested_against_every_entry_exactly_once` | test | [Verification](#verification) |
-| `raf_workplan::coverage::tests::the_exclusions_tested_grow_with_the_entries_and_no_faster` | test | [Verification](#verification) |
-| `raf_workplan::coverage::tests::the_exclusions_tested_grow_with_the_exclusions_and_no_faster` | test | [Verification](#verification) |
-| `raf_workplan::coverage::tests::without_exclusions_the_entries_are_judged_and_nothing_is_tested` | test | [Verification](#verification) |
+| `raf_workplan::coverage::tests::an_exclusion_that_another_matches_first_is_marked_and_only_one_that_matches_nothing_is_reported` | test | [Verification](#verification) |
+| `raf_workplan::coverage::tests::equal_exclusions_on_a_hand_built_list_are_both_marked_and_the_first_is_the_match` | test | [Verification](#verification) |
+| `raf_workplan::coverage::tests::every_kind_of_work_is_held_to_a_ceiling_linear_in_the_entries_and_the_exclusions` | test | [Verification](#verification) |
+| `raf_workplan::coverage::tests::the_exclusions_are_indexed_once_and_each_entry_looks_up_its_paths_and_their_modules` | test | [Verification](#verification) |
+| `raf_workplan::coverage::tests::the_index_finds_the_first_match_and_marks_what_testing_every_exclusion_finds` | test | [Verification](#verification) |
+| `raf_workplan::coverage::tests::the_work_grows_with_the_entries_and_no_faster` | test | [Verification](#verification) |
+| `raf_workplan::coverage::tests::the_work_grows_with_the_entries_and_the_exclusions_together_and_no_faster` | test | [Verification](#verification) |
+| `raf_workplan::coverage::tests::the_work_grows_with_the_exclusions_and_no_faster` | test | [Verification](#verification) |
+| `raf_workplan::coverage::tests::without_exclusions_the_entries_are_judged_and_nothing_is_looked_up` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::coverage::a_bound_item_is_covered_and_its_unbound_neighbour_is_a_gap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::coverage::a_bound_test_is_covered_and_every_unbound_test_unit_tests_included_is_a_gap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::coverage::a_capability_that_does_not_load_gives_its_own_findings_and_no_cascade_of_gaps` | test | [Verification](#verification) |
