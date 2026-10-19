@@ -7,14 +7,14 @@
 //!
 //! ```text
 //! cargo run --release -p raf-source --example registry_scan -- \
-//!     ~/.cargo/registry/src/<index> [--jobs N] [--timeout SECONDS] [--max-memory BYTES]
+//!     ~/.cargo/registry/src/<index> [--jobs N] [--max-work N] [--max-memory BYTES]
 //! ```
 //!
 //! Each crate directory holds one package, named `<name>-<version>`. Of each
 //! name only the highest version is loaded, with [`DiskTree`] rooted at the
 //! crate directory and `"."` as the one root. Each load runs in a child
-//! process, this example started again with `--one <dir>`, so a crate that
-//! aborts or runs past the timeout ends its own line and not the scan. The
+//! process, this example started again with `--one <dir> --max-work N`, so a
+//! crate that aborts ends its own line and not the scan. The
 //! child is started through `sh -c 'ulimit -v <KiB>; exec "$0" "$@"'`, which
 //! limits its address space to `--max-memory` (8 GiB unless given; a number
 //! of bytes, or with a `K`, `M` or `G` suffix for binary multiples). The limit
@@ -24,22 +24,29 @@
 //! processors) unless `--jobs` says, and refuses a `--jobs` whose product with
 //! `--max-memory` passes it, and a `--max-memory` that one child cannot fit.
 //!
+//! `--max-work N` (a whole number of at least 1; the limit of
+//! [`Budget::Work`](raf_source::Budget::Work) unless given) is the most glob
+//! table work steps one load may make. A crate that passes it is refused like
+//! any other budget, with `ERR Budget`, and the scan goes on. No clock is read
+//! and no child is stopped: the bound is a count. A child that spins in code
+//! the work counter does not see is not stopped; parsing, the one such stretch
+//! the index has, is bounded by the token budget.
+//!
 //! One line is printed per crate, sorted by name:
 //!
 //! ```text
-//! name@version | OK items=N files=N misplaced=N total=N item=N fact=N glob=N tokens=N recursion=N depth=N [first misplaced item]
+//! name@version | OK items=N files=N misplaced=N total=N item=N fact=N glob=N tokens=N recursion=N depth=N work=N [first misplaced item]
 //! name@version | ERR <kind> :: <message>
 //! ```
 //!
-//! `total`, `item`, `fact`, `glob`, `tokens`, `recursion` and `depth` are the
-//! load's [`Usage`](raf_source::Usage): the bytes read, charged to the index
-//! and to the facts, the most charged to the glob tables at once, the most
-//! tokens of one file, the highest value of the recursion counter in one file
-//! and the deepest directory entered.
+//! `total`, `item`, `fact`, `glob`, `tokens`, `recursion`, `depth` and `work`
+//! are the load's [`Usage`](raf_source::Usage): the bytes read, charged to the
+//! index and to the facts, the most charged to the glob tables at once, the
+//! most tokens of one file, the highest value of the recursion counter in one
+//! file, the deepest directory entered and the glob table work steps made.
 //! The kind is the [`LoadErrorKind`](raf_source::LoadErrorKind) variant, or
-//! `memory` for a child that ran out of its address space, `abort` for a
-//! child that ended without a result otherwise and `timeout` for one that was
-//! stopped. A closing `#` block counts the outcomes and gives the largest
+//! `memory` for a child that ran out of its address space and `abort` for a
+//! child that ended without a result otherwise. A closing `#` block counts the outcomes and gives the largest
 //! value of each usage figure, with the crate that reached it.
 //!
 //! An item is misplaced when the module part of its path is not a module path
@@ -57,22 +64,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, ExitCode, Stdio};
+use std::process::{Command, ExitCode, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::thread;
-use std::time::{Duration, Instant};
 
-use raf_source::{DiskTree, Item, SymbolKind, Workspace, syn};
+use raf_source::{Budget, DiskTree, Item, LoadOptions, SymbolKind, Usage, Workspace, syn};
 
 /// The prefix of the one line a child prints.
 const RESULT: &str = "result: ";
-
-/// How long a child may run before it is stopped, unless `--timeout` says.
-const DEFAULT_TIMEOUT: Duration = Duration::from_mins(15);
-
-/// How often a running child is polled.
-const POLL: Duration = Duration::from_millis(20);
 
 /// The address space of one child, unless `--max-memory` says: 8 GiB.
 const DEFAULT_MAX_MEMORY: u64 = 8 << 30;
@@ -81,7 +81,7 @@ const DEFAULT_MAX_MEMORY: u64 = 8 << 30;
 const ALLOCATION_FAILED: &str = "memory allocation of";
 
 /// The usage figures of an `OK` line, in the order they are printed.
-const USAGE: [&str; 7] = [
+const USAGE: [&str; 8] = [
     "total",
     "item",
     "fact",
@@ -89,16 +89,17 @@ const USAGE: [&str; 7] = [
     "tokens",
     "recursion",
     "depth",
+    "work",
 ];
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let outcome = match args.as_slice() {
-        [flag, dir] if flag == "--one" => {
-            println!("{RESULT}{}", load_one(Path::new(dir)));
+    let outcome = match parse_one(&args) {
+        Some((dir, max_work)) => {
+            println!("{RESULT}{}", load_one(Path::new(dir), max_work));
             Ok(())
         }
-        _ => parse_args(&args).and_then(|options| scan(&options)),
+        None => parse_args(&args).and_then(|options| scan(&options)),
     };
     match outcome {
         Ok(()) => ExitCode::SUCCESS,
@@ -109,12 +110,34 @@ fn main() -> ExitCode {
     }
 }
 
+/// The directory and work limit of a child's arguments, `--one <dir>
+/// --max-work <N>`, which the scan builds and never a person.
+fn parse_one(args: &[String]) -> Option<(&str, usize)> {
+    match args {
+        [one, dir, flag, limit] if one == "--one" && flag == "--max-work" => {
+            Some((dir, limit.parse().ok()?))
+        }
+        _ => None,
+    }
+}
+
 /// What the scan was asked to do.
 struct Options {
     registry: PathBuf,
     jobs: usize,
-    timeout: Duration,
+    max_work: usize,
     max_memory: u64,
+}
+
+/// A whole number of at least 1: the work steps of one load.
+fn parse_work(text: &str) -> Result<usize, String> {
+    let value: usize = text
+        .parse()
+        .map_err(|e| format!("--max-work `{text}`: {e}"))?;
+    if value == 0 {
+        return Err("--max-work must be at least 1".to_owned());
+    }
+    Ok(value)
 }
 
 /// A number of bytes, with an optional `K`, `M` or `G` suffix.
@@ -135,10 +158,11 @@ fn parse_bytes(text: &str) -> Result<u64, String> {
 }
 
 fn parse_args(args: &[String]) -> Result<Options, Box<dyn Error>> {
-    let usage = "usage: registry_scan <registry-src-dir> [--jobs N] [--timeout SECONDS] [--max-memory BYTES]";
+    let usage =
+        "usage: registry_scan <registry-src-dir> [--jobs N] [--max-work N] [--max-memory BYTES]";
     let mut registry = None;
     let mut jobs = None;
-    let mut timeout = DEFAULT_TIMEOUT;
+    let mut max_work = Budget::Work.limit();
     let mut max_memory = DEFAULT_MAX_MEMORY;
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
@@ -153,12 +177,9 @@ fn parse_args(args: &[String]) -> Result<Options, Box<dyn Error>> {
                 }
                 jobs = Some(count);
             }
-            "--timeout" => {
+            "--max-work" => {
                 let value = rest.next().ok_or(usage)?;
-                let seconds: u64 = value
-                    .parse()
-                    .map_err(|e| format!("--timeout `{value}`: {e}"))?;
-                timeout = Duration::from_secs(seconds);
+                max_work = parse_work(value)?;
             }
             "--max-memory" => {
                 let value = rest.next().ok_or(usage)?;
@@ -195,7 +216,7 @@ fn parse_args(args: &[String]) -> Result<Options, Box<dyn Error>> {
     Ok(Options {
         registry: registry.ok_or(usage)?,
         jobs,
-        timeout,
+        max_work,
         max_memory,
     })
 }
@@ -343,32 +364,22 @@ fn newest(registry: &Path) -> Result<Vec<Crate>, Box<dyn Error>> {
 // --- one crate, in the child --------------------------------------------------
 
 /// Load one crate and describe the outcome on one line.
-fn load_one(dir: &Path) -> String {
+fn load_one(dir: &Path, max_work: usize) -> String {
     let tree = match DiskTree::new(dir) {
         Ok(tree) => tree,
         Err(error) => return format!("ERR tree :: {}", one_line(&error.to_string())),
     };
-    match Workspace::load(&tree, &["."]) {
+    let mut options = LoadOptions::default();
+    options.max_work = max_work;
+    match Workspace::load_with(&tree, &["."], &options) {
         Ok(ws) => {
             let misplaced = misplaced(&ws);
-            let usage = ws.usage();
-            let mut line = format!(
-                "OK items={} files={} misplaced={} total={} item={} fact={} glob={} tokens={} recursion={} depth={}",
+            ok_line(
                 ws.items().count(),
                 ws.files().count(),
-                misplaced.len(),
-                usage.total_bytes,
-                usage.item_bytes,
-                usage.fact_bytes,
-                usage.glob_bytes,
-                usage.max_file_tokens,
-                usage.max_recursion,
-                usage.max_directory_depth,
-            );
-            if let Some(first) = misplaced.first() {
-                let _ = write!(line, " {first}");
-            }
-            line
+                &ws.usage(),
+                &misplaced,
+            )
         }
         Err(error) => format!(
             "ERR {} :: {}",
@@ -376,6 +387,27 @@ fn load_one(dir: &Path) -> String {
             one_line(&error.to_string())
         ),
     }
+}
+
+/// The `OK` line of a loaded crate: its counts, the usage figures in the order
+/// of [`USAGE`] and the first misplaced item, if any.
+fn ok_line(items: usize, files: usize, usage: &Usage, misplaced: &[String]) -> String {
+    let mut line = format!(
+        "OK items={items} files={files} misplaced={} total={} item={} fact={} glob={} tokens={} recursion={} depth={} work={}",
+        misplaced.len(),
+        usage.total_bytes,
+        usage.item_bytes,
+        usage.fact_bytes,
+        usage.glob_bytes,
+        usage.max_file_tokens,
+        usage.max_recursion,
+        usage.max_directory_depth,
+        usage.work,
+    );
+    if let Some(first) = misplaced.first() {
+        let _ = write!(line, " {first}");
+    }
+    line
 }
 
 /// The variant name at the start of a `Debug` rendering.
@@ -488,8 +520,8 @@ fn misplaced(ws: &Workspace) -> Vec<String> {
 // --- the scan, in the parent --------------------------------------------------
 
 /// Run one crate in a child process, under an address-space limit of
-/// `max_memory` bytes, and give its line.
-fn run_child(exe: &Path, krate: &Crate, timeout: Duration, max_memory: u64) -> String {
+/// `max_memory` bytes and a work limit of `max_work`, and give its line.
+fn run_child(exe: &Path, krate: &Crate, max_work: usize, max_memory: u64) -> String {
     let spawned = Command::new("sh")
         .arg("-c")
         .arg(format!(
@@ -499,6 +531,8 @@ fn run_child(exe: &Path, krate: &Crate, timeout: Duration, max_memory: u64) -> S
         .arg(exe)
         .arg("--one")
         .arg(&krate.dir)
+        .arg("--max-work")
+        .arg(max_work.to_string())
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -509,11 +543,8 @@ fn run_child(exe: &Path, krate: &Crate, timeout: Duration, max_memory: u64) -> S
     };
     let stdout = drain(child.stdout.take());
     let stderr = drain(child.stderr.take());
-    let status = match wait(&mut child, timeout) {
-        Ok(Some(status)) => status,
-        Ok(None) => {
-            return format!("ERR timeout :: still running after {} s", timeout.as_secs());
-        }
+    let status = match child.wait() {
+        Ok(status) => status,
         Err(error) => return format!("ERR wait :: {error}"),
     };
     let stdout = stdout.join().unwrap_or_default();
@@ -548,29 +579,6 @@ fn drain<R: std::io::Read + Send + 'static>(pipe: Option<R>) -> thread::JoinHand
         }
         text
     })
-}
-
-/// The exit status of `child`, or `None` once it has run for `timeout` and
-/// has been stopped.
-#[allow(
-    clippy::disallowed_types,
-    clippy::disallowed_methods,
-    reason = "this example binary still polls a real child against the wall clock; \
-              it is not a test and asserts no time"
-)]
-fn wait(child: &mut Child, timeout: Duration) -> std::io::Result<Option<std::process::ExitStatus>> {
-    let started = Instant::now();
-    loop {
-        if let Some(status) = child.try_wait()? {
-            return Ok(Some(status));
-        }
-        if started.elapsed() >= timeout {
-            child.kill()?;
-            child.wait()?;
-            return Ok(None);
-        }
-        thread::sleep(POLL);
-    }
 }
 
 /// The counts of a finished scan.
@@ -634,7 +642,7 @@ fn scan(options: &Options) -> Result<(), Box<dyn Error>> {
                 loop {
                     let at = next.fetch_add(1, Ordering::Relaxed);
                     let Some(krate) = crates.get(at) else { break };
-                    let line = run_child(exe, krate, options.timeout, options.max_memory);
+                    let line = run_child(exe, krate, options.max_work, options.max_memory);
                     if send.send((at, line)).is_err() {
                         break;
                     }
@@ -668,4 +676,76 @@ fn scan(options: &Options) -> Result<(), Box<dyn Error>> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn strings(parts: &[&str]) -> Vec<String> {
+        parts.iter().map(|part| (*part).to_owned()).collect()
+    }
+
+    #[test]
+    fn work_limit_refuses_zero_and_names_the_flag() {
+        let refused = parse_work("0").unwrap_err();
+        assert!(refused.contains("--max-work"), "{refused}");
+        assert_eq!(parse_work("1"), Ok(1));
+        assert_eq!(parse_work("1000"), Ok(1000));
+        for bad in ["", "-1", "ten", "1.5"] {
+            let refused = parse_work(bad).unwrap_err();
+            assert!(refused.contains("--max-work"), "{refused}");
+        }
+    }
+
+    #[test]
+    fn child_arguments_carry_the_directory_and_the_limit() {
+        let args = strings(&["--one", "/r/a-1.0.0", "--max-work", "42"]);
+        assert_eq!(parse_one(&args), Some(("/r/a-1.0.0", 42)));
+        for refused in [
+            strings(&["--one", "/r/a-1.0.0"]),
+            strings(&["--one", "/r/a-1.0.0", "--max-work", "many"]),
+            strings(&["--one", "/r/a-1.0.0", "--jobs", "4"]),
+            strings(&["/r", "--max-work", "5"]),
+            strings(&[]),
+        ] {
+            assert_eq!(parse_one(&refused), None, "{refused:?}");
+        }
+    }
+
+    #[test]
+    fn ok_line_prints_work_last_among_the_usage_figures() {
+        let mut usage = Usage::default();
+        usage.work = 12;
+        usage.max_directory_depth = 3;
+        let line = ok_line(5, 2, &usage, &[]);
+        assert_eq!(
+            line,
+            "OK items=5 files=2 misplaced=0 total=0 item=0 fact=0 glob=0 tokens=0 recursion=0 depth=3 work=12"
+        );
+        let line = ok_line(5, 2, &usage, &["a::b in src/x.rs".to_owned()]);
+        assert!(line.ends_with("work=12 a::b in src/x.rs"), "{line}");
+    }
+
+    #[test]
+    fn tally_keeps_the_largest_work_and_counts_budget_refusals() {
+        let mut usage = Usage::default();
+        let mut tally = Tally::default();
+        usage.work = 0;
+        tally.count("tiny@1.0.0", &ok_line(1, 1, &usage, &[]));
+        usage.work = 900;
+        tally.count("big@2.0.0", &ok_line(1, 1, &usage, &[]));
+        usage.work = 30;
+        tally.count("mid@1.0.0", &ok_line(1, 1, &usage, &[]));
+        tally.count(
+            "hub@1.0.0",
+            "ERR Budget :: src/lib.rs:3: exceeds the budget for glob table work steps (1000)",
+        );
+        assert_eq!(tally.ok, 3);
+        assert_eq!(tally.errors.get("Budget"), Some(&1));
+        assert_eq!(
+            tally.largest.get("work"),
+            Some(&(900, "big@2.0.0".to_owned()))
+        );
+    }
 }

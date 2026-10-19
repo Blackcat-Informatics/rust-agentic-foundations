@@ -34,5 +34,9 @@ rustix = { version = "1.1.5", default-features = false, features = ["fs", "std"]
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", default-features = false, features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
 
+[[example]]
+name = "registry_scan"
+test = true
+
 [lints]
 workspace = true

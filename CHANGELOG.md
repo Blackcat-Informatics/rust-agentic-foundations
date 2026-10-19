@@ -21,6 +21,13 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `Budget::Work` (2^31 steps); a load that passes it is a `Budget` error naming
   the file and line of a glob, and `Usage::work` reports the steps a load made,
   none for a load without glob imports. `Budget::ALL` has fifteen entries.
+- **`raf-source`:** the `registry_scan` example reads no clock. It bounds each crate
+  by count with `--max-work N` (a whole number of at least 1, by default the limit
+  of `Budget::Work`), prints `work=N` in its `OK` line and its closing block, and
+  waits for each child to end. The `--timeout` flag and the `timeout` outcome kind
+  are removed; a crate that passes the limit is an `ERR Budget` line, counted under
+  `# err Budget`. A child that spins in code the work counter does not see is not
+  stopped. The example's tests now run with the workspace.
 - **`raf-source`:** `use` paths follow two more visibility rules of rustc. A named
   re-export or a glob that reads a binding through a glob the importing module
   cannot access keeps the narrower of its own visibility and the visibility of
