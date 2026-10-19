@@ -7,10 +7,10 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: 8d300a4fb36e89fb822b7640d538a78ad1fc97c01e07f87687169a8bdc11d14c
+    digest: 92a6fb5c6f0a376574ea5aca01c0317ab1795f7b072bc77b9aec4dff8b3b02f3
   - kind: symbol
     name: raf_source::Budget
-    digest: 112cd1e623c2c1c3f5b568ff36d5fd8914bcdba242888abc79525048c7445634
+    digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
   - kind: symbol
     name: raf_source::DiskTree
     digest: 8de0bd6cf52eb2437cddff8545a4af80ca0f68b9da0a70b705a32f026eeaef63
@@ -34,7 +34,7 @@ inputs:
     digest: 8d11be3ec8160a775ffb5a0d8e4f62221ea6eff834b65402273c768109a226ca
   - kind: symbol
     name: raf_source::LoadOptions
-    digest: ee673b8439987ee137c4b6bec2e707f934c827b64d5d8ab36f56f835bc100ac7
+    digest: 802e1f183baeb760e1118f5147bcdc02b657bf2231c235d513915e35c5eb2ed0
   - kind: symbol
     name: raf_source::MemoryTree
     digest: f4dcd98dc81a25c56fe58967638c60ad348a69335229bd8fe860a7d3788080c7

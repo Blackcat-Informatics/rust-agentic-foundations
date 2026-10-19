@@ -35,6 +35,9 @@ pub struct Usage {
     /// The deepest directory that discovery or a `workspace.members` pattern
     /// entered, in levels below its root ([`Budget::DirectoryDepth`]).
     pub max_directory_depth: usize,
+    /// The steps of glob table work the load made ([`Budget::Work`]), over
+    /// every settle of its tables: zero for a load without glob imports.
+    pub work: usize,
 }
 
 /// The running totals of one load, checked against its limits.
@@ -48,6 +51,7 @@ pub(crate) struct Meter {
     max_file_tokens: Cell<usize>,
     max_recursion: Cell<usize>,
     max_directory_depth: Cell<usize>,
+    work: Cell<usize>,
 }
 
 /// A refusal by one budget, naming the file and the line.
@@ -79,6 +83,7 @@ impl Meter {
             max_file_tokens: Cell::new(0),
             max_recursion: Cell::new(0),
             max_directory_depth: Cell::new(0),
+            work: Cell::new(0),
         }
     }
 
@@ -130,6 +135,24 @@ impl Meter {
         self.glob_peak
             .set(self.glob_peak.get().max(self.glob_bytes.get()));
         held.map_err(|()| over_budget(Budget::GlobBytes, limit, file, line))
+    }
+
+    /// Charge `units` steps of glob table work made for the glob import at
+    /// `line` of `file`, before they are made.
+    ///
+    /// Unlike the glob bytes, the work is never released: the budget bounds
+    /// every step one load makes, and refuses the charge that makes the count
+    /// pass the limit.
+    pub(crate) fn work(
+        &self,
+        units: usize,
+        file: &RelPath,
+        line: Option<usize>,
+    ) -> Result<(), LoadError> {
+        let limit = self.options.max_work;
+        #[cfg(test)]
+        charges::record(units);
+        add(&self.work, units, limit).map_err(|()| over_budget(Budget::Work, limit, file, line))
     }
 
     /// Release `bytes` of glob scope tables charged before and now freed.
@@ -189,7 +212,30 @@ impl Meter {
             max_file_tokens: self.max_file_tokens.get(),
             max_recursion: self.max_recursion.get(),
             max_directory_depth: self.max_directory_depth.get(),
+            work: self.work.get(),
         }
+    }
+}
+
+/// The charges of glob table work made on this thread, for the tests that
+/// check where a load is refused.
+#[cfg(test)]
+pub(crate) mod charges {
+    use std::cell::RefCell;
+
+    thread_local! {
+        /// Each charge of glob table work since the last [`take`].
+        static CHARGES: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// Record one charge.
+    pub(super) fn record(units: usize) {
+        CHARGES.with_borrow_mut(|charges| charges.push(units));
+    }
+
+    /// The charges recorded since the last call, in the order they were made.
+    pub(crate) fn take() -> Vec<usize> {
+        CHARGES.take()
     }
 }
 
@@ -200,4 +246,61 @@ pub(crate) struct FactAllowance {
     pub(crate) spent: usize,
     /// The limit of the load.
     pub(crate) limit: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Meter, charges};
+    use crate::budget::Budget;
+    use crate::error::LoadErrorKind;
+    use crate::options::LoadOptions;
+    use crate::path::RelPath;
+
+    fn meter(max_work: usize) -> Meter {
+        Meter::new(&LoadOptions {
+            max_work,
+            ..LoadOptions::default()
+        })
+    }
+
+    #[test]
+    fn work_up_to_the_limit_is_accepted_and_the_charge_that_passes_it_is_refused() {
+        let file = RelPath::new("src/lib.rs").expect("path");
+        let meter = meter(10);
+        meter.work(4, &file, Some(3)).expect("below the limit");
+        meter.work(6, &file, Some(3)).expect("at the limit");
+        assert_eq!(meter.usage().work, 10);
+        let error = meter.work(5, &file, Some(7)).expect_err("over the limit");
+        assert!(
+            matches!(
+                error.kind,
+                LoadErrorKind::Budget {
+                    budget: Budget::Work,
+                    limit: 10
+                }
+            ),
+            "{error}"
+        );
+        assert_eq!((error.file.as_str(), error.line), ("src/lib.rs", Some(7)));
+        // The count at the refusal is the limit and the charge that passed it.
+        assert_eq!(meter.usage().work, 15);
+        assert_eq!(charges::take(), vec![4, 6, 5]);
+    }
+
+    #[test]
+    fn work_is_never_released_and_each_meter_counts_from_zero() {
+        let file = RelPath::new("src/lib.rs").expect("path");
+        let first = meter(100);
+        first.globs(64, &file, None).expect("glob bytes");
+        first.work(40, &file, None).expect("work");
+        first.release_globs(64);
+        first.work(40, &file, None).expect("work");
+        assert_eq!(first.usage().work, 80);
+        assert_eq!(first.usage().glob_bytes, 64);
+        let second = meter(100);
+        assert_eq!(second.usage().work, 0);
+        second.work(1, &file, None).expect("work");
+        assert_eq!(second.usage().work, 1);
+        assert_eq!(first.usage().work, 80);
+    }
 }

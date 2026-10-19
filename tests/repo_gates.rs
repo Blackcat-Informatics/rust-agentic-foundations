@@ -22,9 +22,10 @@
 //!   `wait_timeout_while`, counts as the name. `raf-source` also refuses
 //!   `Duration` and `elapsed`; the other crates may name them, because the
 //!   workplan runner's limits and its scripted data are made of them. The
-//!   examples of `raf-source` are binaries, outside the gate and judged by
-//!   clippy only. Exactly two files are exempt: the runner's one clock reading
-//!   and this file.
+//!   examples of `raf-source` are judged by the same stricter rule as its
+//!   sources and tests; clippy's disallowed types and methods also cover them.
+//!   Exactly two files are exempt: the runner's one clock reading and this
+//!   file.
 //!
 //! Each gate is a pure function over text or bytes, and each has a named
 //! negative fixture below that breaks exactly one thing. Test names start with
@@ -307,9 +308,7 @@ const CRATE_RULE: ClockRule = ClockRule {
     words: CRATE_CLOCK_WORDS,
 };
 
-/// The crate whose sources and tests follow [`SOURCE_RULE`]. Its `examples/`
-/// are binaries, not tests, and no rule judges them; clippy's disallowed types
-/// and methods still do.
+/// The crate whose sources, tests and examples follow [`SOURCE_RULE`].
 const SOURCE_CRATE: &str = "raf-source";
 
 /// The directory that holds the crates, and the directories of each crate that
@@ -349,12 +348,10 @@ fn clock_rule(path: &Path) -> Option<&'static ClockRule> {
     if !CRATE_DIRS.iter().any(|ruled| dir == *ruled) {
         return None;
     }
-    if name != SOURCE_CRATE {
-        Some(&CRATE_RULE)
-    } else if dir == "examples" {
-        None
-    } else {
+    if name == SOURCE_CRATE {
         Some(&SOURCE_RULE)
+    } else {
+        Some(&CRATE_RULE)
     }
 }
 
@@ -637,13 +634,6 @@ fn time_in_crates_tracked_files_name_no_clock() {
     assert!(
         gate.contains(&format!("const {}_CLOCK_WORDS", "CRATE")),
         "time-in-crates: {CLOCK_GATE_FILE} no longer defines the word tables; drop the exemption"
-    );
-    assert!(
-        tracked.iter().any(|path| {
-            path.starts_with(format!("{CRATES_DIR}/{SOURCE_CRATE}/examples"))
-                && path.extension().is_some_and(|ext| ext == "rs")
-        }),
-        "time-in-crates: {SOURCE_CRATE} has no tracked example; drop the examples carve-out"
     );
     for path in &tracked {
         let in_crate_source = path.starts_with(CRATES_DIR)
@@ -1020,10 +1010,17 @@ fn crate_rule_dirs() -> Vec<String> {
     dirs
 }
 
+/// The directories of `raf-source`, each judged by [`SOURCE_RULE`].
+const SOURCE_RULE_DIRS: [&str; 3] = [
+    "crates/raf-source/src",
+    "crates/raf-source/tests",
+    "crates/raf-source/examples",
+];
+
 #[test]
 fn time_in_crates_rejects_a_planted_reading_in_every_ruled_directory() {
     let text = format!("fn clean() {{}}\n{}", planted_instant());
-    let source = ["crates/raf-source/src", "crates/raf-source/tests"].map(str::to_owned);
+    let source = SOURCE_RULE_DIRS.map(str::to_owned);
     for dir in crate_rule_dirs().iter().chain(&source) {
         let path = format!("{dir}/nested/x.rs");
         assert_eq!(
@@ -1084,7 +1081,7 @@ fn time_in_crates_rejects_each_source_spelling_in_the_library_and_the_tests() {
         ),
         ("elapsed", "let took = elapsed_ms;"),
     ] {
-        for dir in ["crates/raf-source/src", "crates/raf-source/tests"] {
+        for dir in SOURCE_RULE_DIRS {
             let path = format!("{dir}/nested/x.rs");
             let hits = clock_hits(Path::new(&path), line);
             // A line can carry two spellings (`core::time::Duration`): the
@@ -1149,9 +1146,12 @@ fn time_in_crates_lets_the_runner_name_durations_and_limits() {
             "{path}"
         );
     }
-    let hits = clock_hits(Path::new("crates/raf-source/src/a.rs"), text);
-    assert!(hits.contains(&"crates/raf-source/src/a.rs:1: Duration".to_owned()));
-    assert!(hits.contains(&"crates/raf-source/src/a.rs:2: elapsed".to_owned()));
+    for dir in SOURCE_RULE_DIRS {
+        let path = format!("{dir}/a.rs");
+        let hits = clock_hits(Path::new(&path), text);
+        assert!(hits.contains(&format!("{path}:1: Duration")), "{hits:?}");
+        assert!(hits.contains(&format!("{path}:2: elapsed")), "{hits:?}");
+    }
 }
 
 #[test]
@@ -1192,6 +1192,7 @@ fn time_in_crates_passes_the_clean_neighbour() {
                 let unslept = oversleep + sleepy;\n";
     for path in [
         "crates/raf-source/tests/a.rs",
+        "crates/raf-source/examples/a.rs",
         "crates/raf-okf/src/a.rs",
         "crates/cargo-workplan/tests/a.rs",
     ] {
@@ -1200,10 +1201,9 @@ fn time_in_crates_passes_the_clean_neighbour() {
 }
 
 #[test]
-fn time_in_crates_exempts_the_examples_and_paths_outside_every_rule() {
+fn time_in_crates_exempts_the_paths_outside_every_rule() {
     let text = planted();
     for path in [
-        "crates/raf-source/examples/registry_scan.rs",
         "crates/raf-source/README.md",
         "crates/raf-source/src_notes/a.rs",
         "crates/raf-okf/README.md",

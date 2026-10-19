@@ -10,7 +10,7 @@ inputs:
     digest: d1b692677b1a6b7492f6135e4484085017754c6a6868511be196314a57edfaf1
   - kind: symbol
     name: raf_source::Budget
-    digest: 112cd1e623c2c1c3f5b568ff36d5fd8914bcdba242888abc79525048c7445634
+    digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
   - kind: symbol
     name: raf_source::DiskTree
     digest: 8de0bd6cf52eb2437cddff8545a4af80ca0f68b9da0a70b705a32f026eeaef63
@@ -34,7 +34,7 @@ inputs:
     digest: 8d11be3ec8160a775ffb5a0d8e4f62221ea6eff834b65402273c768109a226ca
   - kind: symbol
     name: raf_source::LoadOptions
-    digest: ee673b8439987ee137c4b6bec2e707f934c827b64d5d8ab36f56f835bc100ac7
+    digest: 802e1f183baeb760e1118f5147bcdc02b657bf2231c235d513915e35c5eb2ed0
   - kind: symbol
     name: raf_source::MemoryTree
     digest: f4dcd98dc81a25c56fe58967638c60ad348a69335229bd8fe860a7d3788080c7
@@ -73,7 +73,7 @@ inputs:
     digest: beca7608d91c3df8942b099ecb15b5e5c0ed36eef6a06c11276dc2926f1d986c
   - kind: symbol
     name: raf_source::Usage
-    digest: 10573cade5456bf43fd36d25f1e7b608cfc68c4d3c266d17034be377a00f006d
+    digest: ec3e89bbc28f72abe9ea9c225add2eedadc3a519815a1776a86a6e490bad2802
   - kind: symbol
     name: raf_source::Workspace
     digest: b169abcad77b6e1bb0b9a2caa259ffaa530c371fdeb50cecf2c5a019466b42b4

@@ -63,6 +63,17 @@
 //! hold is released when they are built again. Each charge is made before
 //! the allocation it covers.
 //!
+//! The steps of that work are charged to the work budget
+//! ([`Budget::Work`](crate::Budget::Work)) before they are made, and never
+//! given back: each glob read listed and each name gathered when a view is
+//! built, each reader a change is passed on to (and each name a new reader is
+//! given), each glob read of a module read again when what its globs bring in
+//! under a name is read again, as it is when a companion or an item its class
+//! cannot access arrives, and each step of the search for the modules that
+//! hold an item apart from a reading module. So the three shapes above are
+//! charged as their work grows, faster than their bytes, and refused at the
+//! limit before they are settled to the end.
+//!
 //! A few temporaries are not charged, each bounded by a constant factor of
 //! what another budget already charges and dropped before the next is made:
 //! the visibilities of each module, listed once for each item and `use`
@@ -983,8 +994,10 @@ impl Index {
             for (name, at) in names {
                 let found = self.read_lists(module, name, *at);
                 let supply = supply.get_or_insert_with(|| self.supply(&companions));
-                let charge =
-                    |steps: usize| meter.items(steps * SUPPLY_STEP_BYTES, &file, Some(line));
+                let charge = |steps: usize| {
+                    meter.items(steps * SUPPLY_STEP_BYTES, &file, Some(line))?;
+                    meter.work(steps, &file, Some(line))
+                };
                 let redelivered = self.redelivered(module, &found, name, *at, &mut |from, id| {
                     self.supplied(supply, &charge, from, module, name, *at, id)
                 });
@@ -1119,7 +1132,8 @@ impl Index {
     /// that bind the name with the item, along the glob reads whose views
     /// hold it, and the dominators by the algorithm of Lengauer and Tarjan,
     /// with path compression. Each glob read looked at, each holder and each
-    /// step of the algorithm is charged before it is made.
+    /// step of the algorithm is charged before it is made, as bytes and as
+    /// work.
     fn holding(
         &self,
         supply: &Supply,
@@ -1333,20 +1347,31 @@ impl Index {
     /// importers of `class`: the bindings that shadow globs, when there are
     /// any, and those importers can access; else, when no explicit import
     /// they can name keeps the name from the globs, what the globs bring in
-    /// (see [`Index::exposed`]). Sorted.
-    fn export_ids(&self, target: usize, class: &[bool], name: &str, at: usize) -> Vec<Held> {
+    /// (see [`Index::exposed`]). Sorted. Reading what the globs bring in reads
+    /// every glob read of the target again, a step of work each, charged for
+    /// the glob import at `site` before it is made.
+    fn export_ids(
+        &self,
+        target: usize,
+        class: &[bool],
+        name: &str,
+        at: usize,
+        site: usize,
+        meter: &Meter,
+    ) -> Result<Vec<Held>, LoadError> {
         if let Some(defs) = self.scopes[target]
             .get(name)
             .map(|entry| &entry.defs[at])
             .filter(|defs| !defs.is_empty())
         {
-            return self.defs_held(target, class, defs);
+            return Ok(self.defs_held(target, class, defs));
         }
         if self.blocked_in(target, name, at) {
-            return Vec::new();
+            return Ok(Vec::new());
         }
+        self.charge_steps(self.reads_of(target).len(), site, meter)?;
         let (seen, hidden) = self.split_globs_delivered(target, class, name, at);
-        self.exposed(seen, hidden)
+        Ok(self.exposed(seen, hidden))
     }
 
     /// What the globs of `target` bring in under `name`, as the items the
@@ -1483,6 +1508,13 @@ impl Index {
         meter.globs(bytes, &decl.file, Some(decl.line))
     }
 
+    /// Charge `units` steps of glob table work, for the glob import at
+    /// `site`, before they are made; they are never released.
+    fn charge_steps(&self, units: usize, site: usize, meter: &Meter) -> Result<(), LoadError> {
+        let decl = &self.uses[site];
+        meter.work(units, &decl.file, Some(decl.line))
+    }
+
     /// Make the view of `target` for `class`, for the glob import at `site`:
     /// what the target exports to the class as the tables stand. The
     /// target's globs that reach the view pass on to it from now on.
@@ -1527,10 +1559,12 @@ impl Index {
         // same lists, so each view is gathered once, however many globs of
         // the target read it. What the gathering allocates is charged before
         // it is allocated, as a change waiting to be passed on, and released
-        // once it is added.
+        // once it is added. Each read listed and each name gathered is a
+        // step of work.
         let reads = self.reads_of(target).len();
         let listed = vec_first::<(usize, Level)>() + reads * vec_slot::<(usize, Level)>();
         self.charge_work(listed, site, meter)?;
+        self.charge_steps(reads, site, meter)?;
         let mut sources: Vec<(usize, Level)> = self
             .reads_of(target)
             .iter()
@@ -1540,7 +1574,13 @@ impl Index {
         sources.dedup();
         let gathered = self.gather_bytes(target, &sources);
         self.charge_work(gathered, site, meter)?;
-        let (content, any_hidden) = self.gather(target, class, &sources);
+        let names = self.scopes[target].len()
+            + sources
+                .iter()
+                .map(|(source, _)| self.globs.views[*source].names.len())
+                .sum::<usize>();
+        self.charge_steps(names, site, meter)?;
+        let (content, any_hidden) = self.gather(target, class, &sources, site, meter)?;
         drop(sources);
         meter.release_globs(listed);
         self.globs.views[view].hidden = any_hidden;
@@ -1556,13 +1596,16 @@ impl Index {
     /// What `target` exports to `class` under each name, as the tables
     /// stand: its own bindings that shadow globs, and what the views
     /// `sources` hold, by [`Index::exposed`], and whether any of the items
-    /// the globs bring in is one the class cannot access.
+    /// the globs bring in is one the class cannot access. A name read again
+    /// from the globs is charged for the glob import at `site`.
     fn gather(
         &self,
         target: usize,
         class: &[bool],
         sources: &[(usize, Level)],
-    ) -> (Exported, bool) {
+        site: usize,
+        meter: &Meter,
+    ) -> Result<(Exported, bool), LoadError> {
         let mut content: BTreeMap<&str, [Vec<Held>; 3]> = BTreeMap::new();
         let mut outside: BTreeMap<(&str, usize), Vec<Held>> = BTreeMap::new();
         let mut blocked: BTreeMap<(&str, usize), bool> = BTreeMap::new();
@@ -1608,25 +1651,23 @@ impl Index {
             }
         }
         let mut any_hidden = false;
-        let content: Exported = content
-            .into_iter()
-            .map(|(name, mut lists)| {
-                for (at, ids) in lists.iter_mut().enumerate() {
-                    let hidden = outside.remove(&(name, at)).unwrap_or_default();
-                    any_hidden |= !hidden.is_empty();
-                    // Items the class cannot access, and companions, are
-                    // read again from the globs, as each delivers them (see
-                    // [`Index::delivered`]).
-                    *ids = if hidden.is_empty() && !ids.iter().any(|held| held.1.is_companion()) {
-                        self.exposed(std::mem::take(ids), hidden)
-                    } else {
-                        self.export_ids(target, class, name, at)
-                    };
-                }
-                (name.to_owned(), lists)
-            })
-            .collect();
-        (content, any_hidden)
+        let mut gathered: Exported = Vec::with_capacity(content.len());
+        for (name, mut lists) in content {
+            for (at, ids) in lists.iter_mut().enumerate() {
+                let hidden = outside.remove(&(name, at)).unwrap_or_default();
+                any_hidden |= !hidden.is_empty();
+                // Items the class cannot access, and companions, are read
+                // again from the globs, as each delivers them (see
+                // [`Index::delivered`]).
+                *ids = if hidden.is_empty() && !ids.iter().any(|held| held.1.is_companion()) {
+                    self.exposed(std::mem::take(ids), hidden)
+                } else {
+                    self.export_ids(target, class, name, at, site, meter)?
+                };
+            }
+            gathered.push((name.to_owned(), lists));
+        }
+        Ok((gathered, any_hidden))
     }
 
     /// What gathering what `target` exports from its own bindings and from
@@ -1674,8 +1715,9 @@ impl Index {
 
     /// Record that the glob import at `glob` reaches `target`: it reads the
     /// view of the target for its module's class, made if there is none, and
-    /// what the view holds is passed on to its module. Reading the same view
-    /// again does nothing.
+    /// what the view holds is passed on to its module, a step of work for
+    /// each name in each name space. Reading the same view again does
+    /// nothing.
     pub(crate) fn read_glob(
         &mut self,
         glob: usize,
@@ -1739,6 +1781,7 @@ impl Index {
             };
             for (at, ids) in lists.iter().enumerate() {
                 if !ids.is_empty() {
+                    self.charge_steps(1, glob, meter)?;
                     let mut work = Vec::new();
                     self.arrive(module, read, &name, at, ids, &mut work, waiters, meter)?;
                     self.pass_on(work, glob, waiters, meter)?;
@@ -1760,8 +1803,9 @@ impl Index {
     ) -> Result<(), LoadError> {
         for view in self.exports_of(module).to_vec() {
             let class = self.globs.views[view].class.clone();
+            let site = self.globs.views[view].site;
             for at in 0..3 {
-                let ids = self.export_ids(module, &class, name, at);
+                let ids = self.export_ids(module, &class, name, at, site, meter)?;
                 let fresh = self.add_to_view(view, name, at, &ids, meter)?;
                 if !fresh.is_empty() {
                     let grown = Grown {
@@ -1780,7 +1824,9 @@ impl Index {
     /// Pass on every change in `work`, and every change that passing one on
     /// makes, until none is left, charging what the list holds while it holds
     /// it, to the glob import at `site` for the changes it starts with and to
-    /// the glob that passes each change on for those it makes.
+    /// the glob that passes each change on for those it makes. Each reader a
+    /// change is passed on to is a step of work, charged to the reader's glob
+    /// before the change arrives.
     fn pass_on(
         &mut self,
         mut work: Vec<Grown>,
@@ -1824,6 +1870,9 @@ impl Index {
             // readers stays as it is meanwhile.
             for reader in 0..self.globs.views[grown.view].active.len() {
                 let (module, read) = self.globs.views[grown.view].active[reader];
+                let glob = self.globs.reads[module][read].glob;
+                // Each reader the change is passed on to is a step of work.
+                self.charge_steps(1, glob, meter)?;
                 let before = work.len();
                 self.arrive(
                     module,
@@ -1835,7 +1884,6 @@ impl Index {
                     waiters,
                     meter,
                 )?;
-                let glob = self.globs.reads[module][read].glob;
                 let grew = (work.capacity() * size_of::<Grown>()).saturating_sub(room);
                 room += grew;
                 self.charge_work(
@@ -1854,7 +1902,8 @@ impl Index {
     /// the items `ids` of `name` in the name space at `at`: tell what waits
     /// on the name there, and add the items to each view of the module that
     /// the glob reaches where nothing shadows the globs, queueing what that
-    /// adds in `work`.
+    /// adds in `work`. Reading the module's table again for the name is
+    /// charged as work for each of its glob reads (see [`Index::export_ids`]).
     #[expect(
         clippy::too_many_arguments,
         reason = "one change passed on, the place it arrives at and the two sinks"
@@ -1898,9 +1947,9 @@ impl Index {
                 // [`Index::delivered`]).
                 if self.globs.views[view].hidden || !hidden.is_empty() {
                     self.globs.views[view].hidden = true;
-                    self.export_ids(module, &class, name, at)
+                    self.export_ids(module, &class, name, at, glob, meter)?
                 } else if seen.iter().any(|held| held.1.is_companion()) {
-                    self.export_ids(module, &class, name, at)
+                    self.export_ids(module, &class, name, at, glob, meter)?
                 } else {
                     self.widest(&mut seen);
                     seen
@@ -1912,7 +1961,7 @@ impl Index {
                 // companions: the table of the module is read again for the
                 // name (see [`Index::delivered`]).
                 self.globs.views[view].hidden = true;
-                self.export_ids(module, &class, name, at)
+                self.export_ids(module, &class, name, at, glob, meter)?
             } else {
                 self.globs.views[view].hidden |= !hidden.is_empty();
                 continue;
@@ -2155,7 +2204,9 @@ mod tests {
     }
 
     /// What loading `lib` counts of the search, and what `self::X` is read
-    /// as from `demo::r0` in the type name space.
+    /// as from `demo::r0` in the type name space. Each step of the search is
+    /// a step of glob table work too, so the work of the load counts at least
+    /// the steps of the search.
     fn counted(lib: &str) -> (usize, String) {
         let tree: MemoryTree = [("Cargo.toml", DEMO), ("src/lib.rs", lib)]
             .into_iter()
@@ -2166,7 +2217,13 @@ mod tests {
         let found = ws
             .resolve_from_in("demo::r0", "self::X", Namespace::Type)
             .map_or_else(|e| format!("{e:?}"), |found| found.path);
-        (tally.get(Work::SupplySteps), found)
+        let steps = tally.get(Work::SupplySteps);
+        assert!(
+            ws.usage().work >= steps,
+            "{} steps of work for {steps} of the search",
+            ws.usage().work
+        );
+        (steps, found)
     }
 
     /// The counts of the search for `build` at one, two and three units,
@@ -2328,6 +2385,188 @@ mod tests {
                 successors[from].push(to);
             }
             check_dominators(&successors);
+        }
+    }
+}
+
+#[cfg(test)]
+mod work_budget {
+    //! The glob table work of a load is counted where the tables read again
+    //! and copy what the globs bring in, so its count grows as the work does
+    //! on the shapes whose work grows faster than their globs, and a load is
+    //! refused at the charge that passes the limit, before its tables are
+    //! settled to the end.
+
+    use std::fmt::Write as _;
+
+    use crate::meter::charges;
+    use crate::{Budget, LoadError, LoadErrorKind, LoadOptions, MemoryTree, Workspace};
+
+    const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
+
+    /// A chain of `n` globs: each module globs the next, and the last
+    /// defines one function.
+    fn chain(n: usize) -> String {
+        let mut lib = String::new();
+        for i in 0..n {
+            writeln!(lib, "mod m{i} {{ pub use super::m{}::*; }}", i + 1).expect("write");
+        }
+        writeln!(lib, "pub mod m{n} {{ pub fn f() {{}} }}").expect("write");
+        lib
+    }
+
+    /// A fan-in of `n` private globs onto `t`, each of a module of one
+    /// struct, and `u`, declared after `t`, globbing `t`.
+    fn private_fan_in(n: usize) -> String {
+        let mut lib = String::from("pub mod t {");
+        for i in 0..n {
+            write!(lib, " use crate::m{i}::*;").expect("write");
+        }
+        lib.push_str(" }\npub mod u { pub use crate::t::*; }\n");
+        for i in 0..n {
+            writeln!(lib, "pub mod m{i} {{ pub struct T{i}; }}").expect("write");
+        }
+        lib
+    }
+
+    /// The prelude pattern: the crate root globs each of `n` children, and
+    /// each child, which defines one struct, globs its parent.
+    fn prelude(n: usize) -> String {
+        let mut lib = String::new();
+        for i in 0..n {
+            writeln!(
+                lib,
+                "pub use c{i}::*;\npub mod c{i} {{ use super::*; pub struct T{i}; }}"
+            )
+            .expect("write");
+        }
+        lib
+    }
+
+    /// A hub that `n` sibling modules glob and that globs each of them back,
+    /// every other one privately; each sibling defines one struct.
+    fn hub(n: usize) -> String {
+        let mut lib = String::from("pub mod hub {");
+        for i in 0..n {
+            let vis = if i % 2 == 0 { "pub " } else { "" };
+            write!(lib, " {vis}use crate::s{i}::*;").expect("write");
+        }
+        lib.push_str(" }\n");
+        for i in 0..n {
+            writeln!(
+                lib,
+                "pub mod s{i} {{ pub use crate::hub::*; pub struct T{i}; }}"
+            )
+            .expect("write");
+        }
+        lib
+    }
+
+    fn load(lib: &str, max_work: usize) -> Result<Workspace, LoadError> {
+        let tree: MemoryTree = [("Cargo.toml", DEMO), ("src/lib.rs", lib)]
+            .into_iter()
+            .collect();
+        let options = LoadOptions {
+            max_work,
+            ..LoadOptions::default()
+        };
+        Workspace::load_with(&tree, &["."], &options)
+    }
+
+    /// The glob table work of loading `lib` at the default limit.
+    fn work(lib: &str) -> usize {
+        load(lib, Budget::Work.limit())
+            .unwrap_or_else(|error| panic!("loads: {error}"))
+            .usage()
+            .work
+    }
+
+    #[test]
+    fn the_glob_table_work_of_each_shape_is_the_count_of_its_steps() {
+        // Counted at several sizes, the steps of each shape follow these
+        // polynomials exactly, and their leading terms are how the work of
+        // each shape grows: linearly for the chain, with the square of the
+        // globs for the fan-in of private globs and for the prelude, and
+        // with the cube for the hub. Each load makes the work of its tables
+        // twice: once while its imports settle and again once they are.
+        for n in [8, 16, 32] {
+            assert_eq!(work(&chain(n)), 2 * n, "chain of {n}");
+            assert_eq!(work(&private_fan_in(n)), 4 * n * n + 6 * n, "fan-in of {n}");
+            assert_eq!(work(&prelude(n)), n * (15 * n + 17) / 2, "prelude of {n}");
+            assert_eq!(
+                work(&hub(n)),
+                2 * n * n * n + 4 * n * n + 4 * n,
+                "hub of {n}"
+            );
+        }
+    }
+
+    #[test]
+    fn doubling_a_shape_multiplies_its_work_as_fast_as_the_shape_grows() {
+        let doubled = |build: fn(usize) -> String| (work(&build(32)), work(&build(64)));
+        let (small, large) = doubled(hub);
+        assert!(large > 4 * small, "hub: {small} then {large}");
+        for (shape, build) in [
+            ("prelude", prelude as fn(usize) -> String),
+            ("fan-in", private_fan_in),
+        ] {
+            let (small, large) = doubled(build);
+            assert!(large > 2 * small, "{shape}: {small} then {large}");
+        }
+        // The chain's work grows with it, as each link passes on what it
+        // brings in, and at most doubles.
+        let (small, large) = doubled(chain);
+        assert!(
+            small < large && large <= 2 * small,
+            "chain: {small} then {large}"
+        );
+    }
+
+    #[test]
+    fn a_settle_heavy_shape_is_refused_at_the_charge_that_passes_a_small_limit() {
+        for (shape, lib) in [
+            ("fan-in", private_fan_in(32)),
+            ("prelude", prelude(32)),
+            ("hub", hub(32)),
+        ] {
+            charges::take();
+            let total = work(&lib);
+            let all = charges::take();
+            assert_eq!(all.iter().sum::<usize>(), total, "{shape}");
+            // The limit is what the charges before one that counts a step
+            // add up to, once they reach a tenth of the load's work.
+            let (mut limit, mut place) = (0, 0);
+            while limit < total / 10 || all[place] == 0 {
+                limit += all[place];
+                place += 1;
+            }
+            let error = load(&lib, limit).expect_err("over the limit");
+            assert!(
+                matches!(
+                    error.kind,
+                    LoadErrorKind::Budget {
+                        budget: Budget::Work,
+                        limit: refused
+                    } if refused == limit
+                ),
+                "{shape}: {error}"
+            );
+            assert_eq!(error.file.as_str(), "src/lib.rs", "{shape}");
+            let line = error.line.expect("the line of a glob");
+            assert!(
+                lib.lines()
+                    .nth(line - 1)
+                    .is_some_and(|text| text.contains("::*;")),
+                "{shape}: {line}"
+            );
+            // The load stopped at the charge that passed the limit: the count
+            // at the refusal is the limit and that charge, below the work of
+            // the whole load.
+            let made = charges::take();
+            assert_eq!(made, all[..=place], "{shape}");
+            let spent: usize = made.iter().sum();
+            assert_eq!(spent, limit + all[place], "{shape}");
+            assert!(spent < total, "{shape}: {spent} of {total}");
         }
     }
 }

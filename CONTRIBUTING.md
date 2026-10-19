@@ -92,10 +92,10 @@ make help    # list every target
   `SystemTime`, `UNIX_EPOCH`, `sleep`, the `*_timeout` waits, and each of these
   with a `_` suffix such as `sleep_ms` or `wait_timeout_while`; `raf-source` also
   refuses `Duration` and `elapsed`). Only `crates/raf-workplan/src/exec/clock.rs`
-  and the gate file are exempt. The examples of `raf-source` are binaries outside
-  the gate, covered by clippy only: `make clippy` disallows the same types, the
-  sleeps and the timeout waits everywhere an `allow` with a reason does not say
-  otherwise. Script a clock in the test instead. A test that runs a real process
+  and the gate file are exempt. The examples of `raf-source` are judged by the same
+  rule as its sources and tests, and `make clippy` also disallows the same types,
+  the sleeps and the timeout waits everywhere an `allow` with a reason does not
+  say otherwise. Script a clock in the test instead. A test that runs a real process
   still goes through the runner's wall clock as a watchdog; it asserts nothing
   about the time.
 
