@@ -35,8 +35,11 @@
 //! The counter also does not see the lookups of settling: a module with n globs
 //! and n named imports of a name the globs re-export makes a work count of 4n+2
 //! and visits about 25n^2 glob reads, so a crate of that shape is not refused by
-//! `--max-work`. Its fix is the settling-cost change tracked in the repository's
-//! issue list.
+//! `--max-work`. Such a load can run long.
+//!
+//! There is no `--timeout` flag and no `timeout` outcome: a bound by time
+//! needs a clock and a child stopped from outside, and a count needs neither,
+//! so the bound on a load is the count of work steps.
 //!
 //! One line is printed per crate, sorted by name:
 //!
@@ -753,5 +756,47 @@ mod tests {
             tally.largest.get("work"),
             Some(&(900, "big@2.0.0".to_owned()))
         );
+    }
+
+    static SCRATCH: AtomicUsize = AtomicUsize::new(0);
+
+    /// A crate directory holding a hub of `n` globs, in a scratch directory
+    /// named by the process and a counter.
+    fn hub_crate(n: usize) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "raf-registry-scan-{}-{}",
+            std::process::id(),
+            SCRATCH.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir_all(dir.join("src")).expect("create the scratch crate");
+        std::fs::write(
+            dir.join("Cargo.toml"),
+            "[package]\nname = \"hub\"\nversion = \"1.0.0\"\nedition = \"2021\"\n",
+        )
+        .expect("write the manifest");
+        let mut lib = String::from("pub mod hub {");
+        for i in 0..n {
+            let vis = if i % 2 == 0 { "pub " } else { "" };
+            let _ = write!(lib, " {vis}use crate::s{i}::*;");
+        }
+        lib.push_str(" }\n");
+        for i in 0..n {
+            let _ = writeln!(
+                lib,
+                "pub mod s{i} {{ pub use crate::hub::*; pub struct T{i}; }}"
+            );
+        }
+        std::fs::write(dir.join("src/lib.rs"), lib).expect("write the source");
+        dir
+    }
+
+    #[test]
+    fn the_work_limit_reaches_the_load() {
+        let dir = hub_crate(40);
+        let large = load_one(&dir, Budget::Work.limit());
+        let small = load_one(&dir, 1000);
+        std::fs::remove_dir_all(&dir).expect("remove the scratch crate");
+        assert!(large.starts_with("OK "), "{large}");
+        assert!(small.starts_with("ERR Budget :: "), "{small}");
     }
 }
