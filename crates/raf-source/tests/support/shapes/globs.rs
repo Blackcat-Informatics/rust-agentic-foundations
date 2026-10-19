@@ -93,7 +93,13 @@ pub(crate) const ALL: [GlobShape; 9] = [
     GlobShape {
         name: "lookups",
         text: lookups,
-        paths: |n| vec!["demo::t::Y0".to_owned(), format!("demo::t::Y{}", n - 1)],
+        paths: |n| {
+            vec![
+                "demo::d::X".to_owned(),
+                "demo::g0::X".to_owned(),
+                format!("demo::g{}::X", n - 1),
+            ]
+        },
     },
 ];
 
@@ -222,13 +228,15 @@ fn hub_of(n: usize, per: usize) -> String {
 /// A module `t`, declared first, with `n` private globs of modules that
 /// each glob `d`, which defines `X`, and `n` named imports of `X` through
 /// them: each import looks the name up in what the globs of `t` bring in.
+/// The imports are private, as in the reproducer: rustc refuses to
+/// re-export a name that private globs bring in.
 pub(crate) fn lookups(n: usize) -> String {
     let mut lib = String::from("pub mod t {");
     for i in 0..n {
         write!(lib, " use crate::g{i}::*;").expect("write");
     }
     for k in 0..n {
-        write!(lib, " pub use self::X as Y{k};").expect("write");
+        write!(lib, " use self::X as Y{k};").expect("write");
     }
     lib.push_str(" }\npub mod d { pub struct X; }\n");
     for i in 0..n {

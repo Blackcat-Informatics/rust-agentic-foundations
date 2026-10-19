@@ -3416,3 +3416,111 @@ mod settling {
         assert_eq!(second_difference(of(&counts, Work::LookupRoutes)), 0);
     }
 }
+
+#[cfg(test)]
+mod monotone {
+    //! A view is only added to or widened: an entry held as a companion
+    //! stays one until it is added plain, and is widened as it is added
+    //! again, and an entry that would narrow one is refused.
+
+    use super::{Held, Index, Level};
+    use crate::item::ItemId;
+    use crate::meter::Meter;
+    use crate::options::LoadOptions;
+    use crate::{MemoryTree, Workspace};
+
+    /// An index of a crate with a glob import, its tables cleared, and a view
+    /// of the root in it: the view, the root and the module `d`.
+    fn viewed() -> (Index, Meter, usize) {
+        let tree: MemoryTree = [
+            (
+                "Cargo.toml",
+                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "src/lib.rs",
+                "pub mod d { pub struct X; }\npub mod a { pub use crate::d::*; }\n",
+            ),
+        ]
+        .into_iter()
+        .collect();
+        let mut index = Workspace::load(&tree, &["."])
+            .expect("loads")
+            .index()
+            .clone();
+        let meter = Meter::new(&LoadOptions::default());
+        index.clear_globs();
+        index.globs.exports = vec![Vec::new(); index.modules.len()];
+        index.globs.reads = vec![Vec::new(); index.modules.len()];
+        let site = *index.glob_imports.first().expect("a glob import");
+        let view = index
+            .make_view(0, &[true], site, &meter)
+            .expect("the view is made");
+        (index, meter, view)
+    }
+
+    /// What `view` holds of `item` under `X` in the type name space.
+    fn held(index: &Index, view: usize, item: ItemId) -> Option<Held> {
+        let lists = index.globs.views[view].names.get("X")?;
+        lists[0].iter().copied().find(|entry| entry.0 == item)
+    }
+
+    #[test]
+    fn an_entry_held_as_a_companion_is_widened_as_it_is_added_again_and_made_plain_only_by_a_plain_entry()
+     {
+        let (mut index, meter, view) = viewed();
+        let item = ItemId(1);
+        // Added as a companion within `d`, then as a companion within the
+        // root, which is wider: it stays a companion and is widened.
+        let narrow = Level::within(1);
+        let wide = Level::within(0);
+        assert!(index.width(wide) < index.width(narrow));
+        for (level, expected) in [
+            (narrow.companion(), narrow.companion()),
+            (wide.companion(), wide.companion()),
+            // Again at the same width, and at a narrower one: nothing
+            // changes and nothing is added.
+            (wide.companion(), wide.companion()),
+            (narrow.companion(), wide.companion()),
+        ] {
+            index
+                .add_to_view(view, "X", 0, &[(item, level)], &meter)
+                .expect("added");
+            assert_eq!(held(&index, view, item), Some((item, expected)));
+        }
+        // A plain entry takes the place of the companion, at the wider of
+        // the two levels.
+        let fresh = index
+            .add_to_view(view, "X", 0, &[(item, wide)], &meter)
+            .expect("added");
+        assert_eq!(fresh, vec![(item, wide)]);
+        assert_eq!(held(&index, view, item), Some((item, wide)));
+        // And a companion does not make it one again.
+        index
+            .add_to_view(view, "X", 0, &[(item, Level::PUBLIC.companion())], &meter)
+            .expect("added");
+        assert_eq!(held(&index, view, item), Some((item, Level::PUBLIC)));
+    }
+
+    #[test]
+    #[should_panic(expected = "narrows")]
+    fn an_entry_that_narrows_the_level_an_item_is_held_at_is_refused() {
+        let (mut index, meter, view) = viewed();
+        let item = ItemId(1);
+        index
+            .add_to_view(view, "X", 0, &[(item, Level::PUBLIC.companion())], &meter)
+            .expect("added");
+        index.assert_widened(view, "X", 0, &[(item, Level::within(1).companion())]);
+    }
+
+    #[test]
+    #[should_panic(expected = "narrows")]
+    fn an_entry_that_makes_a_plain_item_a_companion_again_is_refused() {
+        let (mut index, meter, view) = viewed();
+        let item = ItemId(1);
+        index
+            .add_to_view(view, "X", 0, &[(item, Level::within(0))], &meter)
+            .expect("added");
+        index.assert_widened(view, "X", 0, &[(item, Level::within(0).companion())]);
+    }
+}

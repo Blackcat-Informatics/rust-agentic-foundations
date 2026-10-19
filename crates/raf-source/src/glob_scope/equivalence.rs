@@ -10,6 +10,14 @@
 //! spaces, `self::<name>` from every module with a `use` declaration, and
 //! the exported surface. While the loads settle, each view entry added is
 //! checked to be new or wider than the one it takes the place of.
+//!
+//! The two modes differ in what they read and copy while they settle, not
+//! in what they answer: the reference mode reads again from every glob read
+//! of a module and gathers every view, where the settling reads the reads
+//! whose view holds the name. So the comparison is not true of two runs of
+//! the same code: each load is checked to have built its glob tables in the
+//! mode it was asked for, and the run must hold loads whose settling tallies
+//! differ between the modes.
 
 #[path = "../../tests/support/answers.rs"]
 mod answers;
@@ -23,6 +31,7 @@ mod random;
 use std::path::Path;
 
 use super::reference;
+use crate::work::{Tally, measure};
 use crate::{DiskTree, EntryKind, MemoryTree, Namespace, RelPath, TargetKind, Tree, Workspace};
 use answers::Counted;
 use program::{Program, random_program};
@@ -112,6 +121,33 @@ struct Judged {
     counted: Counted,
     /// The answers that differ, one for each load.
     differences: Vec<String>,
+    /// The loads that did not run in the mode they were asked for: a load
+    /// builds its glob tables in one mode only, and as many in the one as
+    /// in the other.
+    misrun: Vec<String>,
+    /// The loads whose settling tallies differ between the modes.
+    diverging: usize,
+}
+
+/// Load `program` out of the reference mode, or in it, and return its
+/// answers, what it held, what it counted, and the glob tables it built in
+/// each mode.
+fn run(program: &Program, exact: bool) -> (String, Counted, Tally, [usize; 2]) {
+    let before = reference::builds();
+    let ((text, counted), tally) = measure(usize::MAX, || {
+        if exact {
+            reference::exact(|| answers::answers(program))
+        } else {
+            answers::answers(program)
+        }
+    });
+    let after = reference::builds();
+    (
+        text,
+        counted,
+        tally,
+        [after[0] - before[0], after[1] - before[1]],
+    )
 }
 
 /// Compare the answers of each of `programs`, as written and in [`ORDERS`]
@@ -129,8 +165,14 @@ fn judge(programs: &[(String, Program)]) -> Judged {
                 )
             }));
         for (label, program) in orders.collect::<Vec<_>>() {
-            let (settled, counted) = answers::answers(&program);
-            let (exact, _) = reference::exact(|| answers::answers(&program));
+            let (settled, counted, tally, built) = run(&program, false);
+            let (exact, _, exact_tally, exact_built) = run(&program, true);
+            if built[1] != 0 || exact_built[0] != 0 || built[0] != exact_built[1] {
+                judged.misrun.push(format!(
+                    "{label}: built {built:?} out of the reference mode and {exact_built:?} in it"
+                ));
+            }
+            judged.diverging += usize::from(tally != exact_tally);
             judged.loads += 1;
             judged.counted = judged.counted.add(counted);
             judged
@@ -153,6 +195,13 @@ fn the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_c
     let judged = judge(&programs);
     let after = reference::builds();
     assert!(
+        judged.misrun.is_empty(),
+        "{} of {} loads did not run in their mode:\n{}",
+        judged.misrun.len(),
+        judged.loads,
+        judged.misrun.join("\n")
+    );
+    assert!(
         judged.differences.is_empty(),
         "{} of {} loads differ:\n{}",
         judged.differences.len(),
@@ -173,6 +222,13 @@ fn the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_c
     );
     assert!(judged.counted.ambiguous > 0, "{:?}", judged.counted);
     assert!(judged.counted.refused_surfaces > 0, "{:?}", judged.counted);
+    // The modes differ in what they read while they settle, so a run whose
+    // loads count the same in both compares a mode with itself.
+    assert!(
+        judged.diverging > 0,
+        "no load counted differently in the two modes in {} loads",
+        judged.loads
+    );
     // The loads of each mode built their glob tables in that mode.
     for mode in 0..2 {
         assert!(
