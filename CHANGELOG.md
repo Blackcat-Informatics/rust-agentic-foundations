@@ -12,7 +12,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed
   and each name gathered when a table is built, each reader a change is passed
-  on to, each glob read of a module read again when what its globs bring in under
+  on to, each name a new reader is given, each glob read of a module read again when what its globs bring in under
   a name is read again, and each step of the search for the modules that hold an
   item apart from a reading module. These are the steps whose number grows with
   the square or the cube of the globs on the fan-in of private globs, the prelude

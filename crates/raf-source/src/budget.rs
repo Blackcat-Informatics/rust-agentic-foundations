@@ -126,8 +126,7 @@ const RECURSION: usize = crate::parse::PARSE_STACK_BYTES / (2 * RECURSION_UNIT_B
 const FILE_TOKENS: usize = 2_000_000;
 
 /// The default limit of the glob table work of one load, 2^31 steps: the same
-/// on every target, and below the largest `usize` of a 32-bit one, so a count
-/// that would pass it is refused there too and never saturates at it.
+/// on every target.
 const WORK: usize = 1 << 31;
 
 impl Budget {

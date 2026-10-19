@@ -764,9 +764,10 @@ change:
   that hold an item apart from a reading module. Each is charged before it is made
   and never released, over every settle of the tables, so the count is the work of
   the whole load, and a refusal comes at the charge that makes the count pass the
-  limit, naming the glob import it was made for. A load without glob imports makes
-  none. The limit is the same on every target and below the largest `usize` of a
-  32-bit one. Counted on generated shapes, a chain of n globs makes 2n steps, a fan-in
+  limit, naming the glob import it was made for; the steps of the search for the
+  modules that hold an item are charged to the first glob import of the load, so a
+  refusal in the search names that one. A load without glob imports makes
+  none. The limit is the same on every target. Counted on generated shapes, a chain of n globs makes 2n steps, a fan-in
   of n private globs onto a module that another module globs makes 4n^2 + 6n, the
   prelude pattern of n children n(15n + 17)/2, and a hub that n siblings glob and that
   globs them back, every other one privately, 2n^3 + 4n^2 + 4n.
@@ -1716,6 +1717,7 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
 - The work queue and the graph of undecided imports that settling the scope tables
   builds are not budgeted: they are dropped once the tables are settled, and they grow
   with the undecided imports times the places their paths read through globs, and no budget bounds the work to decide them; the work budget counts the steps of the glob tables, not those of the queue and the graph (see Work and memory bounds).
+- The work budget does not count the lookups of settling (`globbed` and `globbed_any`), which read every glob read of a module each time a name is looked up in it, during the load and after it. A module with n globs and n named imports of a name that the globs re-export (`pub mod t { use crate::g0::*; ... use self::X as Y0; ... }`, where each `g<i>` does `pub use crate::d::*` and `d` defines `X`) makes a work count of 4n+2 and visits about 25n^2 glob reads: at n = 2048 the count is 8194 and a load runs about 1.08e11 instructions. The work budget does not bound this shape, so a load of it is not refused by `max_work`; its fix is the settling-cost change tracked in the repository's issue list, which charges those reads.
 - Resolution covers items the source defines. Items from dependencies are outside the
   index and resolve to a not-found failure.
 - An item that syn returns as tokens is indexed only in the three shapes the Contract

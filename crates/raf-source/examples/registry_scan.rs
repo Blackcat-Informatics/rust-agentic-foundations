@@ -32,6 +32,12 @@
 //! the work counter does not see is not stopped; parsing, the one such stretch
 //! the index has, is bounded by the token budget.
 //!
+//! The counter also does not see the lookups of settling: a module with n globs
+//! and n named imports of a name the globs re-export makes a work count of 4n+2
+//! and visits about 25n^2 glob reads, so a crate of that shape is not refused by
+//! `--max-work`. Its fix is the settling-cost change tracked in the repository's
+//! issue list.
+//!
 //! One line is printed per crate, sorted by name:
 //!
 //! ```text
