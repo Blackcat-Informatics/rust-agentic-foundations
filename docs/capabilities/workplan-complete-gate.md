@@ -241,6 +241,8 @@ bindings:
     - raf_workplan::staged::tests::every_other_path_is_answered_as_the_inner_tree_does
     - raf_workplan::staged::tests::the_hidden_file_is_not_read_listed_or_found
     - raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate
+    - raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_applies_the_debt_record_so_a_held_finding_does_not_refuse
+    - raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved
   examples:
     - raf_workplan::bound
     - raf_workplan::exec
@@ -378,10 +380,9 @@ reason (`refused: 1 obligation, 1 item without a reason`). Under strict
 condition 1 also refuses on an untouched Usage or Examples section in `affects`. A
 refusal under strict writes nothing, as every refusal does.
 
-> [!PROPOSED change:workplan-strict]
-> The check of the repository once the record is removed applies the strict debt
-> record as `check` does, so a finding the record holds does not refuse completion
-> and a resolved row does.
+The check of the repository once the record is removed applies the strict debt
+record as `check` does, so a finding the record holds does not refuse completion
+and a resolved row does.
 
 **State.** Promotion to a stronger state requires reconciliation, not just a status
 change. The gate refuses a listed capability whose `state` the content does not
@@ -887,7 +888,9 @@ Further checks:
 | `raf_workplan::test_crate::complete::hostile_bindings_refuse_and_never_reach_cargo` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::prose_that_links_to_the_record_refuses_because_the_link_is_broken_once_it_is_removed` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::the_cases_cover_every_kind_of_obligation_in_both_directions` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_applies_the_debt_record_so_a_held_finding_does_not_refuse` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::writes::a_removal_that_fails_reports_the_files_already_rewritten_and_removes_nothing_else` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::writes::a_rewrite_that_fails_leaves_the_record_and_the_blocks_as_they_were` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::a_directory_that_does_not_exist_is_a_spawn_error` | test | [Verification](#verification) |

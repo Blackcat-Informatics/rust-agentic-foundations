@@ -188,8 +188,10 @@ bindings:
     - cargo_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered
     - cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all
-    - raf_workplan::test_crate::debt::every_kind_the_rules_raise_is_written_with_a_subject_of_its_form_and_then_holds
+    - raf_workplan::test_crate::debt::every_kind_a_row_can_hold_is_written_with_a_subject_of_its_form_and_then_holds
     - raf_workplan::test_crate::debt::an_invalid_row_is_a_finding_under_either_strictness
+    - raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_applies_the_debt_record_so_a_held_finding_does_not_refuse
+    - raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved
   examples:
     - raf_workplan::Workplan::strictness
     - raf_workplan::Workplan::claims_report
@@ -1088,7 +1090,9 @@ visible failure, and the fix is one command.
 | `raf_workplan::test_crate::claim_coverage::a_thematic_break_and_an_empty_item_in_constraints_are_no_claim_and_an_item_beside_them_is_one` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::claim_coverage::constraints_are_cut_into_top_level_items_paragraphs_and_tables` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::claim_coverage::the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_applies_the_debt_record_so_a_held_finding_does_not_refuse` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_default_a_none_change_that_edits_a_bound_item_owes_nothing_and_under_strict_it_owes_one` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_a_bound_item_made_private_or_visible_to_its_crate_alone_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_a_bound_module_made_private_refuses_for_it_and_its_items_and_under_default_it_completes` | test | [Verification](#verification) |
@@ -1135,7 +1139,7 @@ visible failure, and the fix is one command.
 | `raf_workplan::test_crate::debt::an_item_that_is_gone_is_resolved_and_the_write_drops_its_row` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::debt::an_orphan_item_with_no_row_is_growth_in_a_package_judged_by_its_rows` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::debt::every_error_of_the_write_says_what_to_do` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::debt::every_kind_the_rules_raise_is_written_with_a_subject_of_its_form_and_then_holds` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::every_kind_a_row_can_hold_is_written_with_a_subject_of_its_form_and_then_holds` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::debt::orphan_lines_over_a_ceiling_are_held_per_item_as_a_count` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::debt::the_debt_kinds_are_kinds_of_strict_mode_and_the_ten_rules_that_a_row_can_hold` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::debt::the_record_is_read_back_as_the_typed_value_the_write_built` | test | [Verification](#verification) |

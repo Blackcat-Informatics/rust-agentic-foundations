@@ -15,7 +15,7 @@
 //! module and of the ceilings of reverse coverage, only those the record does not
 //! hold, and reports the rows of the record that are paid.
 //!
-////! # Examples, the matrix and the sections
+//! # Examples, the matrix and the sections
 //!
 //! For each loaded `delivered` capability:
 //!

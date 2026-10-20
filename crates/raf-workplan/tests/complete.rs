@@ -3315,3 +3315,79 @@ fn under_strict_a_none_change_reads_each_file_of_the_bound_package_once_at_the_m
         ["merge-base", "docs/capabilities/fixture.md"]
     );
 }
+
+/// A few words, fewer than a section of strict mode holds.
+const THIN: &str = "\nA few words.\n";
+
+/// The debt record `work/debt/default.md` holding `rows` of `findings`.
+fn debt_record(rows: &str) -> String {
+    format!("---\ntype: Debt\nid: debt:default\nfindings:{rows}\nlines: []\n---\n")
+}
+
+/// The row that holds the thin Purpose of the fixture.
+const PURPOSE_ROW: &str = "\n  - kind: strict-section-thin\n    subject: \"cap:fixture#purpose\"";
+
+/// A strict fixture whose Purpose is thin, assessed.
+fn thin_purpose() -> Fixture {
+    let mut spec = strict_record();
+    for (section, text) in &mut spec.extra {
+        if *section == "Purpose" {
+            *text = THIN;
+        }
+    }
+    let fixture = Fixture::real(&spec);
+    fixture.assess();
+    fixture
+}
+
+#[test]
+fn the_check_once_the_record_is_removed_applies_the_debt_record_so_a_held_finding_does_not_refuse()
+{
+    let fixture = thin_purpose();
+    let before = fixture.snapshot();
+    // Without a debt record the thin section refuses the completion.
+    let refused = fixture.complete();
+    let Some(Failure::AfterRemoval(finding)) = refused.failures().first() else {
+        panic!("the thin section must refuse: {refused}");
+    };
+    assert_eq!(finding.kind, "strict-section-thin", "{refused}");
+    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+    // The neighbour: the record holds it, and the change completes.
+    put(
+        fixture.root(),
+        "work/debt/default.md",
+        &debt_record(PURPOSE_ROW),
+    );
+    let completed = fixture.complete();
+    assert!(completed.is_completed(), "{completed}");
+    assert!(!fixture.exists(RECORD));
+}
+
+#[test]
+fn the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved() {
+    let fixture = thin_purpose();
+    // The record holds the thin Purpose and a thin Examples that is not thin.
+    let rows = format!(
+        "{PURPOSE_ROW}\n  - kind: strict-section-thin\n    subject: \"cap:fixture#examples\""
+    );
+    put(fixture.root(), "work/debt/default.md", &debt_record(&rows));
+    let before = fixture.snapshot();
+    let refused = fixture.complete();
+    let kinds_found: Vec<&str> = refused
+        .failures()
+        .iter()
+        .filter_map(|failure| match failure {
+            Failure::AfterRemoval(finding) => Some(finding.kind),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(kinds_found, ["debt-resolved"], "{refused}");
+    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+    // The neighbour: the record that equals the present debt completes.
+    put(
+        fixture.root(),
+        "work/debt/default.md",
+        &debt_record(PURPOSE_ROW),
+    );
+    assert!(fixture.complete().is_completed());
+}

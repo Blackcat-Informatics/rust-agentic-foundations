@@ -179,11 +179,14 @@ fn broken() -> String {
 }
 
 #[test]
-fn every_kind_the_rules_raise_is_written_with_a_subject_of_its_form_and_then_holds() {
+fn every_kind_a_row_can_hold_is_written_with_a_subject_of_its_form_and_then_holds() {
     let repo = repository(
         "debt-kinds",
         &broken(),
-        &format!("{}\npub fn extra() {{}}\n", strict::LIBRARY),
+        &format!(
+            "{}\npub fn extra() {{}}\n\nmod made {{\n    macro_rules! make {{\n        () => {{\n            pub struct Made;\n        }};\n    }}\n    make!();\n}}\npub use made::Made;\n",
+            strict::LIBRARY
+        ),
         &strict_record(),
     );
     let root = repo.path();
@@ -198,6 +201,7 @@ fn every_kind_the_rules_raise_is_written_with_a_subject_of_its_form_and_then_hol
     let wanted = [
         "coverage-item-unbound",
         "coverage-lines-over-ceiling",
+        "coverage-reexport-unbound",
         "coverage-test-unbound",
         "strict-claim-uncovered",
         "strict-claim-unit-collapsed",
@@ -229,6 +233,7 @@ fn every_kind_the_rules_raise_is_written_with_a_subject_of_its_form_and_then_hol
         rows,
         [
             "coverage-item-unbound demo::extra",
+            "coverage-reexport-unbound demo::Made",
             "coverage-test-unbound demo::test_crate::it::other",
             "strict-claim-uncovered cap:demo#contract/opening",
             "strict-claim-unit-collapsed cap:demo#contract",
