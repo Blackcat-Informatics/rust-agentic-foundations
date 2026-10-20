@@ -533,3 +533,18 @@ fn a_shim_id_matches_the_units_that_group_under_it_and_not_the_excluded_ones() {
     });
     assert_eq!(census.match_jobs(&[job])[0].matches, []);
 }
+
+#[test]
+fn renamed_locals_inside_macro_arguments_land_in_one_body_group() {
+    let census = load(
+        "\
+pub fn hex(b: u8) -> String { let s = format!(\"{x:02x}\", x = b); let t = vec![s.len(), s.len() + 1]; assert_eq!(t.len(), 2); s }
+pub fn hexa(c: u8) -> String { let u = format!(\"{y:02x}\", y = c); let v = vec![u.len(), u.len() + 1]; assert_eq!(v.len(), 2); u }
+pub fn other(c: u8) -> String { let u = format!(\"{y:02x}\", y = c); let v = vec![u.len(), u.capacity() + 1]; assert_eq!(v.len(), 2); u }
+",
+    );
+    let groups: Vec<&Group> = census.body_groups().collect();
+    assert_eq!(groups.len(), 1, "{groups:?}");
+    assert_eq!(symbols(groups[0]), ["demo::hex", "demo::hexa"]);
+    assert!(groups[0].tokens >= 20);
+}

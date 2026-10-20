@@ -500,3 +500,20 @@ fn fingerprints_sort_by_kind_then_value() {
         ]
     );
 }
+
+#[test]
+fn the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name() {
+    let slice = Slice::new(
+        "fixture.rs",
+        1,
+        "/// the total\nlet doc = x + 1; #[allow(unused)] doc",
+    )
+    .params(["x"]);
+    let tower = Tower::new(&slice).expect("lexes");
+    let text = texts(&tower, Level::Value).join(" ");
+    // The doc comment is the attribute `# [ doc = "..." ]` with `doc` kept, and
+    // the local named `doc` is renamed everywhere else.
+    assert!(text.contains("# [ doc = \" the total\" ]"), "{text}");
+    assert!(text.contains("# [ allow ( unused ) ]"), "{text}");
+    assert!(text.contains("let $1 = $0 + 1"), "{text}");
+}

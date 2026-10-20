@@ -47,6 +47,20 @@ fn before(nodes: &[Node], index: usize, distance: usize) -> Option<&Node> {
     index.checked_sub(distance).and_then(|at| nodes.get(at))
 }
 
+/// Whether the group at `index` is the bracket of an attribute, `#[..]` or
+/// `#![..]`; a doc comment in a body lexes to one. Its names are the
+/// attribute's own, never locals.
+fn is_attribute(nodes: &[Node], index: usize) -> bool {
+    let Some(group) = nodes.get(index).and_then(Node::as_group) else {
+        return false;
+    };
+    if group.delim != Delim::Bracket {
+        return false;
+    }
+    let bang = is_punct(before(nodes, index, 1), '!');
+    is_punct(before(nodes, index, if bang { 2 } else { 1 }), '#')
+}
+
 /// Whether the token at `index` follows a single `.`: a field or a method,
 /// not the end of a `..` range.
 fn after_dot(nodes: &[Node], index: usize) -> bool {
@@ -226,6 +240,7 @@ fn params_level(nodes: &[Node], map: &BTreeMap<&str, usize>, fields: bool) -> Ve
         .iter()
         .enumerate()
         .map(|(index, node)| match node {
+            Node::Group(_) if is_attribute(nodes, index) => node.clone(),
             Node::Group(group) => {
                 let opens = group.delim == Delim::Brace && opens_fields(before(nodes, index, 1));
                 Node::Group(Group {
@@ -342,6 +357,7 @@ impl Namer {
             .map(|(index, node)| {
                 let ghost = ghost || erased[index];
                 match node {
+                    Node::Group(_) if is_attribute(nodes, index) => node.clone(),
                     Node::Group(group) => {
                         let opens =
                             group.delim == Delim::Brace && opens_fields(before(nodes, index, 1));

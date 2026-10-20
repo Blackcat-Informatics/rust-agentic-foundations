@@ -534,6 +534,24 @@ fn shim_form(r: &mut Registry) {
         (&["y"], "target::<u8>(y, 1)"),
         Equal(Shim),
     );
+    r.pair(
+        "shim_closure_body_with_let",
+        (&["a"], "g(a, |x| { let y = x; y })"),
+        (&["b"], "g(b, |x| { let y = x; y })"),
+        Equal(Shim),
+    );
+    r.pair(
+        "doc_comment_renamed_local",
+        (&["x"], "/// the total\nlet n = x + 1; n * 2"),
+        (&["x"], "/// the total\nlet k = x + 1; k * 2"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "doc_comment_text_differs",
+        (&["x"], "/// the total\nlet n = x + 1; n * 2"),
+        (&["x"], "/// the sum\nlet n = x + 1; n * 2"),
+        Distinct,
+    );
     r.single(
         "shim_method_turbofish",
         &["x"],

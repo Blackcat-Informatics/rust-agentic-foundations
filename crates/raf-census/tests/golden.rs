@@ -175,6 +175,12 @@ shim_trailing_semicolon 9 body:32a80c15e231526c shim:32a80c15e231526c\n\
 shim_mentions_self 10 body:21c93a1e0ab84e9e -\n\
 shim_turbofish_forwarder.a 11 body:0bc8930ce972b811 shim:0678d206215e13d2\n\
 shim_turbofish_forwarder.b 11 body:0bc8930ce972b811 shim:0678d206215e13d2\n\
+shim_closure_body_with_let.a 16 body:0a90b60003db2dc6 shim:0bf63e12ac9e8960\n\
+shim_closure_body_with_let.b 16 body:0a90b60003db2dc6 shim:0bf63e12ac9e8960\n\
+doc_comment_renamed_local.a 16 body:32fef58a62382d41 -\n\
+doc_comment_renamed_local.b 16 body:32fef58a62382d41 -\n\
+doc_comment_text_differs.a 16 body:32fef58a62382d41 -\n\
+doc_comment_text_differs.b 16 body:5527eb52c9feb85a -\n\
 shim_method_turbofish 10 body:e1daab75de1838f0 shim:63453ddc13a54258\n\
 shim_turbofish_type_differs.a 11 body:0bc8930ce972b811 shim:0678d206215e13d2\n\
 shim_turbofish_type_differs.b 11 body:0bc8930ce972b811 shim:9ccd131097a9b704\n\
@@ -225,7 +231,8 @@ lexical_wildcard_kept.a 8 body:c53227ea2077fa9c -\n\
 lexical_wildcard_kept.b 8 body:b90ccc00dcd1aa81 -\n\
 lexical_nesting_128.a 257 body:577e8c5e2bdea440 -\n\
 lexical_nesting_128.b 257 body:577e8c5e2bdea440 -\n\
-empty_body 0 - -\n";
+empty_body 0 - -\n\
+";
 
 #[test]
 fn the_manifest_is_pinned() {
