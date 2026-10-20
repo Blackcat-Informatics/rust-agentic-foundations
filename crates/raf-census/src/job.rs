@@ -4,6 +4,8 @@
 //! Jobs: a job names the one place a piece of work lives and what would be a
 //! second copy of it; matching finds the units that are one.
 
+use serde::{Deserialize, Serialize};
+
 use crate::Fingerprint;
 use crate::census::Census;
 use crate::units::Unit;
@@ -107,7 +109,8 @@ impl Job {
 }
 
 /// How a matching unit stands to its job.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum MatchClass {
     /// The home or one of its entry points.

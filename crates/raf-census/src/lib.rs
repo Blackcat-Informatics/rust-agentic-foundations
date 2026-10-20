@@ -22,6 +22,10 @@
 //! names a home and what is forbidden elsewhere, and [`Census::match_jobs`]
 //! classifies the units it finds.
 //!
+//! [`Census::baseline`] and [`Census::index`] render the two reports; both
+//! are closed schemas, `to_json` writes sorted keys and a trailing newline,
+//! and `from_json` reads back what `to_json` wrote.
+//!
 //! [`CensusOptions`] holds the limits of one run and [`Error`] is the one error
 //! type of the crate.
 //!
@@ -45,6 +49,7 @@ mod group;
 mod job;
 mod normalize;
 mod options;
+mod report;
 mod units;
 mod version;
 
@@ -58,5 +63,9 @@ pub use normalize::{
     Slice, TableKind, Token, TokenDiff, Tower, VALUE_ADAPTERS, WEAK_KEYWORDS, manifest,
 };
 pub use options::{CensusOptions, DEFAULT_MAX_FILE_BYTES, DEFAULT_MIN_TOKENS};
+pub use report::{
+    Baseline, BaselineGroup, ConstantRow, Index, IndexGroup, IndexUnit, JobRow, MatchRow,
+    MemberRow, TableRow,
+};
 pub use units::{StringKind, StringLiteral, Unit, UnitKind};
 pub use version::{NORMAL_FORM, check_normal_form};

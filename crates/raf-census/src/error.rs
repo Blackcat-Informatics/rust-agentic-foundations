@@ -43,6 +43,9 @@ pub enum Error {
     },
     /// The workspace could not be loaded.
     Load(LoadError),
+    /// A report could not be rendered, or a text is not a report: unknown
+    /// keys, missing keys and wrong types are refused.
+    Report(String),
 }
 
 impl fmt::Display for Error {
@@ -68,6 +71,7 @@ impl fmt::Display for Error {
                  `cargo census migrate` to move the ledger to normal_form {implemented}"
             ),
             Self::Load(error) => write!(f, "the workspace did not load: {error}"),
+            Self::Report(reason) => write!(f, "invalid census report: {reason}"),
         }
     }
 }

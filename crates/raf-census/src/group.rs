@@ -10,6 +10,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use serde::{Deserialize, Serialize};
+
 use crate::normalize::TableKind;
 use crate::units::Unit;
 use crate::{Error, Fingerprint};
@@ -45,7 +47,8 @@ impl Member {
 }
 
 /// What a group is keyed by.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum GroupKind {
     /// Bodies with one value form.
