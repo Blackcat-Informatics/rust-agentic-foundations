@@ -319,6 +319,20 @@ fn an_unknown_key_missing_key_or_wrong_type_is_not_a_report() {
         Index::from_json(&index.replacen("\"copy\"", "\"duplicate\"", 1)),
         "duplicate",
     );
+    // `body` and `shim` may be null but must be present.
+    assert!(
+        Index::from_json(&index).is_ok(),
+        "the null-carrying form reads"
+    );
+    assert!(index.contains("\"body\": null,") && index.contains("\"shim\": null,"));
+    refused(
+        Index::from_json(&index.replacen("\"body\": null,", "", 1)),
+        "body",
+    );
+    refused(
+        Index::from_json(&index.replacen("\"shim\": null,", "", 1)),
+        "shim",
+    );
     // An index is not a baseline.
     assert!(Baseline::from_json(&index).is_err());
     assert!(Index::from_json(&baseline).is_err());
@@ -436,4 +450,14 @@ fn two_fresh_loads_of_this_repository_give_identical_bytes() {
     let first = run();
     assert!(first.contains("\"normal_form\": 1"));
     assert_eq!(first, run());
+}
+
+#[test]
+fn an_absolute_directory_reports_the_same_as_the_relative_spelling() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let root = root.canonicalize().expect("the repository root exists");
+    let absolute = builtin::of_dir(root.join("crates").to_str().expect("utf-8 path"))
+        .expect("the absolute spelling reports");
+    let tree = DiskTree::new(&root).expect("the repository root opens");
+    assert_eq!(absolute, builtin::of(&tree, "crates").expect("relative"));
 }

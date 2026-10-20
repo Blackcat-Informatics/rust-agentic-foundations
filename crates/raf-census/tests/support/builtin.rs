@@ -9,7 +9,9 @@
 //! constant 65536 and one job whose home is `alpha`.
 
 use raf_census::{Census, CensusOptions, Error, Fingerprint, Job, JobForbidden, JobReport};
-use raf_source::{MemoryTree, Tree};
+use std::path::Path;
+
+use raf_source::{DiskTree, MemoryTree, Tree};
 
 const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
 
@@ -64,4 +66,20 @@ pub(crate) fn builtin() -> Result<String, Error> {
 pub(crate) fn of(tree: &impl Tree, root: &str) -> Result<String, Error> {
     let census = Census::load(tree, &[root], &CensusOptions::default())?;
     render(&census, &[])
+}
+
+/// The output for the workspace under the directory `dir`, with no jobs.
+///
+/// A relative `dir` is a root of the tree at the current directory. An
+/// absolute `dir` is read as its parent's tree with its file name as the root,
+/// so `<abs>/crates` and `crates` from the directory `<abs>` report the same.
+pub(crate) fn of_dir(dir: &str) -> Result<String, Error> {
+    let path = Path::new(dir);
+    let (base, root) = match (path.parent(), path.file_name().and_then(|n| n.to_str())) {
+        (Some(parent), Some(name)) if path.is_absolute() => (parent, name),
+        (_, _) if path.is_absolute() => (path, "."),
+        _ => (Path::new("."), dir),
+    };
+    let tree = DiskTree::new(base).map_err(|e| Error::Report(format!("{dir}: {e}")))?;
+    of(&tree, root)
 }

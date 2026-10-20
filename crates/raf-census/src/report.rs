@@ -115,10 +115,22 @@ pub struct IndexUnit {
     /// The structural tokens of the body; 0 for a unit that is not a function.
     pub tokens: usize,
     /// The `body` fingerprint, when the body reaches `min_tokens`.
+    #[serde(deserialize_with = "required")]
     pub body: Option<String>,
     /// The `shim` fingerprint the unit groups under; none for a unit that is
     /// not an eligible forwarder.
+    #[serde(deserialize_with = "required")]
     pub shim: Option<String>,
+}
+
+/// Reads a key that must be present: its value may be `null`, but a missing
+/// key is an error, which a plain `Option` field would read as `None`.
+fn required<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer)
 }
 
 /// A group of the index report.

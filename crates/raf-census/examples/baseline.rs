@@ -5,13 +5,11 @@
 //!
 //! With no argument it reports a built-in workspace with one body group, one
 //! shim group and one job. With a directory argument it reports the workspace
-//! under that directory, with no jobs. The output is byte-stable: running it
-//! twice prints the same bytes.
+//! under that directory, with no jobs; an absolute directory and the same
+//! directory as a relative path from its parent give the same output. The
+//! output is byte-stable: running it twice prints the same bytes.
 
-use std::path::Path;
 use std::process::ExitCode;
-
-use raf_source::DiskTree;
 
 #[path = "../tests/support/builtin.rs"]
 mod builtin;
@@ -19,22 +17,7 @@ mod builtin;
 fn main() -> ExitCode {
     let output = match std::env::args().nth(1) {
         None => builtin::builtin(),
-        Some(dir) => {
-            // An absolute path is its own tree; a relative one is a root of
-            // the tree at the current directory.
-            let (base, root) = if Path::new(&dir).is_absolute() {
-                (dir.as_str(), ".")
-            } else {
-                (".", dir.as_str())
-            };
-            match DiskTree::new(base) {
-                Ok(tree) => builtin::of(&tree, root),
-                Err(error) => {
-                    eprintln!("baseline: {dir}: {error}");
-                    return ExitCode::FAILURE;
-                }
-            }
-        }
+        Some(dir) => builtin::of_dir(&dir),
     };
     match output {
         Ok(text) => {
