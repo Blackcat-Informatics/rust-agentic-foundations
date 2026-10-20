@@ -88,6 +88,11 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `::bench_crate::`, `::example_crate::`, `::bin_crate::`, `::build_script` and the
   modules below each), where a module of the library alone was read before; a
   module path that is a module of two crates is `Ambiguous`.
+- **`raf-source`:** `Workspace::impls` lists every impl block of every target as
+  an `ImplBlock`: its span, module, target, test role, written self type and
+  trait, the key of its self type and its members, and `Workspace::impl_block`
+  takes its `ImplId` back. Each record is charged to the item-bytes budget, so a
+  load holds a little more of it.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed

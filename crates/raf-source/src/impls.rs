@@ -16,7 +16,9 @@ use crate::facts::{ItemKind, PathFact, TestRole};
 use crate::index::{
     ImplDecl, Index, MEMBERS_BYTES, Store, UseDecl, UseKind, combine, member_bytes,
 };
-use crate::item::{ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl};
+use crate::item::{
+    ImplBlock, ImplId, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl,
+};
 use crate::path::RelPath;
 use crate::resolve::{Fail, Heads, Walked};
 
@@ -1089,7 +1091,8 @@ impl Index {
             let local = self.local_types(&decl, own.as_ref())?;
             let self_type: String = fact.self_type.split_whitespace().collect();
             if fact.trait_segments.is_none() && local.is_empty() {
-                self.attach_unresolved(&decl, own.as_ref(), &self_type, store)?;
+                let members = self.attach_unresolved(&decl, own.as_ref(), &self_type, store)?;
+                self.record_block(&decl, &self_type, local, members, store)?;
                 continue;
             }
             let trait_key = match (&fact.trait_segments, local.is_empty()) {
@@ -1116,6 +1119,7 @@ impl Index {
                 )?;
             }
             let anchor = local.first().map(|id| self.items[id.0].path.clone());
+            let mut members = Vec::with_capacity(fact.items.len());
             for member in &fact.items {
                 let kind = match (member.kind, fact.trait_segments.is_some()) {
                     (ItemKind::Fn, false) => SymbolKind::InherentMethod,
@@ -1151,6 +1155,7 @@ impl Index {
                     trait_key.clone(),
                     store,
                 )?;
+                members.push(id);
                 if local.is_empty() {
                     store.charge(member_bytes(&path), &decl.file, Some(member.name_line))?;
                     self.foreign.entry(path).or_default().push(id);
@@ -1175,7 +1180,58 @@ impl Index {
                     }
                 }
             }
+            self.record_block(&decl, &self_type, local, members, store)?;
         }
+        Ok(())
+    }
+
+    /// Record an impl block with the struct, enum or union its self type
+    /// names (`local`) and its members, charging the record, its lists and
+    /// the written types it holds to the item-bytes budget at the line of the
+    /// `impl` keyword.
+    fn record_block(
+        &mut self,
+        decl: &ImplDecl<'_>,
+        self_type: &str,
+        local: Vec<ItemId>,
+        members: Vec<ItemId>,
+        store: &mut Store<'_>,
+    ) -> Result<(), LoadError> {
+        let fact = decl.fact;
+        let (self_type, self_cost) = store.intern(self_type);
+        let written = fact
+            .trait_path
+            .as_ref()
+            .map(|text| text.split_whitespace().collect::<String>());
+        let (trait_path, trait_cost) = match written {
+            Some(text) => {
+                let (shared, cost) = store.intern(&text);
+                (Some(shared), cost)
+            }
+            None => (None, 0),
+        };
+        store.charge(
+            vec_slot::<ImplBlock>()
+                + self_cost
+                + trait_cost
+                + (local.capacity() + members.capacity()) * size_of::<ItemId>(),
+            &decl.file,
+            Some(fact.line),
+        )?;
+        self.impl_blocks.push(ImplBlock {
+            id: ImplId(self.impl_blocks.len()),
+            file: decl.file.clone(),
+            line: fact.line,
+            span: fact.span.clone(),
+            module: self.modules[decl.module].path.clone(),
+            target: decl.target,
+            test: combine(fact.test, decl.reach_test),
+            self_type,
+            trait_path,
+            self_items: local,
+            members,
+            module_index: decl.module,
+        });
         Ok(())
     }
 
@@ -1256,14 +1312,15 @@ impl Index {
     /// Record the members of an inherent impl whose self type names no
     /// struct, enum or union the index can see under the self path written
     /// in its module, marked [`SelfType::Unresolved`], and the impl among the
-    /// unresolved impls. No scope or type names the members.
+    /// unresolved impls. No scope or type names the members. Returns the
+    /// members.
     fn attach_unresolved(
         &mut self,
         decl: &ImplDecl<'_>,
         own: Option<&PathFact>,
         self_type: &str,
         store: &mut Store<'_>,
-    ) -> Result<(), LoadError> {
+    ) -> Result<Vec<ItemId>, LoadError> {
         let fact = decl.fact;
         let written = self.written_self_path(decl, own, self_type)?;
         let (path, path_cost) = store.intern(&written);
@@ -1308,9 +1365,9 @@ impl Index {
             span: fact.span.clone(),
             target: decl.target,
             test: combine(fact.test, decl.reach_test),
-            members,
+            members: members.clone(),
         });
-        Ok(())
+        Ok(members)
     }
 
     /// The paths in the crate of a glob path written in `module` that starts

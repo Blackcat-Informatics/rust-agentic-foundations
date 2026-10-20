@@ -54,7 +54,7 @@ built.
 the body model and the profile validation of `raf-okf`, and the `Tree` trait of
 `raf-source` with its disk and memory backends and path containment, its bounded
 parse, package and target discovery, its module tree and its symbol and use-alias
-index, read from the modules of every target. `raf-workplan` delivers the document model (loading, the graph, binding
+index, read from the modules of every target, and its impl blocks. `raf-workplan` delivers the document model (loading, the graph, binding
 resolution, the check rules and the `Gate`), the generated blocks with their sync
 and preview, the change lifecycle (`change new`, `impact`, `reconcile`,
 `complete` and `verify`), entity history, execution evidence and its claims,
@@ -77,7 +77,7 @@ changes are `implementing` beside its open change record. Every other crate belo
 | Crate | Role | Status |
 |---|---|---|
 | `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | delivered |
-| `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | delivered |
+| `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, impl blocks, `Tree` trait with disk and memory backends | delivered |
 | `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | designed |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
 | `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |

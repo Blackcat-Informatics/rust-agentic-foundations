@@ -852,3 +852,17 @@ fn repeated_globs_of_one_module_are_charged_once_for_what_it_holds() {
         );
     }
 }
+
+#[test]
+fn an_impl_block_is_charged_its_record_and_what_it_holds() {
+    let without = usage(&[("src/lib.rs", "pub struct S;\n")]).item_bytes;
+    let with = usage(&[("src/lib.rs", "pub struct S;\nimpl S {}\n")]).item_bytes;
+    // The block's record in the list of blocks, at most twice its size, on
+    // top of what the impl costs while the load attaches it.
+    assert!(
+        with - without >= 2 * size_of::<raf_source::ImplBlock>(),
+        "{} charged for a record of {}",
+        with - without,
+        size_of::<raf_source::ImplBlock>()
+    );
+}

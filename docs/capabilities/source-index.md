@@ -31,6 +31,10 @@ bindings:
     - raf_source::Workspace::resolve_from
     - raf_source::Workspace::resolve_from_in
     - raf_source::Workspace::unresolved_impls
+    - raf_source::Workspace::impls
+    - raf_source::Workspace::impl_block
+    - raf_source::ImplBlock
+    - raf_source::ImplId
     - raf_source::Workspace::exported_items
     - raf_source::Workspace::exported_items_with
     - raf_source::Exports
@@ -407,8 +411,12 @@ bindings:
     - raf_source::test_crate::target_resolution::a_support_module_that_two_test_targets_include_resolves_in_each_target_alone
     - raf_source::test_crate::target_resolution::a_module_of_the_library_at_the_crate_path_of_a_test_target_is_ambiguous_with_it
     - raf_source::resolve::tests::a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate
+    - raf_source::test_crate::symbol_index::every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members
+    - raf_source::test_crate::symbol_index::an_impl_block_of_a_file_reached_under_two_module_paths_is_listed_once_for_each
+    - raf_source::test_crate::load_budgets::an_impl_block_is_charged_its_record_and_what_it_holds
   examples:
     - raf_source::Workspace::exported_items
+    - raf_source::Workspace::impls
 depends: []
 ---
 
@@ -1450,9 +1458,9 @@ the index says so.
 
 **Resolution from every target.** `resolve_from` and `resolve_from_in` read from a module of any target, named by its crate path: `<pkg>::test_crate::<target>`, `<pkg>::bench_crate::<target>`, `<pkg>::example_crate::<target>`, `<pkg>::bin_crate::<bin>` and `<pkg>::build_script`, and the modules below each. The crate path that starts the module path is found by prefixes that grow a segment at a time, as for `resolve`, so a module path of 50,000 segments is read once for each segment. A path read there starts as code of that target starts it: `crate` is the target's root, and the library of its own package and the crates of the workspace it may depend on are crates of its extern prelude, so `resolve_from("demo::test_crate::it", "demo::api")` finds the library's `api` and `crate::api` there is `NotFound`; the build script does not name the library of its package. A file that several targets include, such as a support module of the integration tests, is one module of each target that includes it, and a path read from one of them resolves in that target only: `support::helper` read from `demo::test_crate::a` is `demo::test_crate::a::support::helper`, one site, and the copy of target `b` is another site of the same source item, which `same_source` relates. A module path that no target holds is `ResolveError::UnknownModule`, whichever kind of target it names, and a module path that is a module of two crates, as a module `test_crate::it` of the library beside the test target `it`, is `Ambiguous` between the items that stand for the two modules.
 
+**Impl blocks.** `Workspace::impls()` lists every `impl` block of every target, inherent and trait alike, once for each module path its file is reached under, in file order: sorted by file, the byte where the block starts, module path and target. Each is an `ImplBlock`: its `id`, an `ImplId` that is its place in that order and that `Workspace::impl_block(id)` takes back, its `file` and the `line` of the `impl` keyword, its `span` from its first attribute or the `impl` keyword to its closing brace, the `module` that holds it and its `target`, its `test` role, its written `self_type` and `trait_path` without spaces, its `self_items`, the key of its self type, and its `members` in source order. The key is the struct, enum or union that the self type path names from the block's module, through type aliases, as the members of the block are placed (two for the `cfg` alternatives of one type); it is empty when the self type names nothing of the workspace or a type the index cannot place: a generic parameter, a reference, a slice, a tuple, a type of a dependency or one that a macro generates, as for `impl Tr for String`, `impl<T> Tr for T`, `impl Tr for &Foo` and `impl Missing`. An impl block inside a function body is not an item of a module and is not listed. Each record is charged to the item-bytes budget at the line of its `impl` keyword.
+
 > [!PROPOSED change:workplan-strict]
-> **Impl blocks.** `Workspace::impls()` lists every `impl` block of every target, inherent and trait alike, in file order: its span from the header to the closing brace, the module that holds it, and the key of its self type, the item the self type path resolves to from that module, or none when it names nothing of the workspace or a type the index cannot place.
->
 > **Reachability.** `Workspace::reachable(roots)` gives the items of every target that the root items reach over three edges: contains (an item to the items below it, as a type to its methods, a trait to its members and a module to its items, a crate root to nothing), impl-of (a type to the `impl` blocks whose self type it is, and a block to its items), and references (an item to each item that a path in its tokens resolves to from its module, a path being an `Ident (:: Ident)*` run that no `.` precedes, or a prefix of one). Each reached item is given once with the edge it was first reached by, in a stable order, and the work is counted: each item's tokens are read once and each path is resolved at most once per module.
 
 **Exported items.** `Workspace::exported_items(target)` lists the public surface of
@@ -1602,7 +1610,8 @@ is not a breaking change: a pattern over one names the fields it reads and ends 
 per-file facts the index is built from are not public. `LoadOptions` is `Clone` and
 not `Copy`, so adding an option that is not `Copy` is not a breaking change. `Exports`,
 `ExportedItem`, `Reexport`, `ExportOptions` and `ExportError` are `#[non_exhaustive]`
-as well, so a caller builds `ExportOptions` from `ExportOptions::default()`.
+as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and so
+is `ImplBlock`.
 
 ## Usage
 
@@ -2219,6 +2228,7 @@ duplicates.
   that resolves, each answered with at most four segment reads and two name lookups
   for each segment plus two, counted in the walk and stopped at that count.
 - `resolve_from` from every target (`target_resolution`): a helper resolves from an integration test root and from a module below it, the library from a test, an example and a binary and not from the build script, `crate` is the reading target's root; from a nested module of a binary in `src/bin/<name>/` and of `src/main.rs`; from an example, a bench and the build script; a support module that two test targets include resolves in each target alone, one site each, related by `same_source`; a module path that no target holds is `UnknownModule` for each kind of target beside the neighbour that one holds; a library module at the crate path of a test target is `Ambiguous` with it beside a module only the library has. A module path of 50,000 segments is read once for each segment (`resolve::tests`, counted).
+- `impls()` (`symbol_index`): the impl shapes (an inherent impl, one through an alias, a trait impl on the type, on `String`, on a generic, on a reference, an impl of a type the index cannot see, a `#[cfg(test)]` block over four lines with its attribute, a block in a module naming `super::Foo`, and one inside a function body, which is not listed) in file order with their lines, spans in lines and bytes, modules, written self types and traits, self type keys and members; the id is the place and finds the block; a file reached under two module paths lists its block once for each, each keyed to its own copy of the type; each block's record is charged to the item-bytes budget (`load_budgets`).
 - `resolve_from`: a use path counts only what the reading module can access: the module itself, a child of it and a public item of a sibling resolve, and a private item of a module read from outside it and a module private to the one that declares it are `NotFound`; it is read in one name space or in each in turn; a module that is not in the workspace is `UnknownModule`, and a text that is no path is `Invalid`.
 - Missing-glob fixtures: a module with `pub use self::missing::*;`, a module that globs
   it, `crate::a::gone::*`, `super::a::inner::nothing::*` and an import of a name the
@@ -2586,6 +2596,7 @@ duplicates.
 | Item | Kind | Section |
 | --- | --- | --- |
 | `raf_source::Workspace::exported_items` | doctest | [Verification](#verification) |
+| `raf_source::Workspace::impls` | doctest | [Verification](#verification) |
 | `raf_source::cost::tests::a_hash_table_is_charged_at_least_its_buckets` | test | [Verification](#verification) |
 | `raf_source::cost::tests::a_list_is_charged_at_least_its_room` | test | [Verification](#verification) |
 | `raf_source::cost::tests::a_map_of_one_entry_is_covered_by_what_a_map_costs_once` | test | [Verification](#verification) |
@@ -2692,6 +2703,7 @@ duplicates.
 | `raf_source::test_crate::load_budgets::a_long_module_name_is_charged_in_every_item_path_and_refused_over_the_item_budget` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::a_module_that_many_modules_glob_is_kept_once_for_all_of_them` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms` | test | [Verification](#verification) |
+| `raf_source::test_crate::load_budgets::an_impl_block_is_charged_its_record_and_what_it_holds` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::each_costly_shape_at_the_token_limit_loads_and_one_more_token_is_refused` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::each_large_fact_payload_is_charged_and_refused_at_its_line_once_over_the_fact_budget` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::glob_table_work_at_the_work_budget_loads_and_one_step_less_is_refused` | test | [Verification](#verification) |
@@ -2791,10 +2803,12 @@ duplicates.
 | `raf_source::test_crate::symbol_index::a_first_party_test_crate_module_and_a_test_target_are_ambiguous_only_where_their_paths_meet` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::a_glob_of_a_local_path_the_index_cannot_see_is_a_candidate_that_cannot_be_confirmed` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::a_glob_of_enum_variants_beside_an_impl_loads` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::an_impl_block_of_a_file_reached_under_two_module_paths_is_listed_once_for_each` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::an_impl_of_a_local_trait_object_loads_with_its_members_marked_unresolved` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::an_inherent_impl_on_a_type_the_index_cannot_see_is_indexed_under_its_written_self_path` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::cfg_twins_are_one_symbol_with_two_sorted_sites` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::every_kind_is_indexed_with_its_kind_line_file_and_visibility` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::test_functions_carry_the_package_target_and_crate_relative_name` | test | [Verification](#verification) |

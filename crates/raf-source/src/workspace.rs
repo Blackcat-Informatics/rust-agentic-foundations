@@ -11,7 +11,7 @@ use crate::error::{LoadError, LoadErrorKind, Origin};
 use crate::exports::{ExportError, ExportOptions, Exports, Surface};
 use crate::facts::{FileFacts, TestRole};
 use crate::index::{DependencyInfo, Index, LOAD_BASE_BYTES, PackageInfo};
-use crate::item::{Item, ItemId, Namespace, UnresolvedImpl};
+use crate::item::{ImplBlock, ImplId, Item, ItemId, Namespace, UnresolvedImpl};
 use crate::manifest::{
     self, Dependency, EditionDecl, Manifest, PackageDecl, PathSource, WorkspaceDependency,
 };
@@ -462,6 +462,43 @@ impl Workspace {
     /// consumer that needs every impl placed can refuse them.
     pub fn unresolved_impls(&self) -> impl Iterator<Item = &UnresolvedImpl> {
         self.index.unresolved.iter()
+    }
+
+    /// Every `impl` block of every target, inherent and of a trait alike, once
+    /// for each module path its file is reached under, in file order: sorted
+    /// by file, the byte offset where the block starts, module path and
+    /// target. A block's [`ImplId`] is its place in this order. Each carries
+    /// its span from its first attribute or the `impl` keyword to its closing
+    /// brace, the module that holds it, its written self type and trait, the
+    /// key of its self type (the struct, enum or union the self type path
+    /// names from that module, none when it names nothing of the workspace or
+    /// a type the index cannot place) and its members. An impl block inside a
+    /// function body is not an item of a module and is not listed.
+    ///
+    /// ```
+    /// use raf_source::{MemoryTree, Workspace};
+    ///
+    /// let tree = MemoryTree::from([
+    ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+    ///     ("src/lib.rs", "pub struct S;\nimpl S { pub fn new() {} }\nimpl Clone for S { fn clone(&self) -> S { S } }\n"),
+    /// ]);
+    /// let ws = Workspace::load(&tree, &["."])?;
+    /// let blocks: Vec<_> = ws.impls().collect();
+    /// assert_eq!(blocks.len(), 2);
+    /// assert_eq!((blocks[0].line, blocks[1].line), (2, 3));
+    /// let s = ws.resolve("demo::S")?.sites[0];
+    /// assert!(blocks.iter().all(|block| block.self_items == [s]));
+    /// assert_eq!(blocks[1].trait_path.as_deref(), Some("Clone"));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn impls(&self) -> impl Iterator<Item = &ImplBlock> {
+        self.index.impl_blocks.iter()
+    }
+
+    /// One impl block by id.
+    #[must_use]
+    pub fn impl_block(&self, id: ImplId) -> Option<&ImplBlock> {
+        self.index.impl_blocks.get(id.index())
     }
 
     /// The items that share a source item, grouped by its identity: the file

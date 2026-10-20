@@ -187,7 +187,8 @@ pub use error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
 pub use exports::{ExportError, ExportOptions, ExportedItem, Exports, Reexport};
 pub use facts::{FieldShape, SpanFact, TestRole, Vis};
 pub use item::{
-    Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl,
+    ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey,
+    UnresolvedImpl,
 };
 pub use meter::Usage;
 pub use modtree::{Reach, TargetId};

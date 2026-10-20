@@ -30,6 +30,12 @@ inputs:
     name: raf_source::FileId
     digest: 90dc1a47d5c6f0b91913a5157e686a0ed32f594ba8009e9db3ceffcabe789da7
   - kind: symbol
+    name: raf_source::ImplBlock
+    digest: 060733a5666514233569a795f0eaeb29a2ad26c40b570fb48b29dbf5ac4ba308
+  - kind: symbol
+    name: raf_source::ImplId
+    digest: 9bb0ed63e4c24316d5b0070b2cb4a32af5d8b23074f6308251d6e29cfc748f12
+  - kind: symbol
     name: raf_source::Item
     digest: 8d11be3ec8160a775ffb5a0d8e4f62221ea6eff834b65402273c768109a226ca
   - kind: symbol
@@ -83,6 +89,12 @@ inputs:
   - kind: symbol
     name: raf_source::Workspace::exported_items_with
     digest: 8778674c764a024836be800d352cf3a22d9b6d8dfe07627fe76e707e1f617e38
+  - kind: symbol
+    name: raf_source::Workspace::impl_block
+    digest: fb2b7a91c6018c4ba02bc6a2ac0aa2053e3a41ec045247b03c254ab70047cbdf
+  - kind: symbol
+    name: raf_source::Workspace::impls
+    digest: faf8d5bb70bfd1759b468bebb59548a09844ff489085c71b07831c961f99b4f9
   - kind: symbol
     name: raf_source::Workspace::resolve_from
     digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94
