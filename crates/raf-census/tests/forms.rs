@@ -87,8 +87,9 @@ fn a_fixture_named_for_a_size_has_that_many_value_tokens() {
     }
 }
 
-/// Equal at a finer level implies equal at every coarser one, and no pass adds
-/// a token, over every pair of registered fixtures.
+/// For slices with one parameter list, equal at a finer level implies equal at
+/// every coarser one, and no pass adds a token, over every pair of registered
+/// fixtures.
 #[test]
 fn the_tower_is_monotone_over_every_registry_pair() {
     let registry = registry();
@@ -590,4 +591,14 @@ fn copies_with_reordered_parameters_share_a_body_print_and_forwarders_keep_their
     assert_eq!(in_order.body, swapped.body, "the body form numbers by use");
     assert!(in_order.shim.is_some() && swapped.shim.is_some());
     assert_ne!(in_order.shim, swapped.shim, "the shim form keeps the order");
+}
+
+#[test]
+fn explain_reports_reordered_parameters_as_equal_from_the_literal_tier() {
+    let body = "let mut n = 0; for x in xs { if x == k { n += 1; } } n";
+    let a = Slice::new("f.rs", 1, body).params(["xs", "k"]);
+    let b = Slice::new("f.rs", 1, body).params(["k", "xs"]);
+    let divergence = normalizer(1).explain(&a, &b).expect("lexes");
+    assert_eq!(divergence.equal_from, Some(Level::LiteralTier));
+    assert_eq!(divergence.differs_through, Some(Level::Shim));
 }

@@ -16,8 +16,10 @@
 //! 5. value: after `erase_held`, the spellings that only change how a value is
 //!    held dropped.
 //!
-//! Two bodies equal at one level are equal at every coarser one, and no pass
-//! adds a token.
+//! Two bodies with the same parameter list that are equal at one level are equal
+//! at every coarser one, and no pass adds a token. The verbatim form is the text
+//! alone, so the same text under another parameter list can differ at the shim
+//! level and be equal again from the literal tier.
 
 mod binders;
 mod fingerprint;
@@ -252,8 +254,8 @@ pub struct Divergence {
     /// The coarsest level at which the two forms still differ; `None` when
     /// they are equal at every level.
     pub differs_through: Option<Level>,
-    /// The finest level at which the two forms are equal; `None` when they
-    /// are distinct even in the value form.
+    /// The finest level from which every coarser level is equal too; `None`
+    /// when the forms are distinct even in the value form.
     pub equal_from: Option<Level>,
     /// The first differing token of the forms at `differs_through`, with the
     /// source line of each side.
@@ -302,7 +304,11 @@ impl Normalizer {
         let (a, b) = (Tower::new(a)?, Tower::new(b)?);
         let same = |level: Level| a.form(level).texts() == b.form(level).texts();
         let differs_through = Level::ALL.into_iter().rev().find(|level| !same(*level));
-        let equal_from = Level::ALL.into_iter().find(|level| same(*level));
+        let equal_from = Level::ALL
+            .into_iter()
+            .rev()
+            .take_while(|level| same(*level))
+            .last();
         let first = differs_through.and_then(|level| {
             let (left, right) = (a.form(level).tokens(), b.form(level).tokens());
             (0..left.len().max(right.len()))

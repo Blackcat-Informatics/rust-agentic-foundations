@@ -76,8 +76,11 @@ ordered from the finest to the coarsest:
 | `structural` | `kind_literals` | Literals abstracted to their kind unless the value form is under the literal tier. |
 | `value` | `erase_held` | The spellings that only change how a value is held dropped. |
 
-Two bodies that are equal at one level are equal at every coarser level, and a
-level never has more tokens than the finer one before it. The pass ids, in order,
+Two bodies with the same parameter list that are equal at one level are equal at
+every coarser level, and a level never has more tokens than the finer one before
+it. The `verbatim` level is the text alone, so two bodies with the same text and
+different parameter lists can differ at `shim` and are equal again from
+`literal-tier`. The pass ids, in order,
 are `rename_params`, `rename_locals`, `kind_literals` and `erase_held`.
 
 ## Structural form

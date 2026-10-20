@@ -69,6 +69,10 @@ binder_if_let.a 18 body:38f212b00c4e9b92 -\n\
 binder_if_let.b 18 body:38f212b00c4e9b92 -\n\
 binder_while_let.a 19 body:46ebfa0602c11e7a -\n\
 binder_while_let.b 19 body:46ebfa0602c11e7a -\n\
+binder_at_binding_match_arm.a 22 body:47a8e2d90e7de853 shim:bf079faf7d3d7788\n\
+binder_at_binding_match_arm.b 22 body:47a8e2d90e7de853 shim:3a22ace1b228da11\n\
+binder_at_binding_if_let.a 24 body:b8469c5781b9287c -\n\
+binder_at_binding_if_let.b 24 body:b8469c5781b9287c -\n\
 binder_label.a 17 body:b17d7810ac4506ab shim:61ecd3c261e33ff1\n\
 binder_label.b 17 body:b17d7810ac4506ab shim:6b9712b2ac291064\n\
 binder_lifetime.a 25 body:3498957fe46e7bdb shim:35075f7d9dbca4ff\n\

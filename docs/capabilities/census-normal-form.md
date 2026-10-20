@@ -135,6 +135,7 @@ bindings:
     - raf_census::test_crate::forms::every_threshold_counts_the_value_form
     - raf_census::test_crate::forms::below_the_tier_the_final_sequence_keeps_literals_and_above_it_abstracts_them
     - raf_census::test_crate::forms::every_registered_pair_compares_as_registered
+    - raf_census::test_crate::forms::explain_reports_reordered_parameters_as_equal_from_the_literal_tier
     - raf_census::test_crate::forms::explain_names_the_levels_and_the_first_differing_token_with_its_line
     - raf_census::test_crate::forms::fingerprints_sort_by_kind_then_value
     - raf_census::test_crate::forms::nesting_at_the_budget_lexes_and_one_deeper_is_refused
@@ -278,8 +279,8 @@ implements it as follows.
 - A body is a shim candidate when it is one expression, judged at the top level of
   the body only (no `let`, no `;` before its tail; a closure inside an argument may
   hold both), contains a call, does not mention `self` and has 6 to 29 value
-  tokens; its shim form renames its own parameters in signature order. `MIN_SHIM_TOKENS` is 6 and
-  `SHIM_MAX_TOKENS` is 30. A shim candidate keeps its `body` fingerprint when it
+  tokens; its shim form renames its own parameters in signature order.
+  `MIN_SHIM_TOKENS` is 6 and `SHIM_MAX_TOKENS` is 30. A shim candidate keeps its `body` fingerprint when it
   reaches `min_tokens`, which the index lists, but it never joins a body group:
   only its `shim` fingerprint groups, and only when its `shim_key` is present. The
   `shim_key` is absent for a method of a trait implementation and for a forwarder
@@ -657,12 +658,15 @@ because there the algorithm, not the constants, is what two copies share.
   borrows, clones and a `let` type annotation fingerprint equal, with the level at
   which they first become equal registered; there is one pair for each form of
   binder (`let`, a tuple or struct pattern, a closure parameter, `for`, a `match`
-  arm, `if let`, `while let`, a label, a lifetime, a local function and a local
+  arm, `if let`, `while let`, a `name @ pattern` binding, a label, a lifetime, a local function and a local
   type, a call to a bound closure, a bound name that shadows an item). Pairs
   differing in a method name, a field name, a called function, a function passed by
   name, a lowercase static or a struct field (`S { x }` and `S { y }`) fingerprint
   different. A property test checks that
-  equality at a finer level implies equality at every coarser one.
+  equality at a finer level implies equality at every coarser one for slices with
+  the same parameter list. `explain` gives the finest level from which every coarser
+  level is equal, so the same text under reordered parameters is equal from the
+  literal tier and differs through the shim level.
 - Pairs whose two sides straddle a threshold only through erased noise fingerprint
   equal: one across the literal tier and one across `min_tokens`, at the default and
   at 10, and the shim bounds count the value form too.
@@ -733,6 +737,7 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::test_crate::forms::every_registered_pair_compares_as_registered` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::every_threshold_counts_the_value_form` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::explain_names_the_levels_and_the_first_differing_token_with_its_line` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::explain_reports_reordered_parameters_as_equal_from_the_literal_tier` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::fingerprints_sort_by_kind_then_value` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::nesting_at_the_budget_lexes_and_one_deeper_is_refused` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::parameters_and_locals_are_numbered_together_by_first_appearance` | test | [Verification](#verification) |

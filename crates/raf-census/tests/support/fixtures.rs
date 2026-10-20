@@ -249,6 +249,18 @@ fn binders_more(r: &mut Registry) {
     use Expect::Equal;
     use Level::LiteralTier;
     r.pair(
+        "binder_at_binding_match_arm",
+        (&["x"], "match x { n @ 1..=5 => g(n), _ => 0 }"),
+        (&["x"], "match x { m @ 1..=5 => g(m), _ => 0 }"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "binder_at_binding_if_let",
+        (&["x"], "if let Some(n @ 1..=5) = x { g(n) } else { 0 }"),
+        (&["x"], "if let Some(m @ 1..=5) = x { g(m) } else { 0 }"),
+        Equal(LiteralTier),
+    );
+    r.pair(
         "binder_label",
         (&["x"], "'outer: loop { if f(x) { break 'outer; } }"),
         (&["x"], "'inner: loop { if f(x) { break 'inner; } }"),
