@@ -5,6 +5,7 @@
 
 use raf_source::{LoadOptions, Tree, Workspace};
 
+use crate::group::{self, Group, GroupKind, Grouping, HexTable, SharedConstant};
 use crate::units::{self, Unit};
 use crate::{CensusOptions, Error};
 
@@ -27,6 +28,7 @@ pub struct Census {
     options: CensusOptions,
     units: Vec<Unit>,
     files: Vec<FileCtx>,
+    grouping: Grouping,
 }
 
 impl Census {
@@ -39,12 +41,14 @@ impl Census {
     ///
     /// [`Error::Load`] when the workspace does not load, and [`Error::Source`]
     /// when a body does not lex or a signature or an initialiser does not
-    /// parse. Nothing falls back to a partial result.
+    /// parse, and [`Error::Collision`] when two different forms have one
+    /// fingerprint. Nothing falls back to a partial result.
     pub fn load(tree: &impl Tree, roots: &[&str], options: &CensusOptions) -> Result<Self, Error> {
         let mut load = LoadOptions::default();
         load.max_file_bytes = options.max_file_bytes;
         let workspace = Workspace::load_with(tree, roots, &load)?;
         let units = units::collect(&workspace, options)?;
+        let grouping = group::group(&units)?;
         let files = workspace
             .files()
             .map(|file| FileCtx {
@@ -57,6 +61,7 @@ impl Census {
             options: options.clone(),
             units,
             files,
+            grouping,
         })
     }
 
@@ -95,5 +100,39 @@ impl Census {
     #[must_use]
     pub fn file(&self, path: &str) -> Option<&FileCtx> {
         self.files.iter().find(|file| file.path == path)
+    }
+
+    /// Every group of two or more units, body and shim, ordered by member
+    /// count descending, then tokens descending, then fingerprint ascending.
+    #[must_use]
+    pub fn groups(&self) -> &[Group] {
+        &self.grouping.groups
+    }
+
+    /// The body groups, in the order of [`Census::groups`].
+    pub fn body_groups(&self) -> impl Iterator<Item = &Group> {
+        self.groups_of(GroupKind::Body)
+    }
+
+    /// The shim groups, in the order of [`Census::groups`].
+    pub fn shim_groups(&self) -> impl Iterator<Item = &Group> {
+        self.groups_of(GroupKind::Shim)
+    }
+
+    fn groups_of(&self, kind: GroupKind) -> impl Iterator<Item = &Group> {
+        self.grouping.groups.iter().filter(move |g| g.kind == kind)
+    }
+
+    /// The units that hold a hexadecimal digit table, by unit and case.
+    #[must_use]
+    pub fn hex_tables(&self) -> &[HexTable] {
+        &self.grouping.hex_tables
+    }
+
+    /// The integer constants above `0xffff` that units of two or more
+    /// packages hold, by value ascending.
+    #[must_use]
+    pub fn shared_constants(&self) -> &[SharedConstant] {
+        &self.grouping.shared_constants
     }
 }

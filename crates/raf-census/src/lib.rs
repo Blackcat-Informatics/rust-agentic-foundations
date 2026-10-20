@@ -17,6 +17,11 @@
 //! [`Unit`]s, one for each source item, with the print, constants, strings and
 //! shim key of each.
 //!
+//! [`Census::groups`] lists the units that share a body or a shim, the hex
+//! digit tables and the large constants shared across packages; a [`Job`]
+//! names a home and what is forbidden elsewhere, and [`Census::match_jobs`]
+//! classifies the units it finds.
+//!
 //! [`CensusOptions`] holds the limits of one run and [`Error`] is the one error
 //! type of the crate.
 //!
@@ -36,6 +41,8 @@
 
 mod census;
 mod error;
+mod group;
+mod job;
 mod normalize;
 mod options;
 mod units;
@@ -43,6 +50,8 @@ mod version;
 
 pub use census::{Census, FileCtx};
 pub use error::Error;
+pub use group::{Group, GroupKind, HexTable, Member, SharedConstant};
+pub use job::{Job, JobForbidden, JobMatch, JobReport, MatchClass};
 pub use normalize::{
     Divergence, ENCODING, Fingerprint, Form, Hashed, LITERAL_TIER, Level, MAX_NESTING,
     MIN_SHIM_TOKENS, Normalizer, PASSES, ParseFingerprintError, Print, RuleId, SHIM_MAX_TOKENS,
