@@ -193,6 +193,16 @@ macro_arguments_above_tier.a 50 body:2122d4097acf996f -\n\
 macro_arguments_above_tier.b 50 body:2122d4097acf996f -\n\
 macro_inline_capture_above_tier.a 46 body:e09a3dbbb1020730 -\n\
 macro_inline_capture_above_tier.b 46 body:e09a3dbbb1020730 -\n\
+numbering_unused_trailing_parameter.a 6 body:9825213dff3a5d1a -\n\
+numbering_unused_trailing_parameter.b 6 body:9825213dff3a5d1a -\n\
+numbering_used_trailing_parameter.a 6 body:668143aca5669002 -\n\
+numbering_used_trailing_parameter.b 6 body:9825213dff3a5d1a -\n\
+numbering_placeholder_parameter.a 10 body:8c024decdf3360f1 -\n\
+numbering_placeholder_parameter.b 10 body:2027574a377e6303 -\n\
+numbering_placeholder_parameter_above_tier.a 51 body:efd1e2ef5564bef1 -\n\
+numbering_placeholder_parameter_above_tier.b 51 body:edb8aec3a585bf74 -\n\
+numbering_placeholder_versus_argument.a 10 body:8c024decdf3360f1 -\n\
+numbering_placeholder_versus_argument.b 12 body:4fd853c0093a062f -\n\
 lexical_gen_kept.a 9 body:0d185a5e08a04275 -\n\
 lexical_gen_kept.b 9 body:b99d8c5cee486b40 -\n\
 lexical_union_kept.a 9 body:21953eda92b74112 -\n\
@@ -211,12 +221,6 @@ lexical_nesting_128.a 257 body:577e8c5e2bdea440 -\n\
 lexical_nesting_128.b 257 body:577e8c5e2bdea440 -\n\
 empty_body 0 - -\n";
 
-fn lines(text: &str) -> BTreeMap<&str, &str> {
-    text.lines()
-        .map(|line| line.split_once(' ').expect("a pinned line has an id"))
-        .collect()
-}
-
 #[test]
 fn the_manifest_is_pinned() {
     assert_eq!(raf_census::manifest(), MANIFEST);
@@ -227,48 +231,62 @@ fn the_pinned_version_is_the_implemented_one() {
     assert_eq!(raf_census::NORMAL_FORM, 1);
 }
 
+/// Every way `pinned` fails to be the table of `computed`: a line without a
+/// pin, a pin without a line, a moved value and an id that appears twice.
+fn pin_problems(computed: &str, pinned: &str) -> Vec<String> {
+    let mut problems = Vec::new();
+    let mut seen = |text: &str, side: &str| {
+        let mut ids = BTreeMap::new();
+        for line in text.lines() {
+            let (id, value) = line.split_once(' ').expect("a line has an id");
+            if ids.insert(id.to_owned(), value.to_owned()).is_some() {
+                problems.push(format!("{id}: {side} twice"));
+            }
+        }
+        ids
+    };
+    let (computed, pinned) = (seen(computed, "computed"), seen(pinned, "pinned"));
+    for (id, value) in &computed {
+        match pinned.get(id) {
+            None => problems.push(format!("{id}: unpinned")),
+            Some(pin) if pin != value => problems.push(format!(
+                "{id}: moved from `{pin}` to `{value}`; a changed pin requires a normal_form bump"
+            )),
+            Some(_) => {}
+        }
+    }
+    for id in pinned.keys().filter(|id| !computed.contains_key(*id)) {
+        problems.push(format!("{id}: orphan pin"));
+    }
+    problems
+}
+
 #[test]
 fn every_fixture_fingerprint_is_pinned() {
-    let registry = registry();
-    let computed = table(&registry);
-    let (computed, pinned) = (lines(&computed), lines(TABLE));
-    let unpinned: Vec<&&str> = computed
-        .keys()
-        .filter(|id| !pinned.contains_key(*id))
-        .collect();
+    let computed = table(&registry());
+    let problems = pin_problems(&computed, TABLE);
     assert!(
-        unpinned.is_empty(),
-        "fixtures without a pinned line (run the goldens example): {unpinned:?}"
-    );
-    let orphans: Vec<&&str> = pinned
-        .keys()
-        .filter(|id| !computed.contains_key(*id))
-        .collect();
-    assert!(
-        orphans.is_empty(),
-        "pinned lines without a fixture: {orphans:?}"
-    );
-    for (id, value) in &computed {
-        assert_eq!(
-            pinned[id], *value,
-            "fixture {id} moved: a changed pin requires a normal_form bump"
-        );
-    }
-    assert_eq!(
-        TABLE.lines().count(),
-        registry.fixtures.len(),
-        "a fixture id is pinned once"
+        problems.is_empty(),
+        "run the goldens example to see the table: {problems:?}"
     );
 }
 
 #[test]
-fn an_unpinned_fixture_and_an_orphan_pin_are_detected() {
-    // The detection above is a set difference; prove it on forged inputs, with
-    // the valid neighbour passing.
-    let pinned = lines("a 1 body:0000000000000000 -");
-    let same = lines("a 1 body:0000000000000000 -");
-    assert!(same.keys().all(|id| pinned.contains_key(id)));
-    let extra = lines("a 1 body:0000000000000000 -\nb 2 - -");
-    assert!(extra.keys().any(|id| !pinned.contains_key(id)));
-    assert!(pinned.keys().any(|id| !lines("b 2 - -").contains_key(id)));
+fn the_pin_check_names_an_unpinned_orphan_moved_and_duplicated_entry() {
+    let pinned = "a 1 body:0000000000000001 -\nb 2 - -\n";
+    assert!(
+        pin_problems(pinned, pinned).is_empty(),
+        "the neighbour passes"
+    );
+    let one = |computed: &str, pinned: &str| pin_problems(computed, pinned);
+    assert_eq!(one("a 1 x -\nc 3 - -\n", "a 1 x -\n"), ["c: unpinned"]);
+    assert_eq!(one("a 1 x -\n", "a 1 x -\nd 4 - -\n"), ["d: orphan pin"]);
+    let moved = one("a 1 y -\n", "a 1 x -\n");
+    assert_eq!(moved.len(), 1);
+    assert!(moved[0].starts_with("a: moved") && moved[0].contains("normal_form bump"));
+    assert_eq!(one("a 1 x -\n", "a 1 x -\na 1 x -\n"), ["a: pinned twice"]);
+    assert_eq!(
+        one("a 1 x -\na 1 x -\n", "a 1 x -\n"),
+        ["a: computed twice"]
+    );
 }

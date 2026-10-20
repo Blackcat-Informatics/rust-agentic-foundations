@@ -593,6 +593,49 @@ fn macro_arguments(r: &mut Registry) {
     );
 }
 
+/// Numbering of locals after parameters.
+fn numbering(r: &mut Registry) {
+    use Expect::{Distinct, Equal};
+    use Level::Verbatim;
+    r.pair(
+        "numbering_unused_trailing_parameter",
+        (&["a", "b"], "let x = a; x"),
+        (&["a"], "let x = a; x"),
+        Equal(Verbatim),
+    );
+    r.pair(
+        "numbering_used_trailing_parameter",
+        (&["a", "b"], "let x = b; x"),
+        (&["a"], "let x = a; x"),
+        Distinct,
+    );
+    r.pair(
+        "numbering_placeholder_parameter",
+        (&["a"], "let x = 1; println!(\"{a} {x}\")"),
+        (&["a"], "let x = 1; println!(\"{x} {x}\")"),
+        Distinct,
+    );
+    let tail = "h(1); ".repeat(8);
+    r.pair(
+        "numbering_placeholder_parameter_above_tier",
+        (
+            &["a"],
+            &format!("let x = 1; println!(\"{{a}} {{x}}\"); {tail}"),
+        ),
+        (
+            &["a"],
+            &format!("let x = 1; println!(\"{{x}} {{x}}\"); {tail}"),
+        ),
+        Distinct,
+    );
+    r.pair(
+        "numbering_placeholder_versus_argument",
+        (&["a"], "let x = 1; println!(\"{a} {x}\")"),
+        (&["a"], "let x = 1; println!(\"{} {x}\", a)"),
+        Distinct,
+    );
+}
+
 /// Lexical edges.
 fn lexical_edges(r: &mut Registry) {
     use Expect::{Distinct, Equal};
@@ -640,6 +683,7 @@ pub(crate) fn registry() -> Registry {
     literal_spellings(&mut r);
     shim_form(&mut r);
     macro_arguments(&mut r);
+    numbering(&mut r);
     lexical_edges(&mut r);
     r
 }

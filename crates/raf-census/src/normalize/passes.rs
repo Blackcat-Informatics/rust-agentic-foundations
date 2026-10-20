@@ -267,7 +267,8 @@ pub(crate) fn rename_locals(form: &Form) -> Form {
     Form { nodes }
 }
 
-/// One past the highest `$n` in `nodes`, or 0.
+/// One past the highest parameter number in `nodes`, or 0: the `$n` names, and
+/// the `{$n}` placeholders `rename_params` wrote into format strings.
 fn next_number(nodes: &[Node]) -> usize {
     nodes
         .iter()
@@ -277,9 +278,23 @@ fn next_number(nodes: &[Node]) -> usize {
                 .strip_prefix('$')
                 .and_then(|digits| digits.parse::<usize>().ok())
                 .map_or(0, |number| number + 1),
+            Node::Leaf(token) if token.kind == Kind::Literal => placeholder_numbers(&token.text),
             Node::Leaf(_) => 0,
             Node::Group(group) => next_number(&group.children),
         })
+        .max()
+        .unwrap_or(0)
+}
+
+/// One past the highest `n` of a `{$n` in a literal, or 0.
+fn placeholder_numbers(text: &str) -> usize {
+    text.split("{$")
+        .skip(1)
+        .filter_map(|rest| {
+            let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+            digits.parse::<usize>().ok()
+        })
+        .map(|number| number + 1)
         .max()
         .unwrap_or(0)
 }
