@@ -49,5 +49,5 @@ pub use normalize::{
     Slice, TableKind, Token, TokenDiff, Tower, VALUE_ADAPTERS, WEAK_KEYWORDS, manifest,
 };
 pub use options::{CensusOptions, DEFAULT_MAX_FILE_BYTES, DEFAULT_MIN_TOKENS};
-pub use units::{StringLiteral, Unit, UnitKind};
+pub use units::{StringKind, StringLiteral, Unit, UnitKind};
 pub use version::{NORMAL_FORM, check_normal_form};

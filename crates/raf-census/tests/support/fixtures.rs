@@ -479,7 +479,7 @@ fn literal_spellings(r: &mut Registry) {
 /// Shim form.
 fn shim_form(r: &mut Registry) {
     use Expect::{Distinct, Equal};
-    use Level::{LiteralTier, Shim};
+    use Level::{LiteralTier, Shim, Value};
     r.single("shim_5", &["a"], "a.f()", Some(5));
     r.single("shim_6", &["a", "b"], "f(a, b)", Some(6));
     r.single("shim_29", &["a"], &forwarder(29), Some(29));
@@ -526,6 +526,30 @@ fn shim_form(r: &mut Registry) {
         "shim_mentions_self",
         &["x"],
         "self.inner.target(x, 1)",
+        None,
+    );
+    r.pair(
+        "shim_turbofish_forwarder",
+        (&["x"], "target::<u8>(x, 1)"),
+        (&["y"], "target::<u8>(y, 1)"),
+        Equal(Shim),
+    );
+    r.single(
+        "shim_method_turbofish",
+        &["x"],
+        "x.convert::<u8>()",
+        Some(10),
+    );
+    r.pair(
+        "shim_turbofish_type_differs",
+        (&["x"], "target::<u8>(x, 1)"),
+        (&["x"], "target::<u16>(x, 1)"),
+        Equal(Value),
+    );
+    r.single(
+        "shim_turbofish_without_call",
+        &["x"],
+        "x.field + Vec::<u8>::LIMIT + 1",
         None,
     );
     r.single("shim_without_call", &["x"], "x.field + x.other + 1", None);

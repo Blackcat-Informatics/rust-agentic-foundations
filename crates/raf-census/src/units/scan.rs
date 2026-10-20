@@ -8,7 +8,7 @@
 
 use std::collections::BTreeSet;
 
-use super::StringLiteral;
+use super::{StringKind, StringLiteral};
 use crate::normalize::{Delim, Group, Kind, Node, TableKind, literal_kind, parse_integer};
 use crate::{Error, Form};
 
@@ -39,21 +39,21 @@ fn walk(file: &str, nodes: &[Node], facts: &mut Facts) -> Result<(), Error> {
                 if let Some(value) = parse_integer(&leaf.text).and_then(|integer| integer.value) {
                     facts.constants.insert(value);
                 }
-                if matches!(literal_kind(&leaf.text), "$str" | "$bytes") {
-                    let decoded = decode(&leaf.text).map_err(|reason| Error::Source {
-                        file: file.to_owned(),
-                        line: leaf.place.line,
-                        reason,
-                    })?;
-                    if let Some(value) = decoded {
-                        if let Some(table) = classify_digits(&value) {
-                            facts.tables.insert(table);
-                        }
-                        facts.strings.push(StringLiteral {
-                            value,
+                if matches!(literal_kind(&leaf.text), "$str" | "$bytes" | "$cstr") {
+                    let (kind, value, exact) =
+                        decode(&leaf.text).map_err(|reason| Error::Source {
+                            file: file.to_owned(),
                             line: leaf.place.line,
-                        });
+                            reason,
+                        })?;
+                    if exact && let Some(table) = classify_digits(&value) {
+                        facts.tables.insert(table);
                     }
+                    facts.strings.push(StringLiteral {
+                        value,
+                        line: leaf.place.line,
+                        kind,
+                    });
                 }
             }
             Node::Leaf(_) => {}
@@ -70,12 +70,22 @@ fn walk(file: &str, nodes: &[Node], facts: &mut Facts) -> Result<(), Error> {
     Ok(())
 }
 
-/// The value of a string or byte-string literal; `None` for a byte string
-/// that is not UTF-8.
-fn decode(text: &str) -> Result<Option<String>, String> {
+/// The kind, the text and whether the text is exact, of a string, byte-string
+/// or C-string literal. A byte string or C string that is not UTF-8 is
+/// decoded lossily and is not exact, so it never names a table.
+fn decode(text: &str) -> Result<(StringKind, String, bool), String> {
+    let exact = |kind, bytes: Vec<u8>| match String::from_utf8(bytes) {
+        Ok(value) => (kind, value, true),
+        Err(error) => (
+            kind,
+            String::from_utf8_lossy(error.as_bytes()).into_owned(),
+            false,
+        ),
+    };
     match syn::parse_str::<syn::Lit>(text) {
-        Ok(syn::Lit::Str(value)) => Ok(Some(value.value())),
-        Ok(syn::Lit::ByteStr(value)) => Ok(String::from_utf8(value.value()).ok()),
+        Ok(syn::Lit::Str(value)) => Ok((StringKind::Str, value.value(), true)),
+        Ok(syn::Lit::ByteStr(value)) => Ok(exact(StringKind::Bytes, value.value())),
+        Ok(syn::Lit::CStr(value)) => Ok(exact(StringKind::CStr, value.value().into_bytes())),
         Ok(_) => Err(format!("`{text}` is not a string literal")),
         Err(error) => Err(format!("the literal `{text}` does not decode: {error}")),
     }

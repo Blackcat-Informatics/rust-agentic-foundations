@@ -33,11 +33,28 @@ pub enum UnitKind {
     Static,
 }
 
+/// How a string literal is written.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum StringKind {
+    /// `"text"`, raw or not.
+    Str,
+    /// `b"bytes"`, raw or not.
+    Bytes,
+    /// `c"text"`, raw or not.
+    CStr,
+}
+
 /// A string literal of a unit with the line it starts on.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct StringLiteral {
-    /// The decoded value.
+    /// The decoded value. The bytes of a byte string or a C string that are
+    /// not UTF-8 are decoded lossily, each bad sequence as U+FFFD, and such a
+    /// literal never names a hex table.
     pub value: String,
+    /// How the literal is written.
+    pub kind: StringKind,
     /// The 1-based line of the literal in its file.
     pub line: usize,
 }
@@ -153,6 +170,15 @@ fn text<'a>(
         })
 }
 
+/// `part` of an item's text, or the failure that it is not text of the item.
+fn outside<'a>(part: Option<&'a str>, file: &str, line: usize) -> Result<&'a str, Error> {
+    part.ok_or_else(|| Error::Source {
+        file: file.to_owned(),
+        line,
+        reason: "the initializer is not text of its item".to_owned(),
+    })
+}
+
 /// The unit of `item`, or `None` for a function without a body or a
 /// constant without a value.
 fn build(
@@ -170,8 +196,20 @@ fn build(
                 return Ok(None);
             };
             // The span of a body holds its braces; the slice is their contents.
-            let inner =
-                body.start_byte + 1..body.end_byte.saturating_sub(1).max(body.start_byte + 1);
+            let braced = text(
+                workspace,
+                &item.file,
+                body.start_byte..body.end_byte,
+                body.lines.start,
+            )?;
+            let contents = braced
+                .strip_prefix('{')
+                .and_then(|rest| rest.strip_suffix('}'))
+                .ok_or_else(|| Error::Source {
+                    file: file.clone(),
+                    line: body.lines.start,
+                    reason: "the body of the item is not a braced block".to_owned(),
+                })?;
             let signature = text(
                 workspace,
                 &item.file,
@@ -179,7 +217,6 @@ fn build(
                 item.span.lines.start,
             )?;
             let params = sig::parameters(&file, item.span.lines.start, item.kind, signature)?;
-            let contents = text(workspace, &item.file, inner, body.lines.start)?;
             (params, contents, body.lines.start)
         }
         UnitKind::Const | UnitKind::Static => {
@@ -193,10 +230,10 @@ fn build(
             else {
                 return Ok(None);
             };
-            let skipped = whole
-                .get(..range.start)
-                .map_or(0, |head| head.matches('\n').count());
-            let contents = whole.get(range).unwrap_or_default();
+            let skipped = outside(whole.get(..range.start), &file, item.span.lines.start)?
+                .matches('\n')
+                .count();
+            let contents = outside(whole.get(range), &file, item.span.lines.start)?;
             (Vec::new(), contents, item.span.lines.start + skipped)
         }
     };
@@ -236,4 +273,19 @@ fn build(
         tables: facts.tables,
         strings: facts.strings,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn text_outside_an_item_is_a_source_error_beside_text_inside_it() {
+        let item = "const N: u8 = 3;";
+        assert_eq!(outside(item.get(14..15), "a.rs", 2).expect("inside"), "3");
+        match outside(item.get(14..99), "a.rs", 2) {
+            Err(Error::Source { file, line, .. }) => assert_eq!((file.as_str(), line), ("a.rs", 2)),
+            other => panic!("expected a source error, found {other:?}"),
+        }
+    }
 }

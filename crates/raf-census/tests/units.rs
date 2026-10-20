@@ -8,7 +8,7 @@
 
 use std::collections::BTreeSet;
 
-use raf_census::{Census, CensusOptions, Error, TableKind, Unit, UnitKind};
+use raf_census::{Census, CensusOptions, Error, StringKind, TableKind, Unit, UnitKind};
 use raf_source::{DiskTree, MemoryTree};
 
 const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
@@ -498,6 +498,12 @@ impl U {
     pub fn twin(z: u32) -> u32 {
         Other::inner(z, 1)
     }
+    pub fn fish(x: u32) -> u32 {
+        Other::inner::<u8>(x, 1)
+    }
+    pub fn fish_twin(w: u32) -> u32 {
+        Other::inner::<u8>(w, 1)
+    }
 }
 ",
     )]);
@@ -549,11 +555,104 @@ impl U {
         );
         assert!(via.shim_key.is_none(), "{symbol}");
     }
-    // A turbofish does not hide the path: the unit is still a `Self::` caller,
-    // and whatever its shim form is, it has no key.
-    let turbofish = unit(&census, "demo::S::via_turbofish");
+}
+
+#[test]
+fn a_turbofish_call_is_a_forwarder_and_keeps_its_key_beside_a_twin() {
+    let census = load(&[(
+        "src/lib.rs",
+        "pub struct S;\nimpl S {\n    pub fn via(x: u32) -> u32 {\n        Self::inner::<u8>(x, 1)\n    }\n    pub fn fish(x: u32) -> u32 {\n        Other::inner::<u8>(x, 1)\n    }\n    pub fn fish_twin(w: u32) -> u32 {\n        Other::inner::<u8>(w, 1)\n    }\n    pub fn other(w: u32) -> u32 {\n        Other::inner::<u16>(w, 1)\n    }\n}\n",
+    )]);
+    let key = |symbol: &str| unit(&census, symbol).shim_key.clone();
+    let turbofish = unit(&census, "demo::S::via");
     assert!(turbofish.via_self && turbofish.shim_key.is_none());
-    assert!(!unit(&census, "demo::S::not_a_call").via_self);
+    assert!(turbofish.print.as_ref().is_some_and(|p| p.shim.is_some()));
+    let keyed = key("demo::S::fish").expect("a turbofish forwarder has a key");
+    assert_eq!(key("demo::S::fish_twin"), Some(keyed));
+    assert_ne!(key("demo::S::fish"), key("demo::S::other"));
+}
+
+#[test]
+fn a_self_call_at_any_depth_removes_the_shim_key() {
+    let census = load(&[(
+        "src/lib.rs",
+        "\
+pub struct S;
+impl S {
+    pub fn nested_argument(x: u32) -> u32 {
+        helper(x, Self::f(1))
+    }
+    pub fn nested_callee_argument(x: u32) -> u32 {
+        Self::f(helper(x, 1))
+    }
+    pub fn variant(x: u32) -> S {
+        Self::V(x, 1)
+    }
+    pub fn constant_argument(x: u32) -> u32 {
+        helper(x, Self::ONE)
+    }
+    pub fn type_path(x: u32) -> u32 {
+        Vec::<u8>::new(x, 1)
+    }
+}
+",
+    )]);
+    for symbol in [
+        "demo::S::nested_argument",
+        "demo::S::nested_callee_argument",
+        "demo::S::variant",
+    ] {
+        let unit = unit(&census, symbol);
+        assert!(unit.via_self, "{symbol}");
+        assert!(
+            unit.print.as_ref().is_some_and(|p| p.shim.is_some()),
+            "{symbol}"
+        );
+        assert!(unit.shim_key.is_none(), "{symbol}");
+    }
+    for symbol in ["demo::S::constant_argument", "demo::S::type_path"] {
+        let unit = unit(&census, symbol);
+        assert!(!unit.via_self, "{symbol}");
+        assert!(unit.shim_key.is_some(), "{symbol}");
+    }
+}
+
+#[test]
+fn byte_strings_and_c_strings_are_strings() {
+    let census = load(&[(
+        "src/lib.rs",
+        "\
+pub fn go() {
+    let a = \"text\";
+    let b = b\"bytes\";
+    let c = c\"cstr\";
+    let d = b\"\\xff\\xfe\";
+}
+pub const DIGITS: &[u8; 16] = b\"0123456789abcdef\";
+pub const BROKEN: &[u8; 16] = b\"0123456789abcd\\xff\\xfe\";
+",
+    )]);
+    let found: Vec<(&str, StringKind, usize)> = unit(&census, "demo::go")
+        .strings
+        .iter()
+        .map(|s| (s.value.as_str(), s.kind, s.line))
+        .collect();
+    assert_eq!(
+        found,
+        [
+            ("text", StringKind::Str, 2),
+            ("bytes", StringKind::Bytes, 3),
+            ("cstr", StringKind::CStr, 4),
+            ("\u{fffd}\u{fffd}", StringKind::Bytes, 5),
+        ]
+    );
+    assert_eq!(
+        unit(&census, "demo::DIGITS").tables,
+        BTreeSet::from([TableKind::HexLower])
+    );
+    let broken = unit(&census, "demo::BROKEN");
+    assert_eq!(broken.strings.len(), 1);
+    assert!(broken.tables.is_empty());
 }
 
 #[test]

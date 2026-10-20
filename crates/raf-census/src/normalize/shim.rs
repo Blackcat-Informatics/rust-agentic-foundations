@@ -28,11 +28,13 @@ pub(crate) fn candidate(form: &Form) -> bool {
 }
 
 /// Whether a name or a macro bang is directly followed by a parenthesised
-/// group, anywhere in `nodes`.
+/// group, anywhere in `nodes`. A turbofish belongs to its name: in
+/// `f::<T>(x)` and `x.m::<T>()` the call follows the closing `>`.
 fn has_call(nodes: &[Node]) -> bool {
     let mut previous_is_name = false;
-    for node in nodes {
-        match node {
+    let mut index = 0;
+    while index < nodes.len() {
+        match &nodes[index] {
             Node::Group(group) => {
                 if previous_is_name && group.delim == super::form::Delim::Paren {
                     return true;
@@ -43,6 +45,16 @@ fn has_call(nodes: &[Node]) -> bool {
                 previous_is_name = false;
             }
             Node::Leaf(token) => {
+                if previous_is_name && let Some(end) = turbofish_end(nodes, index) {
+                    if nodes[index..end].iter().any(|node| {
+                        node.as_group()
+                            .is_some_and(|group| has_call(&group.children))
+                    }) {
+                        return true;
+                    }
+                    index = end;
+                    continue;
+                }
                 previous_is_name = match token.kind {
                     Kind::Ident => true,
                     Kind::Punct => token.text == "!",
@@ -50,8 +62,43 @@ fn has_call(nodes: &[Node]) -> bool {
                 };
             }
         }
+        index += 1;
     }
     false
+}
+
+/// When `nodes[start..]` begins a turbofish, `::<...>` with balanced angle
+/// brackets, the index just past its closing `>`.
+fn turbofish_end(nodes: &[Node], start: usize) -> Option<usize> {
+    let punct = |index: usize, wanted: &str| {
+        nodes
+            .get(index)
+            .and_then(Node::as_leaf)
+            .is_some_and(|leaf| leaf.kind == Kind::Punct && leaf.text == wanted)
+    };
+    if !(punct(start, ":") && punct(start + 1, ":") && punct(start + 2, "<")) {
+        return None;
+    }
+    let mut depth = 0_usize;
+    for index in start + 2..nodes.len() {
+        if punct(index, "<") {
+            depth += 1;
+        } else if punct(index, ">") {
+            // The `>` of an `->` inside the arguments closes nothing.
+            let arrow = index > 0
+                && nodes
+                    .get(index - 1)
+                    .and_then(Node::as_leaf)
+                    .is_some_and(|leaf| leaf.text == "-" && leaf.joint);
+            if !arrow {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(index + 1);
+                }
+            }
+        }
+    }
+    None
 }
 
 fn mentions_self(nodes: &[Node]) -> bool {
