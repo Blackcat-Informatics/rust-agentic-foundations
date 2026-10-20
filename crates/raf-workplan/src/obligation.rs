@@ -471,16 +471,30 @@ fn outcome_text(outcome: &Outcome) -> String {
 }
 
 /// How a bound public item differs from the merge base.
+///
+/// An item is the same item on both sides when its path, its kind and, for a
+/// member of an impl block, the tokens of the impl's header (its attributes,
+/// generics, trait, self type and where clause) are the same.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Touch {
-    /// Its token stream is not among those of the items of its file at the
-    /// merge base: its signature, body, attributes, visibility or doc comments
-    /// differ, or it is new.
+    /// The same item is at the merge base with another token stream: its
+    /// signature, body, attributes, visibility or doc comments differ.
     Tokens,
-    /// The merge base has it and the working tree does not: it was removed or
-    /// renamed.
+    /// The merge base has no such item on its public surface: the item is new,
+    /// was made public, has a new path, or the header of its impl block
+    /// changed.
+    New,
+    /// The merge base has the item on its public surface and the working tree
+    /// has no such item: it was removed, renamed or moved to another path.
     Removed,
+    /// The merge base has the item on its public surface and the working tree
+    /// has it only off that surface: its visibility, or that of a module or a
+    /// re-export on the way to it, was narrowed.
+    Hidden,
+    /// A re-export path of the public surface names another item than it named
+    /// at the merge base.
+    Retargeted,
 }
 
 /// A bound public item that a change with `contract_effect: none` touched: an
@@ -489,8 +503,9 @@ pub enum Touch {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Touched {
-    /// The path of the item: as the source index names it, or, for an item the
-    /// working tree lacks, as its module and its name at the merge base give it.
+    /// The path of the item as the source index names it, in the working tree
+    /// or, for an item the working tree lacks, at the merge base; for a
+    /// re-export path, that path.
     pub item: String,
     /// The repository-relative path of its file.
     pub file: String,
@@ -512,16 +527,23 @@ impl fmt::Display for Touched {
             capability,
             how,
         } = self;
-        match how {
-            Touch::Tokens => write!(
-                f,
-                "`{item}` at {file}:{line}: its tokens are not those of an item of its file at the merge base; `{capability}` binds it"
+        let (at, what) = match how {
+            Touch::Tokens => ("", "its tokens differ from those it had at the merge base"),
+            Touch::New => ("", "the merge base has no such public item"),
+            Touch::Removed => (
+                " at the merge base",
+                "the working tree has no such public item",
             ),
-            Touch::Removed => write!(
-                f,
-                "`{item}` at {file}:{line} at the merge base: the working tree has no such item; `{capability}` binds it"
+            Touch::Hidden => (
+                "",
+                "it was public at the merge base and is off the public surface now",
             ),
-        }
+            Touch::Retargeted => ("", "it names another item than at the merge base"),
+        };
+        write!(
+            f,
+            "`{item}` at {file}:{line}{at}: {what}; `{capability}` binds it"
+        )
     }
 }
 

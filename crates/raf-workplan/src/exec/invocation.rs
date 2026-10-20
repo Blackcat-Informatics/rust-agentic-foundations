@@ -376,6 +376,19 @@ impl Invocation {
             },
         ])
     }
+
+    /// Every file of the tree of a commit, NUL-separated, each named from the
+    /// top of the work tree: `git ls-tree -r -z --full-tree <merge-base>`.
+    #[must_use]
+    pub fn git_tree(rev: &Commit) -> Self {
+        Self::git(vec![
+            Arg::lit("ls-tree"),
+            Arg::lit("-r"),
+            Arg::lit("-z"),
+            Arg::lit("--full-tree"),
+            Arg::Commit(rev.clone()),
+        ])
+    }
 }
 
 /// The record format of the two history logs: a record separator, then the

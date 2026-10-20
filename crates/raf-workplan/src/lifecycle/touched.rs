@@ -4,72 +4,101 @@
 //! `contract-effect-understated`: under strict mode, a change that says
 //! `contract_effect: none` and touches a bound public item.
 //!
-//! A bound public item is an item of the public surface of a library or binary
-//! target ([`Workspace::exported_items`]) that a `code` binding of any loaded
-//! capability covers, itself or as an item below it, as two-way coverage reads
-//! it ([`Bound::covers`]). "Touch" is read literally: any part of the item's
-//! span, its signature, its body, its attributes, its visibility and its doc
-//! comments.
+//! The public surface of a side is read from a source index: the working
+//! tree's, and one loaded at the merge base from its files. On each side the
+//! units are the items of the public surface of every library and binary
+//! target of a package that holds a bound item ([`Workspace::exported_items`]:
+//! the items another crate can name, the `pub` members of the inherent impls
+//! of an exported type and the members of an exported trait), and the
+//! members of the trait impls of an exported struct, enum or union. A unit is
+//! the same unit on both sides when its path, its kind and, for a member of an
+//! impl block, the tokens of the impl's header (its attributes, generics,
+//! trait, self type and where clause) are the same. It is bound when a `code`
+//! binding of any loaded capability covers it, itself or as an item below it,
+//! as two-way coverage reads it ([`covering`], [`covering_path`]).
 //!
-//! Each file the rule reads is read at the merge base with the row
+//! "Touch" is read literally. A unit is compared with its own counterpart as
+//! the `proc_macro2` token stream of its span: a doc comment arrives as a
+//! `#[doc]` attribute and counts, while whitespace and comments that are not
+//! doc comments are not tokens and do not; CRLF line endings read as LF, as
+//! `rustc` reads them. Then:
+//!
+//! * a bound unit whose counterpart has another stream is [`Touch::Tokens`];
+//! * a bound unit with no counterpart is [`Touch::New`]: new, made public,
+//!   given a new path, or under a changed impl header;
+//! * a bound unit of the merge base with no counterpart is
+//!   [`Touch::Hidden`] when the working tree still has an item of its path and
+//!   kind, off the surface, and [`Touch::Removed`] otherwise;
+//! * a re-export path of the surface that names another unit than at the
+//!   merge base is [`Touch::Retargeted`], one that is new is [`Touch::New`]
+//!   and one that is gone is [`Touch::Removed`].
+//!
+//! A path is reported once, by the first of these that holds.
+//!
+//! The source index at the merge base is loaded from the directories of the
+//! packages that hold a bound item, through a [`Tree`] of the files of the
+//! merge base: `git ls-tree -r -z --full-tree <merge-base>` lists them once,
+//! and each file the load reads is read once with the row
 //! `git cat-file blob <merge-base>:<prefix><path>` that `section-untouched`
-//! uses, at the same merge base, within the 1 MiB bound of a blob, so no new
-//! command is asked of `git`. Each side is parsed from its whole file through
-//! [`parse_source`], and every item of the file at every depth that a path can
-//! name (the items of inline modules, impl blocks, traits and extern blocks
-//! included) is cut from the text by its span and read as a `proc_macro2`
-//! token stream. A doc comment arrives as a `#[doc]` attribute and counts;
-//! whitespace and comments that are not doc comments are not tokens and do not.
-//! CRLF line endings read as LF, as `rustc` reads them.
+//! uses, within the 1 MiB bound of a blob. [`BaseIndex`] keeps that index, so
+//! the two judgements of `complete` at one merge base read it once.
 //!
-//! * A candidate whose stream is not among the streams of the items of its file
-//!   at the merge base is touched. So an item moved within its file is not, an
-//!   item moved to another file is, and a new bound public item is; a file that
-//!   is absent at the merge base makes every candidate in it touched.
-//! * An item of the merge base that the working tree lacks, removed or renamed,
-//!   is touched when its path is bound: the path of an item at the merge base
-//!   is the module path of its file in the working tree, the names of the inline
-//!   modules around it, and, for a member of an impl block or a trait, the last
-//!   segment of the self type or the name of the trait. The files read for this
-//!   are every file that a library or binary target of a package holding a
-//!   bound item reaches outside test code; an item is counted only when it is
-//!   declared `pub`, is a `pub` member of an inherent impl, or is a member of a
-//!   `pub` trait.
-//!
-//! A file at the merge base that is not UTF-8 or does not parse is an error and
-//! not a pass, and so is a surface the source index cannot list.
+//! A merge base whose index does not load (a file that is not UTF-8 or does
+//! not parse, a module that is missing) is an error and not a pass, and so is
+//! a surface that a source index cannot list.
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
+use std::io;
 use std::ops::Range;
 
 use proc_macro2::{Delimiter, LineColumn, Spacing, TokenStream, TokenTree};
+use raf_source::syn::Item;
 use raf_source::syn::spanned::Spanned;
-use raf_source::syn::{self, Ident, ImplItem, Item, TraitItem, Visibility};
-use raf_source::{LoadError, RelPath, TargetKind, Workspace, parse_source};
+use raf_source::{
+    Entry, EntryKind, FileId, LoadError, Opened as TreeRead, RelPath, SelfType, SymbolKind,
+    TargetKind, TestRole, Tree, TreeError, Workspace, parse_source,
+};
 
 use crate::Workplan;
-use crate::coverage::{Bound, covering, covering_path};
+use crate::coverage::{covering, covering_path};
 use crate::exec::Runner;
-use crate::git::{MergeBase, Prefix};
-use crate::graph::BindingKind;
+use crate::git::{self, MergeBase, Prefix, TreeEntry};
+use crate::graph::{Binding, BindingKind};
 use crate::obligation::{Needed, Obligation, ObligationKind, Part, Place, Subject, Touch, Touched};
 
 use super::session::{LifecycleError, Side};
 use super::untouched::{blob, merge_base};
+
+/// The source index loaded at one merge base from the directories of the
+/// packages that hold a bound item, kept between two judgements of one
+/// change so it is read once: the files at a commit do not change.
+#[derive(Debug)]
+pub(super) struct BaseIndex {
+    /// The commit id of the merge base.
+    commit: String,
+    /// The directories it was loaded from, sorted.
+    roots: Vec<String>,
+    /// The index, or `None` when none of the directories is at the merge
+    /// base.
+    workspace: Option<Workspace>,
+}
 
 /// The `contract-effect-understated` obligations of the change `change`, one
 /// for each touched bound public item, on the change record.
 ///
 /// The caller asks only under strict mode and for a change with
 /// `contract_effect: none`. Nothing is asked of `git` when no `code` binding
-/// covers an item; otherwise the merge base is found once, kept in `base` for
-/// the other kinds, and each file is read once at it.
+/// resolves to an item; otherwise the merge base is found once, kept in `base`
+/// for the other kinds, and the source index at it is loaded once, kept in
+/// `kept` for the next judgement at the same merge base.
 pub(super) fn raise(
     plan: &Workplan<'_>,
     runner: &dyn Runner,
     prefix: &Prefix,
     change: &str,
     base: &mut Option<MergeBase>,
+    kept: &mut Option<BaseIndex>,
 ) -> Result<Vec<Obligation>, LifecycleError> {
     let record = plan.change(change)?;
     let source = plan.source();
@@ -77,21 +106,26 @@ pub(super) fn raise(
     if packages.is_empty() {
         return Ok(Vec::new());
     }
-    let candidates = candidates(plan, &packages)?;
-    let files = files(source, &packages, &candidates);
-    if files.is_empty() {
-        return Ok(Vec::new());
-    }
+    let now = Surface::of(source, &packages, Side::WorkingTree)?;
     let base = merge_base(base, runner)?;
-    let mut touched = Vec::new();
-    for (path, modules) in &files {
-        let wanted: Vec<&raf_source::Item> = candidates
-            .get(path)
-            .map_or_else(Vec::new, |items| items.values().copied().collect());
-        touched.extend(judge_file(
-            plan, runner, base, prefix, path, modules, &wanted,
-        )?);
+    let roots = package_roots(source, &packages);
+    let current = kept
+        .as_ref()
+        .is_some_and(|index| index.commit == base.as_str() && index.roots == roots);
+    if !current {
+        let workspace = load_at(runner, base, prefix, &roots)?;
+        *kept = Some(BaseIndex {
+            commit: base.as_str().to_string(),
+            roots,
+            workspace,
+        });
     }
+    let then_source = kept.as_ref().and_then(|index| index.workspace.as_ref());
+    let then = match then_source {
+        Some(workspace) => Surface::of(workspace, &packages, Side::MergeBase)?,
+        None => Surface::default(),
+    };
+    let touched = compare(plan, &now, then_source, &then);
     Ok(touched
         .into_iter()
         .map(|touched| Obligation {
@@ -120,205 +154,310 @@ fn bound_packages<'p>(plan: &'p Workplan<'_>) -> BTreeSet<&'p str> {
         .collect()
 }
 
-/// The bound public items of `packages`, by file and by the byte their span
-/// starts at, so an item that two targets reach is one candidate.
-type Candidates<'s> = BTreeMap<RelPath, BTreeMap<usize, &'s raf_source::Item>>;
-
-fn candidates<'s>(
-    plan: &'s Workplan<'_>,
-    packages: &BTreeSet<&str>,
-) -> Result<Candidates<'s>, LifecycleError> {
-    let source = plan.source();
-    let bound = Bound::of(plan.graph(), source);
-    let mut found: Candidates<'s> = BTreeMap::new();
-    for id in source.target_ids() {
-        let Some(target) = source.target(id) else {
-            continue;
-        };
-        if !matches!(target.kind, TargetKind::Lib | TargetKind::Bin)
-            || !packages.contains(target.package.as_str())
-        {
-            continue;
-        }
-        let exports = source
-            .exported_items(id)
-            .map_err(|error| LifecycleError::Surface {
-                package: target.package.clone(),
-                target: target.crate_path.clone(),
-                reason: error.to_string(),
-            })?;
-        for export in &exports.items {
-            if !bound.covers(source, export.item) {
-                continue;
-            }
-            if let Some(item) = source.item(export.item) {
-                found
-                    .entry(item.file.clone())
-                    .or_default()
-                    .entry(item.span.start_byte)
-                    .or_insert(item);
-            }
-        }
-    }
-    Ok(found)
+/// The directories of `packages` in the working tree, sorted: the roots the
+/// index at the merge base is loaded from.
+fn package_roots(source: &Workspace, packages: &BTreeSet<&str>) -> Vec<String> {
+    let mut roots: Vec<String> = source
+        .packages()
+        .iter()
+        .filter(|package| packages.contains(package.name.as_str()))
+        .map(|package| match package.dir.as_str() {
+            "" => ".".to_string(),
+            dir => dir.to_string(),
+        })
+        .collect();
+    roots.sort();
+    roots.dedup();
+    roots
 }
 
-/// The files the rule reads, each with the module paths it has in the library
-/// and binary targets of `packages`: every file such a target reaches outside
-/// test code, and every file that holds a candidate.
-fn files(
-    source: &Workspace,
-    packages: &BTreeSet<&str>,
-    candidates: &Candidates<'_>,
-) -> BTreeMap<RelPath, Vec<String>> {
-    let mut files: BTreeMap<RelPath, Vec<String>> = BTreeMap::new();
-    for file in source.files() {
-        let mut modules: Vec<String> = file
-            .reached
-            .iter()
-            .filter(|reach| {
-                !reach.test
-                    && source.target(reach.target).is_some_and(|target| {
-                        matches!(target.kind, TargetKind::Lib | TargetKind::Bin)
-                            && packages.contains(target.package.as_str())
-                    })
-            })
-            .map(|reach| reach.module_path.to_string())
-            .collect();
-        modules.sort();
-        modules.dedup();
-        if !modules.is_empty() || candidates.contains_key(&file.path) {
-            files.insert(file.path.clone(), modules);
-        }
-    }
-    files
-}
-
-/// The touched items of one file.
-fn judge_file(
-    plan: &Workplan<'_>,
+/// The source index of the merge base below `roots`, or `None` when none of
+/// them is a directory there.
+fn load_at(
     runner: &dyn Runner,
     base: &MergeBase,
     prefix: &Prefix,
-    path: &RelPath,
-    modules: &[String],
-    wanted: &[&raf_source::Item],
-) -> Result<Vec<Touched>, LifecycleError> {
-    let source = plan.source();
-    let document = |side, reason: String| LifecycleError::Document {
-        path: path.to_string(),
-        side,
-        reason,
-    };
-    let text = source
-        .source(path)
-        .ok_or_else(|| document(Side::WorkingTree, "is not in the source index".to_string()))?;
-    let spans: Vec<Range<usize>> = wanted
+    roots: &[String],
+) -> Result<Option<Workspace>, LifecycleError> {
+    let tree = BaseTree::new(runner, base, prefix, git::tree_at(runner, base, prefix)?);
+    let present: Vec<&str> = roots
         .iter()
-        .map(|item| item.span.start_byte..item.span.end_byte)
+        .map(String::as_str)
+        .filter(|root| tree.is_dir(root))
         .collect();
-    let now =
-        scan(path, text, &spans).map_err(|error| document(Side::WorkingTree, error.to_string()))?;
-    let then = match blob(runner, base, prefix, path.as_str())? {
-        None => None,
-        Some(bytes) => {
-            let text = String::from_utf8(bytes)
-                .map_err(|_| document(Side::MergeBase, "is not UTF-8 text".to_string()))?;
-            Some(
-                scan(path, &text, &[])
-                    .map_err(|error| document(Side::MergeBase, error.to_string()))?,
-            )
-        }
-    };
-
-    let mut touched = Vec::new();
-    let streams: BTreeSet<&str> = then
-        .iter()
-        .flat_map(|scan| scan.units.iter().map(|unit| unit.stream.as_str()))
-        .collect();
-    for (item, stream) in wanted.iter().zip(&now.wanted) {
-        if streams.contains(stream.as_str()) {
-            continue;
-        }
-        if let Some(binding) = covering(plan.graph(), source, item.id) {
-            touched.push(Touched {
-                item: item.path.to_string(),
-                file: path.to_string(),
-                line: item.name_line,
-                capability: binding.capability().to_string(),
-                how: Touch::Tokens,
-            });
+    if present.is_empty() {
+        return Ok(None);
+    }
+    match Workspace::load(&tree, &present) {
+        Ok(workspace) => Ok(Some(workspace)),
+        Err(error) => {
+            Err(tree
+                .failure
+                .borrow_mut()
+                .take()
+                .unwrap_or_else(|| LifecycleError::Document {
+                    path: error.file.to_string(),
+                    side: Side::MergeBase,
+                    reason: error.to_string(),
+                }))
         }
     }
-    let Some(then) = then else {
-        return Ok(touched);
+}
+
+/// The identity of a unit on one side: its path, its kind and, for a member
+/// of an impl block, the rendered tokens of the impl's header.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct Key {
+    path: String,
+    kind: SymbolKind,
+    header: String,
+}
+
+/// A unit of a side: its item and the rendered token stream of its span.
+#[derive(Debug)]
+struct Unit<'w> {
+    item: &'w raf_source::Item,
+    stream: String,
+}
+
+/// The public surface of one side, as the rule compares it.
+#[derive(Debug, Default)]
+struct Surface<'w> {
+    units: BTreeMap<Key, Unit<'w>>,
+    /// Each path of the surface, with the unit it names.
+    exports: BTreeMap<String, Key>,
+}
+
+impl<'w> Surface<'w> {
+    /// The units of the library and binary targets of `packages` in
+    /// `source`.
+    fn of(
+        source: &'w Workspace,
+        packages: &BTreeSet<&str>,
+        side: Side,
+    ) -> Result<Self, LifecycleError> {
+        let mut surface = Self::default();
+        let mut headers = Headers::default();
+        for id in source.target_ids() {
+            let Some(target) = source.target(id) else {
+                continue;
+            };
+            if !matches!(target.kind, TargetKind::Lib | TargetKind::Bin)
+                || !packages.contains(target.package.as_str())
+            {
+                continue;
+            }
+            let exports = source
+                .exported_items(id)
+                .map_err(|error| LifecycleError::Surface {
+                    package: target.package.clone(),
+                    target: target.crate_path.clone(),
+                    side,
+                    reason: error.to_string(),
+                })?;
+            let mut types = BTreeSet::new();
+            for export in &exports.items {
+                let Some(item) = source.item(export.item) else {
+                    continue;
+                };
+                let key = surface.add(source, item, &mut headers, side)?;
+                surface.exports.insert(export.path.clone(), key);
+                if matches!(
+                    item.kind,
+                    SymbolKind::Struct | SymbolKind::Enum | SymbolKind::Union
+                ) {
+                    types.insert(item.path.as_str());
+                }
+            }
+            // The members of the trait impls of an exported type: the
+            // surface leaves them out, and they are what the type does.
+            let members: Vec<&raf_source::Item> = source
+                .items()
+                .filter(|item| {
+                    item.target == id
+                        && item.test == TestRole::None
+                        && item.trait_path.is_some()
+                        && item.self_key == Some(SelfType::Local)
+                        && item
+                            .path
+                            .rsplit_once("::")
+                            .is_some_and(|(owner, _)| types.contains(owner))
+                })
+                .collect();
+            for item in members {
+                surface.add(source, item, &mut headers, side)?;
+            }
+        }
+        Ok(surface)
+    }
+
+    /// Add `item` as a unit, once, and return its key.
+    fn add(
+        &mut self,
+        source: &'w Workspace,
+        item: &'w raf_source::Item,
+        headers: &mut Headers,
+        side: Side,
+    ) -> Result<Key, LifecycleError> {
+        let document = |reason: String| LifecycleError::Document {
+            path: item.file.to_string(),
+            side,
+            reason,
+        };
+        let text = source
+            .source(&item.file)
+            .ok_or_else(|| document("is not in the source index".to_string()))?;
+        let header = if item.self_type.is_some() {
+            headers
+                .of(&item.file, text)
+                .map_err(|error| document(error.to_string()))?
+                .iter()
+                .filter(|impl_block| impl_block.body.contains(&item.span.start_byte))
+                .min_by_key(|impl_block| impl_block.body.len())
+                .map_or_else(
+                    || "\u{0}no impl block".to_string(),
+                    |impl_block| impl_block.header.clone(),
+                )
+        } else {
+            String::new()
+        };
+        let key = Key {
+            path: item.path.to_string(),
+            kind: item.kind,
+            header,
+        };
+        self.units.entry(key.clone()).or_insert_with(|| Unit {
+            item,
+            stream: Reader::new(text).stream_of(item.span.start_byte..item.span.end_byte),
+        });
+        Ok(key)
+    }
+}
+
+/// The touched units of `now` against `then`, the surface of `then_source`
+/// at the merge base, sorted by file, line and path.
+fn compare(
+    plan: &Workplan<'_>,
+    now: &Surface<'_>,
+    then_source: Option<&Workspace>,
+    then: &Surface<'_>,
+) -> Vec<Touched> {
+    let graph = plan.graph();
+    let source = plan.source();
+    let at_base = |item: &raf_source::Item| -> Option<&Binding> {
+        let same = then_source.map_or(&[][..], |workspace| workspace.same_source(item));
+        std::iter::once(item.path.as_str())
+            .chain(
+                same.iter()
+                    .filter_map(|id| then_source.and_then(|w| w.item(*id)))
+                    .map(|item| item.path.as_str()),
+            )
+            .find_map(|path| covering_path(graph, source, path))
     };
-    let present: BTreeSet<&str> = now
-        .units
-        .iter()
-        .filter_map(|unit| unit.name.as_deref())
-        .collect();
-    for unit in &then.units {
-        let Some(name) = unit.name.as_deref() else {
+    let mut found: BTreeMap<String, Touched> = BTreeMap::new();
+    let mut report = |path: &str, item: &raf_source::Item, binding: &Binding, how: Touch| {
+        found.entry(path.to_string()).or_insert_with(|| Touched {
+            item: path.to_string(),
+            file: item.file.to_string(),
+            line: item.name_line,
+            capability: binding.capability().to_string(),
+            how,
+        });
+    };
+
+    for (key, unit) in &now.units {
+        let how = match then.units.get(key) {
+            Some(old) if old.stream == unit.stream => continue,
+            Some(_) => Touch::Tokens,
+            None => Touch::New,
+        };
+        if let Some(binding) = covering(graph, source, unit.item.id) {
+            report(&key.path, unit.item, binding, how);
+        }
+    }
+    for (key, unit) in &then.units {
+        if now.units.contains_key(key) {
+            continue;
+        }
+        let Some(binding) = at_base(unit.item) else {
             continue;
         };
-        if !unit.public || present.contains(name) {
-            continue;
-        }
-        let bound = modules.iter().find_map(|module| {
-            let full = format!("{module}::{name}");
-            covering_path(plan.graph(), source, &full).map(|binding| (full, binding))
-        });
-        if let Some((full, binding)) = bound {
-            touched.push(Touched {
-                item: full,
-                file: path.to_string(),
-                line: unit.line,
-                capability: binding.capability().to_string(),
-                how: Touch::Removed,
-            });
+        let kept = source
+            .items_under(&key.path)
+            .find(|item| *item.path == *key.path && item.kind == key.kind);
+        match kept {
+            Some(item) => report(&key.path, item, binding, Touch::Hidden),
+            None => report(&key.path, unit.item, binding, Touch::Removed),
         }
     }
-    Ok(touched)
+    for (path, key) in &now.exports {
+        if *path == key.path {
+            continue;
+        }
+        let how = match then.exports.get(path) {
+            Some(old) if old == key => continue,
+            Some(_) => Touch::Retargeted,
+            None => Touch::New,
+        };
+        if let Some(unit) = now.units.get(key)
+            && let Some(binding) = covering(graph, source, unit.item.id)
+        {
+            report(path, unit.item, binding, how);
+        }
+    }
+    for (path, key) in &then.exports {
+        if *path == key.path || now.exports.contains_key(path) {
+            continue;
+        }
+        if let Some(unit) = then.units.get(key)
+            && let Some(binding) = at_base(unit.item)
+        {
+            report(path, unit.item, binding, Touch::Removed);
+        }
+    }
+
+    let mut touched: Vec<Touched> = found.into_values().collect();
+    touched.sort_by(|a, b| (&a.file, a.line, &a.item).cmp(&(&b.file, b.line, &b.item)));
+    touched
 }
 
-/// One item of a file, as the rule compares it.
+// --- the headers of impl blocks ----------------------------------------------
+
+/// An impl block of a file: the bytes of its braced body and the rendered
+/// tokens of everything before the brace.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Unit {
-    /// The token stream of the item's span, rendered as [`render`] writes it.
-    stream: String,
-    /// The path of the item below the module of its file, for an item a path
-    /// can name: `name`, `inner::name`, `Type::method` or `Trait::item`.
-    name: Option<String>,
-    /// Whether the item is of the public kind the removal rule counts.
-    public: bool,
-    /// The 1-based line of its name, or of its first token.
-    line: usize,
+struct ImplHeader {
+    body: Range<usize>,
+    header: String,
 }
 
-/// What [`scan`] reads from a file: its units, and the stream of each span the
-/// caller asked for, in its order.
-#[derive(Debug)]
-struct Scan {
-    units: Vec<Unit>,
-    wanted: Vec<String>,
+/// The impl blocks of each file read so far.
+#[derive(Default)]
+struct Headers {
+    files: BTreeMap<RelPath, Vec<ImplHeader>>,
 }
 
-/// Parse `text` through [`parse_source`] and read every unit of it, and the
-/// stream of each byte range of `wanted`.
+impl Headers {
+    fn of(&mut self, path: &RelPath, text: &str) -> Result<&[ImplHeader], LoadError> {
+        if !self.files.contains_key(path) {
+            let read = impl_headers(path, text)?;
+            self.files.insert(path.clone(), read);
+        }
+        Ok(self.files.get(path).map_or(&[][..], Vec::as_slice))
+    }
+}
+
+/// Parse `text` through [`parse_source`] and read every impl block of it, at
+/// every depth of inline modules.
 ///
-/// The spans and the streams are read on the thread that parsed, which holds
-/// the location data of the parse, and leave it as plain text.
-fn scan(path: &RelPath, text: &str, wanted: &[Range<usize>]) -> Result<Scan, LoadError> {
+/// The spans are read on the thread that parsed, which holds the location
+/// data of the parse, and leave it as plain values.
+fn impl_headers(path: &RelPath, text: &str) -> Result<Vec<ImplHeader>, LoadError> {
     parse_source(path, text, |file| {
         let reader = Reader::new(text);
-        let mut units = Vec::new();
-        reader.items(&file.items, "", &mut units);
-        let wanted = wanted
-            .iter()
-            .map(|range| reader.stream_of(range.clone()))
-            .collect();
-        Scan { units, wanted }
+        let mut out = Vec::new();
+        reader.impls(&file.items, &mut out);
+        out
     })
 }
 
@@ -369,163 +508,32 @@ impl<'t> Reader<'t> {
         }
     }
 
-    /// The rendered stream of the whole span of `node`.
-    fn stream_of_node(&self, node: &impl Spanned) -> String {
-        let span = node.span();
-        match (self.byte(span.start()), self.byte(span.end())) {
-            (Some(start), Some(end)) if start <= end => self.stream_of(start..end),
-            _ => format!("\u{0}no span at line {}", span.start().line),
-        }
-    }
-
-    /// Read the items `items` of a module whose path below the module of the
-    /// file is `module` (empty for the file's own).
-    fn items(&self, items: &[Item], module: &str, out: &mut Vec<Unit>) {
+    /// Read the impl blocks of `items` and of the inline modules among them.
+    fn impls(&self, items: &[Item], out: &mut Vec<ImplHeader>) {
         for item in items {
-            let stream = self.stream_of_node(item);
-            let named = |ident: &Ident, vis: &Visibility| {
-                (
-                    Some(joined(module, &ident.to_string())),
-                    is_pub(vis),
-                    ident_line(ident),
-                )
-            };
-            let (name, public, line) = match item {
-                Item::Fn(item) => named(&item.sig.ident, &item.vis),
-                Item::Const(item) => named(&item.ident, &item.vis),
-                Item::Static(item) => named(&item.ident, &item.vis),
-                Item::Struct(item) => named(&item.ident, &item.vis),
-                Item::Enum(item) => named(&item.ident, &item.vis),
-                Item::Union(item) => named(&item.ident, &item.vis),
-                Item::Type(item) => named(&item.ident, &item.vis),
-                Item::TraitAlias(item) => named(&item.ident, &item.vis),
-                Item::Trait(item) => {
-                    let trait_path = joined(module, &item.ident.to_string());
-                    let public = is_pub(&item.vis);
-                    for member in &item.items {
-                        self.trait_item(member, &trait_path, public, out);
-                    }
-                    named(&item.ident, &item.vis)
-                }
-                Item::Mod(item) => {
-                    let inner = joined(module, &item.ident.to_string());
-                    if let Some((_, content)) = &item.content {
-                        self.items(content, &inner, out);
-                    }
-                    named(&item.ident, &item.vis)
-                }
-                Item::Impl(item) => {
-                    let key = self_type_key(&item.self_ty).map(|key| joined(module, &key));
-                    let inherent = item.trait_.is_none();
-                    for member in &item.items {
-                        self.impl_item(member, key.as_deref(), inherent, out);
-                    }
-                    (None, false, item.span().start().line)
-                }
-                Item::ForeignMod(item) => {
-                    for member in &item.items {
-                        let member_stream = self.stream_of_node(member);
-                        let (name, public, line) = match member {
-                            syn::ForeignItem::Fn(member) => named(&member.sig.ident, &member.vis),
-                            syn::ForeignItem::Static(member) => named(&member.ident, &member.vis),
-                            syn::ForeignItem::Type(member) => named(&member.ident, &member.vis),
-                            other => (None, false, other.span().start().line),
-                        };
-                        out.push(Unit {
-                            stream: member_stream,
-                            name,
-                            public,
-                            line,
+            match item {
+                Item::Impl(block) => {
+                    let start = self.byte(block.span().start());
+                    let open = self.byte(block.brace_token.span.open().start());
+                    let close = self.byte(block.brace_token.span.close().end());
+                    if let (Some(start), Some(open), Some(close)) = (start, open, close)
+                        && start <= open
+                        && open <= close
+                    {
+                        out.push(ImplHeader {
+                            body: open..close,
+                            header: self.stream_of(start..open),
                         });
                     }
-                    (None, false, item.span().start().line)
                 }
-                Item::Macro(item) => (
-                    item.ident
-                        .as_ref()
-                        .map(|ident| joined(module, &ident.to_string())),
-                    false,
-                    item.ident
-                        .as_ref()
-                        .map_or_else(|| item.span().start().line, ident_line),
-                ),
-                other => (None, false, other.span().start().line),
-            };
-            out.push(Unit {
-                stream,
-                name,
-                public,
-                line,
-            });
+                Item::Mod(module) => {
+                    if let Some((_, content)) = &module.content {
+                        self.impls(content, out);
+                    }
+                }
+                _ => {}
+            }
         }
-    }
-
-    /// Read a member of an impl block whose self type has the path `key`
-    /// below the module of the file, when the parse can name it.
-    fn impl_item(&self, member: &ImplItem, key: Option<&str>, inherent: bool, out: &mut Vec<Unit>) {
-        let stream = self.stream_of_node(member);
-        let (ident, vis) = match member {
-            ImplItem::Fn(member) => (Some(&member.sig.ident), Some(&member.vis)),
-            ImplItem::Const(member) => (Some(&member.ident), Some(&member.vis)),
-            ImplItem::Type(member) => (Some(&member.ident), Some(&member.vis)),
-            _ => (None, None),
-        };
-        let name = key.zip(ident).map(|(key, ident)| format!("{key}::{ident}"));
-        out.push(Unit {
-            stream,
-            name,
-            public: inherent && vis.is_some_and(is_pub),
-            line: ident.map_or_else(|| member.span().start().line, ident_line),
-        });
-    }
-
-    /// Read a member of the trait whose path below the module of the file is
-    /// `trait_path`.
-    fn trait_item(&self, member: &TraitItem, trait_path: &str, public: bool, out: &mut Vec<Unit>) {
-        let stream = self.stream_of_node(member);
-        let ident = match member {
-            TraitItem::Fn(member) => Some(&member.sig.ident),
-            TraitItem::Const(member) => Some(&member.ident),
-            TraitItem::Type(member) => Some(&member.ident),
-            _ => None,
-        };
-        out.push(Unit {
-            stream,
-            name: ident.map(|ident| format!("{trait_path}::{ident}")),
-            public,
-            line: ident.map_or_else(|| member.span().start().line, ident_line),
-        });
-    }
-}
-
-/// `module::name`, or `name` for the module of the file itself.
-fn joined(module: &str, name: &str) -> String {
-    if module.is_empty() {
-        name.to_string()
-    } else {
-        format!("{module}::{name}")
-    }
-}
-
-fn is_pub(vis: &Visibility) -> bool {
-    matches!(vis, Visibility::Public(_))
-}
-
-fn ident_line(ident: &Ident) -> usize {
-    ident.span().start().line
-}
-
-/// The last segment of the path of a self type, without its generic
-/// arguments: `Frame` for `Frame<T>` and for `crate::render::Frame`. A self
-/// type that is not a path (a reference, a tuple, a slice) has none.
-fn self_type_key(self_ty: &syn::Type) -> Option<String> {
-    match self_ty {
-        syn::Type::Path(path) if path.qself.is_none() => path
-            .path
-            .segments
-            .last()
-            .map(|segment| segment.ident.to_string()),
-        _ => None,
     }
 }
 
@@ -567,100 +575,239 @@ fn render(stream: TokenStream, out: &mut String) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::ops::Range;
+// --- the files of the merge base ---------------------------------------------
 
-    use raf_source::RelPath;
+/// The most symbolic links one read follows before it is a loop.
+const MAX_LINKS: usize = 40;
 
-    use super::{Scan, scan};
+/// The files of the merge base below the workspace root, as a [`Tree`]: the
+/// listing answers every question of entries and directories, and a file is
+/// read with the blob row the first time the load reads it.
+struct BaseTree<'r> {
+    runner: &'r dyn Runner,
+    base: &'r MergeBase,
+    prefix: &'r Prefix,
+    files: BTreeMap<String, TreeEntry>,
+    dirs: BTreeSet<String>,
+    texts: RefCell<BTreeMap<String, String>>,
+    /// The first failure of `git`, which the load can only report as an
+    /// error of the tree.
+    failure: RefCell<Option<LifecycleError>>,
+}
 
-    fn units(text: &str) -> Scan {
-        scan(&RelPath::new("src/lib.rs").expect("a path"), text, &[]).expect("it parses")
-    }
-
-    fn stream(text: &str, name: &str) -> String {
-        units(text)
-            .units
-            .into_iter()
-            .find(|unit| unit.name.as_deref() == Some(name))
-            .unwrap_or_else(|| panic!("no {name}"))
-            .stream
-    }
-
-    #[test]
-    fn whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it() {
-        let base = "/// Adds.\npub fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n";
-        let same = [
-            "/// Adds.\npub fn add(a: u32, b: u32) -> u32 { a + b }\n",
-            "/// Adds.\npub fn add(\n    a: u32,\n    b: u32\n) -> u32 {\n    // plain\n    a + b /* block */\n}\n",
-            "/// Adds.\r\npub fn add(a: u32, b: u32) -> u32 {\r\n    a + b\r\n}\r\n",
-        ];
-        for text in same {
-            assert_eq!(stream(text, "add"), stream(base, "add"), "{text}");
+impl<'r> BaseTree<'r> {
+    fn new(
+        runner: &'r dyn Runner,
+        base: &'r MergeBase,
+        prefix: &'r Prefix,
+        listing: Vec<(RelPath, TreeEntry)>,
+    ) -> Self {
+        let mut files = BTreeMap::new();
+        let mut dirs = BTreeSet::from([String::new()]);
+        for (path, kind) in listing {
+            let key = path.as_str().to_string();
+            let mut at = key.as_str();
+            while let Some((parent, _)) = at.rsplit_once('/') {
+                dirs.insert(parent.to_string());
+                at = parent;
+            }
+            files.insert(key, kind);
         }
-        let different = [
-            "/// Adds two.\npub fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n",
-            "/** Adds. */\npub fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n",
-            "/// Adds.\npub fn add(a: u32, b: u32) -> u32 {\n    b + a\n}\n",
-            "/// Adds.\n#[must_use]\npub fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n",
-            "/// Adds.\npub(crate) fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n",
-            "/// Adds.\npub fn add(a: u64, b: u32) -> u32 {\n    a + b\n}\n",
-            "/// Adds.\npub fn add(a: u32, b: u32,) -> u32 {\n    a + b\n}\n",
-        ];
-        for text in different {
-            assert_ne!(stream(text, "add"), stream(base, "add"), "{text}");
+        Self {
+            runner,
+            base,
+            prefix,
+            files,
+            dirs,
+            texts: RefCell::new(BTreeMap::new()),
+            failure: RefCell::new(None),
         }
     }
 
-    #[test]
-    fn the_items_of_modules_impls_and_traits_are_named_below_the_file_and_a_private_one_is_not_counted()
-     {
-        let text = "pub mod inner {\n    pub fn go() {}\n    fn helper() {}\n}\npub struct Frame;\nimpl Frame {\n    pub fn push(&self) {}\n    fn grow(&self) {}\n}\nimpl Clone for Frame {\n    fn clone(&self) -> Self { Frame }\n}\npub trait Shape {\n    fn area(&self) -> u32;\n}\nmacro_rules! make { () => {} }\n";
-        let named: Vec<(String, bool)> = units(text)
-            .units
-            .into_iter()
-            .filter_map(|unit| unit.name.map(|name| (name, unit.public)))
-            .collect();
-        assert_eq!(
-            named,
-            [
-                ("inner::go".to_string(), true),
-                ("inner::helper".to_string(), false),
-                ("inner".to_string(), true),
-                ("Frame".to_string(), true),
-                ("Frame::push".to_string(), true),
-                ("Frame::grow".to_string(), false),
-                ("Frame::clone".to_string(), false),
-                ("Shape::area".to_string(), true),
-                ("Shape".to_string(), true),
-                ("make".to_string(), false),
-            ]
-        );
+    fn is_dir(&self, root: &str) -> bool {
+        let key = if root == "." { "" } else { root };
+        self.dirs.contains(key)
     }
 
-    #[test]
-    fn a_wanted_span_is_read_as_the_stream_of_its_text_and_a_file_that_does_not_parse_is_an_error()
-    {
-        let text = "pub fn a() {}\npub fn b() { 1 }\n";
-        let start = text.find("pub fn b").expect("b");
-        let read = scan(
-            &RelPath::new("src/lib.rs").expect("a path"),
-            text,
-            &[Range {
-                start,
-                end: text.len() - 1,
-            }],
-        )
-        .expect("it parses");
-        assert_eq!(read.wanted, [stream(text, "b")]);
-        assert!(
-            scan(
-                &RelPath::new("src/lib.rs").expect("a path"),
-                "pub fn (",
-                &[]
-            )
-            .is_err()
-        );
+    /// The key of the file `path` names, after its symbolic links.
+    fn file_key(&self, path: &RelPath) -> Result<String, TreeError> {
+        let mut key = collapse(path.as_str()).ok_or_else(|| TreeError::OutsideRoot {
+            path: path.to_string(),
+        })?;
+        for _ in 0..MAX_LINKS {
+            match self.files.get(&key) {
+                Some(TreeEntry::File) => return Ok(key),
+                Some(TreeEntry::Symlink) => {
+                    let target = self.text(&key, path)?;
+                    let joined = match key.rsplit_once('/') {
+                        _ if target.starts_with('/') => None,
+                        Some((dir, _)) => collapse(&format!("{dir}/{target}")),
+                        None => collapse(&target),
+                    };
+                    key = joined.ok_or_else(|| TreeError::OutsideRoot {
+                        path: path.to_string(),
+                    })?;
+                }
+                Some(TreeEntry::Submodule) => {
+                    return Err(TreeError::NotRegular {
+                        path: path.to_string(),
+                    });
+                }
+                None if self.dirs.contains(&key) => {
+                    return Err(TreeError::NotRegular {
+                        path: path.to_string(),
+                    });
+                }
+                None => {
+                    return Err(TreeError::NotFound {
+                        path: path.to_string(),
+                    });
+                }
+            }
+        }
+        Err(TreeError::SymlinkLoop {
+            path: path.to_string(),
+        })
+    }
+
+    /// The text of the listed file `key`, read once.
+    fn text(&self, key: &str, path: &RelPath) -> Result<String, TreeError> {
+        if let Some(text) = self.texts.borrow().get(key) {
+            return Ok(text.clone());
+        }
+        let bytes = match blob(self.runner, self.base, self.prefix, key) {
+            Ok(Some(bytes)) => bytes,
+            Ok(None) => {
+                return Err(TreeError::NotFound {
+                    path: path.to_string(),
+                });
+            }
+            Err(error) => {
+                let reason = error.to_string();
+                self.failure.borrow_mut().get_or_insert(error);
+                return Err(TreeError::Io {
+                    path: path.to_string(),
+                    source: io::Error::other(reason),
+                });
+            }
+        };
+        let text = String::from_utf8(bytes).map_err(|_| TreeError::NotUtf8 {
+            path: path.to_string(),
+        })?;
+        self.texts
+            .borrow_mut()
+            .insert(key.to_string(), text.clone());
+        Ok(text)
     }
 }
+
+impl Tree for BaseTree<'_> {
+    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
+        let key = self.file_key(path)?;
+        let text = self.text(&key, path)?;
+        if u64::try_from(text.len()).map_or(true, |len| len > max_bytes) {
+            return Err(TreeError::TooLarge {
+                path: path.to_string(),
+                limit: max_bytes,
+            });
+        }
+        Ok(text)
+    }
+
+    fn read_unseen(
+        &self,
+        path: &RelPath,
+        max_bytes: u64,
+        seen: &dyn Fn(&FileId) -> bool,
+    ) -> Result<TreeRead, TreeError> {
+        let key = self.file_key(path)?;
+        let id = FileId::from_key(&key);
+        if seen(&id) {
+            return Ok(TreeRead::Seen(id));
+        }
+        Ok(TreeRead::Read {
+            id,
+            text: self.read(path, max_bytes)?,
+        })
+    }
+
+    fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
+        let key = collapse(path.as_str()).ok_or_else(|| TreeError::OutsideRoot {
+            path: path.to_string(),
+        })?;
+        if self.files.contains_key(&key) {
+            return Err(TreeError::NotRegular {
+                path: path.to_string(),
+            });
+        }
+        if !self.dirs.contains(&key) {
+            return Err(TreeError::NotFound {
+                path: path.to_string(),
+            });
+        }
+        let below = if key.is_empty() {
+            String::new()
+        } else {
+            format!("{key}/")
+        };
+        let mut entries: BTreeMap<&str, EntryKind> = BTreeMap::new();
+        for (file, kind) in self.files.range(below.clone()..) {
+            let Some(rest) = file.strip_prefix(&below) else {
+                break;
+            };
+            match rest.split_once('/') {
+                Some((dir, _)) => {
+                    entries.insert(dir, EntryKind::Dir);
+                }
+                None => {
+                    entries.insert(
+                        rest,
+                        match kind {
+                            TreeEntry::File => EntryKind::File,
+                            TreeEntry::Symlink => EntryKind::Symlink,
+                            TreeEntry::Submodule => EntryKind::Other,
+                        },
+                    );
+                }
+            }
+        }
+        Ok(entries
+            .into_iter()
+            .map(|(name, kind)| Entry::new(name, kind))
+            .collect())
+    }
+
+    fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
+        let Some(key) = collapse(path.as_str()) else {
+            return Err(TreeError::OutsideRoot {
+                path: path.to_string(),
+            });
+        };
+        Ok(match self.files.get(&key) {
+            Some(TreeEntry::File) => Some(EntryKind::File),
+            Some(TreeEntry::Symlink) => Some(EntryKind::Symlink),
+            Some(TreeEntry::Submodule) => Some(EntryKind::Other),
+            None if self.dirs.contains(&key) => Some(EntryKind::Dir),
+            None => None,
+        })
+    }
+}
+
+/// The lexical form of a relative path, `.` dropped and `..` applied against
+/// its own segments; `None` when it climbs above the root.
+fn collapse(path: &str) -> Option<String> {
+    let mut kept: Vec<&str> = Vec::new();
+    for segment in path.split('/') {
+        match segment {
+            "" | "." => {}
+            ".." => {
+                kept.pop()?;
+            }
+            other => kept.push(other),
+        }
+    }
+    Some(kept.join("/"))
+}
+
+#[cfg(test)]
+mod tests;

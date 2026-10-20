@@ -392,3 +392,40 @@ fn under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exi
         "{run:#?}"
     );
 }
+
+/// Under `--strict` a change with `contract_effect: none` lists the public
+/// surface of each package that holds a bound item, so a surface that cannot
+/// be listed (two globs bring one name in) stops it: exit 2, with the target
+/// and the side named, and nothing on stdout. The run without the flag lists
+/// no surface and exits 0, and the neighbour with one glob exits 0 under the
+/// flag.
+#[test]
+fn under_strict_a_bound_package_whose_surface_cannot_be_listed_is_exit_two() {
+    let globs = "\npub mod left {\n    /// One.\n    pub fn dup() {}\n}\n\npub mod right {\n    /// Two.\n    pub fn dup() {}\n}\n\npub use left::*;\npub use right::*;\n";
+    for (tag, globs, code) in [
+        ("reconcile-strict-surface", globs.to_string(), 2),
+        (
+            "reconcile-strict-surface-one-glob",
+            globs.replace("pub use right::*;\n", ""),
+            0,
+        ),
+    ] {
+        let repo = calm_before_checkout(tag, &["cap:alpha#contract"]);
+        let lib = repo.read("src/lib.rs");
+        repo.put("src/lib.rs", &format!("{lib}{globs}"));
+        repo.checkout();
+        repo.both(&["change", "reconcile", "calm"]).expect(0);
+        let run = repo
+            .both(&["--strict", "change", "reconcile", "calm"])
+            .expect(code);
+        assert_eq!(run.stdout, "", "{tag}");
+        if code == 2 {
+            assert!(
+                run.stderr.contains("in the working tree cannot be listed, so the bound public items the change touches are unknown: "),
+                "{run:#?}"
+            );
+        } else {
+            assert_eq!(run.stderr, "", "{tag}");
+        }
+    }
+}

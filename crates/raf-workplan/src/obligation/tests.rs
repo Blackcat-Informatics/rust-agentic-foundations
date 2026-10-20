@@ -385,14 +385,35 @@ fn the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_l
         Needed::Reason(Outcome::Dropped).to_string(),
         "a reason for the outcome (`outcome: dropped` has no `reason`)"
     );
-    assert_eq!(
-        Needed::StatedEffect(touched(Touch::Tokens)).to_string(),
-        "contract_effect: changes, the capability listed and the sections it owes reconciled (`demo::run` at src/lib.rs:4: its tokens are not those of an item of its file at the merge base; `cap:demo` binds it)"
-    );
-    assert_eq!(
-        Needed::StatedEffect(touched(Touch::Removed)).to_string(),
-        "contract_effect: changes, the capability listed and the sections it owes reconciled (`demo::run` at src/lib.rs:4 at the merge base: the working tree has no such item; `cap:demo` binds it)"
-    );
+    let head =
+        "contract_effect: changes, the capability listed and the sections it owes reconciled";
+    for (how, said) in [
+        (
+            Touch::Tokens,
+            "(`demo::run` at src/lib.rs:4: its tokens differ from those it had at the merge base; `cap:demo` binds it)",
+        ),
+        (
+            Touch::New,
+            "(`demo::run` at src/lib.rs:4: the merge base has no such public item; `cap:demo` binds it)",
+        ),
+        (
+            Touch::Removed,
+            "(`demo::run` at src/lib.rs:4 at the merge base: the working tree has no such public item; `cap:demo` binds it)",
+        ),
+        (
+            Touch::Hidden,
+            "(`demo::run` at src/lib.rs:4: it was public at the merge base and is off the public surface now; `cap:demo` binds it)",
+        ),
+        (
+            Touch::Retargeted,
+            "(`demo::run` at src/lib.rs:4: it names another item than at the merge base; `cap:demo` binds it)",
+        ),
+    ] {
+        assert_eq!(
+            Needed::StatedEffect(touched(how)).to_string(),
+            format!("{head} {said}")
+        );
+    }
 }
 
 #[test]

@@ -70,6 +70,9 @@ pub enum LifecycleError {
         package: String,
         /// The crate path of the target.
         target: String,
+        /// Which source index: the working tree's, or the one loaded at the
+        /// merge base.
+        side: Side,
         /// Why the source index cannot list it.
         reason: String,
     },
@@ -142,10 +145,11 @@ impl fmt::Display for LifecycleError {
             Self::Surface {
                 package,
                 target,
+                side,
                 reason,
             } => write!(
                 f,
-                "the public surface of `{target}` in the package `{package}` cannot be listed, so the bound public items the change touches are unknown: {reason}"
+                "the public surface of `{target}` in the package `{package}` {side} cannot be listed, so the bound public items the change touches are unknown: {reason}"
             ),
             Self::Document { path, side, reason } => write!(
                 f,
@@ -400,7 +404,14 @@ impl<R: Runner> Lifecycle<R> {
         let impact = plan.impact(change)?;
         let effect = plan.change(change)?.value().contract_effect;
         let mut owed = fixed.obligations().to_vec();
-        owed.extend(self.process_obligations(&self.opened, &plan, &impact, effect, true)?);
+        owed.extend(self.process_obligations(
+            &self.opened,
+            &plan,
+            &impact,
+            effect,
+            true,
+            &mut None,
+        )?);
         Ok(Reconciled::new(fixed.change().to_string(), owed))
     }
 
@@ -419,6 +430,7 @@ impl<R: Runner> Lifecycle<R> {
         impact: &Impact,
         effect: ContractEffect,
         examples: bool,
+        kept: &mut Option<touched::BaseIndex>,
     ) -> Result<Vec<Obligation>, LifecycleError> {
         let strictness = plan.strictness();
         let mut base = None;
@@ -445,6 +457,7 @@ impl<R: Runner> Lifecycle<R> {
                 &self.prefix,
                 &impact.change,
                 &mut base,
+                kept,
             )?);
         }
         if examples {

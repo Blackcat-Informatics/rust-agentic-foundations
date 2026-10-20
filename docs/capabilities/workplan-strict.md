@@ -75,8 +75,10 @@ bindings:
     - raf_workplan::test_crate::claim_coverage::a_bold_lead_directly_after_any_heading_starts_a_contract_clause
     - cargo_workplan::test_crate::claims::the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names
     - raf_workplan::lifecycle::touched::tests::whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it
-    - raf_workplan::lifecycle::touched::tests::the_items_of_modules_impls_and_traits_are_named_below_the_file_and_a_private_one_is_not_counted
-    - raf_workplan::lifecycle::touched::tests::a_wanted_span_is_read_as_the_stream_of_its_text_and_a_file_that_does_not_parse_is_an_error
+    - raf_workplan::lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only
+    - raf_workplan::lifecycle::touched::tests::an_impl_header_is_the_tokens_before_its_brace_at_every_depth_and_a_file_that_does_not_parse_is_an_error
+    - raf_workplan::lifecycle::touched::tests::the_tree_of_the_merge_base_answers_from_one_listing_and_reads_each_file_once_with_the_blob_row
+    - raf_workplan::lifecycle::touched::tests::a_git_failure_while_the_merge_base_loads_is_that_error_and_a_file_that_is_not_utf8_names_the_file
     - raf_workplan::obligation::tests::only_the_two_kinds_of_strict_mode_are_strict
     - raf_workplan::obligation::tests::the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_line_and_the_capability
     - raf_workplan::test_crate::obligations::an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome
@@ -95,6 +97,21 @@ bindings:
     - raf_workplan::test_crate::complete::under_strict_a_failing_bound_test_and_a_tense_mismatch_refuse_as_under_default_and_their_repairs_complete
     - cargo_workplan::test_crate::reconcile::under_strict_an_untouched_usage_of_a_none_change_exits_one_and_its_edit_zero
     - cargo_workplan::test_crate::reconcile::under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exit_two
+    - cargo_workplan::test_crate::reconcile::under_strict_a_bound_package_whose_surface_cannot_be_listed_is_exit_two
+    - raf_workplan::test_crate::complete::under_strict_a_bound_item_made_private_or_visible_to_its_crate_alone_refuses_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_a_bound_module_made_private_refuses_for_it_and_its_items_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_a_public_method_of_a_bound_type_made_private_refuses_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_a_changed_header_of_the_impl_block_of_a_bound_type_refuses_for_its_member_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_a_method_edited_to_the_tokens_of_a_sibling_method_refuses_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_a_method_removed_from_an_impl_in_another_file_or_with_its_file_refuses_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_the_bound_items_of_a_file_absent_at_the_merge_base_refuse_and_a_new_file_of_private_items_completes
+    - raf_workplan::test_crate::complete::under_strict_a_private_helper_removed_from_a_bound_module_completes_and_a_public_item_removed_refuses
+    - raf_workplan::test_crate::complete::under_strict_a_trait_impl_member_of_a_bound_type_edited_or_removed_refuses_and_one_of_a_private_type_completes
+    - raf_workplan::test_crate::complete::under_strict_a_bound_reexport_that_names_another_item_refuses_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_a_reflow_that_adds_a_trailing_comma_or_a_space_in_a_doc_comment_refuses_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_an_edit_of_a_macro_that_generates_an_item_of_a_bound_module_is_not_judged
+    - raf_workplan::test_crate::complete::under_strict_a_bound_package_whose_surface_cannot_be_listed_is_an_error_and_without_the_second_glob_it_answers
+    - raf_workplan::test_crate::complete::under_strict_a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none
   examples:
     - raf_workplan::Workplan::strictness
     - raf_workplan::Workplan::claims_report
@@ -227,35 +244,56 @@ binding of every listed capability with the proof `verify` uses, and condition 1
 refuses on each `tense-mismatch` of a listed capability, so each refuses and
 completes under strict as under `default`. Strict adds the process obligation
 `contract-effect-understated`, raised by [reconcile](./workplan-reconcile.md) when the
-record says `contract_effect: none` and a bound public item is touched. A bound public
-item is an item of the public surface of a library or binary target that a `code`
-binding of any loaded capability covers, itself or as an item below it in the sense of
-two-way coverage. The files read are each file that a library or binary target of a
-package holding a bound item reaches outside test code, and each file that holds a
-bound public item; each is read at the merge base with the reconcile row
-`git cat-file blob <merge-base>:<prefix><path>`, within the 1 MiB bound of a blob,
-and each side is parsed from its whole file through `raf_source::parse_source`. Items
-are compared as `proc_macro2` token streams of their whole span: a doc comment
-arrives as a `#[doc]` attribute and counts, while whitespace and comments that are not
-doc comments are not tokens and do not, and CRLF reads as LF. A bound public item is
-touched when its token stream is not among those of the items of its file at the merge
-base, at every depth a path can name (inline modules, impl blocks, traits and extern
-blocks), so an edit of a signature, a body, an attribute, a visibility or a doc
-comment touches it, a reformatting or an edit of a plain comment does not, a new bound
-public item and an item moved to another file are touched, and an item moved within its
-file is not. An item of the merge base that its file in the working tree lacks, removed
-or renamed, is touched when it is declared `pub`, is a `pub` member of an inherent impl
-or is a member of a `pub` trait, and its path is bound: the module path of its file in
-the working tree, the names of the inline modules around it and, for a member of an
-impl or a trait, the last segment of the self type or the trait's name. A file absent
-at the merge base makes every bound public item in it touched. Each touched item is
-one obligation on the change record, whose evidence names the item, its file and the
-line of its name, and the capability whose binding covers it; the evidence needed is
-`contract_effect: changes`, the capability listed and the sections it owes
-reconciled. A file at the merge base that is not UTF-8 or does not parse is an error
-and not a pass, as is a public surface the source index cannot list, and `change
-reconcile` and `change complete` exit 2 for either. Condition 1 refuses on the
-obligation, and the headline counts it as an obligation.
+record says `contract_effect: none` and a bound public item is touched. The public
+surface of each side is read from a source index: the working tree's, and one loaded
+at the merge base from the directories of the packages that hold an item a `code`
+binding resolves to. Its units are the items of the public surface of every library
+and binary target of those packages (the items another crate can name, the `pub`
+members of the inherent impls of an exported type and the members of an exported
+trait; an item `#[doc(hidden)]` hides is not one) and the members of the trait impls
+of an exported struct, enum or union. A unit is bound when a `code` binding of any
+loaded capability covers it, itself or as an item below it in the sense of two-way
+coverage. A unit is the same unit on both sides when its path, its kind and, for a
+member of an impl block, the tokens of the impl's header (its attributes, generics,
+trait, self type and where clause) are the same, and each unit is compared with that
+counterpart alone, as the `proc_macro2` token stream of its whole span. A doc comment
+arrives as a `#[doc]` attribute and counts; whitespace, line breaks, comments that
+are not doc comments and CRLF line endings are not tokens and do not. So an edit of a
+signature, a body, an attribute, a visibility or a doc comment touches a unit, and so
+does a reformatting that adds or removes a token, such as the trailing comma rustfmt
+adds to one parameter per line, while a reformatting that keeps the tokens and an
+edit of a plain comment do not. The span of an inline module holds its items, so any
+token edited inside a bound inline module touches the module too. A bound unit is
+touched (`obligation::Touch`) when:
+
+- its counterpart has another stream: `Tokens`;
+- it has no counterpart: `New`, for a new item, one made public, one given a new
+  path (moved to another module or file, or renamed), one under a changed impl header,
+  and every bound public item of a file absent at the merge base;
+- it is a unit of the merge base with no counterpart: `Hidden` when the working tree
+  still has an item of its path and kind off the surface (made private or
+  `pub(crate)`, or behind a module made private), and `Removed` otherwise, whichever
+  file or module held it, a file the change deletes included;
+- it is named by a re-export path of the surface, which names another unit than at
+  the merge base (`Retargeted`), is new (`New`) or is gone (`Removed`).
+
+A unit that keeps its path, its kind, its header and its tokens is untouched wherever
+it moves, so two items reordered or an item moved within its module complete. Each
+touched path is one obligation on the change record, reported once, whose evidence
+names the item, its file and the line of its name and the capability whose binding
+covers it; the evidence needed is `contract_effect: changes`, the capability listed
+and the sections it owes reconciled. The index at the merge base is loaded through a
+tree of the files of the merge base: `git ls-tree -r -z --full-tree <merge-base>`
+lists them once, and each file the load reads is read once with the reconcile row `git
+cat-file blob <merge-base>:<prefix><path>`, within the 1 MiB bound of a blob, so the
+reads are one for each manifest and source file of the packages a `code` binding
+reaches. `change complete` judges twice, before and after the bound runs, and asks for
+the merge base each time, but loads its index once while the merge base and the
+packages are the same. A merge base whose index does not load (a file that is not
+UTF-8 or does not parse, a missing module) is an error and not a pass, as is a public
+surface a source index cannot list (`LifecycleError::Surface`, which names the side),
+and `change reconcile` and `change complete` exit 2 for either. Condition 1 refuses on
+the obligation, and the headline counts it as an obligation.
 
 **Sections.** Under strict, each of the seven sections of a `delivered` capability
 holds at least `strict::MIN_SECTION_WORDS`, 20, words of prose: the prose lines
@@ -562,14 +600,19 @@ the check, and the write refuses it.
   so a clause with the same lead inserted before it renumbers it. Against a debt
   record either is growth beside a resolved row: touching a recorded claim makes it
   owe a test.
-- An item moved to another file reads as touched for `contract-effect-understated`.
-- A removed or renamed item is found in the files the working tree still holds, by
-  the path its file and its name give it at the merge base. An item of a file the
-  change deletes is not found this way: the binding that names it no longer
-  resolves, which `binding-missing` and the check report. A member of an impl block
-  in another module than its self type is named under the module of the impl block.
-- `contract-effect-understated` reads every file of the library and binary targets
-  of each package that a `code` binding reaches, one `git cat-file` for each, and
+- `contract-effect-understated` compares items by path, so an item moved to another
+  module or file, renamed, or re-exported at its old path reads as touched, and so
+  does each member of an impl block whose header changes, however its body reads.
+- An item a macro generates is not an item of the source index, so an edit of a
+  `macro_rules!` macro or of its invocation that changes a generated item is not
+  judged. An item `#[doc(hidden)]` hides is not on the surface and is not judged
+  either, and a member of a trait impl whose self type is not a struct, enum or union
+  of the surface (an impl for a type of another crate) is not judged.
+- A trait impl with no member, such as `impl Eq for Frame {}`, is no unit, so adding
+  or removing one is not judged.
+- `contract-effect-understated` loads the source index of the merge base from the
+  packages that a `code` binding reaches, every target of them included: one `git
+  ls-tree` and one `git cat-file` for each manifest and source file the load reads,
   only under strict mode for a change with `contract_effect: none`.
 - `strict::MIN_SECTION_WORDS` is 20 and is not configurable. A word count is a proxy:
   it catches the one-sentence section and judges no style.
@@ -659,9 +702,15 @@ cover however long the Contract is, so a long one is a finding of its own.
 its span, its body and its doc comments included. A body is behaviour that callers
 rely on as much as a signature is, and a doc comment is the contract a reader of the
 API sees, so a change that alters either has a contract effect. Comparing token
-streams keeps the rule to what the compiler and rustdoc read: a reformatting or a
-plain comment changes no token. The comparison is by file, so the price of a move to
-another file is a reconciled section.
+streams keeps the rule to what the compiler and rustdoc read: whitespace and a plain
+comment are no tokens, while a trailing comma is one, since `(a,)` and `(a)` differ,
+so it is not taken out. Each item is compared with its own counterpart, found by path,
+kind and impl header, because an edit that makes one method equal another must not
+hide; the header belongs to the identity because it is part of the signature of every
+member under it. Both sides are read from a source index, so a member of a bound type
+is found wherever its impl block is, at the merge base as in the working tree, and a
+removal that leaves the binding of the type resolving is still seen. The price of a
+move to another path is a reconciled section.
 
 Reverse coverage is `coverage lines` because the command is `coverage <direction>`,
 and `lines` names what is counted; `coverage --reverse` is accepted as the same
@@ -743,13 +792,43 @@ visible failure, and the fix is one command.
   strict as under default and their repairs complete; each refusal leaves the tree
   byte-identical, and the strict kinds join the cases that cover every kind of
   obligation in both directions.
-- Token fixtures: whitespace, plain comments and CRLF leave an item's stream as it
-  is, and a doc comment, a token of the body, an attribute, a visibility or a type
-  changes it; the items of inline modules, impl blocks and traits are named below
-  their file, and a private one is not counted as removed.
+- Git fixture repositories for the touch rule, each refusing under strict and
+  completing under default: a bound function made private or `pub(crate)`, a bound
+  module made private (it and its item), a public method of a bound type made
+  private, each `Hidden`; a changed generic bound and a `#[cfg(any())]` on the impl
+  block of a bound type, each making its member `New`; a method edited to the tokens
+  of a method of a sibling type, `Tokens`; a method removed from an impl in another
+  file, and with that file deleted, `Removed`; a new file holding a bound module, its
+  module and its item `New`, beside a new file of private items that completes; a
+  public item removed from a bound file module, beside a private helper removed that
+  completes; a trait impl member of a bound type edited (`Tokens`) or removed
+  (`Removed`), beside one of a private type that completes; a bound re-export that
+  names another item, `Retargeted`; a reflow that adds a trailing comma and a space
+  added in a doc comment, each `Tokens`; and the stated limit, an edit of a macro
+  that generates an item of a bound module, which completes.
+- A bound package whose surface cannot be listed (two globs bring one name in) is
+  `LifecycleError::Surface` in the working tree for `reconcile` and `complete`,
+  writing nothing, beside one glob, which answers.
+- Under strict a `none` change asks `git` for the merge base, lists its tree once and
+  reads each manifest and source file of the bound package once, and `complete`
+  asks for the merge base twice and reads nothing else again; under `default`, and
+  for a change with `contract_effect: changes`, the tree is not listed and no source
+  file is read. Unit fixtures over scripted answers: the tree of the merge base
+  answers entries, listings, links and reads from one listing and one blob row per
+  file, below the top of a work tree as at it, and a `git` failure while it loads is
+  that error, a file that is not UTF-8 is an error naming it, and a package directory
+  absent at the merge base loads nothing.
+- Token fixtures: whitespace, plain comments, CRLF and the `#[doc]` form of a doc
+  comment leave an item's stream as it is, and a doc comment, a trailing space in
+  it, a token of the body, an attribute, a visibility, a type and a trailing comma
+  change it; the surface holds the public items, the members of inherent impls keyed
+  by the header of their impl and the trait impl members of a public type, and no
+  private item and no trait impl member of a private type; an impl header is the
+  tokens before its brace at every depth of inline modules.
 - `cargo workplan --strict change reconcile` exits 1 for a `none` change with an
   untouched Usage and 0 once it is edited, while the run without the flag exits 0,
-  and exits 2 when a bound source file does not parse at the merge base.
+  and exits 2 when a bound source file does not parse at the merge base and when the
+  surface of a bound package cannot be listed, beside one glob, which exits 0.
 - Reverse coverage fixtures: a fully bound crate has 0 orphan lines; an unreferenced
   private helper is exactly its span as one range, beside the same helper reached
   from a bound function; binding a type covers its `impl` blocks and their methods;
@@ -786,14 +865,17 @@ visible failure, and the fix is one command.
 | `cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::claims::the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::reconcile::under_strict_a_bound_package_whose_surface_cannot_be_listed_is_exit_two` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::reconcile::under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exit_two` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::reconcile::under_strict_an_untouched_usage_of_a_none_change_exits_one_and_its_edit_zero` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key` | test | [Verification](#verification) |
 | `raf_workplan::Workplan::claims_report` | doctest | [Usage](#usage) |
 | `raf_workplan::Workplan::strictness` | doctest | [Usage](#usage) |
-| `raf_workplan::lifecycle::touched::tests::a_wanted_span_is_read_as_the_stream_of_its_text_and_a_file_that_does_not_parse_is_an_error` | test | [Verification](#verification) |
-| `raf_workplan::lifecycle::touched::tests::the_items_of_modules_impls_and_traits_are_named_below_the_file_and_a_private_one_is_not_counted` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::touched::tests::a_git_failure_while_the_merge_base_loads_is_that_error_and_a_file_that_is_not_utf8_names_the_file` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::touched::tests::an_impl_header_is_the_tokens_before_its_brace_at_every_depth_and_a_file_that_does_not_parse_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::touched::tests::the_tree_of_the_merge_base_answers_from_one_listing_and_reads_each_file_once_with_the_blob_row` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::touched::tests::whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::only_the_two_kinds_of_strict_mode_are_strict` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_line_and_the_capability` | test | [Verification](#verification) |
@@ -816,18 +898,32 @@ visible failure, and the fix is one command.
 | `raf_workplan::test_crate::claim_coverage::the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_default_a_none_change_that_edits_a_bound_item_owes_nothing_and_under_strict_it_owes_one` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_bound_item_made_private_or_visible_to_its_crate_alone_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_bound_module_made_private_refuses_for_it_and_its_items_and_under_default_it_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_bound_package_whose_surface_cannot_be_listed_is_an_error_and_without_the_second_glob_it_answers` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_bound_reexport_that_names_another_item_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_a_changed_attribute_of_a_bound_item_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_changed_header_of_the_impl_block_of_a_bound_type_refuses_for_its_member_and_under_default_it_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_a_failing_bound_test_and_a_tense_mismatch_refuse_as_under_default_and_their_repairs_complete` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_method_edited_to_the_tokens_of_a_sibling_method_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_method_removed_from_an_impl_in_another_file_or_with_its_file_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_a_new_bound_public_item_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_a_none_change_that_edits_a_bound_signature_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_a_plain_comment_outside_every_bound_item_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_private_helper_removed_from_a_bound_module_completes_and_a_public_item_removed_refuses` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_public_method_of_a_bound_type_made_private_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_reflow_that_adds_a_trailing_comma_or_a_space_in_a_doc_comment_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_a_reformatted_bound_body_and_a_plain_comment_complete` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_trait_impl_member_of_a_bound_type_edited_or_removed_refuses_and_one_of_a_private_type_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_an_edit_of_a_bound_body_alone_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_an_edit_of_a_bound_doc_comment_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_an_edit_of_a_macro_that_generates_an_item_of_a_bound_module_is_not_judged` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_an_item_dropped_without_a_reason_refuses_condition_two_and_under_default_it_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_an_item_moved_within_its_file_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_an_item_renamed_below_a_bound_module_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_an_untouched_usage_or_examples_of_a_none_change_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_the_bound_items_of_a_file_absent_at_the_merge_base_refuse_and_a_new_file_of_private_items_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::a_bound_package_outside_scope_is_enforced_under_strict_and_an_unbound_one_is_not` | test | [Verification](#verification) |

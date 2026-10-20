@@ -7,7 +7,7 @@ subject: cap:workplan-complete-gate#contract
 inputs:
   - kind: section
     name: cap:workplan-complete-gate#contract
-    digest: 0d21dd743c86b8ef1ee7803f7d913a1ded08d2af8cfdba9fff30293caf84db8a
+    digest: e93feb23bc8b2e6dbc577bfb0b2775d7a62af24dd2f8e4262761881bb479d9c3
   - kind: symbol
     name: raf_workplan::bound
     digest: 7dbc473fe74c817dcfa95ba2e9bd7b7017713e99480e563f2a3bd2e0a74bd500
@@ -19,7 +19,7 @@ inputs:
     digest: fb60f3294ddb18cc2419096842b25f9150af9ff572c6fb766d261b35fc0363f1
   - kind: symbol
     name: raf_workplan::exec
-    digest: 3c6c037d363e6dd4f27abd85fe3f8feda51c27afecb5abd84edb5eec435733e2
+    digest: c0cf5e0ccc65877dc113e0728151fa90ec0cd9fab25b0b3b62d98b2747110a4c
   - kind: symbol
     name: raf_workplan::exec::Invocation
     digest: 541e0874a2cbff738b60b6c3762db18dc00952583480afab0cac3e52a7a4e65d
@@ -49,7 +49,7 @@ inputs:
     digest: ea395ed62c93dcfafbd7800d24e340834daa4569b0bd8480c65bbde2a2bd2026
   - kind: symbol
     name: raf_workplan::lifecycle::Lifecycle::complete
-    digest: 5258b653de3259724186df61028ddeb4b38904ff9638ae16c708017ae459fe84
+    digest: 339d472c09b5ee0d540a14b67fb7fa8369c151e02f6f03dca81414221b60861a
   - kind: symbol
     name: raf_workplan::lifecycle::VerifyReport
     digest: d6211d239cfbe515c1b0c969fea1fd1df1930ad29cb0fc1c9e0e3abfd4ecbd55

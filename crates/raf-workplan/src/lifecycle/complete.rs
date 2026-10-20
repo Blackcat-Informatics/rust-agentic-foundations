@@ -37,6 +37,7 @@ use crate::{Binding, BindingKind, Finding, Opened, SyncError, SyncOptions, SyncR
 use super::completion::{Completion, Failure};
 use super::examples;
 use super::session::{Lifecycle, LifecycleError, Side};
+use super::touched;
 
 /// The static conditions judged over one opening of the repository.
 struct Evaluation {
@@ -190,7 +191,12 @@ impl<R: Runner> Lifecycle<R> {
     pub fn complete(&self, change: &str) -> Result<Completion, LifecycleError> {
         let slug = bare_slug(change);
 
-        let before = self.evaluate(&self.opened, slug, false)?;
+        // The source index at the merge base is loaded once for both
+        // judgements: the files of one commit do not change, and the second
+        // judgement asks for the merge base again and loads it again only when
+        // it, or the packages it is read from, differ.
+        let mut kept = None;
+        let before = self.evaluate(&self.opened, slug, false, &mut kept)?;
         if !before.failures.is_empty() {
             return Ok(Completion::Refused {
                 failures: before.failures,
@@ -205,7 +211,7 @@ impl<R: Runner> Lifecycle<R> {
         // The documents and the source can change while `cargo` runs, and
         // `Opened` holds the source as it was.
         let opened = self.gate.open()?;
-        let after = self.evaluate(&opened, slug, true)?;
+        let after = self.evaluate(&opened, slug, true, &mut kept)?;
         let different = run_keys(&after.runs) != run_keys(&before.runs);
         if different || !after.failures.is_empty() {
             let what = if different {
@@ -225,12 +231,14 @@ impl<R: Runner> Lifecycle<R> {
 
     /// Judge the static conditions over `opened`; `ran` says whether the
     /// bound tests and examples have run, which a refused way to the record
-    /// reports.
+    /// reports, and `kept` holds the source index at the merge base of an
+    /// earlier judgement.
     fn evaluate(
         &self,
         opened: &Opened,
         slug: &str,
         ran: bool,
+        kept: &mut Option<touched::BaseIndex>,
     ) -> Result<Evaluation, LifecycleError> {
         let plan = opened.workplan();
         let record = plan.change(slug)?;
@@ -255,6 +263,7 @@ impl<R: Runner> Lifecycle<R> {
             &impact,
             record.value().contract_effect,
             false,
+            kept,
         )?);
         let owed = Reconciled::new(impact.change.clone(), obligations);
         let mut failures: Vec<Failure> = owed

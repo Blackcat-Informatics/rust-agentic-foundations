@@ -597,6 +597,12 @@ fn git_rows() -> Vec<Row> {
             Program::Git,
             "cat-file blob 0123456789abcdef0123456789abcdef01234567:docs/capabilities/workplan-cli.md",
         ),
+        (
+            "git tree",
+            Invocation::git_tree(&rev),
+            Program::Git,
+            "ls-tree -r -z --full-tree 0123456789abcdef0123456789abcdef01234567",
+        ),
     ]
     .into_iter()
     .chain(history_rows())
@@ -658,7 +664,7 @@ fn history_rows() -> Vec<Row> {
 #[test]
 fn every_invocation_is_the_row_of_its_table() {
     let rows = rows();
-    assert_eq!(rows.len(), 23);
+    assert_eq!(rows.len(), 24);
     for (label, invocation, program, expected) in rows {
         assert_eq!(invocation.program(), program, "{label}");
         let expected = words(expected);

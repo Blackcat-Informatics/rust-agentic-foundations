@@ -246,8 +246,8 @@ a concrete writing task rather than a vague instruction to update the docs.
 
 ## Contract
 
-**`change new <slug> --capability cap:<name>`** creates `work/changes/<slug>.md` with
-the identity `change:<slug>`, the named capability in `changes`, `contract_effect:
+**`change new <slug> --capability cap:<name>`** (`Workplan::new_change`) creates
+`work/changes/<slug>.md` with the identity `change:<slug>`, the named capability in `changes`, `contract_effect:
 changes`, an empty `items` list, a title and a description for the author to replace,
 and a `## Summary` stub. It fails when the slug is not kebab case, the file exists, or
 the capability does not exist or its document did not load. Repeating `--capability`
@@ -282,9 +282,15 @@ modifying anything: the capabilities in `changes`; the sections in `affects`; th
 bindings of those capabilities; the capabilities that depend on them and the sections
 that link to the affected sections, because those readers are affected too.
 
-**`change reconcile <slug>`** prints the obligation list. An obligation is a
-statement of work the documentation owes, with a kind, a location and the evidence
-needed. The kinds are:
+**`change reconcile <slug>`** prints the obligation list (`obligation::Reconciled`,
+from `Workplan::reconcile` and `Lifecycle::reconcile`). An obligation
+(`obligation::Obligation`) is a statement of work the documentation owes, with a
+kind, a location and the evidence needed. The module `raf_workplan::obligation` holds
+them: the kinds are the closed list `obligation::ObligationKind`, in the order of the
+table, the evidence that resolves each is `obligation::Needed`, and the impact a list
+is computed over is `lifecycle::Impact`; the questions to `git` are those of the
+module `raf_workplan::git` and the lifecycle of the module `raf_workplan::lifecycle`.
+The kinds are:
 
 | Kind | Raised when | Evidence that resolves it |
 | --- | --- | --- |
@@ -366,6 +372,7 @@ git ls-files -z
 git symbolic-ref refs/remotes/origin/HEAD
 git rev-parse --verify --end-of-options <default-ref>^{commit}
 git merge-base HEAD <default-commit>
+git ls-tree -r -z --full-tree <merge-base>
 git cat-file blob <merge-base>:<prefix><path>
 ```
 
@@ -374,8 +381,10 @@ git cat-file blob <merge-base>:<prefix><path>
 for it. The remote is assumed to be named `origin`. A repository where it fails has no
 default branch, which is an error and not a silent pass. The ref is resolved to a
 commit id by `git rev-parse --verify` and every later command receives that id, so a branch
-named like an option cannot reach `git` as an option. In the last command the path
-follows `<merge-base>:` inside one argument, so it cannot be read as an option.
+named like an option cannot reach `git` as an option. In the
+`cat-file` command the path follows `<merge-base>:` inside one argument, so it cannot
+be read as an option, and the `ls-tree` command takes the commit id as its one
+argument that is not a literal.
 `<path>` is a repository-relative document path from the loaded document set, and
 `<prefix>` is what `git rev-parse --show-prefix` printed: empty at the top of the
 work tree, or the directory of the workspace root below it, ending in `/`, so a
@@ -425,31 +434,30 @@ raised.
   process, so `Workplan::reconcile` raises it.
 - `contract-effect-understated`, after `section-untouched`: the record says
   `contract_effect: none`, and a bound public item differs from the merge base. A
-  bound public item is an item of the public surface of a library or binary target
-  that a `code` binding of any loaded capability covers, itself or as an item below
-  it, as [two-way coverage](./workplan-two-way-coverage.md) reads below. Each file
-  that a library or binary target of a package holding a bound item reaches outside
-  test code, and each file that holds a bound public item, is read with the row
-  `git cat-file blob <merge-base>:<prefix><path>` at the merge base that
-  `section-untouched` uses, within the 1 MiB bound, so no new command is asked of
-  `git`. Each side is parsed from its whole file through `raf_source::parse_source`,
-  and each item at every depth that a path can name, inside inline modules, impl
-  blocks, traits and extern blocks too, is compared as the `proc_macro2` token
-  stream of its whole span: its doc comments are included as `#[doc]` attributes,
-  its whitespace and plain comments are left out, and CRLF reads as LF. A bound
-  public item whose stream is not among those of the items of its file at the merge
-  base is touched, and so is every bound public item of a file that is absent at
-  the merge base. An item of the merge base that the working tree's file lacks,
-  removed or renamed, is touched when it is declared `pub`, is a `pub` member of an
-  inherent impl or a member of a `pub` trait, and its path is bound: the module path
-  of its file, the names of the inline modules around it and, for a member of an
-  impl or a trait, the last segment of the self type or the trait's name. Each
-  touched item is one obligation on the change record, with evidence such as
-  `` (`raf_okf::Document::parse` at crates/raf-okf/src/document.rs:120: its tokens are not those of an item of its file at the merge base; `cap:okf-profile` binds it) ``,
-  resolved by `contract_effect: changes`, the capability listed and the sections it
-  owes reconciled. A file at the merge base that is not UTF-8 or does not parse is
-  an error, and so is a public surface the source index cannot list
-  (`LifecycleError::Surface`); the command exits 2 for either.
+  bound public item is an item of the public surface of a library or binary target,
+  or a member of a trait impl of an exported struct, enum or union, that a `code`
+  binding of any loaded capability covers, itself or as an item below it, as
+  [two-way coverage](./workplan-two-way-coverage.md) reads below. The surface is read
+  from the source index of the working tree and from one loaded at the merge base,
+  from the directories of the packages that hold a bound item: the `ls-tree` command
+  above lists the files of the merge base once, only for this kind, and each file the
+  load reads is read once with the row `git cat-file blob
+  <merge-base>:<prefix><path>` at the merge base that `section-untouched` uses,
+  within the 1 MiB bound; each path the listing prints below `<prefix>` is a path of
+  that tree.
+  Each item is compared with its own counterpart, the item of the same path, kind
+  and, for a member of an impl block, impl header, as the `proc_macro2` token stream
+  of its whole span: its doc comments are included as `#[doc]` attributes, its
+  whitespace and plain comments are left out, and CRLF reads as LF. The evidence
+  says how it differs (`obligation::Touch`): its tokens differ, the merge base has no
+  such public item, the working tree has none, it is off the public surface now, or
+  a re-export path names another item, for example
+  `` (`raf_okf::Document::parse` at crates/raf-okf/src/document.rs:120: its tokens differ from those it had at the merge base; `cap:okf-profile` binds it) ``,
+  and it is resolved by `contract_effect: changes`, the capability listed and the
+  sections it owes reconciled. [Strict mode](./workplan-strict.md) states the rule
+  whole. A merge base whose source index does not load is an error, and so is a
+  public surface a source index cannot list (`LifecycleError::Surface`); the command
+  exits 2 for either.
 
 Under strict a change with `contract_effect: none` leaves out `section-untouched`
 for the contract only, so an untouched Usage or Examples section in `affects` is

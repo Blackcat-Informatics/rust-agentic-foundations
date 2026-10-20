@@ -73,16 +73,21 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   and condition 2 of `change complete` refuses on it, counted in the headline as an
   item without a reason. The obligation `contract-effect-understated` is owed on a
   change that says `contract_effect: none` while a bound public item, an item of the
-  public surface that a `code` binding covers, is touched: its token stream,
-  doc comments included and whitespace and plain comments left out, is not among
-  those of its file at the merge base, or the working tree has lost it. Under
-  strict, `contract_effect: none` leaves out `section-untouched` for the Contract
-  alone, so an untouched Usage or Examples in `affects` is owed. Under `default`
-  neither kind is raised and nothing else changes. Breaking: `ObligationKind` has
-  fifteen kinds,
-  `obligation::suppressed` takes the strictness, `Needed` gains the variants
-  `Reason` and `StatedEffect` (with `obligation::Touched` and `obligation::Touch`),
-  and `LifecycleError` gains `Surface`.
+  public surface or a trait impl member of an exported type that a `code` binding
+  covers, is touched. Each item is compared with the item of the same path, kind
+  and impl header in a source index loaded at the merge base, as a token stream,
+  doc comments included and whitespace and plain comments left out; an item whose
+  tokens differ, that is new, removed or off the public surface now, and a
+  re-export path that names another item are touched (`obligation::Touch`). The
+  index at the merge base is read from one `git ls-tree -r -z --full-tree` and one
+  `git cat-file blob` for each file it loads, once for both judgements of
+  `change complete`. Under strict, `contract_effect: none` leaves out
+  `section-untouched` for the Contract alone, so an untouched Usage or Examples in
+  `affects` is owed. Under `default` neither kind is raised and nothing else
+  changes. Breaking: `ObligationKind` has fifteen kinds, `obligation::suppressed`
+  takes the strictness, `Needed` gains the variants `Reason` and `StatedEffect`
+  (with `obligation::Touched` and `obligation::Touch`), `LifecycleError` gains
+  `Surface`, and `Invocation` gains `git_tree`.
 - **`raf-source`:** `Workspace::resolve_from` and `resolve_from_in` read from a
   module of any target, named by its crate path (`<pkg>::test_crate::<t>`,
   `::bench_crate::`, `::example_crate::`, `::bin_crate::`, `::build_script` and the

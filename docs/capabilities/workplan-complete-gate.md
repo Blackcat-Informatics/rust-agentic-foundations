@@ -307,7 +307,10 @@ static failure, a section without a current accepted assessment among them, star
 `cargo` process. The repository is then opened again and the static conditions are
 judged a second time, immediately before the writes, because the documents and the
 source can change while `cargo` runs; a failure, or a different set of bindings to
-run, refuses.
+run, refuses. The merge base is asked for again, and the files of a commit do not
+change, so the source index that strict mode loads at the merge base is loaded once
+for both judgements while the merge base and the packages it is read from stay the
+same.
 
 **The repository once the record is removed.** The state rules of the
 [document model](./workplan-document-model.md) are judged on the repository as it is
@@ -366,7 +369,8 @@ listed capability, as `verify` of the change does, and condition 1 refuses on ea
 `tense-mismatch` of a listed capability. Strict adds two obligations. Condition 1
 refuses on `contract-effect-understated`, which reconcile raises for a
 `contract_effect: none` change that alters any token of a bound public item, its doc
-comments included, or whose working tree has lost one, and condition 2 refuses on
+comments included, or whose working tree has lost one or taken it off the public
+surface, and condition 2 refuses on
 `outcome-without-reason`, a `dropped` or `moved` item with no `reason`, as it refuses
 on `item-without-outcome`; the headline counts such an item as an item without a
 reason (`refused: 1 obligation, 1 item without a reason`). Under strict

@@ -28,7 +28,7 @@ use raf_workplan::exec::{
     Call, ExecError, FakeRunner, Invocation, Limits, Output, Program, Programs, Runner,
     SystemRunner,
 };
-use raf_workplan::lifecycle::{Completion, Condition, Failure, Lifecycle, LifecycleError};
+use raf_workplan::lifecycle::{Completion, Condition, Failure, Lifecycle, LifecycleError, Side};
 use raf_workplan::obligation::ObligationKind;
 use raf_workplan::{ChangeLookupError, Gate, Strictness, SyncOptions, Workplan};
 use support::assessed::{assess_on_disk, assess_on_disk_as};
@@ -38,6 +38,9 @@ use support::disk::{Scratch, put, read, snapshot};
 use support::evidence::{Evidence, digest_of};
 
 const CAP: &str = "docs/capabilities/fixture.md";
+/// The manifest of the fixture package, a workspace of its own.
+const MANIFEST: &str =
+    "[package]\nname = \"fx-life\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n";
 const INDEX: &str = "docs/capabilities/index.md";
 const RECORD: &str = "work/changes/shape.md";
 
@@ -93,13 +96,7 @@ const CLAIM: &str = "<!-- raf:claim evidence=bound -->\n";
 /// The digest of `fx_life::add` in the library `lib`.
 fn add_digest(lib: &str) -> String {
     let source = raf_source::Workspace::load(
-        &raf_source::MemoryTree::from([
-            (
-                "Cargo.toml",
-                "[package]\nname = \"fx-life\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n",
-            ),
-            ("src/lib.rs", lib),
-        ]),
+        &raf_source::MemoryTree::from([("Cargo.toml", MANIFEST), ("src/lib.rs", lib)]),
         &["."],
     )
     .expect("the fixture library loads");
@@ -142,6 +139,8 @@ struct Spec {
     docs: Vec<(String, String)>,
     /// The library `src/lib.rs`.
     lib: String,
+    /// Other source files of the package, by path.
+    src: Vec<(String, String)>,
     /// The coverage record.
     coverage: String,
 }
@@ -162,6 +161,7 @@ impl Default for Spec {
             example_files: Vec::new(),
             docs: Vec::new(),
             lib: LIB.to_string(),
+            src: Vec::new(),
             coverage: support::open_coverage(),
         }
     }
@@ -327,11 +327,7 @@ impl Fixture {
         let scratch = Scratch::new("complete");
         let root = scratch.path().to_path_buf();
         let root = root.as_path();
-        put(
-            root,
-            "Cargo.toml",
-            "[package]\nname = \"fx-life\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n",
-        );
+        put(root, "Cargo.toml", MANIFEST);
         put(
             root,
             "Cargo.lock",
@@ -339,6 +335,9 @@ impl Fixture {
         );
         put(root, ".cargo/config.toml", &scratch.cargo_config());
         put(root, "src/lib.rs", &spec.lib);
+        for (path, text) in &spec.src {
+            put(root, path, text);
+        }
         for (name, text) in &spec.example_files {
             put(root, &format!("examples/{name}.rs"), text);
         }
@@ -524,8 +523,17 @@ fn git_answers() -> FakeRunner {
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
 /// `runner` with the answers of `git` to the three questions that lead to the
-/// merge base, and the text of each of `files` at it.
+/// merge base, the listing of its tree, which holds `files`, and the text of
+/// each of `files` at it.
 fn at_merge_base(runner: FakeRunner, files: &[(&str, &str)]) -> FakeRunner {
+    let mut listing = String::new();
+    for (path, _) in files {
+        listing.push_str("100644 blob ");
+        listing.push_str(COMMIT);
+        listing.push('\t');
+        listing.push_str(path);
+        listing.push('\0');
+    }
     let mut runner = runner
         .on(
             Program::Git,
@@ -546,6 +554,11 @@ fn at_merge_base(runner: FakeRunner, files: &[(&str, &str)]) -> FakeRunner {
             Program::Git,
             &["merge-base", "HEAD", COMMIT],
             Ok(said(&format!("{COMMIT}\n"))),
+        )
+        .on(
+            Program::Git,
+            &["ls-tree", "-r", "-z", "--full-tree", COMMIT],
+            Ok(said(&listing)),
         );
     for (path, text) in files {
         runner = runner.on(
@@ -733,7 +746,10 @@ fn a_prefixed_slug_names_the_same_change() {
 fn the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate() {
     let fixture = Fixture::scripted(&Spec::default());
     let before = fixture.snapshot();
-    let runner = at_merge_base(git_answers(), &[("src/lib.rs", LIB)]);
+    let runner = at_merge_base(
+        git_answers(),
+        &[("Cargo.toml", MANIFEST), ("src/lib.rs", LIB)],
+    );
     let strict = Lifecycle::open_with(&fixture.gate().strict(), passing(runner, "passes"))
         .unwrap_or_else(|error| panic!("the fixture opens: {error}"));
     assert_eq!(strict.opened().strictness_floor(), Strictness::Strict);
@@ -2536,7 +2552,7 @@ fn under_strict_a_new_bound_public_item_refuses_and_under_default_it_completes()
     assert_eq!(refused.headline(), "refused: 1 obligation");
     assert!(
         refused.to_string().contains(
-            "(`fx_life::sub` at src/lib.rs:15: its tokens are not those of an item of its file at the merge base; `cap:fixture` binds it)"
+            "(`fx_life::sub` at src/lib.rs:15: the merge base has no such public item; `cap:fixture` binds it)"
         ),
         "{refused}"
     );
@@ -2567,7 +2583,7 @@ fn under_strict_an_item_renamed_below_a_bound_module_refuses_and_under_default_i
         assert!(text.contains(wanted), "{wanted}: {text}");
     }
     assert!(
-        text.contains("(`fx_life::shapes::square` at src/lib.rs:32 at the merge base: the working tree has no such item; `cap:fixture` binds it)"),
+        text.contains("(`fx_life::shapes::square` at src/lib.rs:32 at the merge base: the working tree has no such public item; `cap:fixture` binds it)"),
         "{text}"
     );
     assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
@@ -2740,4 +2756,549 @@ fn under_strict_a_failing_bound_test_and_a_tense_mismatch_refuse_as_under_defaul
     );
     let completed = tense.complete_with(Strictness::Strict);
     assert!(completed.is_completed(), "{completed}");
+}
+
+// --- what strict mode reads as a touch of a bound public item ---------------------
+
+/// What the evidence of `contract-effect-understated` says, by how the item
+/// differs from the merge base.
+const TOKENS: &str = "its tokens differ from those it had at the merge base";
+const NEW: &str = "the merge base has no such public item";
+const REMOVED: &str = "the working tree has no such public item";
+const HIDDEN: &str = "it was public at the merge base and is off the public surface now";
+const RETARGETED: &str = "it names another item than at the merge base";
+
+/// The strict-ready fixture whose `code` bindings are `code`, whose library
+/// is `lib` and which holds the other source files `src`.
+fn with(code: &'static str, lib: &str, src: &[(&str, &str)]) -> Spec {
+    let mut spec = strict_ready();
+    spec.code = code;
+    spec.lib = lib.to_string();
+    spec.src = src
+        .iter()
+        .map(|(path, text)| ((*path).to_string(), (*text).to_string()))
+        .collect();
+    spec
+}
+
+/// The real fixture of `spec` once `edit` has changed a file, synced and
+/// assessed again.
+fn after(spec: &Spec, edit: &dyn Fn(&Fixture)) -> Fixture {
+    let fixture = Fixture::real(spec);
+    let pristine = fixture.snapshot();
+    edit(&fixture);
+    assert_ne!(fixture.snapshot(), pristine, "the edit changes a file");
+    fixture.resync();
+    fixture.assess();
+    fixture
+}
+
+/// Write `lib` as the library of the fixture.
+fn put_lib(fixture: &Fixture, lib: &str) {
+    put(fixture.root(), "src/lib.rs", lib);
+}
+
+/// Under strict mode the `contract_effect: none` change that `edit` makes is
+/// refused with `contract-effect-understated` alone, one obligation for each
+/// of `owed`, each the path of the item, its file and what the evidence says; the refusal writes nothing, and the default gate
+/// completes the same change.
+fn touched_under_strict(spec: &Spec, edit: &dyn Fn(&Fixture), owed: &[(&str, &str, &str)]) {
+    let fixture = after(spec, edit);
+    let before = fixture.snapshot();
+    let refused = fixture.complete_with(Strictness::Strict);
+    assert_eq!(
+        kinds(&refused),
+        [ObligationKind::ContractEffectUnderstated],
+        "{refused}"
+    );
+    let text = refused.to_string();
+    let lines: Vec<&str> = text.lines().skip(1).collect();
+    assert_eq!(lines.len(), owed.len(), "{refused}");
+    for (item, file, what) in owed {
+        let says = |line: &&&str| {
+            line.contains(&format!("(`{item}` at {file}:"))
+                && line.ends_with(&format!(": {what}; `cap:fixture` binds it)"))
+        };
+        assert_eq!(lines.iter().filter(says).count(), 1, "{item}: {refused}");
+    }
+    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+    let completed = fixture.complete();
+    assert!(completed.is_completed(), "{completed}");
+}
+
+/// Under strict mode the change that `edit` makes owes nothing and completes.
+fn untouched_under_strict(spec: &Spec, edit: &dyn Fn(&Fixture)) {
+    let fixture = after(spec, edit);
+    let owed = fixture
+        .lifecycle_with(Strictness::Strict)
+        .reconcile("shape")
+        .unwrap_or_else(|error| panic!("reconcile answers: {error}"));
+    assert!(owed.is_empty(), "{owed}");
+    let completed = fixture.complete_with(Strictness::Strict);
+    assert!(completed.is_completed(), "{completed}");
+}
+
+const MUL: &str = "\n/// Multiplies.\npub fn mul(a: u32, b: u32) -> u32 {\n    a * b\n}\n";
+
+/// A bound type with an inherent impl beside it.
+const FRAME: &str = "\n/// A frame.\npub struct Frame;\n\nimpl Frame {\n    /// Pushes.\n    pub fn push(&self) -> u32 {\n        1\n    }\n}\n";
+
+#[test]
+fn under_strict_a_bound_item_made_private_or_visible_to_its_crate_alone_refuses_and_under_default_it_completes()
+ {
+    let base = format!("{LIB}{MUL}");
+    let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
+    for narrowed in [
+        "#[allow(dead_code)]\nfn mul",
+        "#[allow(dead_code)]\npub(crate) fn mul",
+    ] {
+        let lib = base.replace("pub fn mul", narrowed);
+        touched_under_strict(
+            &spec,
+            &|fixture| put_lib(fixture, &lib),
+            &[("fx_life::mul", "src/lib.rs", HIDDEN)],
+        );
+    }
+}
+
+#[test]
+fn under_strict_a_bound_module_made_private_refuses_for_it_and_its_items_and_under_default_it_completes()
+ {
+    let base = format!(
+        "{LIB}\npub mod shapes {{\n    /// The area of a square.\n    pub fn square(side: u32) -> u32 {{\n        side * side\n    }}\n}}\n"
+    );
+    let spec = with("[fx_life::add, fx_life::shapes]", &base, &[]);
+    let lib = base.replace("pub mod shapes", "#[allow(dead_code)]\nmod shapes");
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[
+            ("fx_life::shapes", "src/lib.rs", HIDDEN),
+            ("fx_life::shapes::square", "src/lib.rs", HIDDEN),
+        ],
+    );
+}
+
+#[test]
+fn under_strict_a_public_method_of_a_bound_type_made_private_refuses_and_under_default_it_completes()
+ {
+    let base = format!("{LIB}{FRAME}");
+    let spec = with("[fx_life::add, fx_life::Frame]", &base, &[]);
+    let lib = base.replace("    pub fn push", "    #[allow(dead_code)]\n    fn push");
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[("fx_life::Frame::push", "src/lib.rs", HIDDEN)],
+    );
+}
+
+/// The header of an impl block is part of the identity of each member: a
+/// changed generic bound, or an attribute such as `#[cfg(any())]` that takes
+/// the methods away, makes each bound member new.
+#[test]
+fn under_strict_a_changed_header_of_the_impl_block_of_a_bound_type_refuses_for_its_member_and_under_default_it_completes()
+ {
+    let base = format!(
+        "{LIB}\n/// A wrapper.\npub struct Wrap<T>(pub T);\n\nimpl<T: Clone> Wrap<T> {{\n    /// The value.\n    pub fn get(&self) -> T {{\n        self.0.clone()\n    }}\n}}\n"
+    );
+    let spec = with("[fx_life::add, fx_life::Wrap]", &base, &[]);
+    let lib = base.replace("impl<T: Clone>", "impl<T: Clone + Default>");
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[("fx_life::Wrap::get", "src/lib.rs", NEW)],
+    );
+
+    let base = format!("{LIB}{FRAME}");
+    let spec = with("[fx_life::add, fx_life::Frame]", &base, &[]);
+    let lib = base.replace("impl Frame {", "#[cfg(any())]\nimpl Frame {");
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[("fx_life::Frame::push", "src/lib.rs", NEW)],
+    );
+}
+
+/// Each item is compared with its own counterpart, so a method edited to
+/// the tokens of a method of another type of the same file is touched.
+#[test]
+fn under_strict_a_method_edited_to_the_tokens_of_a_sibling_method_refuses_and_under_default_it_completes()
+ {
+    let base = format!(
+        "{LIB}\n/// One.\npub struct A;\n\n/// Two.\npub struct B;\n\nimpl A {{\n    /// The value.\n    pub fn get(&self) -> u32 {{\n        2\n    }}\n}}\n\nimpl B {{\n    /// The value.\n    pub fn get(&self) -> u32 {{\n        1\n    }}\n}}\n"
+    );
+    let spec = with("[fx_life::add, fx_life::A, fx_life::B]", &base, &[]);
+    let lib = base.replacen("        2\n", "        1\n", 1);
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[("fx_life::A::get", "src/lib.rs", TOKENS)],
+    );
+}
+
+/// A bound type whose inherent impl is in another module and file.
+const FRAME_LIB: &str = "\n/// A frame.\npub struct Frame;\n\nmod imp;\n";
+const IMP: &str =
+    "impl crate::Frame {\n    /// Pushes.\n    pub fn push(&self) -> u32 {\n        1\n    }\n}\n";
+
+/// The members of a bound type are compared across the two source indexes,
+/// so a method removed from an impl in another module, or with the file of
+/// that impl, is found although the binding of the type still resolves.
+#[test]
+fn under_strict_a_method_removed_from_an_impl_in_another_file_or_with_its_file_refuses_and_under_default_it_completes()
+ {
+    let spec = with(
+        "[fx_life::add, fx_life::Frame]",
+        &format!("{LIB}{FRAME_LIB}"),
+        &[("src/imp.rs", IMP)],
+    );
+    touched_under_strict(
+        &spec,
+        &|fixture| put(fixture.root(), "src/imp.rs", "impl crate::Frame {}\n"),
+        &[("fx_life::Frame::push", "src/imp.rs", REMOVED)],
+    );
+    touched_under_strict(
+        &spec,
+        &|fixture| {
+            std::fs::remove_file(fixture.root().join("src/imp.rs")).expect("removes the file");
+            put_lib(
+                fixture,
+                &format!("{LIB}\n/// A frame.\npub struct Frame;\n"),
+            );
+        },
+        &[("fx_life::Frame::push", "src/imp.rs", REMOVED)],
+    );
+}
+
+/// A file that is not at the merge base has nothing to compare with, so each
+/// bound public item of it is new; a new file of private items completes.
+#[test]
+fn under_strict_the_bound_items_of_a_file_absent_at_the_merge_base_refuse_and_a_new_file_of_private_items_completes()
+ {
+    let spec = with("[fx_life::add]", LIB, &[]);
+    touched_under_strict(
+        &spec,
+        &|fixture| {
+            put_lib(fixture, &format!("{LIB}\npub mod fresh;\n"));
+            put(
+                fixture.root(),
+                "src/fresh.rs",
+                "/// One.\npub fn new_one() -> u32 {\n    1\n}\n",
+            );
+            fixture.edit(
+                CAP,
+                "code: [fx_life::add]",
+                "code: [fx_life::add, fx_life::fresh]",
+            );
+        },
+        &[
+            ("fx_life::fresh", "src/lib.rs", NEW),
+            ("fx_life::fresh::new_one", "src/fresh.rs", NEW),
+        ],
+    );
+    untouched_under_strict(&spec, &|fixture| {
+        put_lib(fixture, &format!("{LIB}\nmod fresh;\n"));
+        put(
+            fixture.root(),
+            "src/fresh.rs",
+            "#[allow(dead_code)]\npub(crate) fn helper() -> u32 {\n    1\n}\n",
+        );
+    });
+}
+
+/// Only the public surface is compared: a private helper removed from a bound
+/// module completes, and a public item removed beside it refuses.
+#[test]
+fn under_strict_a_private_helper_removed_from_a_bound_module_completes_and_a_public_item_removed_refuses()
+ {
+    let shapes = "/// The area of a square.\npub fn square(side: u32) -> u32 {\n    side * side\n}\n\n#[allow(dead_code)]\nfn helper() {}\n";
+    let spec = with(
+        "[fx_life::add, fx_life::shapes]",
+        &format!("{LIB}\npub mod shapes;\n"),
+        &[("src/shapes.rs", shapes)],
+    );
+    untouched_under_strict(&spec, &|fixture| {
+        put(
+            fixture.root(),
+            "src/shapes.rs",
+            &shapes.replace("\n#[allow(dead_code)]\nfn helper() {}\n", ""),
+        );
+    });
+    touched_under_strict(
+        &spec,
+        &|fixture| {
+            put(
+                fixture.root(),
+                "src/shapes.rs",
+                "#[allow(dead_code)]\nfn helper() {}\n",
+            );
+        },
+        &[("fx_life::shapes::square", "src/shapes.rs", REMOVED)],
+    );
+}
+
+/// The members of a trait impl of a bound public type are what the type
+/// does, so an edit or the removal of one refuses; those of a private type
+/// are not on the surface and complete.
+#[test]
+fn under_strict_a_trait_impl_member_of_a_bound_type_edited_or_removed_refuses_and_one_of_a_private_type_completes()
+ {
+    let cloned = "\n/// A frame.\npub struct Frame;\n\nimpl Clone for Frame {\n    fn clone(&self) -> Self {\n        Frame\n    }\n}\n";
+    let base = format!("{LIB}{cloned}");
+    let spec = with("[fx_life::add, fx_life::Frame]", &base, &[]);
+    let lib = base.replace("        Frame\n", "        Self\n");
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[("fx_life::Frame::clone", "src/lib.rs", TOKENS)],
+    );
+    let lib = format!("{LIB}\n/// A frame.\npub struct Frame;\n");
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[("fx_life::Frame::clone", "src/lib.rs", REMOVED)],
+    );
+
+    let quiet = "\n#[allow(dead_code)]\nstruct Quiet;\n\nimpl Clone for Quiet {\n    fn clone(&self) -> Self {\n        Quiet\n    }\n}\n";
+    let base = format!("{LIB}{quiet}");
+    let spec = with("[fx_life::add]", &base, &[]);
+    let lib = base.replace("        Quiet\n", "        Self\n");
+    untouched_under_strict(&spec, &|fixture| put_lib(fixture, &lib));
+}
+
+/// A re-export path of the surface that names another item than at the merge
+/// base is touched, though neither item changed.
+#[test]
+fn under_strict_a_bound_reexport_that_names_another_item_refuses_and_under_default_it_completes() {
+    let base = format!(
+        "{LIB}\npub mod a {{\n    /// One.\n    pub struct T;\n}}\n\npub mod b {{\n    /// Two.\n    pub struct T(pub u32);\n}}\n\npub use a::T;\n"
+    );
+    let spec = with(
+        "[fx_life::add, fx_life::T, fx_life::a, fx_life::b]",
+        &base,
+        &[],
+    );
+    let lib = base.replace("pub use a::T;", "pub use b::T;");
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[("fx_life::T", "src/lib.rs", RETARGETED)],
+    );
+}
+
+/// A reflow that adds a token, such as the trailing comma of one parameter
+/// per line, and a space added inside a doc comment change the tokens of the
+/// item, so each refuses.
+#[test]
+fn under_strict_a_reflow_that_adds_a_trailing_comma_or_a_space_in_a_doc_comment_refuses_and_under_default_it_completes()
+ {
+    let base = format!("{LIB}\n/// Multiplies.\npub fn mul(a: u32, b: u32) -> u32 {{ a * b }}\n");
+    let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
+    for lib in [
+        base.replace(
+            "pub fn mul(a: u32, b: u32) -> u32 { a * b }",
+            "pub fn mul(\n    a: u32,\n    b: u32,\n) -> u32 {\n    a * b\n}",
+        ),
+        base.replace("/// Multiplies.\n", "/// Multiplies. \n"),
+    ] {
+        touched_under_strict(
+            &spec,
+            &|fixture| put_lib(fixture, &lib),
+            &[("fx_life::mul", "src/lib.rs", TOKENS)],
+        );
+    }
+}
+
+/// An item a macro generates is not an item of the source index, so an edit
+/// of the macro that changes it is not judged: the stated limit.
+#[test]
+fn under_strict_an_edit_of_a_macro_that_generates_an_item_of_a_bound_module_is_not_judged() {
+    let base = format!(
+        "{LIB}\nmacro_rules! make {{\n    ($name:ident) => {{\n        /// Three.\n        pub fn $name() -> u32 {{\n            1\n        }}\n    }};\n}}\n\npub mod made {{\n    make!(three);\n}}\n"
+    );
+    let spec = with("[fx_life::add, fx_life::made]", &base, &[]);
+    let lib = base.replace("            1\n", "            2\n");
+    untouched_under_strict(&spec, &|fixture| put_lib(fixture, &lib));
+}
+
+#[test]
+fn under_strict_a_bound_package_whose_surface_cannot_be_listed_is_an_error_and_without_the_second_glob_it_answers()
+ {
+    // Two globs bring `dup` in twice, so the surface cannot be listed.
+    let dup = "\npub mod left {\n    /// One.\n    pub fn dup() {}\n}\n\npub mod right {\n    /// Two.\n    pub fn dup() {}\n}\n\npub use left::*;\npub use right::*;\n";
+    let spec = with(
+        "[fx_life::add, fx_life::left, fx_life::right]",
+        &format!("{LIB}{dup}"),
+        &[],
+    );
+    let comment = |fixture: &Fixture| {
+        fixture.edit(
+            "src/lib.rs",
+            "pub fn plain() {}\n",
+            "// A helper that no capability binds.\npub fn plain() {}\n",
+        );
+    };
+    let fixture = after(&spec, &comment);
+    let before = fixture.snapshot();
+    let error = fixture
+        .lifecycle_with(Strictness::Strict)
+        .reconcile("shape")
+        .expect_err("the surface cannot be listed");
+    assert!(
+        matches!(
+            &error,
+            LifecycleError::Surface { package, target, side: Side::WorkingTree, .. }
+                if package == "fx-life" && target == "fx_life"
+        ),
+        "{error:?}"
+    );
+    assert!(
+        error.to_string().starts_with(
+            "the public surface of `fx_life` in the package `fx-life` in the working tree cannot be listed, so the bound public items the change touches are unknown: "
+        ),
+        "{error}"
+    );
+    let error = fixture
+        .lifecycle_with(Strictness::Strict)
+        .complete("shape")
+        .expect_err("complete cannot judge either");
+    assert!(matches!(error, LifecycleError::Surface { .. }), "{error:?}");
+    assert_eq!(fixture.snapshot(), before, "an error writes nothing");
+
+    // The neighbour: one glob, the same edit, answers and owes nothing.
+    let spec = with(
+        "[fx_life::add, fx_life::left, fx_life::right]",
+        &format!("{LIB}{}", dup.replace("pub use right::*;\n", "")),
+        &[],
+    );
+    untouched_under_strict(&spec, &comment);
+}
+
+/// A runner that runs through the real one and records each command.
+struct Recording {
+    inner: SystemRunner,
+    commands: Mutex<Vec<String>>,
+}
+
+impl Runner for Recording {
+    fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
+        self.commands
+            .lock()
+            .expect("a lock")
+            .push(invocation.to_string());
+        self.inner.run(invocation, limits)
+    }
+}
+
+/// A lifecycle of the real programs over a gate with the floor `floor`,
+/// whose runner records each command.
+fn recording(fixture: &Fixture, floor: Strictness) -> Lifecycle<Recording> {
+    let programs = fixture.programs();
+    let gate = Gate::workspace(fixture.root())
+        .programs(programs.clone())
+        .strictness(floor);
+    let runner = Recording {
+        inner: SystemRunner::new(programs),
+        commands: Mutex::new(Vec::new()),
+    };
+    Lifecycle::open_with(&gate, runner).unwrap_or_else(|error| panic!("opens: {error}"))
+}
+
+/// The questions about the merge base that `lifecycle` asked of `git`: each
+/// `merge-base`, each listing of its tree and the path of each file read at
+/// it.
+fn merge_base_reads(lifecycle: &Lifecycle<Recording>) -> Vec<String> {
+    lifecycle
+        .runner()
+        .commands
+        .lock()
+        .expect("a lock")
+        .iter()
+        .filter_map(|command| {
+            if command.starts_with("git merge-base ") {
+                Some("merge-base".to_string())
+            } else if command.starts_with("git ls-tree ") {
+                Some("ls-tree".to_string())
+            } else {
+                command
+                    .strip_prefix("git cat-file blob ")
+                    .and_then(|named| named.split_once(':'))
+                    .map(|(_, path)| path.to_string())
+            }
+        })
+        .collect()
+}
+
+/// Under strict mode a `none` change lists the tree of the merge base once and
+/// reads each file of the bound package once there, the manifest and the two
+/// source files, and `complete` reads them once for both of its judgements;
+/// under `default`, and for a change with `contract_effect: changes`, no
+/// source file is read and the tree is not listed.
+#[test]
+fn under_strict_a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none()
+ {
+    let mut spec = strict_ready();
+    spec.lib = format!("{LIB}\nmod extra;\n");
+    spec.src = vec![(
+        "src/extra.rs".to_string(),
+        "#[allow(dead_code)]\npub(crate) fn helper() {}\n".to_string(),
+    )];
+    let fixture = after(&spec, &|fixture| {
+        fixture.edit(
+            "src/lib.rs",
+            "pub fn plain() {}\n",
+            "// A helper that no capability binds.\npub fn plain() {}\n",
+        );
+    });
+    let files = [
+        "merge-base",
+        "ls-tree",
+        "Cargo.toml",
+        "src/lib.rs",
+        "src/extra.rs",
+    ];
+
+    let strict = recording(&fixture, Strictness::Strict);
+    let owed = strict.reconcile("shape").expect("reconcile answers");
+    assert!(owed.is_empty(), "{owed}");
+    assert_eq!(merge_base_reads(&strict), files);
+
+    let strict = recording(&fixture, Strictness::Strict);
+    let completed = strict.complete("shape").expect("complete answers");
+    assert!(completed.is_completed(), "{completed}");
+    let mut twice = files.to_vec();
+    twice.push("merge-base");
+    assert_eq!(
+        merge_base_reads(&strict),
+        twice,
+        "the second judgement reads nothing again"
+    );
+
+    let fixture = after(&spec, &|fixture| {
+        fixture.edit(
+            "src/lib.rs",
+            "pub fn plain() {}\n",
+            "// A helper that no capability binds.\npub fn plain() {}\n",
+        );
+    });
+    let default = recording(&fixture, Strictness::Default);
+    default.reconcile("shape").expect("reconcile answers");
+    assert_eq!(merge_base_reads(&default), Vec::<String>::new());
+
+    let changes = after(
+        &spec.clone().effect("changes", &["cap:fixture#contract"]),
+        &|fixture| {
+            fixture.edit(
+                "src/lib.rs",
+                "pub fn plain() {}\n",
+                "// A helper that no capability binds.\npub fn plain() {}\n",
+            );
+        },
+    );
+    let strict = recording(&changes, Strictness::Strict);
+    strict.reconcile("shape").expect("reconcile answers");
+    assert_eq!(
+        merge_base_reads(&strict),
+        ["merge-base", "docs/capabilities/fixture.md"]
+    );
 }
