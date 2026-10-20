@@ -5,7 +5,7 @@ type: Capability
 id: cap:source-index
 title: "Source index"
 description: "The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #[path], and a symbol and use-alias index."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_source::Tree
@@ -1440,6 +1440,13 @@ macro generates is not indexed, and the documentation of the capabilities that r
 the index says so.
 
 `resolve_from(module, path)` resolves a path as a `use` written in the module `module` would (a canonical module path such as `demo::inner`), trying the type, value and macro name spaces in that order, and `resolve_from_in(module, path, namespace)` takes one name space. The reading module is the viewer: the path starts as code of that module starts it (`crate`, `self`, `super`, a name the module binds, or a crate of the extern prelude) and each segment counts only the bindings that module can access, as rustc settles an import, where `resolve` takes a canonical path and checks no visibility. A path that names nothing the module can access is `NotFound`, one that names several symbols is `Ambiguous`, and a module that is not in the index is `ResolveError::UnknownModule`. A reading module whose crate path is shared by libraries of several packages, two libraries with one crate name, is `Ambiguous` and lists their crate roots, as `resolve` answers for a path that starts with that crate path; no variant names the package, so a module of such a crate cannot be read from, and a module of any other crate reads as before.
+
+> [!PROPOSED change:workplan-strict]
+> **Resolution from every target.** `resolve_from` and `resolve_from_in` read from a module of any target, named by its crate path: `<pkg>::test_crate::<target>`, `<pkg>::bench_crate::<target>`, `<pkg>::example_crate::<target>`, `<pkg>::bin_crate::<bin>` and `<pkg>::build_script`, and the modules below each. A path read there starts as code of that target starts it: `crate` is the target's root, and the library of its own package and the crates of the workspace it may depend on are crates of its extern prelude. A file that several targets include, such as a support module of the integration tests, is one module of each target that includes it, and a path read from one of them resolves in that target only; the sites of the one file are related by `same_source`. A module path that no target holds is `ResolveError::UnknownModule`, whichever kind of target it names.
+>
+> **Impl blocks.** `Workspace::impls()` lists every `impl` block of every target, inherent and trait alike, in file order: its span from the header to the closing brace, the module that holds it, and the key of its self type, the item the self type path resolves to from that module, or none when it names nothing of the workspace or a type the index cannot place.
+>
+> **Reachability.** `Workspace::reachable(roots)` gives the items of every target that the root items reach over three edges: contains (an item to the items below it, as a type to its methods, a trait to its members and a module to its items, a crate root to nothing), impl-of (a type to the `impl` blocks whose self type it is, and a block to its items), and references (an item to each item that a path in its tokens resolves to from its module, a path being an `Ident (:: Ident)*` run that no `.` precedes, or a prefix of one). Each reached item is given once with the edge it was first reached by, in a stable order, and the work is counted: each item's tokens are read once and each path is resolved at most once per module.
 
 **Exported items.** `Workspace::exported_items(target)` lists the public surface of
 a library or binary target: the items another crate can name through its crate

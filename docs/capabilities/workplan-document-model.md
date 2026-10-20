@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-document-model
 title: "Workplan document model"
 description: "Capability and change documents, the four states, PROPOSED blocks, the graph, binding resolution and the check rules."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_workplan::Workplan
@@ -420,6 +420,20 @@ nothing, so a repository without records loads and reports no finding of the rec
 rules; that it has no coverage record is the one finding
 [two-way coverage](./workplan-two-way-coverage.md) gives it.
 
+> [!PROPOSED change:workplan-strict]
+> `Workplan::load` also reads the strict debt record `work/debt/default.md` of
+> [strict mode](./workplan-strict.md) (`Workplan::debt`), and `work/debt` holds only
+> `default.md`, as `work/coverage` does: any other file there is
+> `singleton-other-file`. A repository without the directory has no debt record,
+> which is no finding. `Workplan::strictness` returns the stronger of the
+> coverage record's `strictness` and the floor that `Workplan::with_strictness` sets;
+> a record without the key, and a record that does not load, count as
+> `Strictness::Default`. `Gate::strict()` and `Gate::strictness(floor)` set the floor of a `Gate`, and
+> `Opened::workplan` and `Opened::workplan_after` give a `Workplan` with that floor.
+> Under `Strictness::Strict`, `Workplan::check` appends the findings of the strict
+> rules after those of the rules below and then applies the debt record; under
+> `Strictness::Default` it judges no strict rule.
+
 **The graph.** `raf-workplan` builds a graph (`Workplan::graph`) from the documents
 and the source.
 
@@ -504,6 +518,17 @@ are empty and the bindings that do not resolve.
   that is no package of the source workspace (`scope-crate-missing`). A name whose
   document or record exists and is broken is explained by the findings of that
   file.
+
+> [!PROPOSED change:workplan-strict]
+> - under either strictness, the rules of the syntax and the records of strict mode:
+>   a tested-by marker entry that is no path of the capability's `tests` or
+>   `examples` bindings (`claim-test-unbound`), a coverage exception that matches
+>   nothing (`coverage-exception-unmatched`), a `ceilings` row whose `crate` is no
+>   package of the source workspace (`scope-crate-missing`), and a debt record while
+>   the repository is judged under `default` (`debt-without-strict`);
+> - under strict, the rules of [strict mode](./workplan-strict.md), each a `Finding`
+>   of a kind in `Finding::KINDS` with its file, location and fix, and the debt
+>   record's own kinds, `debt-resolved` and `debt-entry-invalid`.
 
 Markdown outside the document directories, such as a README, is judged by the same
 link, marker and reference rules through `raf_workplan::plain::check`.
@@ -1016,4 +1041,5 @@ touches, and the obligations those sections receive are defined by
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
 | Depended on by | [workplan-reconcile](./workplan-reconcile.md) |
 | Depended on by | [workplan-two-way-coverage](./workplan-two-way-coverage.md) |
+| Changed by | [workplan-strict](../../work/changes/workplan-strict.md) |
 <!-- raf:generated:end -->

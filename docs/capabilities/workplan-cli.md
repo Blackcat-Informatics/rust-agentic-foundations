@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-cli
 title: "cargo workplan command line"
 description: "The cargo workplan subcommands, options and exit codes."
-state: delivered
+state: implementing
 bindings:
   code:
     - cargo_workplan::bin_crate::cargo_workplan::main
@@ -392,6 +392,35 @@ record stays. The JSON kinds are `history-entry`, `history-removed`,
 `coverage-error`; none equals the kind of a rule, and their members, in a fixed
 order, are documented in the crate documentation of `cargo-workplan`.
 
+> [!PROPOSED change:workplan-strict]
+> **Strict mode.** The commands of [strict mode](./workplan-strict.md) join the table:
+>
+> - the global option `--strict`, accepted before or after the command like the other
+>   options, judges with `Gate::workspace(root).strict()`: it raises the strictness
+>   of `check`, `change reconcile` and `change complete` to strict, and a coverage
+>   record that says `strictness: strict` gives the same judgement without it.
+>   `status`, `docs`, `history`, `evidence`, `assess`, `verify` and the coverage
+>   reports print the same under it;
+> - `coverage claims [--capability cap:<slug>]` prints every claim of every delivered
+>   capability, or of the one named, with its key, line and tests;
+> - `coverage lines [--crate <package>]` prints the reverse coverage of every package,
+>   or of the one named, as three tables, and `coverage --reverse [--crate <package>]`
+>   is the same command with the same output;
+> - `debt --write [--copyright <text> --licence <id>]` writes the strict debt record
+>   `work/debt/default.md` through `Gate::write_debt`.
+>
+> `coverage claims` exits 1 when a claim of a delivered capability has no test,
+> `coverage lines` exits 1 when it prints an orphan line, and each exits 0 otherwise
+> and 2 when `--capability` or `--crate` names nothing loaded. `debt --write` exits 0
+> when it writes, 1 when it refuses with the findings printed (growth, or a finding of
+> the default rules), and 2 when the coverage record does not say `strictness: strict`
+> or the tool cannot run. A strict finding of `check` is printed as every finding is,
+> and in JSON with the fields `path`, `section`, `line`, `key`, `message` and `fix`.
+> The JSON kinds `coverage-claim`, `lines-crate`, `lines-module`, `lines-orphan`,
+> `lines-excepted`, `lines-error` and `debt-written` join the record kinds, and none
+> equals the kind of a rule. `debt --write` writes one file and the reports write
+> nothing.
+
 ## Usage
 
 ```sh
@@ -417,6 +446,20 @@ The record commands are used the same way:
   records the verdict.
 - `cargo workplan --format json coverage code --crate raf-workplan` prints the
   public items of one package that no capability binds.
+
+> [!PROPOSED change:workplan-strict]
+> The commands of strict mode are used the same way:
+>
+> - `cargo workplan --strict check` judges the repository under strict mode before
+>   its coverage record says `strictness: strict`, and `cargo workplan check` judges
+>   it so once the record says it.
+> - `cargo workplan coverage claims --capability cap:streaming-parser` prints each
+>   claim of the capability and the tests its markers name.
+> - `cargo workplan coverage lines --crate raf-okf`, or
+>   `cargo workplan coverage --reverse --crate raf-okf`, prints the orphan lines of
+>   one package by crate, module and item.
+> - `cargo workplan debt --write --copyright '2026 Example Inc.' --licence CC-BY-4.0`
+>   writes `work/debt/default.md` with its two SPDX lines.
 
 ## Examples
 
@@ -803,4 +846,5 @@ rather than kept by hand.
 | Depends on | [workplan-complete-gate](./workplan-complete-gate.md) |
 | Depends on | [workplan-generated-docs](./workplan-generated-docs.md) |
 | Depends on | [workplan-reconcile](./workplan-reconcile.md) |
+| Changed by | [workplan-strict](../../work/changes/workplan-strict.md) |
 <!-- raf:generated:end -->

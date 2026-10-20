@@ -8,6 +8,37 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
+- **`raf-workplan`, `raf-okf`, `cargo-workplan`, `raf-source`:** strict mode
+  ([workplan-strict](docs/capabilities/workplan-strict.md)), an opt-in set of harder
+  rules. The coverage record's `strictness: strict`, `Gate::strict()`,
+  `Workplan::with_strictness` or the global `--strict` option judges a repository
+  under it, and nothing lowers it. Under strict a delivered capability binds an
+  example and holds a verification matrix; every Contract clause and Constraints
+  item names a bound test in a `raf:tested-by` marker (`cargo workplan coverage
+  claims` reports them); every public item and test of a package a capability binds
+  is bound or excluded; each section holds 20 words, Usage names a bound example and
+  Constraints lists a limitation; a `dropped` or `moved` item states its `reason`; a
+  `contract_effect: none` change that alters any token of a bound public item, or
+  leaves an affected Usage or Examples section untouched, does not complete; and
+  every package is held to the ceilings of its orphan lines, which
+  `cargo workplan coverage lines` (also `coverage --reverse`) reports by crate,
+  module and item, with exceptions that state their reasons. The strict debt record
+  `work/debt/default.md`, written by `cargo workplan debt --write` and
+  `Gate::write_debt`, follows [the debt ratchet](docs/architecture/debt-ratchet.md):
+  growth fails, resolved debt fails until the write, and the record always equals the
+  present debt. `raf-source` resolves paths from the modules of every target and
+  lists impl blocks and the reachability of items. Breaking changes:
+  - a seventh OKF document type, `Debt`, in `work/debt` (`DocType::Debt`,
+    `RafDocument::Debt`, `DebtRecord`), so `DocType::ALL` has seven entries and an
+    exhaustive match on `DocType` or `RafDocument` gains an arm;
+  - the coverage record takes the optional keys `strictness`, `ceilings` and
+    `exceptions`, held by `CoverageRecord` and its writer;
+  - a change item takes the optional key `reason` (`ChangeItem::reason`), and the fix
+    of `okf-item-unknown-key` names it;
+  - new profile rules, reader errors, finding kinds and the obligation kinds
+    `outcome-without-reason` and `contract-effect-understated` join the closed lists
+    `Rule`, `ErrorKind`, `Finding::KINDS` and `ObligationKind::ALL`, and
+    `obligation::suppressed` takes the strictness.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed

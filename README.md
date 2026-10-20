@@ -30,7 +30,11 @@ and its claims, prose assessments, two-way coverage and the current-rationale
 check, and `cargo-workplan` runs `check`, `status`, `docs sync|preview`,
 `change new|impact|reconcile|complete`, `verify`, `history`,
 `evidence record|claims|for`, `assess` and `coverage code|tests`: their contract
-is stated in [workplan-cli](docs/capabilities/workplan-cli.md). The census crates
+is stated in [workplan-cli](docs/capabilities/workplan-cli.md). Strict mode
+([workplan-strict](docs/capabilities/workplan-strict.md)) is **designed**: an opt-in
+set of harder rules with a debt record that can only shrink, which adds the global
+option `--strict` and the commands `coverage claims`, `coverage lines` (also spelled
+`coverage --reverse`) and `debt --write`. The census crates
 are **designed — not yet published**: their nine capability documents are the
 specification they will be built against, and no census code exists yet.
 

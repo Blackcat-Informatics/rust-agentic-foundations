@@ -16,7 +16,8 @@
 //! states:
 //!
 //! * the capability inventory (`INVENTORY`), which pins the documents, their
-//!   states and the generated capability index;
+//!   states, the open change records with the capabilities each lists, and the
+//!   generated capability index;
 //! * the refusal of tracked symlinks;
 //! * Markdown-only document directories: any other file in the directory of a
 //!   document type would sit unread beside the documents;
@@ -57,13 +58,17 @@ type Repo = BTreeMap<PathBuf, String>;
 ///
 /// This table is the capability inventory: the real tree must hold exactly
 /// these capability documents, each with the stated `state`, exactly these
-/// architecture documents, exactly these records, exactly these generated
-/// documents, and an open change record named after every capability whose
-/// state is not `delivered`. Changing a state, adding a capability or adding a
-/// record edits this table in the same commit.
+/// architecture documents, exactly these open change records, each listing
+/// exactly its capabilities, exactly these records and exactly these generated
+/// documents, and every capability whose state is not `delivered` is listed by
+/// one of the change records. Changing a state, adding a capability, opening or
+/// completing a change, or adding a record edits this table in the same commit.
 struct Inventory {
     /// Capability slug and the state its document declares.
     capabilities: &'static [(&'static str, &'static str)],
+    /// Open change record slug and the capability slugs its `changes` lists, in
+    /// the order of the record.
+    changes: &'static [(&'static str, &'static [&'static str])],
     /// Architecture slugs.
     architecture: &'static [&'static str],
     /// Records (evidence, assessments and the coverage record), by id: each
@@ -85,20 +90,47 @@ const INVENTORY: Inventory = Inventory {
         ("census-patterns", "designed"),
         ("census-reference-scan", "designed"),
         ("census-rule-api", "designed"),
-        ("okf-profile", "delivered"),
-        ("source-index", "delivered"),
-        ("workplan-cli", "delivered"),
-        ("workplan-complete-gate", "delivered"),
+        ("okf-profile", "implementing"),
+        ("source-index", "implementing"),
+        ("workplan-cli", "implementing"),
+        ("workplan-complete-gate", "implementing"),
         ("workplan-current-rationale", "delivered"),
-        ("workplan-document-model", "delivered"),
+        ("workplan-document-model", "implementing"),
         ("workplan-entity-history", "delivered"),
         ("workplan-evidence-claims", "delivered"),
-        ("workplan-generated-docs", "delivered"),
+        ("workplan-generated-docs", "implementing"),
         ("workplan-prose-assessment", "delivered"),
-        ("workplan-reconcile", "delivered"),
-        ("workplan-two-way-coverage", "delivered"),
+        ("workplan-reconcile", "implementing"),
+        ("workplan-strict", "designed"),
+        ("workplan-two-way-coverage", "implementing"),
     ],
-    architecture: &["normal-form", "okf-profile"],
+    changes: &[
+        ("census-cli", &["census-cli"]),
+        ("census-debt-ratchet", &["census-debt-ratchet"]),
+        ("census-detectors", &["census-detectors"]),
+        ("census-ledger", &["census-ledger"]),
+        ("census-migration", &["census-migration"]),
+        ("census-normal-form", &["census-normal-form"]),
+        ("census-patterns", &["census-patterns"]),
+        ("census-reference-scan", &["census-reference-scan"]),
+        ("census-rule-api", &["census-rule-api"]),
+        (
+            "workplan-strict",
+            &[
+                "workplan-strict",
+                "workplan-two-way-coverage",
+                "workplan-complete-gate",
+                "workplan-reconcile",
+                "workplan-cli",
+                "okf-profile",
+                "workplan-generated-docs",
+                "workplan-document-model",
+                "source-index",
+                "census-debt-ratchet",
+            ],
+        ),
+    ],
+    architecture: &["debt-ratchet", "normal-form", "okf-profile"],
     records: &[
         "assessment:okf-profile-contract",
         "assessment:okf-profile-verification",
@@ -239,10 +271,74 @@ fn identity(repo: &Repo, path: &str) -> Result<(String, Option<String>), String>
     Ok((id, scalar("state")))
 }
 
+/// The capability ids that the `changes` key of the change record at `path`
+/// lists, in its order.
+fn listed_capabilities(repo: &Repo, path: &str) -> Result<Vec<String>, String> {
+    let text = repo.get(Path::new(path)).ok_or("the document is missing")?;
+    let document =
+        Document::parse(text).map_err(|error| format!("unparseable document: {error}"))?;
+    let list = document
+        .frontmatter()
+        .map()
+        .get("changes")
+        .and_then(|entry| entry.value().as_list())
+        .ok_or("the document has no `changes` list")?;
+    list.items()
+        .iter()
+        .map(|item| {
+            item.value()
+                .as_scalar()
+                .map(|scalar| scalar.text().to_string())
+                .ok_or_else(|| "an entry of `changes` is not a scalar".to_string())
+        })
+        .collect()
+}
+
+/// The change records of the inventory against the tree and the capabilities:
+/// each record lists exactly the capabilities the table gives it, and each
+/// capability whose state is not `delivered` is listed by a record of the
+/// table. A missing or unparseable record is reported by the identity check.
+fn change_record_violations(repo: &Repo, inventory: &Inventory) -> Vec<String> {
+    let mut out = Vec::new();
+    for (slug, capabilities) in inventory.changes {
+        let path = format!("work/changes/{slug}.md");
+        if let Ok(found) = listed_capabilities(repo, &path) {
+            let wanted: Vec<String> = capabilities
+                .iter()
+                .map(|cap| format!("cap:{cap}"))
+                .collect();
+            if found != wanted {
+                out.push(violation(
+                    Path::new(&path),
+                    format!(
+                        "inventory expects `changes` [{}], found [{}]",
+                        wanted.join(", "),
+                        found.join(", ")
+                    ),
+                ));
+            }
+        }
+    }
+    for (slug, state) in inventory.capabilities {
+        let listed = inventory
+            .changes
+            .iter()
+            .any(|(_, capabilities)| capabilities.contains(slug));
+        if *state != "delivered" && !listed {
+            out.push(violation(
+                Path::new(&format!("docs/capabilities/{slug}.md")),
+                format!("inventory lists no change record whose `changes` names `cap:{slug}`"),
+            ));
+        }
+    }
+    out
+}
+
 /// Compare the tree with the inventory: every listed document exists with the
-/// stated `id` and `state`, every open capability has its change record, every
-/// generated document exists, and no document exists that the inventory does
-/// not list.
+/// stated `id` and `state`, every listed change record lists exactly the
+/// capabilities the table gives it, every open capability is listed by a
+/// change record of the table, every generated document exists, and no
+/// document exists that the inventory does not list.
 fn check_inventory(repo: &Repo, inventory: &Inventory) -> Vec<String> {
     let mut out = Vec::new();
     let mut listed: BTreeSet<String> = BTreeSet::new();
@@ -278,13 +374,13 @@ fn check_inventory(repo: &Repo, inventory: &Inventory) -> Vec<String> {
             format!("cap:{slug}"),
             Some(state),
         );
-        if *state != "delivered" {
-            expect(
-                format!("work/changes/{slug}.md"),
-                format!("change:{slug}"),
-                None,
-            );
-        }
+    }
+    for (slug, _) in inventory.changes {
+        expect(
+            format!("work/changes/{slug}.md"),
+            format!("change:{slug}"),
+            None,
+        );
     }
     for slug in inventory.architecture {
         expect(
@@ -315,6 +411,7 @@ fn check_inventory(repo: &Repo, inventory: &Inventory) -> Vec<String> {
         }
         listed.insert((*path).to_string());
     }
+    out.extend(change_record_violations(repo, inventory));
     out.extend(unknown_records);
     for path in repo.keys() {
         let known = path.to_str().is_some_and(|p| listed.contains(p));
@@ -797,6 +894,7 @@ mod checkouts {
     /// the delivered capability.
     pub(super) const INVENTORY: Inventory = Inventory {
         capabilities: &[("demo", "delivered")],
+        changes: &[],
         architecture: &["layers", "overview"],
         records: &["coverage:default"],
         generated: &[INDEX],
@@ -1032,6 +1130,7 @@ const FIXTURE_INVENTORY: Inventory = Inventory {
         ("beta", "considered"),
         ("gamma", "delivered"),
     ],
+    changes: &[("alpha", &["alpha"]), ("beta", &["beta"])],
     architecture: &["overview"],
     records: &["evidence:bound", "assessment:review", "coverage:default"],
     generated: &[INDEX],
@@ -1052,6 +1151,19 @@ const FIXTURE_RECORDS: [(&str, &str, &str); 3] = [
 fn page(doc_type: &str, id: &str, state: Option<&str>) -> String {
     let state = state.map_or_else(String::new, |state| format!("state: {state}\n"));
     format!("---\ntype: {doc_type}\nid: {id}\n{state}---\n\n# Page\n")
+}
+
+/// A change record with only the frontmatter the inventory reads: its id and
+/// the capabilities its `changes` lists.
+fn change_page(slug: &str, capabilities: &[&str]) -> String {
+    let listed: Vec<String> = capabilities
+        .iter()
+        .map(|cap| format!("cap:{cap}"))
+        .collect();
+    format!(
+        "---\ntype: Change\nid: change:{slug}\nchanges: [{}]\n---\n\n# Page\n",
+        listed.join(", ")
+    )
 }
 
 /// A tree whose documents are exactly `FIXTURE_INVENTORY`.
@@ -1076,7 +1188,7 @@ fn inventory_repo() -> Repo {
     for slug in ["alpha", "beta"] {
         repo.insert(
             PathBuf::from(format!("work/changes/{slug}.md")),
-            page("Change", &format!("change:{slug}"), None),
+            change_page(slug, &[slug]),
         );
     }
     repo.insert(
@@ -1124,7 +1236,7 @@ fn inventory_accepts_a_matching_tree() {
 #[test]
 fn inventory_table_has_the_documented_shape() {
     let slugs: BTreeSet<&str> = INVENTORY.capabilities.iter().map(|(s, _)| *s).collect();
-    assert_eq!(slugs.len(), 21, "21 capability slugs, each listed once");
+    assert_eq!(slugs.len(), 22, "22 capability slugs, each listed once");
     assert!(slugs.iter().all(|s| {
         !s.is_empty()
             && s.split('-').all(|part| {
@@ -1141,11 +1253,17 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|(_, state)| *state == wanted)
             .count()
     };
-    assert_eq!(count("designed"), 9);
-    assert_eq!(count("implementing"), 0);
-    assert_eq!(count("delivered"), 12);
+    assert_eq!(count("designed"), 10);
+    assert_eq!(count("implementing"), 8);
+    assert_eq!(count("delivered"), 4);
     assert_eq!(count("considered"), 0);
-    assert_eq!(INVENTORY.architecture.len(), 2);
+    let changes: BTreeSet<&str> = INVENTORY.changes.iter().map(|(s, _)| *s).collect();
+    assert_eq!(
+        changes.len(),
+        10,
+        "10 open change records, each listed once"
+    );
+    assert_eq!(INVENTORY.architecture.len(), 3);
     assert!(
         INVENTORY.records.windows(2).all(|pair| pair[0] < pair[1]),
         "the records are listed sorted, each once"
@@ -1178,6 +1296,58 @@ fn inventory_rejects_a_missing_change_record() {
     repo.remove(Path::new("work/changes/alpha.md"));
     let found = inventory_found(&repo);
     assert_hit(&found, "work/changes/alpha.md: the document is missing");
+}
+
+#[test]
+fn inventory_rejects_a_change_record_that_lists_other_capabilities() {
+    let mut repo = inventory_repo();
+    repo.insert(
+        PathBuf::from("work/changes/alpha.md"),
+        change_page("alpha", &["alpha", "gamma"]),
+    );
+    let found = inventory_found(&repo);
+    assert_hit(
+        &found,
+        "work/changes/alpha.md: inventory expects `changes` [cap:alpha], found [cap:alpha, cap:gamma]",
+    );
+}
+
+#[test]
+fn an_open_capability_may_be_listed_by_a_record_named_after_another() {
+    // One record lists both open capabilities: the inventory accepts it, and a
+    // record of the table that lists neither leaves both unlisted.
+    let mut repo = inventory_repo();
+    repo.remove(Path::new("work/changes/beta.md"));
+    repo.insert(
+        PathBuf::from("work/changes/alpha.md"),
+        change_page("alpha", &["alpha", "beta"]),
+    );
+    let shared = Inventory {
+        changes: &[("alpha", &["alpha", "beta"])],
+        ..FIXTURE_INVENTORY
+    };
+    let found: Vec<String> = violations(&checkouts::of_repo(&repo), &checkouts::source(), &shared)
+        .into_iter()
+        .filter(|line| line.contains("inventory") || line.contains("the document is missing"))
+        .collect();
+    assert_eq!(found, Vec::<String>::new());
+    let unlisted = Inventory {
+        changes: &[("alpha", &["gamma"])],
+        ..FIXTURE_INVENTORY
+    };
+    repo.insert(
+        PathBuf::from("work/changes/alpha.md"),
+        change_page("alpha", &["gamma"]),
+    );
+    let found = violations(&checkouts::of_repo(&repo), &checkouts::source(), &unlisted);
+    for slug in ["alpha", "beta"] {
+        assert_hit(
+            &found,
+            &format!(
+                "docs/capabilities/{slug}.md: inventory lists no change record whose `changes` names `cap:{slug}`"
+            ),
+        );
+    }
 }
 
 #[test]

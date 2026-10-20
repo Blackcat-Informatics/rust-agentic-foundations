@@ -136,6 +136,11 @@ being a re-baseline of growth. Each improvement is recorded the moment it happen
 so the record is always the exact present debt, and every regression, however small,
 is a visible failure.
 
+The rule is not the census's alone. [The debt ratchet](../architecture/debt-ratchet.md)
+states it once for every RAF tool that records debt, and the strict mode of the
+workplan follows it with its own record and keys; this capability states the census
+keys, the census file and its version bump.
+
 ## Verification
 
 - Growth fixtures: a new group, a group whose member set is a superset of a

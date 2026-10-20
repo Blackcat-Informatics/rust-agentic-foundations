@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-two-way-coverage
 title: "Two-way coverage"
 description: "Checks from code to documentation and from tests to claims, complementing the documentation-to-code and documentation-to-tests checks."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_workplan::coverage
@@ -156,6 +156,17 @@ whose fix is to add the record; a record that does not load is reported by its o
 findings and not as missing. `scope: []` enforces no crate and says so in the
 repository. These kinds are in the closed list of finding kinds.
 
+> [!PROPOSED change:workplan-strict]
+> **Strict mode.** Under [strict mode](./workplan-strict.md) the same two directions
+> are also enforced for every package that holds an item a `code`, `tests` or
+> `examples` binding of a loaded capability resolves to, with the same four kinds; the
+> message of a gap of a package that only strict mode enforces says which capability
+> binds which path of it, in place of the coverage record. The strict rules compute
+> that coverage themselves, so `check` under `default` and the reports are the same
+> whatever the strictness. The coverage record also takes the keys `strictness`,
+> `ceilings` and `exceptions`, which strict mode and its line report read and this
+> capability does not; the direction table gains no row.
+
 **The account.** For a repository revision the coverage reports name every gap in
 either direction for the whole workspace, so the current account is complete or
 states what is missing.
@@ -212,6 +223,13 @@ exclusions:
   or of a crate an exclusion names, once per load; the reports list every library
   and binary target of the workspace once. The order is by crate and path, the same
   on every run.
+
+> [!PROPOSED change:workplan-strict]
+> - Under strict mode `check` also lists the surface of each library and binary
+>   target of a package a binding reaches, once per load.
+> - An exclusion takes an item or a test out of the two directions only. The line
+>   report of strict mode reads its own `exceptions`, so an excluded item whose lines
+>   nothing covers is orphan there until an exception names it with its reason.
 
 ## Explanation
 

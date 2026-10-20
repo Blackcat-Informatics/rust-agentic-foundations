@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-reconcile
 title: "Change reconciliation"
 description: "change new, change impact and change reconcile: opening a change, listing what it touches, and producing the documentation obligations."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_workplan::Workplan::new_change
@@ -409,6 +409,36 @@ assessment kinds are among the kinds that apply: a section the change lists in
 `affects` is read by the people the change reaches whether or not its contract moved,
 so its assessment is owed under either effect.
 
+> [!PROPOSED change:workplan-strict]
+> **Strict mode.** Under [strict mode](./workplan-strict.md), set by the coverage
+> record or by a strict `Gate` (`cargo workplan --strict change reconcile <slug>`),
+> the list holds two more kinds, and `obligation::suppressed` takes the strictness:
+>
+> - `outcome-without-reason`, after `item-without-outcome` in the order of the table:
+>   an item whose outcome is `dropped` or `moved:change:<slug>` has no `reason`. It is
+>   owed at the item, and the evidence that resolves it is a `reason` for the outcome.
+>   It needs no process.
+> - `contract-effect-understated`, after `section-untouched`: the record says
+>   `contract_effect: none`, and a bound public item, an item of the public surface
+>   that a `code` binding of any loaded capability covers, differs from the merge
+>   base. Each file that holds one is read with the row
+>   `git cat-file blob <merge-base>:<prefix><path>` at the merge base that
+>   `section-untouched` uses, within the 1 MiB bound, so no new command is asked of
+>   `git`. Each side is parsed from its whole file through `raf_source::parse_source`
+>   and each item is compared as the `proc_macro2` token stream of its whole span, its
+>   doc comments included as `#[doc]` attributes and its whitespace and plain comments
+>   left out. An item whose stream is not among those of its file at the merge base, a
+>   bound item that the merge base has and the working tree lacks, and every
+>   candidate of a file absent at the merge base, are each one obligation on the
+>   change record, with evidence
+>   such as `` (`raf_okf::Document::parse` at crates/raf-okf/src/document.rs:120: its tokens differ from the merge base; `cap:okf-profile` binds it) ``,
+>   resolved by `contract_effect: changes`, the capability listed and the sections it
+>   owes reconciled. A file at the merge base that does not parse is an error, exit 2.
+>
+> Under strict a change with `contract_effect: none` leaves out `section-untouched`
+> for the contract only, so an untouched Usage or Examples section in `affects` is
+> owed. Under `default` neither kind is raised and the suppression is the one above.
+
 ## Usage
 
 ```sh
@@ -753,4 +783,6 @@ in these two places, so update the usage example and the lifecycle explanation".
 | Depended on by | [workplan-cli](./workplan-cli.md) |
 | Depended on by | [workplan-complete-gate](./workplan-complete-gate.md) |
 | Depended on by | [workplan-evidence-claims](./workplan-evidence-claims.md) |
+| Depended on by | [workplan-strict](./workplan-strict.md) |
+| Changed by | [workplan-strict](../../work/changes/workplan-strict.md) |
 <!-- raf:generated:end -->

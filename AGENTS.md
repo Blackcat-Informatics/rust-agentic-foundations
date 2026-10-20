@@ -62,7 +62,11 @@ prose assessments, two-way coverage and the current-rationale check of the
 architecture pages. `cargo-workplan` is **delivered** with the commands `check`,
 `status`, `docs sync|preview`, `change new|impact|reconcile|complete`, `verify`,
 `history`, `evidence record|claims|for`, `assess` and `coverage code|tests`, their
-contract stated in the command-line capability. Every other crate below is
+contract stated in the command-line capability. Strict mode
+([workplan-strict](docs/capabilities/workplan-strict.md)) is **designed**: it adds
+the global option `--strict` and the commands `coverage claims`, `coverage lines`
+(also spelled `coverage --reverse`) and `debt --write`, and the capabilities it
+changes are `implementing` beside its open change record. Every other crate below is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
@@ -84,8 +88,9 @@ bindings.
 |---|---|
 | `crates/` | The workspace member crates (`raf-okf`, `raf-source`, `raf-workplan` and `cargo-workplan`; each other crate joins `members` when it is built) |
 | `docs/capabilities/` | One permanent capability document per capability |
-| `docs/architecture/` | Shared current decisions (normal form, OKF profile) |
+| `docs/architecture/` | Shared current decisions (normal form, OKF profile, debt ratchet) |
 | `work/changes/` | In-flight change records |
+| `work/debt/` | The strict debt record `work/debt/default.md` of [strict mode](docs/capabilities/workplan-strict.md), written only by `cargo workplan debt --write` |
 | `docs/` | Licensing translations and brand material |
 | `.githooks/`, `.github/` | The pre-commit and pre-merge-commit hooks, CI workflow, Dependabot configuration, issue and pull request templates |
 

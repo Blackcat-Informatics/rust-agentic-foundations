@@ -5,7 +5,7 @@ type: Capability
 id: cap:okf-profile
 title: "OKF profile reader and writer"
 description: "The raf-okf crate: parse OKF Markdown, validate the RAF profile with closed key sets, and write documents back deterministically."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_okf::Document
@@ -177,6 +177,34 @@ panic, abort or unbounded allocation:
 and `Architecture`, which people write, and the records `Evidence`, `Assessment` and
 `Coverage`, which state a result in their frontmatter. `DocType::ALL` lists them.
 
+> [!PROPOSED change:workplan-strict]
+> **Strict-mode keys and the debt record.** The profile has seven types: the six
+> above and the record `Debt`, the strict debt of [strict mode](./workplan-strict.md),
+> in `work/debt` with the prefix `debt:` and the one id `debt:default`, as the
+> coverage record has `coverage:default`. [The RAF profile of OKF](../architecture/okf-profile.md)
+> states its keys and those below, and `raf-okf` validates them:
+>
+> - the coverage record takes the optional key `strictness`, read into the closed
+>   enumeration `Strictness` (`Default`, `Strict`, ordered by strength), `default`
+>   when the key is absent and `okf-bad-strictness` for any other value; the optional
+>   `ceilings`, rows of `crate`, exactly one of `lines` or `percent` and an optional
+>   `of` (`shipping`, `test` or `all`), each wrong shape `okf-bad-ceiling` and a
+>   number that is not one `okf-bad-measure`; and the optional `exceptions`, rows of
+>   exactly one of `item` or `file` and a non-empty `reason`, a wrong shape
+>   `okf-bad-exception` and an empty reason `okf-empty-reason`. `CoverageRecord`
+>   holds them, and its writer renders them in key-table order, an absent key left
+>   out;
+> - a change item takes the optional key `reason` after `outcome`, a non-empty line
+>   of text in `ChangeItem::reason`; an empty one is `okf-item-reason-empty`, the
+>   placeholder rule reads it, and the fix of an unknown item key names `claim`,
+>   `outcome` and `reason`;
+> - the debt record has the keys `type`, `id`, the optional `tags` and `timestamp`,
+>   `findings`, rows of exactly `kind` and `subject`, and `lines`, rows of exactly
+>   `item` and `orphans`, sorted and without repeats, and an empty body. It is
+>   validated into `RafDocument::Debt` holding a `DebtRecord`, which
+>   `DebtRecord::new` builds and `DebtRecord::to_document` writes as the other
+>   records are written.
+
 **Validate.** `Profile::validate` checks a parsed document and its path against the
 closed key set of its `type` and returns a typed result: the typed document
 (`RafDocument`, with `State`, `Bindings`, `Affects` entries, `ChangeItem` entries and
@@ -285,6 +313,21 @@ holds:
 - claims: `Body::claims` returns each claim marker outside fenced code, code spans
   and PROPOSED blocks as a `Claim`: the evidence slugs it names, its line, its marker
   span, the span of the paragraph or list item it supports, and its section.
+
+> [!PROPOSED change:workplan-strict]
+> - tested-by markers: `Body::tested_by` returns each marker
+>   `<!-- raf:tested-by <path>[,<path>...] -->` outside fenced code, code spans and
+>   PROPOSED blocks as a `TestedBy`: the paths it names, its line, its marker span,
+>   the span of the statement it follows and its section. It is a third marker family
+>   beside the generated and the claim markers. Its statement is the run of lines
+>   directly above it, read as for a claim marker, or the statement of the claim
+>   marker directly above it, and the statement of a heading is the heading line. A
+>   marker that is not written exactly so (a space after a comma, a repeated or an
+>   empty entry, an attribute such as `tests=`) is `okf-parse-malformed-tested-by`,
+>   one with no statement directly above it, after a blank line or another comment,
+>   is `okf-parse-unattached-tested-by`, and one outside a Capability is the
+>   violation `okf-tested-by-outside-capability`. The malformed and unattached forms
+>   of the claim marker stay as they are.
 
 A malformed PROPOSED marker in any spelling, an unclosed generated block, a nested
 generated block and an end marker without a start are parse errors with line numbers.

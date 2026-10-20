@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-complete-gate
 title: "Completion gate"
 description: "change complete and verify: the six completion conditions, lighter obligations for changes that leave the contract alone, deletion of the record, and the acceptance scenarios."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_workplan::lifecycle::Lifecycle::complete
@@ -348,6 +348,25 @@ obligation list must still be empty. A small internal change does not need a new
 tutorial. The effect does not change condition 6 either: under `contract_effect: none`
 each authored section in `affects` still needs a current accepted assessment, since
 the people the change reaches read it whether or not its contract moved.
+
+> [!PROPOSED change:workplan-strict]
+> **Strict mode.** Under [strict mode](./workplan-strict.md), set by the coverage
+> record or by `Lifecycle::open_with(&gate.strict(), runner)` and `--strict`, the six
+> conditions, their order and the check of the repository once the record is removed
+> are judged under strict, and the static conditions are judged the second time under
+> the same strictness. Two of the strict expectations already hold under either
+> strictness: condition 5 runs every test and example binding of every listed
+> capability, as `verify` of the change does, and condition 1 refuses on each
+> `tense-mismatch` of a listed capability. Strict adds two obligations. Condition 1
+> refuses on `contract-effect-understated`, which reconcile raises for a
+> `contract_effect: none` change that alters any token of a bound public item, and
+> condition 2 refuses on `outcome-without-reason`, a `dropped` or `moved` item with
+> no `reason`, as it refuses on `item-without-outcome`. Under strict
+> `contract_effect: none` leaves out `section-untouched` for the contract only, so
+> condition 1 also refuses on an untouched Usage or Examples section in `affects`.
+> The check of the repository once the record is removed applies the strict debt
+> record as `check` does, so a finding the record holds does not refuse completion
+> and a resolved row does.
 
 **State.** Promotion to a stronger state requires reconciliation, not just a status
 change. The gate refuses a listed capability whose `state` the content does not
@@ -919,4 +938,6 @@ Further checks:
 | Depends on | [workplan-reconcile](./workplan-reconcile.md) |
 | Depended on by | [workplan-cli](./workplan-cli.md) |
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
+| Depended on by | [workplan-strict](./workplan-strict.md) |
+| Changed by | [workplan-strict](../../work/changes/workplan-strict.md) |
 <!-- raf:generated:end -->

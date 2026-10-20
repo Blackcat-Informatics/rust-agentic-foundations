@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-generated-docs
 title: "Generated documentation blocks"
 description: "Generated blocks for the verification matrix, relationship table and capability catalogue, and the deterministic sync."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_workplan::Workplan::sync
@@ -150,6 +150,15 @@ kebab case. Each block is opened once, closed once and never nested.
   to the document and carries its description, and an `implementing` row shows the
   gaps: binding lists that are empty and bindings that do not resolve. The rows are
   those of `Workplan::status`.
+
+> [!PROPOSED change:workplan-strict]
+> A binding also substantiates each section other than Verification that holds a
+> `raf:tested-by` marker naming its path, outside fenced code and PROPOSED blocks, as
+> [strict mode](./workplan-strict.md) defines the marker, so a test that a Contract
+> claim names shows `[Contract](#contract)` in the Section cell. A binding with no
+> such section and no such code span substantiates Verification. The block keeps its
+> columns, its order and its escaping, and a document with no marker has the matrix
+> that the code-span rule alone gives.
 
 A block of a kind in the wrong place, such as a catalogue in a capability document or
 any block in a change record or an architecture page, is an error and is never
@@ -450,4 +459,6 @@ than written.
 | Depended on by | [workplan-complete-gate](./workplan-complete-gate.md) |
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
 | Depended on by | [workplan-reconcile](./workplan-reconcile.md) |
+| Depended on by | [workplan-strict](./workplan-strict.md) |
+| Changed by | [workplan-strict](../../work/changes/workplan-strict.md) |
 <!-- raf:generated:end -->
