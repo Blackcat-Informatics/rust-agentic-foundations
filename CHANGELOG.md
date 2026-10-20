@@ -8,6 +8,18 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
+- **`raf-census`:** the census normal form 1 is delivered. `Census::load` collects
+  the functions, methods, constants and statics of a workspace once per source item,
+  and a `Normalizer` rewrites each body through four passes (`rename_params`,
+  `rename_locals`, `kind_literals`, `erase_held`) into its shim, structural and value
+  forms. A `body` or `shim` fingerprint is `<kind>:` and the first 8 bytes of the
+  BLAKE3 hash of the form, and `Normalizer::explain` names the level at which two
+  bodies part. The census groups units by fingerprint, finds hex-digit tables and
+  large constants shared across packages, matches `Job`s as home, variant or copy,
+  and renders the byte-deterministic baseline and index JSON reports; the `baseline`
+  example prints them. `check_normal_form` refuses any version but 1, naming
+  `cargo census migrate`. The architecture page of the normal form is its normative
+  definition.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed

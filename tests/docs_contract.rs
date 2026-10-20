@@ -81,7 +81,7 @@ const INVENTORY: Inventory = Inventory {
         ("census-detectors", "designed"),
         ("census-ledger", "designed"),
         ("census-migration", "designed"),
-        ("census-normal-form", "implementing"),
+        ("census-normal-form", "delivered"),
         ("census-patterns", "designed"),
         ("census-reference-scan", "designed"),
         ("census-rule-api", "designed"),
@@ -100,6 +100,12 @@ const INVENTORY: Inventory = Inventory {
     ],
     architecture: &["normal-form", "okf-profile"],
     records: &[
+        "assessment:census-normal-form-constraints",
+        "assessment:census-normal-form-contract",
+        "assessment:census-normal-form-examples",
+        "assessment:census-normal-form-purpose",
+        "assessment:census-normal-form-usage",
+        "assessment:census-normal-form-verification",
         "assessment:okf-profile-contract",
         "assessment:okf-profile-verification",
         "assessment:source-index-constraints",
@@ -1143,8 +1149,8 @@ fn inventory_table_has_the_documented_shape() {
             .count()
     };
     assert_eq!(count("designed"), 8);
-    assert_eq!(count("implementing"), 1);
-    assert_eq!(count("delivered"), 12);
+    assert_eq!(count("implementing"), 0);
+    assert_eq!(count("delivered"), 13);
     assert_eq!(count("considered"), 0);
     assert_eq!(INVENTORY.architecture.len(), 2);
     assert!(
@@ -1158,10 +1164,10 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|id| id.starts_with(prefix))
             .count()
     };
-    assert_eq!(records("assessment:"), 56);
+    assert_eq!(records("assessment:"), 62);
     assert_eq!(records("coverage:"), 1);
     assert_eq!(records("evidence:"), 1);
-    assert_eq!(INVENTORY.records.len(), 58);
+    assert_eq!(INVENTORY.records.len(), 64);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 

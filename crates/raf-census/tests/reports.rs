@@ -238,6 +238,23 @@ fn the_example_output_names_the_expected_group_fingerprints() {
     assert!(output.contains("\"id\": \"sum\""), "{output}");
 }
 
+/// The capability document shows the reports the example prints, byte for
+/// byte, so its keys and fingerprints are the ones the code writes.
+#[test]
+fn the_capability_examples_hold_the_example_output() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/capabilities/census-normal-form.md");
+    let document = std::fs::read_to_string(&path).expect("the capability document reads");
+    let (baseline, index) = halves();
+    for (name, report) in [("baseline", baseline), ("index", index)] {
+        let block = format!("```json\n{report}```");
+        assert!(
+            document.contains(&block),
+            "the Examples lack the {name} report"
+        );
+    }
+}
+
 #[test]
 fn both_reports_read_back_what_they_write() {
     let (baseline, index) = halves();

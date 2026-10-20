@@ -6,6 +6,7 @@
 
 | Capability | Description | Gaps |
 | --- | --- | --- |
+| [census-normal-form](./census-normal-form.md) | How the RAF census normalises function bodies, fingerprints them with BLAKE3 and groups the duplicates. |  |
 | [okf-profile](./okf-profile.md) | The raf-okf crate: parse OKF Markdown, validate the RAF profile with closed key sets, and write documents back deterministically. |  |
 | [source-index](./source-index.md) | The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #\[path\], and a symbol and use-alias index. |  |
 | [workplan-cli](./workplan-cli.md) | The cargo workplan subcommands, options and exit codes. |  |
@@ -18,12 +19,6 @@
 | [workplan-prose-assessment](./workplan-prose-assessment.md) | Recorded assessments of explanatory prose by humans and agents, invalidated when their inputs change. |  |
 | [workplan-reconcile](./workplan-reconcile.md) | change new, change impact and change reconcile: opening a change, listing what it touches, and producing the documentation obligations. |  |
 | [workplan-two-way-coverage](./workplan-two-way-coverage.md) | Checks from code to documentation and from tests to claims, complementing the documentation-to-code and documentation-to-tests checks. |  |
-
-## Implementing
-
-| Capability | Description | Gaps |
-| --- | --- | --- |
-| [census-normal-form](./census-normal-form.md) | How the RAF census normalises function bodies, fingerprints them with BLAKE3 and groups the duplicates. | bindings.code is empty; bindings.tests is empty; bindings.examples is empty |
 
 ## Designed
 

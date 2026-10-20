@@ -62,16 +62,18 @@ prose assessments, two-way coverage and the current-rationale check of the
 architecture pages. `cargo-workplan` is **delivered** with the commands `check`,
 `status`, `docs sync|preview`, `change new|impact|reconcile|complete`, `verify`,
 `history`, `evidence record|claims|for`, `assess` and `coverage code|tests`, their
-contract stated in the command-line capability. `raf-census` is **implementing**: its error type, its options and the
-normal-form version gate exist, and the normaliser, units, grouping and reports of
-its normal-form capability follow. `cargo-census` is
+contract stated in the command-line capability. `raf-census` is **delivered** for its normal-form capability: the
+normaliser and its fingerprints, the units, grouping, hex tables and shared constants,
+job matching, the baseline and index reports and the normal-form version gate; its
+ledger, detectors, rule API, patterns, debt ratchet and reference scan are specified by
+their own capability documents. `cargo-census` is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
 |---|---|---|
 | `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | delivered |
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | delivered |
-| `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | implementing |
+| `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | delivered for normal form v1, fingerprints, grouping and the reports |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
 | `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |
 | `cargo-workplan` | Thin command-line wrapper over `raf-workplan` | delivered |
