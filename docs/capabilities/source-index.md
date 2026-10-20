@@ -400,6 +400,13 @@ bindings:
     - raf_source::test_crate::rustc_oracle::an_index_answer_that_changes_with_the_order_is_reported_as_index_order
     - raf_source::test_crate::rustc_oracle::a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too
     - raf_source::test_crate::rustc_oracle::the_seed_base_is_read_in_hexadecimal_or_decimal_and_refuses_anything_else
+    - raf_source::test_crate::target_resolution::a_helper_resolves_from_an_integration_test_root_and_from_a_module_below_it
+    - raf_source::test_crate::target_resolution::a_helper_resolves_from_a_nested_module_of_a_binary
+    - raf_source::test_crate::target_resolution::an_example_a_bench_and_the_build_script_are_read_from_as_well
+    - raf_source::test_crate::target_resolution::a_module_path_that_no_target_holds_is_unknown_whichever_kind_of_target_it_names
+    - raf_source::test_crate::target_resolution::a_support_module_that_two_test_targets_include_resolves_in_each_target_alone
+    - raf_source::test_crate::target_resolution::a_module_of_the_library_at_the_crate_path_of_a_test_target_is_ambiguous_with_it
+    - raf_source::resolve::tests::a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate
   examples:
     - raf_source::Workspace::exported_items
 depends: []
@@ -1441,9 +1448,9 @@ the index says so.
 
 `resolve_from(module, path)` resolves a path as a `use` written in the module `module` would (a canonical module path such as `demo::inner`), trying the type, value and macro name spaces in that order, and `resolve_from_in(module, path, namespace)` takes one name space. The reading module is the viewer: the path starts as code of that module starts it (`crate`, `self`, `super`, a name the module binds, or a crate of the extern prelude) and each segment counts only the bindings that module can access, as rustc settles an import, where `resolve` takes a canonical path and checks no visibility. A path that names nothing the module can access is `NotFound`, one that names several symbols is `Ambiguous`, and a module that is not in the index is `ResolveError::UnknownModule`. A reading module whose crate path is shared by libraries of several packages, two libraries with one crate name, is `Ambiguous` and lists their crate roots, as `resolve` answers for a path that starts with that crate path; no variant names the package, so a module of such a crate cannot be read from, and a module of any other crate reads as before.
 
+**Resolution from every target.** `resolve_from` and `resolve_from_in` read from a module of any target, named by its crate path: `<pkg>::test_crate::<target>`, `<pkg>::bench_crate::<target>`, `<pkg>::example_crate::<target>`, `<pkg>::bin_crate::<bin>` and `<pkg>::build_script`, and the modules below each. The crate path that starts the module path is found by prefixes that grow a segment at a time, as for `resolve`, so a module path of 50,000 segments is read once for each segment. A path read there starts as code of that target starts it: `crate` is the target's root, and the library of its own package and the crates of the workspace it may depend on are crates of its extern prelude, so `resolve_from("demo::test_crate::it", "demo::api")` finds the library's `api` and `crate::api` there is `NotFound`; the build script does not name the library of its package. A file that several targets include, such as a support module of the integration tests, is one module of each target that includes it, and a path read from one of them resolves in that target only: `support::helper` read from `demo::test_crate::a` is `demo::test_crate::a::support::helper`, one site, and the copy of target `b` is another site of the same source item, which `same_source` relates. A module path that no target holds is `ResolveError::UnknownModule`, whichever kind of target it names, and a module path that is a module of two crates, as a module `test_crate::it` of the library beside the test target `it`, is `Ambiguous` between the items that stand for the two modules.
+
 > [!PROPOSED change:workplan-strict]
-> **Resolution from every target.** `resolve_from` and `resolve_from_in` read from a module of any target, named by its crate path: `<pkg>::test_crate::<target>`, `<pkg>::bench_crate::<target>`, `<pkg>::example_crate::<target>`, `<pkg>::bin_crate::<bin>` and `<pkg>::build_script`, and the modules below each. A path read there starts as code of that target starts it: `crate` is the target's root, and the library of its own package and the crates of the workspace it may depend on are crates of its extern prelude. A file that several targets include, such as a support module of the integration tests, is one module of each target that includes it, and a path read from one of them resolves in that target only; the sites of the one file are related by `same_source`. A module path that no target holds is `ResolveError::UnknownModule`, whichever kind of target it names.
->
 > **Impl blocks.** `Workspace::impls()` lists every `impl` block of every target, inherent and trait alike, in file order: its span from the header to the closing brace, the module that holds it, and the key of its self type, the item the self type path resolves to from that module, or none when it names nothing of the workspace or a type the index cannot place.
 >
 > **Reachability.** `Workspace::reachable(roots)` gives the items of every target that the root items reach over three edges: contains (an item to the items below it, as a type to its methods, a trait to its members and a module to its items, a crate root to nothing), impl-of (a type to the `impl` blocks whose self type it is, and a block to its items), and references (an item to each item that a path in its tokens resolves to from its module, a path being an `Ident (:: Ident)*` run that no `.` precedes, or a prefix of one). Each reached item is given once with the edge it was first reached by, in a stable order, and the work is counted: each item's tokens are read once and each path is resolved at most once per module.
@@ -2211,6 +2218,7 @@ duplicates.
   that is `NotFound` and one of 50,000 segments through a module that imports itself
   that resolves, each answered with at most four segment reads and two name lookups
   for each segment plus two, counted in the walk and stopped at that count.
+- `resolve_from` from every target (`target_resolution`): a helper resolves from an integration test root and from a module below it, the library from a test, an example and a binary and not from the build script, `crate` is the reading target's root; from a nested module of a binary in `src/bin/<name>/` and of `src/main.rs`; from an example, a bench and the build script; a support module that two test targets include resolves in each target alone, one site each, related by `same_source`; a module path that no target holds is `UnknownModule` for each kind of target beside the neighbour that one holds; a library module at the crate path of a test target is `Ambiguous` with it beside a module only the library has. A module path of 50,000 segments is read once for each segment (`resolve::tests`, counted).
 - `resolve_from`: a use path counts only what the reading module can access: the module itself, a child of it and a public item of a sibling resolve, and a private item of a module read from outside it and a module private to the one that declares it are `NotFound`; it is read in one name space or in each in turn; a module that is not in the workspace is `UnknownModule`, and a text that is no path is `Invalid`.
 - Missing-glob fixtures: a module with `pub use self::missing::*;`, a module that globs
   it, `crate::a::gone::*`, `super::a::inner::nothing::*` and an import of a name the
@@ -2606,6 +2614,7 @@ duplicates.
 | `raf_source::members::tests::duplicate_patterns_are_compiled_and_tested_once` | test | [Verification](#verification) |
 | `raf_source::meter::tests::work_is_never_released_and_each_meter_counts_from_zero` | test | [Verification](#verification) |
 | `raf_source::meter::tests::work_up_to_the_limit_is_accepted_and_the_charge_that_passes_it_is_refused` | test | [Verification](#verification) |
+| `raf_source::resolve::tests::a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate` | test | [Verification](#verification) |
 | `raf_source::resolve::tests::a_path_of_fifty_thousand_segments_reads_each_segment_a_bounded_number_of_times` | test | [Verification](#verification) |
 | `raf_source::resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped` | test | [Verification](#verification) |
 | `raf_source::settle::tests::a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room` | test | [Verification](#verification) |
@@ -2790,6 +2799,12 @@ duplicates.
 | `raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::test_functions_carry_the_package_target_and_crate_relative_name` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::target_resolution::a_helper_resolves_from_a_nested_module_of_a_binary` | test | [Verification](#verification) |
+| `raf_source::test_crate::target_resolution::a_helper_resolves_from_an_integration_test_root_and_from_a_module_below_it` | test | [Verification](#verification) |
+| `raf_source::test_crate::target_resolution::a_module_of_the_library_at_the_crate_path_of_a_test_target_is_ambiguous_with_it` | test | [Verification](#verification) |
+| `raf_source::test_crate::target_resolution::a_module_path_that_no_target_holds_is_unknown_whichever_kind_of_target_it_names` | test | [Verification](#verification) |
+| `raf_source::test_crate::target_resolution::a_support_module_that_two_test_targets_include_resolves_in_each_target_alone` | test | [Verification](#verification) |
+| `raf_source::test_crate::target_resolution::an_example_a_bench_and_the_build_script_are_read_from_as_well` | test | [Verification](#verification) |
 | `raf_source::test_crate::target_roots::a_build_script_main_beside_a_lib_module_build_script_is_ambiguous` | test | [Verification](#verification) |
 | `raf_source::test_crate::target_roots::a_first_party_module_at_a_binary_crate_path_is_ambiguous_beside_a_binary_that_is_not` | test | [Verification](#verification) |
 | `raf_source::test_crate::target_roots::a_lib_module_named_bin_crate_stays_in_the_library` | test | [Verification](#verification) |

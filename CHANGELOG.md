@@ -83,6 +83,11 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `obligation::suppressed` takes the strictness, `Needed` gains the variants
   `Reason` and `StatedEffect` (with `obligation::Touched` and `obligation::Touch`),
   and `LifecycleError` gains `Surface`.
+- **`raf-source`:** `Workspace::resolve_from` and `resolve_from_in` read from a
+  module of any target, named by its crate path (`<pkg>::test_crate::<t>`,
+  `::bench_crate::`, `::example_crate::`, `::bin_crate::`, `::build_script` and the
+  modules below each), where a module of the library alone was read before; a
+  module path that is a module of two crates is `Ambiguous`.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed

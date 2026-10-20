@@ -54,7 +54,7 @@ built.
 the body model and the profile validation of `raf-okf`, and the `Tree` trait of
 `raf-source` with its disk and memory backends and path containment, its bounded
 parse, package and target discovery, its module tree and its symbol and use-alias
-index. `raf-workplan` delivers the document model (loading, the graph, binding
+index, read from the modules of every target. `raf-workplan` delivers the document model (loading, the graph, binding
 resolution, the check rules and the `Gate`), the generated blocks with their sync
 and preview, the change lifecycle (`change new`, `impact`, `reconcile`,
 `complete` and `verify`), entity history, execution evidence and its claims,

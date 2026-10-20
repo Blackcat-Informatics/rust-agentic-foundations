@@ -1350,33 +1350,55 @@ impl Index {
         groups.len() > 1
     }
 
-    /// The module whose canonical path is `path`, such as `demo::inner`.
+    /// The module whose canonical path is `path`, such as `demo::inner`, in
+    /// the crate of any target: the crate path that starts it is found by
+    /// prefixes that grow a segment at a time, as in [`Index::resolve_in`],
+    /// so `demo::test_crate::it::support` is a module of the test target
+    /// `it` and `demo::bin_crate::tool::cli` one of the binary `tool`.
     ///
     /// A crate path that targets of several packages share (two libraries
     /// with one crate name) names the crates of all of them, and the module is
     /// not told apart without its package: it is
     /// [`ResolveError::Ambiguous`] between their crate roots, as
     /// [`Index::resolve`] answers for a path that starts with that crate path.
+    /// A path that is a module of two crates, a module `test_crate::it` of the
+    /// library beside the test target `it`, is ambiguous between the items
+    /// that stand for the two modules.
     fn module_named(&self, path: &str) -> Result<Option<usize>, ResolveError> {
-        let Some(first) = path.split("::").next() else {
-            return Ok(None);
-        };
         let key = SharedStr::from(path);
-        let Some(roots) = self.crate_roots.get(first) else {
-            return Ok(None);
-        };
-        if roots.len() > 1 {
-            return Err(ResolveError::Ambiguous(
-                self.sorted(
-                    roots
-                        .iter()
-                        .filter_map(|root| self.root_items.get(root).copied()),
-                ),
-            ));
+        let mut found: Vec<usize> = Vec::new();
+        let mut prefix = String::with_capacity(path.len());
+        for (taken, seg) in path.split("::").enumerate() {
+            work::add(Work::SegmentReads, 1);
+            if taken > 0 {
+                prefix.push_str("::");
+            }
+            prefix.push_str(seg);
+            let Some(roots) = self.crate_roots.get(&prefix) else {
+                continue;
+            };
+            if roots.len() > 1 {
+                return Err(ResolveError::Ambiguous(
+                    self.sorted(
+                        roots
+                            .iter()
+                            .filter_map(|root| self.root_items.get(root).copied()),
+                    ),
+                ));
+            }
+            found.extend(
+                roots
+                    .iter()
+                    .filter_map(|root| self.module_by_path.get(&(*root, key.clone())).copied()),
+            );
         }
-        Ok(roots
-            .iter()
-            .find_map(|root| self.module_by_path.get(&(*root, key.clone())).copied()))
+        match found.as_slice() {
+            [] => Ok(None),
+            [one] => Ok(Some(*one)),
+            several => Err(ResolveError::Ambiguous(
+                self.sorted(several.iter().flat_map(|module| self.module_items(*module))),
+            )),
+        }
     }
 
     /// Resolve the path of a `use` declaration written in the module
@@ -1556,6 +1578,24 @@ mod tests {
                 "{text}"
             );
         }
+    }
+
+    #[test]
+    fn a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate() {
+        const SEGMENTS: usize = 50_000;
+        let manifest = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
+        let tree: MemoryTree = [("Cargo.toml", manifest), ("src/lib.rs", "pub fn x() {}\n")]
+            .into_iter()
+            .collect();
+        let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+        let module = format!("demo{}", "::a".repeat(SEGMENTS));
+        let (answer, tally) = work::measure(SEGMENTS + 1, || ws.resolve_from(&module, "x"));
+        assert_eq!(answer, Err(ResolveError::UnknownModule(module.clone())));
+        // Each segment grows the crate path that is looked up once.
+        assert_eq!(tally.get(Work::SegmentReads), SEGMENTS + 1);
+        let (answer, tally) = work::measure(SEGMENTS + 1, || ws.resolve_from("demo", "x"));
+        assert_eq!(answer.map(|found| found.path), Ok("demo::x".to_owned()));
+        assert!(tally.get(Work::SegmentReads) >= 1);
     }
 
     #[test]
