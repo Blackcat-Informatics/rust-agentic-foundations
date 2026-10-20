@@ -111,7 +111,7 @@ bindings:
     - raf_workplan::test_crate::roadmap::the_groups_are_in_catalogue_order_and_sorted_by_slug
     - raf_workplan::test_crate::roadmap::an_implementing_capability_lists_its_gaps_exactly
     - raf_workplan::test_crate::roadmap::this_repository_lists_every_capability_once_in_its_state_group
-    - raf_workplan::test_crate::roadmap::a_built_capability_is_delivered_or_reopened_under_its_own_change_and_has_no_gap
+    - raf_workplan::test_crate::roadmap::a_built_capability_is_delivered_or_reopened_under_an_open_change_and_has_no_gap
     - raf_workplan::test_crate::records::a_replacement_through_a_link_to_the_documents_never_overwrites_a_document
     - raf_workplan::test_crate::records::a_directory_link_inside_the_root_on_the_way_to_a_record_is_refused_and_a_real_directory_is_not
     - raf_workplan::test_crate::gate::a_clean_repository_passes
@@ -985,7 +985,7 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::refs::the_matcher_bans_references_and_process_wording` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::refs::the_matcher_pins_its_edge_cases` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::refs::the_matcher_spares_colours_prose_numbers_and_near_misses` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::roadmap::a_built_capability_is_delivered_or_reopened_under_its_own_change_and_has_no_gap` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::a_built_capability_is_delivered_or_reopened_under_an_open_change_and_has_no_gap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::roadmap::a_fully_bound_implementing_capability_has_no_gap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::roadmap::a_resolving_binding_of_the_wrong_role_is_not_a_gap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::roadmap::an_empty_repository_has_an_empty_roadmap` | test | [Verification](#verification) |

@@ -575,7 +575,7 @@ fn this_repository_links_each_architecture_page_from_a_capability() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let opened = Gate::workspace(&root).open().expect("the repository opens");
     let plan = opened.workplan();
-    assert_eq!(plan.architecture().len(), 2);
+    assert_eq!(plan.architecture().len(), 3);
     for page in plan.architecture() {
         let id = page.value().header.id.as_str();
         assert!(

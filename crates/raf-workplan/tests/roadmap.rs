@@ -465,9 +465,9 @@ const BUILT: [&str; 12] = [
 ];
 
 /// Whether each of `slugs` is built in `roadmap`: delivered, or implementing
-/// with an open change record named after it, which is how a delivered
-/// capability is reopened; with no gap in either case. Every slug that does
-/// not hold is named with the reason.
+/// with an open change record that lists it, which is how a delivered
+/// capability is reopened (one record may reopen several); with no gap in
+/// either case. Every slug that does not hold is named with the reason.
 fn built_capabilities_hold(roadmap: &Roadmap, slugs: &[&str]) -> Result<(), Vec<String>> {
     let mut problems = Vec::new();
     for slug in slugs {
@@ -478,10 +478,9 @@ fn built_capabilities_hold(roadmap: &Roadmap, slugs: &[&str]) -> Result<(), Vec<
         match entry.state() {
             State::Delivered => {}
             State::Implementing => {
-                if !entry.open_change_slugs().contains(slug) {
+                if entry.open_changes().is_empty() {
                     problems.push(format!(
-                        "{slug} is implementing with no open change named after it (open: {:?})",
-                        entry.open_changes()
+                        "{slug} is implementing with no open change that lists it"
                     ));
                 }
             }
@@ -520,25 +519,27 @@ fn built_roadmap(state: &str, bindings: [&str; 3], changes: &[(&str, &str)]) -> 
 const BOUND: [&str; 3] = ["[demo::real]", "[demo::real]", "[demo::real]"];
 
 #[test]
-fn a_built_capability_is_delivered_or_reopened_under_its_own_change_and_has_no_gap() {
+fn a_built_capability_is_delivered_or_reopened_under_an_open_change_and_has_no_gap() {
     // Delivered, with no record: holds.
     let delivered = built_roadmap("delivered", BOUND, &[]);
     assert_eq!(built_capabilities_hold(&delivered, &["built"]), Ok(()));
     // Reopened with no record: refused.
     let unrecorded = built_roadmap("implementing", BOUND, &[]);
     let problems = built_capabilities_hold(&unrecorded, &["built"]).expect_err("no record");
-    assert_eq!(problems.len(), 1, "{problems:?}");
-    assert!(
-        problems[0].starts_with("built is implementing with no open change named after it"),
-        "{problems:?}"
+    assert_eq!(
+        problems,
+        ["built is implementing with no open change that lists it"]
     );
-    // Reopened under a record of another name only: refused.
+    // Reopened beside a record that lists another capability only: refused.
+    let elsewhere = built_roadmap("implementing", BOUND, &[("grow-other", "[cap:other]")]);
+    let problems = built_capabilities_hold(&elsewhere, &["built"]).expect_err("no record lists it");
+    assert_eq!(
+        problems,
+        ["built is implementing with no open change that lists it"]
+    );
+    // Reopened under a record of another name that lists it: holds.
     let other = built_roadmap("implementing", BOUND, &[("grow-built", "[cap:built]")]);
-    let problems = built_capabilities_hold(&other, &["built"]).expect_err("not its own record");
-    assert!(
-        problems[0].contains("no open change named after it"),
-        "{problems:?}"
-    );
+    assert_eq!(built_capabilities_hold(&other, &["built"]), Ok(()));
     // Reopened under its own record: holds, beside another record.
     let reopened = built_roadmap(
         "implementing",
@@ -609,8 +610,8 @@ fn this_repository_lists_every_capability_once_in_its_state_group() {
         }
     }
     // The load found the built capabilities: each capability this repository
-    // has built is delivered, or reopened under its own open change, and has
-    // no gap. The census capabilities are listed too, in whatever group their
+    // has built is delivered, or reopened under an open change that lists it,
+    // and has no gap. The census capabilities are listed too, in whatever group their
     // documents declare (checked above); the rest is planned work.
     if let Err(problems) = built_capabilities_hold(&roadmap, &BUILT) {
         panic!("{}", problems.join("\n"));
