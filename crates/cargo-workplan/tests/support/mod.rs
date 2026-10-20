@@ -24,6 +24,9 @@ use serde_json::Value;
 /// affects, through the library, shared as one file.
 #[path = "../../../raf-workplan/tests/support/assessed.rs"]
 pub(crate) mod assessed;
+/// The strict-clean repository of the library's fixtures, shared as one file.
+#[path = "../../../raf-workplan/tests/support/strict.rs"]
+pub(crate) mod strict;
 #[cfg(unix)]
 pub(crate) mod stubs;
 
@@ -206,6 +209,20 @@ impl Repo {
 
     pub(crate) fn root(&self) -> &Path {
         self.scratch.path()
+    }
+
+    /// The strict-clean repository of [`strict`] with the capability document
+    /// `capability` and the `strictness` line `record` in its coverage record,
+    /// synced.
+    pub(crate) fn strict(tag: &str, capability: &str, record: &str) -> Self {
+        let repo = Self::bare(tag);
+        for (path, text) in strict::source_files() {
+            repo.put(path, &text);
+        }
+        repo.put(strict::CAPABILITY, capability);
+        repo.put(strict::COVERAGE, &strict::coverage(record));
+        repo.sync();
+        repo
     }
 
     /// Give each authored section `change` affects a current accepted

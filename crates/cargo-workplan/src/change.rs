@@ -133,16 +133,18 @@ fn impact_record(impact: &Impact) -> Record {
     )
 }
 
-/// The lifecycle of the repository at `root`: the Git version is asked first,
-/// then the repository is opened.
-fn open(root: &Path) -> Result<Lifecycle, Failure> {
-    Ok(Lifecycle::open(Programs::new(root))?)
+/// The lifecycle of the repository at `root`, judged under strict mode when
+/// `strict`: the Git version is asked first, then the repository is opened.
+fn open(root: &Path, strict: bool) -> Result<Lifecycle, Failure> {
+    let programs = Programs::new(root);
+    let gate = crate::command::gate(root, strict).programs(programs.clone());
+    Ok(Lifecycle::open_with(&gate, SystemRunner::new(programs))?)
 }
 
 /// `change reconcile <slug>`: one line for each obligation, in the order the
 /// library sorts them. The run exits 1 exactly when the list is not empty.
-pub(crate) fn reconcile(root: &Path, slug: &str) -> Result<Report, Failure> {
-    let owed = open(root)?.reconcile(slug)?;
+pub(crate) fn reconcile(root: &Path, slug: &str, strict: bool) -> Result<Report, Failure> {
+    let owed = open(root, strict)?.reconcile(slug)?;
     Ok(Report::of(owed.obligations().iter().map(obligation_record)))
 }
 
@@ -168,8 +170,8 @@ fn obligation_record(obligation: &Obligation) -> Record {
 
 /// `change complete <slug>`: the completion gate. A refusal lists every
 /// failure and writes nothing; a completion has removed the record.
-pub(crate) fn complete(root: &Path, slug: &str) -> Result<Report, Failure> {
-    let completion = open(root)?.complete(slug)?;
+pub(crate) fn complete(root: &Path, slug: &str, strict: bool) -> Result<Report, Failure> {
+    let completion = open(root, strict)?.complete(slug)?;
     Ok(Report::of(completion_records(&completion)?))
 }
 

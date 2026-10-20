@@ -38,6 +38,13 @@ bindings:
     - raf_workplan::test_crate::bound::a_no_run_example_meets_the_strict_example_rule_and_verify_refuses_it_beside_a_runnable_one
     - raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key
     - raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::strict_is_a_global_option_off_by_default_and_taken_before_or_after_the_command
+    - cargo_workplan::test_crate::check::strict_check_exits_zero_on_the_strict_clean_repository
+    - cargo_workplan::test_crate::check::strict_check_exits_one_on_one_thin_section_and_check_without_the_flag_exits_zero
+    - cargo_workplan::test_crate::check::strict_check_exits_two_at_a_root_without_capability_documents
+    - cargo_workplan::test_crate::check::check_without_the_flag_judges_strict_when_the_record_says_strict
+    - cargo_workplan::test_crate::check::a_strict_finding_in_json_is_an_object_of_its_kind_with_the_fields_of_a_finding
+    - cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts
   examples:
     - raf_workplan::Workplan::strictness
 depends: [cap:workplan-two-way-coverage, cap:workplan-complete-gate, cap:workplan-reconcile, cap:workplan-evidence-claims, cap:workplan-generated-docs, cap:source-index]
@@ -634,6 +641,13 @@ visible failure, and the fix is one command.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::strict_is_a_global_option_off_by_default_and_taken_before_or_after_the_command` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::a_strict_finding_in_json_is_an_object_of_its_kind_with_the_fields_of_a_finding` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::check_without_the_flag_judges_strict_when_the_record_says_strict` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::strict_check_exits_one_on_one_thin_section_and_check_without_the_flag_exits_zero` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::strict_check_exits_two_at_a_root_without_capability_documents` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::strict_check_exits_zero_on_the_strict_clean_repository` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key` | test | [Verification](#verification) |
 | `raf_workplan::Workplan::strictness` | doctest | [Usage](#usage) |

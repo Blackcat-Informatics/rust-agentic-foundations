@@ -31,6 +31,8 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   gaps of every package outside `scope` that a binding reaches. Under `default` it
   judges none of them. `Finding::KINDS` gains these five kinds and
   `okf-bad-strictness`, and `raf_workplan::Strictness` re-exports the enumeration.
+- **`cargo-workplan`:** the global option `--strict` judges `check`,
+  `change reconcile` and `change complete` under strict mode.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed

@@ -351,8 +351,8 @@ each authored section in `affects` still needs a current accepted assessment, si
 the people the change reaches read it whether or not its contract moved.
 
 **Strict mode.** Under [strict mode](./workplan-strict.md), set by the coverage
-record or by `Lifecycle::open_with(&gate.strict(), runner)`, the check of the
-repository once the record is removed is judged under strict, at the first
+record or by `Lifecycle::open_with(&gate.strict(), runner)` and `--strict`, the check
+of the repository once the record is removed is judged under strict, at the first
 judgement and at the second one before the writes, since the second opens the
 repository again with the same `Gate`: a finding of strict mode there refuses
 completion as every finding does, and nothing is written.

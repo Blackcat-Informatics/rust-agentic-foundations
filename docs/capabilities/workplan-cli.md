@@ -227,6 +227,13 @@ bindings:
     - cargo_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only
     - cargo_workplan::test_crate::evidence::a_replacement_holds_the_spdx_lines_of_its_own_run_only
     - cargo_workplan::test_crate::history::a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::strict_is_a_global_option_off_by_default_and_taken_before_or_after_the_command
+    - cargo_workplan::test_crate::check::strict_check_exits_zero_on_the_strict_clean_repository
+    - cargo_workplan::test_crate::check::strict_check_exits_one_on_one_thin_section_and_check_without_the_flag_exits_zero
+    - cargo_workplan::test_crate::check::strict_check_exits_two_at_a_root_without_capability_documents
+    - cargo_workplan::test_crate::check::check_without_the_flag_judges_strict_when_the_record_says_strict
+    - cargo_workplan::test_crate::check::a_strict_finding_in_json_is_an_object_of_its_kind_with_the_fields_of_a_finding
+    - cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts
   examples:
     - raf_workplan::Workplan::sync
     - raf_workplan::Workplan::preview
@@ -361,7 +368,12 @@ resolving, for instance) is exit 2, while a bare `--list` still shows an assessm
 of it.
 
 **Options.** `--root <dir>` sets the workspace root, `--format text|json` selects the
-output, and `-q` suppresses everything but findings. Findings are printed to stdout in
+output, `-q` suppresses everything but findings, and `--strict` judges with
+`Gate::workspace(root).strict()`: it raises the strictness of `check`,
+`change reconcile` and `change complete` to [strict mode](./workplan-strict.md), and a
+coverage record that says `strictness: strict` gives the same judgement without it.
+`status`, `docs`, `history`, `evidence`, `assess`, `verify` and the coverage reports
+print the same with and without `--strict`. Findings are printed to stdout in
 a stable order and diagnostics to stderr. Each option is accepted before or after the
 command. Under `-q` a command whose output holds no finding (`status`, `docs sync`,
 `docs preview`, `change new`, `change impact`, a completion, the passing bindings of
@@ -374,12 +386,13 @@ each record the text form prints, in the same order, and `[]` when there is none
 Every object begins with `kind`, the discriminator, followed by the fields of its kind,
 always present, with `null` for a field that does not apply. A finding of `check` has
 the kind of its rule, from `Finding::KINDS`, and the fields `path`, `section`, `line`,
-`key`, `message` and `fix`. The other kinds are `rewrote`, `state`, `open-changes`,
-`preview`, `new-change`, `impact`, `obligation`, `refused`, `refusal` (one for each
-failure of a refused completion, with its condition), `completed` and `binding`, and
-none of them equals the kind of a rule. Their fields are documented in the crate
-documentation of `cargo-workplan`. A run that could not run prints nothing on stdout,
-so stdout is either one complete array or empty.
+`key`, `message` and `fix`, a finding of strict mode as any other. The other kinds
+are `rewrote`, `state`, `open-changes`, `preview`, `new-change`, `impact`,
+`obligation`, `refused`, `refusal` (one for each failure of a refused completion,
+with its condition), `completed` and `binding`, and none of them equals the kind of
+a rule. Their fields are documented in the crate documentation of `cargo-workplan`.
+A run that could not run prints nothing on stdout, so stdout is either one complete
+array or empty.
 
 **Output of the record commands.** `history` and `coverage` print the table and
 the JSON array that `raf-workplan` renders, as one report: under `-q` a history
@@ -395,12 +408,6 @@ order, are documented in the crate documentation of `cargo-workplan`.
 > [!PROPOSED change:workplan-strict]
 > **Strict mode.** The commands of [strict mode](./workplan-strict.md) join the table:
 >
-> - the global option `--strict`, accepted before or after the command like the other
->   options, judges with `Gate::workspace(root).strict()`: it raises the strictness
->   of `check`, `change reconcile` and `change complete` to strict, and a coverage
->   record that says `strictness: strict` gives the same judgement without it.
->   `status`, `docs`, `history`, `evidence`, `assess`, `verify` and the coverage
->   reports print the same under it;
 > - `coverage claims [--capability cap:<slug>]` prints every claim of every delivered
 >   capability, or of the one named, with its key, line and tests;
 > - `coverage lines [--crate <package>]` prints the reverse coverage of every package,
@@ -414,10 +421,7 @@ order, are documented in the crate documentation of `cargo-workplan`.
 > and 2 when `--capability` or `--crate` names nothing loaded. `debt --write` exits 0
 > when it writes, 1 when it refuses with the findings printed (growth, or a finding of
 > the default rules), and 2 when the coverage record does not say `strictness: strict`
-> or the tool cannot run. A strict finding of `check` is printed as every finding is,
-> and in JSON as an object of its kind with the fields `kind`, `path`, `section`,
-> `line`, `key`, `message` and `fix`.
-> The JSON kinds `coverage-claim`, `lines-crate`, `lines-module`, `lines-orphan`,
+> or the tool cannot run. The JSON kinds `coverage-claim`, `lines-crate`, `lines-module`, `lines-orphan`,
 > `lines-excepted`, `lines-error` and `debt-written` join the record kinds, and none
 > equals the kind of a rule. `debt --write` writes one file and the reports write
 > nothing.
@@ -447,13 +451,13 @@ The record commands are used the same way:
   records the verdict.
 - `cargo workplan --format json coverage code --crate raf-workplan` prints the
   public items of one package that no capability binds.
+- `cargo workplan --strict check` judges the repository under strict mode before
+  its coverage record says `strictness: strict`, and `cargo workplan check` judges
+  it so once the record says it.
 
 > [!PROPOSED change:workplan-strict]
 > The commands of strict mode are used the same way:
 >
-> - `cargo workplan --strict check` judges the repository under strict mode before
->   its coverage record says `strictness: strict`, and `cargo workplan check` judges
->   it so once the record says it.
 > - `cargo workplan coverage claims --capability cap:streaming-parser` prints each
 >   claim of the capability and the tests its markers name.
 > - `cargo workplan coverage lines --crate raf-okf`, or
@@ -649,6 +653,7 @@ rather than kept by hand.
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_refuses_an_id_or_a_day_before_anything_runs` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_takes_an_id_of_each_kind_and_a_day` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::options_after_the_separator_belong_to_the_command` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::strict_is_a_global_option_off_by_default_and_taken_before_or_after_the_command` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_default_and_parse_in_both_shapes` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_may_follow_the_command` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_sync_text_options_parse` | test | [Verification](#verification) |
@@ -676,9 +681,14 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::check::a_root_that_does_not_exist_exits_two` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::a_source_file_that_cannot_be_read_exits_two` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::a_stale_generated_block_is_a_finding_and_a_sync_clears_it` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::a_strict_finding_in_json_is_an_object_of_its_kind_with_the_fields_of_a_finding` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::check_without_the_flag_judges_strict_when_the_record_says_strict` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::help_and_version_exit_zero_on_standard_output` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::quiet_keeps_the_findings_and_the_exit_code` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::quiet_on_a_clean_repository_prints_nothing_and_exits_zero` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::strict_check_exits_one_on_one_thin_section_and_check_without_the_flag_exits_zero` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::strict_check_exits_two_at_a_root_without_capability_documents` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::strict_check_exits_zero_on_the_strict_clean_repository` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::the_findings_are_those_of_the_library_gate_in_the_same_order` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::usage_errors_exit_two_with_a_message_on_standard_error` | test | [Verification](#verification) |
@@ -689,6 +699,7 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::json_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::quiet_hides_a_completion_and_keeps_a_refusal` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::what_stops_it_looking_is_exit_two_and_the_record_stays` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero` | test | [Verification](#verification) |

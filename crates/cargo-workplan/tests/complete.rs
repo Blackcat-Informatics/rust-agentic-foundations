@@ -524,3 +524,30 @@ fn from_new_to_a_completed_change_through_the_binary() {
     let check = repo.run(&["check"]).expect(0);
     assert_eq!(check.stdout, "");
 }
+
+/// `--strict` judges the repository once the record is removed under strict
+/// mode: the delivered capability of the fixture holds one sentence in each
+/// section, so the completion is refused with the findings of strict mode and
+/// nothing is written, while `change complete` without the flag completes the
+/// same change. `--strict change reconcile` owes what it owes without the flag,
+/// since strict mode adds no obligation the fixture owes.
+#[test]
+fn strict_refuses_a_completion_that_the_default_gate_accepts() {
+    let repo = ready("complete-strict");
+    let owed = repo.run(&["change", "reconcile", "shape"]);
+    assert_eq!(
+        repo.run(&["--strict", "change", "reconcile", "shape"]),
+        owed
+    );
+    let before = repo.worktree();
+    let run = repo
+        .run(&["--strict", "change", "complete", "shape"])
+        .expect(1);
+    assert!(
+        run.stdout.starts_with("refused: ") && run.stdout.contains("[strict-section-thin]"),
+        "{run:#?}"
+    );
+    assert_eq!(repo.worktree(), before, "a refusal writes nothing");
+    let run = repo.run(&["change", "complete", "shape"]).expect(0);
+    assert!(run.stdout.starts_with("completed: "), "{run:#?}");
+}

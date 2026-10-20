@@ -8,7 +8,8 @@
 mod support;
 
 use raf_workplan::Gate;
-use support::Repo;
+use serde_json::{Value, json};
+use support::{Repo, array, member_names, strict, strings};
 
 #[test]
 fn a_clean_repository_exits_zero_and_prints_nothing() {
@@ -287,4 +288,103 @@ fn a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass() {
         let run = repo.both(&["check"]).expect(0);
         assert_eq!(run.stdout, "", "{comment:?}: {run:#?}");
     }
+}
+
+#[test]
+fn strict_check_exits_zero_on_the_strict_clean_repository() {
+    let repo = Repo::strict("check-strict-clean", &strict::capability(), "");
+    let before = repo.snapshot();
+    for args in [
+        &["--strict", "check"][..],
+        &["check", "--strict"],
+        &["check"],
+    ] {
+        let run = repo.both(args).expect(0);
+        assert_eq!(
+            (run.stdout.as_str(), run.stderr.as_str()),
+            ("", ""),
+            "{args:?}"
+        );
+    }
+    assert_eq!(repo.snapshot(), before, "check wrote");
+}
+
+#[test]
+fn strict_check_exits_one_on_one_thin_section_and_check_without_the_flag_exits_zero() {
+    let repo = Repo::strict("check-strict-thin", &strict::thin("Examples"), "");
+    let run = repo.both(&["--strict", "check"]).expect(1);
+    let expected: Vec<String> = Gate::workspace(repo.root())
+        .strict()
+        .check()
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(run.lines(), expected);
+    assert_eq!(run.lines().len(), 1, "{run:#?}");
+    assert!(
+        run.stdout
+            .starts_with("docs/capabilities/demo.md: section `Examples`: ")
+            && run.stdout.contains("[strict-section-thin]"),
+        "{run:#?}"
+    );
+    assert_eq!(run.stderr, "");
+    let rooted = repo.rooted(&["--strict", "check"]).expect(1);
+    assert_eq!(rooted.stdout, run.stdout);
+    let run = repo.both(&["check"]).expect(0);
+    assert_eq!(run.stdout, "");
+}
+
+#[test]
+fn strict_check_exits_two_at_a_root_without_capability_documents() {
+    let repo = Repo::bare("check-strict-empty");
+    let run = repo.rooted(&["--strict", "check"]).expect(2);
+    assert_eq!(run.stdout, "", "{run:#?}");
+    assert!(
+        run.stderr.starts_with("cargo-workplan: ") && run.stderr.contains("docs/capabilities"),
+        "{run:#?}"
+    );
+}
+
+#[test]
+fn check_without_the_flag_judges_strict_when_the_record_says_strict() {
+    let thin = strict::thin("Examples");
+    let recorded = Repo::strict("check-strict-recorded", &thin, "strictness: strict\n");
+    let run = recorded.both(&["check"]).expect(1);
+    assert!(run.stdout.contains("[strict-section-thin]"), "{run:#?}");
+    assert_eq!(run.lines().len(), 1, "{run:#?}");
+    // The flag adds nothing to a record that says strict.
+    assert_eq!(recorded.both(&["--strict", "check"]).expect(1), run);
+    let default = Repo::strict("check-strict-default", &thin, "strictness: default\n");
+    let run = default.both(&["check"]).expect(0);
+    assert_eq!(run.stdout, "");
+}
+
+#[test]
+fn a_strict_finding_in_json_is_an_object_of_its_kind_with_the_fields_of_a_finding() {
+    let repo = Repo::strict("check-strict-json", &strict::thin("Examples"), "");
+    let run = repo
+        .both(&["--format", "json", "--strict", "check"])
+        .expect(1);
+    assert_eq!(
+        member_names(&run),
+        [strings(&[
+            "kind", "path", "section", "line", "key", "message", "fix"
+        ])]
+    );
+    let objects = array(&run);
+    let finding = &Gate::workspace(repo.root()).strict().check()[0];
+    assert_eq!(
+        objects,
+        [json!({
+            "kind": "strict-section-thin",
+            "path": "docs/capabilities/demo.md",
+            "section": "Examples",
+            "line": Value::Null,
+            "key": Value::Null,
+            "message": finding.message,
+            "fix": finding.fix,
+        })]
+    );
+    let text = repo.both(&["--strict", "check"]).expect(1);
+    assert_eq!(text.lines().len(), objects.len());
 }

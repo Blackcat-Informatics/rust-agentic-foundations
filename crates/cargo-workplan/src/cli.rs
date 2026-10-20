@@ -56,6 +56,12 @@ pub(crate) struct Args {
     #[arg(short, long, global = true)]
     pub(crate) quiet: bool,
 
+    /// Judge under strict mode, whatever the coverage record says: `check`,
+    /// `change reconcile` and `change complete` judge the repository strict,
+    /// and the other commands print the same.
+    #[arg(long, global = true)]
+    pub(crate) strict: bool,
+
     /// The command to run.
     #[command(subcommand)]
     pub(crate) command: Command,
@@ -749,6 +755,23 @@ mod tests {
         assert_eq!(set.root, Some(PathBuf::from("some/dir")));
         assert_eq!(set.format, Format::Json);
         assert!(set.quiet);
+    }
+
+    #[test]
+    fn strict_is_a_global_option_off_by_default_and_taken_before_or_after_the_command() {
+        assert!(!same(&["check"]).strict);
+        for words in [
+            &["--strict", "check"][..],
+            &["check", "--strict"],
+            &["change", "reconcile", "grow", "--strict"],
+            &["--strict", "change", "complete", "grow"],
+            &["status", "--strict", "-q"],
+        ] {
+            assert!(same(words).strict, "{words:?}");
+        }
+        assert_eq!(same(&["--strict", "check"]), same(&["check", "--strict"]));
+        // The option takes no value.
+        assert!(parsed(&["cargo-workplan", "--strict=yes", "check"]).is_err());
     }
 
     #[test]

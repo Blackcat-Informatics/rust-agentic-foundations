@@ -11,7 +11,7 @@
 //! `Gate::workspace(..).check()` and the two cannot disagree.
 //!
 //! ```text
-//! cargo workplan [--root <dir>] [--format text|json] [-q] <command>
+//! cargo workplan [--root <dir>] [--format text|json] [-q] [--strict] <command>
 //!
 //! check                Run every rule of the document model; print each violation
 //! status               Print the roadmap: capabilities by state, gaps, open changes
@@ -51,6 +51,15 @@
 //! run in the current directory (`raf_workplan::root::discover`), so the
 //! command runs from any directory inside the workspace. The program is the
 //! one `$CARGO` names, and `cargo` from `PATH` otherwise.
+//!
+//! # Strict mode
+//!
+//! `--strict` judges the repository with `Gate::workspace(root).strict()`: the
+//! strictness of `check`, `change reconcile` and `change complete` is raised to
+//! strict mode (`raf_workplan::strict`), whatever the coverage record says, and a
+//! coverage record that says `strictness: strict` gives the same judgement without
+//! it. The other commands print the same with and without it. A finding of strict
+//! mode is a finding of `check` like any other, in text and in JSON.
 //!
 //! # Output
 //!
@@ -152,7 +161,8 @@
 //! # Commands
 //!
 //! * `check` loads the repository through `Gate::open` and prints
-//!   `Gate::try_check`, one line for each finding.
+//!   `Gate::try_check`, one line for each finding; under `--strict` the gate is
+//!   `Gate::strict`.
 //! * `status` prints the roadmap of `Workplan::status`: one row for each state,
 //!   in the order delivered, implementing, designed, considered, with the
 //!   gaps of each implementing capability and the open changes that list it, and

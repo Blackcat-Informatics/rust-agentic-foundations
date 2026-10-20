@@ -28,14 +28,18 @@ use crate::{assess, change, coverage, evidence, history};
 pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
     let root = || workspace_root(args.root.as_deref());
     match &args.command {
-        Command::Check => check(&root()?),
+        Command::Check => check(&root()?, args.strict),
         Command::Status => status(&root()?),
         Command::Docs(Docs::Sync(sync_args)) => sync(&root()?, sync_args),
         Command::Docs(Docs::Preview(preview_args)) => preview(&root()?, &preview_args.slug),
         Command::Change(Change::New(new_args)) => change::new(&root()?, new_args),
         Command::Change(Change::Impact(slug)) => change::impact(&root()?, &slug.slug),
-        Command::Change(Change::Reconcile(slug)) => change::reconcile(&root()?, &slug.slug),
-        Command::Change(Change::Complete(slug)) => change::complete(&root()?, &slug.slug),
+        Command::Change(Change::Reconcile(slug)) => {
+            change::reconcile(&root()?, &slug.slug, args.strict)
+        }
+        Command::Change(Change::Complete(slug)) => {
+            change::complete(&root()?, &slug.slug, args.strict)
+        }
         Command::Verify(verify_args) => change::verify(&root()?, verify_args.slug.as_deref()),
         Command::History(history_args) => history::history(&root()?, history_args),
         Command::Evidence(Evidence::Record(record_args)) => {
@@ -65,9 +69,16 @@ fn workspace_root(given: Option<&Path>) -> Result<PathBuf, Failure> {
     Ok(root::discover(&SystemRunner::new(Programs::new(here)))?)
 }
 
-/// `check`: every finding of `Gate::check`, as the library orders them.
-fn check(root: &Path) -> Result<Report, Failure> {
-    let findings = Gate::workspace(root).try_check()?;
+/// The gate over `root`, raised to strict mode when `strict`.
+pub(crate) fn gate(root: &Path, strict: bool) -> Gate {
+    let gate = Gate::workspace(root);
+    if strict { gate.strict() } else { gate }
+}
+
+/// `check`: every finding of `Gate::check`, as the library orders them,
+/// judged under strict mode when `strict`.
+fn check(root: &Path, strict: bool) -> Result<Report, Failure> {
+    let findings = gate(root, strict).try_check()?;
     Ok(Report::of(findings.iter().map(Record::of_finding)))
 }
 
