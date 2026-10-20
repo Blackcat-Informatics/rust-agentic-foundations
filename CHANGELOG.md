@@ -62,6 +62,12 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   report as a table or as `coverage-claim` JSON objects, and exits 1 when a claim of
   a delivered capability names no test, 0 when every claim names one, and 2 when
   `--capability` names no loaded capability.
+- **`raf-okf`:** a change item takes the optional key `reason`, a non-empty line of
+  text in `ChangeItem::reason`, beside any outcome or none; an empty one, or one
+  that is not text, is the rule `Rule::ItemReasonEmpty`, which the workplan
+  reports as `okf-item-reason-empty`, and the placeholder rule reads it. The fix of
+  `okf-item-unknown-key` names `claim`, `outcome` and `reason`. Breaking:
+  `ChangeItem` gains a field, and `Rule`, `RuleTag` and `Rule::ALL` gain a variant.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed

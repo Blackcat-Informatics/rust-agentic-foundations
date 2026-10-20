@@ -307,6 +307,11 @@ fn rule_case_unplaced(tag: RuleTag) -> Case {
             key("items"),
         ),
         RuleTag::BadOutcome => change("outcome: implemented", "outcome: done", key("items")),
+        RuleTag::ItemReasonEmpty => change(
+            "outcome: implemented",
+            "outcome: implemented\n    reason: \"\"",
+            key("items"),
+        ),
         RuleTag::EmptyTag => alpha(
             "state: designed",
             "state: designed\ntags: [\"\"]",

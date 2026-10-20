@@ -158,6 +158,11 @@ pub struct ChangeItem {
     pub claim: String,
     /// The outcome, once the change is completed.
     pub outcome: Option<Outcome>,
+    /// Why the item has its outcome: the optional `reason`, a non-empty line
+    /// of text. [Strict mode] asks for it on a `dropped` or `moved` item.
+    ///
+    /// [Strict mode]: Strictness::Strict
+    pub reason: Option<String>,
 }
 
 /// The effect of a change on the contract.

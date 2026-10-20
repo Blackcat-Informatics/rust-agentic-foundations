@@ -52,6 +52,7 @@ bindings:
     - raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list
     - raf_okf::test_crate::profile::affects_entries_have_the_form_a_section_of_the_seven_and_a_capability_in_changes
     - raf_okf::test_crate::profile::items_need_a_claim_known_keys_and_a_known_outcome
+    - raf_okf::test_crate::profile::an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused
     - raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations
     - raf_okf::test_crate::profile::a_split_link_is_reported_at_its_line_and_a_one_line_link_is_not
     - raf_okf::test_crate::profile::a_proposed_block_is_valid_only_inside_a_section_of_a_capability
@@ -220,10 +221,6 @@ the key reads. [Strict mode](./workplan-strict.md) states what the value sets.
 >   judged by the workplan, which needs the source index. `CoverageRecord`
 >   holds them, and its writer renders them in key-table order, an absent key left
 >   out;
-> - a change item takes the optional key `reason` after `outcome`, a non-empty line
->   of text in `ChangeItem::reason`; an empty one is `okf-item-reason-empty`, the
->   placeholder rule reads it, and the fix of an unknown item key names `claim`,
->   `outcome` and `reason`;
 > - the debt record has the keys `type`, `id`, the optional `tags` and `timestamp`,
 >   `findings`, rows of exactly `kind` and `subject`, and `lines`, rows of exactly
 >   `item` and `orphans`, sorted and without repeats, and an empty body. It is
@@ -256,8 +253,14 @@ section or the line instead. The rules are:
 - `depends` and `changes` hold capability ids (`changes` at least one), `affects`
   entries are parsed into a capability id and one of the seven sections, and name a
   capability listed in `changes`; `contract_effect` is `none` or `changes`; `items`
-  entries are parsed into a non-empty claim and an optional outcome
-  (`implemented`, `dropped` or `moved:change:<slug>`). `Outcome` and `LinkTarget`
+  entries are parsed into a non-empty claim, an optional outcome
+  (`implemented`, `dropped` or `moved:change:<slug>`) and an optional reason, a
+  non-empty line of text in `ChangeItem::reason` that is accepted beside any outcome
+  or none. A reason that is empty, holds only spaces or is not text is
+  `Rule::ItemReasonEmpty`, which the workplan reports as `okf-item-reason-empty`,
+  and the fix of an unknown item key names `claim`, `outcome` and `reason`.
+  [Strict mode](./workplan-strict.md) asks for a reason on a `dropped` or `moved`
+  item. `Outcome` and `LinkTarget`
   are exhaustive enums, because the profile closes both sets: a consumer matches
   every variant with no fallback arm, and a new variant is a breaking change;
 - `tags` is a list of non-empty strings with no duplicate, and `timestamp` is an RFC
@@ -270,8 +273,8 @@ section or the line instead. The rules are:
 - a claim marker appears only in a Capability: one in any other document is a
   violation, and so is a tested-by marker, `Rule::TestedByOutsideCapability`, which
   the workplan reports as `okf-tested-by-outside-capability`;
-- no prose line, title, description or item claim holds a placeholder token, and
-  no link is split across lines. `Body::placeholder_lines` returns the
+- no prose line, title, description, item claim or item reason holds a placeholder
+  token, and no link is split across lines. `Body::placeholder_lines` returns the
   placeholder tokens of any body, with their lines, by the same rule, so a caller
   that reads Markdown without frontmatter applies the rule `Profile::validate`
   applies; fenced code, code spans and HTML comments are not read.
@@ -509,7 +512,8 @@ would produce noise in the diff, and a clean check could not be told from a stal
   `resource`, and an unknown `type`; each asserts the named key and rule.
 - A value fixture per rule: `state` outside its set, `bindings` missing a key,
   an `affects` entry with an unknown section, an `items` outcome outside
-  `implemented`, `dropped` and `moved:change:<slug>`.
+  `implemented`, `dropped` and `moved:change:<slug>`, and an item `reason` that is
+  empty, blank or not text beside reasons accepted with each outcome and with none.
 - Bound fixtures: a document of 1 MiB plus one byte, frontmatter nested 33 levels
   deep, a quote nested 65 levels deep, and a link destination or title of 4097 bytes
   each fail with a positioned error, and documents at the limit (a destination or
@@ -634,6 +638,7 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `raf_okf::test_crate::profile::a_split_link_is_reported_at_its_line_and_a_one_line_link_is_not` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::a_state_is_one_of_the_four` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::affects_entries_have_the_form_a_section_of_the_seven_and_a_capability_in_changes` | test | [Verification](#verification) |
+| `raf_okf::test_crate::profile::an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::an_unknown_key_is_reported_at_that_key` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::an_unknown_or_foreign_key_is_reported_on_every_type` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::an_unknown_type_is_one_violation_at_the_type_key` | test | [Verification](#verification) |

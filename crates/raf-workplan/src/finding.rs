@@ -141,6 +141,7 @@ kinds! {
     OKF_EMPTY_REASON = "okf-empty-reason";
     OKF_BAD_STRICTNESS = "okf-bad-strictness";
     OKF_TESTED_BY_OUTSIDE_CAPABILITY = "okf-tested-by-outside-capability";
+    OKF_ITEM_REASON_EMPTY = "okf-item-reason-empty";
     OKF_PARSE_UNCLOSED_FENCE = "okf-parse-unclosed-fence";
     OKF_PARSE_TOO_LARGE = "okf-parse-too-large";
     OKF_PARSE_MIXED_LINE_ENDINGS = "okf-parse-mixed-line-endings";
@@ -492,7 +493,7 @@ fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
         ),
         RuleTag::ItemUnknownKey => (
             kind::OKF_ITEM_UNKNOWN_KEY,
-            "keep only `claim` and `outcome` in an item",
+            "keep only `claim`, `outcome` and `reason` in an item",
         ),
         RuleTag::ItemClaimEmpty => (
             kind::OKF_ITEM_CLAIM_EMPTY,
@@ -617,6 +618,10 @@ fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
         RuleTag::TestedByOutsideCapability => (
             kind::OKF_TESTED_BY_OUTSIDE_CAPABILITY,
             "move the statement and its tested-by marker into a capability document",
+        ),
+        RuleTag::ItemReasonEmpty => (
+            kind::OKF_ITEM_REASON_EMPTY,
+            "give the item a non-empty `reason`, or remove the key",
         ),
     };
     (kind, Cow::Borrowed(fix))

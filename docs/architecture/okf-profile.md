@@ -108,10 +108,13 @@ in that type's directory. Each of these directories holds Markdown files only.
   of `purpose`, `contract`, `usage`, `examples`, `constraints`, `explanation`,
   `verification`, and the slug appears in `changes`.
 - **`contract_effect`** is `none` or `changes`.
-- **`items`** is a list of maps with a non-empty `claim` and an optional
-  `outcome`. The outcome is `implemented`, `dropped` or `moved:change:<slug>`.
-  It is optional until the change is completed, and every item has one then. A
-  `moved:change:<slug>` outcome names a change record that exists.
+- **`items`** is a list of maps with a non-empty `claim`, an optional
+  `outcome` and an optional `reason`. The outcome is `implemented`, `dropped` or
+  `moved:change:<slug>`. It is optional until the change is completed, and every
+  item has one then. A `moved:change:<slug>` outcome names a change record that
+  exists. The reason is a non-empty line of text that says why the item has its
+  outcome; it is accepted beside any outcome or none, and strict mode asks for it
+  on a `dropped` or `moved` item.
 - **`subject`** of an Evidence record is `command`, when the verdict comes from the
   command the record states, or `binding:<path>`, when it comes from a bound test
   or example; a path is two or more identifiers joined by `::`. The `command` key
@@ -186,7 +189,7 @@ empty: Purpose, Contract, Usage, Examples, Constraints, Explanation,
 Verification. A section is empty when nothing is left after its HTML comments and
 generated blocks are removed. No prose carries a placeholder token, that is, a marker
 for unfinished text. The rule also covers the frontmatter values `title`,
-`description` and item claims; code spans are exempt in both. Each section holds one kind of statement:
+`description`, item claims and item reasons; code spans are exempt in both. Each section holds one kind of statement:
 
 | Section | Holds |
 | --- | --- |

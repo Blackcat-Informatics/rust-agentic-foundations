@@ -714,7 +714,7 @@ fn check_items(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<ChangeItem>> 
         };
         let mut claim = None;
         for field in map.entries() {
-            if field.key() != "claim" && field.key() != "outcome" {
+            if !matches!(field.key(), "claim" | "outcome" | "reason") {
                 check.key(
                     "items",
                     Rule::ItemUnknownKey {
@@ -752,8 +752,25 @@ fn check_items(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<ChangeItem>> 
                 valid = false;
             }
         }
+        // A reason is accepted beside any outcome or none: an author may write
+        // it before the outcome. Whether an outcome needs one is a rule of
+        // strict mode, not of the profile.
+        let mut reason = None;
+        if let Some(entry) = map.get("reason") {
+            match scalar_text(entry) {
+                Some(text) if !text.trim().is_empty() => reason = Some(text.to_string()),
+                _ => {
+                    check.key("items", Rule::ItemReasonEmpty);
+                    valid = false;
+                }
+            }
+        }
         if let Some(claim) = claim {
-            items.push(ChangeItem { claim, outcome });
+            items.push(ChangeItem {
+                claim,
+                outcome,
+                reason,
+            });
         }
     }
     valid.then_some(items)
@@ -767,9 +784,13 @@ fn check_frontmatter_placeholders(check: &mut Check<'_>, map: &Map) {
             texts.push((key, text));
         }
     }
-    // The prose of a list of maps: the claim of each change item and the
-    // reason of each coverage exclusion.
-    for (key, field) in [("items", "claim"), ("exclusions", "reason")] {
+    // The prose of a list of maps: the claim and the reason of each change
+    // item and the reason of each coverage exclusion.
+    for (key, field) in [
+        ("items", "claim"),
+        ("items", "reason"),
+        ("exclusions", "reason"),
+    ] {
         if let Some(list) = map.get(key).and_then(|entry| entry.value().as_list()) {
             for item in list.items() {
                 if let Some(text) = item

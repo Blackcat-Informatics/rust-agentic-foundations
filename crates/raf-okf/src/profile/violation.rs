@@ -126,7 +126,7 @@ pub enum Rule {
         /// The value found.
         found: String,
     },
-    /// An item key other than `claim` and `outcome`.
+    /// An item key other than `claim`, `outcome` and `reason`.
     ItemUnknownKey {
         /// The key.
         key: String,
@@ -326,6 +326,8 @@ pub enum Rule {
     },
     /// A tested-by marker in a document that is not a capability.
     TestedByOutsideCapability,
+    /// An item whose `reason` is empty or not a line of text.
+    ItemReasonEmpty,
 }
 
 impl fmt::Display for Rule {
@@ -565,6 +567,9 @@ impl fmt::Display for Rule {
             Self::TestedByOutsideCapability => {
                 f.write_str("a tested-by marker outside a capability document")
             }
+            Self::ItemReasonEmpty => {
+                f.write_str("an item's `reason` must be a non-empty line of text")
+            }
         }
     }
 }
@@ -752,6 +757,8 @@ pub enum RuleTag {
     BadStrictness,
     /// [`Rule::TestedByOutsideCapability`].
     TestedByOutsideCapability,
+    /// [`Rule::ItemReasonEmpty`].
+    ItemReasonEmpty,
 }
 
 impl RuleTag {
@@ -820,6 +827,7 @@ impl RuleTag {
             Self::EmptyReason => "empty-reason",
             Self::BadStrictness => "bad-strictness",
             Self::TestedByOutsideCapability => "tested-by-outside-capability",
+            Self::ItemReasonEmpty => "item-reason-empty",
         }
     }
 }
@@ -832,7 +840,7 @@ impl fmt::Display for RuleTag {
 
 impl Rule {
     /// Every tag, in the order of the variants of [`Rule`].
-    pub const ALL: [RuleTag; 61] = [
+    pub const ALL: [RuleTag; 62] = [
         RuleTag::MissingKey,
         RuleTag::UnknownKey,
         RuleTag::ResourceKey,
@@ -894,6 +902,7 @@ impl Rule {
         RuleTag::EmptyReason,
         RuleTag::BadStrictness,
         RuleTag::TestedByOutsideCapability,
+        RuleTag::ItemReasonEmpty,
     ];
 
     /// The tag of this value, which drops its data.
@@ -961,6 +970,7 @@ impl Rule {
             Self::EmptyReason { .. } => RuleTag::EmptyReason,
             Self::BadStrictness { .. } => RuleTag::BadStrictness,
             Self::TestedByOutsideCapability => RuleTag::TestedByOutsideCapability,
+            Self::ItemReasonEmpty => RuleTag::ItemReasonEmpty,
         }
     }
 }
@@ -1128,6 +1138,7 @@ mod tag_tests {
                 found: String::new(),
             },
             RuleTag::TestedByOutsideCapability => Rule::TestedByOutsideCapability,
+            RuleTag::ItemReasonEmpty => Rule::ItemReasonEmpty,
         }
     }
 
@@ -1197,11 +1208,12 @@ mod tag_tests {
             Rule::EmptyReason { .. } => 58,
             Rule::BadStrictness { .. } => 59,
             Rule::TestedByOutsideCapability => 60,
+            Rule::ItemReasonEmpty => 61,
         }
     }
 
     /// How many variants `Rule` has.
-    const VARIANTS: usize = 61;
+    const VARIANTS: usize = 62;
 
     #[test]
     fn all_lists_every_rule_once_in_variant_order() {

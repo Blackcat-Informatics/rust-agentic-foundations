@@ -954,6 +954,42 @@ fn the_three_outcomes_are_typed() {
     );
 }
 
+/// The optional `reason` of an item is a non-empty line of text, accepted
+/// beside any outcome or none; an empty one, one of spaces and one that is not
+/// a scalar are each `ItemReasonEmpty` at `items`, and a placeholder token in it
+/// is reported as in the claim.
+#[test]
+fn an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused() {
+    let items = "items:\n  - claim: a\n    outcome: dropped\n    reason: \"The window allocates while it fills.\"\n  - claim: b\n    outcome: moved:change:other-work\n    reason: Streaming needs the buffer rework.\n  - claim: c\n    reason: Written before the outcome.\n  - claim: d\n    outcome: implemented\n";
+    let RafDocument::Change(change) = clean(&with_items(items), CHANGE_PATH) else {
+        panic!("a change");
+    };
+    let reasons: Vec<Option<&str>> = change.items.iter().map(|i| i.reason.as_deref()).collect();
+    assert_eq!(
+        reasons,
+        [
+            Some("The window allocates while it fills."),
+            Some("Streaming needs the buffer rework."),
+            Some("Written before the outcome."),
+            None
+        ]
+    );
+    for reason in ["\"\"", "\"   \"", "[a, b]"] {
+        let items = format!("items:\n  - claim: x\n    outcome: dropped\n    reason: {reason}\n");
+        let found = violations(&with_items(&items), CHANGE_PATH);
+        assert_hit(&found, &key("items"), &Rule::ItemReasonEmpty);
+        assert_eq!(found.len(), 1, "{reason}: {found:?}");
+    }
+    let word = token(2);
+    let placeholder =
+        format!("items:\n  - claim: x\n    outcome: dropped\n    reason: \"Not {word} here.\"\n");
+    assert_hit(
+        &violations(&with_items(&placeholder), CHANGE_PATH),
+        &key("items"),
+        &Rule::Placeholder { token: word.into() },
+    );
+}
+
 #[test]
 fn tags_are_non_empty_unique_strings_and_a_timestamp_is_rfc_3339() {
     let with = |extra: &str| {
