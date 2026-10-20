@@ -53,9 +53,9 @@
 //! }
 //! ```
 //!
-//! The profile has six types: the documents `Capability`, `Change` and
-//! `Architecture`, and the records `Evidence`, `Assessment` and `Coverage`
-//! ([`DocType::ALL`]). A record states a result in its frontmatter and has no
+//! The profile has seven types: the documents `Capability`, `Change` and
+//! `Architecture`, and the records `Evidence`, `Assessment`, `Coverage` and
+//! `Debt` ([`DocType::ALL`]). A record states a result in its frontmatter and has no
 //! title, description or body; evidence and an assessment share the trace keys
 //! `subject`, `inputs`, `verdict` and `by`. A record is built with the
 //! constructor of its type, such as [`EvidenceRecord::new`], and written by
@@ -128,9 +128,10 @@ pub use limits::{MAX_BLOCK_NESTING, MAX_TEXT_BYTES, MAX_YAML_DEPTH};
 pub use profile::{
     Actor, Affects, Architecture, AssessmentRecord, AssessmentVerdict, Bindings, Capability,
     CapabilitySection, Ceiling, CeilingClass, CeilingLimit, Change, ChangeItem, ContractEffect,
-    CoverageRecord, DocType, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Exception,
-    ExceptionTarget, Exclusion, ExclusionItem, Header, Input, InputKind, KeySpec, Location,
-    Measure, Number, Outcome, Profile, RafDocument, RecordHeader, Rule, RuleTag, SectionRef, State,
-    Strictness, TimestampError, ValueKind, Violation, validate_timestamp,
+    CoverageRecord, DebtFinding, DebtLine, DebtRecord, DocType, EvidenceRecord, EvidenceSubject,
+    EvidenceVerdict, Exception, ExceptionTarget, Exclusion, ExclusionItem, Header, Input,
+    InputKind, KeySpec, Location, Measure, Number, Outcome, Profile, RafDocument, RecordHeader,
+    Rule, RuleTag, SectionRef, State, Strictness, TimestampError, ValueKind, Violation,
+    validate_timestamp,
 };
 pub use span::Span;

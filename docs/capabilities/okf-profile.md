@@ -37,6 +37,13 @@ bindings:
     - raf_okf::ExceptionTarget
     - raf_okf::Number::compare
     - raf_okf::Number::exceeds
+    - raf_okf::DebtRecord
+    - raf_okf::DebtFinding
+    - raf_okf::DebtLine
+    - raf_okf::DebtRecord::new
+    - raf_okf::DebtRecord::to_document
+    - raf_okf::DebtFinding::new
+    - raf_okf::DebtLine::new
   tests:
     - raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests
     - raf_okf::test_crate::refusals::a_document_without_a_fence_on_line_one_is_refused
@@ -95,7 +102,7 @@ bindings:
     - raf_okf::test_crate::no_io_in_source::the_crate_sources_name_neither_the_file_system_nor_the_process_module
     - raf_okf::test_crate::usage_docs::the_examples_block_validates_between_fences_and_resource_is_rejected
     - raf_okf::test_crate::repo_markdown::no_tracked_markdown_file_holds_a_split_link_or_a_malformed_block
-    - raf_okf::test_crate::schema::only_coverage_is_a_singleton_and_only_the_three_records_are_records
+    - raf_okf::test_crate::schema::only_coverage_and_debt_are_singletons_and_only_the_four_records_are_records
     - raf_okf::test_crate::records::a_valid_evidence_record_validates_to_its_typed_value
     - raf_okf::test_crate::records::a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float
     - raf_okf::test_crate::records::numbers_compare_exactly_by_sign_whole_part_and_fraction
@@ -148,6 +155,14 @@ bindings:
     - raf_okf::profile::cost_tests::an_evidence_record_at_the_cap_indexes_each_value_once_and_looks_up_each_limit_once
     - raf_okf::profile::cost_tests::the_lines_tested_for_a_fence_grow_with_the_length_of_the_page
     - raf_okf::profile::cost_tests::an_unterminated_fence_is_tested_once_for_each_line_it_swallows
+    - raf_okf::test_crate::records::a_valid_debt_record_validates_to_its_typed_value_and_an_empty_one_opts_out_visibly
+    - raf_okf::test_crate::records::a_row_of_findings_holds_exactly_a_kind_and_a_subject_each_pair_once
+    - raf_okf::test_crate::records::a_row_of_lines_holds_exactly_an_item_and_a_whole_number_of_lines_each_item_once
+    - raf_okf::test_crate::records::both_lists_of_a_debt_record_are_required
+    - raf_okf::test_crate::records::debt_is_one_record_at_its_one_path
+    - raf_okf::test_crate::record_writer::a_debt_record_is_written_sorted_and_read_back_equal
+    - raf_okf::test_crate::record_writer::a_debt_record_with_no_debt_writes_two_empty_lists
+    - raf_okf::test_crate::record_writer::a_debt_row_the_profile_refuses_is_written_and_refused_when_it_is_read_back
   examples:
     - raf_okf::EvidenceRecord::to_document
     - raf_okf::Claim
@@ -198,9 +213,10 @@ panic, abort or unbounded allocation:
   would otherwise rescan a long paragraph for every `](`. A longer part is a
   positioned error, never a link that is silently not read.
 
-**Document types.** The profile has six types: the documents `Capability`, `Change`
-and `Architecture`, which people write, and the records `Evidence`, `Assessment` and
-`Coverage`, which state a result in their frontmatter. `DocType::ALL` lists them.
+**Document types.** The profile has seven types: the documents `Capability`, `Change`
+and `Architecture`, which people write, and the records `Evidence`, `Assessment`,
+`Coverage` and `Debt`, which state a result in their frontmatter. `DocType::ALL`
+lists them.
 
 **Strictness.** The coverage record takes the optional key `strictness`, read into
 the closed enumeration `Strictness`, `Default` or `Strict` in the order of strength
@@ -246,24 +262,25 @@ and `CoverageRecord::to_document` writes each list after the exclusions in recor
 order, a ceiling's `of` only when it is not `all`, and leaves out a key that holds
 none, as a record without it reads.
 
-> [!PROPOSED change:workplan-strict]
-> **The debt record.** The profile has seven types: the six above and the record
-> `Debt`, the strict debt of [strict mode](./workplan-strict.md), in `work/debt` with
-> the prefix `debt:` and the one id `debt:default`, as the coverage record has
-> `coverage:default`. [The RAF profile of OKF](../architecture/okf-profile.md)
-> states its keys, and `raf-okf` validates them: the debt record has the keys
-> `type`, `id`, the optional `tags` and `timestamp`, `findings`, rows of exactly
-> `kind` and `subject`, and `lines`, rows of exactly `item` and `orphans`, sorted
-> and without repeats, and an empty body. It is validated into `RafDocument::Debt`
-> holding a `DebtRecord`, which `DebtRecord::new` builds and
-> `DebtRecord::to_document` writes as the other records are written.
+**The debt record.** The record `Debt` is the strict debt of
+[strict mode](./workplan-strict.md), in `work/debt` with the prefix `debt:` and the one
+id `debt:default`, as the coverage record has `coverage:default`.
+[The RAF profile of OKF](../architecture/okf-profile.md) states its keys, and `raf-okf`
+validates them: the debt record has the keys `type`, `id`, the optional `tags` and
+`timestamp`, `findings`, rows of exactly `kind` and `subject`, and `lines`, rows of
+exactly `item` and `orphans`, each pair or item once, and an empty body; an `orphans`
+that is not a whole number is `okf-bad-measure`. It is validated into
+`RafDocument::Debt` holding a `DebtRecord` of `DebtFinding` and `DebtLine` rows, which
+`DebtRecord::new` builds, sorted, and `DebtRecord::to_document` writes as the other
+records are written, with the rows in that order. Which kinds a row may hold and what
+form a subject takes are rules of strict mode and not of the profile.
 
 **Validate.** `Profile::validate` checks a parsed document and its path against the
 closed key set of its `type` and returns a typed result: the typed document
 (`RafDocument`, with `State`, `Bindings`, `Affects` entries, `ChangeItem` entries and
-their `Outcome`), a record as `RafDocument::Evidence`, `RafDocument::Assessment` or
-`RafDocument::Coverage`, holding an `EvidenceRecord`, an `AssessmentRecord` or a
-`CoverageRecord` with a `RecordHeader`, since a record has no `title` and no
+their `Outcome`), a record as `RafDocument::Evidence`, `RafDocument::Assessment`,
+`RafDocument::Coverage` or `RafDocument::Debt`, holding an `EvidenceRecord`, an
+`AssessmentRecord`, a `CoverageRecord` or a `DebtRecord` with a `RecordHeader`, since a record has no `title` and no
 `description`, or the list of every violation, not only the first. Each violation
 names the file, the rule and, for a frontmatter rule, the key; a body rule names the
 section or the line instead. The rules are:
@@ -691,6 +708,9 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `raf_okf::test_crate::profile::the_key_resource_has_its_own_rule_on_every_type` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_built_assessment_and_coverage_record_read_back_equal` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_built_evidence_record_renders_to_a_record_that_reads_back_equal` | test | [Verification](#verification) |
+| `raf_okf::test_crate::record_writer::a_debt_record_is_written_sorted_and_read_back_equal` | test | [Verification](#verification) |
+| `raf_okf::test_crate::record_writer::a_debt_record_with_no_debt_writes_two_empty_lists` | test | [Verification](#verification) |
+| `raf_okf::test_crate::record_writer::a_debt_row_the_profile_refuses_is_written_and_refused_when_it_is_read_back` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_value_the_profile_refuses_is_written_and_refused_when_it_is_read_back` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::ceilings_and_exceptions_are_written_after_the_exclusions_and_read_back_equal` | test | [Verification](#verification) |
@@ -703,8 +723,11 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `raf_okf::test_crate::records::a_record_has_no_title_description_or_body` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_record_sits_in_its_directory_and_its_id_matches_its_file` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_revision_is_a_full_commit_id` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::a_row_of_findings_holds_exactly_a_kind_and_a_subject_each_pair_once` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::a_row_of_lines_holds_exactly_an_item_and_a_whole_number_of_lines_each_item_once` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_valid_assessment_validates_to_its_typed_value` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_valid_coverage_record_validates_and_an_empty_scope_opts_out_visibly` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::a_valid_debt_record_validates_to_its_typed_value_and_an_empty_one_opts_out_visibly` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_valid_evidence_record_validates_to_its_typed_value` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_verdict_is_one_of_the_verdicts_of_its_type` | test | [Verification](#verification) |
@@ -712,8 +735,10 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `raf_okf::test_crate::records::an_exception_of_another_shape_or_without_a_reason_is_refused_with_its_rule` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::an_exclusion_has_a_reason_with_no_placeholder` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::an_exclusion_names_an_item_or_a_module_prefix_below_a_crate_root` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::both_lists_of_a_debt_record_are_required` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::coverage_is_one_record_at_its_one_path` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::debt_is_one_record_at_its_one_path` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::numbers_compare_exactly_by_sign_whole_part_and_fraction` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key` | test | [Verification](#verification) |
 | `raf_okf::test_crate::refusals::a_billion_laughs_document_is_refused_at_the_first_anchor` | test | [Verification](#verification) |
@@ -733,7 +758,7 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `raf_okf::test_crate::render::tags_render_sorted_and_stay_sorted` | test | [Verification](#verification) |
 | `raf_okf::test_crate::repo_markdown::no_tracked_markdown_file_holds_a_split_link_or_a_malformed_block` | test | [Verification](#verification) |
 | `raf_okf::test_crate::schema::each_type_lists_its_keys_in_the_order_of_the_architecture_page` | test | [Verification](#verification) |
-| `raf_okf::test_crate::schema::only_coverage_is_a_singleton_and_only_the_three_records_are_records` | test | [Verification](#verification) |
+| `raf_okf::test_crate::schema::only_coverage_and_debt_are_singletons_and_only_the_four_records_are_records` | test | [Verification](#verification) |
 | `raf_okf::test_crate::splice::a_malformed_result_is_refused_and_the_body_is_unchanged` | test | [Verification](#verification) |
 | `raf_okf::test_crate::splice::overlapping_spans_are_refused_and_the_body_is_unchanged` | test | [Verification](#verification) |
 | `raf_okf::test_crate::splice::two_generated_blocks_change_only_their_byte_ranges` | test | [Verification](#verification) |

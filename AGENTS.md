@@ -71,8 +71,8 @@ reaches, claim coverage with the `raf:tested-by` marker and the command
 `coverage claims`, and its rules for the change lifecycle (a stated reason, the
 literal reading of `contract_effect: none` and the owed Usage and Examples), and reverse coverage,
 with the command `coverage lines` (also spelled `coverage --reverse`) and the
-ceilings and exceptions of the coverage record, are built, the command
-`debt --write` is designed, and the capabilities it
+ceilings and exceptions of the coverage record, and the strict debt record with the
+command `debt --write`, are built, and the capabilities it
 changes are `implementing` beside its open change record. Every other crate below is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
 

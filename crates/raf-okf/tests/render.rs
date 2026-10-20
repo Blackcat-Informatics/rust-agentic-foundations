@@ -132,7 +132,7 @@ fn every_tracked_document_renders_to_its_own_bytes() {
 
 /// The committed fixture documents, one per type, written independently of the
 /// repository's own documents.
-const FIXTURES: [(&str, DocType, &str, &str); 6] = [
+const FIXTURES: [(&str, DocType, &str, &str); 7] = [
     (
         "capability.md",
         DocType::Capability,
@@ -168,6 +168,12 @@ const FIXTURES: [(&str, DocType, &str, &str); 6] = [
         DocType::Coverage,
         "work/coverage/default.md",
         include_str!("fixtures/coverage.md"),
+    ),
+    (
+        "debt.md",
+        DocType::Debt,
+        "work/debt/default.md",
+        include_str!("fixtures/debt.md"),
     ),
 ];
 

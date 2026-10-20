@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Writing the evidence, assessment and coverage records.
+//! Writing the evidence, assessment, coverage and debt records.
 //!
 //! A [`Record`] is written as the text the `raf-okf` writer renders for its
 //! type ([`raf_okf::EvidenceRecord::to_document`] and its siblings), opened
@@ -19,8 +19,8 @@ use std::io;
 use std::path::Path;
 
 use raf_okf::{
-    AssessmentRecord, ConstructError, CoverageRecord, DocType, Document, EvidenceRecord, Profile,
-    RecordHeader, is_kebab,
+    AssessmentRecord, ConstructError, CoverageRecord, DebtRecord, DocType, Document,
+    EvidenceRecord, Profile, RecordHeader, is_kebab,
 };
 use raf_source::{EntryKind, RelPath};
 
@@ -38,6 +38,8 @@ pub enum Record {
     Assessment(AssessmentRecord),
     /// The coverage record, written to `work/coverage/default.md`.
     Coverage(CoverageRecord),
+    /// The debt record, written to `work/debt/default.md`.
+    Debt(DebtRecord),
 }
 
 impl Record {
@@ -48,6 +50,7 @@ impl Record {
             Self::Evidence(_) => DocType::Evidence,
             Self::Assessment(_) => DocType::Assessment,
             Self::Coverage(_) => DocType::Coverage,
+            Self::Debt(_) => DocType::Debt,
         }
     }
 
@@ -58,6 +61,7 @@ impl Record {
             Self::Evidence(record) => &record.header,
             Self::Assessment(record) => &record.header,
             Self::Coverage(record) => &record.header,
+            Self::Debt(record) => &record.header,
         }
     }
 
@@ -118,6 +122,7 @@ impl Record {
             Self::Evidence(record) => record.to_document(),
             Self::Assessment(record) => record.to_document(),
             Self::Coverage(record) => record.to_document(),
+            Self::Debt(record) => record.to_document(),
         }?;
         let text = spdx::with_spdx(document.render(), spdx);
         let mut findings = Vec::new();

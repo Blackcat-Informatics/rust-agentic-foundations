@@ -82,6 +82,9 @@ kinds! {
     STRICT_SECTION_THIN = "strict-section-thin";
     STRICT_USAGE_UNBOUND = "strict-usage-unbound";
     STRICT_LIMITATIONS_MISSING = "strict-limitations-missing";
+    DEBT_RESOLVED = "debt-resolved";
+    DEBT_WITHOUT_STRICT = "debt-without-strict";
+    DEBT_ENTRY_INVALID = "debt-entry-invalid";
     OKF_MISSING_KEY = "okf-missing-key";
     OKF_UNKNOWN_KEY = "okf-unknown-key";
     OKF_RESOURCE_KEY = "okf-resource-key";
@@ -321,6 +324,16 @@ impl Finding {
     ///   `strict-limitations-missing`: the rules of strict mode for a delivered
     ///   capability, judged only when [`crate::Workplan::strictness`] is
     ///   [`crate::Strictness::Strict`]; see [`crate::strict`].
+    /// * `debt-resolved`, `debt-without-strict` and `debt-entry-invalid`: the
+    ///   ratchet of the debt record `work/debt/default.md`. A recorded finding
+    ///   that is no longer raised, or a recorded count of orphan lines that is
+    ///   now lower or no longer over its ceiling, is `debt-resolved` until
+    ///   `cargo workplan debt --write` lowers the record; a debt record in a
+    ///   repository judged under [`crate::Strictness::Default`] is
+    ///   `debt-without-strict`; a recorded finding whose kind is no debt or
+    ///   whose subject is not of the form of its kind, and a recorded item
+    ///   that is no item path or holds no line, is `debt-entry-invalid`. See
+    ///   [`crate::debt`].
     pub const KINDS: &'static [&'static str] = ALL_KINDS;
 
     /// The heading of the section the finding is in, when its location is a
@@ -369,20 +382,25 @@ impl Finding {
 
     /// The finding for a violation of the `raf-okf` profile.
     pub(crate) fn from_violation(violation: &Violation) -> Self {
-        let (kind, fix) = rule_entry(violation.rule().kind());
-        Self::new(
-            kind,
-            violation.file(),
-            violation.at().clone(),
-            violation.rule().to_string(),
-            fix,
-        )
+        Self::from_rule(violation.rule(), violation.file(), violation.at().clone())
     }
 
     /// The finding for a rule of the `raf-okf` profile that a document outside
     /// the typed documents breaks.
     pub(crate) fn from_rule(rule: &Rule, file: &str, at: Location) -> Self {
         let (kind, fix) = rule_entry(rule.kind());
+        // The one record of a singleton type is named by its type.
+        let fix = match rule {
+            Rule::SingletonId { doc_type } => {
+                let slug = doc_type.singleton().map_or("", |slug| slug);
+                Cow::Owned(format!(
+                    "name the record `{}{slug}` at {}/{slug}.md",
+                    doc_type.id_prefix(),
+                    doc_type.directory()
+                ))
+            }
+            _ => fix,
+        };
         Self::new(kind, file, at, rule.to_string(), fix)
     }
 

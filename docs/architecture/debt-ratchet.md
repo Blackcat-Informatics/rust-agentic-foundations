@@ -31,7 +31,8 @@ keyed, and the record always equals the debt the repository carries now:
   record, and it refuses while the repository has a finding that cannot be debt;
 - the write records growth in exactly two cases: it creates a missing record, which
   is how a repository adopts the ratchet, and it writes over a record made for
-  another version of what the keys mean;
+  another version of what the keys mean. A tool whose keys carry no version, as the
+  workplan's do not, has the first case alone;
 - the write has two entry points that follow one rule, a `debt --write` command and
   `Gate::write_debt`, which returns a `DebtWrite`, and it is never called from a
   test;

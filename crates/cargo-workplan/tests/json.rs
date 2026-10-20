@@ -265,6 +265,7 @@ fn the_kinds_that_are_not_rules_are_not_rule_names() {
         "lines-orphan",
         "lines-excepted",
         "lines-error",
+        "debt-written",
     ] {
         assert!(!Finding::KINDS.contains(&kind), "{kind} is also a rule");
     }

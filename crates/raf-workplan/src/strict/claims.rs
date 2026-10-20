@@ -14,6 +14,7 @@ use std::ops::Range;
 use raf_okf::{Body, Capability, CapabilitySection, Location, Section, State};
 
 use super::{MIN_SECTION_WORDS, is_thematic_break, list_item};
+use crate::debt::Owed;
 use crate::digest::Sha256;
 use crate::finding::kind;
 use crate::obligation::tense::word_spans;
@@ -205,7 +206,7 @@ impl Workplan<'_> {
 /// start and more than [`MIN_SECTION_WORDS`] words, then
 /// `strict-claim-uncovered` for each claim no marker covers, in document
 /// order.
-pub(super) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
+pub(super) fn check(plan: &Workplan<'_>) -> Vec<Owed> {
     let mut out = Vec::new();
     for loaded in plan.capabilities() {
         if loaded.value().state == State::Delivered {
@@ -216,33 +217,35 @@ pub(super) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
 }
 
 /// The claim findings of one delivered capability.
-fn judge(loaded: &Loaded<Capability>, out: &mut Vec<Finding>) {
+fn judge(loaded: &Loaded<Capability>, out: &mut Vec<Owed>) {
     let path = loaded.path();
     let id = &loaded.value().header.id;
     let found = units(loaded.body());
     if let Some(words) = found.collapsed {
-        out.push(Finding::new(
-            kind::STRICT_CLAIM_UNIT_COLLAPSED,
-            path,
-            Location::Section(CapabilitySection::Contract.heading().to_string()),
-            format!(
-                "the Contract holds {words} words of prose and no clause start, more than {MIN_SECTION_WORDS}, so it is one claim that one marker covers"
+        out.push(Owed::held(
+            Finding::new(
+                kind::STRICT_CLAIM_UNIT_COLLAPSED,
+                path,
+                Location::Section(CapabilitySection::Contract.heading().to_string()),
+                format!(
+                    "the Contract holds {words} words of prose and no clause start, more than {MIN_SECTION_WORDS}, so it is one claim that one marker covers"
+                ),
+                "start each guarantee of the Contract with a paragraph that opens with a bold lead (`**The guarantee.**`) or with a `###` heading, so that each clause is a claim of its own with its own tested-by marker",
             ),
-            "start each guarantee of the Contract with a paragraph that opens with a bold lead (`**The guarantee.**`) or with a `###` heading, so that each clause is a claim of its own with its own tested-by marker",
+            format!("{id}#{}", CapabilitySection::Contract.slug()),
         ));
     }
     for unit in found.units.iter().filter(|unit| unit.tests.is_empty()) {
-        out.push(Finding::new(
-            kind::STRICT_CLAIM_UNCOVERED,
-            path,
-            Location::Line(unit.line),
-            format!(
-                "the claim `{id}#{}/{}` (\"{}\") names no test",
-                unit.section.slug(),
-                unit.key,
-                unit.lead
+        let key = format!("{id}#{}/{}", unit.section.slug(), unit.key);
+        out.push(Owed::held(
+            Finding::new(
+                kind::STRICT_CLAIM_UNCOVERED,
+                path,
+                Location::Line(unit.line),
+                format!("the claim `{key}` (\"{}\") names no test", unit.lead),
+                "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
             ),
-            "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+            key,
         ));
     }
 }

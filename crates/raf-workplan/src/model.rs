@@ -6,7 +6,7 @@
 use std::collections::BTreeSet;
 
 use raf_okf::{
-    Architecture, AssessmentRecord, Body, Capability, Change, CoverageRecord, DocType,
+    Architecture, AssessmentRecord, Body, Capability, Change, CoverageRecord, DebtRecord, DocType,
     EvidenceRecord, Index, Strictness,
 };
 use raf_source::Workspace;
@@ -14,6 +14,7 @@ use raf_source::Workspace;
 use crate::Finding;
 use crate::bindings;
 use crate::coverage;
+use crate::debt;
 use crate::generated;
 use crate::graph::{self, BindingKind, Graph};
 use crate::links::LinkContext;
@@ -106,6 +107,9 @@ pub struct Workplan<'s> {
     /// The coverage record: only `work/coverage/default.md` is read, so there
     /// is at most one.
     pub(crate) coverage: Option<Loaded<CoverageRecord>>,
+    /// The debt record: only `work/debt/default.md` is read, so there is at
+    /// most one.
+    pub(crate) debt: Option<Loaded<DebtRecord>>,
     pub(crate) findings: Vec<Finding>,
     /// The ids of the documents that exist as files, loaded or not.
     present: BTreeSet<String>,
@@ -126,8 +130,8 @@ pub struct Workplan<'s> {
 impl<'s> Workplan<'s> {
     /// Load the documents under `docs/capabilities`, `docs/architecture` and
     /// `work/changes` of `docs` and the records under `work/evidence`,
-    /// `work/assessments` and `work/coverage`, and relate them to the source
-    /// index `source`.
+    /// `work/assessments`, `work/coverage` and `work/debt`, and relate them to
+    /// the source index `source`.
     ///
     /// The load never fails and never panics: every problem is a [`Finding`].
     /// Each directory holds its documents directly. A typed document in the
@@ -136,8 +140,8 @@ impl<'s> Workplan<'s> {
     /// `index.md` that has no frontmatter is `stray-markdown`, and a file or a
     /// directory the tree refuses is `unreadable-file` or
     /// `unreadable-directory`. `work/coverage` holds the one coverage record,
-    /// `default.md`, and any other file there is `singleton-other-file` and is
-    /// not read. A directory that does not exist holds nothing, so a
+    /// `default.md`, and `work/debt` the one debt record, `default.md`; any
+    /// other file there is `singleton-other-file` and is not read. A directory that does not exist holds nothing, so a
     /// repository without records loads as it did before they existed.
     ///
     /// Links are judged against every file `docs` lists, which is the set of
@@ -171,6 +175,7 @@ impl<'s> Workplan<'s> {
             evidence: Vec::new(),
             assessments: Vec::new(),
             coverage: None,
+            debt: None,
             findings: Vec::new(),
             present: BTreeSet::new(),
             unvalidated_blocks: Vec::new(),
@@ -333,6 +338,12 @@ impl<'s> Workplan<'s> {
         self.coverage.as_ref()
     }
 
+    /// The debt record `work/debt/default.md`, when it is there and loaded.
+    #[must_use]
+    pub fn debt(&self) -> Option<&Loaded<DebtRecord>> {
+        self.debt.as_ref()
+    }
+
     /// The findings the load made. They are the same under either
     /// strictness: the rules of strict mode are judged by
     /// [`Workplan::check`], never by the load.
@@ -426,15 +437,25 @@ impl<'s> Workplan<'s> {
     ///
     /// Under [`Strictness::Strict`] ([`Workplan::strictness`]) the findings of
     /// the rules of strict mode ([`crate::strict`]) follow every other
-    /// finding. Under [`Strictness::Default`] no rule of strict mode is
-    /// judged.
+    /// finding, less what the debt record holds ([`crate::debt`]), then the
+    /// findings of the debt record. Under [`Strictness::Default`] no rule of
+    /// strict mode is judged, and a debt record is `debt-without-strict`.
     #[must_use]
     pub fn check(&self) -> Vec<Finding> {
-        let mut findings = self.findings.clone();
-        findings.extend(generated::analyze(self).into_findings());
+        let mut findings = self.base_findings();
         if self.strictness() == Strictness::Strict {
             findings.extend(strict::check(self));
+        } else {
+            findings.extend(debt::unjudged(self));
         }
+        findings
+    }
+
+    /// The findings of the load and of the generated blocks: the findings of
+    /// every rule that does not depend on the strictness.
+    pub(crate) fn base_findings(&self) -> Vec<Finding> {
+        let mut findings = self.findings.clone();
+        findings.extend(generated::analyze(self).into_findings());
         findings
     }
 

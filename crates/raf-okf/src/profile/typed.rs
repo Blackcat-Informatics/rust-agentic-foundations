@@ -5,7 +5,7 @@
 
 use std::cmp::Ordering;
 
-use crate::profile::schema::{COVERAGE_SLUG, DocType};
+use crate::profile::schema::{COVERAGE_SLUG, DEBT_SLUG, DocType};
 
 /// The lifecycle state of a capability.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -973,6 +973,82 @@ impl CoverageRecord {
     }
 }
 
+/// One finding of strict mode that the debt record holds as debt: the rule
+/// and the subject it was raised for.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
+pub struct DebtFinding {
+    /// The kind of the finding, such as `strict-claim-uncovered`.
+    pub kind: String,
+    /// What the finding is about: a claim key, a section, a capability or an
+    /// item path, by kind.
+    pub subject: String,
+}
+
+impl DebtFinding {
+    /// The finding `kind` about `subject`. Neither is checked here; see
+    /// [`DebtRecord::to_document`].
+    #[must_use]
+    pub fn new(kind: impl Into<String>, subject: impl Into<String>) -> Self {
+        Self {
+            kind: kind.into(),
+            subject: subject.into(),
+        }
+    }
+}
+
+/// The orphan lines of one item that the debt record holds as debt: the item
+/// and how many lines.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
+pub struct DebtLine {
+    /// The crate-qualified path of the item, such as `raf_okf::Body`.
+    pub item: String,
+    /// How many orphan lines it holds.
+    pub orphans: usize,
+}
+
+impl DebtLine {
+    /// `orphans` orphan lines of `item`.
+    #[must_use]
+    pub fn new(item: impl Into<String>, orphans: usize) -> Self {
+        Self {
+            item: item.into(),
+            orphans,
+        }
+    }
+}
+
+/// The debt record of a repository: what a tool recorded as the debt of
+/// strict mode, written by that tool and reviewed by a person.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DebtRecord {
+    /// The shared keys.
+    pub header: RecordHeader,
+    /// The findings held as debt, in record order.
+    pub findings: Vec<DebtFinding>,
+    /// The orphan lines held as debt, in record order.
+    pub lines: Vec<DebtLine>,
+}
+
+impl DebtRecord {
+    /// The debt record `debt:default` with no tags and no timestamp, holding
+    /// `findings` and `lines` in sorted order, the order the writer emits them
+    /// in, so equal debts write equal bytes. The values are not checked here;
+    /// see [`DebtRecord::to_document`].
+    #[must_use]
+    pub fn new(mut findings: Vec<DebtFinding>, mut lines: Vec<DebtLine>) -> Self {
+        findings.sort();
+        lines.sort();
+        Self {
+            header: RecordHeader::new(DocType::Debt, DEBT_SLUG),
+            findings,
+            lines,
+        }
+    }
+}
+
 /// A document that satisfies the RAF profile.
 ///
 /// The profile closes the set of types, so the enum is exhaustive.
@@ -990,4 +1066,6 @@ pub enum RafDocument {
     Assessment(AssessmentRecord),
     /// The coverage record.
     Coverage(CoverageRecord),
+    /// The debt record.
+    Debt(DebtRecord),
 }

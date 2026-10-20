@@ -98,6 +98,7 @@ pub struct CrateLines {
     shipping_orphan: usize,
     test_orphan: usize,
     ceilings: Vec<Ceiling>,
+    debt: usize,
 }
 
 impl CrateLines {
@@ -182,11 +183,14 @@ impl CrateLines {
         rows.join(", ")
     }
 
-    /// The orphan lines of the package that a debt record holds as debt: none,
-    /// since the repository holds no debt record of strict mode.
+    /// The orphan lines of the package that the debt record holds as debt:
+    /// for each item of the package that holds orphan lines and has a row in
+    /// the `lines` of the debt record, the fewer of the lines it holds and the
+    /// lines its row records. None without a debt record, and none for an item
+    /// with no row.
     #[must_use]
     pub fn debt(&self) -> usize {
-        0
+        self.debt
     }
 }
 
@@ -1563,6 +1567,33 @@ fn sweep(units: &[Unit], range: std::ops::Range<usize>, file: &File<'_>, totals:
     }
 }
 
+/// Set the debt of each package of `report`: for each item with orphan lines
+/// that a row of `record` names, the fewer of its lines and its row, counted
+/// for the package of the first of its units.
+fn hold_debt(report: &mut LinesReport, record: &raf_okf::DebtRecord) {
+    let recorded: BTreeMap<&str, usize> = record
+        .lines
+        .iter()
+        .map(|line| (line.item.as_str(), line.orphans))
+        .collect();
+    let mut present: BTreeMap<&str, (&str, usize)> = BTreeMap::new();
+    for unit in &report.orphans {
+        let entry = present
+            .entry(unit.item.as_str())
+            .or_insert((unit.package.as_str(), 0));
+        entry.1 += unit.lines();
+    }
+    let mut held: BTreeMap<String, usize> = BTreeMap::new();
+    for (item, (package, lines)) in present {
+        if let Some(row) = recorded.get(item) {
+            *held.entry(package.to_string()).or_default() += lines.min(*row);
+        }
+    }
+    for row in &mut report.crates {
+        row.debt = held.get(&row.package).copied().unwrap_or(0);
+    }
+}
+
 /// The row of a package with no line.
 fn empty_row(package: &str) -> CrateLines {
     CrateLines {
@@ -1576,6 +1607,7 @@ fn empty_row(package: &str) -> CrateLines {
         shipping_orphan: 0,
         test_orphan: 0,
         ceilings: Vec::new(),
+        debt: 0,
     }
 }
 
@@ -1623,7 +1655,7 @@ fn judged_packages(source: &Workspace) -> BTreeSet<&str> {
 }
 
 /// The report of `plan`, with `extra` roots walked beside the bound items.
-fn compute(plan: &Workplan<'_>, extra: &[Node]) -> LinesReport {
+pub(crate) fn compute(plan: &Workplan<'_>, extra: &[Node]) -> LinesReport {
     match judged(plan, extra) {
         Ok(report) => report,
         Err(error) => LinesReport {
@@ -1700,6 +1732,9 @@ fn judged(plan: &Workplan<'_>, extra: &[Node]) -> Result<LinesReport, String> {
     report
         .orphans
         .sort_by(|a, b| unit_order(a).cmp(&unit_order(b)));
+    if let Some(recorded) = plan.debt() {
+        hold_debt(&mut report, recorded.value());
+    }
     let mut excepted: Vec<(usize, ExceptedLines)> = Vec::new();
     for ((at, position), lines) in &totals.excepted {
         let unit = &units.units[*at];
@@ -1758,7 +1793,19 @@ fn within(orphan: usize, counted: usize, limit: &CeilingLimit) -> bool {
     }
 }
 
-/// The findings of strict mode for the ceilings of the coverage record: each
+/// A package over a ceiling of the coverage record, with the finding that
+/// says so. A report that could not count the lines is one `Over` that names
+/// no package.
+#[derive(Debug, Clone)]
+pub(crate) struct Over {
+    /// The package, or none for a report that could not count.
+    pub(crate) package: Option<String>,
+    /// `coverage-lines-over-ceiling` at `ceilings`.
+    pub(crate) finding: Finding,
+}
+
+/// The report of the lines and the classes of the packages whose orphan lines
+/// are over their ceilings: each
 /// class of a package whose orphan lines are over its ceiling is
 /// `coverage-lines-over-ceiling` at `ceilings`. A package's shipping and test
 /// lines are each judged against the row of their class, held to 0 when no
@@ -1767,38 +1814,41 @@ fn within(orphan: usize, counted: usize, limit: &CeilingLimit) -> bool {
 /// document does not load, nothing is judged: the record's own finding, or the
 /// document's, fails the check, and a document that did not load binds
 /// nothing. A report that could not count the lines is one finding.
-pub(crate) fn over_ceilings(plan: &Workplan<'_>) -> Vec<Finding> {
-    let Some(loaded) = plan.coverage() else {
-        return Vec::new();
-    };
+pub(crate) fn over_ceilings(plan: &Workplan<'_>) -> Option<(LinesReport, Vec<Over>)> {
+    let loaded = plan.coverage()?;
     let capability_unloaded = plan
         .unloaded()
         .iter()
         .any(|id| id.starts_with(raf_okf::DocType::Capability.id_prefix()));
     if capability_unloaded {
-        return Vec::new();
+        return None;
     }
-    ceiling_findings(loaded, &plan.lines_report())
+    let report = plan.lines_report();
+    let overs = ceiling_findings(loaded, &report);
+    Some((report, overs))
 }
 
-/// The findings of [`over_ceilings`] for `report`, at the record `loaded`.
-fn ceiling_findings(
+/// The classes over their ceilings in `report`, at the record `loaded`.
+pub(crate) fn ceiling_findings(
     loaded: &Loaded<raf_okf::CoverageRecord>,
     report: &LinesReport,
-) -> Vec<Finding> {
+) -> Vec<Over> {
     let finding = |message: String| {
         Finding::new(
             kind::COVERAGE_LINES_OVER_CEILING,
             loaded.path(),
             Location::Key("ceilings".to_string()),
             message,
-            "bind or reach the items that explain the orphan lines, add an exception with its reason, or raise the crate's ceiling",
+            "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
         )
     };
     if let Some(error) = report.errors().first() {
-        return vec![finding(format!(
-            "the orphan lines of the workspace cannot be counted, so no package is judged under its ceiling: {error}"
-        ))];
+        return vec![Over {
+            package: None,
+            finding: finding(format!(
+                "the orphan lines of the workspace cannot be counted, so no package is judged under its ceiling: {error}"
+            )),
+        }];
     }
     let mut out = Vec::new();
     for row in report.crates() {
@@ -1810,9 +1860,10 @@ fn ceiling_findings(
                     within(orphan, counted, &ceiling.limit)
                 });
                 if !held {
-                    out.push(finding(over_message(
-                        report, row, of, orphan, counted, ceiling,
-                    )));
+                    out.push(Over {
+                        package: Some(row.package.clone()),
+                        finding: finding(over_message(report, row, of, orphan, counted, ceiling)),
+                    });
                 }
             };
         for (of, orphan, counted) in [

@@ -15,7 +15,7 @@ use raf_workplan::coverage::GapKind;
 use crate::cli::{Args, Change, Command, Coverage, Docs, Evidence, SyncArgs};
 use crate::exit::Failure;
 use crate::render::{Record, Report};
-use crate::{assess, change, coverage, evidence, history};
+use crate::{assess, change, coverage, debt, evidence, history};
 
 /// Run the command of `args` and return what it produced.
 ///
@@ -59,6 +59,7 @@ pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
         Command::Coverage(Coverage::Lines(lines_args)) => {
             coverage::lines(&root()?, lines_args, args.strict)
         }
+        Command::Debt(debt_args) => debt::debt(&root()?, debt_args, args.strict),
     }
 }
 

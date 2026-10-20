@@ -8,11 +8,11 @@
 //! [`Workplan::load`] reads `docs/capabilities`, `docs/architecture` and
 //! `work/changes` through a [`Tree`](raf_source::Tree), parses and validates
 //! each document with `raf-okf`, and keeps the typed documents and their bodies.
-//! It reads the records of `work/evidence`, `work/assessments` and
-//! `work/coverage` the same way ([`Workplan::evidence`],
-//! [`Workplan::assessments`], [`Workplan::coverage`]); `work/coverage` holds only
-//! `default.md`, and a repository without these directories loads as one with
-//! no record. Everything that goes wrong is a [`Finding`] with a stable kind from
+//! It reads the records of `work/evidence`, `work/assessments`,
+//! `work/coverage` and `work/debt` the same way ([`Workplan::evidence`],
+//! [`Workplan::assessments`], [`Workplan::coverage`], [`Workplan::debt`]);
+//! `work/coverage` and `work/debt` hold only `default.md`, and a repository
+//! without these directories loads as one with no record. Everything that goes wrong is a [`Finding`] with a stable kind from
 //! [`Finding::KINDS`], a location and a fix; nothing is skipped and nothing
 //! panics. [`Workplan::check`] returns the findings.
 //!
@@ -136,6 +136,11 @@
 //! prints against the limits) or a bound test or example run by the executor of
 //! [`bound`]; [`Workplan::evidence_claims`] and [`Workplan::evidence_for`] are
 //! the dependency views of the claims and the records.
+//!
+//! [`debt`] is the debt record `work/debt/default.md` of strict mode and its
+//! ratchet: under strict, `check` leaves out the findings and the orphan lines the
+//! record holds and reports the rows that are paid, and [`Gate::write_debt`] writes
+//! the record, creating it when it is missing and refusing growth.
 //!
 //! [`coverage`] is two-way coverage: [`Workplan::coverage_report`] lists, for
 //! every package of the workspace, the public items (the exported items of each
@@ -285,6 +290,7 @@ pub mod assessment;
 mod bindings;
 pub mod bound;
 pub mod coverage;
+pub mod debt;
 pub mod digest;
 pub mod escape;
 pub mod evidence;

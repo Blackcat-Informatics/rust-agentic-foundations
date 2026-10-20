@@ -24,6 +24,10 @@ bindings:
     - raf_workplan::Workplan::lines_report
     - raf_workplan::coverage::render::lines_table
     - raf_workplan::coverage::render::lines_json
+    - raf_workplan::debt
+    - raf_workplan::Gate::write_debt
+    - raf_workplan::Gate::record_options
+    - raf_workplan::Opened::write_debt
   tests:
     - raf_workplan::strict::tests::under_default_no_unit_of_strict_mode_is_judged_and_under_strict_each_is_judged_once
     - raf_workplan::test_crate::strict::the_strict_clean_repository_has_no_finding_under_either_strictness
@@ -146,6 +150,46 @@ bindings:
     - raf_workplan::coverage::lines::tests::a_path_that_may_name_what_a_macro_generates_is_a_run_and_a_method_a_field_or_a_declared_name_is_not
     - raf_workplan::coverage::lines::tests::a_walk_that_fails_is_the_one_error_of_the_report_and_one_finding_under_strict
     - raf_workplan::coverage::lines::tests::a_walk_that_fails_is_the_error_table_in_text_and_a_lines_error_object_in_json
+    - raf_workplan::test_crate::debt::without_a_record_every_strict_finding_stands_and_the_write_creates_it
+    - raf_workplan::test_crate::debt::a_repository_that_passes_has_no_finding_to_hold_and_the_write_records_nothing
+    - raf_workplan::test_crate::debt::a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing
+    - raf_workplan::test_crate::debt::a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt
+    - raf_workplan::test_crate::debt::two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched
+    - raf_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write
+    - raf_workplan::test_crate::debt::a_repository_that_is_not_judged_strict_has_no_debt_to_write
+    - raf_workplan::test_crate::debt::a_debt_record_in_a_repository_judged_default_is_a_finding_and_strict_judges_it
+    - raf_workplan::test_crate::debt::a_row_of_a_kind_that_is_no_debt_or_a_subject_of_another_form_is_invalid
+    - raf_workplan::test_crate::debt::a_row_of_lines_that_names_no_item_or_no_line_is_invalid
+    - raf_workplan::test_crate::debt::an_invalid_row_holds_nothing_so_the_write_replaces_it
+    - raf_workplan::test_crate::debt::a_file_other_than_the_one_record_is_a_finding
+    - raf_workplan::test_crate::debt::a_record_that_breaks_the_profile_is_the_finding_of_its_rule_and_stops_the_write
+    - raf_workplan::test_crate::debt::orphan_lines_over_a_ceiling_are_held_per_item_as_a_count
+    - raf_workplan::test_crate::debt::an_item_that_holds_more_lines_than_its_row_fails_naming_the_row_and_the_write_refuses
+    - raf_workplan::test_crate::debt::an_orphan_item_with_no_row_is_growth_in_a_package_judged_by_its_rows
+    - raf_workplan::test_crate::debt::a_package_over_a_ceiling_that_the_record_does_not_name_is_growth_not_adoption
+    - raf_workplan::test_crate::debt::a_falling_count_fails_until_the_write_lowers_the_row
+    - raf_workplan::test_crate::debt::an_item_that_is_gone_is_resolved_and_the_write_drops_its_row
+    - raf_workplan::test_crate::debt::a_count_back_under_the_ceiling_is_resolved_and_a_package_within_it_holds_no_debt
+    - raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given
+    - raf_workplan::test_crate::debt::every_error_of_the_write_says_what_to_do
+    - raf_workplan::test_crate::debt::the_debt_kinds_are_kinds_of_strict_mode_and_the_ten_rules_that_a_row_can_hold
+    - raf_workplan::test_crate::debt::the_record_is_read_back_as_the_typed_value_the_write_built
+    - raf_workplan::test_crate::debt::the_write_judges_the_strictness_floor_of_the_gate_and_the_record_of_the_repository
+    - raf_workplan::test_crate::debt::the_snapshot_of_every_other_file_is_unchanged_by_a_refused_write
+    - raf_workplan::debt::tests::a_report_that_could_not_count_is_one_finding_no_row_holds_and_resolves_no_row
+    - cargo_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes
+    - cargo_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same
+    - cargo_workplan::test_crate::debt::the_written_record_in_json_is_one_object_with_its_members_in_order
+    - cargo_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written
+    - cargo_workplan::test_crate::debt::paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record
+    - cargo_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one
+    - cargo_workplan::test_crate::debt::a_repository_that_is_not_judged_strict_is_exit_two_and_strict_adopts
+    - cargo_workplan::test_crate::debt::orphan_lines_over_the_ceiling_are_recorded_per_item
+    - cargo_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered
+    - cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all
+    - raf_workplan::test_crate::debt::every_kind_the_rules_raise_is_written_with_a_subject_of_its_form_and_then_holds
+    - raf_workplan::test_crate::debt::an_invalid_row_is_a_finding_under_either_strictness
   examples:
     - raf_workplan::Workplan::strictness
     - raf_workplan::Workplan::claims_report
@@ -461,43 +505,56 @@ another value included, is `okf-bad-ceiling`, and a number that is not one is
 other file in `work/debt` is `singleton-other-file`. Its keys are `type`, `id`, the
 optional `tags` and `timestamp`, `findings`, rows of exactly `kind` and `subject`, and
 `lines`, rows of exactly `item`, a crate-qualified item path, and `orphans`, a count;
-the rows are sorted, none repeats, and the body is empty. It follows
+none repeats, the writer sorts the rows, and the body is empty. It follows
 [the debt ratchet](../architecture/debt-ratchet.md):
 
 - a strict finding whose kind and subject a `findings` row records is not reported,
   and a `findings` row that no present finding matches is `debt-resolved` at
   `findings`;
-- an orphan item with a `lines` row holds that many orphan lines as debt, which do
-  not count against its package's ceiling; fewer present orphan lines is
-  `debt-resolved` at `lines`, and more is `coverage-lines-over-ceiling` naming the row;
-  a present orphan item with no row is growth, whose lines count against the
-  ceiling. Line debt is a count; `coverage lines` reports the ranges and the record
-  never holds them;
-- the subject of a row is the claim key for a claim kind, `cap:<slug>#<section>` for
-  a section kind, `cap:<slug>` for a capability kind and the reported path for a
-  coverage gap;
+- orphan lines are debt per item, in a package that is over a ceiling of the coverage
+  record. A package over a ceiling that has a `lines` row for one of its items is
+  judged by its rows, and no finding stands for the lines a row holds: an item with
+  fewer present orphan lines than its row is `debt-resolved` at `lines`, an item with
+  more is `coverage-lines-over-ceiling` at `lines` naming the row, and an item with no
+  row is the same finding naming the missing row, which is growth. A package over a
+  ceiling that has no row is judged by its ceilings, as it is without a record, and a
+  row of an item that is gone, or of a package that is within its ceilings, is
+  `debt-resolved` at `lines`. Line debt is a count; `coverage lines` reports the
+  ranges, shows in its Debt column the fewer of the lines of each item and its row,
+  and the record never holds the ranges;
+- the subject of a row is the claim key for `strict-claim-uncovered`, the capability
+  `cap:<slug>` for `strict-example-missing`, the section `cap:<slug>#<section>` that
+  its rule judges for the other content kinds, and the reported path for a coverage
+  gap;
 - what can be debt is closed by construction: only a finding that strict alone
-  raises, a strict kind or a coverage kind of a package that strict alone enforces. A
-  row of any other kind, `coverage-lines-over-ceiling` included, or whose subject does
-  not have the form of its kind, is `debt-entry-invalid` at `findings`. A finding of
-  the default rules is never debt, and an obligation is never debt: it belongs to an
-  open change;
+  raises, one of the ten kinds of `debt::DEBT_KINDS`: a strict kind or a coverage kind
+  of a package that strict alone enforces. A `findings` row of any other kind,
+  `coverage-lines-over-ceiling` included, or whose subject does not have the form of
+  its kind, and a `lines` row whose item is no item path or whose count is 0, is
+  `debt-entry-invalid` at its list. A finding of the default rules, an unreadable
+  surface and an obligation are never debt: an obligation belongs to an open change;
 - a debt record while the repository is judged under `default` is
   `debt-without-strict`, whose fix is to set `strictness: strict` or remove the
   record.
 
 The record is written only by `cargo workplan debt --write [--copyright <text>
---licence <id>]` and `Gate::write_debt(&RecordOptions)`, which returns a `DebtWrite`
-or a `DebtError`, never from a `#[test]`. The write takes the present strict debt: it
-refuses while a finding of the default rules exists (`DebtError::Findings`), refuses
-growth against an existing record (`DebtError::Growth`, with the findings that
-grew), and creates a missing record from the present debt, which is how a repository
-adopts the mode. A coverage record that does not say `strictness: strict` is
-`DebtError::NotStrict`. The write creates or rewrites only `work/debt/default.md`,
-with the SPDX lines of `RecordOptions`, and two writes of the same debt give the
-same bytes. `debt --write` exits 0 when it writes, 1 when it refuses with findings,
-and 2 when the coverage record does not say `strictness: strict` or the tool cannot
-run.
+--licence <id>]`, `Gate::write_debt` and `Opened::write_debt`, never from a `#[test]`.
+They return a `DebtWrite` (the path, the `DebtChange` `Created`, `Replaced` or
+`Unchanged`, and the rows of each list) or a `DebtError`. The SPDX lines come from
+`Gate::record_options` or the `RecordOptions` of `Opened::write_debt`, and a record
+that exists keeps its own when none are given. The write takes the present strict
+debt: it refuses while a finding exists that no row can hold, a finding of the default
+rules, a stale generated block or an unreadable surface among them
+(`DebtError::Findings`), refuses growth against a record that exists, a finding or an
+orphan item that the record does not hold or an item above its row, a package newly
+over a ceiling included (`DebtError::Growth`, with the findings that grew), and
+creates a missing record from the present debt, which is how a repository adopts the
+mode. A repository that is not judged strict is `DebtError::NotStrict`. The write
+creates or replaces only `work/debt/default.md`, leaves a record that already equals
+the present debt untouched, and two writes of the same debt give the same bytes.
+`debt --write` exits 0 when it writes, 1 when it refuses with the findings printed,
+and 2 when the repository is not judged strict, `--write` is missing, or the tool
+cannot run.
 
 **The kinds.** The finding kinds of this capability are in the closed list
 `Finding::KINDS`: `strict-example-missing`, `strict-matrix-missing`,
@@ -512,8 +569,8 @@ is a `Finding` with its kind, file, location, message and fix, and its JSON obje
 carries `kind`, `path`, `section`, `line`, `key`, `message` and `fix`. The obligation
 kinds `outcome-without-reason` and `contract-effect-understated` are in
 `ObligationKind::ALL`. `claim-test-unbound`, `coverage-exception-unmatched`,
-`debt-without-strict` and the profile and reader kinds are raised under either
-strictness, and only by the marker, the keys and the record of this capability, so a
+`debt-without-strict`, `debt-entry-invalid` and the profile and reader kinds are raised
+under either strictness, and only by the marker, the keys and the record of this capability, so a
 repository that uses none of them has no finding of these kinds under `default`.
 
 ## Usage
@@ -702,6 +759,11 @@ the check, and the write refuses it.
   reason written once for the two directions is written again for the lines.
 - The debt record holds strict findings and line counts only, and its text is held to
   the 1 MiB bound of a document.
+- A record that exists is never grown by the write: a new finding, a new orphan item
+  or a package newly over a ceiling is refused until it is paid or the record is
+  removed and the repository adopts anew, and the diff of that creation is the review.
+  The keys of the record carry no version, so unlike the census record there is no
+  second case that lets the write record growth.
 
 ## Explanation
 
@@ -957,6 +1019,7 @@ visible failure, and the fix is one command.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::strict_is_a_global_option_off_by_default_and_taken_before_or_after_the_command` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::a_strict_finding_in_json_is_an_object_of_its_kind_with_the_fields_of_a_finding` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::check_without_the_flag_judges_strict_when_the_record_says_strict` | test | [Verification](#verification) |
@@ -968,6 +1031,16 @@ visible failure, and the fix is one command.
 | `cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::claims::the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::a_repository_that_is_not_judged_strict_is_exit_two_and_strict_adopts` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::orphan_lines_over_the_ceiling_are_recorded_per_item` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::the_written_record_in_json_is_one_object_with_its_members_in_order` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_strict_check_on_the_binary` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
@@ -990,6 +1063,7 @@ visible failure, and the fix is one command.
 | `raf_workplan::coverage::lines::tests::the_work_grows_with_the_exceptions_and_no_faster_at_fixed_units` | test | [Verification](#verification) |
 | `raf_workplan::coverage::lines::tests::the_work_grows_with_the_units_and_no_faster_at_fixed_exceptions` | test | [Verification](#verification) |
 | `raf_workplan::coverage::lines::tests::under_default_check_counts_no_line_and_under_strict_it_sweeps_each_unit` | test | [Verification](#verification) |
+| `raf_workplan::debt::tests::a_report_that_could_not_count_is_one_finding_no_row_holds_and_resolves_no_row` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::touched::tests::a_git_failure_while_the_merge_base_loads_is_that_error_and_a_file_that_is_not_utf8_names_the_file` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::touched::tests::an_impl_header_is_the_tokens_before_its_brace_at_every_depth_and_a_file_that_does_not_parse_is_an_error` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only` | test | [Verification](#verification) |
@@ -1042,6 +1116,34 @@ visible failure, and the fix is one command.
 | `raf_workplan::test_crate::complete::under_strict_an_item_renamed_below_a_bound_module_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_an_untouched_usage_or_examples_of_a_none_change_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_the_bound_items_of_a_file_absent_at_the_merge_base_refuse_and_a_new_file_of_private_items_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::a_count_back_under_the_ceiling_is_resolved_and_a_package_within_it_holds_no_debt` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::a_debt_record_in_a_repository_judged_default_is_a_finding_and_strict_judges_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::a_falling_count_fails_until_the_write_lowers_the_row` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::a_file_other_than_the_one_record_is_a_finding` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::a_package_over_a_ceiling_that_the_record_does_not_name_is_growth_not_adoption` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::a_record_that_breaks_the_profile_is_the_finding_of_its_rule_and_stops_the_write` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::a_repository_that_is_not_judged_strict_has_no_debt_to_write` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::a_repository_that_passes_has_no_finding_to_hold_and_the_write_records_nothing` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::a_row_of_a_kind_that_is_no_debt_or_a_subject_of_another_form_is_invalid` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::a_row_of_lines_that_names_no_item_or_no_line_is_invalid` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::an_invalid_row_holds_nothing_so_the_write_replaces_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::an_invalid_row_is_a_finding_under_either_strictness` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::an_item_that_holds_more_lines_than_its_row_fails_naming_the_row_and_the_write_refuses` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::an_item_that_is_gone_is_resolved_and_the_write_drops_its_row` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::an_orphan_item_with_no_row_is_growth_in_a_package_judged_by_its_rows` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::every_error_of_the_write_says_what_to_do` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::every_kind_the_rules_raise_is_written_with_a_subject_of_its_form_and_then_holds` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::orphan_lines_over_a_ceiling_are_held_per_item_as_a_count` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::the_debt_kinds_are_kinds_of_strict_mode_and_the_ten_rules_that_a_row_can_hold` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::the_record_is_read_back_as_the_typed_value_the_write_built` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::the_snapshot_of_every_other_file_is_unchanged_by_a_refused_write` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::the_write_judges_the_strictness_floor_of_the_gate_and_the_record_of_the_repository` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::without_a_record_every_strict_finding_stands_and_the_write_creates_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lines::a_ceiling_of_lines_passes_at_its_count_and_fails_one_below_for_each_class` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lines::a_ceiling_row_of_no_package_is_scope_crate_missing_at_ceilings` | test | [Verification](#verification) |

@@ -25,7 +25,7 @@ const INDEX: &str = "index.md";
 /// The document types the load reads, each from its directory: the
 /// documents people write and the records. A directory that does not exist
 /// holds nothing, so a repository without records loads as before.
-const LOADED: [DocType; 6] = DocType::ALL;
+const LOADED: [DocType; 7] = DocType::ALL;
 
 pub(crate) fn load<'s>(
     docs: &dyn Tree,
@@ -280,6 +280,10 @@ fn admit(plan: &mut Workplan<'_>, path: &str, typed: RafDocument, body: Body, te
         // reads, so at most one is admitted.
         RafDocument::Coverage(value) => {
             plan.coverage = Some(Loaded::new(path, value, body, text));
+        }
+        // The same holds for the debt record, `work/debt/default.md`.
+        RafDocument::Debt(value) => {
+            plan.debt = Some(Loaded::new(path, value, body, text));
         }
     }
 }

@@ -18,6 +18,9 @@ inputs:
     name: raf_okf::CoverageRecord::to_document
     digest: 4a46b77e645822056dbf1a2803ca38ff7625bb17de571d4d6ec2d2371554aae1
   - kind: symbol
+    name: raf_okf::DebtRecord::to_document
+    digest: f793e6f33f6ca7f27dd1d109442cc6ea8b22a861d9acd5b2a5764f3937caaf5e
+  - kind: symbol
     name: raf_okf::EvidenceRecord::to_document
     digest: 14ac2c27515a95f662b1848855823b4b76095880725c1484030ea510ab2f691b
   - kind: symbol

@@ -293,11 +293,12 @@ fn a_walk_that_fails_is_the_one_error_of_the_report_and_one_finding_under_strict
     let loaded = plan.coverage().expect("the record");
     let found = super::ceiling_findings(loaded, &report);
     assert_eq!(found.len(), 1);
-    assert_eq!(found[0].kind, "coverage-lines-over-ceiling");
+    assert_eq!(found[0].package, None);
+    assert_eq!(found[0].finding.kind, "coverage-lines-over-ceiling");
     assert!(
-        found[0].message.contains("cannot be counted"),
+        found[0].finding.message.contains("cannot be counted"),
         "{}",
-        found[0].message
+        found[0].finding.message
     );
     // The same plan without the foreign root counts its lines.
     assert_eq!(compute(&plan, &[]).errors(), [""; 0]);

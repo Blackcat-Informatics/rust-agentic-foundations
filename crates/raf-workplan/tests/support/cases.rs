@@ -1210,6 +1210,7 @@ pub(crate) fn all_cases() -> Vec<Case> {
     cases.extend(rationale_cases());
     cases.extend(strict_cases());
     cases.extend(claim_cases());
+    cases.extend(debt_cases());
     cases
 }
 
@@ -1232,6 +1233,60 @@ pub(crate) fn claim_cases() -> Vec<Case> {
             Location::Line(line),
         )
         .source(fixture::source_files()),
+    ]
+}
+
+/// The debt record `work/debt/default.md` with the rows `findings` and
+/// `lines` of its two lists.
+pub(crate) fn debt_record(findings: &str, lines: &str) -> String {
+    format!("---\ntype: Debt\nid: debt:default\nfindings:{findings}\nlines:{lines}\n---\n")
+}
+
+/// The path of the debt record.
+pub(crate) const DEBT: &str = "work/debt/default.md";
+
+/// The cases of the debt record: the strict-clean repository with a debt
+/// record that the rules of the ratchet refuse.
+pub(crate) fn debt_cases() -> Vec<Case> {
+    let with = |record: String| {
+        strict_repo(|repo| {
+            repo.insert(DEBT.to_string(), record);
+        })
+    };
+    let case = |name: &str, record: String, kind: &str, at: Location, strictness: Strictness| {
+        Case::new(name, with(record), kind, DEBT, at)
+            .source(fixture::source_files())
+            .strict(strictness)
+    };
+    vec![
+        // A record in a repository that is not judged strict holds debt that
+        // nothing judges.
+        case(
+            "debt-without-strict",
+            debt_record(" []", " []"),
+            "debt-without-strict",
+            Location::Document,
+            Strictness::Default,
+        ),
+        // The thin Examples section that the record holds is paid.
+        case(
+            "debt-resolved",
+            debt_record(
+                "\n  - kind: strict-section-thin\n    subject: \"cap:demo#examples\"",
+                " []",
+            ),
+            "debt-resolved",
+            key("findings"),
+            Strictness::Strict,
+        ),
+        // A finding of the default rules is no debt.
+        case(
+            "debt-entry-invalid",
+            debt_record("\n  - kind: link-broken\n    subject: \"cap:demo\"", " []"),
+            "debt-entry-invalid",
+            key("findings"),
+            Strictness::Strict,
+        ),
     ]
 }
 

@@ -10,19 +10,19 @@ inputs:
     digest: 40f7ab1d899787ae6ee0c5294f49947bd490e4aa31d00899e86f8ae5b76b377e
   - kind: symbol
     name: raf_workplan::Gate
-    digest: 2d944159b6b2933fe66e20e3947b8f2dd8fae651f94a82cb914c0ed73d6d57fe
+    digest: 9c647297f9929ada0f67f312d16be5e9e2cf005bb764686a1e55bea0d98e671e
   - kind: symbol
     name: raf_workplan::Gate::assert_clean
     digest: 16ca22b64d06956c48d1f8df708840f0d406ee752c06890b5e3dc5d27a8d5517
   - kind: symbol
     name: raf_workplan::Gate::workspace
-    digest: 96b86d75fc6034b628c5141e31aa8f87bf45724b2933e289ee85b007e5fb9c28
+    digest: 580d70e75e9ca4f0aa773985b8b6849686fca91a301cee131124ef4db9580b30
   - kind: symbol
     name: raf_workplan::Workplan::assessments
     digest: e5eb77cccb7f921607f45eff8ebb535c9e91b4eece39ac2e0c08e7206c62fa28
   - kind: symbol
     name: raf_workplan::Workplan::check
-    digest: 128b9ff2d889991eafd02e77527d0c9406c347f6dfc8a2c194e1c9ac3420270a
+    digest: 6f9aeea1462e491f42623ba635d8440e177316c6d0a2e4b9eca5250c76923e1b
   - kind: symbol
     name: raf_workplan::Workplan::coverage
     digest: e92bf167dc837d99b7cb04e79c432cb7b58cd2bb7accb4d70f3029b18eb9125f

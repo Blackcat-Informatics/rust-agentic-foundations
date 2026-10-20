@@ -9,6 +9,7 @@
 use raf_okf::{Body, Capability, CapabilitySection, Location, ProseLine, Section, State};
 
 use super::{MIN_SECTION_WORDS, list_item, states_an_item};
+use crate::debt::Owed;
 use crate::finding::kind;
 use crate::graph::BindingKind;
 use crate::obligation::tense::word_spans;
@@ -19,8 +20,8 @@ use crate::{Finding, Loaded, Workplan};
 const MATRIX: &str = "verification-matrix";
 
 /// The findings of the content rules, capability by capability in the order
-/// of the load.
-pub(super) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
+/// of the load, each with the debt key it is held against.
+pub(super) fn check(plan: &Workplan<'_>) -> Vec<Owed> {
     let mut out = Vec::new();
     for loaded in plan.capabilities() {
         if loaded.value().state == State::Delivered {
@@ -32,40 +33,55 @@ pub(super) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
 }
 
 /// The content rules of one delivered capability.
-fn judge(plan: &Workplan<'_>, loaded: &Loaded<Capability>, out: &mut Vec<Finding>) {
+fn judge(plan: &Workplan<'_>, loaded: &Loaded<Capability>, out: &mut Vec<Owed>) {
     let path = loaded.path();
     let capability = loaded.value();
     let body = loaded.body();
+    let id = capability.header.id.as_str();
+    let section_subject = |which: CapabilitySection| format!("{id}#{}", which.slug());
     if capability.bindings.examples.is_empty() {
-        out.push(Finding::new(
-            kind::STRICT_EXAMPLE_MISSING,
-            path,
-            Location::Key("bindings".to_string()),
-            "the delivered capability binds no entry in bindings.examples",
-            "bind at least one example target or runnable documentation test in `bindings.examples`; strict mode asks every delivered capability for a usage that runs",
+        out.push(Owed::held(
+            Finding::new(
+                kind::STRICT_EXAMPLE_MISSING,
+                path,
+                Location::Key("bindings".to_string()),
+                "the delivered capability binds no entry in bindings.examples",
+                "bind at least one example target or runnable documentation test in `bindings.examples`; strict mode asks every delivered capability for a usage that runs",
+            ),
+            id,
         ));
     }
     if !holds_matrix(body) {
-        out.push(Finding::new(
-            kind::STRICT_MATRIX_MISSING,
-            path,
-            section(CapabilitySection::Verification),
-            "the Verification section holds no verification-matrix generated block",
-            "add `<!-- raf:generated:verification-matrix -->` and `<!-- raf:generated:end -->` to the Verification section and run `cargo workplan docs sync`",
+        out.push(Owed::held(
+            Finding::new(
+                kind::STRICT_MATRIX_MISSING,
+                path,
+                section(CapabilitySection::Verification),
+                "the Verification section holds no verification-matrix generated block",
+                "add `<!-- raf:generated:verification-matrix -->` and `<!-- raf:generated:end -->` to the Verification section and run `cargo workplan docs sync`",
+            ),
+            section_subject(CapabilitySection::Verification),
         ));
     }
     for (heading, words) in section_words(body) {
         if words < MIN_SECTION_WORDS {
-            out.push(Finding::new(
-                kind::STRICT_SECTION_THIN,
-                path,
-                Location::Section(heading.to_string()),
-                format!(
-                    "the section holds {words} words of prose, fewer than {MIN_SECTION_WORDS}"
+            let subject = CapabilitySection::ALL
+                .into_iter()
+                .find(|which| which.heading() == heading)
+                .map_or_else(|| id.to_string(), section_subject);
+            out.push(Owed::held(
+                Finding::new(
+                    kind::STRICT_SECTION_THIN,
+                    path,
+                    Location::Section(heading.to_string()),
+                    format!(
+                        "the section holds {words} words of prose, fewer than {MIN_SECTION_WORDS}"
+                    ),
+                    format!(
+                        "write at least {MIN_SECTION_WORDS} words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose"
+                    ),
                 ),
-                format!(
-                    "write at least {MIN_SECTION_WORDS} words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose"
-                ),
+                subject,
             ));
         }
     }
@@ -75,21 +91,27 @@ fn judge(plan: &Workplan<'_>, loaded: &Loaded<Capability>, out: &mut Vec<Finding
         .filter(|binding| binding.kind() == BindingKind::Example)
         .any(|binding| binding.sections().contains(&CapabilitySection::Usage));
     if !usage_bound {
-        out.push(Finding::new(
-            kind::STRICT_USAGE_UNBOUND,
-            path,
-            section(CapabilitySection::Usage),
-            "no path of bindings.examples is named in the section",
-            "name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs",
+        out.push(Owed::held(
+            Finding::new(
+                kind::STRICT_USAGE_UNBOUND,
+                path,
+                section(CapabilitySection::Usage),
+                "no path of bindings.examples is named in the section",
+                "name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs",
+            ),
+            section_subject(CapabilitySection::Usage),
         ));
     }
     if !lists_an_item(body, CapabilitySection::Constraints) {
-        out.push(Finding::new(
-            kind::STRICT_LIMITATIONS_MISSING,
-            path,
-            section(CapabilitySection::Constraints),
-            "the Constraints section holds no list item",
-            "state each limitation of the capability as a list item of Constraints",
+        out.push(Owed::held(
+            Finding::new(
+                kind::STRICT_LIMITATIONS_MISSING,
+                path,
+                section(CapabilitySection::Constraints),
+                "the Constraints section holds no list item",
+                "state each limitation of the capability as a list item of Constraints",
+            ),
+            section_subject(CapabilitySection::Constraints),
         ));
     }
 }

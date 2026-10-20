@@ -15,6 +15,7 @@ use raf_okf::{DocType, Location, Strictness};
 use raf_source::{DiskTree, EntryKind, LoadError, RelPath, Tree, TreeError, Workspace};
 
 use crate::exec::{Programs, SystemRunner};
+use crate::record::RecordOptions;
 use crate::staged::Staged;
 use crate::{Finding, LinkContext, Workplan, git};
 
@@ -142,7 +143,7 @@ impl Error for GateError {
 ///
 /// [`Gate::workspace`] names the directory. The gate reads `docs/capabilities`,
 /// `docs/architecture` and `work/changes` below it, and the records of
-/// `work/evidence`, `work/assessments` and `work/coverage`, loads the source
+/// `work/evidence`, `work/assessments`, `work/coverage` and `work/debt`, loads the source
 /// [`Workspace`] with the roots `["."]` (change them with
 /// [`Gate::source_roots`]), and runs [`Workplan::check`].
 ///
@@ -178,6 +179,7 @@ pub struct Gate {
     tracked: Option<Vec<RelPath>>,
     programs: Option<Programs>,
     floor: Strictness,
+    record: RecordOptions,
 }
 
 impl Gate {
@@ -201,6 +203,7 @@ impl Gate {
             tracked: None,
             programs: None,
             floor: Strictness::Default,
+            record: RecordOptions::new(),
         }
     }
 
@@ -230,6 +233,19 @@ impl Gate {
     pub fn strictness(mut self, floor: Strictness) -> Self {
         self.floor = self.floor.max(floor);
         self
+    }
+
+    /// Open the debt record that [`Gate::write_debt`] creates with these SPDX
+    /// comment lines, for a repository that checks the licence of every file.
+    #[must_use]
+    pub fn record_options(mut self, options: RecordOptions) -> Self {
+        self.record = options;
+        self
+    }
+
+    /// The SPDX lines of [`Gate::record_options`].
+    pub(crate) fn record_spdx(&self) -> &RecordOptions {
+        &self.record
     }
 
     /// Load the source workspace from these roots, relative to the directory,

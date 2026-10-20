@@ -7,7 +7,7 @@
 //! table for the closed key set, so the two cannot disagree. The order is the
 //! order of the architecture page. The optional keys `tags` and `timestamp`
 //! sit directly after the shared keys of every type (`description` for the
-//! three document types, `id` for the three record types), ahead of the keys
+//! three document types, `id` for the four record types), ahead of the keys
 //! that are specific to the type.
 
 /// The kind of value a key holds.
@@ -62,6 +62,10 @@ pub enum ValueKind {
     Ceilings,
     /// A list of maps with exactly one of `item` and `file`, and `reason`.
     Exceptions,
+    /// A list of maps with exactly the keys `kind` and `subject`.
+    DebtFindings,
+    /// A list of maps with exactly the keys `item` and `orphans`.
+    DebtLines,
 }
 
 /// One key of a document type.
@@ -171,11 +175,23 @@ const COVERAGE: [KeySpec; 9] = [
 /// The one slug of the coverage record.
 pub(crate) const COVERAGE_SLUG: &str = "default";
 
+const DEBT: [KeySpec; 6] = [
+    required("type", ValueKind::DocType),
+    required("id", ValueKind::Id),
+    optional("tags", ValueKind::Tags),
+    optional("timestamp", ValueKind::Timestamp),
+    required("findings", ValueKind::DebtFindings),
+    required("lines", ValueKind::DebtLines),
+];
+
+/// The one slug of the debt record.
+pub(crate) const DEBT_SLUG: &str = "default";
+
 /// A document type of the RAF profile.
 ///
 /// The profile closes the set, so the enum is exhaustive: a consumer matches
 /// every variant, and a new one is a breaking change. The first three are the
-/// documents people write; the last three are records, which state a result
+/// documents people write; the last four are records, which state a result
 /// in their frontmatter and have no body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DocType {
@@ -192,17 +208,22 @@ pub enum DocType {
     /// The one coverage record of a repository: the crates it covers and
     /// the items it excludes.
     Coverage,
+    /// The one debt record of a repository: the findings of strict mode and
+    /// the orphan lines it holds as debt. A tool writes it; a person reviews
+    /// it.
+    Debt,
 }
 
 impl DocType {
     /// Every document type.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Capability,
         Self::Change,
         Self::Architecture,
         Self::Evidence,
         Self::Assessment,
         Self::Coverage,
+        Self::Debt,
     ];
 
     /// The type named by the value of a `type` key, if it is one of
@@ -224,6 +245,7 @@ impl DocType {
             Self::Evidence => "Evidence",
             Self::Assessment => "Assessment",
             Self::Coverage => "Coverage",
+            Self::Debt => "Debt",
         }
     }
 
@@ -240,7 +262,7 @@ impl DocType {
     pub fn article(self) -> &'static str {
         match self {
             Self::Architecture | Self::Evidence | Self::Assessment => "an",
-            Self::Capability | Self::Change | Self::Coverage => "a",
+            Self::Capability | Self::Change | Self::Coverage | Self::Debt => "a",
         }
     }
 
@@ -254,6 +276,7 @@ impl DocType {
             Self::Evidence => "work/evidence",
             Self::Assessment => "work/assessments",
             Self::Coverage => "work/coverage",
+            Self::Debt => "work/debt",
         }
     }
 
@@ -267,17 +290,20 @@ impl DocType {
             Self::Evidence => "evidence:",
             Self::Assessment => "assessment:",
             Self::Coverage => "coverage:",
+            Self::Debt => "debt:",
         }
     }
 
     /// The one slug a document of this type may have, for a type a
-    /// repository holds once: `default` for [`DocType::Coverage`], so its
-    /// record is `coverage:default` at `work/coverage/default.md`. `None` for
-    /// every other type.
+    /// repository holds once: `default` for [`DocType::Coverage`] and
+    /// [`DocType::Debt`], so their records are `coverage:default` at
+    /// `work/coverage/default.md` and `debt:default` at `work/debt/default.md`.
+    /// `None` for every other type.
     #[must_use]
     pub fn singleton(self) -> Option<&'static str> {
         match self {
             Self::Coverage => Some(COVERAGE_SLUG),
+            Self::Debt => Some(DEBT_SLUG),
             Self::Capability
             | Self::Change
             | Self::Architecture
@@ -291,7 +317,7 @@ impl DocType {
     #[must_use]
     pub fn is_record(self) -> bool {
         match self {
-            Self::Evidence | Self::Assessment | Self::Coverage => true,
+            Self::Evidence | Self::Assessment | Self::Coverage | Self::Debt => true,
             Self::Capability | Self::Change | Self::Architecture => false,
         }
     }
@@ -306,11 +332,12 @@ impl DocType {
             Self::Evidence => &EVIDENCE,
             Self::Assessment => &ASSESSMENT,
             Self::Coverage => &COVERAGE,
+            Self::Debt => &DEBT,
         }
     }
 
     /// The names of every type, joined for a message: `Capability, Change,
-    /// Architecture, Evidence, Assessment or Coverage` with `or` as `last`.
+    /// Architecture, Evidence, Assessment, Coverage or Debt` with `or` as `last`.
     #[must_use]
     pub fn listed(last: &str) -> String {
         let names = Self::ALL.map(Self::name);

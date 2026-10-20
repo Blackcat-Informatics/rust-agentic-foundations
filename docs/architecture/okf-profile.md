@@ -16,7 +16,7 @@ It is itself an OKF document of type `Architecture`.
 
 ## Decision
 
-RAF documents follow a closed profile of OKF v0.1. Each of the six types has a
+RAF documents follow a closed profile of OKF v0.1. Each of the seven types has a
 closed key set written in one order, `id` is the identity in place of the OKF base
 key `resource`, and the frontmatter is read in a strict subset of YAML that
 refuses every construct outside it with its line and column. A document that
@@ -37,9 +37,9 @@ OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key
 - `id` is RAF's identity key. The closed key sets do not include the OKF base key
   `resource`, so a document that carries it is rejected. This profile does not use
   an IRI identity.
-- `type` takes one of six values: the document types `Capability`, `Change` and
+- `type` takes one of seven values: the document types `Capability`, `Change` and
   `Architecture`, which people write, and the record types `Evidence`,
-  `Assessment` and `Coverage`, which state a result. Any other value is an
+  `Assessment`, `Coverage` and `Debt`, which state a result. Any other value is an
   error.
 
 `raf-okf` enforces the per-document profile: it reads each document and reports
@@ -65,15 +65,18 @@ inventory.
 | Evidence | `work/evidence` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by`, `for`, optional `command`, optional `revision`, optional `values`, optional `limits` |
 | Assessment | `work/assessments` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by` |
 | Coverage | `work/coverage` | `type`, `id`, optional `tags`, optional `timestamp`, optional `strictness`, `scope`, `exclusions`, optional `ceilings`, optional `exceptions` |
+| Debt | `work/debt` | `type`, `id`, optional `tags`, optional `timestamp`, `findings`, `lines` |
 
 Every key is required except those the table marks optional. The writer emits the
 keys of a type in the order of this table.
 
-The three record types carry no `title` and no `description`: a record states a
+The four record types carry no `title` and no `description`: a record states a
 result, not prose. Evidence and an assessment share the trace keys `subject`,
 `inputs`, `verdict` and `by`, in that order; the inputs are what the verdict was
 reached from, each with the digest of its text at the time. A repository holds one
-Coverage record, `coverage:default` at `work/coverage/default.md`.
+Coverage record, `coverage:default` at `work/coverage/default.md`, and at most one
+Debt record, `debt:default` at `work/debt/default.md`, which a tool writes and a
+person reviews.
 
 `docs/capabilities` holds only Capability documents, with one exception: the
 generated catalogue `docs/capabilities/index.md`. It has no frontmatter and carries
@@ -87,9 +90,9 @@ in that type's directory. Each of these directories holds Markdown files only.
 ## Value rules
 
 - **`id`** is `cap:<slug>`, `change:<slug>`, `arch:<slug>`, `evidence:<slug>`,
-  `assessment:<slug>` or `coverage:<slug>` for the matching type. The slug is
-  lowercase kebab case and equals the file name without `.md`. The slug of the
-  Coverage record is `default`.
+  `assessment:<slug>`, `coverage:<slug>` or `debt:<slug>` for the matching type.
+  The slug is lowercase kebab case and equals the file name without `.md`. The
+  slug of the Coverage record and of the Debt record is `default`.
 - **`title`** and **`description`** are non-empty strings.
 - **`tags`** (optional) is a list of non-empty strings with no duplicate. The
   writer emits it sorted.
@@ -167,6 +170,18 @@ in that type's directory. Each of these directories holds Markdown files only.
   the repository root, of `/`-separated segments none of which is empty, `.`
   or `..`, or such a path with a trailing `/` for a directory; an absolute path
   is refused. The reason is non-empty and holds no placeholder token.
+- **`findings`** of a Debt record is a list of maps with exactly the keys `kind`
+  and `subject`, each pair once; the empty list `[]` holds none. A row is a
+  finding of strict mode that the repository holds as debt: the kind of the rule
+  and what it was raised for. Which kinds are debt and what form a subject takes
+  for each is the rule of [strict mode](../capabilities/workplan-strict.md), not of
+  the profile.
+- **`lines`** of a Debt record is a list of maps with exactly the keys `item` and
+  `orphans`, each `item` once; the empty list `[]` holds none. The item is the
+  crate-qualified path of an item that holds orphan lines, and `orphans` is a
+  whole number of lines, written plain and never as a range. The writer emits the
+  rows of both lists in sorted order, so equal debts write equal bytes, and a Debt
+  record has no body.
 - **Scalars** are quoted or plain. A quoted value closes its quote. A plain value
   contains no `: `, does not start with one of `>`, `|`, `&`, `*`, `!`, `%`, `@` or
   a backtick, and is not a block scalar header. A trailing ` # comment` after a
@@ -370,5 +385,5 @@ are rules of [strict mode](../capabilities/workplan-strict.md).
   a flow mapping, to state its contract, and no list or quoted scalar can hold it.
 - A record cannot be understood from its result alone, so that a reader needs
   prose beside the verdict, such as the reason it was given.
-- A repository needs a document type outside the six, so the closed set of types
+- A repository needs a document type outside the seven, so the closed set of types
   refuses documents its tools must read.

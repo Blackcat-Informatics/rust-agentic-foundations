@@ -12,9 +12,10 @@ use std::path::Path;
 
 use raf_okf::{
     Actor, AssessmentRecord, AssessmentVerdict, CapabilitySection, Ceiling, CeilingClass,
-    CeilingLimit, ConstructError, CoverageRecord, DocType, Document, EvidenceRecord,
-    EvidenceSubject, EvidenceVerdict, Exception, ExceptionTarget, Exclusion, ExclusionItem, Input,
-    InputKind, Measure, Number, Profile, RafDocument, Rule, SectionRef, Strictness,
+    CeilingLimit, ConstructError, CoverageRecord, DebtFinding, DebtLine, DebtRecord, DocType,
+    Document, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Exception, ExceptionTarget,
+    Exclusion, ExclusionItem, Input, InputKind, Measure, Number, Profile, RafDocument, Rule,
+    SectionRef, Strictness,
 };
 
 const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
@@ -249,6 +250,10 @@ fn the_keys_are_written_in_the_order_of_the_key_table() {
             DocType::Coverage,
             coverage().to_document().expect("writes").render(),
         ),
+        (
+            DocType::Debt,
+            debt().to_document().expect("writes").render(),
+        ),
     ] {
         let written: Vec<&str> = text
             .lines()
@@ -275,6 +280,7 @@ fn every_record_fixture_reads_back_equal_after_writing() {
             "work/assessments/ledger-sync-explanation.md",
         ),
         ("coverage.md", "work/coverage/default.md"),
+        ("debt.md", "work/debt/default.md"),
     ] {
         let text = fs::read_to_string(fixtures.join(name)).expect("the fixture reads");
         let typed = read(&text, path);
@@ -282,6 +288,7 @@ fn every_record_fixture_reads_back_equal_after_writing() {
             RafDocument::Evidence(record) => record.to_document(),
             RafDocument::Assessment(record) => record.to_document(),
             RafDocument::Coverage(record) => record.to_document(),
+            RafDocument::Debt(record) => record.to_document(),
             other => panic!("{name} is not a record: {other:?}"),
         }
         .expect("the record writes")
@@ -359,5 +366,78 @@ fn verdict_and_subject_names_are_the_values_of_their_keys() {
     assert_eq!(
         SectionRef::new("cap:a", CapabilitySection::Usage).text(),
         "cap:a#usage"
+    );
+}
+
+fn debt() -> DebtRecord {
+    DebtRecord::new(
+        vec![
+            DebtFinding::new("strict-claim-uncovered", "cap:okf-profile#contract/opening"),
+            DebtFinding::new("coverage-item-unbound", "raf_okf::Actor"),
+        ],
+        vec![
+            DebtLine::new("raf_okf::Number", 4084),
+            DebtLine::new("raf_okf::Body", 12),
+        ],
+    )
+}
+
+#[test]
+fn a_debt_record_is_written_sorted_and_read_back_equal() {
+    let record = debt();
+    // The constructor sorts the rows, so equal debts write the same bytes.
+    assert_eq!(record.findings[0].kind, "coverage-item-unbound");
+    assert_eq!(record.lines[0].item, "raf_okf::Body");
+    let text = record.to_document().expect("writes").render();
+    assert_eq!(
+        text,
+        "---\ntype: Debt\nid: debt:default\nfindings:\n  \
+         - kind: coverage-item-unbound\n    subject: raf_okf::Actor\n  \
+         - kind: strict-claim-uncovered\n    subject: cap:okf-profile#contract/opening\n\
+         lines:\n  - item: raf_okf::Body\n    orphans: 12\n  \
+         - item: raf_okf::Number\n    orphans: 4084\n---\n"
+    );
+    assert_eq!(
+        read(&text, "work/debt/default.md"),
+        RafDocument::Debt(record)
+    );
+    // Two writes of equal debts are byte-identical, however the rows were given.
+    let reversed = DebtRecord::new(
+        debt().findings.into_iter().rev().collect(),
+        debt().lines.into_iter().rev().collect(),
+    );
+    assert_eq!(reversed.to_document().expect("writes").render(), text);
+}
+
+#[test]
+fn a_debt_record_with_no_debt_writes_two_empty_lists() {
+    let record = DebtRecord::new(Vec::new(), Vec::new());
+    let text = record.to_document().expect("writes").render();
+    assert_eq!(
+        text,
+        "---\ntype: Debt\nid: debt:default\nfindings: []\nlines: []\n---\n"
+    );
+    assert_eq!(
+        read(&text, "work/debt/default.md"),
+        RafDocument::Debt(record)
+    );
+}
+
+#[test]
+fn a_debt_row_the_profile_refuses_is_written_and_refused_when_it_is_read_back() {
+    let mut record = debt();
+    record.lines.push(DebtLine::new("raf_okf::Body", 3));
+    let text = record.to_document().expect("the text is writable").render();
+    let document = Document::parse(&text).expect("reads");
+    let found = Profile
+        .validate(&document, "work/debt/default.md")
+        .expect_err("a repeated item is refused");
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_eq!(
+        found[0].rule(),
+        &Rule::DuplicateEntry {
+            list: "lines",
+            entry: "raf_okf::Body".to_string(),
+        }
     );
 }

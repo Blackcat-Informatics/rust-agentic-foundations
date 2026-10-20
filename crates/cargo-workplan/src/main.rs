@@ -46,6 +46,8 @@
 //!                      Print each claim of the delivered capabilities and its tests
 //! coverage lines [--crate <package>]   (also: coverage --reverse [--crate <package>])
 //!                      Print the lines no capability explains, by crate, module and item
+//! debt --write [--copyright <text> --licence <id>]
+//!                      Write the debt record of strict mode, work/debt/default.md
 //! ```
 //!
 //! # Root
@@ -62,8 +64,9 @@
 //! strictness of `check`, `change reconcile` and `change complete` is raised to
 //! strict mode (`raf_workplan::strict`), whatever the coverage record says, and a
 //! coverage record that says `strictness: strict` gives the same judgement without
-//! it. `coverage lines` shows the ceilings as enforced under it, and the other
-//! commands print the same with and without it. A finding of strict
+//! it. `coverage lines` shows the ceilings as enforced under it, `debt --write`
+//! writes the debt of strict mode under it, and the other commands print the
+//! same with and without it. A finding of strict
 //! mode is a finding of `check` like any other, in text and in JSON.
 //!
 //! # Output
@@ -118,6 +121,7 @@
 //! | `lines-orphan` | `crate`, `module`, `item`, `unit` (`fn`, `struct`, `impl`, `macro` and the other kinds of a unit), `file`, `ranges` (the orphan lines as `[[first,last],...]`) |
 //! | `lines-excepted` | the fields of `lines-orphan` for the excepted lines, then `exception` and `reason` |
 //! | `lines-error` | `message` (why the lines could not be counted) |
+//! | `debt-written` | `path`, `change` (`created`, `replaced` or `unchanged`), `findings` (the rows of `findings` the record holds), `lines` (the rows of `lines`) |
 //!
 //! The objects of `history` and `coverage` are the JSON array that
 //! `raf_workplan::history::render::json` and `raf_workplan::coverage::render::json`
@@ -150,7 +154,8 @@
 //!   `coverage code` or `coverage tests` printed a gap, or `coverage code` a
 //!   surface that cannot be listed; `coverage claims` printed a claim that
 //!   names no test; `coverage lines` printed an orphan line, or could not count
-//!   the lines.
+//!   the lines; `debt --write` printed the findings that stop it, a debt that
+//!   would grow or a finding no row can hold, and wrote nothing.
 //! * 2: the tool could not run: a usage error (an unknown command or option, a
 //!   slug that is not a slug, one that starts with `-`, `--copyright` without
 //!   `--licence` or the other way round), a directory that is not a repository,
@@ -172,7 +177,9 @@
 //!   printed, output past its bound, a command that cannot start, a request
 //!   refused before the run), a section that cannot be assessed, a package
 //!   that `--crate` does not name, a capability that `--capability` of
-//!   `coverage claims` names and no loaded document has. A usage error is
+//!   `coverage claims` names and no loaded document has, `debt` without
+//!   `--write`, and a `debt --write` of a repository that is not judged strict
+//!   or whose record cannot be written. A usage error is
 //!   detected before any process is started.
 //!
 //! # Commands
@@ -278,6 +285,18 @@
 //!   line, or one that could not count the lines, is a finding, printed whole
 //!   under `-q`, and exits 1; one without is an outcome and exits 0. The two
 //!   spellings print the same bytes. It writes nothing.
+//! * `debt --write` writes the record `work/debt/default.md` of
+//!   `Gate::write_debt`, the findings of strict mode and the orphan lines of
+//!   the packages over a ceiling that the repository holds as debt, and prints
+//!   `created:`, `replaced:` or `unchanged:` with the path and the rows the
+//!   record holds. The write creates the record when there is none, refuses
+//!   debt that grew and a finding that no row can hold (it prints those
+//!   findings, exits 1 and writes nothing), and lowers the record when debt
+//!   was paid; a repository that is not judged strict, without `--strict`, is
+//!   exit 2. Two writes of one state write the same bytes. `--copyright` and
+//!   `--licence` (both, or neither) open a record it creates or replaces with
+//!   the two SPDX comment lines; a record that has them keeps them. It writes
+//!   that one file and no other.
 //!
 //! `check`, `status`, `docs preview`, `change impact`, `change reconcile`,
 //! `history`, `evidence claims`, `evidence for`, `assess --context`,
@@ -286,7 +305,7 @@
 //! bindings of `verify`, a history, a `pass` evidence record, the evidence
 //! views, the assessment commands, a coverage report without a gap, a claims
 //! report whose every claim names a test, a lines report without an orphan
-//! line) print
+//! line, a debt record written) print
 //! nothing; the obligations, the refusal, the failing bindings, a `fail`
 //! evidence record, a coverage report with a gap, a claims report with an
 //! uncovered claim and a lines report with an orphan line are findings and
@@ -297,6 +316,7 @@ mod change;
 mod cli;
 mod command;
 mod coverage;
+mod debt;
 mod evidence;
 mod exit;
 mod history;

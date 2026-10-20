@@ -58,8 +58,8 @@ pub(crate) struct Args {
 
     /// Judge under strict mode, whatever the coverage record says: `check`,
     /// `change reconcile` and `change complete` judge the repository strict,
-    /// `coverage lines` shows the ceilings as enforced, and the other commands
-    /// print the same.
+    /// `coverage lines` shows the ceilings as enforced, `debt --write` writes
+    /// the debt of strict mode, and the other commands print the same.
     #[arg(long, global = true)]
     pub(crate) strict: bool,
 
@@ -101,6 +101,30 @@ pub(crate) enum Command {
     /// no capability explains.
     #[command(subcommand)]
     Coverage(Coverage),
+    /// Write the debt record `work/debt/default.md`: the findings of strict
+    /// mode and the orphan lines the repository holds as debt. The write
+    /// creates the record when there is none, refuses debt that grew, and
+    /// lowers it when debt was paid.
+    Debt(DebtArgs),
+}
+
+/// The arguments of `debt`.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct DebtArgs {
+    /// Write the record. Required: the command has no other mode.
+    #[arg(long, required = true)]
+    pub(crate) write: bool,
+
+    /// The copyright text of the first SPDX line of a record that is created
+    /// or replaced. Given with `--licence`, or not at all; a record that
+    /// exists keeps its own lines when neither is given.
+    #[arg(long, value_name = "text", requires = "licence", value_parser = word)]
+    pub(crate) copyright: Option<String>,
+
+    /// The licence identifier of the second SPDX line of the record. Given
+    /// with `--copyright`, or not at all.
+    #[arg(long, value_name = "id", requires = "copyright", value_parser = word)]
+    pub(crate) licence: Option<String>,
 }
 
 /// The arguments of `history`.
@@ -1271,6 +1295,40 @@ mod tests {
                 "--copyright",
                 "x",
             ],
+        ] {
+            refused(words);
+        }
+    }
+
+    #[test]
+    fn debt_takes_write_and_the_spdx_pair_together_or_not_at_all() {
+        let args = |copyright: Option<&str>, licence: Option<&str>| {
+            Command::Debt(DebtArgs {
+                write: true,
+                copyright: copyright.map(str::to_string),
+                licence: licence.map(str::to_string),
+            })
+        };
+        assert_eq!(same(&["debt", "--write"]).command, args(None, None));
+        assert_eq!(
+            same(&[
+                "debt",
+                "--write",
+                "--copyright",
+                "2026 Example",
+                "--licence",
+                "CC-BY-4.0"
+            ])
+            .command,
+            args(Some("2026 Example"), Some("CC-BY-4.0"))
+        );
+        for words in [
+            &["debt"][..],
+            &["debt", "--copyright", "x", "--licence", "y"],
+            &["debt", "--write", "--copyright", "x"],
+            &["debt", "--write", "--licence", "y"],
+            &["debt", "--write", "--copyright", "--", "--licence", "y"],
+            &["debt", "--write", "extra"],
         ] {
             refused(words);
         }

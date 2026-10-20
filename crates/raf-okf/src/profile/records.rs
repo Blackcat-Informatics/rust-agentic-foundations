@@ -1,16 +1,17 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The value rules of the record types: evidence, assessments and coverage.
+//! The value rules of the record types: evidence, assessments, coverage and
+//! debt.
 
 use std::collections::{HashMap, HashSet};
 
 use crate::frontmatter::value::{Entry, ItemValue, Map, Scalar};
 use crate::profile::schema::DocType;
 use crate::profile::typed::{
-    Actor, AssessmentVerdict, CapabilitySection, Ceiling, CeilingClass, CeilingLimit,
-    EvidenceSubject, EvidenceVerdict, Exception, ExceptionTarget, Exclusion, ExclusionItem, Input,
-    InputKind, Measure, Number, SectionRef,
+    Actor, AssessmentVerdict, CapabilitySection, Ceiling, CeilingClass, CeilingLimit, DebtFinding,
+    DebtLine, EvidenceSubject, EvidenceVerdict, Exception, ExceptionTarget, Exclusion,
+    ExclusionItem, Input, InputKind, Measure, Number, SectionRef,
 };
 use crate::profile::violation::{Rule, input_kind_allowed};
 use crate::profile::{Check, is_capability_id, is_kebab, scalar_text};
@@ -519,6 +520,109 @@ pub(super) fn check_exclusions(check: &mut Check<'_>, entry: &Entry) -> Option<V
         }
     }
     valid.then_some(exclusions)
+}
+
+/// The keys of a row of the `findings` of a debt record, in writing order.
+const DEBT_FINDING_KEYS: [&str; 2] = ["kind", "subject"];
+
+/// The keys of a row of the `lines` of a debt record, in writing order.
+const DEBT_LINE_KEYS: [&str; 2] = ["item", "orphans"];
+
+/// The rows of `findings` of a debt record: each exactly a `kind` and a
+/// `subject`, none twice. Whether the kind is one a tool may record as debt
+/// and whether the subject is of the form of its kind is the tool's rule, not
+/// the profile's.
+pub(super) fn check_debt_findings(
+    check: &mut Check<'_>,
+    entry: &Entry,
+) -> Option<Vec<DebtFinding>> {
+    let rows = rows(check, entry, "a list of maps with `kind` and `subject`")?;
+    let mut findings = Vec::new();
+    let mut valid = true;
+    let mut seen = HashSet::new();
+    for row in rows {
+        if !row_keys(check, "findings", "findings", row, &DEBT_FINDING_KEYS) {
+            valid = false;
+            continue;
+        }
+        let field = |key: &str| row.get(key).and_then(scalar_text);
+        let (Some(kind), Some(subject)) = (field("kind"), field("subject")) else {
+            check.key(
+                "findings",
+                Rule::WrongShape {
+                    expected: "a list of maps of scalars",
+                },
+            );
+            valid = false;
+            continue;
+        };
+        if !seen.insert((kind, subject)) {
+            check.key(
+                "findings",
+                Rule::DuplicateEntry {
+                    list: "findings",
+                    entry: format!("{kind} {subject}"),
+                },
+            );
+            valid = false;
+        }
+        findings.push(DebtFinding::new(kind, subject));
+    }
+    valid.then_some(findings)
+}
+
+/// The rows of `lines` of a debt record: each exactly an `item` and
+/// `orphans`, a whole number of lines, no item twice.
+pub(super) fn check_debt_lines(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<DebtLine>> {
+    let rows = rows(check, entry, "a list of maps with `item` and `orphans`")?;
+    let mut lines = Vec::new();
+    let mut valid = true;
+    let mut seen = HashSet::new();
+    for row in rows {
+        if !row_keys(check, "lines", "lines", row, &DEBT_LINE_KEYS) {
+            valid = false;
+            continue;
+        }
+        let field = |key: &str| row.get(key).and_then(scalar_text);
+        let (Some(item), Some(orphans)) = (field("item"), field("orphans")) else {
+            check.key(
+                "lines",
+                Rule::WrongShape {
+                    expected: "a list of maps of scalars",
+                },
+            );
+            valid = false;
+            continue;
+        };
+        let count = Some(orphans)
+            .filter(|text| text.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|text| text.parse::<usize>().ok());
+        if count.is_none() {
+            check.key(
+                "lines",
+                Rule::BadMeasure {
+                    list: "lines",
+                    name: "orphans".to_string(),
+                    found: orphans.to_string(),
+                },
+            );
+            valid = false;
+        }
+        if !seen.insert(item) {
+            check.key(
+                "lines",
+                Rule::DuplicateEntry {
+                    list: "lines",
+                    entry: item.to_string(),
+                },
+            );
+            valid = false;
+        }
+        if let Some(orphans) = count {
+            lines.push(DebtLine::new(item, orphans));
+        }
+    }
+    valid.then_some(lines)
 }
 
 /// The keys a row of `ceilings` may hold.

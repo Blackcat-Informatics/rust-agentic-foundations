@@ -40,7 +40,8 @@ marker and the command `coverage claims`, and its rules for the change lifecycle
 a stated reason, the literal reading of `contract_effect: none` and the owed Usage
 and Examples, and reverse coverage, with the command `coverage lines` (also spelled
 `coverage --reverse`) and the ceilings and exceptions of the coverage record, are
-built, and the command `debt --write` is designed. The census crates
+built, as are the strict debt record `work/debt/default.md` and the command
+`debt --write` that writes it. The census crates
 are **designed — not yet published**: their nine capability documents are the
 specification they will be built against, and no census code exists yet.
 

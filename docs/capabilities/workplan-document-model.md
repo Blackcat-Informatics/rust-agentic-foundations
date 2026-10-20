@@ -55,6 +55,7 @@ bindings:
     - raf_workplan::refs
     - raf_workplan::plain
     - raf_workplan::git::tracked_paths
+    - raf_workplan::Workplan::debt
   tests:
     - raf_workplan::test_crate::documents::accepts_valid_fixture
     - raf_workplan::test_crate::documents::the_model_holds_typed_values_and_bodies
@@ -324,6 +325,8 @@ bindings:
     - raf_workplan::test_crate::strict::the_record_and_the_floor_give_the_stronger_strictness
     - raf_workplan::test_crate::strict::the_strict_findings_are_made_by_check_after_every_other_finding_and_never_by_the_load
     - raf_workplan::test_crate::strict::a_strict_gate_judges_strict_and_the_workplans_it_opens_keep_its_floor
+    - raf_workplan::test_crate::debt::a_file_other_than_the_one_record_is_a_finding
+    - raf_workplan::test_crate::debt::a_debt_record_in_a_repository_judged_default_is_a_finding_and_strict_judges_it
   examples:
     - raf_workplan::Gate
     - raf_workplan::LinkContext
@@ -416,15 +419,17 @@ from `Finding::KINDS`, the file, a location (a key, a section or a line) and a f
 each rule of the profile and each reader error has its own kind.
 
 **Records.** `Workplan::load` also reads the records of the profile: the evidence
-records of `work/evidence`, the assessments of `work/assessments` and the coverage
-record `work/coverage/default.md`, each validated with the OKF reader and kept as a
-typed record (`Workplan::evidence`, `Workplan::assessments`, `Workplan::coverage`).
-A record directory holds its records directly, as a document directory does, and
-`work/coverage` holds only `default.md`: any other file there is
-`singleton-other-file` and is not read. A directory that does not exist holds
-nothing, so a repository without records loads and reports no finding of the record
-rules; that it has no coverage record is the one finding
-[two-way coverage](./workplan-two-way-coverage.md) gives it.
+records of `work/evidence`, the assessments of `work/assessments`, the coverage
+record `work/coverage/default.md` and the strict debt record `work/debt/default.md`
+of [strict mode](./workplan-strict.md), each validated with the OKF reader and kept
+as a typed record (`Workplan::evidence`, `Workplan::assessments`,
+`Workplan::coverage`, `Workplan::debt`). A record directory holds its records
+directly, as a document directory does, and `work/coverage` and `work/debt` hold only
+`default.md`: any other file there is `singleton-other-file` and is not read. A
+directory that does not exist holds nothing, so a repository without records loads
+and reports no finding of the record rules; that it has no coverage record is the
+one finding [two-way coverage](./workplan-two-way-coverage.md) gives it, and that it
+has no debt record is none.
 
 **Strictness.** `Workplan::strictness` returns how hard `check` judges the
 repository: the stronger of the coverage record's `strictness` and the floor that
@@ -436,17 +441,10 @@ a `Gate` in the same way, `Opened::strictness_floor` returns it, and every
 `Workplan` an `Opened` gives has that floor, the one that `change complete` checks
 once the record is removed included. Under `Strictness::Strict`, `Workplan::check`
 appends the findings of the rules of [strict mode](./workplan-strict.md) after those
-of the rules below; under `Strictness::Default` it judges no rule of strict mode.
-The load judges none of them, so `Workplan::findings` is the same under either
-strictness.
-
-> [!PROPOSED change:workplan-strict]
-> `Workplan::load` also reads the strict debt record `work/debt/default.md` of
-> [strict mode](./workplan-strict.md) (`Workplan::debt`), and `work/debt` holds only
-> `default.md`, as `work/coverage` does: any other file there is
-> `singleton-other-file`. A repository without the directory has no debt record,
-> which is no finding. Under `Strictness::Strict`, `Workplan::check` applies the debt
-> record after the findings of the rules of strict mode.
+of the rules below, less what the debt record holds, and then the findings of the
+debt record; under `Strictness::Default` it judges no rule of strict mode, and a
+debt record there is the one finding `debt-without-strict`. The load judges none of
+them, so `Workplan::findings` is the same under either strictness.
 
 **The graph.** `raf-workplan` builds a graph (`Workplan::graph`) from the documents
 and the source.
@@ -546,11 +544,10 @@ are empty and the bindings that do not resolve.
   and a `ceilings` row whose `crate` is no package of the source workspace
   (`scope-crate-missing`), each at its key.
 
-> [!PROPOSED change:workplan-strict]
-> - under either strictness, a debt record while the repository is judged under
->   `default` (`debt-without-strict`);
-> - under strict, the debt record's own kinds, `debt-resolved` and
->   `debt-entry-invalid`.
+- under either strictness, a debt record while the repository is judged under
+  `default` (`debt-without-strict`), and a row of it that holds no debt
+  (`debt-entry-invalid`);
+- under strict, a row that records debt that is paid (`debt-resolved`).
 
 Markdown outside the document directories, such as a README, is judged by the same
 link, marker and reference rules through `raf_workplan::plain::check`.
@@ -596,8 +593,8 @@ fn workplan() {
 ```
 
 `Gate::workspace` reads `docs/capabilities`, `docs/architecture` and `work/changes`
-under the directory, and the records of `work/evidence`, `work/assessments` and
-`work/coverage`, loads the workspace sources from the roots `["."]`
+under the directory, and the records of `work/evidence`, `work/assessments`,
+`work/coverage` and `work/debt`, loads the workspace sources from the roots `["."]`
 (`Gate::source_roots` changes them), judges links against the paths `git ls-files`
 lists (every file under the directory when `git` answers that the directory is not
 inside a work tree, and the caller's list with `Gate::tracked_paths`), and runs the
@@ -819,6 +816,8 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::bindings::the_macro_hint_is_given_only_for_a_macro_at_the_item_level_of_the_parent_module` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::the_macro_hint_is_only_for_a_parent_that_is_a_module` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::the_role_is_judged_on_the_definition_a_re_export_leads_to` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::a_debt_record_in_a_repository_judged_default_is_a_finding_and_strict_judges_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::a_file_other_than_the_one_record_is_a_finding` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::digest::a_digest_is_the_same_on_every_run` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::digest::a_digest_is_written_and_read_as_sixty_four_lowercase_hex_digits` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::digest::a_module_stands_for_its_files_and_the_modules_below_it_and_a_sibling_does_not_move_it` | test | [Verification](#verification) |

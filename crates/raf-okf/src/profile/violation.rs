@@ -609,7 +609,11 @@ pub(crate) fn input_kind_allowed(doc_type: DocType, kind: InputKind) -> bool {
     match doc_type {
         DocType::Evidence => kind == InputKind::Symbol,
         DocType::Assessment => true,
-        DocType::Capability | DocType::Change | DocType::Architecture | DocType::Coverage => false,
+        DocType::Capability
+        | DocType::Change
+        | DocType::Architecture
+        | DocType::Coverage
+        | DocType::Debt => false,
     }
 }
 

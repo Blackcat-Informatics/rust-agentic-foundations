@@ -1111,7 +1111,7 @@ fn rejects_a_typed_document_outside_the_document_directories() {
     }
     // Any other frontmatter on such a page is refused as well: an unknown
     // type, no type, or keys that are no document's.
-    let home = "frontmatter belongs only in the documents of docs/capabilities, work/changes, docs/architecture, work/evidence, work/assessments, work/coverage; this page is outside them";
+    let home = "frontmatter belongs only in the documents of docs/capabilities, work/changes, docs/architecture, work/evidence, work/assessments, work/coverage, work/debt; this page is outside them";
     for (path, text) in [
         ("docs/notes.md", page("title: Notes")),
         ("NOTES.md", typed("Bug")),

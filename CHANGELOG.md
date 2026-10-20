@@ -151,6 +151,34 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `lines-*` JSON objects, and exits 1 when it prints an orphan line or could not
   count the lines, 0 otherwise and 2 when `--crate` names no package; under
   `--strict` the ceilings are shown as enforced.
+- **`raf-okf`:** the profile has a seventh type, the record `Debt` in `work/debt`
+  with the prefix `debt:` and the one id `debt:default`. It has the keys `type`,
+  `id`, the optional `tags` and `timestamp`, `findings`, rows of exactly `kind` and
+  `subject`, and `lines`, rows of exactly `item` and a whole number `orphans`, each
+  row once, and no body. It is validated into `RafDocument::Debt` holding a
+  `DebtRecord` of `DebtFinding` and `DebtLine` rows, which `DebtRecord::new` sorts
+  and `DebtRecord::to_document` writes. Breaking: `DocType` and `RafDocument` gain
+  a variant, `DocType::ALL` has seven entries, `ValueKind` gains two variants, and
+  the message of `Rule::UnknownType` names `Debt`.
+- **`raf-workplan`:** the debt record and the ratchet of strict mode
+  ([the debt ratchet](docs/architecture/debt-ratchet.md)). `Workplan::load` reads
+  `work/debt/default.md` (`Workplan::debt`) and any other file in `work/debt` is
+  `singleton-other-file`. Under strict, `check` leaves out a finding whose kind and
+  subject a `findings` row holds, and the orphan lines of the items a `lines` row
+  holds in a package over a ceiling, and reports `debt-resolved` for a row whose
+  debt is paid until the write lowers the record, and for an unrecorded finding, an
+  item above its row or an item with no row the finding itself;
+  `Gate::write_debt` and `Opened::write_debt` write the present debt, creating a missing
+  record, refusing growth (`DebtError::Growth`) and refusing while a finding stands
+  that no row can hold (`DebtError::Findings`). A debt record under `default` is
+  `debt-without-strict`, and a row of a kind that is no debt, a subject that is not of
+  the form of its kind or an item that is no path is `debt-entry-invalid`.
+  `LinesReport` rows show the debt in `CrateLines::debt`. `Finding::KINDS` gains the
+  three kinds. Breaking: `record::Record` gains a variant.
+- **`cargo-workplan`:** `debt --write [--copyright <text> --licence <id>]` writes
+  `work/debt/default.md` through `Gate::write_debt` and prints a `debt-written`
+  record; it exits 0 when it writes, 1 when it prints the findings that stop it, and
+  2 when the repository is not judged strict.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed

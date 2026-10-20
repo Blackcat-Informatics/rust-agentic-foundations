@@ -10,7 +10,12 @@
 //! for them. The rules of this module are the only ones that raise a finding
 //! under strict that `default` does not raise.
 //!
-//! # Examples, the matrix and the sections
+//! The findings that a repository has not yet paid can be recorded in the debt
+//! record ([`crate::debt`]): [`Workplan::check`] reports, of the findings of this
+//! module and of the ceilings of reverse coverage, only those the record does not
+//! hold, and reports the rows of the record that are paid.
+//!
+////! # Examples, the matrix and the sections
 //!
 //! For each loaded `delivered` capability:
 //!
@@ -105,6 +110,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use raf_okf::{DocType, Location};
 
 use crate::coverage::{self, Computed};
+use crate::debt::{self, Owed};
 use crate::finding::kind;
 use crate::graph::{Binding, ScopeEdge};
 use crate::work::{Work, add};
@@ -115,23 +121,27 @@ use crate::{Finding, Loaded, Workplan};
 /// repository that asks for less does not opt into strict mode.
 pub const MIN_SECTION_WORDS: usize = 20;
 
-/// The findings of the rules of strict mode, in order: the content rules of
-/// each delivered capability in the order of the capabilities, then the claim
-/// rules of each in the same order, then the coverage gaps of the packages
-/// that strict mode alone enforces, then the classes of the packages whose
-/// orphan lines are over their ceilings.
-pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
+/// The findings of the rules of strict mode that a debt record can hold, in
+/// order: the content rules of each delivered capability in the order of the
+/// capabilities, then the claim rules of each in the same order, then the
+/// coverage gaps of the packages that strict mode alone enforces. Each carries
+/// the key it is held against ([`Owed`]).
+pub(crate) fn owed(plan: &Workplan<'_>) -> Vec<Owed> {
     let mut out = content::check(plan);
     out.extend(claims::check(plan));
     out.extend(explained(plan));
-    out.extend(coverage::lines::over_ceilings(plan));
     out
+}
+
+/// The findings of strict mode, after the debt record: see [`crate::debt`].
+pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
+    debt::judge(plan).reported
 }
 
 /// The gaps of two-way coverage of the packages a binding reaches and `scope`
 /// does not name. Without a coverage record that loads there are none: the
 /// record's absence, or its own findings, fail the check first.
-fn explained(plan: &Workplan<'_>) -> Vec<Finding> {
+fn explained(plan: &Workplan<'_>) -> Vec<Owed> {
     let Some(record) = plan.coverage() else {
         return Vec::new();
     };
@@ -148,7 +158,8 @@ fn explained(plan: &Workplan<'_>) -> Vec<Finding> {
         let Some(binding) = reasons.get(error.package()) else {
             continue;
         };
-        out.push(Finding::new(
+        // An unreadable surface is an error and no debt: no row can hold it.
+        out.push(Owed::unheld(Finding::new(
             kind::COVERAGE_SURFACE_UNREADABLE,
             capability_path(plan, binding.capability()),
             Location::Key("bindings".to_string()),
@@ -159,7 +170,7 @@ fn explained(plan: &Workplan<'_>) -> Vec<Finding> {
                 error.package()
             ),
             "make every public name of the crate resolve to one item (the error names the file and line), or raise the item-bytes budget of the load; under strict mode a package that a binding reaches is not judged covered while its surface cannot be read",
-        ));
+        )));
     }
     // A capability document that did not load binds nothing in the graph, so
     // every item and test it binds would read as a gap, as for `scope`.
@@ -179,7 +190,10 @@ fn explained(plan: &Workplan<'_>) -> Vec<Finding> {
             binding.capability(),
             binding.path()
         );
-        out.push(coverage::gap_finding(gap, &enforced));
+        out.push(Owed::held(
+            coverage::gap_finding(gap, &enforced),
+            gap.path(),
+        ));
     }
     out
 }

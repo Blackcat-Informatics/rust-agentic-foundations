@@ -12,8 +12,8 @@ use crate::frontmatter::value::{
 };
 use crate::profile::schema::DocType;
 use crate::profile::typed::{
-    AssessmentRecord, CeilingClass, CeilingLimit, CoverageRecord, EvidenceRecord, ExclusionItem,
-    Input, Measure, Number, RecordHeader, Strictness,
+    AssessmentRecord, CeilingClass, CeilingLimit, CoverageRecord, DebtRecord, EvidenceRecord,
+    ExclusionItem, Input, Measure, Number, RecordHeader, Strictness,
 };
 
 /// A scalar entry.
@@ -262,6 +262,53 @@ impl CoverageRecord {
                     .collect(),
             )?);
         }
+        document(entries)
+    }
+}
+
+impl DebtRecord {
+    /// The record as a document, with its keys in the order of the profile's
+    /// key table, the rows in record order and an empty body; an empty
+    /// `findings` or `lines` is written `[]`. A finding writes `kind` and
+    /// `subject`, and a line `item` and `orphans`, a whole number written
+    /// plain. [`DebtRecord::new`] sorts the rows, so two equal debts write
+    /// the same bytes. See [`EvidenceRecord::to_document`].
+    ///
+    /// # Errors
+    ///
+    /// A [`ConstructError`] when a value cannot be written in the frontmatter
+    /// subset.
+    pub fn to_document(&self) -> Result<Document, ConstructError> {
+        let mut entries = header(DocType::Debt, &self.header)?;
+        entries.push(rows(
+            "findings",
+            self.findings
+                .iter()
+                .map(|finding| {
+                    vec![
+                        ("kind", finding.kind.clone()),
+                        ("subject", finding.subject.clone()),
+                    ]
+                })
+                .collect(),
+        )?);
+        let lines = self
+            .lines
+            .iter()
+            .map(|line| {
+                Ok(vec![
+                    ("item", Scalar::new(line.item.as_str())?),
+                    (
+                        "orphans",
+                        Scalar {
+                            text: line.orphans.to_string(),
+                            style: ScalarStyle::Plain,
+                        },
+                    ),
+                ])
+            })
+            .collect::<Result<Vec<_>, ConstructError>>()?;
+        entries.push(scalar_rows("lines", lines)?);
         document(entries)
     }
 }

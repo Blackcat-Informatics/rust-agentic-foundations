@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The record types: evidence, assessments and coverage. One fixture per rule,
+//! The record types: evidence, assessments, coverage and debt. One fixture per rule,
 //! each beside a neighbouring record that is accepted.
 
 use raf_okf::{
@@ -16,6 +16,7 @@ const COMMIT: &str = "b499578a1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f";
 const EVIDENCE_PATH: &str = "work/evidence/memory-bound.md";
 const ASSESSMENT_PATH: &str = "work/assessments/reconcile-explanation.md";
 const COVERAGE_PATH: &str = "work/coverage/default.md";
+const DEBT_PATH: &str = "work/debt/default.md";
 
 fn evidence() -> String {
     format!(
@@ -43,6 +44,13 @@ fn coverage() -> String {
     "---\ntype: Coverage\nid: coverage:default\nscope: [raf-workplan, cargo-workplan]\n\
      exclusions:\n  - item: raf_workplan::exec::tests::*\n    reason: \"Unit tests of the process rows.\"\n  \
      - item: raf_workplan::Workplan::empty\n    reason: \"Built by the load only.\"\n---\n"
+        .to_string()
+}
+
+fn debt() -> String {
+    "---\ntype: Debt\nid: debt:default\nfindings:\n  - kind: coverage-item-unbound\n    subject: raf_okf::Actor\n  \
+     - kind: strict-claim-uncovered\n    subject: \"cap:okf-profile#contract/opening\"\n\
+     lines:\n  - item: raf_okf::Body\n    orphans: 12\n---\n"
         .to_string()
 }
 
@@ -1153,6 +1161,7 @@ fn a_record_sits_in_its_directory_and_its_id_matches_its_file() {
             DocType::Assessment,
         ),
         (coverage(), "work/default.md", DocType::Coverage),
+        (debt(), "work/coverage/default.md", DocType::Debt),
     ] {
         assert_only(
             &text,
@@ -1212,6 +1221,7 @@ fn a_record_has_no_title_description_or_body() {
         (evidence(), EVIDENCE_PATH, DocType::Evidence),
         (assessment(), ASSESSMENT_PATH, DocType::Assessment),
         (coverage(), COVERAGE_PATH, DocType::Coverage),
+        (debt(), DEBT_PATH, DocType::Debt),
     ] {
         let prose = format!("{text}\nThe bound held comfortably.\n");
         assert_only(
@@ -1232,6 +1242,196 @@ fn a_record_type_is_named_in_the_unknown_type_message() {
     };
     assert_eq!(
         rule.to_string(),
-        "bad type `Note`; the types are Capability, Change, Architecture, Evidence, Assessment and Coverage"
+        "bad type `Note`; the types are Capability, Change, Architecture, Evidence, Assessment, Coverage and Debt"
     );
+}
+
+#[test]
+fn a_valid_debt_record_validates_to_its_typed_value_and_an_empty_one_opts_out_visibly() {
+    let RafDocument::Debt(record) = clean(&debt(), DEBT_PATH) else {
+        panic!("a debt record");
+    };
+    assert_eq!(record.header.id, "debt:default");
+    assert_eq!(record.findings.len(), 2);
+    assert_eq!(record.findings[0].kind, "coverage-item-unbound");
+    assert_eq!(record.findings[0].subject, "raf_okf::Actor");
+    assert_eq!(
+        record.findings[1].subject,
+        "cap:okf-profile#contract/opening"
+    );
+    assert_eq!(record.lines.len(), 1);
+    assert_eq!(record.lines[0].item, "raf_okf::Body");
+    assert_eq!(record.lines[0].orphans, 12);
+    let empty = "---\ntype: Debt\nid: debt:default\nfindings: []\nlines: []\n---\n";
+    let RafDocument::Debt(record) = clean(empty, DEBT_PATH) else {
+        panic!("a debt record");
+    };
+    assert!(record.findings.is_empty() && record.lines.is_empty());
+}
+
+#[test]
+fn a_row_of_findings_holds_exactly_a_kind_and_a_subject_each_pair_once() {
+    let unknown = mutate(
+        &debt(),
+        "    subject: raf_okf::Actor\n",
+        "    subject: raf_okf::Actor\n    reason: x\n",
+    );
+    assert_only(
+        &unknown,
+        DEBT_PATH,
+        &key("findings"),
+        &Rule::RowUnknownKey {
+            list: "findings",
+            key: "reason".to_string(),
+        },
+    );
+    let missing = mutate(&debt(), "    subject: raf_okf::Actor\n", "");
+    assert_only(
+        &missing,
+        DEBT_PATH,
+        &key("findings"),
+        &Rule::RowMissingKey {
+            list: "findings",
+            key: "subject",
+        },
+    );
+    let twice = mutate(
+        &debt(),
+        "lines:",
+        "  - kind: coverage-item-unbound\n    subject: raf_okf::Actor\nlines:",
+    );
+    assert_only(
+        &twice,
+        DEBT_PATH,
+        &key("findings"),
+        &Rule::DuplicateEntry {
+            list: "findings",
+            entry: "coverage-item-unbound raf_okf::Actor".to_string(),
+        },
+    );
+    // The same subject under another kind is another pair.
+    clean(
+        &mutate(
+            &debt(),
+            "lines:",
+            "  - kind: coverage-test-unbound\n    subject: raf_okf::Actor\nlines:",
+        ),
+        DEBT_PATH,
+    );
+    let shape = "---\ntype: Debt\nid: debt:default\nfindings: nothing\nlines: []\n---\n";
+    assert_only(
+        shape,
+        DEBT_PATH,
+        &key("findings"),
+        &Rule::WrongShape {
+            expected: "a list of maps with `kind` and `subject`",
+        },
+    );
+}
+
+#[test]
+fn a_row_of_lines_holds_exactly_an_item_and_a_whole_number_of_lines_each_item_once() {
+    let unknown = mutate(
+        &debt(),
+        "    orphans: 12\n",
+        "    orphans: 12\n    file: x\n",
+    );
+    assert_only(
+        &unknown,
+        DEBT_PATH,
+        &key("lines"),
+        &Rule::RowUnknownKey {
+            list: "lines",
+            key: "file".to_string(),
+        },
+    );
+    let missing = mutate(&debt(), "    orphans: 12\n", "");
+    assert_only(
+        &missing,
+        DEBT_PATH,
+        &key("lines"),
+        &Rule::RowMissingKey {
+            list: "lines",
+            key: "orphans",
+        },
+    );
+    for found in ["-1", "1.5", "twelve", "1e3", "+4", ""] {
+        let text = mutate(&debt(), "orphans: 12", &format!("orphans: \"{found}\""));
+        assert_only(
+            &text,
+            DEBT_PATH,
+            &key("lines"),
+            &Rule::BadMeasure {
+                list: "lines",
+                name: "orphans".to_string(),
+                found: found.to_string(),
+            },
+        );
+    }
+    let twice = mutate(
+        &debt(),
+        "    orphans: 12\n",
+        "    orphans: 12\n  - item: raf_okf::Body\n    orphans: 3\n",
+    );
+    assert_only(
+        &twice,
+        DEBT_PATH,
+        &key("lines"),
+        &Rule::DuplicateEntry {
+            list: "lines",
+            entry: "raf_okf::Body".to_string(),
+        },
+    );
+    // A count of zero is a whole number; whether it is debt is the tool's rule.
+    clean(&mutate(&debt(), "orphans: 12", "orphans: 0"), DEBT_PATH);
+}
+
+#[test]
+fn both_lists_of_a_debt_record_are_required() {
+    for list in ["findings", "lines"] {
+        let text = if list == "findings" {
+            "---\ntype: Debt\nid: debt:default\nlines: []\n---\n"
+        } else {
+            "---\ntype: Debt\nid: debt:default\nfindings: []\n---\n"
+        };
+        assert_only(
+            text,
+            DEBT_PATH,
+            &key(list),
+            &Rule::MissingKey {
+                key: list.to_string(),
+            },
+        );
+    }
+}
+
+#[test]
+fn debt_is_one_record_at_its_one_path() {
+    let other = mutate(&debt(), "debt:default", "debt:workspace");
+    assert_only(
+        &other,
+        "work/debt/workspace.md",
+        &key("id"),
+        &Rule::SingletonId {
+            doc_type: DocType::Debt,
+        },
+    );
+    let message = Rule::SingletonId {
+        doc_type: DocType::Debt,
+    }
+    .to_string();
+    assert!(
+        message.contains("`debt:default` at work/debt/default.md"),
+        "{message}"
+    );
+    assert_only(
+        &debt(),
+        "work/debt/workspace.md",
+        &key("id"),
+        &Rule::IdFileName {
+            id: "debt:default".to_string(),
+            stem: "workspace".to_string(),
+        },
+    );
+    clean(&debt(), DEBT_PATH);
 }

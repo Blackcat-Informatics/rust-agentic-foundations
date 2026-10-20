@@ -245,6 +245,17 @@ bindings:
     - cargo_workplan::test_crate::check::check_without_the_flag_judges_strict_when_the_record_says_strict
     - cargo_workplan::test_crate::check::a_strict_finding_in_json_is_an_object_of_its_kind_with_the_fields_of_a_finding
     - cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts
+    - cargo_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes
+    - cargo_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same
+    - cargo_workplan::test_crate::debt::the_written_record_in_json_is_one_object_with_its_members_in_order
+    - cargo_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written
+    - cargo_workplan::test_crate::debt::paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record
+    - cargo_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one
+    - cargo_workplan::test_crate::debt::a_repository_that_is_not_judged_strict_is_exit_two_and_strict_adopts
+    - cargo_workplan::test_crate::debt::orphan_lines_over_the_ceiling_are_recorded_per_item
+    - cargo_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered
+    - cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all
   examples:
     - raf_workplan::Workplan::sync
     - raf_workplan::Workplan::preview
@@ -428,15 +439,15 @@ members, in a fixed order, are documented in the crate documentation of
 `cargo-workplan`. A lines report is printed whole under `-q` when it holds an orphan
 line and not at all when it holds none.
 
-> [!PROPOSED change:workplan-strict]
-> **Strict mode.** The last command of [strict mode](./workplan-strict.md) joins the
-> table: `debt --write [--copyright <text> --licence <id>]` writes the strict debt
-> record `work/debt/default.md` through `Gate::write_debt`. It exits 0 when it
-> writes, 1 when it refuses with the findings printed (growth, or a finding of the
-> default rules), and 2 when the coverage record does not say `strictness: strict`
-> or the tool cannot run. The JSON kind `debt-written` joins the record kinds, and it
-> equals the kind of no rule. `debt --write` writes one file and the reports write
-> nothing.
+**Strict mode.** The last command of [strict mode](./workplan-strict.md) joins the
+table: `debt --write [--copyright <text> --licence <id>]` writes the strict debt
+record `work/debt/default.md` through `Gate::write_debt`. It exits 0 when it
+writes, 1 when it refuses with the findings printed (growth, or a finding of the
+default rules), and 2 when the repository is not judged strict (the coverage record
+does not say `strictness: strict` and `--strict` is not given), `--write` is
+missing, or the tool cannot run. The JSON kind `debt-written` joins the record
+kinds, with the members `path`, `change`, `findings` and `lines`, and it equals the
+kind of no rule. `debt --write` writes one file and the reports write nothing.
 
 ## Usage
 
@@ -472,10 +483,9 @@ The record commands are used the same way:
   `cargo workplan coverage --reverse --crate raf-okf`, prints the orphan lines of
   one package by crate, module and item.
 
-> [!PROPOSED change:workplan-strict]
-> The last command of strict mode is used the same way:
-> `cargo workplan debt --write --copyright '2026 Example Inc.' --licence CC-BY-4.0`
-> writes `work/debt/default.md` with its two SPDX lines.
+The last command of strict mode is used the same way:
+`cargo workplan debt --write --copyright '2026 Example Inc.' --licence CC-BY-4.0`
+writes `work/debt/default.md` with its two SPDX lines.
 
 ## Examples
 
@@ -664,6 +674,7 @@ rather than kept by hand.
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_claims_takes_an_optional_capability` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_lines_takes_an_optional_package_and_reverse_is_the_same_command` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::each_command_parses_in_both_shapes` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_claims_and_for_take_one_id_each` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_reads_every_option_and_the_command_after_the_separator` | test | [Verification](#verification) |
@@ -728,6 +739,16 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::coverage::crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::coverage::this_repository_names_the_gaps_outside_its_scope_and_none_in_it` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::a_repository_that_is_not_judged_strict_is_exit_two_and_strict_adopts` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::orphan_lines_over_the_ceiling_are_recorded_per_item` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::the_written_record_in_json_is_one_object_with_its_members_in_order` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_json_escapes_it_as_json` | test | [Verification](#verification) |

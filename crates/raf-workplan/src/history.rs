@@ -819,7 +819,9 @@ impl Workplan<'_> {
                 .iter()
                 .map(|doc| (doc.value().header.id.as_str(), doc.path()))
                 .collect(),
-            DocType::Coverage => return Err(HistoryError::UnknownKind { id: id.to_string() }),
+            DocType::Coverage | DocType::Debt => {
+                return Err(HistoryError::UnknownKind { id: id.to_string() });
+            }
         };
         if let Some((_, path)) = loaded.iter().find(|(loaded, _)| *loaded == id) {
             return Ok((*path).to_string());
