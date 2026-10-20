@@ -67,6 +67,11 @@ bindings:
     - cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero
     - cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_json_alike
     - cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why
+    - raf_workplan::test_crate::claim_coverage::a_repeated_key_takes_the_first_number_no_other_key_of_its_section_has_in_either_order
+    - raf_workplan::test_crate::claim_coverage::a_thematic_break_and_an_empty_item_in_constraints_are_no_claim_and_an_item_beside_them_is_one
+    - raf_workplan::test_crate::claim_coverage::a_comment_line_ends_a_constraints_paragraph_and_an_item_goes_on_only_with_its_indented_lines
+    - raf_workplan::test_crate::claim_coverage::a_bold_lead_directly_after_any_heading_starts_a_contract_clause
+    - cargo_workplan::test_crate::claims::the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names
   examples:
     - raf_workplan::Workplan::strictness
     - raf_workplan::Workplan::claims_report
@@ -128,15 +133,21 @@ and PROPOSED blocks:
   section. Text before the first clause start is one clause, the opening. The
   statement of a heading clause is its heading line;
 - in the Constraints, each top-level list item, with the items, paragraphs and
-  fences indented under it, and each paragraph or table outside a list.
+  fences indented under it, and each paragraph or table outside a list. A thematic
+  break such as `* * *` and a list item with nothing after its marker state nothing
+  and are no claim.
 
 A blank line, a comment line, a heading, a fence and a PROPOSED or generated block
-each end a paragraph. Each claim has a key, `cap:<slug>#<section>/<key>`
+each end a paragraph, so a bold lead directly after a heading of any level starts a
+clause and the paragraph after a marker line is a claim of its own; a list item goes
+on after a blank or a comment line only with the lines indented to its content. Each claim has a key, `cap:<slug>#<section>/<key>`
 (`ClaimCoverage::key`): the kebab slug of the bold lead or the heading, `opening`
 for the opening, and for a Constraints unit `c-` and the first 16 hexadecimal
 digits of the SHA-256 digest of its text, with its comments left out and each run of
-whitespace read as one space. A key that repeats in a section takes `-2`, `-3` and on
-in document order.
+whitespace read as one space. A key that repeats in a section takes the first of
+`-2`, `-3` and on that no other claim of the section has or takes, in document order,
+so the keys of a section are distinct: `**Foo.**`, `**Foo.**` and `**Foo 2.**` give
+`foo`, `foo-3` and `foo-2`.
 
 A test maps to a claim through a marker on its own line directly after the statement,
 or directly after the statement's claim marker:
@@ -657,12 +668,18 @@ visible failure, and the fix is one command.
 - Unit fixtures: an opening, a bold-lead clause over paragraphs, a list and a table,
   `###` and `####` heading clauses, a heading and a bold run inside fenced code that
   start no clause, an indented bold run that starts none, repeated leads numbered
-  `-2` and `-3`; Constraints cut into top-level items with their nested items and
-  paragraphs, a paragraph and a table, a repeated item numbered `-2`, and a key that
-  other whitespace and a marker keep and another word changes; a tested-by marker in
+  `-2` and `-3`, a numbered repeat that skips a lead `Foo 2` in either order, and a
+  bold lead after a `#####` heading that starts a clause; Constraints cut into
+  top-level items with their nested items and paragraphs, a paragraph and a table, a
+  repeated item numbered `-2`, a thematic break and an empty item that are no claim
+  beside an item that is one, a paragraph after a marker line that is a claim of its
+  own, an item that goes on with its indented lines after a marker and not with
+  others, and a key that other whitespace and a marker keep and another word changes; a tested-by marker in
   Usage naming the bound example, as a code span does; the verification matrix of a
   marked binding lists the marker's section and an unmarked one keeps its row.
-- Report fixtures: the table and the JSON of `coverage claims` equal literal strings
+- Report fixtures: beside a second delivered capability whose id sorts first, every
+  claim of it comes first and `--capability` prints only the rows of the one it names;
+  the table and the JSON of `coverage claims` equal literal strings
   with the keys of the digests, hold the same rows sorted by capability, section and
   line, and are the same on every run and under `--strict`; it exits 0 when every
   claim names a test, 1 when one names none, printed whole under `-q`, and 2 for a
@@ -712,6 +729,7 @@ visible failure, and the fix is one command.
 | `cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_json_alike` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::claims::the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key` | test | [Verification](#verification) |
@@ -722,12 +740,16 @@ visible failure, and the fix is one command.
 | `raf_workplan::strict::claims::tests::a_unit_ends_on_the_line_before_the_next_unit` | test | [Verification](#verification) |
 | `raf_workplan::strict::tests::under_default_no_unit_of_strict_mode_is_judged_and_under_strict_each_is_judged_once` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_no_run_example_meets_the_strict_example_rule_and_verify_refuses_it_beside_a_runnable_one` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::claim_coverage::a_bold_lead_directly_after_any_heading_starts_a_contract_clause` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::claim_coverage::a_comment_line_ends_a_constraints_paragraph_and_an_item_goes_on_only_with_its_indented_lines` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::claim_coverage::a_contract_clause_covered_on_its_second_paragraph_is_covered_and_its_neighbour_is_not` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::claim_coverage::a_contract_is_cut_into_clauses_at_bold_leads_and_headings_and_the_text_before_is_the_opening` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::claim_coverage::a_heading_clause_is_covered_by_a_marker_after_its_heading_and_its_text_needs_none` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::claim_coverage::a_long_contract_with_no_clause_start_is_one_collapsed_claim_and_one_with_clauses_is_not` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::claim_coverage::a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_either_strictness` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::claim_coverage::a_repeated_key_takes_the_first_number_no_other_key_of_its_section_has_in_either_order` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::claim_coverage::a_tested_by_marker_in_usage_names_the_bound_example_as_a_code_span_does` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::claim_coverage::a_thematic_break_and_an_empty_item_in_constraints_are_no_claim_and_an_item_beside_them_is_one` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::claim_coverage::constraints_are_cut_into_top_level_items_paragraphs_and_tables` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::claim_coverage::the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate` | test | [Verification](#verification) |

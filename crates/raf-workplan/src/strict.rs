@@ -44,15 +44,19 @@
 //! clause start or the end of the section; text before the first clause start
 //! is one clause, the opening, and the statement of a heading clause is its
 //! heading line. In the Constraints it is each top-level list item and each
-//! paragraph or table outside a list. A blank line, a comment line, a heading,
-//! a fence and a hidden block each end a paragraph.
+//! paragraph or table outside a list; a thematic break and a list item with
+//! nothing after its marker are none. A blank line, a comment line, a heading of
+//! any level, a fence and a hidden block each end a paragraph, and a list item
+//! goes on after a blank or a comment line only with the lines indented to its
+//! content.
 //!
 //! Its key, `cap:<slug>#<section>/<key>` ([`ClaimCoverage::key`]), takes the
 //! kebab slug of the bold lead or the heading, `opening` for the opening, and
 //! for a Constraints unit `c-` and the first 16 hexadecimal digits of the
 //! SHA-256 digest of its text with its comments left out and each run of
-//! whitespace read as one space; a key that repeats in its section takes `-2`,
-//! `-3` and on in document order.
+//! whitespace read as one space; a key that repeats in its section takes the
+//! first of `-2`, `-3` and on that no other unit of the section has or takes, in
+//! document order, so the keys of a section are distinct.
 //!
 //! A Contract clause is covered by a tested-by marker on any of its lines, a
 //! Constraints unit by a marker whose statement starts in it. Under strict:
@@ -201,6 +205,59 @@ fn reaching_bindings<'p>(plan: &'p Workplan<'_>) -> BTreeMap<&'p str, &'p Bindin
         }
     }
     reasons
+}
+
+/// A line that opens a list item, as the content and the claim rules read it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ListItem<'t> {
+    /// The column its content starts at, its indentation of spaces included.
+    column: usize,
+    /// The text after the marker and its space, empty for an item with none.
+    content: &'t str,
+}
+
+/// The list item `raw` opens: after an indentation of spaces, `-`, `*` or
+/// `+`, or one to nine digits and `.` or `)`, then a space or the end of the
+/// line. A thematic break such as `* * *` opens one too; [`is_thematic_break`]
+/// tells it apart.
+fn list_item(raw: &str) -> Option<ListItem<'_>> {
+    let indent = raw.len() - raw.trim_start_matches(' ').len();
+    let text = &raw[indent..];
+    let width = if text.starts_with(['-', '*', '+']) {
+        1
+    } else {
+        let digits = text.bytes().take_while(u8::is_ascii_digit).count();
+        if digits == 0 || digits > 9 || !text[digits..].starts_with(['.', ')']) {
+            return None;
+        }
+        digits + 1
+    };
+    let after = &text[width..];
+    let content = if after.is_empty() {
+        after
+    } else {
+        after.strip_prefix(' ')?
+    };
+    Some(ListItem {
+        column: indent + width + 1,
+        content,
+    })
+}
+
+/// Whether a line is a thematic break: three or more of one of `-`, `*` or `_`
+/// and nothing else but spaces and tabs.
+fn is_thematic_break(raw: &str) -> bool {
+    let marks: Vec<char> = raw.chars().filter(|c| !matches!(c, ' ' | '\t')).collect();
+    marks.len() >= 3
+        && ['-', '*', '_']
+            .iter()
+            .any(|mark| marks.iter().all(|c| c == mark))
+}
+
+/// Whether `raw` opens a list item that states something: an item with text
+/// or a code span after its marker, and not a thematic break.
+fn states_an_item(raw: &str) -> bool {
+    list_item(raw).is_some_and(|item| !item.content.trim().is_empty()) && !is_thematic_break(raw)
 }
 
 /// The path of the loaded capability document `id`; the id itself when no

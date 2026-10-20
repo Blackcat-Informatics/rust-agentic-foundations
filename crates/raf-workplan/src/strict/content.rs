@@ -8,7 +8,7 @@
 
 use raf_okf::{Body, Capability, CapabilitySection, Location, ProseLine, Section, State};
 
-use super::MIN_SECTION_WORDS;
+use super::{MIN_SECTION_WORDS, list_item, states_an_item};
 use crate::finding::kind;
 use crate::graph::BindingKind;
 use crate::obligation::tense::word_spans;
@@ -149,9 +149,9 @@ fn section_words(body: &Body) -> Vec<(&str, usize)> {
 }
 
 /// Whether the section `which` holds a list item: a prose line that starts,
-/// after its indentation, with `-`, `*` or `+` and a space, or with digits,
-/// `.` or `)` and a space, and holds text after the marker, which may be a code
-/// span. A thematic break such as `* * *` is no list item.
+/// after its indentation, with `-`, `*` or `+` and a space, or with one to nine
+/// digits, `.` or `)` and a space, and holds text after the marker, which may be
+/// a code span. A thematic break such as `* * *` is no list item.
 fn lists_an_item(body: &Body, which: CapabilitySection) -> bool {
     let Some(section) = find(body, which) else {
         return false;
@@ -159,33 +159,6 @@ fn lists_an_item(body: &Body, which: CapabilitySection) -> bool {
     let first = body.span().lines.start;
     prose_lines(body, section).any(|line| {
         let raw = body.text().lines().nth(line.line() - first).unwrap_or("");
-        list_content(line.text().trim_start()).is_some()
-            && list_content(raw.trim_start()).is_some_and(|rest| !rest.trim().is_empty())
-            && !is_thematic_break(raw)
+        list_item(line.text().trim_start()).is_some() && states_an_item(raw.trim_start())
     })
-}
-
-/// The text after the marker of a line, without its indentation, that opens a
-/// list item, or `None` when it opens none.
-fn list_content(text: &str) -> Option<&str> {
-    if let Some(rest) = text.strip_prefix(['-', '*', '+']) {
-        return rest.strip_prefix(' ');
-    }
-    let digits = text.bytes().take_while(u8::is_ascii_digit).count();
-    if digits == 0 {
-        return None;
-    }
-    text[digits..]
-        .strip_prefix(['.', ')'])
-        .and_then(|after| after.strip_prefix(' '))
-}
-
-/// Whether a line is a thematic break: three or more of one of `-`, `*` or `_`
-/// and nothing else but spaces and tabs.
-fn is_thematic_break(raw: &str) -> bool {
-    let marks: Vec<char> = raw.chars().filter(|c| !matches!(c, ' ' | '\t')).collect();
-    marks.len() >= 3
-        && ['-', '*', '_']
-            .iter()
-            .any(|mark| marks.iter().all(|c| c == mark))
 }

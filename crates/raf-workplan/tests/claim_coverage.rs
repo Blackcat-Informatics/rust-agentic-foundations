@@ -436,11 +436,30 @@ fn a_tested_by_marker_in_usage_names_the_bound_example_as_a_code_span_does() {
     );
 }
 
+/// The strict-clean capability as `cap:alpha`, whose id sorts before
+/// `cap:demo`: the same claims at the same lines.
+fn alpha() -> String {
+    fixture::replaced(
+        &fixture::replaced(&fixture::capability(), "id: cap:demo", "id: cap:alpha"),
+        "title: \"Demo\"",
+        "title: \"Alpha\"",
+    )
+}
+
+/// The report of `capability` beside the capability [`alpha`].
+fn report_beside_alpha(capability: &str) -> ClaimsReport {
+    let mut documents = repo(capability.to_string());
+    documents.insert("docs/capabilities/alpha.md".to_string(), alpha());
+    let tree: MemoryTree = documents.iter().collect();
+    let source = workspace_of(&fixture::source_files());
+    Workplan::load(&tree, &source).claims_report()
+}
+
 #[test]
 fn the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run() {
     let text = capability(CLAUSES, &clean_constraints());
-    let first = report(&text);
-    assert_eq!(first, report(&text));
+    let first = report_beside_alpha(&text);
+    assert_eq!(first, report_beside_alpha(&text));
     let order: Vec<(String, &str, usize)> = first
         .claims()
         .iter()
@@ -455,10 +474,26 @@ fn the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_sam
     let mut sorted = order.clone();
     sorted.sort();
     assert_eq!(order, sorted);
+    // The capability sorts first: every claim of `cap:alpha`, its Contract
+    // included, comes before the claims of `cap:demo`, and within each
     // Constraints sorts before Contract by its slug.
+    let capabilities: Vec<&str> = order.iter().map(|(id, ..)| id.as_str()).collect();
+    let split = capabilities
+        .iter()
+        .position(|id| *id == "cap:demo")
+        .expect("cap:demo");
+    assert_eq!(split, 3, "{order:?}");
+    assert!(capabilities[..split].iter().all(|id| *id == "cap:alpha"));
+    assert!(capabilities[split..].iter().all(|id| *id == "cap:demo"));
     assert_eq!(first.claims()[0].section(), CapabilitySection::Constraints);
+    assert_eq!(first.claims()[2].section(), CapabilitySection::Contract);
+    assert_eq!(
+        first.claims()[split].section(),
+        CapabilitySection::Constraints
+    );
     assert!(!first.is_complete());
-    assert_eq!(first.capability("cap:demo"), first);
+    assert_eq!(first.capability("cap:demo"), report(&text));
+    assert_eq!(first.capability("cap:alpha").claims().len(), 3);
     assert_eq!(first.capability("cap:other").claims(), []);
     // The strict-clean capability has three claims, each covered.
     let clean = report(&fixture::capability());
@@ -467,4 +502,109 @@ fn the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_sam
     // A capability that is not delivered has no claim in the report.
     let designed = fixture::capability().replace("state: delivered", "state: implementing");
     assert_eq!(report(&designed).claims(), []);
+}
+
+/// The keys of the Contract claims of `contract`.
+fn contract_keys(contract: &str) -> Vec<String> {
+    claims(&capability(contract, &clean_constraints()))
+        .into_iter()
+        .filter(|(section, ..)| *section == CapabilitySection::Contract)
+        .map(|(_, key, ..)| key)
+        .collect()
+}
+
+/// A repeated lead takes the first number that no other key of its section
+/// has, whichever comes first, so a lead `Foo 2` and the second `Foo` never
+/// share a key.
+#[test]
+fn a_repeated_key_takes_the_first_number_no_other_key_of_its_section_has_in_either_order() {
+    assert_eq!(
+        contract_keys("**Foo.** a\n\n**Foo.** b\n\n**Foo 2.** c"),
+        ["foo", "foo-3", "foo-2"]
+    );
+    assert_eq!(
+        contract_keys("**Foo 2.** c\n\n**Foo.** a\n\n**Foo.** b"),
+        ["foo-2", "foo", "foo-3"]
+    );
+    // Without a lead that takes a number, the repeats number on from 2.
+    assert_eq!(
+        contract_keys("**Foo.** a\n\n**Foo.** b\n\n**Foo.** c"),
+        ["foo", "foo-2", "foo-3"]
+    );
+}
+
+/// The lines of the Constraints claims of `constraints`, each with its tests.
+fn constraint_lines(constraints: &str) -> (String, Vec<(usize, Vec<String>)>) {
+    let text = capability(&format!("{}\n{MARKER}", fixture::PROSE), constraints);
+    let found = claims(&text)
+        .into_iter()
+        .filter(|(section, ..)| *section == CapabilitySection::Constraints)
+        .map(|(_, _, line, tests)| (line, tests))
+        .collect();
+    (text, found)
+}
+
+/// A thematic break and a list item with nothing after its marker state no
+/// limitation, so neither is a claim of the Constraints, while an item beside
+/// them is one.
+#[test]
+fn a_thematic_break_and_an_empty_item_in_constraints_are_no_claim_and_an_item_beside_them_is_one() {
+    let (text, found) = constraint_lines(&format!(
+        "- An item.\n{MARKER}\n\n* * *\n\n- - -\n\n---\n\n___\n\n- \n-\n1.\n\n- The neighbour.\n"
+    ));
+    assert_eq!(
+        found,
+        [
+            (line_of(&text, "- An item."), tests(&[CASE])),
+            (line_of(&text, "- The neighbour."), vec![]),
+        ]
+    );
+    let strict = judged(&text, Strictness::Strict);
+    assert_eq!(
+        strict
+            .iter()
+            .filter(|finding| finding.kind.starts_with("strict-claim-"))
+            .map(|finding| (finding.kind, finding.location.clone()))
+            .collect::<Vec<_>>(),
+        [(
+            "strict-claim-uncovered",
+            Location::Line(line_of(&text, "- The neighbour."))
+        )]
+    );
+}
+
+/// A comment line, such as a marker, ends a paragraph or a table of the
+/// Constraints, so the paragraph after a marker is a claim of its own; a list
+/// item goes on with the lines indented to its content and not with others.
+#[test]
+fn a_comment_line_ends_a_constraints_paragraph_and_an_item_goes_on_only_with_its_indented_lines() {
+    let (text, found) = constraint_lines(&format!(
+        "Para one.\n{MARKER}\nPara two is a separate guarantee with no marker.\n\nPara A.\n<!-- a note -->\nPara B.\n\n- An item.\n{MARKER}\n  More of the item.\n\n- Another item.\n{MARKER}\nNot of the item.\n"
+    ));
+    let at = |needle: &str| line_of(&text, needle);
+    assert_eq!(
+        found,
+        [
+            (at("Para one."), tests(&[CASE])),
+            (at("Para two is a separate guarantee"), vec![]),
+            (at("Para A."), vec![]),
+            (at("Para B."), vec![]),
+            (at("- An item."), tests(&[CASE])),
+            (at("- Another item."), tests(&[CASE])),
+            (at("Not of the item."), vec![]),
+        ]
+    );
+}
+
+/// Every heading ends a paragraph of the Contract, so a bold lead directly
+/// after a `#####` heading starts a clause, while the heading itself, below
+/// `####`, starts none.
+#[test]
+fn a_bold_lead_directly_after_any_heading_starts_a_contract_clause() {
+    assert_eq!(
+        contract_keys(&format!(
+            "Some opening words.\n{MARKER}\n##### A small heading\n**After the heading.** It holds.\n{MARKER}"
+        )),
+        ["opening", "after-the-heading"]
+    );
 }

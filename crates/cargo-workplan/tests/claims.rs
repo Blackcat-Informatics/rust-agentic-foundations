@@ -168,3 +168,60 @@ fn a_capability_that_is_not_loaded_exits_two_and_says_why() {
         .expect(2);
     assert_eq!(usage.stdout, "");
 }
+
+/// Beside a second delivered capability whose id sorts before `cap:demo`, the
+/// report lists every claim of `cap:alpha` first, its Contract included, and
+/// `--capability` prints the rows of the capability it names and no other.
+#[test]
+fn the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names() {
+    let repo = Repo::strict("claims-two", &strict::capability(), "");
+    let alpha = strict::replaced(
+        &strict::replaced(&strict::capability(), "id: cap:demo", "id: cap:alpha"),
+        "title: \"Demo\"",
+        "title: \"Alpha\"",
+    );
+    repo.put("docs/capabilities/alpha.md", &alpha);
+    repo.sync();
+    let before = repo.snapshot();
+    let run = repo.both(&["coverage", "claims"]).expect(0);
+    let rows_of = |id: &str| -> Vec<String> {
+        CLEAN
+            .lines()
+            .skip(2)
+            .map(|row| row.replace("cap:demo", id))
+            .collect()
+    };
+    let expected: String = CLEAN
+        .lines()
+        .take(2)
+        .map(str::to_string)
+        .chain(rows_of("cap:alpha"))
+        .chain(rows_of("cap:demo"))
+        .fold(String::new(), |mut text, line| {
+            text.push_str(&line);
+            text.push('\n');
+            text
+        });
+    assert_eq!(run.stdout, expected, "{run:#?}");
+    assert_eq!(run.stdout, library_table(&repo));
+    let demo = repo
+        .both(&["coverage", "claims", "--capability", "cap:demo"])
+        .expect(0);
+    assert_eq!(demo.stdout, CLEAN);
+    let only_alpha = repo
+        .both(&["coverage", "claims", "--capability", "cap:alpha"])
+        .expect(0);
+    assert_eq!(only_alpha.stdout, CLEAN.replace("cap:demo", "cap:alpha"));
+    let json = repo
+        .both(&[
+            "--format",
+            "json",
+            "coverage",
+            "claims",
+            "--capability",
+            "cap:demo",
+        ])
+        .expect(0);
+    assert_eq!(json.stdout, CLEAN_JSON);
+    assert_eq!(repo.snapshot(), before, "the report wrote");
+}

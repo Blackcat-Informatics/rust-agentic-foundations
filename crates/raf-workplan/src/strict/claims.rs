@@ -7,12 +7,13 @@
 //! is one long claim, and the report of every claim. See the documentation of
 //! [`crate::strict`].
 
+use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::ops::Range;
 
 use raf_okf::{Body, Capability, CapabilitySection, Location, Section, State};
 
-use super::MIN_SECTION_WORDS;
+use super::{MIN_SECTION_WORDS, is_thematic_break, list_item};
 use crate::digest::Sha256;
 use crate::finding::kind;
 use crate::obligation::tense::word_spans;
@@ -383,11 +384,18 @@ fn without_comments(raw: &str) -> String {
 /// has no clause start and is longer than [`MIN_SECTION_WORDS`].
 fn contract(body: &Body, section: &Section, rows: &[Row<'_>]) -> (Vec<Unit>, Option<usize>) {
     let end = section.content().lines.end;
-    let headings: Vec<(usize, &str)> = body
+    // (line, text, whether it starts a clause): every heading ends a
+    // paragraph, and a `###` or `####` heading starts a clause.
+    let headings: Vec<(usize, &str, bool)> = body
         .headings()
         .iter()
-        .filter(|heading| matches!(heading.level(), 3 | 4))
-        .map(|heading| (heading.line(), heading.text()))
+        .map(|heading| {
+            (
+                heading.line(),
+                heading.text(),
+                matches!(heading.level(), 3 | 4),
+            )
+        })
         .collect();
     // (index of the row, key base, lead)
     let mut starts: Vec<(usize, String, String)> = Vec::new();
@@ -397,8 +405,10 @@ fn contract(body: &Body, section: &Section, rows: &[Row<'_>]) -> (Vec<Unit>, Opt
             boundary = true;
             continue;
         }
-        if let Some((_, text)) = headings.iter().find(|(line, _)| *line == row.line) {
-            starts.push((index, kebab(text), lead(text)));
+        if let Some((_, text, clause)) = headings.iter().find(|(line, ..)| *line == row.line) {
+            if *clause {
+                starts.push((index, kebab(text), lead(text)));
+            }
             boundary = true;
             continue;
         }
@@ -498,11 +508,17 @@ enum Shape {
 }
 
 /// The units of the Constraints: each top-level list item, and each
-/// paragraph or table outside a list.
+/// paragraph or table outside a list. A blank line or a comment line ends a
+/// paragraph or a table, after which a list item goes on only with the lines
+/// indented to its content; a heading, a fence and a hidden block end every
+/// unit, and a thematic break and an item with nothing after its marker end
+/// the open unit and open none.
 fn constraints(rows: &[Row<'_>]) -> Vec<Unit> {
     let mut units = Vec::new();
     // (shape, first row, last row with text, text)
     let mut open: Option<(Shape, usize, usize, Vec<String>)> = None;
+    // A blank line, or a comment line, since the last line of text: a list
+    // item continues after one only with lines indented to its content.
     let mut after_blank = false;
     let close = |open: &mut Option<(Shape, usize, usize, Vec<String>)>, units: &mut Vec<Unit>| {
         if let Some((_, first, last, text)) = open.take() {
@@ -540,7 +556,12 @@ fn constraints(rows: &[Row<'_>]) -> Vec<Unit> {
             continue;
         }
         if row.is_empty() {
-            // A comment line, such as a marker, belongs to what it follows.
+            // A comment line, such as a marker, ends a paragraph or a table;
+            // a list item goes on with the lines indented to its content.
+            after_blank = true;
+            if !in_item {
+                close(&mut open, &mut units);
+            }
             continue;
         }
         let trimmed = row.raw.trim_start();
@@ -549,7 +570,15 @@ fn constraints(rows: &[Row<'_>]) -> Vec<Unit> {
             after_blank = false;
             continue;
         }
-        let item = list_content(row.raw);
+        // A thematic break and a list item with nothing after its marker
+        // state nothing: each ends the open unit and opens none.
+        let item = list_item(row.raw);
+        if is_thematic_break(row.raw) || item.is_some_and(|item| item.content.trim().is_empty()) {
+            close(&mut open, &mut units);
+            after_blank = false;
+            continue;
+        }
+        let item = item.map(|item| item.column);
         let starts_item = match (item, open.as_ref()) {
             (Some(_), Some((Shape::Item(column), ..))) => row.indent() < *column,
             (Some(_), _) => true,
@@ -588,23 +617,6 @@ fn constraints(rows: &[Row<'_>]) -> Vec<Unit> {
 fn is_heading(trimmed: &str) -> bool {
     let marks = trimmed.bytes().take_while(|b| *b == b'#').count();
     (1..=6).contains(&marks) && trimmed[marks..].starts_with([' ', '\t'])
-}
-
-/// The column the content of a list item starts at, when `raw` opens one:
-/// `-`, `*` or `+`, or up to nine digits and `.` or `)`, then a space.
-fn list_content(raw: &str) -> Option<usize> {
-    let indent = raw.len() - raw.trim_start_matches(' ').len();
-    let text = &raw[indent..];
-    let width = if text.starts_with(['-', '*', '+']) {
-        1
-    } else {
-        let digits = text.bytes().take_while(u8::is_ascii_digit).count();
-        if digits == 0 || digits > 9 || !text[digits..].starts_with(['.', ')']) {
-            return None;
-        }
-        digits + 1
-    };
-    text[width..].starts_with(' ').then_some(indent + width + 1)
 }
 
 /// The unit of the Constraints from row `first` to row `last`, its key the
@@ -669,21 +681,30 @@ fn kebab(text: &str) -> String {
     }
 }
 
-/// Number the repeats of a key within its section: the second takes `-2`,
-/// the third `-3`, in document order.
+/// Number the repeats of a key within its section, in document order: a key
+/// that an earlier unit of the section has takes the first of `-2`, `-3` and on
+/// that is no key a unit of the section has or takes, so the keys of a section
+/// are distinct whatever its leads are (`**Foo.**`, `**Foo.**` and `**Foo 2.**`
+/// give `foo`, `foo-3` and `foo-2`).
 fn number_repeats(units: &mut [Unit]) {
-    let mut seen: Vec<(CapabilitySection, String, usize)> = Vec::new();
+    let mut taken: BTreeSet<(&'static str, String)> = units
+        .iter()
+        .map(|unit| (unit.section.slug(), unit.key.clone()))
+        .collect();
+    let mut seen: BTreeSet<(&'static str, String)> = BTreeSet::new();
     for unit in units {
-        match seen
-            .iter_mut()
-            .find(|(section, key, _)| *section == unit.section && *key == unit.key)
-        {
-            Some((_, _, count)) => {
-                *count += 1;
-                unit.key = format!("{}-{count}", unit.key);
-            }
-            None => seen.push((unit.section, unit.key.clone(), 1)),
+        let section = unit.section.slug();
+        if seen.insert((section, unit.key.clone())) {
+            continue;
         }
+        // Fewer keys are taken than the numbers tried, so one is free.
+        let key = (2..=taken.len() + 2)
+            .map(|count| format!("{}-{count}", unit.key))
+            .find(|key| !taken.contains(&(section, key.clone())))
+            .unwrap_or_default();
+        taken.insert((section, key.clone()));
+        seen.insert((section, key.clone()));
+        unit.key = key;
     }
 }
 
@@ -712,7 +733,13 @@ fn cover(body: &Body, units: &mut [Unit]) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Body, kebab, lead, list_content, units};
+    use super::super::list_item;
+    use super::{Body, kebab, lead, units};
+
+    /// The column the content of the list item `raw` opens starts at.
+    fn list_content(raw: &str) -> Option<usize> {
+        list_item(raw).map(|item| item.column)
+    }
 
     /// The section, key, first line and tests of each unit of `text`.
     fn read(text: &str) -> Vec<(&'static str, String, usize, Vec<String>)> {
