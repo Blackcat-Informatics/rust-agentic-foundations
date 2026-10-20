@@ -6,7 +6,8 @@
 
 use raf_okf::{
     Actor, AssessmentVerdict, CapabilitySection, DocType, Document, EvidenceSubject,
-    EvidenceVerdict, ExclusionItem, InputKind, Location, Profile, RafDocument, Rule, Violation,
+    EvidenceVerdict, ExclusionItem, InputKind, Location, Profile, RafDocument, Rule, Strictness,
+    Violation,
 };
 
 const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
@@ -696,6 +697,39 @@ fn numbers_compare_exactly_by_sign_whole_part_and_fraction() {
         assert!(!n(limit).exceeds(&n(limit)));
         assert!(!n(under).exceeds(&n(limit)), "{under} under {limit}");
     }
+}
+
+#[test]
+fn the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key() {
+    let strictness = |text: &str| match clean(text, COVERAGE_PATH) {
+        RafDocument::Coverage(record) => record.strictness,
+        other => panic!("not a coverage record: {other:#?}"),
+    };
+    assert_eq!(strictness(&coverage()), Strictness::Default);
+    for value in Strictness::ALL {
+        let text = mutate(
+            &coverage(),
+            "\nscope:",
+            &format!("\nstrictness: {}\nscope:", value.name()),
+        );
+        assert_eq!(strictness(&text), value, "{text}");
+    }
+    for found in ["strct", "Strict", "true", "\"\""] {
+        let broken = mutate(
+            &coverage(),
+            "\nscope:",
+            &format!("\nstrictness: {found}\nscope:"),
+        );
+        let rule = Rule::BadStrictness {
+            found: found.trim_matches('"').to_string(),
+        };
+        assert_only(&broken, COVERAGE_PATH, &key("strictness"), &rule);
+    }
+    let listed = mutate(&coverage(), "\nscope:", "\nstrictness: [strict]\nscope:");
+    let rule = Rule::BadStrictness {
+        found: "<not a scalar>".to_string(),
+    };
+    assert_only(&listed, COVERAGE_PATH, &key("strictness"), &rule);
 }
 
 #[test]

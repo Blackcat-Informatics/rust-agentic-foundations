@@ -125,6 +125,6 @@ pub use profile::{
     CapabilitySection, Change, ChangeItem, ContractEffect, CoverageRecord, DocType, EvidenceRecord,
     EvidenceSubject, EvidenceVerdict, Exclusion, ExclusionItem, Header, Input, InputKind, KeySpec,
     Location, Measure, Number, Outcome, Profile, RafDocument, RecordHeader, Rule, RuleTag,
-    SectionRef, State, TimestampError, ValueKind, Violation, validate_timestamp,
+    SectionRef, State, Strictness, TimestampError, ValueKind, Violation, validate_timestamp,
 };
 pub use span::Span;

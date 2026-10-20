@@ -131,6 +131,7 @@ kinds! {
     OKF_BAD_EXCLUSION_ITEM = "okf-bad-exclusion-item";
     OKF_CRATE_ROOT_EXCLUSION = "okf-crate-root-exclusion";
     OKF_EMPTY_REASON = "okf-empty-reason";
+    OKF_BAD_STRICTNESS = "okf-bad-strictness";
     OKF_PARSE_UNCLOSED_FENCE = "okf-parse-unclosed-fence";
     OKF_PARSE_TOO_LARGE = "okf-parse-too-large";
     OKF_PARSE_MIXED_LINE_ENDINGS = "okf-parse-mixed-line-endings";
@@ -588,6 +589,10 @@ fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
             "remove the crate from `scope` instead of excluding it",
         ),
         RuleTag::EmptyReason => (kind::OKF_EMPTY_REASON, "give the exclusion its reason"),
+        RuleTag::BadStrictness => (
+            kind::OKF_BAD_STRICTNESS,
+            "set `strictness` to default or strict, or remove the key, which reads as default",
+        ),
     };
     (kind, Cow::Borrowed(fix))
 }

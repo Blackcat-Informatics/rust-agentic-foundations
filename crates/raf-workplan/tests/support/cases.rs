@@ -447,6 +447,11 @@ fn record_rule_case(tag: RuleTag, name: &str, kind: &str) -> Case {
             "reason: \"\"",
             key("exclusions"),
         ),
+        RuleTag::BadStrictness => coverage(
+            "scope: []",
+            "strictness: strct\nscope: []",
+            key("strictness"),
+        ),
         other => panic!("{other} is not a rule of the record types"),
     }
 }

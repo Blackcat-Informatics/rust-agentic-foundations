@@ -169,6 +169,53 @@ pub enum ContractEffect {
     Changes,
 }
 
+/// How hard a repository is judged: the value of the optional `strictness` key
+/// of the coverage record.
+///
+/// The order of the variants is the order of strength, so the stronger of two
+/// values is their `max`. The profile closes the set, so the enum is
+/// exhaustive: a consumer matches every variant, and a new one is a breaking
+/// change.
+///
+/// ```rust
+/// use raf_okf::Strictness;
+///
+/// assert_eq!(Strictness::default(), Strictness::Default);
+/// assert_eq!(Strictness::Default.max(Strictness::Strict), Strictness::Strict);
+/// assert_eq!(Strictness::from_name("strict"), Some(Strictness::Strict));
+/// assert_eq!(Strictness::from_name("Strict"), None);
+/// assert_eq!(Strictness::Strict.name(), "strict");
+/// ```
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Strictness {
+    /// The rules of the document model, coverage of `scope` and the
+    /// completion gate. A record without the key says this.
+    #[default]
+    Default,
+    /// Those rules and the rules of strict mode.
+    Strict,
+}
+
+impl Strictness {
+    /// Every value, in the order of strength.
+    pub const ALL: [Self; 2] = [Self::Default, Self::Strict];
+
+    /// The value as the record writes it: `default` or `strict`.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::Strict => "strict",
+        }
+    }
+
+    /// The value a record writes as `name`, if it is one of [`Strictness::ALL`].
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|value| value.name() == name)
+    }
+}
+
 /// The keys every document type shares.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -726,6 +773,9 @@ impl Exclusion {
 pub struct CoverageRecord {
     /// The shared keys.
     pub header: RecordHeader,
+    /// How hard the repository is judged: the `strictness` key, and
+    /// [`Strictness::Default`] when the record does not have it.
+    pub strictness: Strictness,
     /// The package names of the crates whose coverage is enforced; empty to
     /// enforce none.
     pub scope: Vec<String>,
@@ -734,15 +784,24 @@ pub struct CoverageRecord {
 }
 
 impl CoverageRecord {
-    /// The coverage record `coverage:default` with no tags and no timestamp.
-    /// The values are not checked here; see [`CoverageRecord::to_document`].
+    /// The coverage record `coverage:default` with no tags, no timestamp and
+    /// the strictness [`Strictness::Default`]. The values are not checked
+    /// here; see [`CoverageRecord::to_document`].
     #[must_use]
     pub fn new(scope: Vec<String>, exclusions: Vec<Exclusion>) -> Self {
         Self {
             header: RecordHeader::new(DocType::Coverage, COVERAGE_SLUG),
+            strictness: Strictness::Default,
             scope,
             exclusions,
         }
+    }
+
+    /// The record with the strictness `strictness`.
+    #[must_use]
+    pub fn with_strictness(mut self, strictness: Strictness) -> Self {
+        self.strictness = strictness;
+        self
     }
 }
 

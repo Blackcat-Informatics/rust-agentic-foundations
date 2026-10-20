@@ -25,6 +25,8 @@ bindings:
     - raf_okf::AssessmentRecord::to_document
     - raf_okf::CoverageRecord::new
     - raf_okf::CoverageRecord::to_document
+    - raf_okf::CoverageRecord::with_strictness
+    - raf_okf::Strictness
     - raf_okf::Number::compare
     - raf_okf::Number::exceeds
   tests:
@@ -90,6 +92,7 @@ bindings:
     - raf_okf::test_crate::records::numbers_compare_exactly_by_sign_whole_part_and_fraction
     - raf_okf::test_crate::records::a_valid_assessment_validates_to_its_typed_value
     - raf_okf::test_crate::records::a_valid_coverage_record_validates_and_an_empty_scope_opts_out_visibly
+    - raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key
     - raf_okf::test_crate::records::a_verdict_is_one_of_the_verdicts_of_its_type
     - raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name
     - raf_okf::test_crate::records::a_digest_is_sixty_four_lowercase_hex_digits
@@ -111,6 +114,7 @@ bindings:
     - raf_okf::test_crate::render::record_keys_out_of_order_render_in_table_order_and_validate
     - raf_okf::test_crate::record_writer::a_built_evidence_record_renders_to_a_record_that_reads_back_equal
     - raf_okf::test_crate::record_writer::a_built_assessment_and_coverage_record_read_back_equal
+    - raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out
     - raf_okf::test_crate::record_writer::every_record_fixture_reads_back_equal_after_writing
     - raf_okf::test_crate::record_writer::the_keys_are_written_in_the_order_of_the_key_table
     - raf_okf::test_crate::record_writer::a_value_the_profile_refuses_is_written_and_refused_when_it_is_read_back
@@ -177,6 +181,18 @@ panic, abort or unbounded allocation:
 and `Architecture`, which people write, and the records `Evidence`, `Assessment` and
 `Coverage`, which state a result in their frontmatter. `DocType::ALL` lists them.
 
+**Strictness.** The coverage record takes the optional key `strictness`, read into
+the closed enumeration `Strictness`, `Default` or `Strict` in the order of strength
+(`Strictness::ALL`, with `Strictness::name` and `Strictness::from_name` for the
+values `default` and `strict`), so the stronger of two values is their `max`. A
+record without the key says `Default`, and any other value is the violation
+`Rule::BadStrictness` at the key, which the workplan reports as
+`okf-bad-strictness`. `CoverageRecord::strictness` holds the value,
+`CoverageRecord::new` builds a record that says `Default` and
+`CoverageRecord::with_strictness` sets it, and `CoverageRecord::to_document` writes
+`strictness: strict` after `timestamp` and leaves `Default` out, as a record without
+the key reads. [Strict mode](./workplan-strict.md) states what the value sets.
+
 > [!PROPOSED change:workplan-strict]
 > **Strict-mode keys and the debt record.** The profile has seven types: the six
 > above and the record `Debt`, the strict debt of [strict mode](./workplan-strict.md),
@@ -184,10 +200,8 @@ and `Architecture`, which people write, and the records `Evidence`, `Assessment`
 > coverage record has `coverage:default`. [The RAF profile of OKF](../architecture/okf-profile.md)
 > states its keys and those below, and `raf-okf` validates them:
 >
-> - the coverage record takes the optional key `strictness`, read into the closed
->   enumeration `Strictness` (`Default`, `Strict`, ordered by strength), `default`
->   when the key is absent and `okf-bad-strictness` for any other value; the optional
->   `ceilings`, rows of `crate`, exactly one of `lines` or `percent` and an optional
+> - the coverage record takes, beside `strictness`, the optional `ceilings`, rows of
+>   `crate`, exactly one of `lines` or `percent` and an optional
 >   `of` (`shipping`, `test` or `all`), each wrong shape `okf-bad-ceiling` and a
 >   number that is not one `okf-bad-measure`; and the optional `exceptions`, rows of
 >   exactly one of `item` or `file` and a non-empty `reason`. The profile refuses,
@@ -268,12 +282,12 @@ The records follow the key table and value rules of the architecture page:
   above its limit, compared exactly on the decimal texts (`Number::compare`);
 - an assessment holds the `section` input of its subject;
 - the coverage record is `coverage:default` at `work/coverage/default.md`. Its
-  `scope` holds distinct crate package names, and each exclusion an
-  `ExclusionItem` below a crate root with a non-empty reason; a crate root is
-  refused;
+  `strictness`, when it is there, is `default` or `strict`, its `scope` holds
+  distinct crate package names, and each exclusion an `ExclusionItem` below a crate
+  root with a non-empty reason; a crate root is refused;
 - `DocType`, `InputKind`, `Actor`, `EvidenceVerdict`, `AssessmentVerdict`,
-  `EvidenceSubject` and `ExclusionItem` are exhaustive enums, because the profile
-  closes each set.
+  `EvidenceSubject`, `ExclusionItem` and `Strictness` are exhaustive enums,
+  because the profile closes each set.
 
 Checks that need other documents, such as whether an id exists or whether a graph is
 acyclic, belong to [the document model](./workplan-document-model.md); `raf-okf`
@@ -609,6 +623,7 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `raf_okf::test_crate::profile::the_key_resource_has_its_own_rule_on_every_type` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_built_assessment_and_coverage_record_read_back_equal` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_built_evidence_record_renders_to_a_record_that_reads_back_equal` | test | [Verification](#verification) |
+| `raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_value_the_profile_refuses_is_written_and_refused_when_it_is_read_back` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::every_record_fixture_reads_back_equal_after_writing` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::the_keys_are_written_in_the_order_of_the_key_table` | test | [Verification](#verification) |
@@ -627,6 +642,7 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::coverage_is_one_record_at_its_one_path` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::numbers_compare_exactly_by_sign_whole_part_and_fraction` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key` | test | [Verification](#verification) |
 | `raf_okf::test_crate::refusals::a_billion_laughs_document_is_refused_at_the_first_anchor` | test | [Verification](#verification) |
 | `raf_okf::test_crate::refusals::a_document_without_a_fence_on_line_one_is_refused` | test | [Verification](#verification) |
 | `raf_okf::test_crate::refusals::a_frontmatter_fence_line_with_a_trailing_space_is_not_a_fence` | test | [Verification](#verification) |

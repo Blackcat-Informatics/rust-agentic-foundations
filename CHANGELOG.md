@@ -14,6 +14,12 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   document states the contract, the change record `workplan-strict` lists the
   capabilities it changes, and the decision page `arch:debt-ratchet` states the rule
   the workplan and the census ratchets share.
+- **`raf-okf`:** the coverage record takes the optional key `strictness`, `default`
+  or `strict`, read into the closed enumeration `Strictness`, ordered by strength
+  (`CoverageRecord::strictness`, `CoverageRecord::with_strictness`); a record without
+  the key says `default`, its writer leaves `default` out, and any other value is the
+  rule `Rule::BadStrictness`. Breaking: `CoverageRecord` gains a field, and `Rule`,
+  `RuleTag` and `Rule::ALL` gain a variant.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed

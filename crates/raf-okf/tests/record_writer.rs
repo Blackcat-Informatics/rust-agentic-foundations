@@ -13,7 +13,7 @@ use std::path::Path;
 use raf_okf::{
     Actor, AssessmentRecord, AssessmentVerdict, CapabilitySection, ConstructError, CoverageRecord,
     DocType, Document, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Exclusion, ExclusionItem,
-    Input, InputKind, Measure, Number, Profile, RafDocument, Rule, SectionRef,
+    Input, InputKind, Measure, Number, Profile, RafDocument, Rule, SectionRef, Strictness,
 };
 
 const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
@@ -122,6 +122,27 @@ fn a_built_assessment_and_coverage_record_read_back_equal() {
         text.contains("item: raf_workplan::exec::tests::*"),
         "{text}"
     );
+    assert_eq!(
+        read(&text, "work/coverage/default.md"),
+        RafDocument::Coverage(record)
+    );
+}
+
+#[test]
+fn a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out() {
+    let record = CoverageRecord::new(Vec::new(), Vec::new()).with_strictness(Strictness::Strict);
+    let text = record.to_document().expect("the record writes").render();
+    assert_eq!(
+        text,
+        "---\ntype: Coverage\nid: coverage:default\nstrictness: strict\nscope: []\nexclusions: []\n---\n"
+    );
+    assert_eq!(
+        read(&text, "work/coverage/default.md"),
+        RafDocument::Coverage(record)
+    );
+    let record = CoverageRecord::new(Vec::new(), Vec::new()).with_strictness(Strictness::Default);
+    let text = record.to_document().expect("the record writes").render();
+    assert!(!text.contains("strictness"), "{text}");
     assert_eq!(
         read(&text, "work/coverage/default.md"),
         RafDocument::Coverage(record)

@@ -319,6 +319,11 @@ pub enum Rule {
         /// The item the exclusion names.
         item: String,
     },
+    /// A `strictness` other than `default` and `strict`.
+    BadStrictness {
+        /// The value found.
+        found: String,
+    },
 }
 
 impl fmt::Display for Rule {
@@ -552,6 +557,9 @@ impl fmt::Display for Rule {
             Self::EmptyReason { item } => {
                 write!(f, "the exclusion of `{item}` has no reason")
             }
+            Self::BadStrictness { found } => {
+                write!(f, "bad strictness `{found}`; it is `default` or `strict`")
+            }
         }
     }
 }
@@ -735,6 +743,8 @@ pub enum RuleTag {
     CrateRootExclusion,
     /// [`Rule::EmptyReason`].
     EmptyReason,
+    /// [`Rule::BadStrictness`].
+    BadStrictness,
 }
 
 impl RuleTag {
@@ -801,6 +811,7 @@ impl RuleTag {
             Self::BadExclusionItem => "bad-exclusion-item",
             Self::CrateRootExclusion => "crate-root-exclusion",
             Self::EmptyReason => "empty-reason",
+            Self::BadStrictness => "bad-strictness",
         }
     }
 }
@@ -813,7 +824,7 @@ impl fmt::Display for RuleTag {
 
 impl Rule {
     /// Every tag, in the order of the variants of [`Rule`].
-    pub const ALL: [RuleTag; 59] = [
+    pub const ALL: [RuleTag; 60] = [
         RuleTag::MissingKey,
         RuleTag::UnknownKey,
         RuleTag::ResourceKey,
@@ -873,6 +884,7 @@ impl Rule {
         RuleTag::BadExclusionItem,
         RuleTag::CrateRootExclusion,
         RuleTag::EmptyReason,
+        RuleTag::BadStrictness,
     ];
 
     /// The tag of this value, which drops its data.
@@ -938,6 +950,7 @@ impl Rule {
             Self::BadExclusionItem { .. } => RuleTag::BadExclusionItem,
             Self::CrateRootExclusion { .. } => RuleTag::CrateRootExclusion,
             Self::EmptyReason { .. } => RuleTag::EmptyReason,
+            Self::BadStrictness { .. } => RuleTag::BadStrictness,
         }
     }
 }
@@ -1101,6 +1114,9 @@ mod tag_tests {
             RuleTag::EmptyReason => Rule::EmptyReason {
                 item: String::new(),
             },
+            RuleTag::BadStrictness => Rule::BadStrictness {
+                found: String::new(),
+            },
         }
     }
 
@@ -1168,11 +1184,12 @@ mod tag_tests {
             Rule::BadExclusionItem { .. } => 56,
             Rule::CrateRootExclusion { .. } => 57,
             Rule::EmptyReason { .. } => 58,
+            Rule::BadStrictness { .. } => 59,
         }
     }
 
     /// How many variants `Rule` has.
-    const VARIANTS: usize = 59;
+    const VARIANTS: usize = 60;
 
     #[test]
     fn all_lists_every_rule_once_in_variant_order() {

@@ -32,8 +32,8 @@ OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key
 
 - The RAF types are closed sets. A document carries every required key listed for
   its type and no key outside the list. The optional keys `tags` and `timestamp`
-  may be present on any type, and an Evidence record has optional keys of its
-  own.
+  may be present on any type, and the Evidence and Coverage records have
+  optional keys of their own.
 - `id` is RAF's identity key. The closed key sets do not include the OKF base key
   `resource`, so a document that carries it is rejected. This profile does not use
   an IRI identity.
@@ -64,7 +64,7 @@ inventory.
 | Architecture | `docs/architecture` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp` |
 | Evidence | `work/evidence` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by`, `for`, optional `command`, optional `revision`, optional `values`, optional `limits` |
 | Assessment | `work/assessments` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by` |
-| Coverage | `work/coverage` | `type`, `id`, optional `tags`, optional `timestamp`, `scope`, `exclusions` |
+| Coverage | `work/coverage` | `type`, `id`, optional `tags`, optional `timestamp`, optional `strictness`, `scope`, `exclusions` |
 
 Every key is required except those the table marks optional. The writer emits the
 keys of a type in the order of this table.
@@ -137,6 +137,10 @@ in that type's directory. Each of these directories holds Markdown files only.
   `pass` holds no value above its limit. Values and limits are compared exactly on
   their decimal text (`Number::compare`), never as floating-point numbers. An
   absent map holds nothing.
+- **`strictness`** (optional) is `default` or `strict`, and a record without it
+  says `default`. It sets how hard the repository is judged
+  ([strict mode](../capabilities/workplan-strict.md)). The writer leaves out
+  `default`.
 - **`scope`** is a list of crate package names, each once; the empty list `[]`
   names no crate.
 - **`exclusions`** is a list of maps with exactly the keys `item` and `reason`,
