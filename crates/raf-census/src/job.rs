@@ -12,7 +12,9 @@ use crate::units::Unit;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct JobForbidden {
     /// The fingerprints that name a copy: `body`, `shim` and `table` ids. A
-    /// `rule` id names no unit in the census and matches none.
+    /// `shim` id names the units that group under it, so a method of a trait
+    /// implementation and a forwarder that calls through `Self::` never match
+    /// it. A `rule` id names no unit in the census and matches none.
     pub fingerprints: Vec<Fingerprint>,
     /// Integer constants, by value, that only the home may spell.
     pub constants: Vec<u128>,
@@ -81,9 +83,7 @@ impl Job {
         print
             .and_then(|print| print.body.as_ref())
             .is_some_and(|hashed| forbids(&hashed.fingerprint))
-            || print
-                .and_then(|print| print.shim.as_ref())
-                .is_some_and(|hashed| forbids(&hashed.fingerprint))
+            || unit.shim_key.as_ref().is_some_and(forbids)
             || unit
                 .tables
                 .iter()
@@ -145,10 +145,12 @@ pub struct JobReport {
 }
 
 impl Census {
-    /// Matches every job against the units: a unit matches when its `body` or
-    /// `shim` fingerprint, or the `table:` id of a table it holds, is among the
-    /// job's forbidden fingerprints, or one of its integer constants equals a
-    /// forbidden constant by value. One report per job, in the order given.
+    /// Matches every job against the units: a unit matches when its `body`
+    /// fingerprint, its shim key, or the `table:` id of a table it holds, is
+    /// among the job's forbidden fingerprints, or one of its integer constants
+    /// equals a forbidden constant by value. A shim id matches the units that
+    /// group under it: a method of a trait implementation and a forwarder
+    /// that calls through `Self::` have no shim key and never match one. One report per job, in the order given.
     #[must_use]
     pub fn match_jobs(&self, jobs: &[Job]) -> Vec<JobReport> {
         jobs.iter()

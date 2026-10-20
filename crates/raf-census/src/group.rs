@@ -10,7 +10,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::normalize::{Hashed, TableKind};
+use crate::normalize::TableKind;
 use crate::units::Unit;
 use crate::{Error, Fingerprint};
 
@@ -102,7 +102,8 @@ pub(crate) struct Candidate<'a> {
     pub(crate) kind: GroupKind,
     pub(crate) member: Member,
     pub(crate) tokens: usize,
-    pub(crate) hashed: &'a Hashed,
+    pub(crate) fingerprint: &'a Fingerprint,
+    pub(crate) digest: &'a [u8; 32],
 }
 
 /// Every group of two or more candidates, ordered by member count descending,
@@ -117,11 +118,11 @@ pub(crate) struct Candidate<'a> {
 pub(crate) fn build_groups<'a>(
     candidates: impl IntoIterator<Item = Candidate<'a>>,
 ) -> Result<Vec<Group>, Error> {
-    let mut by_print: BTreeMap<(GroupKind, Fingerprint), (&Hashed, Group)> = BTreeMap::new();
+    let mut by_print: BTreeMap<(GroupKind, Fingerprint), (&[u8; 32], Group)> = BTreeMap::new();
     for candidate in candidates {
-        let key = (candidate.kind, candidate.hashed.fingerprint.clone());
+        let key = (candidate.kind, candidate.fingerprint.clone());
         if let Some((holder, group)) = by_print.get_mut(&key) {
-            if holder.digest != candidate.hashed.digest {
+            if *holder != candidate.digest {
                 return Err(Error::Collision {
                     fingerprint: key.1.to_string(),
                     first: group.members[0].symbol.clone(),
@@ -138,7 +139,7 @@ pub(crate) fn build_groups<'a>(
             tokens: candidate.tokens,
             members: vec![candidate.member],
         };
-        by_print.insert(key, (candidate.hashed, group));
+        by_print.insert(key, (candidate.digest, group));
     }
     let mut groups: Vec<Group> = by_print
         .into_values()
@@ -179,12 +180,13 @@ pub(crate) fn group(units: &[Unit]) -> Result<Grouping, Error> {
         if print.shim.is_some() {
             // A forwarder is never compared by structure; it groups by its
             // shim, and only when its shim key allows.
-            if let (Some(_), Some(hashed)) = (&unit.shim_key, &print.shim) {
+            if let (Some(key), Some(hashed)) = (&unit.shim_key, &print.shim) {
                 candidates.push(Candidate {
                     kind: GroupKind::Shim,
                     member: Member::of(unit),
                     tokens: print.tokens,
-                    hashed,
+                    fingerprint: key,
+                    digest: &hashed.digest,
                 });
             }
         } else if let Some(hashed) = &print.body {
@@ -192,7 +194,8 @@ pub(crate) fn group(units: &[Unit]) -> Result<Grouping, Error> {
                 kind: GroupKind::Body,
                 member: Member::of(unit),
                 tokens: print.tokens,
-                hashed,
+                fingerprint: &hashed.fingerprint,
+                digest: &hashed.digest,
             });
         }
     }
@@ -241,6 +244,7 @@ pub(crate) fn group(units: &[Unit]) -> Result<Grouping, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::normalize::Hashed;
 
     fn hashed(id: u64, tail: u8) -> Hashed {
         let mut digest = [0_u8; 32];
@@ -262,7 +266,8 @@ mod tests {
                 package: "demo".to_owned(),
             },
             tokens: 30,
-            hashed,
+            fingerprint: &hashed.fingerprint,
+            digest: &hashed.digest,
         }
     }
 

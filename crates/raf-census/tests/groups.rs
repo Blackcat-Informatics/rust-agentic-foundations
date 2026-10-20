@@ -487,3 +487,49 @@ fn jobs_match_shim_and_table_fingerprints() {
     });
     assert_eq!(census.match_jobs(&[upper])[0].matches, []);
 }
+
+#[test]
+fn a_shim_id_matches_the_units_that_group_under_it_and_not_the_excluded_ones() {
+    let census = load(FORWARDERS);
+    let group = census
+        .shim_groups()
+        .find(|group| group.members.len() == 3)
+        .expect("the three eligible forwarders group");
+    let job = Job::new("forward", "demo::S::plain").forbidding(JobForbidden {
+        fingerprints: vec![group.fingerprint.clone()],
+        constants: Vec::new(),
+    });
+    let report = census.match_jobs(&[job]).remove(0);
+    assert_eq!(
+        matched(&report),
+        [
+            ("demo::Make::dflt", MatchClass::Copy),
+            ("demo::S::build", MatchClass::Copy),
+            ("demo::S::plain", MatchClass::Home),
+        ]
+    );
+    assert_eq!(report.copies, 2);
+    // The trait implementation method has the same shim form and is absent.
+    let trait_impl = census
+        .units()
+        .iter()
+        .find(|u| u.trait_impl && u.name == "make")
+        .expect("the trait implementation method exists");
+    assert!(trait_impl.print.as_ref().is_some_and(|p| p.shim.is_some()));
+    assert!(report.matches.iter().all(|m| m.symbol != trait_impl.symbol));
+    // A job forbidding the shim of the `Self::` forwarders matches nothing:
+    // they have a shim form but no key, so no group carries that id.
+    let via = census.unit("demo::S::via").expect("exists");
+    let via_shim = via
+        .print
+        .as_ref()
+        .and_then(|p| p.shim.as_ref())
+        .expect("a `Self::` forwarder has a shim form")
+        .fingerprint
+        .clone();
+    let job = Job::new("via", "demo::S::via").forbidding(JobForbidden {
+        fingerprints: vec![via_shim],
+        constants: Vec::new(),
+    });
+    assert_eq!(census.match_jobs(&[job])[0].matches, []);
+}
