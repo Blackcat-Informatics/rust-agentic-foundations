@@ -16,10 +16,12 @@ affects:
 contract_effect: changes
 items:
   - claim: "The census lexes bodies with proc_macro2, macro arguments included, and produces the structural and value forms of normal form 1."
-  - claim: "Bodies under 30 tokens keep literals, and bodies of 6 to 29 tokens also get a shim form that excludes trait-impl methods and Self:: forwarders."
+  - claim: "Bodies under 30 tokens keep literals, and a body that is one expression with a call, no self and 6 to 29 tokens also gets a shim form that excludes trait-impl methods and Self:: forwarders."
   - claim: "A fingerprint is the kind prefix plus the first 8 bytes of the BLAKE3 hash in hex, for the kinds body, shim, table and rule."
-  - claim: "Grouping builds a sorted BTreeMap of groups with two or more members and compares integer constants by value."
-  - claim: "Golden tests pin every fixture fingerprint, and a ledger with a mismatched normal_form fails hard."
+  - claim: "Units are collected once per source item, whatever number of targets reach it, and grouping builds a sorted BTreeMap of groups with two or more members and compares integer constants by value."
+  - claim: "Golden tests pin every fixture fingerprint."
+  - claim: "The census implements normal_form 1 and check_normal_form refuses any other version, naming both versions and cargo census migrate."
+  - claim: "Matches are classified as HOME, VARIANT or COPY and counted per job."
   - claim: "Baseline and index JSON reports are deterministic."
 ---
 

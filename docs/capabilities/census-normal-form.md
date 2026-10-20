@@ -5,7 +5,7 @@ type: Capability
 id: cap:census-normal-form
 title: "Census normal form, fingerprints and grouping"
 description: "How the RAF census normalises function bodies, fingerprints them with BLAKE3 and groups the duplicates."
-state: designed
+state: implementing
 bindings:
   code: []
   tests: []
@@ -23,6 +23,13 @@ local names, borrows and clones. The normal form rewrites a function body into a
 canonical token sequence, and the fingerprint names that sequence, so equal
 algorithms get equal fingerprints. This capability is the foundation every other
 census capability stands on.
+
+> [!PROPOSED change:census-normal-form]
+> The census is a library: a caller loads a workspace through `raf-source`, and
+> the census reports which units share a fingerprint and which of them a ledger job
+> forbids outside its home. The fingerprint is only comparable inside one normal-form
+> version, so the version is a value the library exposes and a gate it applies to
+> every version a caller declares.
 
 ## Contract
 
@@ -59,6 +66,51 @@ implements it as follows.
   `normal_form` differs from the implemented version fails hard, and the message
   names `cargo census migrate`.
 
+> [!PROPOSED change:census-normal-form]
+> - `raf_census::NORMAL_FORM` is 1. `raf_census::check_normal_form(declared)`
+>   accepts 1 and refuses every other version with `Error::Version`, whose message
+>   names the declared version, the implemented version and `cargo census migrate`.
+>   Reading a version out of a ledger file is the ledger's.
+> - `raf_census::CensusOptions` is `#[non_exhaustive]` and has `Default` and two
+>   setters. `min_tokens` defaults to 20, and the setter refuses 0 with
+>   `Error::Options`. `max_file_bytes` defaults to 8 MiB and is the per-file read cap
+>   of the workspace load; a file above it is a load error that names the file.
+> - `raf_census::Error` is the one error type: `Source` (file, line and reason of a
+>   slice that does not lex or a signature or initialiser that does not parse),
+>   `Options`, `Collision` (two different forms with one fingerprint, naming both
+>   symbols), `Version` and a load error of `raf-source`. Nothing falls back to a
+>   partial result.
+> - Units are collected once per source item, whatever number of targets reach it,
+>   so a module declared by both a library and a binary yields one unit. A unit is
+>   a function, a method (inherent, trait implementation or trait default), a
+>   constant or a static; its identity is its file, line and symbol, its symbol is
+>   chosen deterministically (a shipping reach over a test reach, then the smallest
+>   path), and it is shipping when any target that reaches it ships.
+> - A body is a shim candidate when it is one expression (no `let`, no `;` before
+>   its tail), contains a call, does not mention `self` and has 6 to 29 structural
+>   tokens. A shim candidate keeps its `body` fingerprint when it reaches
+>   `min_tokens`, which the index lists, but it never joins a body group: only its
+>   `shim` fingerprint groups, and only when its shim key is present. The shim key
+>   is absent for a method of a trait implementation and for a forwarder that calls
+>   through `Self::`.
+> - A job (`raf_census::Job`) has an id, a home symbol, entry-point symbols, variant
+>   symbols and a forbidden set of fingerprints and integer constants.
+>   `Census::match_jobs` returns one report per job. A unit matches when its `body`
+>   or `shim` fingerprint or its `table:` id is a forbidden fingerprint, or when one
+>   of its integer constants equals a forbidden constant by value. A match is `Home`
+>   when the unit's symbol is the home or an entry point, `Variant` when it is a
+>   listed variant, and `Copy` otherwise, and the job counts its copies. A `rule:`
+>   fingerprint matches no unit here.
+> - The baseline report has the members `normal_form`, `min_tokens`, `units` (the
+>   count), `body_groups`, `shim_groups`, `hex_tables` and `shared_constants`. The
+>   index report has `normal_form`, `units` (symbol, package, file, line, shipping,
+>   tokens, body and shim), `groups` (kind, fingerprint and members) and `jobs`
+>   (id, home, matches with symbol and class, and copies). Both reports are closed
+>   schemas that read back what they write, and they render with sorted keys and a
+>   trailing newline.
+> - Groups sort by member count descending, then tokens descending, then fingerprint
+>   ascending, and their members by symbol, file and line.
+
 ## Usage
 
 The census runs as part of `raf_census::Gate` and through `cargo census`. The
@@ -69,6 +121,13 @@ A fingerprint is used in two places. A ledger job lists it under
 `forbidden.fingerprints` so that a copy outside the job's home fails the gate (see
 [census-ledger](./census-ledger.md)). A reader compares fingerprints in a baseline
 to see which functions the census considers the same.
+
+> [!PROPOSED change:census-normal-form]
+> A caller loads the workspace with `raf_census::Census::load(&tree, roots,
+> &options)`, normalises single sources with `raf_census::Normalizer`, and asks
+> `Census::match_jobs` which units a set of `Job` values forbids. `check_normal_form`
+> is the gate a ledger reader applies to the version it finds. `cargo census` and the
+> rule API are the designed consumers of this library.
 
 ## Examples
 
@@ -125,6 +184,14 @@ The designed index report lists every unit:
 }
 ```
 
+> [!PROPOSED change:census-normal-form]
+> The baseline report of a workspace with one body group and one shim group names
+> `normal_form`, `min_tokens`, a unit count, the two group lists, the hex tables and the
+> shared constants; the index report of the same workspace lists each unit with its
+> `body` and `shim` fingerprints, each group with its members, and each job with its
+> classified matches. The fingerprints and keys are those printed by the
+> `baseline` example of the crate.
+
 ## Constraints
 
 - The census reads Rust source only. Generated code and code behind macros that
@@ -137,6 +204,18 @@ The designed index report lists every unit:
   forms as a possibility the normal form version does not exclude, and a ledger
   that names a fingerprint still lists member symbols that a reader can check.
 - The `table` and `rule` kinds carry names, not hashes.
+
+> [!PROPOSED change:census-normal-form]
+> - A unit that several targets reach is one unit; the census never counts a shared
+>   module once per target.
+> - A shim candidate never joins a body group, so a 20-token forwarder is judged by
+>   its shim form alone.
+> - A slice that does not lex, a signature that does not parse and an initialiser that
+>   does not parse are errors that name the file and line; the census does not skip
+>   them.
+> - Integer constants and the fingerprints of a constant or static come from its
+>   initialiser expression only, never from its type or attributes.
+> - Nesting depth is bounded by the delimiter budget of `raf-source`.
 
 ## Explanation
 
@@ -176,3 +255,21 @@ because there the algorithm, not the constants, is what two copies share.
   source give byte-identical baseline and index reports.
 - A ledger fixture with `normal_form = 2` fails with a message that names
   `cargo census migrate`.
+
+> [!PROPOSED change:census-normal-form]
+> - `check_normal_form` is tested with 0 and 2 (refused, the message naming both
+>   versions and `cargo census migrate`) and with 1 (accepted).
+> - `CensusOptions` is tested with `min_tokens` 0 (refused) and 1 (accepted), with the
+>   defaults, and with a file above and a file at `max_file_bytes`.
+> - Golden tests pin the fingerprint of every fixture, and fail when a fixture has no
+>   pinned value or a pinned value has no fixture.
+> - A job fixture over one workspace yields a `Home` for the home, a `Home` for an
+>   entry point, a `Variant`, a `Copy`, and a `Copy` for a unit holding the forbidden
+>   constant by value, with a copy count of 2, and a job that matches nothing has no
+>   matches.
+> - Shim fixtures cover the 5, 6, 29 and 30 token boundaries, a two-statement and a
+>   `let` body without a shim form, a trait-implementation method and a `Self::`
+>   forwarder each beside a neighbour that does group, and a module reached by two
+>   targets as one unit.
+> - The reports are tested for byte-identical output over two fresh loads, for a
+>   round trip through their JSON, and for refusal of an unknown key.

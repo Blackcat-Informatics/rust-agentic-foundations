@@ -19,6 +19,12 @@
 | [workplan-reconcile](./workplan-reconcile.md) | change new, change impact and change reconcile: opening a change, listing what it touches, and producing the documentation obligations. |  |
 | [workplan-two-way-coverage](./workplan-two-way-coverage.md) | Checks from code to documentation and from tests to claims, complementing the documentation-to-code and documentation-to-tests checks. |  |
 
+## Implementing
+
+| Capability | Description | Gaps |
+| --- | --- | --- |
+| [census-normal-form](./census-normal-form.md) | How the RAF census normalises function bodies, fingerprints them with BLAKE3 and groups the duplicates. | bindings.code is empty; bindings.tests is empty; bindings.examples is empty |
+
 ## Designed
 
 | Capability | Description | Gaps |
@@ -28,7 +34,6 @@
 | [census-detectors](./census-detectors.md) | The fourteen generic detectors the RAF census ships, each with a positive and a negative fixture. |  |
 | [census-ledger](./census-ledger.md) | The helpers-ledger.toml schema: jobs, variants, distinct sets, extensions and the staleness checks. |  |
 | [census-migration](./census-migration.md) | Move a legacy census baseline and ledger, or a ledger at an older normal form, to the implemented normal form and the unified ledger schema. |  |
-| [census-normal-form](./census-normal-form.md) | How the RAF census normalises function bodies, fingerprints them with BLAKE3 and groups the duplicates. |  |
 | [census-patterns](./census-patterns.md) | Ledger-declared \[\[pattern\]\] matchers that flag code by call, path, macro, type, literal or token sequence. |  |
 | [census-reference-scan](./census-reference-scan.md) | Compare first-party code with the source of named dependency packages, resolved through cargo metadata. |  |
 | [census-rule-api](./census-rule-api.md) | The Rust Rule trait for repository-specific detectors and the Gate that runs the census as a dev-dependency test. |  |

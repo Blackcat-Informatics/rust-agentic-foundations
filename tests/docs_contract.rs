@@ -81,7 +81,7 @@ const INVENTORY: Inventory = Inventory {
         ("census-detectors", "designed"),
         ("census-ledger", "designed"),
         ("census-migration", "designed"),
-        ("census-normal-form", "designed"),
+        ("census-normal-form", "implementing"),
         ("census-patterns", "designed"),
         ("census-reference-scan", "designed"),
         ("census-rule-api", "designed"),
@@ -624,6 +624,7 @@ fn repository_bindings_resolve_in_the_source_index() -> Result<(), Box<dyn Error
         packages,
         BTreeSet::from([
             "cargo-workplan",
+            "raf-census",
             "raf-okf",
             "raf-source",
             "raf-source-fuzz",
@@ -1141,8 +1142,8 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|(_, state)| *state == wanted)
             .count()
     };
-    assert_eq!(count("designed"), 9);
-    assert_eq!(count("implementing"), 0);
+    assert_eq!(count("designed"), 8);
+    assert_eq!(count("implementing"), 1);
     assert_eq!(count("delivered"), 12);
     assert_eq!(count("considered"), 0);
     assert_eq!(INVENTORY.architecture.len(), 2);

@@ -49,7 +49,7 @@ built.
 
 ### Crates
 
-`raf-okf`, `raf-source`, `raf-workplan` and `cargo-workplan` are workspace members. `raf-okf` and
+`raf-okf`, `raf-source`, `raf-census`, `raf-workplan` and `cargo-workplan` are workspace members. `raf-okf` and
 `raf-source` are **delivered**: the frontmatter reader, the deterministic writer,
 the body model and the profile validation of `raf-okf`, and the `Tree` trait of
 `raf-source` with its disk and memory backends and path containment, its bounded
@@ -62,14 +62,16 @@ prose assessments, two-way coverage and the current-rationale check of the
 architecture pages. `cargo-workplan` is **delivered** with the commands `check`,
 `status`, `docs sync|preview`, `change new|impact|reconcile|complete`, `verify`,
 `history`, `evidence record|claims|for`, `assess` and `coverage code|tests`, their
-contract stated in the command-line capability. Every other crate below is
+contract stated in the command-line capability. `raf-census` is **implementing**: its error type, its options and the
+normal-form version gate exist, and the normaliser, units, grouping and reports of
+its normal-form capability follow. `cargo-census` is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
 |---|---|---|
 | `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | delivered |
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | delivered |
-| `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | designed |
+| `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | implementing |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
 | `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |
 | `cargo-workplan` | Thin command-line wrapper over `raf-workplan` | delivered |
@@ -82,7 +84,7 @@ bindings.
 
 | Path | Contents |
 |---|---|
-| `crates/` | The workspace member crates (`raf-okf`, `raf-source`, `raf-workplan` and `cargo-workplan`; each other crate joins `members` when it is built) |
+| `crates/` | The workspace member crates (`raf-okf`, `raf-source`, `raf-census`, `raf-workplan` and `cargo-workplan`; each other crate joins `members` when it is built) |
 | `docs/capabilities/` | One permanent capability document per capability |
 | `docs/architecture/` | Shared current decisions (normal form, OKF profile) |
 | `work/changes/` | In-flight change records |

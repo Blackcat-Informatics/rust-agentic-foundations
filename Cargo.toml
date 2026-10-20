@@ -22,7 +22,7 @@ workspace = true
 
 [workspace]
 resolver = "3"
-members = ["crates/cargo-workplan", "crates/raf-okf", "crates/raf-source", "crates/raf-workplan"]
+members = ["crates/cargo-workplan", "crates/raf-census", "crates/raf-okf", "crates/raf-source", "crates/raf-workplan"]
 exclude = ["fuzz"]
 
 [workspace.package]
