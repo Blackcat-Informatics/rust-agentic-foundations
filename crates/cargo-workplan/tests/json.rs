@@ -259,6 +259,7 @@ fn the_kinds_that_are_not_rules_are_not_rule_names() {
         "coverage-gap",
         "coverage-excluded",
         "coverage-error",
+        "coverage-claim",
     ] {
         assert!(!Finding::KINDS.contains(&kind), "{kind} is also a rule");
     }

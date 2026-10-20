@@ -42,6 +42,8 @@
 //!                      Print each assessment and whether it is current
 //! coverage code|tests [--crate <package>]
 //!                      Print the public items or the tests no capability binds
+//! coverage claims [--capability cap:<slug>]
+//!                      Print each claim of the delivered capabilities and its tests
 //! ```
 //!
 //! # Root
@@ -107,12 +109,14 @@
 //! | `coverage-gap` | `gap` (`public item`, `unresolved re-export` or `test`), `crate`, `in_scope`, `path`, `item`, `file`, `line` |
 //! | `coverage-excluded` | the fields of `coverage-gap`, then `exclusion` and `reason` |
 //! | `coverage-error` | `crate`, `in_scope`, `target`, `root`, `failure`, `reexport` (or `null`), `message` |
+//! | `coverage-claim` | `capability`, `section` (`contract` or `constraints`), `claim` (its key within the section), `line`, `tests` (the paths its tested-by markers name) |
 //!
 //! The objects of `history` and `coverage` are the JSON array that
 //! `raf_workplan::history::render::json` and `raf_workplan::coverage::render::json`
 //! write, printed as they are: the entries of a history and then the bindings
 //! that no longer resolve; the gaps of a coverage report, then the exclusion
-//! hits, then, for `coverage code`, the surfaces that could not be listed.
+//! hits, then, for `coverage code`, the surfaces that could not be listed; the
+//! claims of `coverage claims`, from `raf_workplan::coverage::render::claims_json`.
 //!
 //! The kinds that are not rules never equal one, which a test of this crate
 //! proves against the full list. A refusal of `change complete` is a `refused`
@@ -134,7 +138,8 @@
 //!   obligation; `change complete` refused; `verify` found a binding that does
 //!   not pass; `evidence record` wrote a record whose verdict is `fail`;
 //!   `coverage code` or `coverage tests` printed a gap, or `coverage code` a
-//!   surface that cannot be listed.
+//!   surface that cannot be listed; `coverage claims` printed a claim that
+//!   names no test.
 //! * 2: the tool could not run: a usage error (an unknown command or option, a
 //!   slug that is not a slug, one that starts with `-`, `--copyright` without
 //!   `--licence` or the other way round), a directory that is not a repository,
@@ -155,8 +160,9 @@
 //!   printed value that is not a number, a name printed twice, a limit never
 //!   printed, output past its bound, a command that cannot start, a request
 //!   refused before the run), a section that cannot be assessed, a package
-//!   that `--crate` does not name. A usage error is detected before any
-//!   process is started.
+//!   that `--crate` does not name, a capability that `--capability` of
+//!   `coverage claims` names and no loaded document has. A usage error is
+//!   detected before any process is started.
 //!
 //! # Commands
 //!
@@ -242,15 +248,26 @@
 //!   gap (or in the code direction a surface that cannot be listed) is a
 //!   finding, printed whole under `-q`, and exits 1; one that names none is an
 //!   outcome and exits 0. It writes nothing.
+//! * `coverage claims [--capability cap:<slug>]` prints
+//!   `Workplan::claims_report` as the table and the JSON array of
+//!   `raf_workplan::coverage::render::claims_table` and `claims_json`: each
+//!   claim of every delivered capability, or of the one named, with its
+//!   section, key, line and the tests its tested-by markers name, sorted by
+//!   capability, section and line, the same under either strictness. A report
+//!   with a claim that names no test is a finding, printed whole under `-q`,
+//!   and exits 1; one whose every claim names a test is an outcome and exits
+//!   0. It writes nothing.
 //!
 //! `check`, `status`, `docs preview`, `change impact`, `change reconcile`,
 //! `history`, `evidence claims`, `evidence for`, `assess --context`,
 //! `assess --list` and `coverage` leave the tree byte-identical. Under `-q`
 //! the outcomes (`change new`, `change impact`, a completion, the passing
 //! bindings of `verify`, a history, a `pass` evidence record, the evidence
-//! views, the assessment commands, a coverage report without a gap) print
+//! views, the assessment commands, a coverage report without a gap, a claims
+//! report whose every claim names a test) print
 //! nothing; the obligations, the refusal, the failing bindings, a `fail`
-//! evidence record and a coverage report with a gap are findings and stay.
+//! evidence record, a coverage report with a gap and a claims report with an
+//! uncovered claim are findings and stay.
 
 mod assess;
 mod change;

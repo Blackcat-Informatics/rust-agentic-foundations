@@ -58,6 +58,10 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   (`strict::ClaimsReport`), rendered by `coverage::render::claims_table` and
   `claims_json`. Breaking: `EdgeKind` and `Edge` gain a variant, and
   `EdgeKind::ALL` has eleven entries.
+- **`cargo-workplan`:** `coverage claims [--capability cap:<slug>]` prints the claims
+  report as a table or as `coverage-claim` JSON objects, and exits 1 when a claim of
+  a delivered capability names no test, 0 when every claim names one, and 2 when
+  `--capability` names no loaded capability.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed

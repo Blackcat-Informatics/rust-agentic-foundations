@@ -185,6 +185,7 @@ bindings:
     - raf_workplan::root::tests::the_root_is_the_workspace_root_member_and_the_command_is_exactly_one
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_claims_takes_an_optional_capability
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_claims_and_for_take_one_id_each
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_reads_every_option_and_the_command_after_the_separator
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_refuses_a_separator_as_a_value_and_a_record_it_cannot_write
@@ -201,6 +202,9 @@ bindings:
     - cargo_workplan::test_crate::coverage::crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there
     - cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one
     - cargo_workplan::test_crate::coverage::this_repository_names_the_gaps_outside_its_scope_and_none_in_it
+    - cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero
+    - cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_json_alike
+    - cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why
     - cargo_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing
     - cargo_workplan::test_crate::evidence::a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves
     - cargo_workplan::test_crate::evidence::a_command_that_passes_writes_exactly_one_record_and_exits_zero
@@ -297,6 +301,7 @@ the processes of the command itself.
 | `assess cap:<slug>#<section> --verdict accepted\|rejected --by human\|agent [--copyright <text> --licence <id>]` | Record the assessment of the section |
 | `assess [cap:<slug>#<section>] --list` | Print each assessment, or the one of the section, and whether it is current |
 | `coverage code\|tests [--crate <package>]` | Print the public items or the tests that no capability binds ([two-way coverage](./workplan-two-way-coverage.md)) |
+| `coverage claims [--capability cap:<slug>]` | Print every claim of every delivered capability, or of the one named, with its key, line and tests ([strict mode](./workplan-strict.md)) |
 
 `status` groups capabilities by state, lists for each `implementing` capability the
 bindings that are missing or do not resolve, as gaps, and names the open changes. `docs preview` applies the
@@ -354,10 +359,13 @@ repository owes; it exits 2 when it writes none: a printed value that is not a
 number, a name printed twice, a limit the command never printed, output past its
 bound, a command that cannot start, or a request refused before the run.
 `coverage code` and `coverage tests` exit 1 when the report names a gap, or in the
-code direction a surface that cannot be listed, and 0 otherwise. Each exits 2 when
+code direction a surface that cannot be listed, and 0 otherwise. `coverage claims`
+exits 1 when a claim of a delivered capability has no test and 0 when every claim
+has one, under either strictness. Each exits 2 when
 the tool cannot run: an id or a capability that no loaded document has, a shallow
 clone, a Git older than 2.30 or a bound file whose lines are not committed for
-`history`, a package that `--crate` does not name. `evidence claims` also exits 2,
+`history`, a package that `--crate` does not name, a capability that `--capability`
+of `coverage claims` names and no loaded document has. `evidence claims` also exits 2,
 naming each capability document that exists and does not load, with nothing on
 standard output, because a claim in such a document may name the record; a change
 record or an evidence record that does not load holds no claim and leaves its
@@ -397,31 +405,30 @@ array or empty.
 **Output of the record commands.** `history` and `coverage` print the table and
 the JSON array that `raf-workplan` renders, as one report: under `-q` a history
 prints nothing (`[]` in JSON), and a coverage report is printed whole when it names
-a gap and not at all when it names none. Under `-q` a `pass` record, a recorded
+a gap and not at all when it names none, as a claims report is printed whole when a
+claim names no test and not at all when every claim names one. Under `-q` a `pass` record, a recorded
 verdict, a context, a list and the two evidence views print nothing, and a `fail`
 record stays. The JSON kinds are `history-entry`, `history-removed`,
 `evidence-recorded`, `evidence-claim`, `evidence-for`, `assess-context`,
-`assessment-recorded`, `assessment`, `coverage-gap`, `coverage-excluded` and
-`coverage-error`; none equals the kind of a rule, and their members, in a fixed
+`assessment-recorded`, `assessment`, `coverage-gap`, `coverage-excluded`,
+`coverage-error` and `coverage-claim`; none equals the kind of a rule, and their members, in a fixed
 order, are documented in the crate documentation of `cargo-workplan`.
 
 > [!PROPOSED change:workplan-strict]
-> **Strict mode.** The commands of [strict mode](./workplan-strict.md) join the table:
+> **Strict mode.** The other commands of [strict mode](./workplan-strict.md) join the
+> table:
 >
-> - `coverage claims [--capability cap:<slug>]` prints every claim of every delivered
->   capability, or of the one named, with its key, line and tests;
 > - `coverage lines [--crate <package>]` prints the reverse coverage of every package,
 >   or of the one named, as three tables, and `coverage --reverse [--crate <package>]`
 >   is the same command with the same output;
 > - `debt --write [--copyright <text> --licence <id>]` writes the strict debt record
 >   `work/debt/default.md` through `Gate::write_debt`.
 >
-> `coverage claims` exits 1 when a claim of a delivered capability has no test,
-> `coverage lines` exits 1 when it prints an orphan line, and each exits 0 otherwise
-> and 2 when `--capability` or `--crate` names nothing loaded. `debt --write` exits 0
+> `coverage lines` exits 1 when it prints an orphan line, 0 otherwise and 2 when
+> `--crate` names no package. `debt --write` exits 0
 > when it writes, 1 when it refuses with the findings printed (growth, or a finding of
 > the default rules), and 2 when the coverage record does not say `strictness: strict`
-> or the tool cannot run. The JSON kinds `coverage-claim`, `lines-crate`, `lines-module`, `lines-orphan`,
+> or the tool cannot run. The JSON kinds `lines-crate`, `lines-module`, `lines-orphan`,
 > `lines-excepted`, `lines-error` and `debt-written` join the record kinds, and none
 > equals the kind of a rule. `debt --write` writes one file and the reports write
 > nothing.
@@ -454,12 +461,12 @@ The record commands are used the same way:
 - `cargo workplan --strict check` judges the repository under strict mode before
   its coverage record says `strictness: strict`, and `cargo workplan check` judges
   it so once the record says it.
+- `cargo workplan coverage claims --capability cap:streaming-parser` prints each
+  claim of the capability and the tests its markers name.
 
 > [!PROPOSED change:workplan-strict]
-> The commands of strict mode are used the same way:
+> The other commands of strict mode are used the same way:
 >
-> - `cargo workplan coverage claims --capability cap:streaming-parser` prints each
->   claim of the capability and the tests its markers name.
 > - `cargo workplan coverage lines --crate raf-okf`, or
 >   `cargo workplan coverage --reverse --crate raf-okf`, prints the orphan lines of
 >   one package by crate, module and item.
@@ -644,6 +651,7 @@ rather than kept by hand.
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_claims_takes_an_optional_capability` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::each_command_parses_in_both_shapes` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_claims_and_for_take_one_id_each` | test | [Verification](#verification) |
@@ -692,6 +700,9 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::check::the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::the_findings_are_those_of_the_library_gate_in_the_same_order` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::usage_errors_exit_two_with_a_message_on_standard_error` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_json_alike` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::a_capability_left_implementing_is_refused_and_nothing_is_written` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::a_stale_generated_block_is_refused_until_the_sync_is_run` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way` | test | [Verification](#verification) |

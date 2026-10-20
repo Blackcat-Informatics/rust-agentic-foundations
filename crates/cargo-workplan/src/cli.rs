@@ -94,8 +94,9 @@ pub(crate) enum Command {
     /// Prose assessment of one section: print what an assessor reads, record
     /// a verdict, or list each assessment and whether it is current.
     Assess(AssessArgs),
-    /// The two-way coverage reports of the whole workspace: the public items
-    /// or the tests that no capability binds.
+    /// The coverage reports of the whole workspace: the public items or the
+    /// tests that no capability binds, or the claims of the delivered
+    /// capabilities and the tests that their markers name.
     #[command(subcommand)]
     Coverage(Coverage),
 }
@@ -299,6 +300,17 @@ pub(crate) enum Coverage {
     Code(CoverageArgs),
     /// Print the tests that no capability binds and no exclusion takes out.
     Tests(CoverageArgs),
+    /// Print each claim of the delivered capabilities with the tests its
+    /// tested-by markers name.
+    Claims(ClaimsArgs),
+}
+
+/// The arguments of `coverage claims`.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct ClaimsArgs {
+    /// Print only the claims of this capability, `cap:<slug>`.
+    #[arg(long, value_name = "cap:<slug>", value_parser = capability_id)]
+    pub(crate) capability: Option<String>,
 }
 
 /// The arguments of a coverage report.
@@ -1278,6 +1290,30 @@ mod tests {
             &["coverage", "code", "--crate", "a b"],
             &["coverage", "code", "--crate", "../x"],
             &["coverage", "code", "extra"],
+        ] {
+            refused(words);
+        }
+    }
+
+    #[test]
+    fn coverage_claims_takes_an_optional_capability() {
+        assert_eq!(
+            same(&["coverage", "claims"]).command,
+            Command::Coverage(Coverage::Claims(ClaimsArgs { capability: None }))
+        );
+        assert_eq!(
+            same(&["coverage", "claims", "--capability", "cap:workplan-cli"]).command,
+            Command::Coverage(Coverage::Claims(ClaimsArgs {
+                capability: Some("cap:workplan-cli".to_string())
+            }))
+        );
+        for words in [
+            &["coverage", "claims", "--capability"][..],
+            &["coverage", "claims", "--capability", "workplan-cli"],
+            &["coverage", "claims", "--capability", "cap:Bad"],
+            &["coverage", "claims", "--capability", "-x"],
+            &["coverage", "claims", "--crate", "demo"],
+            &["coverage", "claims", "cap:workplan-cli"],
         ] {
             refused(words);
         }

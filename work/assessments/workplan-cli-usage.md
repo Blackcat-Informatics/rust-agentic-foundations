@@ -7,7 +7,7 @@ subject: cap:workplan-cli#usage
 inputs:
   - kind: section
     name: cap:workplan-cli#usage
-    digest: 8a5f4bfea8ff34e8c51e7e7b2dda3dda335c806b91efdacebaa8fe25c13ab6cb
+    digest: 79151a0c97a7b19c6340a4d81e58cf51ff0434ff279fa4b39834ac3bffb41823
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::assess::assess
     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
@@ -19,7 +19,7 @@ inputs:
     digest: 5026669c1a481a4ed2cccb2ad96429c0b67dbb70fdcd296e9698a392dc51c948
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::command::run
-    digest: ac3c6bed946e17a108daef6aa6945968b491ef5aa1d9a346c77362610479d42d
+    digest: 725d2084a542374fd1dd0802c3a2028389e6390cb7ce9c94daac17506f499347
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::coverage::coverage
     digest: 0ca201ef2cb19c5771778208ea46c058abc8bf7d60a9d87712274540a65523d0

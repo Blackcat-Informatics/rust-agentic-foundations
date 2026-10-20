@@ -64,6 +64,9 @@ bindings:
     - raf_workplan::test_crate::claim_coverage::a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_either_strictness
     - raf_workplan::test_crate::claim_coverage::a_tested_by_marker_in_usage_names_the_bound_example_as_a_code_span_does
     - raf_workplan::test_crate::claim_coverage::the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run
+    - cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero
+    - cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_json_alike
+    - cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why
   examples:
     - raf_workplan::Workplan::strictness
     - raf_workplan::Workplan::claims_report
@@ -439,6 +442,20 @@ docs/capabilities/streaming-parser.md: section `Usage`: no path of bindings.exam
 docs/capabilities/streaming-parser.md: line 41: the claim `cap:streaming-parser#contract/chunked-input` ("Chunked input. The parser accepts input in arbitrary chunks,") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation
 ```
 
+The claims report of the same capability names the test of its one marked
+Constraints item and leaves the Tested by cell of the Contract clause empty, so it
+exits 1:
+
+```text
+$ cargo workplan coverage claims --capability cap:streaming-parser
+| Capability | Section | Claim | Line | Tested by |
+| --- | --- | --- | --- | --- |
+| cap:streaming-parser | constraints | c-3f0a1b2c4d5e6f70 | 88 | `streaming::test_crate::limits::a_chunk_over_the_bound_is_refused` |
+| cap:streaming-parser | contract | chunked-input | 41 |  |
+$ echo $?
+1
+```
+
 The reverse coverage of one package, under a record that bounds its shipping lines
 and leaves its test lines at the default of 0:
 
@@ -645,6 +662,11 @@ visible failure, and the fix is one command.
   other whitespace and a marker keep and another word changes; a tested-by marker in
   Usage naming the bound example, as a code span does; the verification matrix of a
   marked binding lists the marker's section and an unmarked one keeps its row.
+- Report fixtures: the table and the JSON of `coverage claims` equal literal strings
+  with the keys of the digests, hold the same rows sorted by capability, section and
+  line, and are the same on every run and under `--strict`; it exits 0 when every
+  claim names a test, 1 when one names none, printed whole under `-q`, and 2 for a
+  capability that is not loaded, and writes nothing.
 - A bound package outside `scope` with an unbound public item fails under strict and
   passes once the item is bound, and the same package bound by no capability is not
   enforced.
@@ -687,6 +709,9 @@ visible failure, and the fix is one command.
 | `cargo_workplan::test_crate::check::strict_check_exits_one_on_one_thin_section_and_check_without_the_flag_exits_zero` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::strict_check_exits_two_at_a_root_without_capability_documents` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::strict_check_exits_zero_on_the_strict_clean_repository` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_json_alike` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key` | test | [Verification](#verification) |
