@@ -13,6 +13,10 @@
 //! function's parameters, and returns its [`Print`]; [`Normalizer::explain`]
 //! compares two slices level by level.
 //!
+//! [`Census::load`] loads a workspace through `raf-source` and collects its
+//! [`Unit`]s, one for each source item, with the print, constants, strings and
+//! shim key of each.
+//!
 //! [`CensusOptions`] holds the limits of one run and [`Error`] is the one error
 //! type of the crate.
 //!
@@ -30,11 +34,14 @@
 //! # Ok::<(), raf_census::Error>(())
 //! ```
 
+mod census;
 mod error;
 mod normalize;
 mod options;
+mod units;
 mod version;
 
+pub use census::{Census, FileCtx};
 pub use error::Error;
 pub use normalize::{
     Divergence, ENCODING, Fingerprint, Form, Hashed, LITERAL_TIER, Level, MAX_NESTING,
@@ -42,4 +49,5 @@ pub use normalize::{
     Slice, TableKind, Token, TokenDiff, Tower, VALUE_ADAPTERS, WEAK_KEYWORDS, manifest,
 };
 pub use options::{CensusOptions, DEFAULT_MAX_FILE_BYTES, DEFAULT_MIN_TOKENS};
+pub use units::{StringLiteral, Unit, UnitKind};
 pub use version::{NORMAL_FORM, check_normal_form};

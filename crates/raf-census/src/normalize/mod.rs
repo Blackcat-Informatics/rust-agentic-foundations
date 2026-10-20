@@ -34,6 +34,9 @@ pub use form::{Form, MAX_NESTING, Token};
 pub use passes::PASSES;
 pub use words::{VALUE_ADAPTERS, WEAK_KEYWORDS};
 
+pub(crate) use form::{Delim, Group, Kind, Node};
+pub(crate) use literal::{kind as literal_kind, parse_integer};
+
 /// A body with fewer structural tokens keeps its literals verbatim.
 pub const LITERAL_TIER: usize = 30;
 
