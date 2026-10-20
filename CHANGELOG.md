@@ -33,6 +33,15 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `okf-bad-strictness`, and `raf_workplan::Strictness` re-exports the enumeration.
 - **`cargo-workplan`:** the global option `--strict` judges `check`,
   `change reconcile` and `change complete` under strict mode.
+- **`raf-okf`:** the tested-by marker `<!-- raf:tested-by <path>[,<path>...] -->`
+  is a third marker family beside the generated and the claim markers:
+  `Body::tested_by` returns each as a `TestedBy` with its paths, line, section and
+  the statement it maps (the paragraph or list item above it, a heading above it, or
+  the statement of the claim marker above it). A malformed one is
+  `ErrorKind::MalformedTestedBy`, one with no statement above it or directly before a
+  claim marker is `ErrorKind::UnattachedTestedBy`, and one outside a Capability is
+  `Rule::TestedByOutsideCapability`. Breaking: `ErrorKind`, `ErrorTag` and
+  `ErrorKind::ALL` gain two variants, and `Rule`, `RuleTag` and `Rule::ALL` one.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed

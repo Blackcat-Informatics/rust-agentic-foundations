@@ -61,7 +61,8 @@
 //! constructor of its type, such as [`EvidenceRecord::new`], and written by
 //! its `to_document`, whose text the profile reads back as the same record. A
 //! capability names the evidence a statement rests on with a claim marker,
-//! which [`Body::claims`] reads:
+//! which [`Body::claims`] reads, and the tests that show a statement with a
+//! tested-by marker, which [`Body::tested_by`] reads:
 //!
 //! ```rust
 //! use raf_okf::{Body, Document, EvidenceVerdict, Profile, RafDocument};
@@ -95,6 +96,10 @@
 //! let prose = "Parsing stays under 64 MiB.\n<!-- raf:claim evidence=memory-bound -->\n";
 //! let body = Body::parse(prose).expect("a body");
 //! assert_eq!(body.claims()[0].evidence(), ["memory-bound"]);
+//!
+//! let prose = "Parsing stays under 64 MiB.\n<!-- raf:tested-by demo::test_crate::bounds::peak -->\n";
+//! let body = Body::parse(prose).expect("a body");
+//! assert_eq!(body.tested_by()[0].paths(), ["demo::test_crate::bounds::peak"]);
 //! ```
 
 mod body;
@@ -109,7 +114,7 @@ mod work;
 
 pub use body::{
     Body, Claim, FencedBlock, GeneratedBlock, Heading, Link, LinkError, LinkForm, LinkTarget,
-    ProposedBlock, ProseLine, Section, SplitLink, is_kebab,
+    ProposedBlock, ProseLine, Section, SplitLink, TestedBy, is_kebab,
 };
 pub use document::Document;
 pub use error::{ConstructError, ErrorKind, ErrorTag, ParseError, SpliceError};

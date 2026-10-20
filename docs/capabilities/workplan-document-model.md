@@ -246,6 +246,7 @@ bindings:
     - raf_workplan::test_crate::links::the_symlinks_a_tree_lists_are_tracked_symlinks
     - raf_workplan::test_crate::links::the_tree_is_walked_only_when_a_relative_link_needs_it
     - raf_workplan::test_crate::plain::a_claim_marker_outside_a_capability_is_reported_and_a_misspelt_marker_is_refused
+    - raf_workplan::test_crate::plain::a_tested_by_marker_outside_a_capability_is_reported_and_a_malformed_one_is_refused
     - raf_workplan::test_crate::plain::accepts_one_line_links_and_links_in_fences_beside_the_split_rule
     - raf_workplan::test_crate::plain::an_index_in_a_document_directory_other_than_the_capability_index_is_read_as_markdown
     - raf_workplan::test_crate::plain::does_not_read_links_or_placeholders_inside_html_comments
@@ -935,6 +936,7 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::parse_errors::every_reader_error_has_a_fixture_reported_with_file_and_line` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::a_broken_link_and_a_split_link_are_reported_together_for_a_plain_file` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::a_claim_marker_outside_a_capability_is_reported_and_a_misspelt_marker_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::plain::a_tested_by_marker_outside_a_capability_is_reported_and_a_malformed_one_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::accepts_one_line_links_and_links_in_fences_beside_the_split_rule` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::an_index_in_a_document_directory_other_than_the_capability_index_is_read_as_markdown` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::does_not_read_links_or_placeholders_inside_html_comments` | test | [Verification](#verification) |

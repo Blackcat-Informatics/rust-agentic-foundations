@@ -137,6 +137,7 @@ kinds! {
     OKF_CRATE_ROOT_EXCLUSION = "okf-crate-root-exclusion";
     OKF_EMPTY_REASON = "okf-empty-reason";
     OKF_BAD_STRICTNESS = "okf-bad-strictness";
+    OKF_TESTED_BY_OUTSIDE_CAPABILITY = "okf-tested-by-outside-capability";
     OKF_PARSE_UNCLOSED_FENCE = "okf-parse-unclosed-fence";
     OKF_PARSE_TOO_LARGE = "okf-parse-too-large";
     OKF_PARSE_MIXED_LINE_ENDINGS = "okf-parse-mixed-line-endings";
@@ -176,6 +177,8 @@ kinds! {
     OKF_PARSE_UNCLOSED_GENERATED = "okf-parse-unclosed-generated";
     OKF_PARSE_MALFORMED_CLAIM = "okf-parse-malformed-claim";
     OKF_PARSE_UNATTACHED_CLAIM = "okf-parse-unattached-claim";
+    OKF_PARSE_MALFORMED_TESTED_BY = "okf-parse-malformed-tested-by";
+    OKF_PARSE_UNATTACHED_TESTED_BY = "okf-parse-unattached-tested-by";
     OKF_PARSE_UNKNOWN_MARKER = "okf-parse-unknown-marker";
     OKF_PARSE_LINK_PART_TOO_LONG = "okf-parse-link-part-too-long";
     OKF_PARSE_INDEX_HEADER = "okf-parse-index-header";
@@ -603,6 +606,10 @@ fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
             kind::OKF_BAD_STRICTNESS,
             "set `strictness` to default or strict, or remove the key, which reads as default",
         ),
+        RuleTag::TestedByOutsideCapability => (
+            kind::OKF_TESTED_BY_OUTSIDE_CAPABILITY,
+            "move the statement and its tested-by marker into a capability document",
+        ),
     };
     (kind, Cow::Borrowed(fix))
 }
@@ -755,9 +762,17 @@ fn error_entry(tag: ErrorTag) -> (&'static str, &'static str) {
             kind::OKF_PARSE_UNATTACHED_CLAIM,
             "put the claim marker directly after the paragraph or list item it supports",
         ),
+        ErrorTag::MalformedTestedBy => (
+            kind::OKF_PARSE_MALFORMED_TESTED_BY,
+            "write exactly `<!-- raf:tested-by <path>[,<path>...] -->` on its own line, the paths distinct and separated by `,` with no space",
+        ),
+        ErrorTag::UnattachedTestedBy => (
+            kind::OKF_PARSE_UNATTACHED_TESTED_BY,
+            "put the tested-by marker directly after the paragraph, list item or heading it maps, or directly after its claim marker",
+        ),
         ErrorTag::UnknownMarker => (
             kind::OKF_PARSE_UNKNOWN_MARKER,
-            "remove the comment, or write it as a generated or claim marker",
+            "remove the comment, or write it as a generated, claim or tested-by marker",
         ),
         ErrorTag::LinkPartTooLong => (
             kind::OKF_PARSE_LINK_PART_TOO_LONG,

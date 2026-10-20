@@ -324,6 +324,8 @@ pub enum Rule {
         /// The value found.
         found: String,
     },
+    /// A tested-by marker in a document that is not a capability.
+    TestedByOutsideCapability,
 }
 
 impl fmt::Display for Rule {
@@ -560,6 +562,9 @@ impl fmt::Display for Rule {
             Self::BadStrictness { found } => {
                 write!(f, "bad strictness `{found}`; it is `default` or `strict`")
             }
+            Self::TestedByOutsideCapability => {
+                f.write_str("a tested-by marker outside a capability document")
+            }
         }
     }
 }
@@ -745,6 +750,8 @@ pub enum RuleTag {
     EmptyReason,
     /// [`Rule::BadStrictness`].
     BadStrictness,
+    /// [`Rule::TestedByOutsideCapability`].
+    TestedByOutsideCapability,
 }
 
 impl RuleTag {
@@ -812,6 +819,7 @@ impl RuleTag {
             Self::CrateRootExclusion => "crate-root-exclusion",
             Self::EmptyReason => "empty-reason",
             Self::BadStrictness => "bad-strictness",
+            Self::TestedByOutsideCapability => "tested-by-outside-capability",
         }
     }
 }
@@ -824,7 +832,7 @@ impl fmt::Display for RuleTag {
 
 impl Rule {
     /// Every tag, in the order of the variants of [`Rule`].
-    pub const ALL: [RuleTag; 60] = [
+    pub const ALL: [RuleTag; 61] = [
         RuleTag::MissingKey,
         RuleTag::UnknownKey,
         RuleTag::ResourceKey,
@@ -885,6 +893,7 @@ impl Rule {
         RuleTag::CrateRootExclusion,
         RuleTag::EmptyReason,
         RuleTag::BadStrictness,
+        RuleTag::TestedByOutsideCapability,
     ];
 
     /// The tag of this value, which drops its data.
@@ -951,6 +960,7 @@ impl Rule {
             Self::CrateRootExclusion { .. } => RuleTag::CrateRootExclusion,
             Self::EmptyReason { .. } => RuleTag::EmptyReason,
             Self::BadStrictness { .. } => RuleTag::BadStrictness,
+            Self::TestedByOutsideCapability => RuleTag::TestedByOutsideCapability,
         }
     }
 }
@@ -1117,6 +1127,7 @@ mod tag_tests {
             RuleTag::BadStrictness => Rule::BadStrictness {
                 found: String::new(),
             },
+            RuleTag::TestedByOutsideCapability => Rule::TestedByOutsideCapability,
         }
     }
 
@@ -1185,11 +1196,12 @@ mod tag_tests {
             Rule::CrateRootExclusion { .. } => 57,
             Rule::EmptyReason { .. } => 58,
             Rule::BadStrictness { .. } => 59,
+            Rule::TestedByOutsideCapability => 60,
         }
     }
 
     /// How many variants `Rule` has.
-    const VARIANTS: usize = 60;
+    const VARIANTS: usize = 61;
 
     #[test]
     fn all_lists_every_rule_once_in_variant_order() {

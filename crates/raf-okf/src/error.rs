@@ -139,8 +139,17 @@ pub enum ErrorKind {
     /// item it supports: it comes first in the body, or after a blank line, a
     /// heading, a fence, a marker or a PROPOSED block.
     UnattachedClaim,
-    /// A `<!-- raf:` comment that is neither a generated marker nor a claim
-    /// marker.
+    /// A comment that begins a tested-by marker in some spelling but is not
+    /// `<!-- raf:tested-by <path>[,<path>...] -->` alone on its line, with
+    /// distinct paths of the `<item-path>` pattern.
+    MalformedTestedBy,
+    /// A tested-by marker that follows no statement: it comes first in the
+    /// body, or after a blank line, a fence, a comment or a PROPOSED block,
+    /// or it comes directly before a claim marker, whose place is between the
+    /// statement and the tested-by marker.
+    UnattachedTestedBy,
+    /// A `<!-- raf:` comment that is neither a generated marker, a claim
+    /// marker nor a tested-by marker.
     UnknownMarker,
     /// A link destination or title is longer than the bound.
     LinkPartTooLong {
@@ -240,8 +249,14 @@ impl fmt::Display for ErrorKind {
             Self::UnattachedClaim => f.write_str(
                 "a claim marker follows directly the paragraph or list item it supports, with no blank line between",
             ),
+            Self::MalformedTestedBy => f.write_str(
+                "malformed tested-by marker; write exactly `<!-- raf:tested-by <path>[,<path>...] -->` on its own line, the paths distinct and separated by `,` with no space",
+            ),
+            Self::UnattachedTestedBy => f.write_str(
+                "a tested-by marker follows directly the paragraph, list item, heading or claim marker of the statement it maps, with no blank line between, and comes after the claim marker",
+            ),
             Self::UnknownMarker => f.write_str(
-                "unknown `raf:` marker; the markers are `raf:generated:<kind>` and `raf:claim`",
+                "unknown `raf:` marker; the markers are `raf:generated:<kind>`, `raf:claim` and `raf:tested-by`",
             ),
             Self::LinkPartTooLong { max } => {
                 write!(f, "a link destination or title is longer than {max} bytes")
@@ -561,6 +576,10 @@ pub enum ErrorTag {
     MalformedClaim,
     /// [`ErrorKind::UnattachedClaim`].
     UnattachedClaim,
+    /// [`ErrorKind::MalformedTestedBy`].
+    MalformedTestedBy,
+    /// [`ErrorKind::UnattachedTestedBy`].
+    UnattachedTestedBy,
     /// [`ErrorKind::UnknownMarker`].
     UnknownMarker,
     /// [`ErrorKind::LinkPartTooLong`].
@@ -620,6 +639,8 @@ impl ErrorTag {
             Self::UnclosedGenerated => "unclosed-generated",
             Self::MalformedClaim => "malformed-claim",
             Self::UnattachedClaim => "unattached-claim",
+            Self::MalformedTestedBy => "malformed-tested-by",
+            Self::UnattachedTestedBy => "unattached-tested-by",
             Self::UnknownMarker => "unknown-marker",
             Self::LinkPartTooLong => "link-part-too-long",
             Self::IndexHeader => "index-header",
@@ -638,7 +659,7 @@ impl fmt::Display for ErrorTag {
 
 impl ErrorKind {
     /// Every tag, in the order of the variants of [`ErrorKind`].
-    pub const ALL: [ErrorTag; 46] = [
+    pub const ALL: [ErrorTag; 48] = [
         ErrorTag::MissingFence,
         ErrorTag::UnclosedFence,
         ErrorTag::TooLarge,
@@ -679,6 +700,8 @@ impl ErrorKind {
         ErrorTag::UnclosedGenerated,
         ErrorTag::MalformedClaim,
         ErrorTag::UnattachedClaim,
+        ErrorTag::MalformedTestedBy,
+        ErrorTag::UnattachedTestedBy,
         ErrorTag::UnknownMarker,
         ErrorTag::LinkPartTooLong,
         ErrorTag::IndexHeader,
@@ -731,6 +754,8 @@ impl ErrorKind {
             Self::UnclosedGenerated { .. } => ErrorTag::UnclosedGenerated,
             Self::MalformedClaim => ErrorTag::MalformedClaim,
             Self::UnattachedClaim => ErrorTag::UnattachedClaim,
+            Self::MalformedTestedBy => ErrorTag::MalformedTestedBy,
+            Self::UnattachedTestedBy => ErrorTag::UnattachedTestedBy,
             Self::UnknownMarker => ErrorTag::UnknownMarker,
             Self::LinkPartTooLong { .. } => ErrorTag::LinkPartTooLong,
             Self::IndexHeader => ErrorTag::IndexHeader,
@@ -801,6 +826,8 @@ mod tag_tests {
             },
             ErrorTag::MalformedClaim => ErrorKind::MalformedClaim,
             ErrorTag::UnattachedClaim => ErrorKind::UnattachedClaim,
+            ErrorTag::MalformedTestedBy => ErrorKind::MalformedTestedBy,
+            ErrorTag::UnattachedTestedBy => ErrorKind::UnattachedTestedBy,
             ErrorTag::UnknownMarker => ErrorKind::UnknownMarker,
             ErrorTag::LinkPartTooLong => ErrorKind::LinkPartTooLong { max: 0 },
             ErrorTag::IndexHeader => ErrorKind::IndexHeader,
@@ -855,17 +882,19 @@ mod tag_tests {
             ErrorKind::UnclosedGenerated { .. } => 37,
             ErrorKind::MalformedClaim => 38,
             ErrorKind::UnattachedClaim => 39,
-            ErrorKind::UnknownMarker => 40,
-            ErrorKind::LinkPartTooLong { .. } => 41,
-            ErrorKind::IndexHeader => 42,
-            ErrorKind::IndexText => 43,
-            ErrorKind::IndexMarker => 44,
-            ErrorKind::IndexEmpty => 45,
+            ErrorKind::MalformedTestedBy => 40,
+            ErrorKind::UnattachedTestedBy => 41,
+            ErrorKind::UnknownMarker => 42,
+            ErrorKind::LinkPartTooLong { .. } => 43,
+            ErrorKind::IndexHeader => 44,
+            ErrorKind::IndexText => 45,
+            ErrorKind::IndexMarker => 46,
+            ErrorKind::IndexEmpty => 47,
         }
     }
 
     /// How many variants `ErrorKind` has.
-    const VARIANTS: usize = 46;
+    const VARIANTS: usize = 48;
 
     #[test]
     fn all_lists_every_error_kind_once_in_variant_order() {

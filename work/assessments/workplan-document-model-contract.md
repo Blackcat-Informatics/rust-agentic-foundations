@@ -85,7 +85,7 @@ inputs:
     digest: 03836b1413fd2dff869e8f5fb030a5b3309023e6a5f8d441a577bcb56b3cb1a8
   - kind: symbol
     name: raf_workplan::plain::check
-    digest: 15f52c67d09048c4de2975226c14fe2b91d5714379503c89b8254b582179b9af
+    digest: ca174b83e9a7a962d3264d1ab6102abeddfd5da57d9a5f94fd11a035ac32fcaf
   - kind: symbol
     name: raf_workplan::record
     digest: 60ff4551926385353be25e0a8bbf382c26eb5a7fc773966caf3bf7410bdf3125

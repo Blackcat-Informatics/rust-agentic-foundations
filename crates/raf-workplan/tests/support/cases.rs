@@ -396,6 +396,15 @@ fn rule_case_unplaced(tag: RuleTag) -> Case {
             let line = line_of(&repo[OVERVIEW], "raf:claim");
             Case::new(&name, repo, &kind, OVERVIEW, Location::Line(line))
         }
+        RuleTag::TestedByOutsideCapability => {
+            let repo = mutate(
+                OVERVIEW,
+                "Body text.",
+                "Body text.\n<!-- raf:tested-by demo::test_crate::it::case -->",
+            );
+            let line = line_of(&repo[OVERVIEW], "raf:tested-by");
+            Case::new(&name, repo, &kind, OVERVIEW, Location::Line(line))
+        }
         _ => record_rule_case(tag, &name, &kind),
     }
 }
@@ -590,6 +599,8 @@ pub(crate) fn parse_case(tag: ErrorTag) -> Case {
         ErrorTag::UnclosedGenerated => body("<!-- raf:generated:a -->\ntext\n", 8),
         ErrorTag::MalformedClaim => body("Text.\n<!-- raf:claim evidence=Bad -->\n", 9),
         ErrorTag::UnattachedClaim => body("<!-- raf:claim evidence=bound -->\n", 8),
+        ErrorTag::MalformedTestedBy => body("Text.\n<!-- raf:tested-by demo::a, demo::b -->\n", 9),
+        ErrorTag::UnattachedTestedBy => body("Text.\n\n<!-- raf:tested-by demo::real -->\n", 10),
         ErrorTag::UnknownMarker => body("Text.\n<!-- raf:note -->\n", 9),
         ErrorTag::LinkPartTooLong => body(&format!("[a]({})\n", "x".repeat(4097)), 8),
         ErrorTag::IndexHeader => index(

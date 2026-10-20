@@ -21,6 +21,7 @@ affects:
   - cap:workplan-cli#contract
   - cap:workplan-cli#usage
   - cap:okf-profile#contract
+  - cap:okf-profile#verification
   - cap:workplan-generated-docs#contract
   - cap:workplan-document-model#contract
   - cap:source-index#contract

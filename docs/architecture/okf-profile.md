@@ -270,26 +270,52 @@ such line directly above it is not attached and is an error. A claim marker appe
 only in a Capability document.
 
 Every other `<!-- raf:` comment outside a `raf:generated:` comment, in any letter
-case and spacing after `<!--`, is an error, so a misspelt claim marker, or a
-comment with an unknown `raf:` word, is never read as a plain comment. A
+case and spacing after `<!--`, is an error, so a misspelt claim or tested-by marker,
+or a comment with an unknown `raf:` word, is never read as a plain comment. A
 `raf:generated:` comment that is not a generated marker, in another letter case or
 spacing or not at the start of its line, is text. Markers inside fenced code and
 code spans are not read, and neither
-are claim markers inside a PROPOSED block: a proposed claim is a claim once the
-block is resolved.
+are claim and tested-by markers inside a PROPOSED block: a proposed claim is a claim
+once the block is resolved.
 
 A marker is one line. A comment that `<!--` opens at the end of a line, outside its
 code spans, and whose first non-blank text on the lines below is `raf:` in any
 letter case, other than `raf:generated:`, is the error of that word on the line of
-`<!--`: a malformed claim marker for `raf:claim` and an unknown marker for any
-other word, so a claim marker split over lines is never read as a plain comment
-either. A multi-line `raf:generated:` comment, an SPDX header written over several
-lines and every other multi-line comment are plain comments.
+`<!--`: a malformed claim marker for `raf:claim`, a malformed tested-by marker for
+`raf:tested-by` and an unknown marker for any other word, so a marker split over
+lines is never read as a plain comment either. A multi-line `raf:generated:`
+comment, an SPDX header written over several lines and every other multi-line
+comment are plain comments.
 
 A document reports its first marker error: reading stops at the first malformed
 PROPOSED marker, malformed, nested, unclosed or orphaned generated marker,
-malformed or unattached claim marker, or unknown `raf:` comment, so a second fault
-in the same document shows once the first is fixed.
+malformed or unattached claim or tested-by marker, or unknown `raf:` comment, so a
+second fault in the same document shows once the first is fixed.
+
+### Tested-by markers
+
+A statement of a capability names the bound tests or examples that show it with a
+tested-by marker on its own line, directly after the statement, or directly after
+the statement's claim marker:
+
+```markdown
+- An exclusion with an empty reason is an error of the record.
+<!-- raf:tested-by raf_workplan::test_crate::coverage::an_exclusion_without_a_reason_fails -->
+```
+
+The marker is written exactly as `<!-- raf:tested-by <path>[,<path>...] -->`, with
+leading spaces allowed: one space after the word, the entries separated by `,` with
+no space, each matching the `<item-path>` pattern of the
+[completion gate](../capabilities/workplan-complete-gate.md) (a `,` inside a generic
+argument list does not separate entries), and no entry twice. Its statement is the
+statement of the claim marker directly above it, the heading line directly above it,
+or the run of lines a claim marker on its line would support. A marker with none of
+these directly above it, after a blank line or another comment, is not attached and
+is an error, and so is a marker directly before a claim marker: the claim marker goes
+between the statement and the tested-by marker. It is a family of its own and not an
+attribute of the claim marker, whose forms stay as above, and it appears only in a
+Capability document. Which statements a marker covers, and which paths it may name,
+are rules of [strict mode](../capabilities/workplan-strict.md).
 
 ## Files and repository rules
 

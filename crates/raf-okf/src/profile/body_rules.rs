@@ -159,7 +159,7 @@ pub(crate) fn check_sections(doc_type: DocType, body: &Body, file: &str, out: &m
     }
 }
 
-/// Rules about PROPOSED blocks, claim markers and split links.
+/// Rules about PROPOSED blocks, claim and tested-by markers and split links.
 pub(crate) fn check_blocks(doc_type: DocType, body: &Body, file: &str, out: &mut Vec<Violation>) {
     for block in body.proposed_blocks() {
         let at = Location::Line(block.marker().lines.start);
@@ -188,6 +188,13 @@ pub(crate) fn check_blocks(doc_type: DocType, body: &Body, file: &str, out: &mut
                 file: file.to_string(),
                 at: Location::Line(claim.line()),
                 rule: Rule::ClaimOutsideCapability,
+            });
+        }
+        for marker in body.tested_by() {
+            out.push(Violation {
+                file: file.to_string(),
+                at: Location::Line(marker.line()),
+                rule: Rule::TestedByOutsideCapability,
             });
         }
     }

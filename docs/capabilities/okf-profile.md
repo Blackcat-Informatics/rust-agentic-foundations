@@ -19,6 +19,7 @@ bindings:
     - raf_okf::AssessmentRecord
     - raf_okf::CoverageRecord
     - raf_okf::Claim
+    - raf_okf::TestedBy
     - raf_okf::EvidenceRecord::new
     - raf_okf::EvidenceRecord::to_document
     - raf_okf::AssessmentRecord::new
@@ -120,6 +121,12 @@ bindings:
     - raf_okf::test_crate::record_writer::a_value_the_profile_refuses_is_written_and_refused_when_it_is_read_back
     - raf_okf::test_crate::claims::a_raf_generated_comment_in_another_case_or_spacing_is_text
     - raf_okf::test_crate::claims::a_raf_comment_split_over_lines_is_a_marker_error_and_other_split_comments_are_text
+    - raf_okf::test_crate::tested_by::a_tested_by_marker_names_its_tests_and_maps_the_paragraph_above_it
+    - raf_okf::test_crate::tested_by::a_tested_by_marker_maps_a_list_item_a_heading_or_the_statement_of_its_claim_marker
+    - raf_okf::test_crate::tested_by::a_malformed_tested_by_marker_is_refused_with_its_line
+    - raf_okf::test_crate::tested_by::a_tested_by_marker_with_no_statement_directly_above_is_refused
+    - raf_okf::test_crate::tested_by::tested_by_markers_in_fences_code_spans_and_proposed_blocks_are_not_read
+    - raf_okf::test_crate::tested_by::a_tested_by_marker_belongs_in_a_capability_document
     - cargo_workplan::test_crate::check::a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass
     - raf_okf::test_crate::validate_cost::an_evidence_record_with_maximal_values_and_limits_validates_at_the_cap
     - raf_okf::profile::cost_tests::a_change_at_the_cap_judges_each_affects_entry_once_against_one_set
@@ -131,6 +138,7 @@ bindings:
   examples:
     - raf_okf::EvidenceRecord::to_document
     - raf_okf::Claim
+    - raf_okf::TestedBy
 depends: []
 ---
 
@@ -147,7 +155,7 @@ a document means the same thing to every tool.
 
 The facts of the profile, which are the document types, the closed key sets, the
 value rules, the body rules and the syntax of the PROPOSED blocks, the generated
-blocks and the claim markers, are stated
+blocks, the claim markers and the tested-by markers, are stated
 once, in [the RAF profile of OKF](../architecture/okf-profile.md). `raf-okf`
 implements that page and adds no rule of its own. This document states only what the
 crate does with it.
@@ -260,7 +268,8 @@ section or the line instead. The rules are:
   are removed;
 - a PROPOSED block appears only in a Capability and only inside a section;
 - a claim marker appears only in a Capability: one in any other document is a
-  violation;
+  violation, and so is a tested-by marker, `Rule::TestedByOutsideCapability`, which
+  the workplan reports as `okf-tested-by-outside-capability`;
 - no prose line, title, description or item claim holds a placeholder token, and
   no link is split across lines. `Body::placeholder_lines` returns the
   placeholder tokens of any body, with their lines, by the same rule, so a caller
@@ -330,34 +339,35 @@ holds:
   removed, each with its section and whether it lies in a PROPOSED or generated block;
 - claims: `Body::claims` returns each claim marker outside fenced code, code spans
   and PROPOSED blocks as a `Claim`: the evidence slugs it names, its line, its marker
-  span, the span of the paragraph or list item it supports, and its section.
-
-> [!PROPOSED change:workplan-strict]
-> - tested-by markers: `Body::tested_by` returns each marker
->   `<!-- raf:tested-by <path>[,<path>...] -->` outside fenced code, code spans and
->   PROPOSED blocks as a `TestedBy`: the paths it names, its line, its marker span,
->   the span of the statement it follows and its section. It is a third marker family
->   beside the generated and the claim markers. Its statement is the run of lines
->   directly above it, read as for a claim marker, or the statement of the claim
->   marker directly above it, and the statement of a heading is the heading line. A
->   marker that is not written exactly so (a space after a comma, a repeated or an
->   empty entry, an attribute such as `tests=`) is `okf-parse-malformed-tested-by`,
->   one with no statement directly above it, after a blank line or another comment,
->   is `okf-parse-unattached-tested-by`, and one outside a Capability is the
->   violation `okf-tested-by-outside-capability`. The malformed and unattached forms
->   of the claim marker stay as they are.
+  span, the span of the paragraph or list item it supports, and its section;
+- tested-by markers: `Body::tested_by` returns each marker
+  `<!-- raf:tested-by <path>[,<path>...] -->` outside fenced code, code spans and
+  PROPOSED blocks as a `TestedBy`: the paths it names, in marker order, its line, its
+  marker span, the span of the statement it maps and its section. It is a third
+  marker family beside the generated and the claim markers. Its statement is the
+  statement of the claim marker directly above it, the heading line directly above
+  it, or the run of lines directly above it read as for a claim marker.
 
 A malformed PROPOSED marker in any spelling, an unclosed generated block, a nested
 generated block and an end marker without a start are parse errors with line numbers.
 So are block quotes and list items nested over 64 levels and, outside fenced code,
 code spans and PROPOSED blocks, a malformed claim marker, a claim marker with no
-statement directly above it, and a `raf:` comment that is neither a `raf:generated:`
-comment nor a claim marker, so a misspelt claim marker never reads as a plain comment.
+statement directly above it, a malformed tested-by marker
+(`ErrorKind::MalformedTestedBy`: a space after a comma, a repeated or an empty entry,
+an entry that is not an `<item-path>`, or an attribute such as `tests=`), a tested-by
+marker with no statement directly above it, after a blank line or another comment, or
+directly before a claim marker, whose place is between the statement and the tested-by
+marker (`ErrorKind::UnattachedTestedBy`), and a `raf:` comment that is neither a
+`raf:generated:` comment, a claim marker nor a tested-by marker, so a misspelt marker
+never reads as a plain comment. The workplan reports the two tested-by errors as
+`okf-parse-malformed-tested-by` and `okf-parse-unattached-tested-by`, and the malformed
+and unattached forms of the claim marker stay as they are.
 A marker is one line: an HTML comment that `<!--` opens at the end of a line, outside
 its code spans, and whose first non-blank text on the lines below is `raf:` in any
 letter case and not `raf:generated:`, is the same error at the line of `<!--`,
-`okf-parse-malformed-claim` for `raf:claim` and `okf-parse-unknown-marker` for
-another word, so a claim marker split over lines never reads as a plain comment
+`okf-parse-malformed-claim` for `raf:claim`, `okf-parse-malformed-tested-by` for
+`raf:tested-by` and `okf-parse-unknown-marker` for another word, so a marker split
+over lines never reads as a plain comment
 either. A multi-line `raf:generated:` comment, an SPDX header written over several
 lines and every other multi-line comment are plain comments. `Body::replace_spans`
 applies non-overlapping byte-range edits in one pass and reads the model again; it
@@ -536,6 +546,15 @@ would produce noise in the diff, and a clean check could not be told from a stal
   are not read; an unknown `raf:` comment is refused; a `raf:generated:` comment
   keeps its own rules; each malformed and each unattached marker is refused with
   its line.
+- Tested-by fixtures: a marker after a paragraph, a list item, a heading and a
+  claim marker, with its paths and statement, and a generic argument list whose
+  comma does not split an entry; malformed with a space after a comma, a repeated
+  entry, no entry, a `tests=` form and an entry that is not an `<item-path>`, each
+  beside the marker written exactly; unattached after a blank line, after another
+  comment and directly before a claim marker, beside the marker after the statement
+  and after its claim marker; not read in a fence, a code span or a PROPOSED block;
+  a violation outside a Capability and none inside one; the fixtures of the claim
+  marker unchanged.
 - The record fixtures render to their own bytes and validate, and a record with
   its keys out of order renders them in table order.
 - A record of each type built with the constructors, and each record fixture,
@@ -561,9 +580,10 @@ would produce noise in the diff, and a clean check could not be told from a stal
   looked up once, and a table built for each limit would pass the count at the
   second limit.
 - The documentation examples of `EvidenceRecord::to_document` (a record built,
-  written, parsed and validated back to an equal record) and of `Claim` (a claim
-  marker read with its evidence, line, section and statement) run as the bound
-  examples.
+  written, parsed and validated back to an equal record), of `Claim` (a claim
+  marker read with its evidence, line, section and statement) and of `TestedBy` (a
+  tested-by marker after a heading read with its paths, line, section and
+  statement) run as the bound examples.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
@@ -571,6 +591,7 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `cargo_workplan::test_crate::check::a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass` | test | [Verification](#verification) |
 | `raf_okf::Claim` | doctest | [Verification](#verification) |
 | `raf_okf::EvidenceRecord::to_document` | doctest | [Verification](#verification) |
+| `raf_okf::TestedBy` | doctest | [Verification](#verification) |
 | `raf_okf::profile::cost_tests::a_capability_at_the_cap_looks_at_each_block_once` | test | [Verification](#verification) |
 | `raf_okf::profile::cost_tests::a_change_at_the_cap_judges_each_affects_entry_once_against_one_set` | test | [Verification](#verification) |
 | `raf_okf::profile::cost_tests::an_evidence_record_at_the_cap_indexes_each_value_once_and_looks_up_each_limit_once` | test | [Verification](#verification) |
@@ -664,6 +685,12 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `raf_okf::test_crate::splice::a_malformed_result_is_refused_and_the_body_is_unchanged` | test | [Verification](#verification) |
 | `raf_okf::test_crate::splice::overlapping_spans_are_refused_and_the_body_is_unchanged` | test | [Verification](#verification) |
 | `raf_okf::test_crate::splice::two_generated_blocks_change_only_their_byte_ranges` | test | [Verification](#verification) |
+| `raf_okf::test_crate::tested_by::a_malformed_tested_by_marker_is_refused_with_its_line` | test | [Verification](#verification) |
+| `raf_okf::test_crate::tested_by::a_tested_by_marker_belongs_in_a_capability_document` | test | [Verification](#verification) |
+| `raf_okf::test_crate::tested_by::a_tested_by_marker_maps_a_list_item_a_heading_or_the_statement_of_its_claim_marker` | test | [Verification](#verification) |
+| `raf_okf::test_crate::tested_by::a_tested_by_marker_names_its_tests_and_maps_the_paragraph_above_it` | test | [Verification](#verification) |
+| `raf_okf::test_crate::tested_by::a_tested_by_marker_with_no_statement_directly_above_is_refused` | test | [Verification](#verification) |
+| `raf_okf::test_crate::tested_by::tested_by_markers_in_fences_code_spans_and_proposed_blocks_are_not_read` | test | [Verification](#verification) |
 | `raf_okf::test_crate::usage_docs::the_examples_block_validates_between_fences_and_resource_is_rejected` | test | [Verification](#verification) |
 | `raf_okf::test_crate::validate_cost::a_capability_with_many_sections_and_blocks_is_refused_for_a_duplicated_section_at_the_cap` | test | [Verification](#verification) |
 | `raf_okf::test_crate::validate_cost::a_change_with_maximal_affects_and_changes_validates_at_the_cap` | test | [Verification](#verification) |
