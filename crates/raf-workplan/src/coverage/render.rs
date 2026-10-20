@@ -28,7 +28,25 @@
 //! | Tested by |`, one row per claim with the slug of its section and its
 //! tests as code spans, and one `{"kind":"coverage-claim", ...}` object per
 //! claim with its `capability`, `section`, `claim`, `line` and `tests`.
+//!
+//! [`lines_table`] and [`lines_json`] write the reverse coverage of strict mode
+//! ([`LinesReport`]) the same two ways. The text is three tables, each after a
+//! blank line from the one before: `| Crate | Enforced | Counted | Covered |
+//! Excepted | Orphan | Shipping orphan | Test orphan | Ceiling | Debt |`, one row
+//! per package; `| Crate | Module | Counted | Orphan |`, one row per module that
+//! holds an orphan line; and `| Crate | Item | Kind | File | Orphan lines |`,
+//! one row per unit with orphan lines, as merged `a-b` ranges. When there are
+//! any, the lines the exceptions take out follow (`| Crate | Item | Kind | File
+//! | Excepted lines | Exception | Reason |`), and the reasons the lines could not
+//! be counted (`| Error |`). The JSON holds one object per row, in that order:
+//! `lines-crate` (`crate`, `enforced`, `counted`, `covered`, `excepted`,
+//! `orphan`, `shipping_orphan`, `test_orphan`, `ceiling`, `debt`),
+//! `lines-module` (`crate`, `module`, `counted`, `orphan`), `lines-orphan`
+//! (`crate`, `module`, `item`, `unit`, `file`, `ranges` as `[[a,b],...]`),
+//! `lines-excepted` (those fields, then `exception` and `reason`) and
+//! `lines-error` (`message`).
 
+use super::lines::{CrateLines, ExceptedLines, LinesReport, ModuleLines, UnitLines};
 use super::{CoverageReport, Excluded, Gap, GapKind, SurfaceError, SurfaceFailure};
 use crate::history::render::{string, table_cell, table_code};
 use crate::strict::{ClaimCoverage, ClaimsReport};
@@ -223,6 +241,183 @@ pub fn claims_json(report: &ClaimsReport) -> String {
                 tests.join(",")
             )
         })
+        .collect();
+    if objects.is_empty() {
+        "[]\n".to_string()
+    } else {
+        format!("[\n{}\n]\n", objects.join(",\n"))
+    }
+}
+
+fn crate_row(row: &CrateLines) -> String {
+    format!(
+        "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+        table_cell(row.package()),
+        if row.enforced() { "yes" } else { "no" },
+        row.counted(),
+        row.covered(),
+        row.excepted(),
+        row.orphan(),
+        row.shipping_orphan(),
+        row.test_orphan(),
+        table_cell(&row.ceiling_text()),
+        row.debt()
+    )
+}
+
+fn module_row(row: &ModuleLines) -> String {
+    format!(
+        "| {} | {} | {} | {} |",
+        table_cell(row.package()),
+        table_code(row.module()),
+        row.counted(),
+        row.orphan()
+    )
+}
+
+fn unit_cells(unit: &UnitLines) -> String {
+    format!(
+        "| {} | {} | {} | {} | {} |",
+        table_cell(unit.package()),
+        table_code(unit.item()),
+        unit.kind(),
+        table_cell(unit.file()),
+        unit.ranges_text()
+    )
+}
+
+fn excepted_row(row: &ExceptedLines) -> String {
+    format!(
+        "{} {} | {} |",
+        unit_cells(row.lines()),
+        table_code(row.exception()),
+        table_cell(row.reason())
+    )
+}
+
+/// The reverse coverage as text: the crate, module and item tables, then the
+/// excepted lines and the errors when there are any.
+///
+/// ```rust
+/// use raf_workplan::coverage::lines::LinesReport;
+/// use raf_workplan::coverage::render;
+///
+/// assert_eq!(
+///     render::lines_table(&LinesReport::default()),
+///     "| Crate | Enforced | Counted | Covered | Excepted | Orphan | Shipping orphan | Test orphan | Ceiling | Debt |\n\
+///      | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n\n\
+///      | Crate | Module | Counted | Orphan |\n| --- | --- | --- | --- |\n\n\
+///      | Crate | Item | Kind | File | Orphan lines |\n| --- | --- | --- | --- | --- |\n"
+/// );
+/// assert_eq!(render::lines_json(&LinesReport::default()), "[]\n");
+/// ```
+#[must_use]
+pub fn lines_table(report: &LinesReport) -> String {
+    let mut out = String::from(
+        "| Crate | Enforced | Counted | Covered | Excepted | Orphan | Shipping orphan | Test orphan | Ceiling | Debt |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
+    );
+    for row in report.crates() {
+        out.push_str(&crate_row(row));
+        out.push('\n');
+    }
+    out.push_str("\n| Crate | Module | Counted | Orphan |\n| --- | --- | --- | --- |\n");
+    for row in report.modules() {
+        out.push_str(&module_row(row));
+        out.push('\n');
+    }
+    out.push_str(
+        "\n| Crate | Item | Kind | File | Orphan lines |\n| --- | --- | --- | --- | --- |\n",
+    );
+    for unit in report.orphans() {
+        out.push_str(&unit_cells(unit));
+        out.push('\n');
+    }
+    if !report.excepted().is_empty() {
+        out.push_str(
+            "\n| Crate | Item | Kind | File | Excepted lines | Exception | Reason |\n| --- | --- | --- | --- | --- | --- | --- |\n",
+        );
+        for row in report.excepted() {
+            out.push_str(&excepted_row(row));
+            out.push('\n');
+        }
+    }
+    if !report.errors().is_empty() {
+        out.push_str("\n| Error |\n| --- |\n");
+        for error in report.errors() {
+            out.push_str("| ");
+            out.push_str(&table_cell(error));
+            out.push_str(" |\n");
+        }
+    }
+    out
+}
+
+fn unit_fields(unit: &UnitLines) -> String {
+    let ranges: Vec<String> = unit
+        .ranges()
+        .iter()
+        .map(|(first, last)| format!("[{first},{last}]"))
+        .collect();
+    format!(
+        "\"crate\":{},\"module\":{},\"item\":{},\"unit\":{},\"file\":{},\"ranges\":[{}]",
+        string(unit.package()),
+        string(unit.module()),
+        string(unit.item()),
+        string(unit.kind()),
+        string(unit.file()),
+        ranges.join(",")
+    )
+}
+
+/// The reverse coverage as one JSON array, one object to a line; `[]` when it
+/// holds nothing.
+#[must_use]
+pub fn lines_json(report: &LinesReport) -> String {
+    let crates = report.crates().iter().map(|row| {
+        format!(
+            "{{\"kind\":\"lines-crate\",\"crate\":{},\"enforced\":{},\"counted\":{},\"covered\":{},\"excepted\":{},\"orphan\":{},\"shipping_orphan\":{},\"test_orphan\":{},\"ceiling\":{},\"debt\":{}}}",
+            string(row.package()),
+            row.enforced(),
+            row.counted(),
+            row.covered(),
+            row.excepted(),
+            row.orphan(),
+            row.shipping_orphan(),
+            row.test_orphan(),
+            string(&row.ceiling_text()),
+            row.debt()
+        )
+    });
+    let modules = report.modules().iter().map(|row| {
+        format!(
+            "{{\"kind\":\"lines-module\",\"crate\":{},\"module\":{},\"counted\":{},\"orphan\":{}}}",
+            string(row.package()),
+            string(row.module()),
+            row.counted(),
+            row.orphan()
+        )
+    });
+    let orphans = report
+        .orphans()
+        .iter()
+        .map(|unit| format!("{{\"kind\":\"lines-orphan\",{}}}", unit_fields(unit)));
+    let excepted = report.excepted().iter().map(|row| {
+        format!(
+            "{{\"kind\":\"lines-excepted\",{},\"exception\":{},\"reason\":{}}}",
+            unit_fields(row.lines()),
+            string(row.exception()),
+            string(row.reason())
+        )
+    });
+    let errors = report
+        .errors()
+        .iter()
+        .map(|error| format!("{{\"kind\":\"lines-error\",\"message\":{}}}", string(error)));
+    let objects: Vec<String> = crates
+        .chain(modules)
+        .chain(orphans)
+        .chain(excepted)
+        .chain(errors)
         .collect();
     if objects.is_empty() {
         "[]\n".to_string()

@@ -58,7 +58,8 @@ pub(crate) struct Args {
 
     /// Judge under strict mode, whatever the coverage record says: `check`,
     /// `change reconcile` and `change complete` judge the repository strict,
-    /// and the other commands print the same.
+    /// `coverage lines` shows the ceilings as enforced, and the other commands
+    /// print the same.
     #[arg(long, global = true)]
     pub(crate) strict: bool,
 
@@ -95,8 +96,9 @@ pub(crate) enum Command {
     /// a verdict, or list each assessment and whether it is current.
     Assess(AssessArgs),
     /// The coverage reports of the whole workspace: the public items or the
-    /// tests that no capability binds, or the claims of the delivered
-    /// capabilities and the tests that their markers name.
+    /// tests that no capability binds, the claims of the delivered
+    /// capabilities and the tests that their markers name, or the lines that
+    /// no capability explains.
     #[command(subcommand)]
     Coverage(Coverage),
 }
@@ -303,6 +305,11 @@ pub(crate) enum Coverage {
     /// Print each claim of the delivered capabilities with the tests its
     /// tested-by markers name.
     Claims(ClaimsArgs),
+    /// Print the lines of every package that no capability explains, by
+    /// crate, module and item: the reverse coverage. `coverage --reverse` is
+    /// the same command.
+    #[command(long_flag = "reverse")]
+    Lines(CoverageArgs),
 }
 
 /// The arguments of `coverage claims`.
@@ -1292,6 +1299,40 @@ mod tests {
             &["coverage", "code", "extra"],
         ] {
             refused(words);
+        }
+    }
+
+    #[test]
+    fn coverage_lines_takes_an_optional_package_and_reverse_is_the_same_command() {
+        assert_eq!(
+            same(&["coverage", "lines"]).command,
+            Command::Coverage(Coverage::Lines(CoverageArgs { package: None }))
+        );
+        for args in [
+            &["coverage", "lines", "--crate", "raf-okf"][..],
+            &["coverage", "--reverse", "--crate", "raf-okf"],
+        ] {
+            assert_eq!(
+                same(args).command,
+                Command::Coverage(Coverage::Lines(CoverageArgs {
+                    package: Some("raf-okf".to_string())
+                })),
+                "{args:?}"
+            );
+        }
+        assert_eq!(
+            same(&["coverage", "--reverse"]).command,
+            same(&["coverage", "lines"]).command
+        );
+        for args in [
+            &["coverage", "lines", "--crate"][..],
+            &["coverage", "lines", "--crate", "-x"],
+            &["coverage", "lines", "--crate", "../x"],
+            &["coverage", "lines", "extra"],
+            &["coverage", "--reverse", "lines"],
+            &["coverage", "--reverse", "--capability", "cap:a"],
+        ] {
+            refused(args);
         }
     }
 

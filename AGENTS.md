@@ -69,9 +69,10 @@ contract stated in the command-line capability. Strict mode
 rules for the content of a delivered capability and for the packages a binding
 reaches, claim coverage with the `raf:tested-by` marker and the command
 `coverage claims`, and its rules for the change lifecycle (a stated reason, the
-literal reading of `contract_effect: none` and the owed Usage and Examples) are
-built, the commands `coverage lines` (also spelled
-`coverage --reverse`) and `debt --write` are designed, and the capabilities it
+literal reading of `contract_effect: none` and the owed Usage and Examples), and reverse coverage,
+with the command `coverage lines` (also spelled `coverage --reverse`) and the
+ceilings and exceptions of the coverage record, are built, the command
+`debt --write` is designed, and the capabilities it
 changes are `implementing` beside its open change record. Every other crate below is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
 

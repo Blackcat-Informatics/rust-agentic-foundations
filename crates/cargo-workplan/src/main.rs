@@ -44,6 +44,8 @@
 //!                      Print the public items or the tests no capability binds
 //! coverage claims [--capability cap:<slug>]
 //!                      Print each claim of the delivered capabilities and its tests
+//! coverage lines [--crate <package>]   (also: coverage --reverse [--crate <package>])
+//!                      Print the lines no capability explains, by crate, module and item
 //! ```
 //!
 //! # Root
@@ -60,7 +62,8 @@
 //! strictness of `check`, `change reconcile` and `change complete` is raised to
 //! strict mode (`raf_workplan::strict`), whatever the coverage record says, and a
 //! coverage record that says `strictness: strict` gives the same judgement without
-//! it. The other commands print the same with and without it. A finding of strict
+//! it. `coverage lines` shows the ceilings as enforced under it, and the other
+//! commands print the same with and without it. A finding of strict
 //! mode is a finding of `check` like any other, in text and in JSON.
 //!
 //! # Output
@@ -110,13 +113,20 @@
 //! | `coverage-excluded` | the fields of `coverage-gap`, then `exclusion` and `reason` |
 //! | `coverage-error` | `crate`, `in_scope`, `target`, `root`, `failure`, `reexport` (or `null`), `message` |
 //! | `coverage-claim` | `capability`, `section` (`contract` or `constraints`), `claim` (its key within the section), `line`, `tests` (the paths its tested-by markers name) |
+//! | `lines-crate` | `crate`, `enforced` (whether its ceilings are judged, under strict mode), `counted`, `covered`, `excepted`, `orphan`, `shipping_orphan`, `test_orphan`, `ceiling` (the ceilings as the table writes them), `debt` |
+//! | `lines-module` | `crate`, `module`, `counted`, `orphan` |
+//! | `lines-orphan` | `crate`, `module`, `item`, `unit` (`fn`, `struct`, `impl`, `macro` and the other kinds of a unit), `file`, `ranges` (the orphan lines as `[[first,last],...]`) |
+//! | `lines-excepted` | the fields of `lines-orphan` for the excepted lines, then `exception` and `reason` |
+//! | `lines-error` | `message` (why the lines could not be counted) |
 //!
 //! The objects of `history` and `coverage` are the JSON array that
 //! `raf_workplan::history::render::json` and `raf_workplan::coverage::render::json`
 //! write, printed as they are: the entries of a history and then the bindings
 //! that no longer resolve; the gaps of a coverage report, then the exclusion
 //! hits, then, for `coverage code`, the surfaces that could not be listed; the
-//! claims of `coverage claims`, from `raf_workplan::coverage::render::claims_json`.
+//! claims of `coverage claims`, from `raf_workplan::coverage::render::claims_json`;
+//! the packages, modules, orphan units, excepted units and errors of `coverage
+//! lines`, from `raf_workplan::coverage::render::lines_json`.
 //!
 //! The kinds that are not rules never equal one, which a test of this crate
 //! proves against the full list. A refusal of `change complete` is a `refused`
@@ -139,7 +149,8 @@
 //!   not pass; `evidence record` wrote a record whose verdict is `fail`;
 //!   `coverage code` or `coverage tests` printed a gap, or `coverage code` a
 //!   surface that cannot be listed; `coverage claims` printed a claim that
-//!   names no test.
+//!   names no test; `coverage lines` printed an orphan line, or could not count
+//!   the lines.
 //! * 2: the tool could not run: a usage error (an unknown command or option, a
 //!   slug that is not a slug, one that starts with `-`, `--copyright` without
 //!   `--licence` or the other way round), a directory that is not a repository,
@@ -257,6 +268,16 @@
 //!   with a claim that names no test is a finding, printed whole under `-q`,
 //!   and exits 1; one whose every claim names a test is an outcome and exits
 //!   0. It writes nothing.
+//! * `coverage lines [--crate <package>]`, also spelled `coverage --reverse`,
+//!   prints `Workplan::lines_report` as the tables and the JSON array of
+//!   `raf_workplan::coverage::render::lines_table` and `lines_json`, for every
+//!   package or the package named: the counted, covered, excepted and orphan
+//!   lines of each package with its ceilings, the modules that hold an orphan
+//!   line, and the orphan lines of each unit as merged ranges. Under
+//!   `--strict` the ceilings are shown as enforced. A report with an orphan
+//!   line, or one that could not count the lines, is a finding, printed whole
+//!   under `-q`, and exits 1; one without is an outcome and exits 0. The two
+//!   spellings print the same bytes. It writes nothing.
 //!
 //! `check`, `status`, `docs preview`, `change impact`, `change reconcile`,
 //! `history`, `evidence claims`, `evidence for`, `assess --context`,
@@ -264,10 +285,12 @@
 //! the outcomes (`change new`, `change impact`, a completion, the passing
 //! bindings of `verify`, a history, a `pass` evidence record, the evidence
 //! views, the assessment commands, a coverage report without a gap, a claims
-//! report whose every claim names a test) print
+//! report whose every claim names a test, a lines report without an orphan
+//! line) print
 //! nothing; the obligations, the refusal, the failing bindings, a `fail`
-//! evidence record, a coverage report with a gap and a claims report with an
-//! uncovered claim are findings and stay.
+//! evidence record, a coverage report with a gap, a claims report with an
+//! uncovered claim and a lines report with an orphan line are findings and
+//! stay.
 
 mod assess;
 mod change;

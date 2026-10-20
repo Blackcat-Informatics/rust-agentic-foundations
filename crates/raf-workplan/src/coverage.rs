@@ -102,6 +102,7 @@
 //! Every list is sorted by package and path, so a report is the same on every
 //! run over the same tree.
 
+pub mod lines;
 pub mod render;
 
 #[cfg(test)]
@@ -110,7 +111,7 @@ mod tests;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 
-use raf_okf::{CoverageRecord, DocType, Exclusion, ExclusionItem, Location};
+use raf_okf::{CoverageRecord, DocType, ExceptionTarget, Exclusion, ExclusionItem, Location};
 use raf_source::{
     ExportError, ItemId, Reexport, ResolveError, SymbolKind, Target, TargetId, TargetKind,
     TestRole, Workspace,
@@ -576,8 +577,9 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
         )];
     };
     let record = loaded.value();
+    let mut out = exceptions_unmatched(plan, loaded);
     if record.scope.is_empty() && record.exclusions.is_empty() {
-        return Vec::new();
+        return out;
     }
     let scope: BTreeSet<&str> = plan
         .graph()
@@ -602,7 +604,40 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
         .unloaded()
         .iter()
         .any(|id| id.starts_with(DocType::Capability.id_prefix()));
-    findings(loaded, &scope, &computed, !capability_unloaded)
+    out.extend(findings(loaded, &scope, &computed, !capability_unloaded));
+    out
+}
+
+/// A `coverage-exception-unmatched` finding for each exception of the record
+/// that matches nothing of the source index, judged under either strictness
+/// and without counting a line; a record without exceptions has none.
+fn exceptions_unmatched(plan: &Workplan<'_>, loaded: &Loaded<CoverageRecord>) -> Vec<Finding> {
+    let exceptions = &loaded.value().exceptions;
+    if exceptions.is_empty() {
+        return Vec::new();
+    }
+    lines::unmatched_exceptions(plan.source(), exceptions)
+        .into_iter()
+        .map(|position| {
+            let target = &exceptions[position].target;
+            let names = match target {
+                ExceptionTarget::Item(_) => "no item",
+                ExceptionTarget::Prefix(_) => "no module or item at or below it",
+                ExceptionTarget::File(_) => "no file",
+                ExceptionTarget::Directory(_) => "no file below it",
+            };
+            Finding::new(
+                kind::COVERAGE_EXCEPTION_UNMATCHED,
+                loaded.path(),
+                Location::Key("exceptions".to_string()),
+                format!(
+                    "the exception `{}` names {names} of the source index, so it takes no line out",
+                    target.written()
+                ),
+                "correct the path to the item, module, file or directory it means, or remove the exception; an exception of something that no longer exists excepts nothing",
+            )
+        })
+        .collect()
 }
 
 /// The findings of the computed coverage: the gaps of the crates of `scope`

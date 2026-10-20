@@ -20,6 +20,10 @@ bindings:
     - raf_workplan::coverage::render::claims_json
     - raf_workplan::obligation::Touched
     - raf_workplan::obligation::Touch
+    - raf_workplan::coverage::lines
+    - raf_workplan::Workplan::lines_report
+    - raf_workplan::coverage::render::lines_table
+    - raf_workplan::coverage::render::lines_json
   tests:
     - raf_workplan::strict::tests::under_default_no_unit_of_strict_mode_is_judged_and_under_strict_each_is_judged_once
     - raf_workplan::test_crate::strict::the_strict_clean_repository_has_no_finding_under_either_strictness
@@ -74,6 +78,9 @@ bindings:
     - raf_workplan::test_crate::claim_coverage::a_comment_line_ends_a_constraints_paragraph_and_an_item_goes_on_only_with_its_indented_lines
     - raf_workplan::test_crate::claim_coverage::a_bold_lead_directly_after_any_heading_starts_a_contract_clause
     - cargo_workplan::test_crate::claims::the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names
+    - cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero
+    - cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_json_alike_and_reverse_prints_the_same
+    - cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why
     - raf_workplan::lifecycle::touched::tests::whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it
     - raf_workplan::lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only
     - raf_workplan::lifecycle::touched::tests::an_impl_header_is_the_tokens_before_its_brace_at_every_depth_and_a_file_that_does_not_parse_is_an_error
@@ -112,9 +119,31 @@ bindings:
     - raf_workplan::test_crate::complete::under_strict_an_edit_of_a_macro_that_generates_an_item_of_a_bound_module_is_not_judged
     - raf_workplan::test_crate::complete::under_strict_a_bound_package_whose_surface_cannot_be_listed_is_an_error_and_without_the_second_glob_it_answers
     - raf_workplan::test_crate::complete::under_strict_a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none
+    - raf_workplan::test_crate::lines::a_crate_whose_public_surface_is_bound_and_whose_helpers_are_reached_has_no_orphan_line
+    - raf_workplan::test_crate::lines::an_unreferenced_private_helper_is_exactly_its_span_and_the_same_helper_called_by_a_bound_function_is_not
+    - raf_workplan::test_crate::lines::binding_a_type_covers_its_impl_blocks_and_their_methods_and_binding_a_method_covers_nothing_beside_it
+    - raf_workplan::test_crate::lines::a_macro_invocation_is_orphan_with_its_range_and_covered_once_a_bound_function_calls_what_it_generates
+    - raf_workplan::test_crate::lines::a_cfg_test_module_with_one_bound_and_one_unbound_test_reports_the_unbound_one_and_its_helper_as_test_lines
+    - raf_workplan::test_crate::lines::a_package_that_no_capability_binds_is_reported_with_its_orphan_helper
+    - raf_workplan::test_crate::lines::crlf_reads_as_lf_and_two_runs_give_the_same_bytes
+    - raf_workplan::test_crate::lines::the_report_renders_as_three_tables_and_as_json_with_the_same_rows
+    - raf_workplan::test_crate::lines::with_strict_mode_off_the_report_is_printed_and_nothing_is_enforced
+    - raf_workplan::test_crate::lines::an_exception_by_item_prefix_file_and_directory_takes_its_lines_out_and_one_beside_it_that_matches_nothing_is_a_finding
+    - raf_workplan::test_crate::lines::a_ceiling_of_lines_passes_at_its_count_and_fails_one_below_for_each_class
+    - raf_workplan::test_crate::lines::a_shipping_row_alone_judges_the_shipping_lines_against_itself_and_holds_the_test_lines_to_zero
+    - raf_workplan::test_crate::lines::a_percent_ceiling_compares_whole_numbers_at_its_boundary_and_an_empty_package_passes_it
+    - raf_workplan::test_crate::lines::a_ceiling_row_of_no_package_is_scope_crate_missing_at_ceilings
+    - raf_workplan::coverage::lines::tests::the_work_grows_with_the_units_and_no_faster_at_fixed_exceptions
+    - raf_workplan::coverage::lines::tests::the_work_grows_with_the_exceptions_and_no_faster_at_fixed_units
+    - raf_workplan::coverage::lines::tests::every_kind_of_work_is_held_to_a_ceiling_linear_in_the_units_and_the_exceptions
+    - raf_workplan::coverage::lines::tests::under_default_check_counts_no_line_and_under_strict_it_sweeps_each_unit
+    - raf_workplan::coverage::lines::tests::a_percent_is_compared_as_whole_numbers_without_division_or_overflow
+    - raf_workplan::coverage::lines::tests::a_path_that_may_name_what_a_macro_generates_is_a_run_and_a_method_a_field_or_a_declared_name_is_not
+    - raf_workplan::coverage::lines::tests::a_walk_that_fails_is_the_one_error_of_the_report_and_one_finding_under_strict
   examples:
     - raf_workplan::Workplan::strictness
     - raf_workplan::Workplan::claims_report
+    - raf_workplan::Workplan::lines_report
 depends: [cap:workplan-two-way-coverage, cap:workplan-complete-gate, cap:workplan-reconcile, cap:workplan-evidence-claims, cap:workplan-generated-docs, cap:source-index]
 ---
 
@@ -322,78 +351,102 @@ record lists in `affects` and that has the text of the merge base is owed, as un
 `contract_effect: changes`.
 
 **Lines.** `cargo workplan coverage lines [--crate <package>]` and
-`Workplan::lines_report` give the reverse coverage of every package the loader
-reaches, the root package and packages that no capability binds included, under
-either strictness. `cargo workplan coverage --reverse [--crate <package>]` is the same
-command and prints the same bytes. The units of a package are those of every target
-the [source index](./source-index.md) lists (library, binaries, integration tests,
-examples, benches and build script): every item except a module and an `extern
-crate`, every `impl` block from its header to its closing brace, and every item-level
-macro invocation. The counted lines of a file are the union of the lines of its
-units, and a file is counted once for its package however many targets read it.
-Other lines (blank lines, `use` declarations, `mod` declarations, inner doc comments
-and the SPDX header) are structural: neither covered nor orphan, and shown as a
-count. A unit is covered when:
+`Workplan::lines_report` (`coverage::lines::LinesReport`) give the reverse coverage
+of every package the loader reaches, the root package and packages that no
+capability binds included, under either strictness. `cargo workplan coverage
+--reverse [--crate <package>]` is the same command and prints the same bytes.
+The units of a package are those of every target the [source index](./source-index.md)
+lists (library, binaries, integration tests, examples, benches and build script):
+every item except a module and an `extern crate`, every `impl` block from its first
+attribute to its closing brace, and every macro invocation and `const _` at the item
+level of a module, which a parse of the file finds. The counted lines of a file are
+the union of the lines of its units, and a file is counted once, for the package of
+the first target that reaches it, however many targets and module paths reach it.
+Other lines (blank lines, `use` and `mod` declarations, inner doc comments, the braces
+of an inline module and the SPDX header) are structural: neither covered nor orphan,
+and not counted. A line is covered when a covered unit holds it, and a unit is
+covered when any item or impl block of its source is in the closure that
+`Workspace::reachable` gives from the roots:
 
-1. a binding resolves to it: a `code` binding to the item, a `tests` binding to the
-   test function, an `examples` binding to the documented item, and an example target
-   to every unit of its target;
-2. it is below a covered item as two-way coverage reads below: the methods and
-   associated items of a covered type or trait and the items of a covered module, a
-   crate root covering nothing below it; an `impl` block is covered when its self
-   type is, or its module when the index cannot place its self type;
-3. it is reachable: a covered unit names a path that the source index resolves, from
-   the module of that unit, to it. The paths are the `Ident (:: Ident)*` runs of the
-   unit's tokens that no `.` precedes, and every prefix of each; a path that
-   resolves to nothing of the workspace reaches nothing, one that names several
-   sites reaches each, and a reached module reaches nothing below it;
-4. for a macro invocation, its module is covered, or a covered unit names a path
-   that does not resolve and whose last segment is an identifier inside the
-   invocation; a covered invocation reaches the `macro_rules!` it invokes.
+1. the roots are the items that a `code`, `tests` or `examples` binding of a loaded
+   capability resolves to, and for an `examples` binding of the crate root of an
+   example target every item and impl block of that target;
+2. contains: the members of a covered type or trait, and the items and impl blocks
+   of a bound module and of the modules below it; a crate root holds nothing;
+3. impl-of: the impl blocks whose self type is a covered struct, enum or union, and
+   the members of a covered block;
+4. references: the items that a path of a covered unit's own tokens names, from the
+   module of that unit. The paths are the `Ident (:: Ident)*` runs that no `.`
+   precedes, and every prefix of each; a path that names nothing of the workspace
+   reaches nothing, and a module a path names reaches nothing below it;
+5. a macro invocation or a `const _` is covered when one of its module paths is a
+   bound module or below one, or its target is an example target that an
+   `examples` binding names; an invocation is also covered when a covered unit names
+   a path that resolves to nothing from that unit's module and whose last segment
+   is an identifier inside the invocation. The `macro_rules!` that a covered
+   invocation invokes, read from its module and, for a name of one segment, from
+   each module above it, is then a root, and the closure is taken again until no
+   invocation is newly covered.
 
-Reachability is a product of the source index: the graph of the items of every
-target, with the edges contains, impl-of and references, whose closure from the bound
-items is the covered set. Every other counted line is an orphan line. An item a macro
-generates has no lines of its own: it is counted as the span of the invocation that
-generates it. The items of a `#[cfg(test)]` module are units like any other and their
-lines are test lines; a line is a shipping line otherwise. `cfg` is never evaluated,
-so the report does not depend on the host.
+Every other counted line is an orphan line, listed once, under the innermost unit
+that holds it. An item a macro generates has no lines of its own: it is counted as
+the span of the invocation that generates it. A line is a test line when that unit
+is test code (a `#[cfg(test)]` module, a `#[test]` function) or is in a target that
+does not ship (integration tests, benches, examples), and a shipping line
+otherwise. `cfg` is never evaluated, so the report does not depend on the host.
 
-The report prints three tables. The crate table has the columns Crate, Enforced,
-Counted, Covered, Excepted, Orphan, Shipping orphan, Test orphan, Ceiling and Debt; the
-module table Crate, Module, Counted and Orphan; the item table Crate, Item, Kind, File
-and Orphan lines, with merged `a-b` ranges. Rows are sorted by package, module path,
-file and first line, and each orphan line is listed once, under the innermost unit
-that holds it. In JSON the objects are of the kinds `lines-crate`, `lines-module`,
-`lines-orphan` (with `ranges` as `[[a,b],...]`), `lines-excepted` (with `exception`
-and `reason`) and `lines-error` (a surface the index refused). The report holds no
-absolute path and no order that depends on the host, and a file with CRLF line endings
-reads as the same file with LF. The command exits 1 when it prints an orphan line, 0
-when it prints none, and 2 when `--crate` names no package.
+The report prints three tables. The crate table has the columns Crate, Enforced
+(`yes` under strict mode), Counted, Covered, Excepted, Orphan, Shipping orphan, Test
+orphan, Ceiling and Debt; the module table, Crate, Module, Counted and Orphan, has a
+row for each module that holds an orphan line; the item table Crate, Item, Kind, File
+and Orphan lines, with merged `a-b` ranges (`coverage::render::lines_table`). When
+there are any, a table of the lines each exception takes out of each unit follows,
+with the exception and its reason, and a table of the reasons the lines could not be
+counted. Rows are sorted by package, module path, file and first line. In JSON
+(`coverage::render::lines_json`) the objects are of the kinds `lines-crate`,
+`lines-module`, `lines-orphan` (with the kind of the unit as `unit` and `ranges` as
+`[[a,b],...]`), `lines-excepted` (with `exception` and `reason`) and `lines-error` (a
+file that does not parse or a walk of the index that fails, which leaves no row of
+any package). The report holds no absolute path and no order that depends on the
+host, and a file with CRLF line endings reads as the same file with LF. The command
+exits 1 when it prints an orphan line or an error, 0 when it prints neither, and 2
+when `--crate` names no package; under `--strict` the ceilings are shown as enforced.
 
 **Ceilings and exceptions.** The coverage record takes two more optional keys. Each
 row of `exceptions` holds exactly one of `item`, an item path or a prefix
-`<module>::*` below a crate root matched against every item of the index, private
-items included, or `file`, a repository-relative path or a directory ending in `/`,
-and a non-empty `reason`. Excepted lines are reported with the reason of the first
-exception that matches them, and they are not orphan lines. Under either strictness
-an exception that matches nothing is `coverage-exception-unmatched`, a row with
-neither or both of `item` and `file`, a crate root, an absolute path or a `..`
-segment is `okf-bad-exception`, and an empty reason is `okf-empty-reason`. Each row of
+`<module>::*` below a crate root, or `file`, a repository-relative path or a
+directory ending in `/`, and a non-empty `reason`. A line that no covered unit holds
+is excepted when an exception matches a unit that holds it, or its file: an `item`
+the unit at that path and every unit below it (the members of a type, the items of
+a module, the impl blocks of a type and of a module), a prefix every unit below its
+module, a `file` that file and a directory every file below it. Excepted lines are
+reported with the reason of the first exception in the order of the record that
+matches them, and they are not orphan lines. The exceptions are put into an index
+once and each unit looks up its own paths and the modules above them, so the work
+grows with the units plus the exceptions. Under either strictness, and without
+counting a line, an exception that names nothing of the source index (an `item` no
+item, a prefix no module or item at or below it, a `file` no file, a directory no
+file below it) is `coverage-exception-unmatched` at `exceptions`; a row with neither
+or both of `item` and `file`, a crate root, an absolute path or a `..` segment is
+`okf-bad-exception`, and an empty reason is `okf-empty-reason`. Each row of
 `ceilings` holds a `crate`, exactly one of `lines`, a whole number, or `percent`, a
-decimal, and an optional `of`, one of `shipping`, `test` or `all`, by default `all`.
-Under strict every package of the report is judged: its shipping orphan lines against
-its `shipping` row, its test orphan lines against its `test` row and their sum against
-its `all` row. The shipping lines and the test lines are each held to 0 unless their
-own row or an `all` row bounds them, and the sum is judged only against an `all` row,
-so a package with no row has no orphan line and a package with only a `shipping` row
-has no test orphan line and any shipping orphan lines up to that row. A percent
-ceiling compares `orphan * 100 * scale <= percent * scale * counted` in whole numbers,
-`scale` being the power of ten that makes the percent whole, so no division rounds and
-a package with no counted line passes it. A class over its ceiling is
-`coverage-lines-over-ceiling` at `ceilings`, with a message that names the package,
-its counts, the ceiling and its largest orphan items. A row whose `crate` names no
-package is `scope-crate-missing` at `ceilings`; a row of another shape, an `of` of
+number from 0 to 100, and an optional `of`, one of `shipping`, `test` or `all`, by
+default `all`. Under strict every package of the report is judged: its shipping
+orphan lines against its `shipping` row, its test orphan lines against its `test`
+row and their sum against its `all` row. The shipping lines and the test lines are
+each held to 0 unless their own row or an `all` row bounds them, and the sum is
+judged only against an `all` row, so a package with no row has no orphan line and a
+package with only a `shipping` row has no test orphan line and any shipping orphan
+lines up to that row. A percent ceiling compares
+`orphan * 100 * scale <= percent * scale * counted` in whole numbers of any length,
+`scale` being the power of ten that makes the percent whole and `counted` the counted
+lines of the class, so no division rounds and a package with no counted line passes
+it. A class over its ceiling is `coverage-lines-over-ceiling` at `ceilings`, with a
+message that names the package, its counts, the class, the ceiling and its largest
+orphan items; a report that could not count the lines is one such finding that says
+why, and no ceiling is judged while a capability document does not load, since it
+binds nothing, nor without a coverage record that loads. A row whose `crate` names
+no package is `scope-crate-missing` at `ceilings`; a row of another shape, an `of` of
 another value included, is `okf-bad-ceiling`, and a number that is not one is
 `okf-bad-measure`. Under `default` no ceiling is judged, and the report shows them.
 
@@ -514,6 +567,10 @@ A claim names its test on the line after it:
 `coverage claims` prints: each claim of every delivered capability with its key, its
 line and the tests its markers name.
 
+`raf_workplan::Workplan::lines_report` gives a test the report that `coverage lines`
+prints: the counted, covered, excepted and orphan lines of every package, and the
+orphan lines of each unit as merged ranges.
+
 ## Examples
 
 A delivered capability with a one-sentence Examples section, a Usage that names no
@@ -620,14 +677,17 @@ the check, and the write refuses it.
   shipping or its test lines that neither their own row nor an `all` row bounds are
   held to 0.
 - A caller cannot lower the strictness of a repository whose record says `strict`.
-- A directory that the root workspace excludes and that is a cargo workspace of its
-  own, such as a fuzz harness, is not in the source index, so its files have no lines
-  in the report and are not judged. No exception names it, since an exception that
-  matches nothing is `coverage-exception-unmatched`.
+- A directory that holds a cargo workspace of its own, such as a fuzz harness that
+  the root workspace excludes, is a package of the source index when the source
+  roots reach it, so the line report judges its lines as those of any package.
 - An item a macro generates is counted as the span of its invocation, and an
-  expansion that nothing reaches is orphan with the lines of the invocation; a
-  `#[cfg(test)]` module is counted as test lines, in its own column and under the
-  ceiling of its class.
+  expansion that nothing reaches is orphan with the lines of the invocation, as is the
+  `macro_rules!` that generates it; a `#[cfg(test)]` module is counted as test lines,
+  in its own column and under the ceiling of its class.
+<!-- raf:tested-by raf_workplan::test_crate::lines::a_macro_invocation_is_orphan_with_its_range_and_covered_once_a_bound_function_calls_what_it_generates,raf_workplan::test_crate::lines::a_cfg_test_module_with_one_bound_and_one_unbound_test_reports_the_unbound_one_and_its_helper_as_test_lines -->
+- A path that names what a macro generates is read from the tokens of a covered
+  unit as a run of identifiers that resolves to nothing, so a local variable used
+  by the name of an identifier inside an invocation covers that invocation too.
 - A package that no binding reaches and `scope` does not name is not enforced by the
   explained-items rule; its lines are judged by the ceilings all the same.
 - An exclusion of the coverage record is not an exception: an excluded item whose
@@ -829,19 +889,43 @@ visible failure, and the fix is one command.
   untouched Usage and 0 once it is edited, while the run without the flag exits 0,
   and exits 2 when a bound source file does not parse at the merge base and when the
   surface of a bound package cannot be listed, beside one glob, which exits 0.
-- Reverse coverage fixtures: a fully bound crate has 0 orphan lines; an unreferenced
-  private helper is exactly its span as one range, beside the same helper reached
-  from a bound function; binding a type covers its `impl` blocks and their methods;
-  a macro invocation is orphan with its range and covered once a bound function names
-  what it generates; a `#[cfg(test)]` module with one bound and one unbound test
-  reports the unbound one in the test column; a workspace that excludes a directory
-  of Rust files reports no row for it; text and JSON equal literal strings, two runs
-  are byte-identical, CRLF reads as LF, and `--reverse` prints what `lines` prints.
-- Ceiling fixtures: `lines: N` passes at N and fails at N+1 for each of `shipping`,
-  `test` and `all`; a percent ceiling at its boundary; an empty package under a
-  percent ceiling; a `shipping` row alone leaves the test lines held to 0 and judges
-  the shipping lines against itself and no sum; another `of` value is
-  `okf-bad-ceiling`.
+- Reverse coverage fixtures: a crate whose public surface is bound and whose helpers
+  are reached has 0 orphan lines; an unreferenced private helper is exactly its span,
+  doc comment and attribute included, as one range, beside the same helper called by
+  a bound function; binding a type covers its `impl` blocks and their methods, and
+  binding a method covers nothing beside it; a macro invocation is orphan with its
+  range, beside its `macro_rules!`, and both are covered once a bound function calls
+  what it generates, or the invocation is in a bound module; a `#[cfg(test)]` module
+  with one bound and one unbound test reports the unbound one and its helper as test
+  lines, and an exception of the module takes them out with its reason; a package
+  that no capability binds is reported with its orphan helper; text and JSON equal
+  literal strings with the same rows, two runs are byte-identical and CRLF reads as
+  LF.
+- Exception fixtures: an exception by item, prefix, file and directory takes its lines
+  out with its reason, each beside an exception that matches nothing, which is
+  `coverage-exception-unmatched` under either strictness; an item exception of a
+  module takes out what is below it.
+- Ceiling fixtures: `lines: N` passes when the class holds N orphan lines and fails
+  with a ceiling one below, for each of `shipping`, `test` and `all`; a percent
+  ceiling on either side of its boundary, compared in whole numbers; an empty package
+  under a percent ceiling of 0; a `shipping` row alone judges the shipping lines
+  against itself and holds the test lines to 0; with no row both classes are held to
+  0, and an `all` row bounds both; under `default` nothing is enforced and the report
+  is printed; a row of no package is `scope-crate-missing` at `ceilings` under either
+  strictness; another `of` value is `okf-bad-ceiling`; a walk of the index that fails
+  is the one error of the report and one `coverage-lines-over-ceiling`.
+- `cargo workplan coverage lines` exits 0 with every counted line covered, printing
+  the literal report, hidden under `-q`; 1 with an orphan helper, in text and JSON
+  alike and whole under `-q`, with the ceilings shown as enforced under `--strict`;
+  and 2 for a `--crate` that names no package, printing nothing on stdout.
+  `coverage --reverse` prints the same bytes as `coverage lines` in each case, and the
+  parser reads the two as one command.
+- The work of the line report is counted, never timed: it grows with the units at a
+  fixed number of exceptions and with the exceptions at a fixed number of units, no
+  faster, and every kind of it stays under a ceiling linear in their sum, below
+  their product; percent ceilings compare exactly with fractions longer than any
+  machine word; the paths read for what a macro generates leave out method calls,
+  fields, declared names and bindings.
 - Debt fixtures, one to one with the census ratchet: growth fails and the write
   refuses and writes nothing; a resolved row, a falling count and a count back under
   the ceiling fail with `debt-resolved` and pass after the write, the record equal to
@@ -865,13 +949,24 @@ visible failure, and the fix is one command.
 | `cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::claims::the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_json_alike_and_reverse_prints_the_same` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::reconcile::under_strict_a_bound_package_whose_surface_cannot_be_listed_is_exit_two` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::reconcile::under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exit_two` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::reconcile::under_strict_an_untouched_usage_of_a_none_change_exits_one_and_its_edit_zero` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key` | test | [Verification](#verification) |
 | `raf_workplan::Workplan::claims_report` | doctest | [Usage](#usage) |
+| `raf_workplan::Workplan::lines_report` | doctest | [Usage](#usage) |
 | `raf_workplan::Workplan::strictness` | doctest | [Usage](#usage) |
+| `raf_workplan::coverage::lines::tests::a_path_that_may_name_what_a_macro_generates_is_a_run_and_a_method_a_field_or_a_declared_name_is_not` | test | [Verification](#verification) |
+| `raf_workplan::coverage::lines::tests::a_percent_is_compared_as_whole_numbers_without_division_or_overflow` | test | [Verification](#verification) |
+| `raf_workplan::coverage::lines::tests::a_walk_that_fails_is_the_one_error_of_the_report_and_one_finding_under_strict` | test | [Verification](#verification) |
+| `raf_workplan::coverage::lines::tests::every_kind_of_work_is_held_to_a_ceiling_linear_in_the_units_and_the_exceptions` | test | [Verification](#verification) |
+| `raf_workplan::coverage::lines::tests::the_work_grows_with_the_exceptions_and_no_faster_at_fixed_units` | test | [Verification](#verification) |
+| `raf_workplan::coverage::lines::tests::the_work_grows_with_the_units_and_no_faster_at_fixed_exceptions` | test | [Verification](#verification) |
+| `raf_workplan::coverage::lines::tests::under_default_check_counts_no_line_and_under_strict_it_sweeps_each_unit` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::touched::tests::a_git_failure_while_the_merge_base_loads_is_that_error_and_a_file_that_is_not_utf8_names_the_file` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::touched::tests::an_impl_header_is_the_tokens_before_its_brace_at_every_depth_and_a_file_that_does_not_parse_is_an_error` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only` | test | [Verification](#verification) |
@@ -925,6 +1020,20 @@ visible failure, and the fix is one command.
 | `raf_workplan::test_crate::complete::under_strict_an_untouched_usage_or_examples_of_a_none_change_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::under_strict_the_bound_items_of_a_file_absent_at_the_merge_base_refuse_and_a_new_file_of_private_items_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::a_ceiling_of_lines_passes_at_its_count_and_fails_one_below_for_each_class` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::a_ceiling_row_of_no_package_is_scope_crate_missing_at_ceilings` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::a_cfg_test_module_with_one_bound_and_one_unbound_test_reports_the_unbound_one_and_its_helper_as_test_lines` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::lines::a_crate_whose_public_surface_is_bound_and_whose_helpers_are_reached_has_no_orphan_line` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::a_macro_invocation_is_orphan_with_its_range_and_covered_once_a_bound_function_calls_what_it_generates` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::lines::a_package_that_no_capability_binds_is_reported_with_its_orphan_helper` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::a_percent_ceiling_compares_whole_numbers_at_its_boundary_and_an_empty_package_passes_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::a_shipping_row_alone_judges_the_shipping_lines_against_itself_and_holds_the_test_lines_to_zero` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::an_exception_by_item_prefix_file_and_directory_takes_its_lines_out_and_one_beside_it_that_matches_nothing_is_a_finding` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::an_unreferenced_private_helper_is_exactly_its_span_and_the_same_helper_called_by_a_bound_function_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::binding_a_type_covers_its_impl_blocks_and_their_methods_and_binding_a_method_covers_nothing_beside_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::crlf_reads_as_lf_and_two_runs_give_the_same_bytes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::the_report_renders_as_three_tables_and_as_json_with_the_same_rows` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::with_strict_mode_off_the_report_is_printed_and_nothing_is_enforced` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::a_bound_package_outside_scope_is_enforced_under_strict_and_an_unbound_one_is_not` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::a_capability_that_is_not_delivered_has_no_finding_of_the_content_rules` | test | [Verification](#verification) |

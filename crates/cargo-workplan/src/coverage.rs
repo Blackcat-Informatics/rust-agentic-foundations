@@ -4,12 +4,15 @@
 //! `coverage code|tests [--crate <package>]`: one direction of
 //! `Workplan::coverage_report`, printed as the table and the JSON array of
 //! `raf_workplan::coverage::render`. `coverage claims [--capability
-//! cap:<slug>]`: `Workplan::claims_report`, printed the same way.
+//! cap:<slug>]`: `Workplan::claims_report`, printed the same way. `coverage
+//! lines [--crate <package>]`, also spelled `coverage --reverse`:
+//! `Workplan::lines_report`, printed the same way.
 
 use std::path::Path;
 
-use raf_workplan::Gate;
+use raf_workplan::coverage::lines::{CrateLines, LinesReport};
 use raf_workplan::coverage::{CoverageReport, GapKind, PackageCoverage, render};
+use raf_workplan::{Gate, Strictness};
 
 use crate::cli::{ClaimsArgs, CoverageArgs};
 use crate::exit::Failure;
@@ -101,4 +104,56 @@ pub(crate) fn claims(root: &Path, args: &ClaimsArgs) -> Result<Report, Failure> 
         render::claims_table(&report),
         render::claims_json(&report),
     ))
+}
+
+/// The reverse coverage of every package, or of the package `--crate` names:
+/// the lines that no capability explains. The report is a finding when it
+/// prints an orphan line or could not count the lines, so the run exits 1;
+/// otherwise it is an outcome and exits 0. A package that is not one is a run
+/// that cannot answer, exit 2. Under `--strict` the ceilings are shown as
+/// enforced, as they are under a record that says `strictness: strict`. It
+/// starts no process beyond the `git` that lists the tracked files, and writes
+/// nothing.
+pub(crate) fn lines(root: &Path, args: &CoverageArgs, strict: bool) -> Result<Report, Failure> {
+    let opened = Gate::workspace(root).open()?;
+    let floor = if strict {
+        Strictness::Strict
+    } else {
+        Strictness::Default
+    };
+    let plan = opened.workplan().with_strictness(floor);
+    let whole = plan.lines_report();
+    // Lines that could not be counted hold no row of any package, so the
+    // whole report, with its error, is what is printed.
+    let report = match &args.package {
+        Some(name) if whole.errors().is_empty() => selected_lines(&whole, name)?,
+        _ => whole,
+    };
+    let class = if report.is_complete() {
+        Class::Outcome
+    } else {
+        Class::Finding
+    };
+    Ok(Report::rendered(
+        class,
+        render::lines_table(&report),
+        render::lines_json(&report),
+    ))
+}
+
+/// The reverse coverage of the package `name`, as cargo names it or as its
+/// crate is named.
+fn selected_lines(whole: &LinesReport, name: &str) -> Result<LinesReport, Failure> {
+    whole
+        .crates()
+        .iter()
+        .find(|row| row.package() == name || row.package().replace('-', "_") == name)
+        .and_then(|row| whole.package(row.package()))
+        .ok_or_else(|| {
+            let names: Vec<&str> = whole.crates().iter().map(CrateLines::package).collect();
+            Failure::new(format!(
+                "no package of the workspace is named `{name}`; the packages are {}",
+                names.join(", ")
+            ))
+        })
 }

@@ -17,6 +17,16 @@ use support::{Repo, check_in_with, section, workspace_of};
 
 /// The strict-clean repository with the capability document `capability`
 /// and the coverage record `coverage`.
+/// `record` with a ceiling of the orphan lines of `other`, which these
+/// fixtures leave unbound on purpose, so the line report of strict mode holds
+/// it apart from the rule a test is about.
+fn roomy(record: &str) -> String {
+    let keys = record
+        .strip_suffix("---\n")
+        .expect("the record ends with its fence");
+    format!("{keys}ceilings:\n  - crate: other\n    lines: 100\n---\n")
+}
+
 fn repo(capability: String, coverage: String) -> Repo {
     Repo::from([
         (fixture::CAPABILITY.to_string(), capability),
@@ -316,11 +326,11 @@ fn bound(code: &str, tests: &str) -> String {
 }
 
 fn in_two_packages(capability: String, scope: &str, strictness: Strictness) -> Vec<Finding> {
-    let coverage = fixture::replaced(
+    let coverage = roomy(&fixture::replaced(
         &fixture::coverage(""),
         "scope: []",
         &format!("scope: {scope}"),
-    );
+    ));
     check_in_with(
         &repo(capability, coverage),
         &workspace_of(&two_packages()),
@@ -394,11 +404,11 @@ fn an_exclusion_of_the_record_takes_a_gap_of_a_bound_package_out() {
         "[demo::run, other::helper]",
         "[demo::test_crate::it::case, other::test_crate::it::t]",
     );
-    let coverage = fixture::replaced(
+    let coverage = roomy(&fixture::replaced(
         &fixture::coverage(""),
         "exclusions: []",
         "exclusions:\n  - item: other::more\n    reason: \"Shown to the fixtures only.\"",
-    );
+    ));
     let found = check_in_with(
         &repo(reached, coverage),
         &workspace_of(&two_packages()),
@@ -431,7 +441,7 @@ fn every_strict_case_reports_nothing_under_default() {
 /// A plan of the strict documents, with `capability` and the `strictness`
 /// line `record` in the coverage record, over the source of two packages.
 fn check_of(capability: String, record: &str, floor: Strictness) -> (Vec<Finding>, Vec<Finding>) {
-    let docs = repo(capability, fixture::coverage(record));
+    let docs = repo(capability, roomy(&fixture::coverage(record)));
     let tree: MemoryTree = docs.iter().collect();
     let source = workspace_of(&two_packages());
     let plan = Workplan::load(&tree, &source).with_strictness(floor);
@@ -589,7 +599,7 @@ fn a_strict_gate_judges_strict_and_the_workplans_it_opens_keep_its_floor() {
 #[test]
 fn while_a_capability_document_does_not_load_no_gap_of_a_bound_package_is_reported() {
     let reached = bound("[demo::run, other::helper]", "[demo::test_crate::it::case]");
-    let coverage = fixture::coverage("");
+    let coverage = roomy(&fixture::coverage(""));
     let source = workspace_of(&two_packages());
     // The neighbour: every document loads, and the gaps of `other` are reported.
     let loading = repo(reached.clone(), coverage.clone());

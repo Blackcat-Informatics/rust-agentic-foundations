@@ -186,6 +186,7 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_claims_takes_an_optional_capability
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_lines_takes_an_optional_package_and_reverse_is_the_same_command
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_claims_and_for_take_one_id_each
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_reads_every_option_and_the_command_after_the_separator
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_refuses_a_separator_as_a_value_and_a_record_it_cannot_write
@@ -205,6 +206,9 @@ bindings:
     - cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero
     - cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_json_alike
     - cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why
+    - cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero
+    - cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_json_alike_and_reverse_prints_the_same
+    - cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why
     - cargo_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing
     - cargo_workplan::test_crate::evidence::a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves
     - cargo_workplan::test_crate::evidence::a_command_that_passes_writes_exactly_one_record_and_exits_zero
@@ -302,6 +306,7 @@ the processes of the command itself.
 | `assess [cap:<slug>#<section>] --list` | Print each assessment, or the one of the section, and whether it is current |
 | `coverage code\|tests [--crate <package>]` | Print the public items or the tests that no capability binds ([two-way coverage](./workplan-two-way-coverage.md)) |
 | `coverage claims [--capability cap:<slug>]` | Print every claim of every delivered capability, or of the one named, with its key, line and tests ([strict mode](./workplan-strict.md)) |
+| `coverage lines [--crate <package>]`, also `coverage --reverse [--crate <package>]` | Print the reverse coverage of every package, or of the one named: its counted, covered, excepted and orphan lines and ceilings, the modules that hold an orphan line and the orphan lines of each unit ([strict mode](./workplan-strict.md)) |
 
 `status` groups capabilities by state, lists for each `implementing` capability the
 bindings that are missing or do not resolve, as gaps, and names the open changes. `docs preview` applies the
@@ -361,7 +366,9 @@ bound, a command that cannot start, or a request refused before the run.
 `coverage code` and `coverage tests` exit 1 when the report names a gap, or in the
 code direction a surface that cannot be listed, and 0 otherwise. `coverage claims`
 exits 1 when a claim of a delivered capability has no test and 0 when every claim
-has one, under either strictness. Each exits 2 when
+has one, under either strictness. `coverage lines` exits 1 when it prints an orphan
+line or could not count the lines and 0 otherwise, and `coverage --reverse` is the
+same command, which prints the same bytes. Each exits 2 when
 the tool cannot run: an id or a capability that no loaded document has, a shallow
 clone, a Git older than 2.30 or a bound file whose lines are not committed for
 `history`, a package that `--crate` does not name, a capability that `--capability`
@@ -411,26 +418,20 @@ verdict, a context, a list and the two evidence views print nothing, and a `fail
 record stays. The JSON kinds are `history-entry`, `history-removed`,
 `evidence-recorded`, `evidence-claim`, `evidence-for`, `assess-context`,
 `assessment-recorded`, `assessment`, `coverage-gap`, `coverage-excluded`,
-`coverage-error` and `coverage-claim`; none equals the kind of a rule, and their members, in a fixed
-order, are documented in the crate documentation of `cargo-workplan`.
+`coverage-error`, `coverage-claim`, `lines-crate`, `lines-module`, `lines-orphan`,
+`lines-excepted` and `lines-error`; none equals the kind of a rule, and their
+members, in a fixed order, are documented in the crate documentation of
+`cargo-workplan`. A lines report is printed whole under `-q` when it holds an orphan
+line and not at all when it holds none.
 
 > [!PROPOSED change:workplan-strict]
-> **Strict mode.** The other commands of [strict mode](./workplan-strict.md) join the
-> table:
->
-> - `coverage lines [--crate <package>]` prints the reverse coverage of every package,
->   or of the one named, as three tables, and `coverage --reverse [--crate <package>]`
->   is the same command with the same output;
-> - `debt --write [--copyright <text> --licence <id>]` writes the strict debt record
->   `work/debt/default.md` through `Gate::write_debt`.
->
-> `coverage lines` exits 1 when it prints an orphan line, 0 otherwise and 2 when
-> `--crate` names no package. `debt --write` exits 0
-> when it writes, 1 when it refuses with the findings printed (growth, or a finding of
-> the default rules), and 2 when the coverage record does not say `strictness: strict`
-> or the tool cannot run. The JSON kinds `lines-crate`, `lines-module`, `lines-orphan`,
-> `lines-excepted`, `lines-error` and `debt-written` join the record kinds, and none
-> equals the kind of a rule. `debt --write` writes one file and the reports write
+> **Strict mode.** The last command of [strict mode](./workplan-strict.md) joins the
+> table: `debt --write [--copyright <text> --licence <id>]` writes the strict debt
+> record `work/debt/default.md` through `Gate::write_debt`. It exits 0 when it
+> writes, 1 when it refuses with the findings printed (growth, or a finding of the
+> default rules), and 2 when the coverage record does not say `strictness: strict`
+> or the tool cannot run. The JSON kind `debt-written` joins the record kinds, and it
+> equals the kind of no rule. `debt --write` writes one file and the reports write
 > nothing.
 
 ## Usage
@@ -463,15 +464,14 @@ The record commands are used the same way:
   it so once the record says it.
 - `cargo workplan coverage claims --capability cap:streaming-parser` prints each
   claim of the capability and the tests its markers name.
+- `cargo workplan coverage lines --crate raf-okf`, or
+  `cargo workplan coverage --reverse --crate raf-okf`, prints the orphan lines of
+  one package by crate, module and item.
 
 > [!PROPOSED change:workplan-strict]
-> The other commands of strict mode are used the same way:
->
-> - `cargo workplan coverage lines --crate raf-okf`, or
->   `cargo workplan coverage --reverse --crate raf-okf`, prints the orphan lines of
->   one package by crate, module and item.
-> - `cargo workplan debt --write --copyright '2026 Example Inc.' --licence CC-BY-4.0`
->   writes `work/debt/default.md` with its two SPDX lines.
+> The last command of strict mode is used the same way:
+> `cargo workplan debt --write --copyright '2026 Example Inc.' --licence CC-BY-4.0`
+> writes `work/debt/default.md` with its two SPDX lines.
 
 ## Examples
 
@@ -624,6 +624,9 @@ rather than kept by hand.
   cannot be listed with exit 1 for `coverage code` and 0 for `coverage tests`,
   `--crate` in both forms, and this repository, whose reports name the gaps of the
   crates outside the scope and none of `raf-workplan` and `cargo-workplan`.
+  `coverage lines`: exit 0 with the literal report of a repository whose every
+  counted line is covered, 1 with an orphan helper in text and JSON, 2 for a package
+  that is not one, and `coverage --reverse` printing the same bytes in each case.
 - JSON pins of the members of each kind of the record commands in order, and every
   kind unequal to a rule name; `-q` hides each outcome and keeps a `fail` record and a
   coverage gap; the read-only commands leave the tree byte-identical.
@@ -652,6 +655,7 @@ rather than kept by hand.
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_claims_takes_an_optional_capability` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_lines_takes_an_optional_package_and_reverse_is_the_same_command` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::each_command_parses_in_both_shapes` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_claims_and_for_take_one_id_each` | test | [Verification](#verification) |
@@ -753,6 +757,9 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::json::sync_prints_a_rewrote_object_for_each_file_and_an_empty_array_for_none` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::json::the_json_and_the_text_forms_print_the_same_findings_in_the_same_order` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::json::the_kinds_that_are_not_rules_are_not_rule_names` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_json_alike_and_reverse_prints_the_same` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::a_capability_given_twice_is_listed_once` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::a_capability_that_is_missing_or_a_bad_option_is_a_usage_error_before_anything_is_read` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::a_second_run_for_the_same_slug_is_exit_two_and_leaves_the_record_as_it_is` | test | [Verification](#verification) |

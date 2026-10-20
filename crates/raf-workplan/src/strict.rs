@@ -96,7 +96,7 @@
 mod claims;
 mod content;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub use claims::{ClaimCoverage, ClaimsReport};
 
@@ -118,11 +118,13 @@ pub const MIN_SECTION_WORDS: usize = 20;
 /// The findings of the rules of strict mode, in order: the content rules of
 /// each delivered capability in the order of the capabilities, then the claim
 /// rules of each in the same order, then the coverage gaps of the packages
-/// that strict mode alone enforces.
+/// that strict mode alone enforces, then the classes of the packages whose
+/// orphan lines are over their ceilings.
 pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
     let mut out = content::check(plan);
     out.extend(claims::check(plan));
     out.extend(explained(plan));
+    out.extend(coverage::lines::over_ceilings(plan));
     out
 }
 

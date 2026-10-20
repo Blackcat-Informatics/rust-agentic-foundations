@@ -46,6 +46,8 @@ kinds! {
     COVERAGE_REEXPORT_UNBOUND = "coverage-reexport-unbound";
     COVERAGE_EXCLUSION_UNMATCHED = "coverage-exclusion-unmatched";
     COVERAGE_SURFACE_UNREADABLE = "coverage-surface-unreadable";
+    COVERAGE_EXCEPTION_UNMATCHED = "coverage-exception-unmatched";
+    COVERAGE_LINES_OVER_CEILING = "coverage-lines-over-ceiling";
     ARCHITECTURE_PAGE_UNLINKED = "architecture-page-unlinked";
     DECISION_CONDITIONS_MISSING = "decision-conditions-missing";
     EXPLANATION_CONDITIONS_MISSING = "explanation-conditions-missing";

@@ -56,6 +56,9 @@ pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
             coverage::coverage(&root()?, coverage_args, GapKind::Test)
         }
         Command::Coverage(Coverage::Claims(claims_args)) => coverage::claims(&root()?, claims_args),
+        Command::Coverage(Coverage::Lines(lines_args)) => {
+            coverage::lines(&root()?, lines_args, args.strict)
+        }
     }
 }
 

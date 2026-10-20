@@ -1235,11 +1235,7 @@ fn add_records(
     if let Some(coverage) = records.coverage {
         let id = &coverage.value().header.id;
         graph.coverage.push(id.clone());
-        let packages: BTreeSet<&str> = source
-            .packages()
-            .iter()
-            .map(|package| package.name.as_str())
-            .collect();
+        let packages = package_names(source);
         for package in &coverage.value().scope {
             if packages.contains(package.as_str()) {
                 graph.crates.push(package.clone());
@@ -1277,6 +1273,7 @@ fn add_records(
                 ));
             }
         }
+        ceilings_missing(coverage, &packages, findings);
     }
     graph.evidence.sort();
     graph.assessments.sort();
@@ -1290,6 +1287,49 @@ fn add_records(
         .sort_by(|a, b| (&a.assessment, &a.section).cmp(&(&b.assessment, &b.section)));
     graph.scope.sort_by(|a, b| a.package.cmp(&b.package));
     add_inputs(graph, records, known, source);
+}
+
+/// The names of the packages of `source`.
+fn package_names(source: &Workspace) -> BTreeSet<&str> {
+    source
+        .packages()
+        .iter()
+        .map(|package| package.name.as_str())
+        .collect()
+}
+
+/// A `scope-crate-missing` finding at `ceilings` for each package a ceiling of
+/// the coverage record names that is no package of the source workspace, once
+/// for each name: a ceiling names its package as `scope` does.
+fn ceilings_missing(
+    coverage: &Loaded<CoverageRecord>,
+    packages: &BTreeSet<&str>,
+    findings: &mut Vec<Finding>,
+) {
+    let mut named = BTreeSet::new();
+    for ceiling in &coverage.value().ceilings {
+        let package = ceiling.package.as_str();
+        if packages.contains(package) || !named.insert(package) {
+            continue;
+        }
+        let known = if packages.is_empty() {
+            "the source workspace has no package".to_string()
+        } else {
+            format!(
+                "the packages are {}",
+                packages.iter().copied().collect::<Vec<_>>().join(", ")
+            )
+        };
+        findings.push(Finding::new(
+            kind::SCOPE_CRATE_MISSING,
+            coverage.path(),
+            Location::Key("ceilings".to_string()),
+            format!(
+                "`ceilings` names `{package}`, which is no package of the source workspace; {known}"
+            ),
+            "name the crate by the `name` of its `[package]`, or remove the row",
+        ));
+    }
 }
 
 /// The `assessment-id-mismatch` finding of an assessment whose id is not the

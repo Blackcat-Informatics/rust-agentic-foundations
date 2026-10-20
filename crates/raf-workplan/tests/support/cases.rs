@@ -1355,14 +1355,40 @@ pub(crate) fn strict_cases() -> Vec<Case> {
         ),
     ];
     cases.extend(strict_coverage_cases());
+    // A private helper that nothing reaches: one orphan line, over the
+    // ceiling of 0 that strict mode holds a package with no row to.
+    cases.push(
+        Case::new(
+            "coverage-lines-over-ceiling",
+            strict_repo(|_| {}),
+            "coverage-lines-over-ceiling",
+            fixture::COVERAGE,
+            key("ceilings"),
+        )
+        .source(strict_source(fixture::LIB, "fn helper() {}\n"))
+        .strict(Strictness::Strict),
+    );
     cases
 }
 
 /// The cases of strict mode for the package the capability binds, which
 /// strict mode alone enforces, with the kinds of two-way coverage.
 fn strict_coverage_cases() -> Vec<Case> {
+    // The unbound items these cases add are orphan lines too: a ceiling for
+    // the package keeps each case to the rule it is about.
+    let roomy = || {
+        strict_repo(|repo| {
+            repo.insert(
+                fixture::COVERAGE.to_string(),
+                fixture::coverage("").replace(
+                    "exclusions: []\n",
+                    "exclusions: []\nceilings:\n  - crate: demo\n    lines: 100\n",
+                ),
+            );
+        })
+    };
     let strict = |name: &str, kind: &str, file: &str, at: Location| {
-        Case::new(name, strict_repo(|_| {}), kind, file, at).strict(Strictness::Strict)
+        Case::new(name, roomy(), kind, file, at).strict(Strictness::Strict)
     };
     let mut cases = Vec::new();
     let lib = |extra: &str| strict_source(fixture::LIB, extra);
@@ -1604,6 +1630,24 @@ pub(crate) fn coverage_cases() -> Vec<Case> {
         COVERAGE,
         key("scope"),
     ));
+    // A line exception of an item the index does not have.
+    let mut repo = valid();
+    repo.insert(
+        COVERAGE.to_string(),
+        "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\nexceptions:\n  \
+         - item: demo::ghost\n    reason: \"Nothing is there.\"\n---\n"
+            .to_string(),
+    );
+    cases.push(
+        Case::new(
+            "coverage-exception-unmatched",
+            repo,
+            "coverage-exception-unmatched",
+            COVERAGE,
+            key("exceptions"),
+        )
+        .source(listed_workspace("")),
+    );
     cases
 }
 

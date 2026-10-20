@@ -65,6 +65,22 @@ pub(crate) enum Work {
     /// judged by the content rules, or a package that strict mode alone
     /// enforces.
     StrictUnits,
+    /// A unit of the line report swept over its lines.
+    LineUnits,
+    /// A line of a unit of the line report marked.
+    LineMarks,
+    /// A token lexed for the paths that may name what a macro generates.
+    LineTokens,
+    /// A path judged for whether it names what a macro generates.
+    LineRuns,
+    /// A walk of the bound items for the line report.
+    LineRounds,
+    /// An exception of the coverage record put into the index of the
+    /// exceptions.
+    ExceptionsIndexed,
+    /// A path, a module above it, a file or a directory above it looked up in
+    /// the index of the exceptions.
+    ExceptionLookups,
 }
 
 /// A set that can be asked whether it holds a value.
@@ -117,7 +133,7 @@ impl<S> Counted<S> {
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 22;
+const KINDS: usize = 29;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -144,6 +160,13 @@ const ALL: [Work; KINDS] = [
     Work::ParagraphBytes,
     Work::RangeStarts,
     Work::StrictUnits,
+    Work::LineUnits,
+    Work::LineMarks,
+    Work::LineTokens,
+    Work::LineRuns,
+    Work::LineRounds,
+    Work::ExceptionsIndexed,
+    Work::ExceptionLookups,
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].

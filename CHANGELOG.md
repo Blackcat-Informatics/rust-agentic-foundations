@@ -128,6 +128,29 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   leaves out a key that holds none. Breaking: `CoverageRecord` gains two fields,
   `ValueKind` two variants, and `Rule`, `RuleTag` and `Rule::ALL` two variants; the
   message of `Rule::EmptyReason` names an exclusion or an exception.
+- **`raf-workplan`:** reverse coverage of strict mode. `Workplan::lines_report`
+  (`coverage::lines::LinesReport`) counts the lines of the units of every package the
+  loader reaches (items but modules and `extern crate`, impl blocks, and macro
+  invocations and `const _` at the item level of a module), and covers a line when a
+  unit that holds it is in the closure of the bound items over contains, impl-of and
+  references, or is a macro invocation of a bound module or one that a covered unit
+  names what it generates of. A line that nothing covers is excepted by an exception
+  of the coverage record that matches its unit or its file, with the first reason in
+  the record, and is an orphan line otherwise, under the innermost unit that holds
+  it, as a shipping or a test line. `coverage::render::lines_table` and
+  `lines_json` write the report as three tables, crate, module and item with merged
+  ranges, or as `lines-*` JSON objects. Under strict, `check` holds each package to
+  its ceilings, the shipping and the test lines each to 0 unless their own row or an
+  `all` row bounds them, a percent compared in whole numbers, and reports
+  `coverage-lines-over-ceiling` at `ceilings`; under either strictness an exception
+  that names nothing of the source index is `coverage-exception-unmatched` and a
+  ceiling of no package is `scope-crate-missing`, and under `default` no line is
+  counted. `Finding::KINDS` gains the two kinds.
+- **`cargo-workplan`:** `coverage lines [--crate <package>]`, also spelled
+  `coverage --reverse`, prints `Workplan::lines_report` as its three tables or as
+  `lines-*` JSON objects, and exits 1 when it prints an orphan line or could not
+  count the lines, 0 otherwise and 2 when `--crate` names no package; under
+  `--strict` the ceilings are shown as enforced.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed

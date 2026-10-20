@@ -10,7 +10,7 @@
     reason = "the unit tests read a part of the fixture the integration tests share"
 )]
 #[path = "../../tests/support/strict.rs"]
-mod fixture;
+pub(crate) mod fixture;
 
 use raf_source::{MemoryTree, Workspace};
 

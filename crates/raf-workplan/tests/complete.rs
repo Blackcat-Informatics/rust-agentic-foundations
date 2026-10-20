@@ -263,8 +263,21 @@ const CONSTRAINTS: &str = "<!-- raf:tested-by fx_life::tests::passes -->\n\n- On
 
 /// The coverage record of the strict-ready fixture, after its `id` line: the
 /// public helper and the unbound tests are excluded, so the package is fully
-/// explained.
-const EXCLUSIONS: &str = "scope: []\nexclusions:\n  - item: fx_life::plain\n    reason: \"A helper of the fixtures that no guarantee needs.\"\n  - item: \"fx_life::tests::*\"\n    reason: \"The tests of the fixtures, of which one is bound.\"\n";
+/// explained, and excepted from the orphan lines with the same reasons.
+const EXCLUSIONS: &str = "scope: []\nexclusions:\n  - item: fx_life::plain\n    reason: \"A helper of the fixtures that no guarantee needs.\"\n  - item: \"fx_life::tests::*\"\n    reason: \"The tests of the fixtures, of which one is bound.\"\nexceptions:\n  - item: fx_life::plain\n    reason: \"A helper of the fixtures that no guarantee needs.\"\n  - item: \"fx_life::tests::*\"\n    reason: \"The tests of the fixtures, of which one is bound.\"\n";
+
+/// [`strict_ready`] with a ceiling of ten orphan lines for the package, so a
+/// private item that nothing reaches, which these fixtures add to show what
+/// the touch rule leaves alone, is no finding of the line report.
+fn roomy(mut spec: Spec) -> Spec {
+    let keys = spec
+        .coverage
+        .strip_suffix("---\n")
+        .expect("the record ends with its fence")
+        .to_string();
+    spec.coverage = format!("{keys}ceilings:\n  - crate: fx-life\n    lines: 10\n---\n");
+    spec
+}
 
 /// The coverage record of the strict-ready fixture, with the `strictness` line
 /// `strictness` (empty for none).
@@ -2996,7 +3009,7 @@ fn under_strict_the_bound_items_of_a_file_absent_at_the_merge_base_refuse_and_a_
             ("fx_life::fresh::new_one", "src/fresh.rs", NEW),
         ],
     );
-    untouched_under_strict(&spec, &|fixture| {
+    untouched_under_strict(&roomy(spec), &|fixture| {
         put_lib(fixture, &format!("{LIB}\nmod fresh;\n"));
         put(
             fixture.root(),
@@ -3061,7 +3074,7 @@ fn under_strict_a_trait_impl_member_of_a_bound_type_edited_or_removed_refuses_an
 
     let quiet = "\n#[allow(dead_code)]\nstruct Quiet;\n\nimpl Clone for Quiet {\n    fn clone(&self) -> Self {\n        Quiet\n    }\n}\n";
     let base = format!("{LIB}{quiet}");
-    let spec = with("[fx_life::add]", &base, &[]);
+    let spec = roomy(with("[fx_life::add]", &base, &[]));
     let lib = base.replace("        Quiet\n", "        Self\n");
     untouched_under_strict(&spec, &|fixture| put_lib(fixture, &lib));
 }
@@ -3237,7 +3250,7 @@ fn merge_base_reads(lifecycle: &Lifecycle<Recording>) -> Vec<String> {
 #[test]
 fn under_strict_a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none()
  {
-    let mut spec = strict_ready();
+    let mut spec = roomy(strict_ready());
     spec.lib = format!("{LIB}\nmod extra;\n");
     spec.src = vec![(
         "src/extra.rs".to_string(),

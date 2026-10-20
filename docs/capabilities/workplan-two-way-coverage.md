@@ -167,12 +167,9 @@ says which capability binds which path of it, in place of the coverage record, a
 surface of such a package that cannot be listed is reported at the `bindings` of
 that capability. The strict rules compute that coverage themselves, so `check` under
 `default` and the reports are the same whatever the strictness. The coverage record
-also takes the key `strictness`, which strict mode reads and this capability does
-not; the direction table gains no row.
-
-> [!PROPOSED change:workplan-strict]
-> The coverage record also takes the keys `ceilings` and `exceptions`, which the line
-> report of strict mode reads and this capability does not.
+also takes the keys `strictness`, `ceilings` and `exceptions`, which strict mode and
+its line report read and this capability does not; the direction table gains no
+row.
 
 **The account.** For a repository revision the coverage reports name every gap in
 either direction for the whole workspace, so the current account is complete or
@@ -233,11 +230,9 @@ exclusions:
 
 - Under strict mode `check` also lists, once for each check, the surface of each
   library and binary target of a package outside `scope` that a binding reaches.
-
-> [!PROPOSED change:workplan-strict]
-> - An exclusion takes an item or a test out of the two directions only. The line
->   report of strict mode reads its own `exceptions`, so an excluded item whose lines
->   nothing covers is orphan there until an exception names it with its reason.
+- An exclusion takes an item or a test out of the two directions only. The line
+  report of strict mode reads its own `exceptions`, so an excluded item whose lines
+  nothing covers is orphan there until an exception names it with its reason.
 
 ## Explanation
 

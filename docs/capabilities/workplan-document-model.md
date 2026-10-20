@@ -540,14 +540,15 @@ are empty and the bindings that do not resolve.
   the marker; each entry that is one is a `TestedByEdge` of the graph
   (`Graph::tested_by`), from the section that holds the marker to the binding;
 - under strict, the rules of [strict mode](./workplan-strict.md), each a `Finding`
-  of a kind in `Finding::KINDS` with its file, location and fix.
+  of a kind in `Finding::KINDS` with its file, location and fix;
+- under either strictness, the rules of the line keys of the coverage record: a line
+  exception that names nothing of the source index (`coverage-exception-unmatched`)
+  and a `ceilings` row whose `crate` is no package of the source workspace
+  (`scope-crate-missing`), each at its key.
 
 > [!PROPOSED change:workplan-strict]
-> - under either strictness, the rules of the records of strict mode: a coverage
->   exception that matches nothing (`coverage-exception-unmatched`), a `ceilings` row
->   whose `crate` is no package of the source workspace (`scope-crate-missing`), and
->   a debt record while the repository is judged under `default`
->   (`debt-without-strict`);
+> - under either strictness, a debt record while the repository is judged under
+>   `default` (`debt-without-strict`);
 > - under strict, the debt record's own kinds, `debt-resolved` and
 >   `debt-entry-invalid`.
 
