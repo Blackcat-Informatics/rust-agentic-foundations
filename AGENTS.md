@@ -234,8 +234,10 @@ with `[lints] workspace = true`:
 - **Fail hard.** Schemas are strict and closed: unknown keys are errors. A ledger or
   document that is stale, malformed or ambiguous is an error with a message that
   says how to fix it. No silent fallbacks, no best-effort parsing, no skipped checks.
-- **Normal-form stability.** Any change to what a census fingerprint hashes requires
-  a `normal_form` version bump and updated golden tests.
+- **Normal-form stability.** A normal form version is fixed by the content of its
+  first merge to the default branch. After that, any change that can move a census
+  fingerprint is a new version with a migration path: a `normal_form` bump, updated
+  golden tests, and `cargo census migrate`.
 - **Every rule has a negative fixture.** A rule or check with no input that makes it
   fail is not enforced.
 - **A refusal is a claim too.** When you add or tighten a refusal, run the case you

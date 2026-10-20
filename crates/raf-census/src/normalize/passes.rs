@@ -4,11 +4,12 @@
 //! The four passes of the tower. Each is a pure function from one form to the
 //! next and keeps the source place of every token it keeps.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
+use super::binders;
 use super::form::{Delim, Form, Group, Kind, Leaf, Node};
 use super::literal;
-use super::words::{KEYWORDS, PRIMITIVES, VALUE_ADAPTERS, is_keyword};
+use super::words::{KEYWORDS, VALUE_ADAPTERS, is_keyword};
 
 /// The ids of the passes, in the order the tower applies them.
 pub const PASSES: [&str; 4] = [
@@ -18,23 +19,23 @@ pub const PASSES: [&str; 4] = [
     "erase_held",
 ];
 
-fn leaf(node: Option<&Node>) -> Option<&Leaf> {
+pub(super) fn leaf(node: Option<&Node>) -> Option<&Leaf> {
     node.and_then(Node::as_leaf)
 }
 
-fn is_punct(node: Option<&Node>, wanted: char) -> bool {
+pub(super) fn is_punct(node: Option<&Node>, wanted: char) -> bool {
     leaf(node).is_some_and(|leaf| leaf.kind == Kind::Punct && leaf.text.starts_with(wanted))
 }
 
-fn is_joint(node: Option<&Node>, wanted: char) -> bool {
+pub(super) fn is_joint(node: Option<&Node>, wanted: char) -> bool {
     is_punct(node, wanted) && leaf(node).is_some_and(|leaf| leaf.joint)
 }
 
-fn is_alone(node: Option<&Node>, wanted: char) -> bool {
+pub(super) fn is_alone(node: Option<&Node>, wanted: char) -> bool {
     is_punct(node, wanted) && leaf(node).is_some_and(|leaf| !leaf.joint)
 }
 
-fn is_ident(node: Option<&Node>, wanted: &str) -> bool {
+pub(super) fn is_ident(node: Option<&Node>, wanted: &str) -> bool {
     leaf(node).is_some_and(|leaf| leaf.kind == Kind::Ident && leaf.text == wanted)
 }
 
@@ -43,14 +44,14 @@ fn is_paren(node: Option<&Node>) -> bool {
         .is_some_and(|group| group.delim == Delim::Paren)
 }
 
-fn before(nodes: &[Node], index: usize, distance: usize) -> Option<&Node> {
+pub(super) fn before(nodes: &[Node], index: usize, distance: usize) -> Option<&Node> {
     index.checked_sub(distance).and_then(|at| nodes.get(at))
 }
 
 /// Whether the group at `index` is the bracket of an attribute, `#[..]` or
 /// `#![..]`; a doc comment in a body lexes to one. Its names are the
 /// attribute's own, never locals.
-fn is_attribute(nodes: &[Node], index: usize) -> bool {
+pub(super) fn is_attribute(nodes: &[Node], index: usize) -> bool {
     let Some(group) = nodes.get(index).and_then(Node::as_group) else {
         return false;
     };
@@ -67,19 +68,71 @@ fn after_dot(nodes: &[Node], index: usize) -> bool {
     is_alone(before(nodes, index, 1), '.') && !is_joint(before(nodes, index, 2), '.')
 }
 
-/// Whether the identifier at `index` names an item rather than a local binding:
-/// a path segment (`a::b`), a call (`f(…)`, `.m(…)`), a macro (`m!`), a
-/// capitalised name (a type, variant or constant) or a primitive type.
-fn names_an_item(nodes: &[Node], index: usize, text: &str) -> bool {
+/// Whether `nodes[index]` is the `=` of an assignment or a binding, and not the
+/// start or end of `==`, `=>`, `<=`, `>=`, `!=` or a compound assignment.
+pub(super) fn is_plain_assign(nodes: &[Node], index: usize) -> bool {
+    let Some(token) = leaf(nodes.get(index)).filter(|token| token.kind == Kind::Punct) else {
+        return false;
+    };
+    let joined_before = leaf(before(nodes, index, 1))
+        .is_some_and(|previous| previous.kind == Kind::Punct && previous.joint);
+    let joined_after =
+        token.joint && (is_punct(nodes.get(index + 1), '=') || is_punct(nodes.get(index + 1), '>'));
+    token.text == "=" && !joined_before && !joined_after
+}
+
+/// Whether `nodes[index]` is the `=>` arrow of a match arm, at its `=`.
+pub(super) fn is_arrow(nodes: &[Node], index: usize) -> bool {
+    is_joint(nodes.get(index), '=') && is_punct(nodes.get(index + 1), '>')
+}
+
+/// Whether the identifier at `index` is the name of a macro call: followed by a
+/// `!` that is not the start of `!=`.
+fn names_a_macro(nodes: &[Node], index: usize) -> bool {
+    is_punct(nodes.get(index + 1), '!')
+        && !(is_joint(nodes.get(index + 1), '!') && is_punct(nodes.get(index + 2), '='))
+}
+
+/// Whether the identifier at `index` can be a use of a local name: it is not a
+/// lifetime, a field, a method, the tail of a path or a macro name.
+fn is_use(nodes: &[Node], index: usize, fields: bool) -> bool {
     let path_before =
         index >= 2 && is_punct(nodes.get(index - 1), ':') && is_punct(nodes.get(index - 2), ':');
-    let path_after = is_punct(nodes.get(index + 1), ':') && is_punct(nodes.get(index + 2), ':');
-    path_before
-        || path_after
-        || is_paren(nodes.get(index + 1))
-        || is_punct(nodes.get(index + 1), '!')
-        || text.starts_with(|first: char| first.is_ascii_uppercase())
-        || PRIMITIVES.contains(&text)
+    !is_joint(before(nodes, index, 1), '\'')
+        && !path_before
+        && !after_dot(nodes, index)
+        && !names_a_field(nodes, index, fields)
+        && !names_a_macro(nodes, index)
+}
+
+/// Which of `nodes` (one delimiter level) is the block that ends the head of
+/// an `if`, `else if`, `while`, `match` or `for`. Rust admits no struct literal
+/// in such a head, so the braces after it are never a struct literal or
+/// pattern, whatever name comes before them.
+fn block_mask(nodes: &[Node]) -> Vec<bool> {
+    let mut mask = vec![false; nodes.len()];
+    for (index, node) in nodes.iter().enumerate() {
+        let head = node.as_leaf().is_some_and(|token| {
+            token.kind == Kind::Ident
+                && matches!(token.text.as_str(), "if" | "while" | "match" | "for")
+        });
+        if !head {
+            continue;
+        }
+        for (at, candidate) in nodes.iter().enumerate().skip(index + 1) {
+            if is_arrow(nodes, at) {
+                break;
+            }
+            if candidate
+                .as_group()
+                .is_some_and(|group| group.delim == Delim::Brace)
+            {
+                mask[at] = true;
+                break;
+            }
+        }
+    }
+    mask
 }
 
 /// Whether the identifier at `index` names a field: `.field` that is not a
@@ -109,7 +162,7 @@ fn opens_fields(previous: Option<&Node>) -> bool {
 /// Whether `node` ends an operand, so a `&` or `*` after it is the binary
 /// operator rather than a borrow or a deref. A braced block ends a statement,
 /// not an operand.
-fn ends_operand(node: Option<&Node>) -> bool {
+pub(super) fn ends_operand(node: Option<&Node>) -> bool {
     match node {
         None => false,
         Some(Node::Leaf(leaf)) => match leaf.kind {
@@ -133,7 +186,8 @@ fn renamed(leaf: &Leaf, text: String) -> Node {
 
 /// Rewrites the `{name}` and `{name:spec}` placeholders of the string literals
 /// that are direct arguments of a macro call, through `lookup`. `{}`, `{0}`
-/// and `{{` are kept, and so is a name `lookup` does not know.
+/// and `{{` are kept, and so is a name `lookup` does not know. A name is an
+/// identifier, or `$` and digits: a parameter `rename_params` has numbered.
 fn rewrite_formats(nodes: &mut [Node], lookup: &dyn Fn(&str) -> Option<String>) {
     for index in 0..nodes.len() {
         let call = index >= 2
@@ -144,7 +198,8 @@ fn rewrite_formats(nodes: &mut [Node], lookup: &dyn Fn(&str) -> Option<String>) 
                 for child in &mut group.children {
                     if let Node::Leaf(literal) = child
                         && literal.kind == Kind::Literal
-                        && let Some(text) = rewrite_placeholders(&literal.text, lookup)
+                        && let Some(text) =
+                            rewrite_placeholders(&literal.text, &mut |name| lookup(name))
                     {
                         literal.text = text;
                     }
@@ -157,7 +212,10 @@ fn rewrite_formats(nodes: &mut [Node], lookup: &dyn Fn(&str) -> Option<String>) 
 
 /// The literal with its placeholders rewritten, or `None` when it is not a
 /// string or nothing changed.
-fn rewrite_placeholders(text: &str, lookup: &dyn Fn(&str) -> Option<String>) -> Option<String> {
+fn rewrite_placeholders(
+    text: &str,
+    lookup: &mut dyn FnMut(&str) -> Option<String>,
+) -> Option<String> {
     let raw = text.starts_with('r');
     if !(raw || text.starts_with('"')) {
         return None;
@@ -190,15 +248,20 @@ fn rewrite_placeholders(text: &str, lookup: &dyn Fn(&str) -> Option<String>) -> 
                 continue;
             }
             let start = at + 1;
-            let end = chars[start..]
+            let dollar = chars.get(start) == Some(&'$');
+            let body = start + usize::from(dollar);
+            let end = chars[body..]
                 .iter()
                 .position(|c| !(c.is_alphanumeric() || *c == '_'))
-                .map_or(chars.len(), |len| start + len);
+                .map_or(chars.len(), |len| body + len);
             let name: String = chars[start..end].iter().collect();
-            let ident = name
-                .chars()
-                .next()
-                .is_some_and(|first| first.is_alphabetic() || first == '_');
+            let ident = if dollar {
+                end > body && chars[body..end].iter().all(char::is_ascii_digit)
+            } else {
+                name.chars()
+                    .next()
+                    .is_some_and(|first| first.is_alphabetic() || first == '_')
+            };
             if ident
                 && matches!(chars.get(end), Some('}' | ':'))
                 && let Some(replacement) = lookup(&name)
@@ -221,7 +284,8 @@ fn rewrite_placeholders(text: &str, lookup: &dyn Fn(&str) -> Option<String>) -> 
 // ---------------------------------------------------------------------------
 
 /// Renames the function's own parameters to `$0`, `$1`, … in signature order.
-/// A name after a `.` and a field name are not parameters.
+/// A lifetime, a name after a `.`, a field name, the tail of a path and a macro
+/// name are not parameters.
 pub(crate) fn rename_params(form: &Form, params: &[String]) -> Form {
     let map: BTreeMap<&str, usize> = params
         .iter()
@@ -235,23 +299,29 @@ pub(crate) fn rename_params(form: &Form, params: &[String]) -> Form {
     Form { nodes }
 }
 
+/// Whether the braces at `index` hold a struct literal or pattern: they follow
+/// a type name and are not the block of an `if`, `while`, `match` or `for`
+/// head.
+fn braces_hold_fields(nodes: &[Node], index: usize, group: &Group, blocks: &[bool]) -> bool {
+    group.delim == Delim::Brace && !blocks[index] && opens_fields(before(nodes, index, 1))
+}
+
 fn params_level(nodes: &[Node], map: &BTreeMap<&str, usize>, fields: bool) -> Vec<Node> {
+    let blocks = block_mask(nodes);
     nodes
         .iter()
         .enumerate()
         .map(|(index, node)| match node {
             Node::Group(_) if is_attribute(nodes, index) => node.clone(),
             Node::Group(group) => {
-                let opens = group.delim == Delim::Brace && opens_fields(before(nodes, index, 1));
+                let opens = braces_hold_fields(nodes, index, group, &blocks);
                 Node::Group(Group {
                     children: params_level(&group.children, map, opens),
                     ..group.clone()
                 })
             }
             Node::Leaf(token) if token.kind == Kind::Ident => match map.get(token.text.as_str()) {
-                Some(position)
-                    if !after_dot(nodes, index) && !names_a_field(nodes, index, fields) =>
-                {
+                Some(position) if is_use(nodes, index, fields) => {
                     renamed(token, format!("${position}"))
                 }
                 _ => node.clone(),
@@ -265,92 +335,43 @@ fn params_level(nodes: &[Node], map: &BTreeMap<&str, usize>, fields: bool) -> Ve
 // rename_locals
 // ---------------------------------------------------------------------------
 
-/// Renames every local name (bindings, closure parameters, lifetimes, labels,
-/// types declared in the body) to its position, numbered after the highest
-/// parameter number the body uses, by first appearance. Names inside tokens
-/// the value form erases are not numbered: they become `$_`.
+/// Renames every name the body binds, and the function's parameters, to `$0`,
+/// `$1`, … by first appearance. The bound names are the ones a pattern, a
+/// closure, a `for`, a local `fn`, a local type, a label, a lifetime, a macro
+/// metavariable or a named macro argument introduces; every other identifier is
+/// the name of an item and is kept. A name inside tokens the value form erases
+/// is not numbered: it becomes `$_`.
 pub(crate) fn rename_locals(form: &Form) -> Form {
     let mut state = Namer {
-        start: next_number(&form.nodes),
+        bound: binders::collect(&form.nodes),
         names: BTreeMap::new(),
     };
-    let mut nodes = state.level(&form.nodes, false, false);
-    let assigned = state.names;
-    rewrite_formats(&mut nodes, &|name| {
-        assigned.get(name).map(|number| format!("${number}"))
-    });
-    Form { nodes }
-}
-
-/// One past the highest parameter number in `nodes`, or 0: the `$n` names, and
-/// the `{$n}` placeholders `rename_params` wrote into format strings.
-fn next_number(nodes: &[Node]) -> usize {
-    nodes
-        .iter()
-        .map(|node| match node {
-            Node::Leaf(token) if token.kind == Kind::Ident => token
-                .text
-                .strip_prefix('$')
-                .and_then(|digits| digits.parse::<usize>().ok())
-                .map_or(0, |number| number + 1),
-            Node::Leaf(token) if token.kind == Kind::Literal => placeholder_numbers(&token.text),
-            Node::Leaf(_) => 0,
-            Node::Group(group) => next_number(&group.children),
-        })
-        .max()
-        .unwrap_or(0)
-}
-
-/// One past the highest `n` of a `{$n` in a literal, or 0.
-fn placeholder_numbers(text: &str) -> usize {
-    text.split("{$")
-        .skip(1)
-        .filter_map(|rest| {
-            let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
-            digits.parse::<usize>().ok()
-        })
-        .map(|number| number + 1)
-        .max()
-        .unwrap_or(0)
+    Form {
+        nodes: state.level(&form.nodes, false, false, false),
+    }
 }
 
 struct Namer {
-    start: usize,
+    bound: BTreeSet<String>,
     names: BTreeMap<String, usize>,
 }
 
 impl Namer {
-    fn number(&mut self, text: &str) -> usize {
-        let next = self.start + self.names.len();
-        *self.names.entry(text.to_owned()).or_insert(next)
+    fn number(&mut self, key: &str) -> usize {
+        let next = self.names.len();
+        *self.names.entry(key.to_owned()).or_insert(next)
     }
 
-    /// Registers the types declared at this level (`struct S`, `enum E`,
-    /// `union U`, `trait T`, `type A`) as local names: a type declared inside a
-    /// body is a private detail of that body.
-    fn declare_local_types(&mut self, nodes: &[Node]) {
-        for pair in nodes.windows(2) {
-            if let [Node::Leaf(keyword), Node::Leaf(name)] = pair
-                && keyword.kind == Kind::Ident
-                && matches!(
-                    keyword.text.as_str(),
-                    "struct" | "enum" | "union" | "trait" | "type"
-                )
-                && name.kind == Kind::Ident
-                && name
-                    .text
-                    .starts_with(|first: char| first.is_ascii_uppercase())
-            {
-                self.number(&name.text);
-            }
-        }
+    /// The `{name}` placeholder of a format string, when `name` is a bound name
+    /// or a numbered parameter.
+    fn placeholder(&mut self, name: &str) -> Option<String> {
+        (name.starts_with('$') || self.bound.contains(name))
+            .then(|| format!("${}", self.number(name)))
     }
 
-    fn level(&mut self, nodes: &[Node], fields: bool, ghost: bool) -> Vec<Node> {
-        if !ghost {
-            self.declare_local_types(nodes);
-        }
+    fn level(&mut self, nodes: &[Node], fields: bool, ghost: bool, macro_args: bool) -> Vec<Node> {
         let erased = erasure_mask(nodes);
+        let blocks = block_mask(nodes);
         nodes
             .iter()
             .enumerate()
@@ -359,15 +380,24 @@ impl Namer {
                 match node {
                     Node::Group(_) if is_attribute(nodes, index) => node.clone(),
                     Node::Group(group) => {
-                        let opens =
-                            group.delim == Delim::Brace && opens_fields(before(nodes, index, 1));
+                        let opens = braces_hold_fields(nodes, index, group, &blocks);
+                        let call = is_punct(before(nodes, index, 1), '!')
+                            && leaf(before(nodes, index, 2))
+                                .is_some_and(|name| name.kind == Kind::Ident);
                         Node::Group(Group {
-                            children: self.level(&group.children, opens, ghost),
+                            children: self.level(&group.children, opens, ghost, call),
                             ..group.clone()
                         })
                     }
                     Node::Leaf(token) if token.kind == Kind::Ident => {
                         self.ident(nodes, index, token, fields, ghost)
+                    }
+                    Node::Leaf(token) if macro_args && !ghost && token.kind == Kind::Literal => {
+                        match rewrite_placeholders(&token.text, &mut |name| self.placeholder(name))
+                        {
+                            Some(text) => renamed(token, text),
+                            None => node.clone(),
+                        }
                     }
                     Node::Leaf(_) => node.clone(),
                 }
@@ -384,20 +414,27 @@ impl Namer {
         ghost: bool,
     ) -> Node {
         let text = token.text.as_str();
-        let local_type = text.starts_with(|first: char| first.is_ascii_uppercase())
-            && self.names.contains_key(text);
-        let kept = text.starts_with('$')
-            || text == "_"
-            || (!local_type
-                && (is_keyword(text)
-                    || names_an_item(nodes, index, text)
-                    || names_a_field(nodes, index, fields)));
-        if kept {
+        let lifetime = is_joint(before(nodes, index, 1), '\'');
+        let key = if lifetime {
+            format!("'{text}")
+        } else {
+            text.to_owned()
+        };
+        let rename = if text.starts_with('$') {
+            true
+        } else if text == "_" || is_keyword(text) {
+            false
+        } else if lifetime {
+            self.bound.contains(&key)
+        } else {
+            self.bound.contains(text) && is_use(nodes, index, fields)
+        };
+        if !rename {
             Node::Leaf(token.clone())
         } else if ghost {
             renamed(token, "$_".to_owned())
         } else {
-            let number = self.number(text);
+            let number = self.number(&key);
             renamed(token, format!("${number}"))
         }
     }
@@ -450,6 +487,25 @@ pub(crate) fn erase_held(form: &Form) -> Form {
     Form {
         nodes: erase_level(&form.nodes),
     }
+}
+
+/// The length of what [`erase_held`] would keep of `form`, counted without
+/// building it. Literals do not change the erasures, so this is also the length
+/// of the value form of the same body.
+pub(crate) fn held_len(form: &Form) -> usize {
+    held_count(&form.nodes)
+}
+
+fn held_count(nodes: &[Node]) -> usize {
+    erasure_mask(nodes)
+        .into_iter()
+        .zip(nodes)
+        .filter(|(erased, _)| !erased)
+        .map(|(_, node)| match node {
+            Node::Leaf(_) => 1,
+            Node::Group(group) => 2 + held_count(&group.children),
+        })
+        .sum()
 }
 
 fn erase_level(nodes: &[Node]) -> Vec<Node> {

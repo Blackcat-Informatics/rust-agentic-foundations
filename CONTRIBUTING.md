@@ -22,9 +22,10 @@ and pull requests are welcome.
 
 - **Normal-form stability.** A census fingerprint is a promise: the same code
   hashes to the same value across releases, so ledgers and recorded debt stay
-  valid. Any change to what a fingerprint hashes requires a `normal_form` version
-  bump, updated golden tests, and a migration path. Never change normal form 1 in
-  place.
+  valid. A normal form version is fixed by the content of its first merge to the
+  default branch. After that, any change that can move a fingerprint is a new
+  version with a migration path: a `normal_form` bump, updated golden tests, and
+  `cargo census migrate`.
 - **Strict schemas and hard failures.** Every ledger, manifest and document schema
   is closed: unknown keys are errors, not warnings. A stale, malformed or ambiguous
   input fails with a message that says how to fix it. Do not add silent fallbacks,

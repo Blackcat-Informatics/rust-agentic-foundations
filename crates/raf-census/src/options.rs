@@ -5,7 +5,7 @@
 
 use crate::Error;
 
-/// The default smallest body, in structural tokens, that has a `body`
+/// The default smallest body, in value-form tokens, that has a `body`
 /// fingerprint.
 pub const DEFAULT_MIN_TOKENS: usize = 20;
 
@@ -19,7 +19,7 @@ pub const DEFAULT_MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct CensusOptions {
-    /// A body with fewer structural tokens has no `body` fingerprint.
+    /// A body with fewer value-form tokens has no `body` fingerprint.
     pub min_tokens: usize,
     /// The most bytes one source file may hold; a larger file is a load error.
     pub max_file_bytes: u64,

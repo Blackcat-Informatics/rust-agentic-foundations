@@ -11,7 +11,8 @@ use std::path::Path;
 
 use raf_census::{
     Baseline, DEFAULT_MIN_TOKENS, ENCODING, Index, LITERAL_TIER, Level, MAX_NESTING,
-    MIN_SHIM_TOKENS, NORMAL_FORM, PASSES, SHIM_MAX_TOKENS, VALUE_ADAPTERS, WEAK_KEYWORDS, manifest,
+    MIN_SHIM_TOKENS, NORMAL_FORM, PASSES, SHIM_MAX_TOKENS, Slice, Tower, VALUE_ADAPTERS,
+    WEAK_KEYWORDS, manifest,
 };
 
 fn page() -> String {
@@ -86,6 +87,59 @@ fn the_page_names_every_threshold_with_its_value() {
         ("max_nesting", MAX_NESTING),
     ] {
         assert!(manifest.contains(&format!("{key} {value}\n")), "{key}");
+    }
+}
+
+/// Every threshold counts the value form, and the code counts the same.
+#[test]
+fn the_page_states_that_every_threshold_counts_the_value_form() {
+    let page = page();
+    let thresholds = section(&page, "Thresholds");
+    assert!(
+        thresholds.contains("tokens of the value form"),
+        "the counting rule is not stated"
+    );
+    assert!(thresholds.contains("before `kind_literals`"));
+    assert!(
+        !thresholds.contains("structural tokens"),
+        "a threshold is described by the structural count"
+    );
+    for name in ["DEFAULT_MIN_TOKENS", "LITERAL_TIER"] {
+        let row = thresholds
+            .lines()
+            .find(|line| line.starts_with(&format!("| `{name}` |")))
+            .unwrap_or_else(|| panic!("no row for {name}"));
+        assert!(row.contains("value tokens"), "{row}");
+    }
+    // The code: the count is the length of the value level, which is shorter
+    // than the structural level when the value form erases something.
+    let slice = Slice::new("f.rs", 1, "g(&a.clone())").params(["a"]);
+    let tower = Tower::new(&slice).expect("lexes");
+    assert_eq!(tower.value_tokens(), tower.form(Level::Value).len());
+    assert!(tower.value_tokens() < tower.form(Level::Structural).len());
+}
+
+/// The numbering rule the Decision states and the structural form details.
+#[test]
+fn the_page_states_the_renaming_and_numbering_rules() {
+    let page = page();
+    assert!(
+        section(&page, "Decision").contains("by order of first appearance"),
+        "the Decision does not state the numbering"
+    );
+    let structural = section(&page, "Structural form")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for phrase in [
+        "only the names that the body or its signature binds",
+        "by order of first appearance",
+        "signature order",
+        "Every other identifier is the name of an item",
+        "never a struct literal",
+        "`S { x }`",
+    ] {
+        assert!(structural.contains(phrase), "the page lacks: {phrase}");
     }
 }
 

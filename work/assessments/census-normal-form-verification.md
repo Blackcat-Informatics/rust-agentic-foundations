@@ -7,10 +7,10 @@ subject: cap:census-normal-form#verification
 inputs:
   - kind: section
     name: cap:census-normal-form#verification
-    digest: 08bee2f899a8610e42ee15db5275347a10f6334d67e728faef70cdcefb885be5
+    digest: 247f3c9e490f1f4b24b62956d50c093a651db738a0c3a1c595305c8217e32e6a
   - kind: symbol
     name: raf_census::Baseline
-    digest: 6f3e3a6c7a8f1303721edaf095e9b63b5f69fc9c714c7bc72bed2a4046470b28
+    digest: a82db53d0b3c11673f719d9ac3f5a8d7c6a25dbff5050a23af2a1f937fe8392f
   - kind: symbol
     name: raf_census::Baseline::from_json
     digest: 9d006d42c975a6b9476fe51d94867823c99bce4f194a5c1214aa1537be65ebc3
@@ -19,7 +19,7 @@ inputs:
     digest: 7c248d28b1fb9869257ed545e5f7d458fec63ae0ee39fcde9fcc792bcb6ddeac
   - kind: symbol
     name: raf_census::BaselineGroup
-    digest: 7b06530555430bc54adf6a2b96360235c592ab6d8f30ee491a37d53c196e236d
+    digest: 27e86db29d9602eb20683efe75ce2798acc1260c4fc20fded9dc081c0e5d6936
   - kind: symbol
     name: raf_census::Census
     digest: a5795cd3694f3413fc468028210e40014624a640cfda7aa4df0273855e679aac
@@ -70,7 +70,7 @@ inputs:
     digest: c804a5d715f3800597674844642fe7789f1d1f51ed5e5bb8f46d6237c14844ac
   - kind: symbol
     name: raf_census::CensusOptions
-    digest: de5e7234bb1b17b5693abbc28b545ac1b66cfb0845b5b7c32ebc1d79677f868e
+    digest: 3374a4ce9c59f9ee5a5444a70a1803f5a560846fb99259baa6bad8ebf721ed2c
   - kind: symbol
     name: raf_census::CensusOptions::max_file_bytes
     digest: f2b8608bc6fa2a63b793880707e3d72480ef2702447f4d0a317c85d090ed0922
@@ -85,7 +85,7 @@ inputs:
     digest: b6b005898d82e958376a4867c9199b5d5fb3a20566d0c57db50368b3c42e5ec1
   - kind: symbol
     name: raf_census::DEFAULT_MIN_TOKENS
-    digest: fb58b403852b0abd25cb04fe6a0a229d654fe59c7c53ceab4c5fa5949ce6b70f
+    digest: a6b9402e3b2712275ff714c0ffd35b5ca936c62dcabeb63b1b12c36d1e2b682f
   - kind: symbol
     name: raf_census::Divergence
     digest: 05eab11ef2d41d0da1e005c146dcf6b0fa3a6af937256d538f07ff24908eebd8
@@ -127,7 +127,7 @@ inputs:
     digest: b5bbce341eab299f132c8b5f16a9c374850834f0e6718da1e0043d8b9113c05d
   - kind: symbol
     name: raf_census::Group
-    digest: a762ff6949e93da141ea8148bb7bd9011f2de9bb5dac8b84365f47bfd439a2d6
+    digest: f8fcff2f4d016da77da83caa8572db7a837ee3de72ee5dfa6afca4533d16dc95
   - kind: symbol
     name: raf_census::Group::member_symbols
     digest: 68357a7ba891be71383bfeb4e648d7443bbb1362505a98d15d12cfb2c29c22c2
@@ -154,7 +154,7 @@ inputs:
     digest: 9cbfb4314bfb314903b9b6583c3bdea46ace0fa4a7b7712d34fa3b149e0b688e
   - kind: symbol
     name: raf_census::IndexUnit
-    digest: e88e362f64c1cbb51651e7d4159ac55d79bdec0f37c0e2d9b9ca7e596c383faa
+    digest: d7f7e9c2225d659f6515daf15718b84381a231a76af7df6ba462e8dea2c888f2
   - kind: symbol
     name: raf_census::Job
     digest: 3f9d93038d32676c236ad951441859c4141dbbc4a7ae6315e6fcdb6de9611496
@@ -184,10 +184,10 @@ inputs:
     digest: 11865fa8b0552be90a8e2f9bf1583f65eb8e66e5396e60a35f48b4f9ed2a4454
   - kind: symbol
     name: raf_census::LITERAL_TIER
-    digest: 76be7a56a86224827365d00e5de4265b7ce009d77cbd0ab12837472567d062fb
+    digest: acd5bf63e3cd092eb29f666d1627584ea79bdd0729f192ea934598d95f5f3aa1
   - kind: symbol
     name: raf_census::Level
-    digest: 0c07b211145d899e13f378279fc09452137206a04fa3f181c306ecaaa161d937
+    digest: 9ffe45f14aa25208bc073af3ee068ed210a57082ee1fc67028f421e2cce15ca6
   - kind: symbol
     name: raf_census::Level::ALL
     digest: 97dbc46938f70459297a729b4c01e034f23de87de8bd684ba0374000cda05732
@@ -199,7 +199,7 @@ inputs:
     digest: a4160a54b236b84066635ab11d2ee22cfc91166c265bd5dd72d664d1684d95b1
   - kind: symbol
     name: raf_census::MIN_SHIM_TOKENS
-    digest: 2149b4510ae24cd61f97f9119453ba938d990820f7267883910809f159fc671e
+    digest: 54f2b932b7b6d424762c9c8f5ad66367feb972884de3b2cc403a3b5b90ecee71
   - kind: symbol
     name: raf_census::MatchClass
     digest: 878200e71a08d37538389ed68ae8ab0adc9a759b71a218cdef4078236016ebfb
@@ -238,7 +238,7 @@ inputs:
     digest: c5cb998c296b80e0132c51e36d679974f3a543fd360b514520fb9609f9ac81f5
   - kind: symbol
     name: raf_census::Print
-    digest: 1999558931f4f9598637d64e9457d929161e81447326dd1e4e0b1ebfc032ea98
+    digest: dea415a13940a3e13c98862df25bcd2f787746b59ee338e022cc401d82e6c9bc
   - kind: symbol
     name: raf_census::RuleId
     digest: 34c0fc8f56b2eab01a0852a91c6cb8ff7871c60fca0a75ee6f02c608905d87b3
@@ -250,7 +250,7 @@ inputs:
     digest: 4384d865f27c93bf42a71ba6360a68fba78a2af9486f52a83cacb01cd7240063
   - kind: symbol
     name: raf_census::SHIM_MAX_TOKENS
-    digest: d35959281611fa93e872fdadad815241fa29a8f15d31262bf5b7a813b86b7f07
+    digest: b799e30dd83cb15dc8196c1cea5c1d1cf90a18cef86e69d1e249b750266a6e5e
   - kind: symbol
     name: raf_census::SharedConstant
     digest: 1e08947e80c405107961b08e04ce3d387714aae837495ba8831a9089e504d6ef
@@ -286,22 +286,22 @@ inputs:
     digest: 7c3bc4f36d792205e84d7e401e76f198844471a3e65e9c4d8557935c73c9796c
   - kind: symbol
     name: raf_census::Tower
-    digest: 97616f7f3fca4ae74aa9dcef3a2a605d19f2ae3692a9952abccc405895a36c15
+    digest: 8ec2bfc7089fba46f272c24c0bd525fe65ce8019f0abca21f72dd5875314cea5
   - kind: symbol
     name: raf_census::Tower::form
     digest: c6b42a8431c2e335eaeeeaac33c8ec57b5d52bdb898db6c2d2fb0d1342901548
   - kind: symbol
     name: raf_census::Tower::new
-    digest: ec8c445f249acea4eb9ae53ee334cc5a1fa49032ca2dcf4c28e0897849be3a0b
+    digest: 6a6bffb0e06aa92e064579f11b46085e7bae0555ba0f281fa948d19c038c5f15
   - kind: symbol
     name: raf_census::Tower::print
-    digest: 2738bb97233ae2b58f8043f220105e57070ef9766dfdd19f2134fc7acaec75af
+    digest: d6485a78822c146d262b3307cdacdace9680402ac1b0de18c2527f48572c53a6
   - kind: symbol
     name: raf_census::Tower::shim_candidate
-    digest: 80d246d60d4a73e9d378f0685087fded8aeae45406138a855ba4605e553d6c51
+    digest: def8a1b3c38dd5cea2a14a653c4d94343790a0269d36ccd2c6529266c517d6ea
   - kind: symbol
-    name: raf_census::Tower::structural_tokens
-    digest: 7b188936d5cfdc17cf400fea38eae1d82e1acb2b680e861aa39ffb9f4bb05821
+    name: raf_census::Tower::value_tokens
+    digest: 5663162682fe9f6e586110d75d2b732184696beb853ae21c8208a861ea084b2d
   - kind: symbol
     name: raf_census::Unit
     digest: 6f19b1ee0bbf49b13ab8b27f34be4ec5bbbc76e1346b63e4a371139c4768f473

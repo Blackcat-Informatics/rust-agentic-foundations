@@ -691,3 +691,29 @@ fn this_repositorys_own_crates_load_into_distinct_units() {
     }
     assert!(census.unit("raf_census::census::Census::load").is_some());
 }
+
+#[test]
+fn min_tokens_counts_the_value_form_so_erased_noise_never_straddles_it() {
+    let body = |name: &str, noise: &str| {
+        format!("pub fn {name}(v: &[u8]) -> u8 {{ if v{noise}.len() > 3 {{ 1 }} else {{ 0 }} }}\n")
+    };
+    let source = format!(
+        "{}{}",
+        body("plain", ""),
+        body("noisy", ".clone().as_slice()")
+    );
+    let has_body = |census: &Census, name: &str| {
+        let unit = unit(census, &format!("demo::{name}"));
+        let print = unit.print.as_ref().expect("a function has a print");
+        assert_eq!(print.tokens, 15, "{name}: the value form has 15 tokens");
+        print.body.is_some()
+    };
+    let default = load(&[("src/lib.rs", &source)]);
+    assert!(!has_body(&default, "plain") && !has_body(&default, "noisy"));
+    let ten = load_with(
+        &[("src/lib.rs", &source)],
+        &CensusOptions::default().min_tokens(10).expect("valid"),
+    )
+    .expect("the workspace loads");
+    assert!(has_body(&ten, "plain") && has_body(&ten, "noisy"));
+}

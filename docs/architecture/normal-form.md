@@ -24,14 +24,16 @@ shape of this page is stated in [the profile](./okf-profile.md).
 
 The census compares function bodies by their tokens under one versioned normal
 form and names each result by a fingerprint. The form is a fixed sequence of four
-pure passes over the lexed tokens. Local names are renamed, the reference and
-adapter noise that does not change a value is removed, a body of fewer than 30
-structural tokens keeps its literals verbatim, and a body of 6 to 29 structural
-tokens that is a thin forwarder also has a shim form that groups forwarders. The
-fingerprint of a body or a shim is the first 8 bytes of the BLAKE3 hash of the
-form's token sequence under one fixed byte encoding. A version is fixed once it is
-defined: any change that can alter a fingerprint is a new version, and a ledger
-written under another version is refused until `cargo census migrate` rewrites it.
+pure passes over the lexed tokens. The names a body binds and its parameters are
+renamed by order of first appearance, the reference and adapter noise that does not
+change a value is removed, a body whose value form has fewer than 30 tokens keeps
+its literals verbatim, and a body whose value form has 6 to 29 tokens that is a thin
+forwarder also has a shim form that groups forwarders. The fingerprint of a body or
+a shim is the first 8 bytes of the BLAKE3 hash of the form's token sequence under
+one fixed byte encoding. A version is fixed by the content of its first merge to the
+default branch: after that, any change that can alter a fingerprint is a new
+version, and a ledger written under another version is refused until
+`cargo census migrate` rewrites it.
 
 ## Token source
 
@@ -69,9 +71,9 @@ ordered from the finest to the coarsest:
 | Level | Produced by | Contents |
 | --- | --- | --- |
 | `verbatim` | the lexer | The tokens as lexed. |
-| `shim` | `rename_params` | The function's own parameters renamed. |
-| `literal-tier` | `rename_locals` | Every local name renamed, literals kept. |
-| `structural` | `kind_literals` | Literals abstracted to their kind unless the body is under the literal tier. |
+| `shim` | `rename_params` | The function's own parameters renamed, in signature order. |
+| `literal-tier` | `rename_locals` | The parameters and the names the body binds renamed together, by first appearance, literals kept. |
+| `structural` | `kind_literals` | Literals abstracted to their kind unless the value form is under the literal tier. |
 | `value` | `erase_held` | The spellings that only change how a value is held dropped. |
 
 Two bodies that are equal at one level are equal at every coarser level, and a
@@ -87,28 +89,52 @@ passes before it.
 - `rename_params` numbers the function's own parameters `$0`, `$1`, … in
   signature order. Every identifier bound by a parameter pattern counts (`mut x`,
   `ref x`, tuple and struct patterns); `self` is not a parameter, and a repeated
-  name counts once. A name after a `.` and a field name are not renamed.
-- `rename_locals` renames every other local name: bindings, closure parameters,
-  lifetimes, labels and the types a body declares for itself. They are numbered on
-  the same counter, after the highest parameter number the body uses, a
-  placeholder in a format string included, and in order of first appearance. A
-  parameter the body does not use therefore does not shift the numbering of the
-  locals. A name inside a token that the value form erases (a `let` type
-  annotation, a turbofish, a `ref`) is not numbered and is written `$_`.
+  name counts once. A name after a `.`, a field name, a lifetime, the tail of a path
+  and a macro name are not parameters. The `shim` level keeps this numbering,
+  because the order in which a forwarder passes its arguments is its meaning:
+  `f(y, x)` and `f(x, y)` are different shims.
+- `rename_locals` renames only the names that the body or its signature binds, and
+  it numbers them together with the parameters on one counter, by order of first
+  appearance, from the first token of the body, a placeholder in a format string
+  included. A parameter the body does not use therefore does not shift the
+  numbering, and two bodies that use the same parameters in another order have the
+  same form. The names a body binds are:
+  - the names of a `let` pattern, an `if let` or `while let` pattern, a `for`
+    pattern and a `match` arm pattern, a tuple or struct pattern included, and a
+    name bound by `name @ pattern`;
+  - the parameters of a closure and of a function declared inside the body, and
+    that function's name;
+  - the types a body declares for itself (`struct`, `enum`, `union`, `trait`,
+    `type`);
+  - labels and lifetimes, a macro metavariable (`$x`) and a name given to a macro
+    argument (`x = value`).
+
+  Every use of a bound name is renamed with it, in call position (`let f = ..;
+  f(v)`) and when it shadows an item. A name inside a token that the value form
+  erases (a `let` type annotation, a turbofish, a `ref`) is not numbered and is
+  written `$_`.
+- Every other identifier is the name of an item the body uses, and is kept: a
+  function passed by name (`map(double)` and `map(triple)` are different), a
+  constant or a static in any case, a type, a variant, a path segment, a macro and
+  a primitive type name. A name in field position is kept even when a local of the
+  same name exists: in `S { x }` the field `x` is kept, so `S { x }` and `S { y }`
+  are different.
+- The block after the head of an `if`, `else if`, `while`, `match` or `for` is a
+  block, never a struct literal, so a name before it (`if next == MAX { next }`)
+  does not keep the locals inside.
 - Inline format captures follow the renaming: in a string literal that is a
   direct argument of a macro invocation, `{name}` and `{name:spec}` placeholders
-  that name a renamed parameter or local are rewritten to its new name. `{}`,
-  `{0}`, a name that is not a local, `{{` and `\u{..}` are kept.
-- Field names, method names, paths, types, primitive type names, keywords,
-  operators and delimiters are kept. The reserved word `gen` and the weak keywords
-  `union`, `raw`, `safe` and `macro_rules` are keywords for this purpose, and `_`
-  is kept. The closed list is `WEAK_KEYWORDS`: `gen`, `union`, `raw`, `safe`,
-  `macro_rules`.
+  that name a renamed parameter or bound name are rewritten to its new name. `{}`,
+  `{0}`, a name that is not bound, `{{` and `\u{..}` are kept.
+- Field names, method names, keywords, operators and delimiters are kept. The
+  reserved word `gen` and the weak keywords `union`, `raw`, `safe` and
+  `macro_rules` are keywords for this purpose, and `_` is kept. The closed list is
+  `WEAK_KEYWORDS`: `gen`, `union`, `raw`, `safe`, `macro_rules`.
 - A tuple index (`pair.0`) is a field and is kept in every form; the end of a
   range (`..1`) is a literal.
 
-Two bodies that differ only in the names of their parameters and locals have the
-same structural form.
+Two bodies that differ only in the names they bind, and in the order of their
+parameters, have the same structural form.
 
 ## Value form
 
@@ -131,11 +157,11 @@ because they change the value.
 
 ## Literal tier
 
-A body with fewer than `LITERAL_TIER` (30) structural tokens keeps its literals
+A body whose value form has fewer than `LITERAL_TIER` (30) tokens keeps its literals
 verbatim: `kind_literals` is the identity pass there. At that size the constants are
 most of what the body says: two `match` arms that map the same variants to
 different strings are two tables, and two that map them to the same strings are
-one table written twice. A body of 30 tokens or more has its literals abstracted
+one table written twice. A body whose value form has 30 tokens or more has its literals abstracted
 to their kind: `$int`, `$float`, `$str`, `$char`, `$byte`, `$bytes` and `$cstr`.
 An integer literal is an integer by syntax, whatever its size. Integers are
 compared by value in any spelling, so `0xcbf2_9ce4_8422_2325` and its decimal
@@ -150,7 +176,7 @@ argument may hold both, so `g(a, |x| { let y = x; y })` is a candidate. It conta
 at least one call, and does not mention `self`. A call is a name or a macro bang
 followed directly by a parenthesised group, and a turbofish belongs to its name, so
 `f::<T>(x)` is a call. A shim candidate with at least `MIN_SHIM_TOKENS` (6) and
-fewer than `SHIM_MAX_TOKENS` (30) structural tokens has a shim form, which is the
+fewer than `SHIM_MAX_TOKENS` (30) value-form tokens has a shim form, which is the
 `shim` level: the function's own parameters are renamed, and the callee, the fixed
 arguments, the locals and the literals are kept as written. Two functions that
 forward to the same place with the same fixed arguments are the same shim.
@@ -175,13 +201,16 @@ never forms a group.
 
 ## Thresholds
 
-Every threshold counts structural tokens: the tokens of the `structural` level,
-before `erase_held`, delimiters included.
+Every threshold counts the tokens of the value form, delimiters included: the
+`value` level, which is `erase_held` of the `literal-tier` form. The count is taken
+before `kind_literals`, so the literal tier is decided on it too, and two bodies
+with the same value form always make the same threshold decisions. Noise the value
+form erases never moves a body across a threshold.
 
 | Name | Value | Meaning |
 | --- | --- | --- |
-| `DEFAULT_MIN_TOKENS` | 20 | The default of `min_tokens`, which a run takes from `CensusOptions::min_tokens`; the ledger key that carries it is the ledger capability's. A body with fewer structural tokens has no body fingerprint. |
-| `LITERAL_TIER` | 30 | A body with fewer structural tokens keeps its literals verbatim. |
+| `DEFAULT_MIN_TOKENS` | 20 | The default of `min_tokens`, which a run takes from `CensusOptions::min_tokens`; the ledger key that carries it is the ledger capability's. A body with fewer value tokens has no body fingerprint. |
+| `LITERAL_TIER` | 30 | A body with fewer value tokens keeps its literals verbatim. |
 | `MIN_SHIM_TOKENS` | 6 | A body with fewer tokens has no shim form. |
 | `SHIM_MAX_TOKENS` | 30 | A body with this many tokens or more has no shim form. |
 | `MAX_NESTING` | 128 | Delimiters nested deeper than this are refused. |
@@ -238,7 +267,7 @@ targets reach it, so a module declared by a library and a binary yields one unit
 - Its identity is its file, line and symbol. The symbol is chosen deterministically:
   a path that a shipping target reaches over one only a test target reaches, then
   the smallest path. The unit is shipping when some target that reaches it ships and the item is not test code in that reach.
-- The print holds the structural token count, the `body` fingerprint when the count
+- The print holds the value-form token count, the `body` fingerprint when the count
   reaches `min_tokens`, and the `shim` fingerprint when the body has a shim form.
 - A constant or a static has no print and no fingerprint: its token count in the
   index is 0 and its `body` and `shim` are `null`, and it never joins a body or shim
@@ -253,7 +282,7 @@ group has two or more members, and a group of one is dropped. A unit with a shim
 form is never body-grouped. A unit joins the shim group of its `shim_key` when it
 has one.
 
-Groups sort by member count descending, then structural tokens descending (the
+Groups sort by member count descending, then value tokens descending (the
 largest count among the members), then fingerprint ascending. Members sort by
 symbol, then file, then line, so the same source always produces the same output.
 
@@ -313,24 +342,27 @@ Units sort by symbol, then file, then line.
 
 ## Version-bump rule
 
-Any change that can alter a fingerprint of any input is a new normal form version.
-That covers the token source, every form above, every threshold, the kind prefixes,
-the byte encoding, the hash function and the width of the digest. The change bumps the `normal_form`
-number, and the census keeps the old behaviour out of the new version. A change
-that cannot alter any fingerprint, such as a faster implementation, does not bump
-the version.
+A normal form version is fixed by the content of its first merge to the default
+branch. After that, any change that can alter a fingerprint of any input is a new
+version with a migration path. That covers the token source, every form above, every
+threshold, the kind prefixes, the byte encoding, the hash function and the width of
+the digest. The change bumps the `normal_form` number, and the census keeps the old
+behaviour out of the new version. A change that cannot alter any fingerprint, such
+as a faster implementation, does not bump the version.
 
 ## Golden-test rule
 
 The census keeps a fixture set of source snippets together with the fingerprint
 each one has under the current version. A golden test recomputes every fingerprint
 and compares it to the pinned value. A change to the normal form that moves a
-pinned fingerprint fails the test until the version is bumped and the pinned values
-are regenerated in the same change. The fixtures cover each form: structural,
-value, literal tier, shim, and macro arguments. A pinned manifest of the encoding,
-the ordered passes, the levels, the thresholds and the closed word lists sits beside
-the fingerprints, so a change to any of them moves a pinned value too. A fixture
-without a pinned value fails the test, and so does a pinned value without a fixture.
+pinned fingerprint fails the test until the pinned values are regenerated in the
+same change, and once the version is fixed, until the version is bumped as well. The
+fixtures cover each form: structural, value, literal tier, shim, and macro
+arguments, and each form of binder beside the names no one binds. A pinned manifest
+of the encoding, the ordered passes, the levels, the thresholds and the closed word
+lists sits beside the fingerprints, so a change to any of them moves a pinned value
+too. A fixture without a pinned value fails the test, and so does a pinned value
+without a fixture.
 
 ## Compatibility
 

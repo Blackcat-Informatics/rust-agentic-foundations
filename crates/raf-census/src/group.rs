@@ -65,7 +65,7 @@ pub struct Group {
     pub kind: GroupKind,
     /// The fingerprint they share.
     pub fingerprint: Fingerprint,
-    /// The structural tokens of the shared body.
+    /// The tokens of the value form of the shared body.
     pub tokens: usize,
     /// The units, ordered by symbol, then file, then line.
     pub members: Vec<Member>,

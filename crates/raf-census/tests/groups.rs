@@ -548,3 +548,156 @@ pub fn other(c: u8) -> String { let u = format!(\"{y:02x}\", y = c); let v = vec
     assert_eq!(symbols(groups[0]), ["demo::hex", "demo::hexa"]);
     assert!(groups[0].tokens >= 20);
 }
+
+/// Two bodies that apply different functions, beside a neighbour of the first
+/// whose locals are renamed.
+const BY_NAME: &str = "\
+pub fn first(xs: &[u8]) -> Vec<u8> {
+    let kept = xs.iter().copied().map(double).filter(is_small).collect::<Vec<u8>>();
+    kept
+}
+pub fn second(xs: &[u8]) -> Vec<u8> {
+    let kept = xs.iter().copied().map(triple).filter(is_big).collect::<Vec<u8>>();
+    kept
+}
+pub fn third(rows: &[u8]) -> Vec<u8> {
+    let rest = rows.iter().copied().map(double).filter(is_small).collect::<Vec<u8>>();
+    rest
+}
+";
+
+#[test]
+fn bodies_that_apply_different_functions_share_no_group_but_renamed_locals_do() {
+    let census = load(BY_NAME);
+    for symbol in ["demo::first", "demo::second", "demo::third"] {
+        let print = census.unit(symbol).expect("exists").print.as_ref();
+        assert!(print.expect("a function").body.is_some(), "{symbol}");
+    }
+    assert_eq!(census.groups().len(), 1, "{:?}", census.groups());
+    assert_eq!(
+        symbols(&census.groups()[0]),
+        ["demo::first", "demo::third"],
+        "`second` applies other functions and stays out"
+    );
+}
+
+#[test]
+fn bodies_that_read_different_lowercase_statics_share_no_group() {
+    let body = |name: &str, limit: &str| {
+        format!(
+            "pub fn {name}(xs: &[u32]) -> u32 {{\n    let mut n = 0;\n    for x in xs {{\n        \
+             if *x > {limit} {{\n            n += 1;\n        }}\n    }}\n    n\n}}\n"
+        )
+    };
+    let census = load(&format!(
+        "{}{}{}",
+        body("over_a", "limit_a"),
+        body("over_b", "limit_b"),
+        body("over_c", "limit_a")
+    ));
+    assert_eq!(census.groups().len(), 1, "{:?}", census.groups());
+    assert_eq!(
+        symbols(&census.groups()[0]),
+        ["demo::over_a", "demo::over_c"]
+    );
+}
+
+#[test]
+fn a_block_after_a_constant_in_a_head_is_a_block_and_its_locals_are_renamed() {
+    let clamp = |name: &str, next: &str, fallback: &str| {
+        format!(
+            "pub fn {name}(v: u32) -> u32 {{\n    let {next} = v + 1;\n    let {fallback} = v - 1;\n    \
+             let mut out = if {next} == MAX {{ {next} }} else {{ {fallback} }};\n    out += 1;\n    out\n}}\n"
+        )
+    };
+    let census = load(&format!(
+        "pub const MAX: u32 = 9;\n{}{}",
+        clamp("clamp_a", "next", "fallback"),
+        clamp("clamp_b", "later", "other")
+    ));
+    assert_eq!(census.groups().len(), 1, "{:?}", census.groups());
+    assert_eq!(
+        symbols(&census.groups()[0]),
+        ["demo::clamp_a", "demo::clamp_b"]
+    );
+}
+
+#[test]
+fn a_real_struct_literal_keeps_its_field_names() {
+    let build = |name: &str, field: &str| {
+        format!(
+            "pub fn {name}(v: u32) -> S {{\n    let a = v + 1;\n    let b = a * 2;\n    \
+             let c = b - 3;\n    let d = c + a;\n    S {{ {field}: d }}\n}}\n"
+        )
+    };
+    let census = load(&format!("{}{}", build("by_x", "x"), build("by_y", "y")));
+    assert_eq!(census.groups(), [], "the field name differs");
+    let census = load(&format!("{}{}", build("by_x", "x"), build("also_x", "x")));
+    assert_eq!(census.groups().len(), 1);
+}
+
+#[test]
+fn copies_that_reorder_their_parameters_share_a_body_group() {
+    let census = load(
+        "\
+pub fn count_a(xs: &[u32], k: u32) -> u32 {
+    let mut n = 0;
+    for x in xs {
+        if *x == k {
+            n += 1;
+        }
+    }
+    n
+}
+pub fn count_b(k: u32, xs: &[u32]) -> u32 {
+    let mut n = 0;
+    for x in xs {
+        if *x == k {
+            n += 1;
+        }
+    }
+    n
+}
+",
+    );
+    assert_eq!(census.groups().len(), 1, "{:?}", census.groups());
+    assert_eq!(
+        symbols(&census.groups()[0]),
+        ["demo::count_a", "demo::count_b"]
+    );
+}
+
+#[test]
+fn forwarders_keep_their_argument_order_in_the_shim_key() {
+    let census = load(
+        "\
+pub fn a(x: u32, y: u32) -> u32 { target(y, x, 1) }
+pub fn b(p: u32, q: u32) -> u32 { target(q, p, 1) }
+pub fn c(x: u32, y: u32) -> u32 { target(x, y, 1) }
+",
+    );
+    let shims: Vec<&Group> = census.shim_groups().collect();
+    assert_eq!(shims.len(), 1, "{shims:?}");
+    assert_eq!(
+        symbols(shims[0]),
+        ["demo::a", "demo::b"],
+        "`c` forwards in order"
+    );
+}
+
+#[test]
+fn copies_that_differ_by_erased_noise_group_across_the_literal_tier() {
+    let body = |name: &str, noise: &str| {
+        format!(
+            "pub fn {name}(v: &Vec<u8>) -> usize {{\n    let n = v{noise}.len();\n    \
+             if n > 3 {{\n        return 7;\n    }}\n    let m = n + 1;\n    m + n + 2\n}}\n"
+        )
+    };
+    let census = load(&format!(
+        "{}{}",
+        body("plain", ""),
+        body("noisy", ".clone().as_slice().to_owned()")
+    ));
+    assert_eq!(census.groups().len(), 1, "{:?}", census.groups());
+    assert_eq!(symbols(&census.groups()[0]), ["demo::noisy", "demo::plain"]);
+}

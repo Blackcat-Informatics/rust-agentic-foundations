@@ -46,7 +46,7 @@ impl From<&Member> for MemberRow {
 pub struct BaselineGroup {
     /// The shared fingerprint.
     pub fingerprint: String,
-    /// The structural tokens of the shared body.
+    /// The tokens of the value form of the shared body.
     pub tokens: usize,
     /// The units, ordered by symbol, then file, then line.
     pub members: Vec<MemberRow>,
@@ -84,7 +84,7 @@ pub struct ConstantRow {
 pub struct Baseline {
     /// The normal form the fingerprints belong to.
     pub normal_form: u32,
-    /// The structural-token floor of a body fingerprint.
+    /// The value-token floor of a body fingerprint.
     pub min_tokens: usize,
     /// The number of units.
     pub units: usize,
@@ -112,7 +112,7 @@ pub struct IndexUnit {
     pub line: usize,
     /// Whether the unit ships.
     pub shipping: bool,
-    /// The structural tokens of the body; 0 for a unit that is not a function.
+    /// The tokens of the value form of the body; 0 for a unit that is not a function.
     pub tokens: usize,
     /// The `body` fingerprint, when the body reaches `min_tokens`.
     #[serde(deserialize_with = "required")]

@@ -69,7 +69,7 @@ fn every_registered_pair_compares_as_registered() {
 }
 
 #[test]
-fn a_fixture_named_for_a_size_has_that_many_structural_tokens() {
+fn a_fixture_named_for_a_size_has_that_many_value_tokens() {
     let registry = registry();
     let sized: Vec<&Fixture> = registry
         .fixtures
@@ -79,7 +79,7 @@ fn a_fixture_named_for_a_size_has_that_many_structural_tokens() {
     assert!(sized.len() >= 20);
     for fixture in sized {
         assert_eq!(
-            Some(tower(fixture).structural_tokens()),
+            Some(tower(fixture).value_tokens()),
             fixture.tokens,
             "{}",
             fixture.id
@@ -180,10 +180,10 @@ fn a_shim_candidate_keeps_its_body_print_and_the_shim_print_differs_by_callee() 
     assert!(a.body.is_some() && a.shim.is_some());
     assert_ne!(a, print_of(&["x"], "other(x, 1)", 1));
     assert_ne!(a, print_of(&["x"], "target(x, 2)", 1));
-    let local_a = print_of(&[], "target(first, 1)", 1);
-    let local_b = print_of(&[], "target(second, 1)", 1);
-    assert_ne!(local_a.shim, local_b.shim, "a local is not a parameter");
-    assert_eq!(local_a.body, local_b.body, "but the value forms agree");
+    let item_a = print_of(&[], "target(first, 1)", 1);
+    let item_b = print_of(&[], "target(second, 1)", 1);
+    assert_ne!(item_a.shim, item_b.shim, "a name no one binds is an item");
+    assert_ne!(item_a.body, item_b.body, "and the value forms differ");
 }
 
 #[test]
@@ -195,7 +195,7 @@ fn the_body_print_needs_min_tokens() {
 }
 
 #[test]
-fn the_literal_tier_boundary_is_thirty_structural_tokens() {
+fn the_literal_tier_boundary_is_thirty_value_tokens() {
     let registry = registry();
     let print = |id: &str| {
         let fixture = registry
@@ -267,17 +267,22 @@ fn below_the_tier_the_final_sequence_keeps_literals_and_above_it_abstracts_them(
 }
 
 #[test]
-fn parameters_are_numbered_in_signature_order_before_locals() {
+fn parameters_and_locals_are_numbered_together_by_first_appearance() {
     let slice = Slice::new("f.rs", 1, "let t = b + a; t").params(["a", "b"]);
     let tower = Tower::new(&slice).expect("lexes");
     assert_eq!(
+        texts(&tower, Level::Shim),
+        ["let", "t", "=", "$1", "+", "$0", ";", "t"],
+        "the shim form keeps signature order"
+    );
+    assert_eq!(
         texts(&tower, Level::Value),
-        ["let", "$2", "=", "$1", "+", "$0", ";", "$2"]
+        ["let", "$0", "=", "$1", "+", "$2", ";", "$0"]
     );
     let used_one = Slice::new("f.rs", 1, "let t = b; t").params(["a", "b"]);
     assert_eq!(
         texts(&Tower::new(&used_one).expect("lexes"), Level::Value),
-        ["let", "$2", "=", "$1", ";", "$2"]
+        ["let", "$0", "=", "$1", ";", "$0"]
     );
 }
 
@@ -314,7 +319,7 @@ fn nesting_at_the_budget_lexes_and_one_deeper_is_refused() {
     let nest = |depth: usize| format!("{}x{}", "(".repeat(depth), ")".repeat(depth));
     assert_eq!(MAX_NESTING, 128);
     let at = Tower::new(&Slice::new("f.rs", 1, &nest(128))).expect("128 lexes");
-    assert_eq!(at.structural_tokens(), 257);
+    assert_eq!(at.value_tokens(), 257);
     let error = Tower::new(&Slice::new("f.rs", 1, &nest(129))).expect_err("129 is refused");
     assert!(error.to_string().contains("128"), "{error}");
 }
@@ -396,7 +401,7 @@ fn the_digest_is_blake3_of_length_prefixed_tokens() {
         "abac387fdaf62db5bee4e554a8fe7d4fc574f2e61594275430ddab702ef76288",
         "the digest of the hand-written bytes, computed with b3sum"
     );
-    let print = print_of(&[], "f(x, 1)", 1);
+    let print = print_of(&["x"], "f(x, 1)", 1);
     let body = print.body.expect("a body print");
     assert_eq!(&body.digest, expected.as_bytes());
     assert_eq!(body.fingerprint.to_string(), "body:abac387fdaf62db5");
@@ -515,5 +520,74 @@ fn the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name() {
     // the local named `doc` is renamed everywhere else.
     assert!(text.contains("# [ doc = \" the total\" ]"), "{text}");
     assert!(text.contains("# [ allow ( unused ) ]"), "{text}");
-    assert!(text.contains("let $1 = $0 + 1"), "{text}");
+    assert!(text.contains("let $0 = $1 + 1"), "{text}");
+}
+
+#[test]
+fn every_threshold_counts_the_value_form() {
+    let registry = registry();
+    for fixture in &registry.fixtures {
+        let tower = tower(fixture);
+        assert_eq!(
+            tower.value_tokens(),
+            tower.form(Level::Value).len(),
+            "{}",
+            fixture.id
+        );
+    }
+    let adapters = ".clone().as_slice()";
+    // The literal tier: 21 value tokens either way, so literals stay in both.
+    let tier =
+        |adapters: &str| format!("let n = v{adapters}.len(); if n > 3 {{ return 7; }} n + 1");
+    let (plain, noisy) = (
+        print_of(&["v"], &tier(""), 1),
+        print_of(&["v"], &tier(adapters), 1),
+    );
+    assert_eq!((plain.tokens, noisy.tokens), (21, 21));
+    assert_eq!(plain.body, noisy.body);
+    // `min_tokens`: 15 value tokens either way.
+    let small = |adapters: &str| format!("if v{adapters}.len() > 3 {{ 1 }} else {{ 0 }}");
+    for min in [10, 15] {
+        let (plain, noisy) = (
+            print_of(&["v"], &small(""), min),
+            print_of(&["v"], &small(adapters), min),
+        );
+        assert!(plain.body.is_some() && plain.body == noisy.body, "{min}");
+    }
+    for min in [16, 20] {
+        let (plain, noisy) = (
+            print_of(&["v"], &small(""), min),
+            print_of(&["v"], &small(adapters), min),
+        );
+        assert!(plain.body.is_none() && noisy.body.is_none(), "{min}");
+    }
+    // The shim bounds: 29 value tokens keep a shim form, 5 do not, whatever
+    // the adapters around them.
+    let upper = registry
+        .fixtures
+        .iter()
+        .find(|f| f.id == "shim_29")
+        .expect("registered");
+    let noisy_upper = format!("{}{adapters}", upper.text);
+    assert!(print_of(&["a"], &upper.text, 1).shim.is_some());
+    assert!(print_of(&["a"], &noisy_upper, 1).shim.is_some());
+    assert!(print_of(&["a"], "a.f()", 1).shim.is_none());
+    assert!(
+        print_of(&["a"], &format!("a.f(){adapters}"), 1)
+            .shim
+            .is_none()
+    );
+}
+
+#[test]
+fn copies_with_reordered_parameters_share_a_body_print_and_forwarders_keep_their_order() {
+    let body = "let mut n = 0; for x in xs { if x == k { n += 1; } } n";
+    let a = print_of(&["xs", "k"], body, 1);
+    let b = print_of(&["k", "xs"], body, 1);
+    assert_eq!(a.body, b.body);
+    let in_order = print_of(&["x", "y"], "target(x, y, 1)", 1);
+    let swapped = print_of(&["x", "y"], "target(y, x, 1)", 1);
+    assert_eq!(in_order.body, swapped.body, "the body form numbers by use");
+    assert!(in_order.shim.is_some() && swapped.shim.is_some());
+    assert_ne!(in_order.shim, swapped.shim, "the shim form keeps the order");
 }

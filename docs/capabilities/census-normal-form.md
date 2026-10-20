@@ -105,7 +105,7 @@ bindings:
     - raf_census::Tower::new
     - raf_census::Tower::print
     - raf_census::Tower::shim_candidate
-    - raf_census::Tower::structural_tokens
+    - raf_census::Tower::value_tokens
     - raf_census::Unit
     - raf_census::UnitKind
     - raf_census::VALUE_ADAPTERS
@@ -128,20 +128,22 @@ bindings:
     - raf_census::report::tests::render_ends_with_one_newline_and_sorts_keys
     - raf_census::test_crate::forms::a_fingerprint_displays_and_parses_back
     - raf_census::test_crate::forms::a_fingerprint_refuses_every_malformed_spelling
-    - raf_census::test_crate::forms::a_fixture_named_for_a_size_has_that_many_structural_tokens
+    - raf_census::test_crate::forms::a_fixture_named_for_a_size_has_that_many_value_tokens
     - raf_census::test_crate::forms::a_shim_candidate_keeps_its_body_print_and_the_shim_print_differs_by_callee
     - raf_census::test_crate::forms::an_unlexable_slice_is_a_source_error_with_a_valid_neighbour
+    - raf_census::test_crate::forms::copies_with_reordered_parameters_share_a_body_print_and_forwarders_keep_their_order
+    - raf_census::test_crate::forms::every_threshold_counts_the_value_form
     - raf_census::test_crate::forms::below_the_tier_the_final_sequence_keeps_literals_and_above_it_abstracts_them
     - raf_census::test_crate::forms::every_registered_pair_compares_as_registered
     - raf_census::test_crate::forms::explain_names_the_levels_and_the_first_differing_token_with_its_line
     - raf_census::test_crate::forms::fingerprints_sort_by_kind_then_value
     - raf_census::test_crate::forms::nesting_at_the_budget_lexes_and_one_deeper_is_refused
-    - raf_census::test_crate::forms::parameters_are_numbered_in_signature_order_before_locals
+    - raf_census::test_crate::forms::parameters_and_locals_are_numbered_together_by_first_appearance
     - raf_census::test_crate::forms::self_is_not_a_parameter_and_a_field_named_like_one_is_kept
     - raf_census::test_crate::forms::shim_forms_exist_for_six_to_twenty_nine_tokens
     - raf_census::test_crate::forms::the_body_print_needs_min_tokens
     - raf_census::test_crate::forms::the_digest_is_blake3_of_length_prefixed_tokens
-    - raf_census::test_crate::forms::the_literal_tier_boundary_is_thirty_structural_tokens
+    - raf_census::test_crate::forms::the_literal_tier_boundary_is_thirty_value_tokens
     - raf_census::test_crate::forms::the_tower_is_monotone_over_every_registry_pair
     - raf_census::test_crate::forms::the_value_adapters_are_the_eleven_of_the_page
     - raf_census::test_crate::forms::the_value_form_keeps_binary_operators_and_drops_borrows
@@ -150,14 +152,21 @@ bindings:
     - raf_census::test_crate::golden::the_pin_check_names_an_unpinned_orphan_moved_and_duplicated_entry
     - raf_census::test_crate::golden::the_pinned_version_is_the_implemented_one
     - raf_census::test_crate::groups::a_constant_in_one_package_is_not_shared
+    - raf_census::test_crate::groups::a_block_after_a_constant_in_a_head_is_a_block_and_its_locals_are_renamed
     - raf_census::test_crate::groups::a_forwarder_at_min_tokens_joins_a_shim_group_and_never_a_body_group
     - raf_census::test_crate::groups::a_function_holding_a_table_is_reported_by_its_symbol
     - raf_census::test_crate::groups::a_job_classifies_home_entry_point_variant_and_copies
     - raf_census::test_crate::groups::a_job_that_matches_nothing_has_an_empty_list
+    - raf_census::test_crate::groups::a_real_struct_literal_keeps_its_field_names
     - raf_census::test_crate::groups::a_shim_id_matches_the_units_that_group_under_it_and_not_the_excluded_ones
+    - raf_census::test_crate::groups::bodies_that_apply_different_functions_share_no_group_but_renamed_locals_do
+    - raf_census::test_crate::groups::bodies_that_read_different_lowercase_statics_share_no_group
     - raf_census::test_crate::groups::bodies_under_min_tokens_never_group
     - raf_census::test_crate::groups::constants_above_ffff_in_two_packages_are_shared
+    - raf_census::test_crate::groups::copies_that_differ_by_erased_noise_group_across_the_literal_tier
+    - raf_census::test_crate::groups::copies_that_reorder_their_parameters_share_a_body_group
     - raf_census::test_crate::groups::every_form_of_a_hex_table_is_reported_in_both_cases
+    - raf_census::test_crate::groups::forwarders_keep_their_argument_order_in_the_shim_key
     - raf_census::test_crate::groups::groups_of_one_are_dropped_and_members_follow_symbol_order
     - raf_census::test_crate::groups::groups_order_by_count_then_tokens_then_fingerprint
     - raf_census::test_crate::groups::jobs_match_shim_and_table_fingerprints
@@ -169,6 +178,8 @@ bindings:
     - raf_census::test_crate::page::the_page_names_every_report_member_of_both_reports
     - raf_census::test_crate::page::the_page_names_every_threshold_with_its_value
     - raf_census::test_crate::page::the_page_names_every_value_adapter_and_weak_keyword
+    - raf_census::test_crate::page::the_page_states_that_every_threshold_counts_the_value_form
+    - raf_census::test_crate::page::the_page_states_the_renaming_and_numbering_rules
     - raf_census::test_crate::reports::a_shared_constant_is_hexadecimal_text
     - raf_census::test_crate::reports::an_absolute_directory_reports_the_same_as_the_relative_spelling
     - raf_census::test_crate::reports::an_unknown_key_missing_key_or_wrong_type_is_not_a_report
@@ -193,6 +204,7 @@ bindings:
     - raf_census::test_crate::units::file_context_names_package_path_and_shipping
     - raf_census::test_crate::units::hex_tables_are_read_from_strings_and_arrays
     - raf_census::test_crate::units::max_file_bytes_caps_a_file_and_the_cap_itself_loads
+    - raf_census::test_crate::units::min_tokens_counts_the_value_form_so_erased_noise_never_straddles_it
     - raf_census::test_crate::units::min_tokens_decides_the_body_fingerprint_at_the_default_and_at_ten
     - raf_census::test_crate::units::parameters_of_every_pattern_are_renamed
     - raf_census::test_crate::units::shim_keys_are_absent_for_trait_impl_methods_and_self_forwarders
@@ -249,20 +261,31 @@ implements it as follows.
   in `VALUE_ADAPTERS` (`as_str`, `as_ref`, `as_slice`, `as_mut`, `as_deref`,
   `borrow`, `borrow_mut`, `clone`, `cloned`, `copied`, `to_owned`), full-range
   reindexing, `let` type annotations and type-only turbofish.
-- A body with fewer than 30 structural tokens keeps its literals verbatim (the
+- `rename_locals` renames only the names that the body or its signature binds
+  (the patterns of `let`, `if let`, `while let`, `for` and `match` arms, closure
+  parameters, local functions and types, labels, lifetimes, macro metavariables and
+  named macro arguments) and every use of them, and numbers them together with the
+  parameters by order of first appearance. Every other identifier is the name of an
+  item and is kept: `map(double)` and `map(triple)` are different bodies, as are two
+  reads of different statics. A name in field position is kept, `S { x }` included.
+  The block after the head of an `if`, `while`, `match` or `for` is never a struct
+  literal. The shim level keeps the signature order of the parameters.
+- A body whose value form has fewer than 30 tokens keeps its literals verbatim (the
   literal tier). A longer body has its literals abstracted. Every threshold counts
-  structural tokens, delimiters included, before the value form drops anything.
+  the tokens of the value form, delimiters included, and the count is taken before
+  the literals are abstracted, so noise the value form erases never moves a body
+  across a threshold.
 - A body is a shim candidate when it is one expression, judged at the top level of
   the body only (no `let`, no `;` before its tail; a closure inside an argument may
-  hold both), contains a call, does not mention `self` and has 6 to 29 structural
-  tokens; its shim form renames its own parameters. `MIN_SHIM_TOKENS` is 6 and
+  hold both), contains a call, does not mention `self` and has 6 to 29 value
+  tokens; its shim form renames its own parameters in signature order. `MIN_SHIM_TOKENS` is 6 and
   `SHIM_MAX_TOKENS` is 30. A shim candidate keeps its `body` fingerprint when it
   reaches `min_tokens`, which the index lists, but it never joins a body group:
   only its `shim` fingerprint groups, and only when its `shim_key` is present. The
   `shim_key` is absent for a method of a trait implementation and for a forwarder
   that calls through `Self::`, a call at any depth whose callee path starts with
   `Self::`.
-- A body with fewer than `min_tokens` structural tokens has no body fingerprint.
+- A body with fewer than `min_tokens` value tokens has no body fingerprint.
   `min_tokens` defaults to 20 and `CensusOptions::min_tokens` sets it; the ledger key
   that carries it is the ledger capability's.
 - A fingerprint is `<kind>:` followed by an identifier. For `body` and `shim` the
@@ -319,7 +342,9 @@ implements it as follows.
   is its `shim_key`. Both reports are closed schemas that read back what they write,
   and they render with sorted keys and a trailing newline. A constant value is a
   `0x` hexadecimal string.
-- Any change that can alter a fingerprint bumps `normal_form`.
+- A normal form version is fixed by the content of its first merge to the default
+  branch. After that, any change that can alter a fingerprint is a new version with
+  a migration path.
 
 ## Usage
 
@@ -594,6 +619,10 @@ the report then begin with the directory's name, as they do for `crates`.
   strings and tables come from its initialiser expression only, never from its type
   or attributes.
 - A string literal that is not valid UTF-8 is read lossily and never names a table.
+- A name that no pattern, closure, local declaration, label, lifetime, metavariable
+  or named macro argument binds is an item name and is kept, so a body that uses an
+  item the census cannot see bound is compared by that item's name. A name is bound
+  for the whole body, not for one scope: two uses of one name are one name.
 - Nesting depth is bounded by `MAX_NESTING` (128) and by the delimiter budget of
   `raf-source`.
 
@@ -624,10 +653,24 @@ because there the algorithm, not the constants, is what two copies share.
   lists. They fail when a fixture has no pinned value, when a pinned value has no
   fixture and when a pinned value moves. Every form has fixtures: structural,
   value, literal tier, shim and macro arguments.
-- Fixture pairs differing only in local names, parameter names, borrows, clones and
-  a `let` type annotation fingerprint equal; pairs differing in a method name, a
-  field name or a called function fingerprint different. A property test checks that
+- Fixture pairs differing only in bound names, parameter names, parameter order,
+  borrows, clones and a `let` type annotation fingerprint equal, with the level at
+  which they first become equal registered; there is one pair for each form of
+  binder (`let`, a tuple or struct pattern, a closure parameter, `for`, a `match`
+  arm, `if let`, `while let`, a label, a lifetime, a local function and a local
+  type, a call to a bound closure, a bound name that shadows an item). Pairs
+  differing in a method name, a field name, a called function, a function passed by
+  name, a lowercase static or a struct field (`S { x }` and `S { y }`) fingerprint
+  different. A property test checks that
   equality at a finer level implies equality at every coarser one.
+- Pairs whose two sides straddle a threshold only through erased noise fingerprint
+  equal: one across the literal tier and one across `min_tokens`, at the default and
+  at 10, and the shim bounds count the value form too.
+- Loaded workspaces show that bodies applying different functions, or reading
+  different lowercase statics, are in no common group beside a renamed-local
+  neighbour that does group, that two clamps whose block follows a constant in the
+  head are in one group, that copies with reordered parameters are in one group,
+  and that forwarders with a different argument order have different shim keys.
 - A fixture of two 25-token bodies that differ only in a string literal
   fingerprints different, and the same pair at 35 tokens fingerprints equal.
 - Shim fixtures cover the 5, 6, 29 and 30 token boundaries, a two-statement and a
@@ -682,20 +725,22 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::report::tests::render_ends_with_one_newline_and_sorts_keys` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::a_fingerprint_displays_and_parses_back` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::a_fingerprint_refuses_every_malformed_spelling` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::a_fixture_named_for_a_size_has_that_many_structural_tokens` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::a_fixture_named_for_a_size_has_that_many_value_tokens` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::a_shim_candidate_keeps_its_body_print_and_the_shim_print_differs_by_callee` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::an_unlexable_slice_is_a_source_error_with_a_valid_neighbour` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::below_the_tier_the_final_sequence_keeps_literals_and_above_it_abstracts_them` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::copies_with_reordered_parameters_share_a_body_print_and_forwarders_keep_their_order` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::every_registered_pair_compares_as_registered` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::every_threshold_counts_the_value_form` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::explain_names_the_levels_and_the_first_differing_token_with_its_line` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::fingerprints_sort_by_kind_then_value` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::nesting_at_the_budget_lexes_and_one_deeper_is_refused` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::parameters_are_numbered_in_signature_order_before_locals` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::parameters_and_locals_are_numbered_together_by_first_appearance` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::self_is_not_a_parameter_and_a_field_named_like_one_is_kept` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::shim_forms_exist_for_six_to_twenty_nine_tokens` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::the_body_print_needs_min_tokens` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::the_digest_is_blake3_of_length_prefixed_tokens` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::the_literal_tier_boundary_is_thirty_structural_tokens` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::the_literal_tier_boundary_is_thirty_value_tokens` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::the_tower_is_monotone_over_every_registry_pair` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::the_value_adapters_are_the_eleven_of_the_page` | test | [Verification](#verification) |
@@ -704,15 +749,22 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::test_crate::golden::the_manifest_is_pinned` | test | [Verification](#verification) |
 | `raf_census::test_crate::golden::the_pin_check_names_an_unpinned_orphan_moved_and_duplicated_entry` | test | [Verification](#verification) |
 | `raf_census::test_crate::golden::the_pinned_version_is_the_implemented_one` | test | [Verification](#verification) |
+| `raf_census::test_crate::groups::a_block_after_a_constant_in_a_head_is_a_block_and_its_locals_are_renamed` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::a_constant_in_one_package_is_not_shared` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::a_forwarder_at_min_tokens_joins_a_shim_group_and_never_a_body_group` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::a_function_holding_a_table_is_reported_by_its_symbol` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::a_job_classifies_home_entry_point_variant_and_copies` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::a_job_that_matches_nothing_has_an_empty_list` | test | [Verification](#verification) |
+| `raf_census::test_crate::groups::a_real_struct_literal_keeps_its_field_names` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::a_shim_id_matches_the_units_that_group_under_it_and_not_the_excluded_ones` | test | [Verification](#verification) |
+| `raf_census::test_crate::groups::bodies_that_apply_different_functions_share_no_group_but_renamed_locals_do` | test | [Verification](#verification) |
+| `raf_census::test_crate::groups::bodies_that_read_different_lowercase_statics_share_no_group` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::bodies_under_min_tokens_never_group` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::constants_above_ffff_in_two_packages_are_shared` | test | [Verification](#verification) |
+| `raf_census::test_crate::groups::copies_that_differ_by_erased_noise_group_across_the_literal_tier` | test | [Verification](#verification) |
+| `raf_census::test_crate::groups::copies_that_reorder_their_parameters_share_a_body_group` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::every_form_of_a_hex_table_is_reported_in_both_cases` | test | [Verification](#verification) |
+| `raf_census::test_crate::groups::forwarders_keep_their_argument_order_in_the_shim_key` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::groups_of_one_are_dropped_and_members_follow_symbol_order` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::groups_order_by_count_then_tokens_then_fingerprint` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::jobs_match_shim_and_table_fingerprints` | test | [Verification](#verification) |
@@ -725,6 +777,8 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::test_crate::page::the_page_names_every_report_member_of_both_reports` | test | [Verification](#verification) |
 | `raf_census::test_crate::page::the_page_names_every_threshold_with_its_value` | test | [Verification](#verification) |
 | `raf_census::test_crate::page::the_page_names_every_value_adapter_and_weak_keyword` | test | [Verification](#verification) |
+| `raf_census::test_crate::page::the_page_states_that_every_threshold_counts_the_value_form` | test | [Verification](#verification) |
+| `raf_census::test_crate::page::the_page_states_the_renaming_and_numbering_rules` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::a_shared_constant_is_hexadecimal_text` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::an_absolute_directory_reports_the_same_as_the_relative_spelling` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::an_unknown_key_missing_key_or_wrong_type_is_not_a_report` | test | [Verification](#verification) |
@@ -749,6 +803,7 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::test_crate::units::file_context_names_package_path_and_shipping` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::hex_tables_are_read_from_strings_and_arrays` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::max_file_bytes_caps_a_file_and_the_cap_itself_loads` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::min_tokens_counts_the_value_form_so_erased_noise_never_straddles_it` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::min_tokens_decides_the_body_fingerprint_at_the_default_and_at_ten` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::parameters_of_every_pattern_are_renamed` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::shim_keys_are_absent_for_trait_impl_methods_and_self_forwarders` | test | [Verification](#verification) |

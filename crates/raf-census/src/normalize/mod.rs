@@ -9,15 +9,17 @@
 //!
 //! 1. verbatim: the tokens as lexed, integers in their decimal spelling;
 //! 2. shim: after `rename_params`, the function's own parameters renamed;
-//! 3. literal tier: after `rename_locals`, every local name renamed;
+//! 3. literal tier: after `rename_locals`, every name the body binds and every
+//!    parameter renamed, by first appearance;
 //! 4. structural: after `kind_literals`, literals abstracted to their kind
-//!    unless the body is under the literal tier;
+//!    unless the value form is under the literal tier;
 //! 5. value: after `erase_held`, the spellings that only change how a value is
 //!    held dropped.
 //!
 //! Two bodies equal at one level are equal at every coarser one, and no pass
 //! adds a token.
 
+mod binders;
 mod fingerprint;
 mod form;
 mod literal;
@@ -37,14 +39,14 @@ pub use words::{VALUE_ADAPTERS, WEAK_KEYWORDS};
 pub(crate) use form::{Delim, Group, Kind, Node};
 pub(crate) use literal::{kind as literal_kind, parse_integer};
 
-/// A body with fewer structural tokens keeps its literals verbatim.
+/// A body whose value form has fewer tokens keeps its literals verbatim.
 pub const LITERAL_TIER: usize = 30;
 
-/// A body with fewer structural tokens has no shim form: below it every
+/// A body whose value form has fewer tokens has no shim form: below it every
 /// `{ f(x) }` would be a group.
 pub const MIN_SHIM_TOKENS: usize = 6;
 
-/// A body with this many structural tokens or more has no shim form.
+/// A body whose value form has this many tokens or more has no shim form.
 pub const SHIM_MAX_TOKENS: usize = 30;
 
 /// A level of the tower, from the finest to the coarsest.
@@ -56,7 +58,7 @@ pub enum Level {
     Shim,
     /// Every local name renamed, literals kept.
     LiteralTier,
-    /// Literals abstracted to their kind unless the body is under the tier.
+    /// Literals abstracted to their kind unless the value form is under the tier.
     Structural,
     /// The value-holding spellings dropped.
     Value,
@@ -137,6 +139,7 @@ impl<'a> Slice<'a> {
 #[derive(Clone, Debug)]
 pub struct Tower {
     forms: [Form; 5],
+    value_tokens: usize,
     shim_candidate: bool,
 }
 
@@ -159,10 +162,12 @@ impl Tower {
         let shim_candidate = shim::candidate(&verbatim);
         let shim = passes::rename_params(&verbatim, &slice.params);
         let literal_tier = passes::rename_locals(&shim);
-        let structural = passes::kind_literals(&literal_tier, literal_tier.len() < LITERAL_TIER);
+        let value_tokens = passes::held_len(&literal_tier);
+        let structural = passes::kind_literals(&literal_tier, value_tokens < LITERAL_TIER);
         let value = passes::erase_held(&structural);
         Ok(Self {
             forms: [verbatim, shim, literal_tier, structural, value],
+            value_tokens,
             shim_candidate,
         })
     }
@@ -173,14 +178,16 @@ impl Tower {
         &self.forms[level as usize]
     }
 
-    /// The number of structural tokens: what every threshold counts.
+    /// The number of tokens of the value form: what every threshold counts. It
+    /// is known before the literals are abstracted, so the literal tier is
+    /// decided on it too.
     #[must_use]
-    pub fn structural_tokens(&self) -> usize {
-        self.form(Level::Structural).len()
+    pub const fn value_tokens(&self) -> usize {
+        self.value_tokens
     }
 
     /// Whether the body is a thin forwarder: one expression with a call and no
-    /// `self`. It has a shim form only when it also has 6 to 29 structural
+    /// `self`. It has a shim form only when it also has 6 to 29 value
     /// tokens.
     #[must_use]
     pub const fn shim_candidate(&self) -> bool {
@@ -190,7 +197,7 @@ impl Tower {
     /// The fingerprints this slice has under `min_tokens`.
     #[must_use]
     pub fn print(&self, min_tokens: usize) -> Print {
-        let tokens = self.structural_tokens();
+        let tokens = self.value_tokens();
         let named = |level: Level, make: fn(&[u8; 32]) -> Fingerprint| {
             let digest = fingerprint::digest(self.form(level));
             Hashed {
@@ -217,14 +224,14 @@ pub struct Hashed {
 /// What the census learns from one slice.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Print {
-    /// The structural tokens.
+    /// The tokens of the value form.
     pub tokens: usize,
     /// The `body` fingerprint of the value form, when the slice has at least
-    /// `min_tokens` structural tokens. A shim candidate has one too, but it
+    /// `min_tokens` value tokens. A shim candidate has one too, but it
     /// never joins a body group: only its shim print groups.
     pub body: Option<Hashed>,
     /// The `shim` fingerprint of the shim form, when the slice is a shim
-    /// candidate of 6 to 29 structural tokens.
+    /// candidate of 6 to 29 value tokens.
     pub shim: Option<Hashed>,
 }
 

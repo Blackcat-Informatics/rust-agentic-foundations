@@ -188,6 +188,221 @@ fn structural(r: &mut Registry) {
     );
 }
 
+/// Binders: one pair per form of binder, whose two sides bind different names
+/// and are first equal at the literal tier; and the names no one binds, which
+/// are items and stay.
+fn binders(r: &mut Registry) {
+    use Expect::Equal;
+    use Level::LiteralTier;
+    r.pair(
+        "binder_let",
+        (&["x"], "let a = f(x); g(a)"),
+        (&["x"], "let b = f(x); g(b)"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "binder_let_tuple",
+        (&["x"], "let (a, b) = pair(x); g(a, b)"),
+        (&["x"], "let (c, d) = pair(x); g(c, d)"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "binder_let_struct",
+        (&["x"], "let P { w: a, h: b } = x; g(a, b)"),
+        (&["x"], "let P { w: c, h: d } = x; g(c, d)"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "binder_closure_param",
+        (&["x"], "x.map(|a| a + 1)"),
+        (&["x"], "x.map(|b| b + 1)"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "binder_for",
+        (&["x"], "for a in x { g(a); }"),
+        (&["x"], "for b in x { g(b); }"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "binder_match_arm",
+        (&["x"], "match x { Some(a) => g(a), None => 0 }"),
+        (&["x"], "match x { Some(b) => g(b), None => 0 }"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "binder_if_let",
+        (&["x"], "if let Some(a) = x { g(a) } else { 0 }"),
+        (&["x"], "if let Some(b) = x { g(b) } else { 0 }"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "binder_while_let",
+        (&["x"], "while let Some(a) = x.next() { g(a); }"),
+        (&["x"], "while let Some(b) = x.next() { g(b); }"),
+        Equal(LiteralTier),
+    );
+}
+
+/// Binders that are not patterns.
+fn binders_more(r: &mut Registry) {
+    use Expect::Equal;
+    use Level::LiteralTier;
+    r.pair(
+        "binder_label",
+        (&["x"], "'outer: loop { if f(x) { break 'outer; } }"),
+        (&["x"], "'inner: loop { if f(x) { break 'inner; } }"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "binder_lifetime",
+        (&["x"], "fn pick<'a>(v: &'a u8) -> &'a u8 { v } pick(x)"),
+        (&["x"], "fn pick<'b>(v: &'b u8) -> &'b u8 { v } pick(x)"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "binder_local_fn",
+        (&["x"], "fn helper(v: u8) -> u8 { v + 1 } helper(x)"),
+        (&["x"], "fn assist(w: u8) -> u8 { w + 1 } assist(x)"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "binder_local_struct",
+        (&[], "struct Cell { n: u8 } Cell { n: 1 }"),
+        (&[], "struct Slot { n: u8 } Slot { n: 1 }"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "binder_call_position",
+        (&["v"], "let f = |a| a + 1; f(v)"),
+        (&["v"], "let g = |a| a + 1; g(v)"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "binder_shadows_an_item",
+        (&["v"], "let double = f(v); map(double)"),
+        (&["v"], "let triple = f(v); map(triple)"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "binder_macro_metavariable",
+        (&[], "macro_rules! m { ($x:expr) => { $x }; }"),
+        (&[], "macro_rules! m { ($y:expr) => { $y }; }"),
+        Equal(LiteralTier),
+    );
+}
+
+/// Names no one binds are items and stay.
+fn items(r: &mut Registry) {
+    use Expect::Distinct;
+    r.pair(
+        "item_function_passed_by_name",
+        (&["v"], "v.iter().map(double).collect()"),
+        (&["v"], "v.iter().map(triple).collect()"),
+        Distinct,
+    );
+    r.pair(
+        "item_predicate_passed_by_name",
+        (&["v"], "v.iter().filter(is_small).count()"),
+        (&["v"], "v.iter().filter(is_big).count()"),
+        Distinct,
+    );
+    r.pair(
+        "item_lowercase_static",
+        (&["x"], "x + limit_a"),
+        (&["x"], "x + limit_b"),
+        Distinct,
+    );
+    r.pair(
+        "item_in_struct_shorthand_field",
+        (&["x"], "S { x }"),
+        (&["y"], "S { y }"),
+        Distinct,
+    );
+    r.pair(
+        "item_field_name_kept_beside_a_local",
+        (&[], "let x = f(); S { x }"),
+        (&[], "let y = f(); S { y }"),
+        Distinct,
+    );
+}
+
+/// A block after a head that ends in a type name is a block, not a struct
+/// literal.
+fn head_blocks(r: &mut Registry) {
+    use Expect::Equal;
+    use Level::LiteralTier;
+    let clamp = |next: &str, fallback: &str, head: &str| {
+        format!(
+            "let {next} = g(); let {fallback} = h(); {head} {next} == MAX {{ {next} }} else {{ {fallback} }}"
+        )
+    };
+    r.pair(
+        "head_block_if",
+        (&[], &clamp("next", "fallback", "if")),
+        (&[], &clamp("later", "other", "if")),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "head_block_else_if",
+        (
+            &[],
+            "let a = g(); if a == MIN { 0 } else if a == MAX { a } else { 1 }",
+        ),
+        (
+            &[],
+            "let b = g(); if b == MIN { 0 } else if b == MAX { b } else { 1 }",
+        ),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "head_block_while",
+        (&[], "let a = g(); while a < MAX { a }"),
+        (&[], "let b = g(); while b < MAX { b }"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "head_block_match",
+        (&[], "let a = g(); match a { MAX => a, _ => 0 }"),
+        (&[], "let b = g(); match b { MAX => b, _ => 0 }"),
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "head_block_for",
+        (&[], "let a = g(); for i in 0..MAX { f(i, a); }"),
+        (&[], "let b = g(); for j in 0..MAX { f(j, b); }"),
+        Equal(LiteralTier),
+    );
+}
+
+/// Every threshold counts the value form: noise the value form erases never
+/// moves a body across a threshold.
+fn thresholds(r: &mut Registry) {
+    use Expect::Equal;
+    use Level::Value;
+    let noise = ".clone().as_slice().to_owned()";
+    r.pair_sized(
+        "threshold_literal_tier_straddle",
+        (&["v"], "let n = v.len(); if n > 3 { return 7; } n + 1", 21),
+        (
+            &["v"],
+            &format!("let n = v{noise}.len(); if n > 3 {{ return 7; }} n + 1"),
+            21,
+        ),
+        Equal(Value),
+    );
+    r.pair_sized(
+        "threshold_min_tokens_straddle",
+        (&["v"], "if v.len() > 3 { 1 } else { 0 }", 15),
+        (
+            &["v"],
+            &format!("if v{noise}.len() > 3 {{ 1 }} else {{ 0 }}"),
+            15,
+        ),
+        Equal(Value),
+    );
+}
+
 /// Value form: one pair per erasure.
 fn value_form(r: &mut Registry) {
     use Expect::{Distinct, Equal};
@@ -494,7 +709,7 @@ fn shim_form(r: &mut Registry) {
         "shim_only_own_params_renamed",
         (&[], "target(first, 1)"),
         (&[], "target(second, 1)"),
-        Equal(LiteralTier),
+        Distinct,
     );
     r.pair(
         "shim_different_callee",
@@ -508,11 +723,13 @@ fn shim_form(r: &mut Registry) {
         (&["x"], "target(x, 2)"),
         Distinct,
     );
+    // The shim form keeps signature order, so these two forwarders have
+    // different shim prints; the body form numbers by first appearance.
     r.pair(
         "shim_parameter_order",
         (&["x", "y"], "target(x, y, 1)"),
         (&["x", "y"], "target(y, x, 1)"),
-        Distinct,
+        Equal(LiteralTier),
     );
     r.single("shim_let_body", &["x"], "let v = target(x, 1, 2); v", None);
     r.single(
@@ -555,8 +772,8 @@ fn shim_form(r: &mut Registry) {
     r.single(
         "shim_method_turbofish",
         &["x"],
-        "x.convert::<u8>()",
-        Some(10),
+        "x.convert::<u8>(1, 2)",
+        Some(8),
     );
     r.pair(
         "shim_turbofish_type_differs",
@@ -638,7 +855,7 @@ fn macro_arguments(r: &mut Registry) {
 /// Numbering of locals after parameters.
 fn numbering(r: &mut Registry) {
     use Expect::{Distinct, Equal};
-    use Level::Verbatim;
+    use Level::{LiteralTier, Structural, Verbatim};
     r.pair(
         "numbering_unused_trailing_parameter",
         (&["a", "b"], "let x = a; x"),
@@ -649,7 +866,13 @@ fn numbering(r: &mut Registry) {
         "numbering_used_trailing_parameter",
         (&["a", "b"], "let x = b; x"),
         (&["a"], "let x = a; x"),
-        Distinct,
+        Equal(LiteralTier),
+    );
+    r.pair(
+        "numbering_parameter_order",
+        (&["a", "b"], "let x = b + a; x"),
+        (&["a", "b"], "let x = a + b; x"),
+        Equal(LiteralTier),
     );
     r.pair(
         "numbering_placeholder_parameter",
@@ -668,7 +891,13 @@ fn numbering(r: &mut Registry) {
             &["a"],
             &format!("let x = 1; println!(\"{{x}} {{x}}\"); {tail}"),
         ),
-        Distinct,
+        Equal(Structural),
+    );
+    r.pair(
+        "numbering_placeholder_first_appearance",
+        (&["a", "b"], "println!(\"{b} {a}\"); g(a)"),
+        (&["a", "b"], "println!(\"{a} {b}\"); g(b)"),
+        Equal(LiteralTier),
     );
     r.pair(
         "numbering_placeholder_versus_argument",
@@ -681,7 +910,7 @@ fn numbering(r: &mut Registry) {
 /// Lexical edges.
 fn lexical_edges(r: &mut Registry) {
     use Expect::{Distinct, Equal};
-    use Level::LiteralTier;
+    use Level::{LiteralTier, Shim};
     for word in ["gen", "union", "raw", "safe", "macro_rules"] {
         r.pair(
             &format!("lexical_{word}_kept"),
@@ -706,9 +935,9 @@ fn lexical_edges(r: &mut Registry) {
         |depth: usize, name: &str| format!("{}{name}{}", "(".repeat(depth), ")".repeat(depth));
     r.pair(
         "lexical_nesting_128",
-        (&[], &nest(128, "left")),
-        (&[], &nest(128, "right")),
-        Equal(LiteralTier),
+        (&["left"], &nest(128, "left")),
+        (&["right"], &nest(128, "right")),
+        Equal(Shim),
     );
     r.single("empty_body", &[], "", None);
 }
@@ -719,6 +948,11 @@ pub(crate) fn registry() -> Registry {
         pairs: Vec::new(),
     };
     structural(&mut r);
+    binders(&mut r);
+    binders_more(&mut r);
+    items(&mut r);
+    head_blocks(&mut r);
+    thresholds(&mut r);
     value_form(&mut r);
     value_form_more(&mut r);
     literal_tier(&mut r);
