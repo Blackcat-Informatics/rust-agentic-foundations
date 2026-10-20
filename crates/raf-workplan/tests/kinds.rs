@@ -14,7 +14,7 @@ use raf_workplan::Finding;
 use support::cases::all_cases;
 
 /// The kinds that name a rule of this crate.
-const OWN_KINDS: [&str; 53] = [
+const OWN_KINDS: [&str; 56] = [
     "wrong-directory",
     "nested-directory",
     "stray-markdown",
@@ -26,6 +26,7 @@ const OWN_KINDS: [&str; 53] = [
     "singleton-other-file",
     "claim-evidence-missing",
     "claim-evidence-not-for",
+    "claim-test-unbound",
     "evidence-for-missing",
     "assessment-subject-missing",
     "assessment-id-mismatch",
@@ -65,6 +66,8 @@ const OWN_KINDS: [&str; 53] = [
     "mixed-line-endings",
     "strict-example-missing",
     "strict-matrix-missing",
+    "strict-claim-uncovered",
+    "strict-claim-unit-collapsed",
     "strict-section-thin",
     "strict-usage-unbound",
     "strict-limitations-missing",

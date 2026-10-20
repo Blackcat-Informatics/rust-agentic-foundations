@@ -23,6 +23,7 @@ bindings:
     - raf_workplan::test_crate::generated::a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections
     - raf_workplan::test_crate::generated::rows_are_sorted_by_path_whatever_the_order_of_the_lists
     - raf_workplan::test_crate::generated::a_path_named_in_a_fence_or_a_proposal_is_not_a_section_that_it_substantiates
+    - raf_workplan::test_crate::generated::a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row
     - raf_workplan::graph::tests::a_comment_outside_a_code_span_is_removed_and_one_inside_a_span_is_kept
     - raf_workplan::test_crate::generated::a_relationship_table_lists_each_relation_sorted_by_slug_with_links
     - raf_workplan::test_crate::generated::a_capability_with_no_relation_has_a_table_of_the_header_only
@@ -138,8 +139,13 @@ kebab case. Each block is opened once, closed once and never nested.
   `test`) and `bindings.examples` (kind `example target` or `doctest`), sorted by
   path. A binding substantiates each section other than Verification whose text,
   outside fenced code, PROPOSED blocks and HTML comments, holds the bound path whole
-  in a code span; with no such section it substantiates Verification. The Section cell links
-  each of those sections in document order.
+  in a code span, and each section other than Verification that holds a
+  `raf:tested-by` marker naming its path, outside fenced code and PROPOSED blocks, as
+  [strict mode](./workplan-strict.md) defines the marker, so a test that a Contract
+  claim names shows `[Contract](#contract)` in the Section cell; with no such
+  section it substantiates Verification. The Section cell links each of those
+  sections in document order. A document with no marker has the matrix that the
+  code-span rule alone gives.
 - `relationships`: in a section of a capability document, a table with the columns
   Relation and Capability and the rows Depends on, Depended on by and Changed by
   (the open changes that list it), in that order, each capability or change a link
@@ -151,15 +157,6 @@ kebab case. Each block is opened once, closed once and never nested.
   to the document and carries its description, and an `implementing` row shows the
   gaps: binding lists that are empty and bindings that do not resolve. The rows are
   those of `Workplan::status`.
-
-> [!PROPOSED change:workplan-strict]
-> A binding also substantiates each section other than Verification that holds a
-> `raf:tested-by` marker naming its path, outside fenced code and PROPOSED blocks, as
-> [strict mode](./workplan-strict.md) defines the marker, so a test that a Contract
-> claim names shows `[Contract](#contract)` in the Section cell. A binding with no
-> such section and no such code span substantiates Verification. The block keeps its
-> columns, its order and its escaping, and a document with no marker has the matrix
-> that the code-span rule alone gives.
 
 A block of a kind in the wrong place, such as a catalogue in a capability document or
 any block in a change record or an architecture page, is an error and is never
@@ -387,6 +384,7 @@ than written.
 | `raf_workplan::test_crate::generated::a_relation_listed_twice_is_one_row` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_relationship_table_lists_each_relation_sorted_by_slug_with_links` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_repository_without_capabilities_needs_no_index` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::an_edited_removed_or_added_catalogue_row_is_stale_and_sync_repairs_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::an_edited_removed_or_added_matrix_row_is_stale_and_sync_repairs_it` | test | [Verification](#verification) |

@@ -13,7 +13,7 @@ inputs:
     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7
   - kind: symbol
     name: raf_workplan::coverage
-    digest: 95b2ff10359c958d04b19e83e4127b7c83ef246e3289889491e118f086d14532
+    digest: f757436b0186224801e6405320c0a787afbc929566c8b3d43bb42603057b94fb
 verdict: accepted
 by: agent
 ---

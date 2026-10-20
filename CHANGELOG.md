@@ -42,6 +42,22 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   claim marker is `ErrorKind::UnattachedTestedBy`, and one outside a Capability is
   `Rule::TestedByOutsideCapability`. Breaking: `ErrorKind`, `ErrorTag` and
   `ErrorKind::ALL` gain two variants, and `Rule`, `RuleTag` and `Rule::ALL` one.
+- **`raf-workplan`:** claim coverage of strict mode. The claims of a delivered
+  capability are the clauses of its Contract, cut at a paragraph that opens with a
+  bold lead or at a `###` or `####` heading, with the text before the first one as
+  the opening, and each top-level list item, paragraph and table of its
+  Constraints. A tested-by marker covers the clause that holds it or the
+  Constraints unit its statement starts in. Under strict, `check` reports
+  `strict-claim-uncovered` for each claim no marker covers and
+  `strict-claim-unit-collapsed` for a Contract of more than 20 words with no clause
+  start; under either strictness a marker entry that is no path of the capability's
+  `tests` or `examples` bindings is `claim-test-unbound`. A path a marker names
+  substantiates the marker's section in the verification matrix, as a code span
+  does, and the graph holds a `TestedByEdge` for it (`Graph::tested_by`).
+  `Workplan::claims_report` lists every claim with its key, line and tests
+  (`strict::ClaimsReport`), rendered by `coverage::render::claims_table` and
+  `claims_json`. Breaking: `EdgeKind` and `Edge` gain a variant, and
+  `EdgeKind::ALL` has eleven entries.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed

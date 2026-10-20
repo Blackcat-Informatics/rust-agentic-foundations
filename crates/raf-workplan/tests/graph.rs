@@ -77,7 +77,7 @@ fn repo() -> support::Repo {
             &format!(
                 "Run the example `demo::example_crate::show`, not `{CASE}_extra`, `other::{CASE}` or `{CASE}::inner`."
             ),
-            &format!("Also `{CASE}` and `{ABSENT}` hold."),
+            &format!("Also `{CASE}` and `{ABSENT}` hold.\n<!-- raf:tested-by {CASE} -->"),
             "Why it holds.\n<!-- raf:claim evidence=bound -->",
             "Links to [beta](beta.md) as a whole and [alpha contract](#contract).",
         ],
@@ -265,6 +265,23 @@ fn the_graph_has_every_kind_of_edge() {
         let affects = &plan.graph().affects()[0];
         assert_eq!(affects.change(), "change:add-alpha");
         assert_eq!(affects.section(), &SectionId::new("cap:alpha", S::Contract));
+        // The tested-by marker of alpha's Constraints names a test alpha binds.
+        let tested = &plan.graph().tested_by()[0];
+        assert_eq!(count(EdgeKind::TestedBy), 1);
+        assert_eq!(
+            (
+                tested.capability(),
+                tested.section(),
+                tested.path(),
+                tested.line()
+            ),
+            (
+                "cap:alpha",
+                Some(SectionId::new("cap:alpha", S::Constraints)),
+                CASE,
+                support::line_of(&repo()[ALPHA], "raf:tested-by")
+            )
+        );
     });
 }
 

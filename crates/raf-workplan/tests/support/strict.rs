@@ -12,6 +12,9 @@
 //! test in `tests`, names `demo::run` in a code span of its Usage, lists a
 //! limitation in Constraints, holds a verification matrix in Verification and
 //! [`PROSE`], twenty words, in each section, so its package is fully bound.
+//! Its Contract is one claim of twenty words, and it and each of the two
+//! claims of its Constraints, the paragraph and the limitation, are covered by
+//! a [`MARKER`] naming the bound test.
 
 /// The capability document.
 pub(crate) const CAPABILITY: &str = "docs/capabilities/demo.md";
@@ -41,6 +44,8 @@ pub(crate) const TEST: &str = "#[test]\nfn case() {}\n";
 pub(crate) const USAGE_SPAN: &str = "Call `demo::run` once.";
 /// The limitation that Constraints lists.
 pub(crate) const LIMITATION: &str = "- One limitation of the demo.";
+/// The tested-by marker that covers each claim, naming the bound test.
+pub(crate) const MARKER: &str = "<!-- raf:tested-by demo::test_crate::it::case -->";
 /// The generated block the Verification section holds, empty until a sync.
 pub(crate) const MATRIX: &str =
     "<!-- raf:generated:verification-matrix -->\n<!-- raf:generated:end -->\n";
@@ -61,10 +66,13 @@ pub(crate) fn capability() -> String {
     let section = |name: &str, extra: &str| format!("## {name}\n\n{PROSE}\n{extra}");
     let sections = [
         section("Purpose", ""),
-        section("Contract", ""),
+        section("Contract", &format!("{MARKER}\n")),
         section("Usage", &format!("\n{USAGE_SPAN}\n")),
         section("Examples", ""),
-        section("Constraints", &format!("\n{LIMITATION}\n")),
+        section(
+            "Constraints",
+            &format!("{MARKER}\n\n{LIMITATION}\n{MARKER}\n"),
+        ),
         section("Explanation", ""),
         section("Verification", &format!("\n{MATRIX}")),
     ]

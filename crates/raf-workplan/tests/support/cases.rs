@@ -1194,7 +1194,30 @@ pub(crate) fn all_cases() -> Vec<Case> {
     cases.extend(coverage_cases());
     cases.extend(rationale_cases());
     cases.extend(strict_cases());
+    cases.extend(claim_cases());
     cases
+}
+
+/// The cases of the tested-by marker that are judged under either
+/// strictness, judged under `default`: a marker that names a path the
+/// capability does not bind in `tests` or `examples`.
+pub(crate) fn claim_cases() -> Vec<Case> {
+    let unbound = fixture::replaced(
+        &fixture::capability(),
+        &format!("{}\n\n## Usage", fixture::MARKER),
+        "<!-- raf:tested-by demo::test_crate::it::other -->\n\n## Usage",
+    );
+    let line = line_of(&unbound, "demo::test_crate::it::other");
+    vec![
+        Case::new(
+            "claim-test-unbound",
+            strict_capability(unbound),
+            "claim-test-unbound",
+            fixture::CAPABILITY,
+            Location::Line(line),
+        )
+        .source(fixture::source_files()),
+    ]
 }
 
 /// The strict-clean repository with the edit `edit` made to its files.
@@ -1289,6 +1312,31 @@ pub(crate) fn strict_cases() -> Vec<Case> {
             "strict-limitations-missing",
             fixture::CAPABILITY,
             section("Constraints"),
+        ),
+        // The Contract's one claim without its marker.
+        strict(
+            "strict-claim-uncovered",
+            strict_capability(fixture::replaced(
+                &capability,
+                &format!("{}\n\n## Usage", fixture::MARKER),
+                "\n## Usage",
+            )),
+            "strict-claim-uncovered",
+            fixture::CAPABILITY,
+            Location::Line(line_of(&capability, "## Contract") + 2),
+        ),
+        // One word more and still no clause start: one long claim, which its
+        // one marker covers.
+        strict(
+            "strict-claim-unit-collapsed",
+            strict_capability(fixture::replaced(
+                &capability,
+                &format!("## Contract\n\n{}\n", fixture::PROSE),
+                &format!("## Contract\n\n{} Again.\n", fixture::PROSE),
+            )),
+            "strict-claim-unit-collapsed",
+            fixture::CAPABILITY,
+            section("Contract"),
         ),
     ];
     cases.extend(strict_coverage_cases());

@@ -31,6 +31,8 @@ bindings:
     - raf_workplan::Workplan::coverage
     - raf_workplan::Graph::evidence_of
     - raf_workplan::Graph::claims_on
+    - raf_workplan::Graph::tested_by
+    - raf_workplan::TestedByEdge
     - raf_workplan::Graph::assessments_of
     - raf_workplan::Graph::inputs_of
     - raf_workplan::digest::Digest
@@ -464,6 +466,9 @@ and the source.
   edge and is no finding of the load: an input that moved is a matter of the
   record's currency. A claim marker inside a PROPOSED block is not a claim until
   the block is resolved.
+- Tested-by edges: from the section of a capability that holds a tested-by marker
+  to each test or example binding of the same capability whose path the marker
+  names.
 
 The graph must have no `depends` cycle. It answers questions in both directions:
 which code realises this capability (`Graph::code_of`), which capabilities a symbol
@@ -472,7 +477,7 @@ is bound to (`Graph::capabilities_of`), which tests address a section
 and which sections link to a section (`Graph::linking_sections`). For the records it
 lists the `for` edges (`Graph::covers`) and the evidence that covers a capability
 (`Graph::evidence_of`), the claims (`Graph::claims`) and those on one evidence
-record (`Graph::claims_on`), the subjects of the assessments (`Graph::assesses`)
+record (`Graph::claims_on`), the tested-by edges (`Graph::tested_by`), the subjects of the assessments (`Graph::assesses`)
 and the assessments of a section (`Graph::assessments_of`), the `scope` edges
 (`Graph::scope`), and the input edges (`Graph::inputs`) and those of one record
 (`Graph::inputs_of`).
@@ -530,16 +535,19 @@ are empty and the bindings that do not resolve.
   that is no package of the source workspace (`scope-crate-missing`). A name whose
   document or record exists and is broken is explained by the findings of that
   file;
+- under either strictness, a tested-by marker entry that is no path of the
+  capability's `tests` or `examples` bindings (`claim-test-unbound`), at the line of
+  the marker; each entry that is one is a `TestedByEdge` of the graph
+  (`Graph::tested_by`), from the section that holds the marker to the binding;
 - under strict, the rules of [strict mode](./workplan-strict.md), each a `Finding`
   of a kind in `Finding::KINDS` with its file, location and fix.
 
 > [!PROPOSED change:workplan-strict]
-> - under either strictness, the rules of the syntax and the records of strict mode:
->   a tested-by marker entry that is no path of the capability's `tests` or
->   `examples` bindings (`claim-test-unbound`), a coverage exception that matches
->   nothing (`coverage-exception-unmatched`), a `ceilings` row whose `crate` is no
->   package of the source workspace (`scope-crate-missing`), and a debt record while
->   the repository is judged under `default` (`debt-without-strict`);
+> - under either strictness, the rules of the records of strict mode: a coverage
+>   exception that matches nothing (`coverage-exception-unmatched`), a `ceilings` row
+>   whose `crate` is no package of the source workspace (`scope-crate-missing`), and
+>   a debt record while the repository is judged under `default`
+>   (`debt-without-strict`);
 > - under strict, the debt record's own kinds, `debt-resolved` and
 >   `debt-entry-invalid`.
 

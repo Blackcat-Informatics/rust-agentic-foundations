@@ -42,7 +42,9 @@
 //! name a document that does not exist and the `depends` cycles. The records are
 //! nodes of the graph too: an evidence record covers the capabilities of its
 //! `for` ([`CoversEdge`]), a claim marker of a capability names the evidence its
-//! statement rests on ([`ClaimEdge`], from the section that holds it), an
+//! statement rests on ([`ClaimEdge`], from the section that holds it), a
+//! tested-by marker maps a statement to a test or example the capability binds
+//! ([`TestedByEdge`]; a path it does not bind is `claim-test-unbound`), an
 //! assessment assesses a section ([`AssessesEdge`]), the coverage record
 //! scopes crates ([`ScopeEdge`]), and each input row of a record leads to the
 //! section, symbol or evidence record it names when that resolves
@@ -321,7 +323,7 @@ pub use gate::{Gate, GateError, Opened};
 pub use graph::{
     AffectsEdge, AssessesEdge, Binding, BindingKind, ChangesEdge, ClaimEdge, CoversEdge,
     DependsEdge, Edge, EdgeKind, Graph, InputEdge, InputTarget, LinkEdge, LinkEnd, Node, NodeKind,
-    Proposal, ScopeEdge, SectionId,
+    Proposal, ScopeEdge, SectionId, TestedByEdge,
 };
 pub use links::LinkContext;
 pub use lookup::ChangeLookupError;

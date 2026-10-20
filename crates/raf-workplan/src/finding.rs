@@ -35,6 +35,7 @@ kinds! {
     SINGLETON_OTHER_FILE = "singleton-other-file";
     CLAIM_EVIDENCE_MISSING = "claim-evidence-missing";
     CLAIM_EVIDENCE_NOT_FOR = "claim-evidence-not-for";
+    CLAIM_TEST_UNBOUND = "claim-test-unbound";
     EVIDENCE_FOR_MISSING = "evidence-for-missing";
     ASSESSMENT_SUBJECT_MISSING = "assessment-subject-missing";
     ASSESSMENT_ID_MISMATCH = "assessment-id-mismatch";
@@ -74,6 +75,8 @@ kinds! {
     MIXED_LINE_ENDINGS = "mixed-line-endings";
     STRICT_EXAMPLE_MISSING = "strict-example-missing";
     STRICT_MATRIX_MISSING = "strict-matrix-missing";
+    STRICT_CLAIM_UNCOVERED = "strict-claim-uncovered";
+    STRICT_CLAIM_UNIT_COLLAPSED = "strict-claim-unit-collapsed";
     STRICT_SECTION_THIN = "strict-section-thin";
     STRICT_USAGE_UNBOUND = "strict-usage-unbound";
     STRICT_LIMITATIONS_MISSING = "strict-limitations-missing";
@@ -234,6 +237,10 @@ impl Finding {
     ///   of a capability names an evidence record that does not exist, or one
     ///   whose `for` does not list the capability; the finding names the
     ///   capability document and the line of the marker.
+    ///   `claim-test-unbound`: an entry of a tested-by marker of a capability
+    ///   that is no path of the capability's `bindings.tests` or
+    ///   `bindings.examples`, at the line of the marker, under either
+    ///   strictness.
     /// * `evidence-for-missing`, `assessment-subject-missing` and
     ///   `scope-crate-missing`: an evidence record's `for` names a capability
     ///   with no document, an assessment's subject is a section of a
@@ -304,6 +311,7 @@ impl Finding {
     /// * `mixed-line-endings`: the body of a document mixes CRLF and LF line
     ///   endings, so sync refuses to rewrite it.
     /// * `strict-example-missing`, `strict-matrix-missing`,
+    ///   `strict-claim-uncovered`, `strict-claim-unit-collapsed`,
     ///   `strict-section-thin`, `strict-usage-unbound` and
     ///   `strict-limitations-missing`: the rules of strict mode for a delivered
     ///   capability, judged only when [`crate::Workplan::strictness`] is

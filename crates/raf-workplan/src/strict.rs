@@ -34,6 +34,41 @@
 //!   section holds no list item with text or a code span after its marker; an
 //!   empty item and a thematic break such as `* * *` are none.
 //!
+//! # Claims
+//!
+//! A claim is a unit of the authored prose of the Contract and the
+//! Constraints of a delivered capability, read outside fenced code, PROPOSED
+//! blocks and generated blocks. In the Contract it is a clause: it starts at a
+//! paragraph whose first line opens with a bold run (`**The setting.**`) or
+//! at a `###` or `####` heading outside fenced code, and runs to the next
+//! clause start or the end of the section; text before the first clause start
+//! is one clause, the opening, and the statement of a heading clause is its
+//! heading line. In the Constraints it is each top-level list item and each
+//! paragraph or table outside a list. A blank line, a comment line, a heading,
+//! a fence and a hidden block each end a paragraph.
+//!
+//! Its key, `cap:<slug>#<section>/<key>` ([`ClaimCoverage::key`]), takes the
+//! kebab slug of the bold lead or the heading, `opening` for the opening, and
+//! for a Constraints unit `c-` and the first 16 hexadecimal digits of the
+//! SHA-256 digest of its text with its comments left out and each run of
+//! whitespace read as one space; a key that repeats in its section takes `-2`,
+//! `-3` and on in document order.
+//!
+//! A Contract clause is covered by a tested-by marker on any of its lines, a
+//! Constraints unit by a marker whose statement starts in it. Under strict:
+//!
+//! * `strict-claim-uncovered` at the first line of each claim that no marker
+//!   covers, its message naming the key and the first 60 characters of its
+//!   lead or item;
+//! * `strict-claim-unit-collapsed` at the Contract when it has no clause start
+//!   and holds more than [`MIN_SECTION_WORDS`] words, as the section rule counts
+//!   them, whether or not a marker covers it.
+//!
+//! [`Workplan::claims_report`] lists every claim of every delivered capability
+//! under either strictness. That a marker names only paths the capability
+//! binds in `tests` or `examples` is a rule of the load under either
+//! strictness, `claim-test-unbound`.
+//!
 //! # Explained items
 //!
 //! The code and the tests directions of two-way coverage
@@ -54,9 +89,12 @@
 //! coverage is computed here: the default coverage check is the same under
 //! either strictness.
 
+mod claims;
 mod content;
 #[cfg(test)]
 mod tests;
+
+pub use claims::{ClaimCoverage, ClaimsReport};
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -74,10 +112,12 @@ use crate::{Finding, Loaded, Workplan};
 pub const MIN_SECTION_WORDS: usize = 20;
 
 /// The findings of the rules of strict mode, in order: the content rules of
-/// each delivered capability in the order of the capabilities, then the
-/// coverage gaps of the packages that strict mode alone enforces.
+/// each delivered capability in the order of the capabilities, then the claim
+/// rules of each in the same order, then the coverage gaps of the packages
+/// that strict mode alone enforces.
 pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
     let mut out = content::check(plan);
+    out.extend(claims::check(plan));
     out.extend(explained(plan));
     out
 }

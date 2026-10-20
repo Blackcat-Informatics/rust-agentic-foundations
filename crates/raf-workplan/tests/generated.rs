@@ -103,6 +103,43 @@ fn rows_are_sorted_by_path_whatever_the_order_of_the_lists() {
 }
 
 #[test]
+fn a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row() {
+    // A marker in the Contract names the documented item and in Examples the
+    // test; the third example target is named nowhere.
+    let repo = replaced(
+        &unsynced(),
+        GAMMA,
+        "The test `demo::test_crate::it::case` checks it.\n",
+        "The test `demo::test_crate::it::case` checks it.\n<!-- raf:tested-by demo::real -->\n",
+    );
+    let repo = replaced(
+        &repo,
+        GAMMA,
+        "The example `demo::example_crate::show` runs.\n",
+        "The example `demo::example_crate::show` runs.\n<!-- raf:tested-by demo::test_crate::it::case -->\n",
+    );
+    let repo = replaced(
+        &repo,
+        GAMMA,
+        "examples: [demo::example_crate::show, demo::real]",
+        "examples: [demo::example_crate::show, demo::real, demo::example_crate::flagged]",
+    );
+    let repo = synced(&repo);
+    assert_eq!(
+        block(&repo[GAMMA], "verification-matrix"),
+        "\
+| Item | Kind | Section |
+| --- | --- | --- |
+| `demo::example_crate::flagged` | example target | [Verification](#verification) |
+| `demo::example_crate::show` | example target | [Usage](#usage), [Examples](#examples) |
+| `demo::real` | doctest | [Contract](#contract) |
+| `demo::test_crate::it::case` | test | [Contract](#contract), [Examples](#examples) |
+"
+    );
+    assert!(check_all(&repo).is_empty(), "{:#?}", check_all(&repo));
+}
+
+#[test]
 fn a_path_named_in_a_fence_or_a_proposal_is_not_a_section_that_it_substantiates() {
     let fenced = "\n```text\n`demo::test_crate::it::case`\n```\n";
     let repo = synced(&replaced(

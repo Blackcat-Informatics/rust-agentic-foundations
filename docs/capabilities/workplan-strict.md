@@ -15,6 +15,9 @@ bindings:
     - raf_workplan::Opened::strictness_floor
     - raf_workplan::Workplan::strictness
     - raf_workplan::Workplan::with_strictness
+    - raf_workplan::Workplan::claims_report
+    - raf_workplan::coverage::render::claims_table
+    - raf_workplan::coverage::render::claims_json
   tests:
     - raf_workplan::strict::tests::under_default_no_unit_of_strict_mode_is_judged_and_under_strict_each_is_judged_once
     - raf_workplan::test_crate::strict::the_strict_clean_repository_has_no_finding_under_either_strictness
@@ -50,8 +53,20 @@ bindings:
     - cargo_workplan::test_crate::check::check_without_the_flag_judges_strict_when_the_record_says_strict
     - cargo_workplan::test_crate::check::a_strict_finding_in_json_is_an_object_of_its_kind_with_the_fields_of_a_finding
     - cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts
+    - raf_workplan::strict::claims::tests::a_key_is_the_kebab_slug_of_its_lead_and_a_lead_is_sixty_characters
+    - raf_workplan::strict::claims::tests::a_list_item_opens_at_its_marker_and_its_content_starts_after_the_space
+    - raf_workplan::strict::claims::tests::a_unit_ends_on_the_line_before_the_next_unit
+    - raf_workplan::test_crate::claim_coverage::a_contract_is_cut_into_clauses_at_bold_leads_and_headings_and_the_text_before_is_the_opening
+    - raf_workplan::test_crate::claim_coverage::a_contract_clause_covered_on_its_second_paragraph_is_covered_and_its_neighbour_is_not
+    - raf_workplan::test_crate::claim_coverage::a_heading_clause_is_covered_by_a_marker_after_its_heading_and_its_text_needs_none
+    - raf_workplan::test_crate::claim_coverage::constraints_are_cut_into_top_level_items_paragraphs_and_tables
+    - raf_workplan::test_crate::claim_coverage::a_long_contract_with_no_clause_start_is_one_collapsed_claim_and_one_with_clauses_is_not
+    - raf_workplan::test_crate::claim_coverage::a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_either_strictness
+    - raf_workplan::test_crate::claim_coverage::a_tested_by_marker_in_usage_names_the_bound_example_as_a_code_span_does
+    - raf_workplan::test_crate::claim_coverage::the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run
   examples:
     - raf_workplan::Workplan::strictness
+    - raf_workplan::Workplan::claims_report
 depends: [cap:workplan-two-way-coverage, cap:workplan-complete-gate, cap:workplan-reconcile, cap:workplan-evidence-claims, cap:workplan-generated-docs, cap:source-index]
 ---
 
@@ -104,16 +119,19 @@ run.
 Constraints of a `delivered` capability, read outside fenced code, generated blocks
 and PROPOSED blocks:
 
-- in the Contract, a clause: it starts at a paragraph that begins with a bold run
-  (`**The setting.**`) or at a `###` or `####` heading, and runs to the start of the
-  next clause or the end of the section. Text before the first clause start is one
-  clause, the opening. The statement of a heading clause is its heading line;
-- in the Constraints, each top-level list item, and each paragraph or table outside
-  a list.
+- in the Contract, a clause: it starts at a paragraph whose first line begins, at
+  the margin, with a bold run (`**The setting.**`), or at a `###` or `####` heading
+  outside fenced code, and runs to the start of the next clause or the end of the
+  section. Text before the first clause start is one clause, the opening. The
+  statement of a heading clause is its heading line;
+- in the Constraints, each top-level list item, with the items, paragraphs and
+  fences indented under it, and each paragraph or table outside a list.
 
-Each claim has a key, `cap:<slug>#<section>/<key>`: the kebab slug of the bold lead
-or the heading, `opening` for the opening, and for a Constraints unit `c-` and the
-first 16 hexadecimal digits of the SHA-256 digest of its text with each run of
+A blank line, a comment line, a heading, a fence and a PROPOSED or generated block
+each end a paragraph. Each claim has a key, `cap:<slug>#<section>/<key>`
+(`ClaimCoverage::key`): the kebab slug of the bold lead or the heading, `opening`
+for the opening, and for a Constraints unit `c-` and the first 16 hexadecimal
+digits of the SHA-256 digest of its text, with its comments left out and each run of
 whitespace read as one space. A key that repeats in a section takes `-2`, `-3` and on
 in document order.
 
@@ -124,13 +142,15 @@ entries separated by `,` and no space. Each entry matches the `<item-path>` patt
 the completion gate, and no entry repeats. The marker is a third family beside the
 generated and the claim markers: [the OKF reader](./okf-profile.md) reads it as
 `Body::tested_by`, a malformed one is `okf-parse-malformed-tested-by`, one with no
-statement directly above it is `okf-parse-unattached-tested-by`, and one outside a
-Capability document is `okf-tested-by-outside-capability`. Under either strictness,
-an entry that is no path of the same capability's `bindings.tests` or
-`bindings.examples` is `claim-test-unbound` at the marker's line. A Contract clause is
-covered when it holds a marker anywhere in it; a heading clause is covered by a marker
-directly after its heading. A Constraints unit is covered by a marker attached to it.
-An evidence claim marker covers nothing here.
+statement directly above it, or directly before a claim marker, is
+`okf-parse-unattached-tested-by`, and one outside a Capability document is
+`okf-tested-by-outside-capability`. Under either strictness, an entry that is no path
+of the same capability's `bindings.tests` or `bindings.examples` is
+`claim-test-unbound` at the marker's line, and each entry that is one is a
+`TestedByEdge` of the graph. A Contract clause is covered when it holds a marker on
+any of its lines; a heading clause is covered by a marker directly after its heading.
+A Constraints unit is covered by a marker whose statement starts in it. An evidence
+claim marker covers nothing here.
 
 Under strict, each claim that no marker covers is `strict-claim-uncovered` at the
 first line of the claim, with a message that names its key and the first 60
@@ -138,10 +158,12 @@ characters of its lead or item. A Contract with no clause start is one claim; wh
 holds more than `strict::MIN_SECTION_WORDS` words it is `strict-claim-unit-collapsed`
 at the Contract, whether or not a marker covers it, so one marker cannot stand for a
 long Contract. `cargo workplan coverage claims [--capability cap:<slug>]` and
-`Workplan::claims_report` list every claim of every delivered capability with its
-key, line and tests, under either strictness, as a table with the columns Capability,
-Section, Claim, Line and Tested by, and in JSON as objects of the kind
-`coverage-claim` with the fields `capability`, `section`, `claim`, `line` and `tests`.
+`Workplan::claims_report` (`strict::ClaimsReport`) list every claim of every delivered
+capability with its key, line and tests, under either strictness, sorted by
+capability, the slug of the section and line, as a table with the columns
+Capability, Section, Claim, Line and Tested by (`coverage::render::claims_table`),
+and in JSON as objects of the kind `coverage-claim` with the fields `capability`,
+`section`, `claim`, `line` and `tests` (`coverage::render::claims_json`).
 The command exits 1 when a claim of a delivered capability has no test, 0 when every
 claim has one, and 2 when `--capability` names no loaded capability. A binding that
 a marker names substantiates the section that holds the marker in the verification
@@ -401,6 +423,10 @@ A claim names its test on the line after it:
 <!-- raf:tested-by raf_workplan::test_crate::coverage::an_exclusion_without_a_reason_fails -->
 ```
 
+`raf_workplan::Workplan::claims_report` gives a test the report that
+`coverage claims` prints: each claim of every delivered capability with its key, its
+line and the tests its markers name.
+
 ## Examples
 
 A delivered capability with a one-sentence Examples section, a Usage that names no
@@ -410,7 +436,7 @@ check`, and passes `cargo workplan check` under a record that says `default`:
 ```text
 docs/capabilities/streaming-parser.md: section `Examples`: the section holds 6 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a generated block does not count as prose
 docs/capabilities/streaming-parser.md: section `Usage`: no path of bindings.examples is named in the section [strict-usage-unbound]; name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs
-docs/capabilities/streaming-parser.md: line 41: the claim `cap:streaming-parser#contract/chunked-input` ("Chunked input. The parser accepts input in arbitrary chunk") names no test [strict-claim-uncovered]; put a raf:tested-by marker after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation
+docs/capabilities/streaming-parser.md: line 41: the claim `cap:streaming-parser#contract/chunked-input` ("Chunked input. The parser accepts input in arbitrary chunks,") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation
 ```
 
 The reverse coverage of one package, under a record that bounds its shipping lines
@@ -611,6 +637,14 @@ visible failure, and the fix is one command.
   with a space after a comma, a repeated entry, no entry and a `tests=` form; unattached
   after a blank line, after another comment and before a claim marker; not read in a
   fence; the fixtures of the claim marker unchanged.
+- Unit fixtures: an opening, a bold-lead clause over paragraphs, a list and a table,
+  `###` and `####` heading clauses, a heading and a bold run inside fenced code that
+  start no clause, an indented bold run that starts none, repeated leads numbered
+  `-2` and `-3`; Constraints cut into top-level items with their nested items and
+  paragraphs, a paragraph and a table, a repeated item numbered `-2`, and a key that
+  other whitespace and a marker keep and another word changes; a tested-by marker in
+  Usage naming the bound example, as a code span does; the verification matrix of a
+  marked binding lists the marker's section and an unmarked one keeps its row.
 - A bound package outside `scope` with an unbound public item fails under strict and
   passes once the item is bound, and the same package bound by no capability is not
   enforced.
@@ -656,9 +690,21 @@ visible failure, and the fix is one command.
 | `cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key` | test | [Verification](#verification) |
+| `raf_workplan::Workplan::claims_report` | doctest | [Usage](#usage) |
 | `raf_workplan::Workplan::strictness` | doctest | [Usage](#usage) |
+| `raf_workplan::strict::claims::tests::a_key_is_the_kebab_slug_of_its_lead_and_a_lead_is_sixty_characters` | test | [Verification](#verification) |
+| `raf_workplan::strict::claims::tests::a_list_item_opens_at_its_marker_and_its_content_starts_after_the_space` | test | [Verification](#verification) |
+| `raf_workplan::strict::claims::tests::a_unit_ends_on_the_line_before_the_next_unit` | test | [Verification](#verification) |
 | `raf_workplan::strict::tests::under_default_no_unit_of_strict_mode_is_judged_and_under_strict_each_is_judged_once` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_no_run_example_meets_the_strict_example_rule_and_verify_refuses_it_beside_a_runnable_one` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::claim_coverage::a_contract_clause_covered_on_its_second_paragraph_is_covered_and_its_neighbour_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::claim_coverage::a_contract_is_cut_into_clauses_at_bold_leads_and_headings_and_the_text_before_is_the_opening` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::claim_coverage::a_heading_clause_is_covered_by_a_marker_after_its_heading_and_its_text_needs_none` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::claim_coverage::a_long_contract_with_no_clause_start_is_one_collapsed_claim_and_one_with_clauses_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::claim_coverage::a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_either_strictness` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::claim_coverage::a_tested_by_marker_in_usage_names_the_bound_example_as_a_code_span_does` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::claim_coverage::constraints_are_cut_into_top_level_items_paragraphs_and_tables` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::claim_coverage::the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::a_bound_package_outside_scope_is_enforced_under_strict_and_an_unbound_one_is_not` | test | [Verification](#verification) |

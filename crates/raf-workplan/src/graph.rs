@@ -342,8 +342,8 @@ impl Binding {
     /// The sections the binding substantiates, in document order. A test or an
     /// example substantiates every section other than Verification whose text
     /// outside code fences, PROPOSED blocks and HTML comments holds the bound
-    /// path in a code span, and Verification when there is none. A code binding
-    /// substantiates no section.
+    /// path in a code span or holds a tested-by marker that names it, and
+    /// Verification when there is none. A code binding substantiates no section.
     #[must_use]
     pub fn sections(&self) -> &[CapabilitySection] {
         &self.sections
@@ -531,6 +531,47 @@ impl ClaimEdge {
     }
 }
 
+/// A tested-by edge: a statement of a capability mapped by a tested-by
+/// marker to a test or example the capability binds. One edge for each path
+/// of the marker that is a path of the capability's `bindings.tests` or
+/// `bindings.examples`; a path that is neither is the finding
+/// `claim-test-unbound` and makes no edge.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestedByEdge {
+    capability: String,
+    section: Option<CapabilitySection>,
+    path: String,
+    line: usize,
+}
+
+impl TestedByEdge {
+    /// The id of the capability whose document holds the marker.
+    #[must_use]
+    pub fn capability(&self) -> &str {
+        &self.capability
+    }
+
+    /// The section that holds the marker, or `None` for a marker outside the
+    /// seven sections.
+    #[must_use]
+    pub fn section(&self) -> Option<SectionId> {
+        self.section
+            .map(|section| SectionId::new(self.capability.clone(), section))
+    }
+
+    /// The path of the binding, as the marker and the binding write it.
+    #[must_use]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// The 1-based line of the marker in the capability document.
+    #[must_use]
+    pub fn line(&self) -> usize {
+        self.line
+    }
+}
+
 /// An assessment and the section it assesses, its subject.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssessesEdge {
@@ -641,6 +682,8 @@ pub enum EdgeKind {
     Covers,
     /// A statement of a capability rests on an evidence record.
     Claim,
+    /// A statement of a capability is shown by a test or example it binds.
+    TestedBy,
     /// An assessment assesses a section of a capability.
     Assesses,
     /// The coverage record enforces the coverage of a crate.
@@ -652,7 +695,7 @@ pub enum EdgeKind {
 
 impl EdgeKind {
     /// Every kind of edge.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::Binding,
         Self::Depends,
         Self::Affects,
@@ -660,6 +703,7 @@ impl EdgeKind {
         Self::Link,
         Self::Covers,
         Self::Claim,
+        Self::TestedBy,
         Self::Assesses,
         Self::Scope,
         Self::Input,
@@ -684,6 +728,8 @@ pub enum Edge {
     Covers(CoversEdge),
     /// A claim.
     Claim(ClaimEdge),
+    /// A tested-by edge.
+    TestedBy(TestedByEdge),
     /// The subject of an assessment.
     Assesses(AssessesEdge),
     /// A `scope` edge of the coverage record.
@@ -704,6 +750,7 @@ impl Edge {
             Self::Link(_) => EdgeKind::Link,
             Self::Covers(_) => EdgeKind::Covers,
             Self::Claim(_) => EdgeKind::Claim,
+            Self::TestedBy(_) => EdgeKind::TestedBy,
             Self::Assesses(_) => EdgeKind::Assesses,
             Self::Scope(_) => EdgeKind::Scope,
             Self::Input(_) => EdgeKind::Input,
@@ -729,6 +776,7 @@ pub struct Graph {
     crates: Vec<String>,
     covers: Vec<CoversEdge>,
     claims: Vec<ClaimEdge>,
+    tested_by: Vec<TestedByEdge>,
     assesses: Vec<AssessesEdge>,
     scope: Vec<ScopeEdge>,
     inputs: Vec<InputEdge>,
@@ -783,7 +831,8 @@ impl Graph {
     }
 
     /// Every edge: the bindings, then `depends`, `affects`, `changes`, links,
-    /// `for`, claims, assessment subjects and `scope`, each group sorted.
+    /// `for`, claims, tested-by edges, assessment subjects, `scope` and the
+    /// inputs, each group sorted.
     #[must_use]
     pub fn edges(&self) -> Vec<Edge> {
         let mut edges: Vec<Edge> = self.bindings.iter().cloned().map(Edge::Binding).collect();
@@ -793,6 +842,7 @@ impl Graph {
         edges.extend(self.links.iter().cloned().map(Edge::Link));
         edges.extend(self.covers.iter().cloned().map(Edge::Covers));
         edges.extend(self.claims.iter().cloned().map(Edge::Claim));
+        edges.extend(self.tested_by.iter().cloned().map(Edge::TestedBy));
         edges.extend(self.assesses.iter().cloned().map(Edge::Assesses));
         edges.extend(self.scope.iter().cloned().map(Edge::Scope));
         edges.extend(self.inputs.iter().cloned().map(Edge::Input));
@@ -829,6 +879,12 @@ impl Graph {
     #[must_use]
     pub fn claims(&self) -> &[ClaimEdge] {
         &self.claims
+    }
+
+    /// The tested-by edges, by capability, line and path.
+    #[must_use]
+    pub fn tested_by(&self) -> &[TestedByEdge] {
+        &self.tested_by
     }
 
     /// The subjects of the assessments, to sections of capabilities that
@@ -1116,6 +1172,9 @@ pub(crate) fn build(
     add_links(&mut graph, capabilities, changes, architecture);
     add_records(&mut graph, records, &known, present, source, &mut findings);
     add_claims(&mut graph, &caps, records.evidence, present, &mut findings);
+    graph
+        .tested_by
+        .sort_by(|a, b| (&a.capability, a.line, &a.path).cmp(&(&b.capability, b.line, &b.path)));
     (graph, findings)
 }
 
@@ -1561,6 +1620,37 @@ fn add_capability(
     }
     bindings.sort_by(|a, b| (a.kind, &a.path).cmp(&(b.kind, &b.path)));
     graph.bindings.extend(bindings);
+    add_tested_by(graph, cap, findings);
+}
+
+/// The tested-by edges of one capability, and `claim-test-unbound` for each
+/// path of a marker that is no path of its `tests` or `examples` bindings.
+fn add_tested_by(graph: &mut Graph, cap: &Loaded<Capability>, findings: &mut Vec<Finding>) {
+    let id = &cap.value().header.id;
+    let bindings = &cap.value().bindings;
+    for marker in cap.body().tested_by() {
+        let section = marker.section().and_then(CapabilitySection::from_slug);
+        for path in marker.paths() {
+            if bindings.tests.contains(path) || bindings.examples.contains(path) {
+                graph.tested_by.push(TestedByEdge {
+                    capability: id.clone(),
+                    section,
+                    path: path.clone(),
+                    line: marker.line(),
+                });
+            } else {
+                findings.push(Finding::new(
+                    kind::CLAIM_TEST_UNBOUND,
+                    cap.path(),
+                    Location::Line(marker.line()),
+                    format!(
+                        "the tested-by marker names `{path}`, which is no path of the `tests` or `examples` bindings of `{id}`"
+                    ),
+                    "name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first",
+                ));
+            }
+        }
+    }
 }
 
 fn bind(
@@ -1764,20 +1854,24 @@ fn strongly_connected(adjacent: &[Vec<usize>]) -> Vec<Vec<usize>> {
     groups
 }
 
-/// The sections a test or example binding substantiates. A code span inside
-/// an HTML comment does not count: a comment is no text of the section.
+/// The sections a test or example binding substantiates: each section other
+/// than Verification that names the path in a code span or holds a tested-by
+/// marker that names it, and Verification when there is none. A code span
+/// inside an HTML comment does not count: a comment is no text of the section.
 fn substantiated(body: &Body, path: &str) -> Vec<CapabilitySection> {
     let holding: Vec<CapabilitySection> = CapabilitySection::ALL
         .into_iter()
         .filter(|section| *section != CapabilitySection::Verification)
         .filter(|section| {
-            body.sections()
+            let spanned = body
+                .sections()
                 .iter()
                 .find(|s| s.slug() == section.slug())
                 .and_then(|s| {
                     prose_of(body, s).map(|text| names_in_code_span(&without_comments(&text), path))
                 })
-                .unwrap_or(false)
+                .unwrap_or(false);
+            spanned || marks(body, *section, path)
         })
         .collect();
     if holding.is_empty() {
@@ -1785,6 +1879,13 @@ fn substantiated(body: &Body, path: &str) -> Vec<CapabilitySection> {
     } else {
         holding
     }
+}
+
+/// Whether a tested-by marker in `section` names `path`.
+fn marks(body: &Body, section: CapabilitySection, path: &str) -> bool {
+    body.tested_by().iter().any(|marker| {
+        marker.section() == Some(section.slug()) && marker.paths().iter().any(|p| p == path)
+    })
 }
 
 /// `text` with each HTML comment outside a code span removed, its line breaks

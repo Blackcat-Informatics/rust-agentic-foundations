@@ -22,9 +22,16 @@
 //! that could not be listed. Each object of a gap names the `gap` kind, the
 //! `crate`, whether it is `in_scope`, the `path`, the defining `item`, the
 //! `file` and the `line`.
+//!
+//! [`claims_table`] and [`claims_json`] write the claims report of strict mode
+//! ([`ClaimsReport`]) the same two ways: `| Capability | Section | Claim | Line
+//! | Tested by |`, one row per claim with the slug of its section and its
+//! tests as code spans, and one `{"kind":"coverage-claim", ...}` object per
+//! claim with its `capability`, `section`, `claim`, `line` and `tests`.
 
 use super::{CoverageReport, Excluded, Gap, GapKind, SurfaceError, SurfaceFailure};
 use crate::history::render::{string, table_cell, table_code};
+use crate::strict::{ClaimCoverage, ClaimsReport};
 
 fn location(gap: &Gap) -> String {
     format!("{}:{}", gap.file(), gap.line())
@@ -155,6 +162,68 @@ pub fn json(report: &CoverageReport, kind: GapKind) -> String {
         )
     });
     let objects: Vec<String> = gaps.chain(excluded).chain(errors).collect();
+    if objects.is_empty() {
+        "[]\n".to_string()
+    } else {
+        format!("[\n{}\n]\n", objects.join(",\n"))
+    }
+}
+
+fn claim_row(claim: &ClaimCoverage) -> String {
+    let tests: Vec<String> = claim.tests().iter().map(|path| table_code(path)).collect();
+    format!(
+        "| {} | {} | {} | {} | {} |",
+        table_cell(claim.capability()),
+        claim.section().slug(),
+        table_cell(claim.claim()),
+        claim.line(),
+        tests.join(", ")
+    )
+}
+
+/// The claims report as text: one row per claim, in the order of the report.
+///
+/// ```rust
+/// use raf_workplan::coverage::render;
+/// use raf_workplan::strict::ClaimsReport;
+///
+/// assert_eq!(
+///     render::claims_table(&ClaimsReport::default()),
+///     "| Capability | Section | Claim | Line | Tested by |\n| --- | --- | --- | --- | --- |\n"
+/// );
+/// assert_eq!(render::claims_json(&ClaimsReport::default()), "[]\n");
+/// ```
+#[must_use]
+pub fn claims_table(report: &ClaimsReport) -> String {
+    let mut out = String::from(
+        "| Capability | Section | Claim | Line | Tested by |\n| --- | --- | --- | --- | --- |\n",
+    );
+    for claim in report.claims() {
+        out.push_str(&claim_row(claim));
+        out.push('\n');
+    }
+    out
+}
+
+/// The claims report as one JSON array, one object to a line; `[]` when it
+/// holds nothing.
+#[must_use]
+pub fn claims_json(report: &ClaimsReport) -> String {
+    let objects: Vec<String> = report
+        .claims()
+        .iter()
+        .map(|claim| {
+            let tests: Vec<String> = claim.tests().iter().map(|path| string(path)).collect();
+            format!(
+                "{{\"kind\":\"coverage-claim\",\"capability\":{},\"section\":{},\"claim\":{},\"line\":{},\"tests\":[{}]}}",
+                string(claim.capability()),
+                string(claim.section().slug()),
+                string(claim.claim()),
+                claim.line(),
+                tests.join(",")
+            )
+        })
+        .collect();
     if objects.is_empty() {
         "[]\n".to_string()
     } else {
