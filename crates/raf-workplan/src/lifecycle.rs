@@ -111,6 +111,7 @@ mod create;
 mod examples;
 mod impact;
 mod session;
+mod touched;
 mod untouched;
 mod verification;
 

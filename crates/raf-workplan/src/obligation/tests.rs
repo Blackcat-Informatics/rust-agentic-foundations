@@ -7,14 +7,14 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use raf_okf::{Actor, Body, CapabilitySection, ContractEffect, InputKind};
+use raf_okf::{Actor, Body, CapabilitySection, ContractEffect, InputKind, Outcome, Strictness};
 use raf_source::{MemoryTree, Workspace};
 
 use super::tense::{self, PHRASES};
 use super::{
     BindingWhy, ClaimProblem, EvidenceChange, Found, InputMoved, Needed, Obligation,
     ObligationKind, OutcomeProblem, OverLimit, Part, Place, Reconciled, RunProblem, Subject,
-    SyncProblem, suppressed,
+    SyncProblem, Touch, Touched, suppressed,
 };
 use crate::assessment::{InputChange, MovedInput};
 use crate::work::{Work, measure};
@@ -40,15 +40,17 @@ fn all_lists_every_kind_once_in_order_with_unique_kebab_names() {
 }
 
 #[test]
-fn the_kinds_are_the_thirteen_of_the_contract() {
+fn the_kinds_are_the_fifteen_of_the_contract() {
     let names: Vec<&str> = ObligationKind::ALL.iter().map(|kind| kind.name()).collect();
     assert_eq!(
         names,
         [
             "unresolved-proposal",
             "item-without-outcome",
+            "outcome-without-reason",
             "binding-missing",
             "section-untouched",
+            "contract-effect-understated",
             "example-failing",
             "generated-stale",
             "tense-mismatch",
@@ -63,7 +65,7 @@ fn the_kinds_are_the_thirteen_of_the_contract() {
 }
 
 #[test]
-fn only_the_three_kinds_that_start_a_process_are_not_static() {
+fn only_the_four_kinds_that_start_a_process_are_not_static() {
     let dynamic: Vec<ObligationKind> = ObligationKind::ALL
         .into_iter()
         .filter(|kind| !kind.is_static())
@@ -72,8 +74,24 @@ fn only_the_three_kinds_that_start_a_process_are_not_static() {
         dynamic,
         [
             ObligationKind::SectionUntouched,
+            ObligationKind::ContractEffectUnderstated,
             ObligationKind::ExampleFailing,
             ObligationKind::EvidenceChanged,
+        ]
+    );
+}
+
+#[test]
+fn only_the_two_kinds_of_strict_mode_are_strict() {
+    let strict: Vec<ObligationKind> = ObligationKind::ALL
+        .into_iter()
+        .filter(|kind| kind.is_strict())
+        .collect();
+    assert_eq!(
+        strict,
+        [
+            ObligationKind::OutcomeWithoutReason,
+            ObligationKind::ContractEffectUnderstated,
         ]
     );
 }
@@ -81,14 +99,16 @@ fn only_the_three_kinds_that_start_a_process_are_not_static() {
 // --- contract_effect: none ---------------------------------------------------
 
 #[test]
-fn contract_effect_none_suppresses_section_untouched_for_three_sections_and_nothing_else() {
+fn contract_effect_none_suppresses_section_untouched_for_three_sections_under_default_and_the_contract_alone_under_strict()
+ {
     let sections = CapabilitySection::ALL
         .into_iter()
         .map(Part::Section)
         .chain([Part::Document, Part::Item(1)]);
     for section in sections {
         for kind in ObligationKind::ALL {
-            let expected = kind == ObligationKind::SectionUntouched
+            let untouched = kind == ObligationKind::SectionUntouched;
+            let expected = untouched
                 && matches!(
                     section,
                     Part::Section(
@@ -98,15 +118,23 @@ fn contract_effect_none_suppresses_section_untouched_for_three_sections_and_noth
                     )
                 );
             assert_eq!(
-                suppressed(kind, section, ContractEffect::None),
+                suppressed(kind, section, ContractEffect::None, Strictness::Default),
                 expected,
                 "{kind} in {section}"
             );
-            // A change that changes the contract is never lighter.
-            assert!(
-                !suppressed(kind, section, ContractEffect::Changes),
-                "{kind} in {section}"
+            let strict = untouched && section == Part::Section(CapabilitySection::Contract);
+            assert_eq!(
+                suppressed(kind, section, ContractEffect::None, Strictness::Strict),
+                strict,
+                "{kind} in {section} under strict"
             );
+            // A change that changes the contract is never lighter.
+            for strictness in Strictness::ALL {
+                assert!(
+                    !suppressed(kind, section, ContractEffect::Changes, strictness),
+                    "{kind} in {section}"
+                );
+            }
         }
     }
 }
@@ -289,12 +317,14 @@ fn evidence_of(kind: ObligationKind) -> Needed {
     match kind {
         ObligationKind::UnresolvedProposal => Needed::ProposalResolved,
         ObligationKind::ItemWithoutOutcome => Needed::Outcome(OutcomeProblem::Missing),
+        ObligationKind::OutcomeWithoutReason => Needed::Reason(Outcome::Dropped),
         ObligationKind::BindingMissing => Needed::ResolvedBinding {
             list: BindingKind::Test,
             path: None,
             why: BindingWhy::Empty,
         },
         ObligationKind::SectionUntouched => Needed::SectionDiff,
+        ObligationKind::ContractEffectUnderstated => Needed::StatedEffect(touched(Touch::Tokens)),
         ObligationKind::ExampleFailing => Needed::PassingRun {
             binding: "demo::example_crate::show".to_string(),
             problem: RunProblem::Fails { code: Some(101) },
@@ -331,6 +361,38 @@ fn evidence_of(kind: ObligationKind) -> Needed {
             by: Actor::Agent,
         },
     }
+}
+
+/// A touched bound public item of the fixtures.
+fn touched(how: Touch) -> Touched {
+    Touched {
+        item: "demo::run".to_string(),
+        file: "src/lib.rs".to_string(),
+        line: 4,
+        capability: "cap:demo".to_string(),
+        how,
+    }
+}
+
+#[test]
+fn the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_line_and_the_capability()
+ {
+    assert_eq!(
+        Needed::Reason(Outcome::Moved("later-work".to_string())).to_string(),
+        "a reason for the outcome (`outcome: moved:change:later-work` has no `reason`)"
+    );
+    assert_eq!(
+        Needed::Reason(Outcome::Dropped).to_string(),
+        "a reason for the outcome (`outcome: dropped` has no `reason`)"
+    );
+    assert_eq!(
+        Needed::StatedEffect(touched(Touch::Tokens)).to_string(),
+        "contract_effect: changes, the capability listed and the sections it owes reconciled (`demo::run` at src/lib.rs:4: its tokens are not those of an item of its file at the merge base; `cap:demo` binds it)"
+    );
+    assert_eq!(
+        Needed::StatedEffect(touched(Touch::Removed)).to_string(),
+        "contract_effect: changes, the capability listed and the sections it owes reconciled (`demo::run` at src/lib.rs:4 at the merge base: the working tree has no such item; `cap:demo` binds it)"
+    );
 }
 
 #[test]

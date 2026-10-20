@@ -28,7 +28,8 @@ pub enum Condition {
     /// Condition 1: the obligation list of `reconcile` is not empty.
     Obligations,
     /// Condition 2: an item has no valid `outcome`, or a `moved` outcome names
-    /// no change record.
+    /// no change record, or, under strict mode, a `dropped` or `moved` item
+    /// has no `reason`.
     Outcomes,
     /// Condition 3: a PROPOSED block of the change remains in a capability
     /// document.
@@ -82,8 +83,9 @@ impl Condition {
 /// A fault that two conditions both state stands as one failure under each:
 /// an unresolved PROPOSED block is an obligation of condition 1 and a failure
 /// of condition 3, a stale block in a listed capability is an obligation and a
-/// failure of condition 4, an item without outcome is an obligation and a
-/// failure of condition 2, a failing bound example is an `example-failing`
+/// failure of condition 4, an item without outcome, or under strict mode a
+/// `dropped` or `moved` item without reason, is an obligation and a failure of
+/// condition 2, a failing bound example is an `example-failing`
 /// obligation and a failure of condition 5, and an affected section without a
 /// current accepted assessment is an `assessment-missing`,
 /// `assessment-stale` or `assessment-rejected` obligation and a failure of
@@ -94,7 +96,9 @@ pub enum Failure {
     /// Condition 1: one obligation of the list, of any kind.
     Owed(Obligation),
     /// Condition 2: an item of the record with no valid outcome (an
-    /// `item-without-outcome` obligation).
+    /// `item-without-outcome` obligation), or, under strict mode, a `dropped`
+    /// or `moved` item with no `reason` (an `outcome-without-reason`
+    /// obligation).
     Item(Obligation),
     /// Condition 3: a PROPOSED block of the change that remains, in a document
     /// that loaded or not (an `unresolved-proposal` obligation).
@@ -340,9 +344,18 @@ fn summary(failures: &[Failure]) -> String {
             "obligations",
         ),
         counted(
-            count(|f| matches!(f, Failure::Item(_))),
+            count(
+                |f| matches!(f, Failure::Item(owed) if owed.kind != ObligationKind::OutcomeWithoutReason),
+            ),
             "item without outcome",
             "items without outcome",
+        ),
+        counted(
+            count(
+                |f| matches!(f, Failure::Item(owed) if owed.kind == ObligationKind::OutcomeWithoutReason),
+            ),
+            "item without a reason",
+            "items without a reason",
         ),
         counted(
             count(|f| matches!(f, Failure::Proposal(_))),

@@ -8,6 +8,7 @@ use std::error::Error;
 use std::fmt;
 use std::io;
 
+use raf_okf::ContractEffect;
 use raf_source::LoadError;
 
 use crate::bound::Executor;
@@ -15,10 +16,10 @@ use crate::exec::{ExecError, Programs, Runner, SystemRunner};
 use crate::git::{self, GitError, Prefix};
 use crate::lookup::{ChangeLookupError, write_findings};
 use crate::obligation::{Obligation, ReconcileError, Reconciled};
-use crate::{Finding, Gate, GateError, Opened, SyncError};
+use crate::{Finding, Gate, GateError, Opened, Strictness, SyncError, Workplan};
 
 use super::verification::{VerifyReport, verify};
-use super::{Impact, changed, examples, untouched};
+use super::{Impact, changed, examples, touched, untouched};
 
 /// Which version of a document a [`LifecycleError::Document`] is about.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,6 +62,17 @@ pub enum LifecycleError {
     Exec(ExecError),
     /// The source index cannot say which functions are tests.
     Index(LoadError),
+    /// The public surface of a library or binary target that a `code` binding
+    /// reaches cannot be listed, so which bound public items a change with
+    /// `contract_effect: none` touches is unknown (strict mode).
+    Surface {
+        /// The package of the target.
+        package: String,
+        /// The crate path of the target.
+        target: String,
+        /// Why the source index cannot list it.
+        reason: String,
+    },
     /// A capability document cannot be compared: it is not readable, it is
     /// not UTF-8, it does not parse as a document body, or it has no such
     /// section.
@@ -127,6 +139,14 @@ impl fmt::Display for LifecycleError {
             Self::Reconcile(error) => error.fmt(f),
             Self::Exec(error) => error.fmt(f),
             Self::Index(error) => write!(f, "the source index cannot list the tests: {error}"),
+            Self::Surface {
+                package,
+                target,
+                reason,
+            } => write!(
+                f,
+                "the public surface of `{target}` in the package `{package}` cannot be listed, so the bound public items the change touches are unknown: {reason}"
+            ),
             Self::Document { path, side, reason } => write!(
                 f,
                 "`{path}` {side} cannot be compared: {reason}; a section that cannot be read is not reported as touched or untouched"
@@ -194,7 +214,7 @@ impl Error for LifecycleError {
             Self::Rewrite { source }
             | Self::Remove { source, .. }
             | Self::RecordRefused { source, .. } => Some(source),
-            Self::Document { .. } | Self::Unloaded { .. } => None,
+            Self::Document { .. } | Self::Unloaded { .. } | Self::Surface { .. } => None,
         }
     }
 }
@@ -380,23 +400,27 @@ impl<R: Runner> Lifecycle<R> {
         let impact = plan.impact(change)?;
         let effect = plan.change(change)?.value().contract_effect;
         let mut owed = fixed.obligations().to_vec();
-        owed.extend(self.process_obligations(&self.opened, &impact, effect, true)?);
+        owed.extend(self.process_obligations(&self.opened, &plan, &impact, effect, true)?);
         Ok(Reconciled::new(fixed.change().to_string(), owed))
     }
 
-    /// The obligations of a change that need a process, over `opened`:
-    /// `section-untouched` and `evidence-changed` from `git` at one merge base,
-    /// and, when `examples` is set, `example-failing` from the executor. It is
-    /// the one place [`Lifecycle::reconcile`] and
+    /// The obligations of a change that need a process, over `opened` and
+    /// `plan`, its documents: `section-untouched`, `evidence-changed` and,
+    /// under strict mode for a change with `contract_effect: none`,
+    /// `contract-effect-understated` from `git` at one merge base, and, when
+    /// `examples` is set, `example-failing` from the executor. It is the one
+    /// place [`Lifecycle::reconcile`] and
     /// [`Lifecycle::complete`](Lifecycle::complete) (which judges the examples
     /// by running them under condition 5) assemble them.
     pub(super) fn process_obligations(
         &self,
         opened: &Opened,
+        plan: &Workplan<'_>,
         impact: &Impact,
-        effect: raf_okf::ContractEffect,
+        effect: ContractEffect,
         examples: bool,
     ) -> Result<Vec<Obligation>, LifecycleError> {
+        let strictness = plan.strictness();
         let mut base = None;
         let mut owed = untouched::raise(
             opened,
@@ -404,6 +428,7 @@ impl<R: Runner> Lifecycle<R> {
             &self.prefix,
             impact,
             effect,
+            strictness,
             &mut base,
         )?;
         owed.extend(changed::raise(
@@ -413,6 +438,15 @@ impl<R: Runner> Lifecycle<R> {
             impact,
             &mut base,
         )?);
+        if strictness == Strictness::Strict && effect == ContractEffect::None {
+            owed.extend(touched::raise(
+                plan,
+                &self.runner,
+                &self.prefix,
+                &impact.change,
+                &mut base,
+            )?);
+        }
         if examples {
             let executor = Executor::new(opened.workspace(), &self.runner)?;
             owed.extend(examples::raise(&executor, impact)?);

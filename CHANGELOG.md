@@ -68,6 +68,21 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   reports as `okf-item-reason-empty`, and the placeholder rule reads it. The fix of
   `okf-item-unknown-key` names `claim`, `outcome` and `reason`. Breaking:
   `ChangeItem` gains a field, and `Rule`, `RuleTag` and `Rule::ALL` gain a variant.
+- **`raf-workplan`:** the change lifecycle under strict mode. The obligation
+  `outcome-without-reason` is owed at a `dropped` or `moved` item with no `reason`,
+  and condition 2 of `change complete` refuses on it, counted in the headline as an
+  item without a reason. The obligation `contract-effect-understated` is owed on a
+  change that says `contract_effect: none` while a bound public item, an item of the
+  public surface that a `code` binding covers, is touched: its token stream,
+  doc comments included and whitespace and plain comments left out, is not among
+  those of its file at the merge base, or the working tree has lost it. Under
+  strict, `contract_effect: none` leaves out `section-untouched` for the Contract
+  alone, so an untouched Usage or Examples in `affects` is owed. Under `default`
+  neither kind is raised and nothing else changes. Breaking: `ObligationKind` has
+  fifteen kinds,
+  `obligation::suppressed` takes the strictness, `Needed` gains the variants
+  `Reason` and `StatedEffect` (with `obligation::Touched` and `obligation::Touch`),
+  and `LifecycleError` gains `Surface`.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed

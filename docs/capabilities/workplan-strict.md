@@ -18,6 +18,8 @@ bindings:
     - raf_workplan::Workplan::claims_report
     - raf_workplan::coverage::render::claims_table
     - raf_workplan::coverage::render::claims_json
+    - raf_workplan::obligation::Touched
+    - raf_workplan::obligation::Touch
   tests:
     - raf_workplan::strict::tests::under_default_no_unit_of_strict_mode_is_judged_and_under_strict_each_is_judged_once
     - raf_workplan::test_crate::strict::the_strict_clean_repository_has_no_finding_under_either_strictness
@@ -72,6 +74,25 @@ bindings:
     - raf_workplan::test_crate::claim_coverage::a_comment_line_ends_a_constraints_paragraph_and_an_item_goes_on_only_with_its_indented_lines
     - raf_workplan::test_crate::claim_coverage::a_bold_lead_directly_after_any_heading_starts_a_contract_clause
     - cargo_workplan::test_crate::claims::the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names
+    - raf_workplan::lifecycle::touched::tests::whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it
+    - raf_workplan::lifecycle::touched::tests::the_items_of_modules_impls_and_traits_are_named_below_the_file_and_a_private_one_is_not_counted
+    - raf_workplan::lifecycle::touched::tests::a_wanted_span_is_read_as_the_stream_of_its_text_and_a_file_that_does_not_parse_is_an_error
+    - raf_workplan::obligation::tests::only_the_two_kinds_of_strict_mode_are_strict
+    - raf_workplan::obligation::tests::the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_line_and_the_capability
+    - raf_workplan::test_crate::obligations::an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome
+    - raf_workplan::test_crate::complete::under_strict_a_none_change_that_edits_a_bound_signature_refuses_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_an_edit_of_a_bound_body_alone_refuses_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_an_edit_of_a_bound_doc_comment_refuses_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_a_changed_attribute_of_a_bound_item_refuses_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_a_new_bound_public_item_refuses_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_an_item_renamed_below_a_bound_module_refuses_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_a_reformatted_bound_body_and_a_plain_comment_complete
+    - raf_workplan::test_crate::complete::under_strict_a_plain_comment_outside_every_bound_item_completes
+    - raf_workplan::test_crate::complete::under_strict_an_item_moved_within_its_file_completes
+    - raf_workplan::test_crate::complete::under_default_a_none_change_that_edits_a_bound_item_owes_nothing_and_under_strict_it_owes_one
+    - raf_workplan::test_crate::complete::under_strict_an_item_dropped_without_a_reason_refuses_condition_two_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_an_untouched_usage_or_examples_of_a_none_change_refuses_and_under_default_it_completes
+    - raf_workplan::test_crate::complete::under_strict_a_failing_bound_test_and_a_tense_mismatch_refuse_as_under_default_and_their_repairs_complete
   examples:
     - raf_workplan::Workplan::strictness
     - raf_workplan::Workplan::claims_report
@@ -201,28 +222,38 @@ is the same under either strictness.
 **Completion.** Strict mode keeps the six conditions of the completion gate, two of
 which already hold under either strictness: condition 5 runs every test and example
 binding of every listed capability with the proof `verify` uses, and condition 1
-refuses on each `tense-mismatch` of a listed capability. Strict adds the process
-obligation `contract-effect-understated`, raised by
-[reconcile](./workplan-reconcile.md) when the record says `contract_effect: none`
-and a bound public item differs from the merge base. A bound public item is an item of
-the public surface that a `code` binding of any loaded capability covers, itself or
-as an item below it in the sense of two-way coverage. Each file that holds one is read
-at the merge base with the reconcile row `git cat-file blob <merge-base>:<prefix><path>`,
-within the 1 MiB bound of a blob, and each side is parsed from its whole file through
-`raf_source::parse_source`. Items are compared as `proc_macro2` token streams of
-their whole span: a doc comment arrives as a `#[doc]` attribute and counts, while
-whitespace and comments that are not doc comments are not tokens and do not. An
-item is touched when its token stream is not among those of the items of its file at
-the merge base, so an edit of a signature, a body, an attribute, a visibility or a
-doc comment touches it, a reformatting or an edit of a plain comment does not, a new
-bound public item and an item moved to another file are touched, and an item moved
-within its file is not. A bound public item that the merge base has and the working
-tree lacks, removed or renamed, is touched too, and a file absent at the merge base
-makes every candidate in it touched. Each touched item is one obligation on the
-change record, whose evidence names the item, its file and line, and the capability
-that binds it; the evidence needed is `contract_effect: changes`, the capability
-listed and the sections it owes reconciled. A file at the merge base that does not
-parse is an error and not a pass. Condition 1 refuses on the obligation.
+refuses on each `tense-mismatch` of a listed capability, so each refuses and
+completes under strict as under `default`. Strict adds the process obligation
+`contract-effect-understated`, raised by [reconcile](./workplan-reconcile.md) when the
+record says `contract_effect: none` and a bound public item is touched. A bound public
+item is an item of the public surface of a library or binary target that a `code`
+binding of any loaded capability covers, itself or as an item below it in the sense of
+two-way coverage. The files read are each file that a library or binary target of a
+package holding a bound item reaches outside test code, and each file that holds a
+bound public item; each is read at the merge base with the reconcile row
+`git cat-file blob <merge-base>:<prefix><path>`, within the 1 MiB bound of a blob,
+and each side is parsed from its whole file through `raf_source::parse_source`. Items
+are compared as `proc_macro2` token streams of their whole span: a doc comment
+arrives as a `#[doc]` attribute and counts, while whitespace and comments that are not
+doc comments are not tokens and do not, and CRLF reads as LF. A bound public item is
+touched when its token stream is not among those of the items of its file at the merge
+base, at every depth a path can name (inline modules, impl blocks, traits and extern
+blocks), so an edit of a signature, a body, an attribute, a visibility or a doc
+comment touches it, a reformatting or an edit of a plain comment does not, a new bound
+public item and an item moved to another file are touched, and an item moved within its
+file is not. An item of the merge base that its file in the working tree lacks, removed
+or renamed, is touched when it is declared `pub`, is a `pub` member of an inherent impl
+or is a member of a `pub` trait, and its path is bound: the module path of its file in
+the working tree, the names of the inline modules around it and, for a member of an
+impl or a trait, the last segment of the self type or the trait's name. A file absent
+at the merge base makes every bound public item in it touched. Each touched item is
+one obligation on the change record, whose evidence names the item, its file and the
+line of its name, and the capability whose binding covers it; the evidence needed is
+`contract_effect: changes`, the capability listed and the sections it owes
+reconciled. A file at the merge base that is not UTF-8 or does not parse is an error
+and not a pass, as is a public surface the source index cannot list, and `change
+reconcile` and `change complete` exit 2 for either. Condition 1 refuses on the
+obligation, and the headline counts it as an obligation.
 
 **Sections.** Under strict, each of the seven sections of a `delivered` capability
 holds at least `strict::MIN_SECTION_WORDS`, 20, words of prose: the prose lines
@@ -237,11 +268,13 @@ text or a code span after its marker; an empty item and a thematic break such as
 `* * *` are none. Otherwise it is `strict-limitations-missing` at Constraints.
 
 **Reasons.** A change item takes an optional key `reason` after `outcome`, a
-non-empty line of text, accepted beside any outcome or none; an empty one is
-`okf-item-reason-empty`. Under strict, an item whose outcome is `dropped` or
-`moved:change:<slug>` and that has no `reason` is the obligation
-`outcome-without-reason` on that item, and condition 2 of the completion gate refuses
-on it as it refuses on `item-without-outcome`.
+non-empty line of text, accepted beside any outcome or none; an empty one, or one that
+is not text, is `okf-item-reason-empty`. Under strict, an item whose outcome is
+`dropped` or `moved:change:<slug>` and that has no `reason` is the obligation
+`outcome-without-reason` on that item, whether or not a `moved` target exists, and
+condition 2 of the completion gate refuses on it as it refuses on
+`item-without-outcome`; the headline of the refusal counts it as an item without a
+reason. Under `default` neither obligation of this capability is raised.
 
 **Untouched sections.** Under strict, `contract_effect: none` leaves out
 `section-untouched` for the Contract only: a Usage or an Examples section that the
@@ -528,6 +561,14 @@ the check, and the write refuses it.
   record either is growth beside a resolved row: touching a recorded claim makes it
   owe a test.
 - An item moved to another file reads as touched for `contract-effect-understated`.
+- A removed or renamed item is found in the files the working tree still holds, by
+  the path its file and its name give it at the merge base. An item of a file the
+  change deletes is not found this way: the binding that names it no longer
+  resolves, which `binding-missing` and the check report. A member of an impl block
+  in another module than its self type is named under the module of the impl block.
+- `contract-effect-understated` reads every file of the library and binary targets
+  of each package that a `code` binding reaches, one `git cat-file` for each, and
+  only under strict mode for a change with `contract_effect: none`.
 - `strict::MIN_SECTION_WORDS` is 20 and is not configurable. A word count is a proxy:
   it catches the one-sentence section and judges no style.
 - Under strict a package with no ceiling row is held to 0 orphan lines, and its
@@ -690,11 +731,20 @@ visible failure, and the fix is one command.
 - Git fixture repositories for completion under strict: a `contract_effect: none`
   change that edits a bound function's signature, its body, an attribute or a doc
   comment refuses under strict and completes under default; a reformatted body, a
-  plain comment and an item moved within its file complete; a new bound public item
-  refuses; a `dropped` item without `reason` refuses condition 2 under strict and
-  completes with `reason`, and without it under default; an untouched Usage or
-  Examples in `affects` of a `none` change refuses under strict and completes under
-  default; each refusal leaves the tree byte-identical.
+  plain comment inside or outside a bound item and an item moved within its file
+  complete; a new bound public item refuses, and so does an item renamed below a
+  bound module, as its module, its new name and its old one; a `dropped` item
+  without `reason` refuses condition 2 under strict, counted as an item without a
+  reason, and completes with `reason`, and without it under default; an untouched
+  Usage or Examples in `affects` of a `none` change refuses under strict and
+  completes under default; a failing bound test and a `tense-mismatch` refuse under
+  strict as under default and their repairs complete; each refusal leaves the tree
+  byte-identical, and the strict kinds join the cases that cover every kind of
+  obligation in both directions.
+- Token fixtures: whitespace, plain comments and CRLF leave an item's stream as it
+  is, and a doc comment, a token of the body, an attribute, a visibility or a type
+  changes it; the items of inline modules, impl blocks and traits are named below
+  their file, and a private one is not counted as removed.
 - Reverse coverage fixtures: a fully bound crate has 0 orphan lines; an unreferenced
   private helper is exactly its span as one range, beside the same helper reached
   from a bound function; binding a type covers its `impl` blocks and their methods;
@@ -735,6 +785,11 @@ visible failure, and the fix is one command.
 | `raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key` | test | [Verification](#verification) |
 | `raf_workplan::Workplan::claims_report` | doctest | [Usage](#usage) |
 | `raf_workplan::Workplan::strictness` | doctest | [Usage](#usage) |
+| `raf_workplan::lifecycle::touched::tests::a_wanted_span_is_read_as_the_stream_of_its_text_and_a_file_that_does_not_parse_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::touched::tests::the_items_of_modules_impls_and_traits_are_named_below_the_file_and_a_private_one_is_not_counted` | test | [Verification](#verification) |
+| `raf_workplan::lifecycle::touched::tests::whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::only_the_two_kinds_of_strict_mode_are_strict` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_line_and_the_capability` | test | [Verification](#verification) |
 | `raf_workplan::strict::claims::tests::a_key_is_the_kebab_slug_of_its_lead_and_a_lead_is_sixty_characters` | test | [Verification](#verification) |
 | `raf_workplan::strict::claims::tests::a_list_item_opens_at_its_marker_and_its_content_starts_after_the_space` | test | [Verification](#verification) |
 | `raf_workplan::strict::claims::tests::a_unit_ends_on_the_line_before_the_next_unit` | test | [Verification](#verification) |
@@ -753,7 +808,21 @@ visible failure, and the fix is one command.
 | `raf_workplan::test_crate::claim_coverage::constraints_are_cut_into_top_level_items_paragraphs_and_tables` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::claim_coverage::the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_default_a_none_change_that_edits_a_bound_item_owes_nothing_and_under_strict_it_owes_one` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_changed_attribute_of_a_bound_item_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_failing_bound_test_and_a_tense_mismatch_refuse_as_under_default_and_their_repairs_complete` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_new_bound_public_item_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_none_change_that_edits_a_bound_signature_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_plain_comment_outside_every_bound_item_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_a_reformatted_bound_body_and_a_plain_comment_complete` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_an_edit_of_a_bound_body_alone_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_an_edit_of_a_bound_doc_comment_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_an_item_dropped_without_a_reason_refuses_condition_two_and_under_default_it_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_an_item_moved_within_its_file_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_an_item_renamed_below_a_bound_module_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::under_strict_an_untouched_usage_or_examples_of_a_none_change_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::obligations::an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::a_bound_package_outside_scope_is_enforced_under_strict_and_an_unbound_one_is_not` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::a_capability_that_is_not_delivered_has_no_finding_of_the_content_rules` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::a_capability_with_no_example_is_refused_and_one_with_one_example_is_not` | test | [Verification](#verification) |

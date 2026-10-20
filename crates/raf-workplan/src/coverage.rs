@@ -117,7 +117,7 @@ use raf_source::{
 };
 
 use crate::finding::kind;
-use crate::graph::{BindingKind, Graph, ScopeEdge};
+use crate::graph::{Binding, BindingKind, Graph, ScopeEdge};
 use crate::work::{Work, add};
 use crate::{Finding, Loaded, Workplan};
 
@@ -703,14 +703,14 @@ pub(crate) struct Computed {
 
 /// What covers: the items `code` bindings resolve to, their paths (below
 /// which every item is covered), and the tests `tests` bindings resolve to.
-struct Bound {
+pub(crate) struct Bound {
     code: BTreeSet<ItemId>,
     below: BTreeSet<String>,
     tests: BTreeSet<ItemId>,
 }
 
 impl Bound {
-    fn of(graph: &Graph, source: &Workspace) -> Self {
+    pub(crate) fn of(graph: &Graph, source: &Workspace) -> Self {
         let mut bound = Self {
             code: BTreeSet::new(),
             below: BTreeSet::new(),
@@ -742,7 +742,7 @@ impl Bound {
 
     /// Whether a `code` binding names `id`, an item of the same source, or an
     /// item that one of them is below.
-    fn covers(&self, source: &Workspace, id: ItemId) -> bool {
+    pub(crate) fn covers(&self, source: &Workspace, id: ItemId) -> bool {
         let Some(item) = source.item(id) else {
             return false;
         };
@@ -759,6 +759,65 @@ impl Bound {
                     .is_some_and(|item| ancestors(&item.path).any(|p| self.below.contains(p)))
         })
     }
+}
+
+/// The first `code` binding of `graph`, in the order of the graph, that covers
+/// the item `id` as [`Bound::covers`] reads it: it names `id` or an item of the
+/// same source, or one of them is below the item it names. `None` exactly when
+/// `Bound::covers` is false.
+pub(crate) fn covering<'g>(
+    graph: &'g Graph,
+    source: &Workspace,
+    id: ItemId,
+) -> Option<&'g Binding> {
+    let item = source.item(id)?;
+    let same = source.same_source(item);
+    let ids = if same.is_empty() {
+        std::slice::from_ref(&item.id)
+    } else {
+        same
+    };
+    let paths: Vec<&str> = ids
+        .iter()
+        .filter_map(|id| source.item(*id).map(|item| &*item.path))
+        .collect();
+    graph.bindings().iter().find(|binding| {
+        binding.kind() == BindingKind::Code
+            && binding.items().iter().any(|bound| {
+                ids.contains(bound)
+                    || below_bound(source, *bound)
+                        .is_some_and(|at| paths.iter().any(|path| ancestors(path).any(|p| p == at)))
+            })
+    })
+}
+
+/// The first `code` binding of `graph` that covers the item path `path`, an
+/// item the source index need not hold, such as one at the merge base: it
+/// names an item with that path, or one the path is below.
+pub(crate) fn covering_path<'g>(
+    graph: &'g Graph,
+    source: &Workspace,
+    path: &str,
+) -> Option<&'g Binding> {
+    graph.bindings().iter().find(|binding| {
+        binding.kind() == BindingKind::Code
+            && binding.items().iter().any(|bound| {
+                source.item(*bound).is_some_and(|item| *item.path == *path)
+                    || below_bound(source, *bound)
+                        .is_some_and(|at| ancestors(path).any(|p| p == at))
+            })
+    })
+}
+
+/// The path below which the bound item `id` covers every item, as
+/// [`Bound::of`] keeps it: its own path, unless it is a crate root, which
+/// covers nothing below it.
+fn below_bound(source: &Workspace, id: ItemId) -> Option<&str> {
+    let item = source.item(id)?;
+    let root = source
+        .target(item.target)
+        .is_some_and(|target| *item.path == *target.crate_path);
+    (!root).then_some(&*item.path)
 }
 
 /// `path` and each path it is below, longest first: `a::b::c`, `a::b`, `a`.

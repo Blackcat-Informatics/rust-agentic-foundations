@@ -96,9 +96,12 @@ impl<R: Runner> Lifecycle<R> {
     ///
     /// 1. the obligation list of [`Lifecycle::reconcile`](Lifecycle::reconcile)
     ///    is empty (every kind, `contract_effect: none` leaving out the
-    ///    untouched contract, usage and examples);
+    ///    untouched contract, usage and examples, and under strict mode the
+    ///    untouched contract alone; under strict mode the list also holds
+    ///    `contract-effect-understated`);
     /// 2. every item has an `outcome`, and a `moved` outcome names a change
-    ///    record that exists;
+    ///    record that exists; under strict mode a `dropped` or `moved` item
+    ///    also has a `reason` (`outcome-without-reason`);
     /// 3. no PROPOSED block of the change remains in any capability document,
     ///    whether the document loads or not;
     /// 4. `docs sync` would write nothing;
@@ -248,6 +251,7 @@ impl<R: Runner> Lifecycle<R> {
         let mut obligations = fixed.obligations().to_vec();
         obligations.extend(self.process_obligations(
             opened,
+            &plan,
             &impact,
             record.value().contract_effect,
             false,
@@ -260,9 +264,12 @@ impl<R: Runner> Lifecycle<R> {
             .map(Failure::Owed)
             .collect();
 
-        // Condition 2: the items, from the obligations that state it.
+        // Condition 2: the items, from the obligations that state it: an
+        // item without outcome, and under strict mode one whose outcome needs
+        // a reason it does not give.
         failures.extend(
             owed.of_kind(ObligationKind::ItemWithoutOutcome)
+                .chain(owed.of_kind(ObligationKind::OutcomeWithoutReason))
                 .cloned()
                 .map(Failure::Item),
         );

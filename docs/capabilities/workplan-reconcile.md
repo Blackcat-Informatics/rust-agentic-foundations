@@ -210,20 +210,20 @@ bindings:
     - raf_workplan::obligation::tests::all_lists_every_kind_once_in_order_with_unique_kebab_names
     - raf_workplan::obligation::tests::an_empty_list_prints_nothing
     - raf_workplan::obligation::tests::an_unterminated_fence_hides_the_rest_and_does_not_panic
-    - raf_workplan::obligation::tests::contract_effect_none_suppresses_section_untouched_for_three_sections_and_nothing_else
+    - raf_workplan::obligation::tests::contract_effect_none_suppresses_section_untouched_for_three_sections_under_default_and_the_contract_alone_under_strict
     - raf_workplan::obligation::tests::every_phrase_has_a_sentence_that_finds_it_and_every_hit_is_a_phrase
     - raf_workplan::obligation::tests::generated_blocks_are_not_read
     - raf_workplan::obligation::tests::hostile_text_is_read_in_linear_time
     - raf_workplan::obligation::tests::moves_to_unknown_records_cost_the_same_with_few_records_as_with_many
     - raf_workplan::obligation::tests::near_misses_are_not_hits
     - raf_workplan::obligation::tests::only_prose_is_read_and_the_hit_names_its_section_and_line
+    - raf_workplan::obligation::tests::only_the_four_kinds_that_start_a_process_are_not_static
     - raf_workplan::obligation::tests::only_the_marker_name_is_exempt_in_capitals
-    - raf_workplan::obligation::tests::only_the_three_kinds_that_start_a_process_are_not_static
     - raf_workplan::obligation::tests::several_hits_of_a_phrase_on_one_line_are_one_hit_and_two_lines_are_two
     - raf_workplan::obligation::tests::text_before_the_first_section_has_no_section
     - raf_workplan::obligation::tests::the_evidence_names_the_thing_it_is_about_in_parentheses
     - raf_workplan::obligation::tests::the_evidence_strings_are_the_evidence_column_of_the_contract
-    - raf_workplan::obligation::tests::the_kinds_are_the_thirteen_of_the_contract
+    - raf_workplan::obligation::tests::the_kinds_are_the_fifteen_of_the_contract
     - raf_workplan::obligation::tests::the_list_is_sorted_by_subject_part_kind_line_then_evidence_and_is_without_repeats
     - raf_workplan::obligation::tests::the_trace_evidence_names_the_record_and_what_is_wrong_with_it
     - raf_workplan::obligation::trace::tests::a_value_over_its_limit_is_found_by_its_text_and_not_its_nearest_float
@@ -290,8 +290,10 @@ needed. The kinds are:
 | --- | --- | --- |
 | `unresolved-proposal` | A PROPOSED block names the change | The block is replaced by plain contract text, or removed because the claim was dropped |
 | `item-without-outcome` | An item has no `outcome`, or its `moved` outcome names no change record or the record itself | An outcome of `implemented`, `dropped` or `moved:change:<slug>` |
+| `outcome-without-reason` | Under strict mode, an item whose outcome is `dropped` or `moved:change:<slug>` has no `reason` | A reason for the outcome |
 | `binding-missing` | A capability the change lists binds nothing where it should, or a binding does not resolve or names an item its list does not take | A binding that resolves through the source index |
 | `section-untouched` | A section in `affects` has the same text as at the merge base | A diff of that section against the merge base, or an edit that records why none is needed |
+| `contract-effect-understated` | Under strict mode, the record says `contract_effect: none` and a bound public item differs from the merge base | `contract_effect: changes`, the capability listed and the sections it owes reconciled |
 | `example-failing` | A bound example target or documentation test of a capability the change lists fails to build or run | A passing `verify` run for the change, or a binding edit that removes the broken example |
 | `generated-stale` | A generated block of a listed capability or of the capability index differs from what `docs sync` writes, or the index does not exist | A `docs sync` run |
 | `tense-mismatch` | The prose of a listed delivered or implementing capability uses proposal or forward-looking wording, or a listed delivered capability has a PROPOSED block | Text rewritten as the supported behaviour |
@@ -402,42 +404,56 @@ patterns, the stdin, timeout and output rules, and the proof-that-it-ran rule of
 which is trusted build input (see [the security policy](../../SECURITY.md)).
 
 **`contract_effect: none`.** For a change with this effect, the obligation list is
-lighter. `section-untouched` is not raised for `contract`, `usage` and `examples`,
-since the change declares they are unaffected. All other kinds apply, because stale
+lighter. Under `default`, `section-untouched` is not raised for `contract`, `usage`
+and `examples`, since the change declares they are unaffected; under strict mode it
+is not raised for `contract` alone (below). All other kinds apply, because stale
 bindings and stale generated blocks are errors regardless of the contract. The
 assessment kinds are among the kinds that apply: a section the change lists in
 `affects` is read by the people the change reaches whether or not its contract moved,
 so its assessment is owed under either effect.
 
-> [!PROPOSED change:workplan-strict]
-> **Strict mode.** Under [strict mode](./workplan-strict.md), set by the coverage
-> record or by a strict `Gate` (`cargo workplan --strict change reconcile <slug>`),
-> the list holds two more kinds, and `obligation::suppressed` takes the strictness:
->
-> - `outcome-without-reason`, after `item-without-outcome` in the order of the table:
->   an item whose outcome is `dropped` or `moved:change:<slug>` has no `reason`. It is
->   owed at the item, and the evidence that resolves it is a `reason` for the outcome.
->   It needs no process.
-> - `contract-effect-understated`, after `section-untouched`: the record says
->   `contract_effect: none`, and a bound public item, an item of the public surface
->   that a `code` binding of any loaded capability covers, differs from the merge
->   base. Each file that holds one is read with the row
->   `git cat-file blob <merge-base>:<prefix><path>` at the merge base that
->   `section-untouched` uses, within the 1 MiB bound, so no new command is asked of
->   `git`. Each side is parsed from its whole file through `raf_source::parse_source`
->   and each item is compared as the `proc_macro2` token stream of its whole span, its
->   doc comments included as `#[doc]` attributes and its whitespace and plain comments
->   left out. An item whose stream is not among those of its file at the merge base, a
->   bound item that the merge base has and the working tree lacks, and every
->   candidate of a file absent at the merge base, are each one obligation on the
->   change record, with evidence
->   such as `` (`raf_okf::Document::parse` at crates/raf-okf/src/document.rs:120: its tokens differ from the merge base; `cap:okf-profile` binds it) ``,
->   resolved by `contract_effect: changes`, the capability listed and the sections it
->   owes reconciled. A file at the merge base that does not parse is an error, exit 2.
->
-> Under strict a change with `contract_effect: none` leaves out `section-untouched`
-> for the contract only, so an untouched Usage or Examples section in `affects` is
-> owed. Under `default` neither kind is raised and the suppression is the one above.
+**Strict mode.** Under [strict mode](./workplan-strict.md), set by the coverage
+record or by a strict `Gate` (`cargo workplan --strict change reconcile <slug>`),
+the list holds two more kinds, which `ObligationKind::is_strict` names, and
+`obligation::suppressed` takes the strictness. Under `default` neither kind is
+raised.
+
+- `outcome-without-reason`, after `item-without-outcome` in the order of the table:
+  an item whose outcome is `dropped` or `moved:change:<slug>` has no `reason`. It is
+  owed at the item, whether or not a `moved` target exists, and the evidence names
+  the outcome, for example `` (`outcome: dropped` has no `reason`) ``. It needs no
+  process, so `Workplan::reconcile` raises it.
+- `contract-effect-understated`, after `section-untouched`: the record says
+  `contract_effect: none`, and a bound public item differs from the merge base. A
+  bound public item is an item of the public surface of a library or binary target
+  that a `code` binding of any loaded capability covers, itself or as an item below
+  it, as [two-way coverage](./workplan-two-way-coverage.md) reads below. Each file
+  that a library or binary target of a package holding a bound item reaches outside
+  test code, and each file that holds a bound public item, is read with the row
+  `git cat-file blob <merge-base>:<prefix><path>` at the merge base that
+  `section-untouched` uses, within the 1 MiB bound, so no new command is asked of
+  `git`. Each side is parsed from its whole file through `raf_source::parse_source`,
+  and each item at every depth that a path can name, inside inline modules, impl
+  blocks, traits and extern blocks too, is compared as the `proc_macro2` token
+  stream of its whole span: its doc comments are included as `#[doc]` attributes,
+  its whitespace and plain comments are left out, and CRLF reads as LF. A bound
+  public item whose stream is not among those of the items of its file at the merge
+  base is touched, and so is every bound public item of a file that is absent at
+  the merge base. An item of the merge base that the working tree's file lacks,
+  removed or renamed, is touched when it is declared `pub`, is a `pub` member of an
+  inherent impl or a member of a `pub` trait, and its path is bound: the module path
+  of its file, the names of the inline modules around it and, for a member of an
+  impl or a trait, the last segment of the self type or the trait's name. Each
+  touched item is one obligation on the change record, with evidence such as
+  `` (`raf_okf::Document::parse` at crates/raf-okf/src/document.rs:120: its tokens are not those of an item of its file at the merge base; `cap:okf-profile` binds it) ``,
+  resolved by `contract_effect: changes`, the capability listed and the sections it
+  owes reconciled. A file at the merge base that is not UTF-8 or does not parse is
+  an error, and so is a public surface the source index cannot list
+  (`LifecycleError::Surface`); the command exits 2 for either.
+
+Under strict a change with `contract_effect: none` leaves out `section-untouched`
+for the contract only, so an untouched Usage or Examples section in `affects` is
+owed. Under `default` the suppression is the one above.
 
 ## Usage
 
@@ -626,20 +642,20 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::obligation::tests::all_lists_every_kind_once_in_order_with_unique_kebab_names` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::an_empty_list_prints_nothing` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::an_unterminated_fence_hides_the_rest_and_does_not_panic` | test | [Verification](#verification) |
-| `raf_workplan::obligation::tests::contract_effect_none_suppresses_section_untouched_for_three_sections_and_nothing_else` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::contract_effect_none_suppresses_section_untouched_for_three_sections_under_default_and_the_contract_alone_under_strict` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::every_phrase_has_a_sentence_that_finds_it_and_every_hit_is_a_phrase` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::generated_blocks_are_not_read` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::hostile_text_is_read_in_linear_time` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::moves_to_unknown_records_cost_the_same_with_few_records_as_with_many` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::near_misses_are_not_hits` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::only_prose_is_read_and_the_hit_names_its_section_and_line` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::only_the_four_kinds_that_start_a_process_are_not_static` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::only_the_marker_name_is_exempt_in_capitals` | test | [Verification](#verification) |
-| `raf_workplan::obligation::tests::only_the_three_kinds_that_start_a_process_are_not_static` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::several_hits_of_a_phrase_on_one_line_are_one_hit_and_two_lines_are_two` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::text_before_the_first_section_has_no_section` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::the_evidence_names_the_thing_it_is_about_in_parentheses` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::the_evidence_strings_are_the_evidence_column_of_the_contract` | test | [Verification](#verification) |
-| `raf_workplan::obligation::tests::the_kinds_are_the_thirteen_of_the_contract` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::the_kinds_are_the_fifteen_of_the_contract` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::the_list_is_sorted_by_subject_part_kind_line_then_evidence_and_is_without_repeats` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::the_trace_evidence_names_the_record_and_what_is_wrong_with_it` | test | [Verification](#verification) |
 | `raf_workplan::obligation::trace::tests::a_value_over_its_limit_is_found_by_its_text_and_not_its_nearest_float` | test | [Verification](#verification) |

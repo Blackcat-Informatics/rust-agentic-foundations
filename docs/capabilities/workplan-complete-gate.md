@@ -344,7 +344,8 @@ sets which obligations [reconcile](./workplan-reconcile.md) raises. A change wit
 `contract_effect: changes` can owe an untouched-section obligation for each section in
 `affects`. A change with `contract_effect: none` records that the documented contract
 is unaffected, so reconcile raises no `section-untouched` obligation for the contract,
-usage and examples sections. Every other obligation kind still applies, and the
+usage and examples sections, and under strict mode for the contract alone (see
+**Strict conditions**). Every other obligation kind still applies, and the
 obligation list must still be empty. A small internal change does not need a new
 tutorial. The effect does not change condition 6 either: under `contract_effect: none`
 each authored section in `affects` still needs a current accepted assessment, since
@@ -357,19 +358,23 @@ judgement and at the second one before the writes, since the second opens the
 repository again with the same `Gate`: a finding of strict mode there refuses
 completion as every finding does, and nothing is written.
 
+**Strict conditions.** Under strict mode the six conditions and their order are
+judged under strict as the check once the record is removed is. Two of the strict
+expectations already hold under either strictness, and refuse and complete under
+strict as under `default`: condition 5 runs every test and example binding of every
+listed capability, as `verify` of the change does, and condition 1 refuses on each
+`tense-mismatch` of a listed capability. Strict adds two obligations. Condition 1
+refuses on `contract-effect-understated`, which reconcile raises for a
+`contract_effect: none` change that alters any token of a bound public item, its doc
+comments included, or whose working tree has lost one, and condition 2 refuses on
+`outcome-without-reason`, a `dropped` or `moved` item with no `reason`, as it refuses
+on `item-without-outcome`; the headline counts such an item as an item without a
+reason (`refused: 1 obligation, 1 item without a reason`). Under strict
+`contract_effect: none` leaves out `section-untouched` for the contract only, so
+condition 1 also refuses on an untouched Usage or Examples section in `affects`. A
+refusal under strict writes nothing, as every refusal does.
+
 > [!PROPOSED change:workplan-strict]
-> **Strict conditions.** Under strict mode the six conditions and their order are
-> judged under strict as the check once the record is removed is. Two of the strict
-> expectations already hold under either
-> strictness: condition 5 runs every test and example binding of every listed
-> capability, as `verify` of the change does, and condition 1 refuses on each
-> `tense-mismatch` of a listed capability. Strict adds two obligations. Condition 1
-> refuses on `contract-effect-understated`, which reconcile raises for a
-> `contract_effect: none` change that alters any token of a bound public item, and
-> condition 2 refuses on `outcome-without-reason`, a `dropped` or `moved` item with
-> no `reason`, as it refuses on `item-without-outcome`. Under strict
-> `contract_effect: none` leaves out `section-untouched` for the contract only, so
-> condition 1 also refuses on an untouched Usage or Examples section in `affects`.
 > The check of the repository once the record is removed applies the strict debt
 > record as `check` does, so a finding the record holds does not refuse completion
 > and a resolved row does.

@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Range;
 
-use raf_okf::{Body, CapabilitySection, ContractEffect, MAX_TEXT_BYTES};
+use raf_okf::{Body, CapabilitySection, ContractEffect, MAX_TEXT_BYTES, Strictness};
 use raf_source::{RelPath, Tree};
 
 use crate::SectionId;
@@ -127,7 +127,7 @@ pub fn section_digest(body: &Body, section: CapabilitySection) -> Option<Section
 /// whose authored text is the text at the merge base.
 ///
 /// Nothing is asked of `git` when every section of `affects` is left out by
-/// the `effect` of the change. Otherwise the merge base is found once
+/// the effect of the change under its strictness ([`suppressed`]). Otherwise the merge base is found once
 /// ([`git::default_merge_base`], kept in `base` for the other process-backed
 /// kinds) and each capability file is read once at it.
 pub(super) fn raise(
@@ -136,6 +136,7 @@ pub(super) fn raise(
     prefix: &Prefix,
     impact: &Impact,
     effect: ContractEffect,
+    strictness: Strictness,
     base: &mut Option<MergeBase>,
 ) -> Result<Vec<Obligation>, LifecycleError> {
     let wanted: Vec<&SectionId> = impact
@@ -146,6 +147,7 @@ pub(super) fn raise(
                 ObligationKind::SectionUntouched,
                 Part::Section(id.section()),
                 effect,
+                strictness,
             )
         })
         .collect();

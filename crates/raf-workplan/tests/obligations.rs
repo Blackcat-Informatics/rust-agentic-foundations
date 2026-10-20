@@ -207,6 +207,96 @@ fn item_cases(cases: &mut Vec<Case>) {
             )),
         });
     }
+    // outcome-without-reason: under strict mode, a dropped item and a moved
+    // one, each without a reason.
+    for (outcome, detail) in [
+        ("dropped", "`outcome: dropped` has no `reason`"),
+        (
+            "moved:change:other",
+            "`outcome: moved:change:other` has no `reason`",
+        ),
+    ] {
+        let reasoned = |reason: &str| strict_items(&format!("    outcome: {outcome}\n{reason}"));
+        cases.push(Case {
+            name: if outcome == "dropped" {
+                "outcome-without-reason-dropped"
+            } else {
+                "outcome-without-reason-moved"
+            },
+            broken: reasoned(""),
+            fixed: reasoned("    reason: \"The other change carries it.\"\n"),
+            want: vec![Want {
+                kind: ObligationKind::OutcomeWithoutReason,
+                path: SHAPE,
+                line: None,
+                text: format!(
+                    "change:shape  item 2  outcome-without-reason  a reason for the outcome ({detail})"
+                ),
+            }],
+        });
+    }
+}
+
+/// The coverage record that says `strictness: strict` and enforces nothing.
+const STRICT_COVERAGE: &str = "---\ntype: Coverage\nid: coverage:default\nstrictness: strict\nscope: []\nexclusions: []\n---\n";
+
+/// The repository of the fixtures under a strict coverage record, with a
+/// second item of `shape` whose lines after its claim are `rest`.
+fn strict_items(rest: &str) -> Repo {
+    repo(&[
+        (OMEGA, capability("omega", "implementing", BOUND, &[])),
+        (
+            SHAPE,
+            record(
+                "shape",
+                "[cap:omega]",
+                &["cap:omega#contract"],
+                "changes",
+                &format!("{DONE}  - claim: \"omega is documented\"\n{rest}"),
+            ),
+        ),
+        (
+            OTHER,
+            record(
+                "other",
+                "[cap:omega]",
+                &["cap:omega#contract"],
+                "changes",
+                DONE,
+            ),
+        ),
+        (support::COVERAGE, STRICT_COVERAGE.to_string()),
+    ])
+}
+
+/// Under `default` a dropped or moved item needs no reason, and a reason is
+/// accepted beside any outcome or none under either strictness.
+#[test]
+fn an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome()
+{
+    for outcome in ["dropped", "moved:change:other"] {
+        let strict = strict_items(&format!("    outcome: {outcome}\n"));
+        assert_eq!(
+            reconcile(&strict)
+                .of_kind(ObligationKind::OutcomeWithoutReason)
+                .count(),
+            1,
+            "{outcome}"
+        );
+        let default = replaced(&strict, support::COVERAGE, "strictness: strict\n", "");
+        assert!(reconcile(&default).is_empty(), "{outcome}");
+    }
+    for rest in [
+        "    outcome: implemented\n    reason: \"It is built.\"\n",
+        "    reason: \"Written before the outcome.\"\n",
+    ] {
+        let list = reconcile(&strict_items(rest));
+        assert_eq!(
+            list.of_kind(ObligationKind::OutcomeWithoutReason).count(),
+            0,
+            "{rest}: {list}"
+        );
+    }
 }
 
 fn binding_cases(base: &Repo, cases: &mut Vec<Case>) {
@@ -872,7 +962,12 @@ fn every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by
     let dynamic: BTreeSet<&str> = known.difference(&statics).copied().collect();
     assert_eq!(
         dynamic,
-        BTreeSet::from(["section-untouched", "example-failing", "evidence-changed"])
+        BTreeSet::from([
+            "section-untouched",
+            "contract-effect-understated",
+            "example-failing",
+            "evidence-changed"
+        ])
     );
     assert!(raised.is_disjoint(&dynamic), "{raised:?}");
 }
