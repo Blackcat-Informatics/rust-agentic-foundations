@@ -5,11 +5,41 @@ type: Capability
 id: cap:workplan-strict
 title: "Strict mode"
 description: "An opt-in set of harder rules: examples, claim coverage, explained public items and lines, fuller sections, stated reasons, and a debt record that can only shrink."
-state: designed
+state: implementing
 bindings:
-  code: []
-  tests: []
-  examples: []
+  code:
+    - raf_okf::Strictness
+    - raf_workplan::strict
+    - raf_workplan::Gate::strict
+    - raf_workplan::Gate::strictness
+    - raf_workplan::Opened::strictness_floor
+    - raf_workplan::Workplan::strictness
+    - raf_workplan::Workplan::with_strictness
+  tests:
+    - raf_workplan::strict::tests::under_default_no_unit_of_strict_mode_is_judged_and_under_strict_each_is_judged_once
+    - raf_workplan::test_crate::strict::the_strict_clean_repository_has_no_finding_under_either_strictness
+    - raf_workplan::test_crate::strict::a_capability_with_no_example_is_refused_and_one_with_one_example_is_not
+    - raf_workplan::test_crate::strict::verification_without_the_matrix_is_refused_and_with_the_block_is_not
+    - raf_workplan::test_crate::strict::a_section_of_nineteen_words_is_thin_and_one_of_twenty_is_not
+    - raf_workplan::test_crate::strict::code_spans_fenced_code_comments_and_the_heading_are_not_prose
+    - raf_workplan::test_crate::strict::usage_that_names_no_bound_example_is_refused_and_a_code_span_of_it_is_not
+    - raf_workplan::test_crate::strict::constraints_without_a_list_item_are_refused_and_one_list_item_is_not
+    - raf_workplan::test_crate::strict::a_bound_package_outside_scope_is_enforced_under_strict_and_an_unbound_one_is_not
+    - raf_workplan::test_crate::strict::a_package_of_scope_is_judged_by_the_default_rule_once_under_strict
+    - raf_workplan::test_crate::strict::an_exclusion_of_the_record_takes_a_gap_of_a_bound_package_out
+    - raf_workplan::test_crate::strict::without_a_coverage_record_strict_mode_enforces_no_package
+    - raf_workplan::test_crate::strict::every_strict_case_reports_nothing_under_default
+    - raf_workplan::test_crate::strict::the_strict_findings_are_made_by_check_after_every_other_finding_and_never_by_the_load
+    - raf_workplan::test_crate::strict::the_record_and_the_floor_give_the_stronger_strictness
+    - raf_workplan::test_crate::strict::a_misspelt_strictness_is_a_finding_of_the_record_and_strict_and_default_are_not
+    - raf_workplan::test_crate::strict::a_strict_gate_judges_strict_and_the_workplans_it_opens_keep_its_floor
+    - raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
+    - raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate
+    - raf_workplan::test_crate::bound::a_no_run_example_meets_the_strict_example_rule_and_verify_refuses_it_beside_a_runnable_one
+    - raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key
+    - raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out
+  examples:
+    - raf_workplan::Workplan::strictness
 depends: [cap:workplan-two-way-coverage, cap:workplan-complete-gate, cap:workplan-reconcile, cap:workplan-evidence-claims, cap:workplan-generated-docs, cap:source-index]
 ---
 
@@ -111,7 +141,11 @@ that holds an item that a `code`, `tests` or `examples` binding of a loaded capa
 resolves to, beside the packages of `scope`. A gap of such a package has the kind the
 default rule gives it, `coverage-item-unbound`, `coverage-reexport-unbound`,
 `coverage-test-unbound` or `coverage-surface-unreadable`, and its message says which
-capability binds which path of the package, the reason strict mode enforces it. A
+capability binds which path of the package, the reason strict mode enforces it; a
+surface that cannot be listed is reported at the key `bindings` of that capability,
+and the exclusions of the coverage record apply as they do to `scope`. A repository
+whose coverage record is missing or does not load has no gap of this rule, as it has
+none of `scope`: the record's own finding fails the check. A
 package that no binding reaches and `scope` does not name is not enforced by this
 rule. The strict rules compute this coverage themselves; the default coverage check
 is the same under either strictness.
@@ -332,6 +366,10 @@ fn workplan_is_strict() {
         .assert_clean();
 }
 ```
+
+`raf_workplan::Workplan::strictness` says how hard a loaded repository is judged:
+the stronger of the `strictness` of its coverage record and the floor of
+`Workplan::with_strictness`.
 
 The command line takes the same floor and gives the reports:
 
@@ -596,4 +634,27 @@ visible failure, and the fix is one command.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key` | test | [Verification](#verification) |
+| `raf_workplan::Workplan::strictness` | doctest | [Usage](#usage) |
+| `raf_workplan::strict::tests::under_default_no_unit_of_strict_mode_is_judged_and_under_strict_each_is_judged_once` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bound::a_no_run_example_meets_the_strict_example_rule_and_verify_refuses_it_beside_a_runnable_one` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::a_bound_package_outside_scope_is_enforced_under_strict_and_an_unbound_one_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::a_capability_with_no_example_is_refused_and_one_with_one_example_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::a_misspelt_strictness_is_a_finding_of_the_record_and_strict_and_default_are_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::a_package_of_scope_is_judged_by_the_default_rule_once_under_strict` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::a_section_of_nineteen_words_is_thin_and_one_of_twenty_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::a_strict_gate_judges_strict_and_the_workplans_it_opens_keep_its_floor` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::an_exclusion_of_the_record_takes_a_gap_of_a_bound_package_out` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::code_spans_fenced_code_comments_and_the_heading_are_not_prose` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::constraints_without_a_list_item_are_refused_and_one_list_item_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::every_strict_case_reports_nothing_under_default` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::the_record_and_the_floor_give_the_stronger_strictness` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::the_strict_clean_repository_has_no_finding_under_either_strictness` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::the_strict_findings_are_made_by_check_after_every_other_finding_and_never_by_the_load` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::usage_that_names_no_bound_example_is_refused_and_a_code_span_of_it_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::verification_without_the_matrix_is_refused_and_with_the_block_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::without_a_coverage_record_strict_mode_enforces_no_package` | test | [Verification](#verification) |
 <!-- raf:generated:end -->

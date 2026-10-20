@@ -311,6 +311,7 @@ pub mod root;
 mod rules;
 mod spdx;
 mod staged;
+pub mod strict;
 mod sync;
 mod work;
 
@@ -326,5 +327,6 @@ pub use links::LinkContext;
 pub use lookup::ChangeLookupError;
 pub use model::{Loaded, Workplan};
 pub use preview::{Preview, PreviewError};
+pub use raf_okf::Strictness;
 pub use roadmap::{Gap, OpenChange, Roadmap, RoadmapEntry};
 pub use sync::{SyncError, SyncOptions, SyncReport};

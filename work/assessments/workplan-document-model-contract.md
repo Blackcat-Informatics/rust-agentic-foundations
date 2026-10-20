@@ -7,10 +7,13 @@ subject: cap:workplan-document-model#contract
 inputs:
   - kind: section
     name: cap:workplan-document-model#contract
-    digest: ae30a25a4f6a798b52cb1199a0e8884a1f383dc9b0b3f34909286dcbaa862b30
+    digest: 1588672d6b5e4a6986237bedac528712fc8e354dabf0be61415a7623e11c746d
   - kind: symbol
     name: raf_workplan::Finding
     digest: f43e8c8938a1469f1d0eba8c24854adde16b9f835df2e448ce98a6c83d581555
+  - kind: symbol
+    name: raf_workplan::Gate
+    digest: 2d944159b6b2933fe66e20e3947b8f2dd8fae651f94a82cb914c0ed73d6d57fe
   - kind: symbol
     name: raf_workplan::Graph::assessments_of
     digest: f95b640d68d8ad790e6e074014e8768af5ad6b8101814950470b8fe29bc1a9fb
@@ -42,14 +45,20 @@ inputs:
     name: raf_workplan::LinkContext
     digest: d923ec7e0eb27f6a33e86d9baaaaf47685bbf470f9c605371db7cec641ab2172
   - kind: symbol
+    name: raf_workplan::Opened
+    digest: efe031bddc5fc1cb6ffa0de00cbb1cd7d3ca97e88400e89c85cce2ff1983e7fa
+  - kind: symbol
     name: raf_workplan::Roadmap
     digest: fdb27927871fea87b270dc45eff982f221444db1bcb3b5034221d64c6d51c7f0
+  - kind: symbol
+    name: raf_workplan::Workplan
+    digest: c02a4bfe9529ccbd60acd9ff75bd0cbe5a19d23a98cbb77ddb5fd9768d42bc72
   - kind: symbol
     name: raf_workplan::Workplan::assessments
     digest: e5eb77cccb7f921607f45eff8ebb535c9e91b4eece39ac2e0c08e7206c62fa28
   - kind: symbol
     name: raf_workplan::Workplan::check
-    digest: 0cda2739e1cb428dcf06071147a2d66fbfa9cf06367e81ffbe53adfdd5fffc4f
+    digest: 128b9ff2d889991eafd02e77527d0c9406c347f6dfc8a2c194e1c9ac3420270a
   - kind: symbol
     name: raf_workplan::Workplan::coverage
     digest: e92bf167dc837d99b7cb04e79c432cb7b58cd2bb7accb4d70f3029b18eb9125f

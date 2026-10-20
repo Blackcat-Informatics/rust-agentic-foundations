@@ -63,9 +63,11 @@ architecture pages. `cargo-workplan` is **delivered** with the commands `check`,
 `status`, `docs sync|preview`, `change new|impact|reconcile|complete`, `verify`,
 `history`, `evidence record|claims|for`, `assess` and `coverage code|tests`, their
 contract stated in the command-line capability. Strict mode
-([workplan-strict](docs/capabilities/workplan-strict.md)) is **designed**: it adds
-the global option `--strict` and the commands `coverage claims`, `coverage lines`
-(also spelled `coverage --reverse`) and `debt --write`, and the capabilities it
+([workplan-strict](docs/capabilities/workplan-strict.md)) is **implementing**: the
+`strictness` setting of the coverage record and its rules for the content of a
+delivered capability and for the packages a binding reaches are built, the global
+option `--strict` and the commands `coverage claims`, `coverage lines` (also spelled
+`coverage --reverse`) and `debt --write` are designed, and the capabilities it
 changes are `implementing` beside its open change record. Every other crate below is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
 

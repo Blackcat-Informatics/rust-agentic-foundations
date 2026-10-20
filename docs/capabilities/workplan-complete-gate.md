@@ -240,6 +240,7 @@ bindings:
     - raf_workplan::staged::tests::a_replaced_file_reads_as_its_new_text_within_the_bound
     - raf_workplan::staged::tests::every_other_path_is_answered_as_the_inner_tree_does
     - raf_workplan::staged::tests::the_hidden_file_is_not_read_listed_or_found
+    - raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate
   examples:
     - raf_workplan::bound
     - raf_workplan::exec
@@ -349,12 +350,17 @@ tutorial. The effect does not change condition 6 either: under `contract_effect:
 each authored section in `affects` still needs a current accepted assessment, since
 the people the change reaches read it whether or not its contract moved.
 
+**Strict mode.** Under [strict mode](./workplan-strict.md), set by the coverage
+record or by `Lifecycle::open_with(&gate.strict(), runner)`, the check of the
+repository once the record is removed is judged under strict, at the first
+judgement and at the second one before the writes, since the second opens the
+repository again with the same `Gate`: a finding of strict mode there refuses
+completion as every finding does, and nothing is written.
+
 > [!PROPOSED change:workplan-strict]
-> **Strict mode.** Under [strict mode](./workplan-strict.md), set by the coverage
-> record or by `Lifecycle::open_with(&gate.strict(), runner)` and `--strict`, the six
-> conditions, their order and the check of the repository once the record is removed
-> are judged under strict, and the static conditions are judged the second time under
-> the same strictness. Two of the strict expectations already hold under either
+> **Strict conditions.** Under strict mode the six conditions and their order are
+> judged under strict as the check once the record is removed is. Two of the strict
+> expectations already hold under either
 > strictness: condition 5 runs every test and example binding of every listed
 > capability, as `verify` of the change does, and condition 1 refuses on each
 > `tense-mismatch` of a listed capability. Strict adds two obligations. Condition 1
@@ -872,6 +878,7 @@ Further checks:
 | `raf_workplan::test_crate::complete::hostile_bindings_refuse_and_never_reach_cargo` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::prose_that_links_to_the_record_refuses_because_the_link_is_broken_once_it_is_removed` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::the_cases_cover_every_kind_of_obligation_in_both_directions` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::writes::a_removal_that_fails_reports_the_files_already_rewritten_and_removes_nothing_else` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::writes::a_rewrite_that_fails_leaves_the_record_and_the_blocks_as_they_were` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::a_directory_that_does_not_exist_is_a_spawn_error` | test | [Verification](#verification) |

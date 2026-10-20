@@ -262,6 +262,12 @@ impl From<LoadError> for LifecycleError {
 /// [`Lifecycle::complete`] opens the repository a second time, with the
 /// [`Gate`] it was opened with, to judge it again before it writes.
 ///
+/// The strictness floor of that [`Gate`] ([`Gate::strict`],
+/// [`Gate::strictness`]) is kept: [`Lifecycle::open`] opens with no floor, so the
+/// coverage record alone sets the strictness, and [`Lifecycle::open_with`] over a
+/// strict gate judges the documents of `reconcile` and the check of `complete`
+/// once the record is removed, both times, under strict mode.
+///
 /// ```rust,no_run
 /// use raf_workplan::exec::Programs;
 /// use raf_workplan::lifecycle::Lifecycle;

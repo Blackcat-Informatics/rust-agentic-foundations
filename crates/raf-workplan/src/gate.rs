@@ -11,7 +11,7 @@ use std::fmt::{self, Write as _};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use raf_okf::{DocType, Location};
+use raf_okf::{DocType, Location, Strictness};
 use raf_source::{DiskTree, EntryKind, LoadError, RelPath, Tree, TreeError, Workspace};
 
 use crate::exec::{Programs, SystemRunner};
@@ -165,12 +165,19 @@ impl Error for GateError {
 /// that is on disk and untracked then passes. [`Gate::tracked_paths`] replaces
 /// both with a list the caller owns. A path that is a symlink on disk is a
 /// tracked symlink, and a link to it is `link-symlink`.
+///
+/// [`Gate::strict`] and [`Gate::strictness`] set the least strictness the
+/// gate judges with, its floor: the repository is judged under the stronger of
+/// the floor and the `strictness` of its coverage record
+/// ([`Workplan::strictness`]), and every [`Workplan`] that [`Opened`] gives has
+/// that floor.
 #[derive(Debug, Clone)]
 pub struct Gate {
     dir: PathBuf,
     roots: Vec<String>,
     tracked: Option<Vec<RelPath>>,
     programs: Option<Programs>,
+    floor: Strictness,
 }
 
 impl Gate {
@@ -193,7 +200,36 @@ impl Gate {
             roots: vec![".".to_string()],
             tracked: None,
             programs: None,
+            floor: Strictness::Default,
         }
+    }
+
+    /// Judge the repository under strict mode whatever its coverage record
+    /// says: the same as [`Gate::strictness`] with [`Strictness::Strict`]. A
+    /// repository test can try the mode before its record says it:
+    ///
+    /// ```rust,no_run
+    /// // tests/workplan.rs
+    /// #[test]
+    /// fn workplan_is_strict() {
+    ///     raf_workplan::Gate::workspace(env!("CARGO_MANIFEST_DIR"))
+    ///         .strict()
+    ///         .assert_clean();
+    /// }
+    /// ```
+    #[must_use]
+    pub fn strict(self) -> Self {
+        self.strictness(Strictness::Strict)
+    }
+
+    /// Judge with at least the strictness `floor`. The coverage record can
+    /// raise it and nothing lowers it: a floor below the one already set
+    /// changes nothing, and a record that says `strictness: strict` is judged
+    /// strict under any floor.
+    #[must_use]
+    pub fn strictness(mut self, floor: Strictness) -> Self {
+        self.floor = self.floor.max(floor);
+        self
     }
 
     /// Load the source workspace from these roots, relative to the directory,
@@ -262,6 +298,7 @@ impl Gate {
             workspace,
             tracked,
             symlinks,
+            floor: self.floor,
         })
     }
 
@@ -360,7 +397,9 @@ impl Gate {
 /// beside it: [`Opened::workplan`] loads them from the tree, as they are on
 /// disk at that call. A caller that rewrites the files loads again to see the
 /// result. The links are judged against the tracked paths and tracked symlinks
-/// the open found ([`Opened::links`]).
+/// the open found ([`Opened::links`]). Each [`Workplan`] it gives is judged
+/// with at least the strictness floor of the [`Gate`]
+/// ([`Opened::strictness_floor`]).
 ///
 /// ```rust,no_run
 /// use raf_workplan::Gate;
@@ -377,6 +416,7 @@ pub struct Opened {
     workspace: Workspace,
     tracked: Option<Vec<RelPath>>,
     symlinks: Vec<RelPath>,
+    floor: Strictness,
 }
 
 impl Opened {
@@ -417,17 +457,27 @@ impl Opened {
         }
     }
 
+    /// The strictness floor of the [`Gate`] that opened the repository:
+    /// [`Strictness::Default`] unless [`Gate::strict`] or
+    /// [`Gate::strictness`] raised it.
+    #[must_use]
+    pub fn strictness_floor(&self) -> Strictness {
+        self.floor
+    }
+
     /// The documents of the repository as they are on disk now, related to the
-    /// source workspace.
+    /// source workspace, judged with the strictness floor of the [`Gate`].
     #[must_use]
     pub fn workplan(&self) -> Workplan<'_> {
-        Workplan::load_with(&self.tree, &self.workspace, &self.links())
+        Workplan::load_with(&self.tree, &self.workspace, &self.links()).with_strictness(self.floor)
     }
 
     /// The documents as they will be once the file `hidden` is removed and the
     /// files of `replaced` hold their new text: the tree shows exactly that,
     /// and the links are judged against the tracked paths without the removed
-    /// file, so a link to it is broken. Nothing is written.
+    /// file, so a link to it is broken. Nothing is written. The workplan is
+    /// judged with the strictness floor of the [`Gate`], as
+    /// [`Opened::workplan`] is.
     pub(crate) fn workplan_after(
         &self,
         hidden: &RelPath,
@@ -445,7 +495,7 @@ impl Opened {
             }
             None => LinkContext::of_tree(&tree),
         };
-        Workplan::load_with(&tree, &self.workspace, &links)
+        Workplan::load_with(&tree, &self.workspace, &links).with_strictness(self.floor)
     }
 }
 

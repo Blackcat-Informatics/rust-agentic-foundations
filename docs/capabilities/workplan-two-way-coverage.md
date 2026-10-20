@@ -44,6 +44,9 @@ bindings:
     - raf_workplan::coverage::tests::an_exclusion_that_another_matches_first_is_marked_and_only_one_that_matches_nothing_is_reported
     - raf_workplan::coverage::tests::the_index_finds_the_first_match_and_marks_what_testing_every_exclusion_finds
     - raf_workplan::coverage::tests::equal_exclusions_on_a_hand_built_list_are_both_marked_and_the_first_is_the_match
+    - raf_workplan::test_crate::strict::a_bound_package_outside_scope_is_enforced_under_strict_and_an_unbound_one_is_not
+    - raf_workplan::test_crate::strict::a_package_of_scope_is_judged_by_the_default_rule_once_under_strict
+    - raf_workplan::test_crate::strict::an_exclusion_of_the_record_takes_a_gap_of_a_bound_package_out
   examples:
     - raf_workplan::Workplan::coverage_report
 depends: [cap:workplan-document-model, cap:source-index, cap:workplan-evidence-claims]
@@ -156,16 +159,20 @@ whose fix is to add the record; a record that does not load is reported by its o
 findings and not as missing. `scope: []` enforces no crate and says so in the
 repository. These kinds are in the closed list of finding kinds.
 
+**Strict mode.** Under [strict mode](./workplan-strict.md) the same two directions
+are also enforced for every package that holds an item a `code`, `tests` or
+`examples` binding of a loaded capability resolves to, with the same four kinds and
+the same exclusions; the message of a gap of a package that only strict mode enforces
+says which capability binds which path of it, in place of the coverage record, and a
+surface of such a package that cannot be listed is reported at the `bindings` of
+that capability. The strict rules compute that coverage themselves, so `check` under
+`default` and the reports are the same whatever the strictness. The coverage record
+also takes the key `strictness`, which strict mode reads and this capability does
+not; the direction table gains no row.
+
 > [!PROPOSED change:workplan-strict]
-> **Strict mode.** Under [strict mode](./workplan-strict.md) the same two directions
-> are also enforced for every package that holds an item a `code`, `tests` or
-> `examples` binding of a loaded capability resolves to, with the same four kinds; the
-> message of a gap of a package that only strict mode enforces says which capability
-> binds which path of it, in place of the coverage record. The strict rules compute
-> that coverage themselves, so `check` under `default` and the reports are the same
-> whatever the strictness. The coverage record also takes the keys `strictness`,
-> `ceilings` and `exceptions`, which strict mode and its line report read and this
-> capability does not; the direction table gains no row.
+> The coverage record also takes the keys `ceilings` and `exceptions`, which the line
+> report of strict mode reads and this capability does not.
 
 **The account.** For a repository revision the coverage reports name every gap in
 either direction for the whole workspace, so the current account is complete or
@@ -224,9 +231,10 @@ exclusions:
   and binary target of the workspace once. The order is by crate and path, the same
   on every run.
 
+- Under strict mode `check` also lists, once for each check, the surface of each
+  library and binary target of a package outside `scope` that a binding reaches.
+
 > [!PROPOSED change:workplan-strict]
-> - Under strict mode `check` also lists the surface of each library and binary
->   target of a package a binding reaches, once per load.
 > - An exclusion takes an item or a test out of the two directions only. The line
 >   report of strict mode reads its own `exceptions`, so an excluded item whose lines
 >   nothing covers is orphan there until an exception names it with its reason.
@@ -356,4 +364,7 @@ stops compiling or running it receives an `example-failing` obligation.
 | `raf_workplan::test_crate::coverage::the_table_and_the_json_carry_the_same_entries_escaped` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::coverage::this_repository_enforces_the_workplan_crates_and_they_are_covered` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::coverage::without_a_record_check_has_exactly_one_finding_that_says_to_add_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::a_bound_package_outside_scope_is_enforced_under_strict_and_an_unbound_one_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::a_package_of_scope_is_judged_by_the_default_rule_once_under_strict` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::an_exclusion_of_the_record_takes_a_gap_of_a_bound_package_out` | test | [Verification](#verification) |
 <!-- raf:generated:end -->

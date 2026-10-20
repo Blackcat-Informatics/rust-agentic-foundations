@@ -61,6 +61,10 @@ pub(crate) enum Work {
     ParagraphBytes,
     /// A line compared while the first prose line of a range is found.
     RangeStarts,
+    /// A unit judged by the rules of strict mode: a delivered capability
+    /// judged by the content rules, or a package that strict mode alone
+    /// enforces.
+    StrictUnits,
 }
 
 /// A set that can be asked whether it holds a value.
@@ -113,7 +117,7 @@ impl<S> Counted<S> {
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 21;
+const KINDS: usize = 22;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -139,6 +143,7 @@ const ALL: [Work; KINDS] = [
     Work::NamedLookups,
     Work::ParagraphBytes,
     Work::RangeStarts,
+    Work::StrictUnits,
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].

@@ -13,7 +13,7 @@ inputs:
     digest: 16ca22b64d06956c48d1f8df708840f0d406ee752c06890b5e3dc5d27a8d5517
   - kind: symbol
     name: raf_workplan::Gate::workspace
-    digest: c4e7edf4cca27f743ef4bef3142857e176c5d28c933a45cebfff0e976d603947
+    digest: 96b86d75fc6034b628c5141e31aa8f87bf45724b2933e289ee85b007e5fb9c28
   - kind: symbol
     name: raf_workplan::Workplan::assessments
     digest: e5eb77cccb7f921607f45eff8ebb535c9e91b4eece39ac2e0c08e7206c62fa28

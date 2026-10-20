@@ -37,7 +37,7 @@ inputs:
     digest: c76430b86eec0d5f69a21cab58487a83f02da7c7f14416f4e30ce4afac0b7a95
   - kind: symbol
     name: raf_workplan::lifecycle
-    digest: f7fa3ee4da0e2f0e9655f922ebb2491e136eb00ea8482912a2b1cc189f830295
+    digest: 4ba659e8b74a67ac49cac25ff4a2e93b7a5aaf766e964bdc5fb361d834c364ec
   - kind: symbol
     name: raf_workplan::lifecycle::Impact
     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
@@ -61,7 +61,7 @@ inputs:
     digest: e06f6932f7a3f48e86afee6bf34ccdd62165d8cf47a430820690bc09696e0bdc
   - kind: symbol
     name: raf_workplan::obligation
-    digest: 535d249aef96cf89337895d363a88a31c2ea821f411286d8603faaa70d98c930
+    digest: 88e4bec306f0d7277c1e7f8333cef2fbdfa96cac7e6b2451eed5d108a0947f68
   - kind: symbol
     name: raf_workplan::obligation::ClaimProblem
     digest: 326c239924ff76836c168c30cfe1286e5f1095150e492064d5c833d6e6afab29

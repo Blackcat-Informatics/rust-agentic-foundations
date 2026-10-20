@@ -604,6 +604,59 @@ fn a_prefixed_slug_names_the_same_change() {
     assert!(!fixture.exists(RECORD));
 }
 
+/// A strict gate judges the repository once the record is removed under strict
+/// mode, as `check` under that gate does: the delivered capability of the
+/// fixture holds one sentence in each section and binds no example, so that
+/// check refuses, writes nothing and runs no `cargo`. The default gate completes
+/// the same change.
+#[test]
+fn the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate() {
+    let fixture = Fixture::scripted(&Spec::default());
+    let before = fixture.snapshot();
+    let strict = Lifecycle::open_with(&fixture.gate().strict(), passing(git_answers(), "passes"))
+        .unwrap_or_else(|error| panic!("the fixture opens: {error}"));
+    assert_eq!(
+        strict.opened().strictness_floor(),
+        raf_workplan::Strictness::Strict
+    );
+    let completion = strict.complete("shape").expect("complete answers");
+    let failures = refusal(&completion);
+    assert!(
+        failures
+            .iter()
+            .all(|failure| failure.condition() == Condition::AfterRemoval),
+        "{completion}"
+    );
+    let names: Vec<&str> = failures.iter().map(Failure::name).collect();
+    for kind in [
+        "strict-example-missing",
+        "strict-section-thin",
+        "strict-usage-unbound",
+        "strict-limitations-missing",
+    ] {
+        assert!(names.contains(&kind), "{kind} in {names:?}");
+    }
+    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+    assert!(
+        !programs_of(
+            &strict
+                .runner()
+                .calls()
+                .iter()
+                .map(Call::command)
+                .collect::<Vec<_>>()
+        )
+        .contains(&"cargo"),
+        "a static refusal runs no cargo"
+    );
+
+    let completion = fixture
+        .over(passing(git_answers(), "passes"))
+        .complete("shape")
+        .expect("complete answers");
+    assert!(completion.is_completed(), "{completion}");
+}
+
 /// The record is removed through real directories only. A linked `work`
 /// inside the root, made after the repository is opened, is refused before
 /// any `cargo` process or write, with the record behind it kept; a linked

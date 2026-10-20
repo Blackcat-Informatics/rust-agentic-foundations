@@ -72,6 +72,11 @@ kinds! {
     GENERATED_MISPLACED = "generated-misplaced";
     INDEX_HAND_WRITTEN = "index-hand-written";
     MIXED_LINE_ENDINGS = "mixed-line-endings";
+    STRICT_EXAMPLE_MISSING = "strict-example-missing";
+    STRICT_MATRIX_MISSING = "strict-matrix-missing";
+    STRICT_SECTION_THIN = "strict-section-thin";
+    STRICT_USAGE_UNBOUND = "strict-usage-unbound";
+    STRICT_LIMITATIONS_MISSING = "strict-limitations-missing";
     OKF_MISSING_KEY = "okf-missing-key";
     OKF_UNKNOWN_KEY = "okf-unknown-key";
     OKF_RESOURCE_KEY = "okf-resource-key";
@@ -295,6 +300,11 @@ impl Finding {
     ///   generated block, other than its SPDX comment.
     /// * `mixed-line-endings`: the body of a document mixes CRLF and LF line
     ///   endings, so sync refuses to rewrite it.
+    /// * `strict-example-missing`, `strict-matrix-missing`,
+    ///   `strict-section-thin`, `strict-usage-unbound` and
+    ///   `strict-limitations-missing`: the rules of strict mode for a delivered
+    ///   capability, judged only when [`crate::Workplan::strictness`] is
+    ///   [`crate::Strictness::Strict`]; see [`crate::strict`].
     pub const KINDS: &'static [&'static str] = ALL_KINDS;
 
     /// The heading of the section the finding is in, when its location is a

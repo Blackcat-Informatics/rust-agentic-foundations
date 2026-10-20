@@ -20,6 +20,7 @@ pub(crate) mod project;
 pub(crate) mod story;
 pub(crate) mod streaming;
 pub(crate) mod streaming_code;
+pub(crate) mod strict;
 pub(crate) mod synced;
 pub(crate) mod window;
 pub(crate) mod window_code;
@@ -28,7 +29,7 @@ use std::collections::BTreeMap;
 
 use raf_okf::Location;
 use raf_source::{MemoryTree, RelPath, Workspace};
-use raf_workplan::{Finding, LinkContext, Workplan};
+use raf_workplan::{Finding, LinkContext, Strictness, Workplan};
 
 /// Path to text, as the repository holds them.
 pub(crate) type Repo = BTreeMap<String, String>;
@@ -121,8 +122,21 @@ pub(crate) fn workspace_of(files: &[(&'static str, String)]) -> Workspace {
 /// Load `repo` through a memory tree against `workspace` and return every
 /// finding but those that only say the repository is not synced.
 pub(crate) fn check_in(repo: &Repo, workspace: &Workspace) -> Vec<Finding> {
+    check_in_with(repo, workspace, Strictness::Default)
+}
+
+/// As [`check_in`], judged with the strictness floor `strictness`.
+pub(crate) fn check_in_with(
+    repo: &Repo,
+    workspace: &Workspace,
+    strictness: Strictness,
+) -> Vec<Finding> {
     let tree: MemoryTree = repo.iter().collect();
-    without_sync_findings(Workplan::load(&tree, workspace).check())
+    without_sync_findings(
+        Workplan::load(&tree, workspace)
+            .with_strictness(strictness)
+            .check(),
+    )
 }
 
 /// Load `repo` through a memory tree and return every finding.

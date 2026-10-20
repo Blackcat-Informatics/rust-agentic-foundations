@@ -7,9 +7,10 @@
 use std::fmt::Write as _;
 
 use raf_okf::{DocType, ErrorTag, Location, MAX_TEXT_BYTES, MAX_YAML_DEPTH, Rule, RuleTag};
-use raf_workplan::Finding;
+use raf_workplan::{Finding, Strictness};
 
 use super::fixtures::{ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, OVERVIEW_LINK, bound, mutate, valid};
+use super::strict as fixture;
 use super::synced::{self, check_all};
 use super::{COVERAGE, Repo, check_with_symlinks, key, line_of, section};
 
@@ -34,6 +35,8 @@ pub(crate) struct Case {
     pub(crate) unfiltered: bool,
     /// The source workspace, when it is not the demo workspace.
     pub(crate) source: Option<Vec<(&'static str, String)>>,
+    /// The strictness floor the case is judged with.
+    pub(crate) strictness: Strictness,
 }
 
 impl Case {
@@ -48,7 +51,15 @@ impl Case {
             symlinks: Vec::new(),
             unfiltered: false,
             source: None,
+            strictness: Strictness::Default,
         }
+    }
+
+    /// A case judged with the strictness floor `strictness`, against the
+    /// source workspace the case names.
+    pub(crate) fn strict(mut self, strictness: Strictness) -> Self {
+        self.strictness = strictness;
+        self
     }
 
     /// A case judged against the source workspace of `files`.
@@ -87,8 +98,14 @@ impl Case {
     /// Run the case and return every finding.
     pub(crate) fn run(&self) -> Vec<Finding> {
         if let Some(files) = &self.source {
-            return super::check_in(&self.repo, &super::workspace_of(files));
+            return super::check_in_with(&self.repo, &super::workspace_of(files), self.strictness);
         }
+        assert_eq!(
+            self.strictness,
+            Strictness::Default,
+            "{}: a strict case names its source workspace",
+            self.name
+        );
         if self.unfiltered {
             check_all(&self.repo)
         } else {
@@ -1165,6 +1182,172 @@ pub(crate) fn all_cases() -> Vec<Case> {
     cases.extend(generated_cases());
     cases.extend(coverage_cases());
     cases.extend(rationale_cases());
+    cases.extend(strict_cases());
+    cases
+}
+
+/// The strict-clean repository with the edit `edit` made to its files.
+fn strict_repo(edit: impl FnOnce(&mut Repo)) -> Repo {
+    let mut repo: Repo = fixture::documents()
+        .into_iter()
+        .map(|(path, text)| (path.to_string(), text))
+        .collect();
+    edit(&mut repo);
+    repo
+}
+
+/// The strict-clean repository with its capability document replaced by
+/// `capability`.
+fn strict_capability(capability: String) -> Repo {
+    strict_repo(|repo| {
+        repo.insert(fixture::CAPABILITY.to_string(), capability);
+    })
+}
+
+/// The source files of the strict-clean repository with `extra` added to the
+/// file `path`.
+fn strict_source(path: &str, extra: &str) -> Vec<(&'static str, String)> {
+    let mut files = fixture::source_files();
+    let file = files
+        .iter_mut()
+        .find(|(name, _)| *name == path)
+        .unwrap_or_else(|| panic!("the strict source has no {path}"));
+    file.1.push_str(extra);
+    files
+}
+
+/// The cases of strict mode: the strict-clean repository with one rule broken,
+/// judged under strict. Each reports nothing under `default`.
+pub(crate) fn strict_cases() -> Vec<Case> {
+    let strict = |name: &str, repo: Repo, kind: &str, file: &str, at: Location| {
+        Case::new(name, repo, kind, file, at)
+            .source(fixture::source_files())
+            .strict(Strictness::Strict)
+    };
+    let capability = fixture::capability();
+    let mut cases = vec![
+        // With no example, no example can be named in Usage either.
+        strict(
+            "strict-example-missing",
+            strict_capability(fixture::replaced(
+                &capability,
+                fixture::EXAMPLES,
+                "  examples: []\n",
+            )),
+            "strict-example-missing",
+            fixture::CAPABILITY,
+            key("bindings"),
+        )
+        .also(&["strict-usage-unbound"]),
+        strict(
+            "strict-matrix-missing",
+            strict_capability(fixture::replaced(
+                &capability,
+                &format!("\n{}", fixture::MATRIX),
+                "",
+            )),
+            "strict-matrix-missing",
+            fixture::CAPABILITY,
+            section("Verification"),
+        ),
+        strict(
+            "strict-section-thin",
+            strict_capability(fixture::thin("Examples")),
+            "strict-section-thin",
+            fixture::CAPABILITY,
+            section("Examples"),
+        ),
+        strict(
+            "strict-usage-unbound",
+            strict_capability(fixture::replaced(
+                &capability,
+                fixture::USAGE_SPAN,
+                "Call it once.",
+            )),
+            "strict-usage-unbound",
+            fixture::CAPABILITY,
+            section("Usage"),
+        ),
+        strict(
+            "strict-limitations-missing",
+            strict_capability(fixture::replaced(
+                &capability,
+                fixture::LIMITATION,
+                "One limitation of the demo.",
+            )),
+            "strict-limitations-missing",
+            fixture::CAPABILITY,
+            section("Constraints"),
+        ),
+    ];
+    cases.extend(strict_coverage_cases());
+    cases
+}
+
+/// The cases of strict mode for the package the capability binds, which
+/// strict mode alone enforces, with the kinds of two-way coverage.
+fn strict_coverage_cases() -> Vec<Case> {
+    let strict = |name: &str, kind: &str, file: &str, at: Location| {
+        Case::new(name, strict_repo(|_| {}), kind, file, at).strict(Strictness::Strict)
+    };
+    let mut cases = Vec::new();
+    let lib = |extra: &str| strict_source(fixture::LIB, extra);
+    let at = |files: &[(&'static str, String)], path: &str, needle: &str| {
+        let text = &files
+            .iter()
+            .find(|(name, _)| *name == path)
+            .expect("the file is there")
+            .1;
+        Location::Line(line_of(text, needle))
+    };
+    let unbound = lib("pub fn extra() {}\n");
+    let line = at(&unbound, fixture::LIB, "pub fn extra");
+    cases.push(
+        strict(
+            "strict-coverage-item-unbound-of-a-bound-package",
+            "coverage-item-unbound",
+            fixture::LIB,
+            line,
+        )
+        .source(unbound),
+    );
+    let tests = strict_source("tests/it.rs", "#[test]\nfn other() {}\n");
+    let line = at(&tests, "tests/it.rs", "fn other");
+    cases.push(
+        strict(
+            "strict-coverage-test-unbound-of-a-bound-package",
+            "coverage-test-unbound",
+            "tests/it.rs",
+            line,
+        )
+        .source(tests),
+    );
+    let made = lib(
+        "mod made {\n    macro_rules! make {\n        () => {\n            pub struct Made;\n        };\n    }\n    make!();\n}\npub use made::Made;\n",
+    );
+    let line = at(&made, fixture::LIB, "pub use made::Made");
+    cases.push(
+        strict(
+            "strict-coverage-reexport-unbound-of-a-bound-package",
+            "coverage-reexport-unbound",
+            fixture::LIB,
+            line,
+        )
+        .source(made),
+    );
+    // Two globs bring `dup` in twice, so the surface cannot be listed: the
+    // capability whose binding reaches the package is told.
+    cases.push(
+        strict(
+            "strict-coverage-surface-unreadable-of-a-bound-package",
+            "coverage-surface-unreadable",
+            fixture::CAPABILITY,
+            key("bindings"),
+        )
+        .source(lib(
+            "pub mod left {\n    pub fn dup() {}\n}\npub mod right {\n    pub fn dup() {}\n}\npub use left::*;\npub use right::*;\n",
+        )),
+    );
     cases
 }
 

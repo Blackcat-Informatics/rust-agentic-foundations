@@ -318,6 +318,9 @@ bindings:
     - raf_workplan::work::tests::the_result_of_the_closure_is_returned
     - raf_workplan::work::tests::the_tallies_are_reset_between_measures
     - raf_workplan::test_crate::digest::a_module_stands_for_its_files_and_the_modules_below_it_and_a_sibling_does_not_move_it
+    - raf_workplan::test_crate::strict::the_record_and_the_floor_give_the_stronger_strictness
+    - raf_workplan::test_crate::strict::the_strict_findings_are_made_by_check_after_every_other_finding_and_never_by_the_load
+    - raf_workplan::test_crate::strict::a_strict_gate_judges_strict_and_the_workplans_it_opens_keep_its_floor
   examples:
     - raf_workplan::Gate
     - raf_workplan::LinkContext
@@ -420,19 +423,27 @@ nothing, so a repository without records loads and reports no finding of the rec
 rules; that it has no coverage record is the one finding
 [two-way coverage](./workplan-two-way-coverage.md) gives it.
 
+**Strictness.** `Workplan::strictness` returns how hard `check` judges the
+repository: the stronger of the coverage record's `strictness` and the floor that
+`Workplan::with_strictness` sets. A record without the key, a record that does not
+load and a workplan with no floor count as `Strictness::Default`, and a floor below
+the one already set changes nothing, so a caller can raise the strictness and
+nothing lowers it. `Gate::strict()` and `Gate::strictness(floor)` set the floor of
+a `Gate` in the same way, `Opened::strictness_floor` returns it, and every
+`Workplan` an `Opened` gives has that floor, the one that `change complete` checks
+once the record is removed included. Under `Strictness::Strict`, `Workplan::check`
+appends the findings of the rules of [strict mode](./workplan-strict.md) after those
+of the rules below; under `Strictness::Default` it judges no rule of strict mode.
+The load judges none of them, so `Workplan::findings` is the same under either
+strictness.
+
 > [!PROPOSED change:workplan-strict]
 > `Workplan::load` also reads the strict debt record `work/debt/default.md` of
 > [strict mode](./workplan-strict.md) (`Workplan::debt`), and `work/debt` holds only
 > `default.md`, as `work/coverage` does: any other file there is
 > `singleton-other-file`. A repository without the directory has no debt record,
-> which is no finding. `Workplan::strictness` returns the stronger of the
-> coverage record's `strictness` and the floor that `Workplan::with_strictness` sets;
-> a record without the key, and a record that does not load, count as
-> `Strictness::Default`. `Gate::strict()` and `Gate::strictness(floor)` set the floor of a `Gate`, and
-> `Opened::workplan` and `Opened::workplan_after` give a `Workplan` with that floor.
-> Under `Strictness::Strict`, `Workplan::check` appends the findings of the strict
-> rules after those of the rules below and then applies the debt record; under
-> `Strictness::Default` it judges no strict rule.
+> which is no finding. Under `Strictness::Strict`, `Workplan::check` applies the debt
+> record after the findings of the rules of strict mode.
 
 **The graph.** `raf-workplan` builds a graph (`Workplan::graph`) from the documents
 and the source.
@@ -517,7 +528,9 @@ are empty and the bindings that do not resolve.
   assessment of that section has (`assessment-id-mismatch`); and a `scope` entry
   that is no package of the source workspace (`scope-crate-missing`). A name whose
   document or record exists and is broken is explained by the findings of that
-  file.
+  file;
+- under strict, the rules of [strict mode](./workplan-strict.md), each a `Finding`
+  of a kind in `Finding::KINDS` with its file, location and fix.
 
 > [!PROPOSED change:workplan-strict]
 > - under either strictness, the rules of the syntax and the records of strict mode:
@@ -526,9 +539,8 @@ are empty and the bindings that do not resolve.
 >   nothing (`coverage-exception-unmatched`), a `ceilings` row whose `crate` is no
 >   package of the source workspace (`scope-crate-missing`), and a debt record while
 >   the repository is judged under `default` (`debt-without-strict`);
-> - under strict, the rules of [strict mode](./workplan-strict.md), each a `Finding`
->   of a kind in `Finding::KINDS` with its file, location and fix, and the debt
->   record's own kinds, `debt-resolved` and `debt-entry-invalid`.
+> - under strict, the debt record's own kinds, `debt-resolved` and
+>   `debt-entry-invalid`.
 
 Markdown outside the document directories, such as a README, is judged by the same
 link, marker and reference rules through `raf_workplan::plain::check`.
@@ -1017,6 +1029,9 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::states::rejects_proposed_section_missing_from_affects` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::surfaces_the_single_document_state_rules_from_the_profile` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::the_blocks_of_a_capability_that_does_not_validate_still_name_a_record` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::a_strict_gate_judges_strict_and_the_workplans_it_opens_keep_its_floor` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::the_record_and_the_floor_give_the_stronger_strictness` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::the_strict_findings_are_made_by_check_after_every_other_finding_and_never_by_the_load` | test | [Verification](#verification) |
 | `raf_workplan::work::tests::a_counter_increments_by_what_is_added` | test | [Verification](#verification) |
 | `raf_workplan::work::tests::a_limited_kind_panics_at_its_ceiling` | test | [Verification](#verification) |
 | `raf_workplan::work::tests::a_limited_measure_counts_the_other_kinds_without_a_ceiling` | test | [Verification](#verification) |

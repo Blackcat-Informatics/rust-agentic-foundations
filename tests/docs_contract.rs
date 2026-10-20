@@ -101,7 +101,7 @@ const INVENTORY: Inventory = Inventory {
         ("workplan-generated-docs", "implementing"),
         ("workplan-prose-assessment", "delivered"),
         ("workplan-reconcile", "implementing"),
-        ("workplan-strict", "designed"),
+        ("workplan-strict", "implementing"),
         ("workplan-two-way-coverage", "implementing"),
     ],
     changes: &[
@@ -1278,8 +1278,8 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|(_, state)| *state == wanted)
             .count()
     };
-    assert_eq!(count("designed"), 10);
-    assert_eq!(count("implementing"), 8);
+    assert_eq!(count("designed"), 9);
+    assert_eq!(count("implementing"), 9);
     assert_eq!(count("delivered"), 4);
     assert_eq!(count("considered"), 0);
     let changes: BTreeSet<&str> = INVENTORY.changes.iter().map(|(s, _)| *s).collect();

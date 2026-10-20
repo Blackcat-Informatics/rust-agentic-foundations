@@ -14,7 +14,7 @@ use raf_workplan::Finding;
 use support::cases::all_cases;
 
 /// The kinds that name a rule of this crate.
-const OWN_KINDS: [&str; 48] = [
+const OWN_KINDS: [&str; 53] = [
     "wrong-directory",
     "nested-directory",
     "stray-markdown",
@@ -63,6 +63,11 @@ const OWN_KINDS: [&str; 48] = [
     "generated-misplaced",
     "index-hand-written",
     "mixed-line-endings",
+    "strict-example-missing",
+    "strict-matrix-missing",
+    "strict-section-thin",
+    "strict-usage-unbound",
+    "strict-limitations-missing",
 ];
 
 #[test]

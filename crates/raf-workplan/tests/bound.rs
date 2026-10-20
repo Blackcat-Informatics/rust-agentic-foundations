@@ -736,6 +736,98 @@ fn documentation_tests_follow_the_rules_in_edition_2024() {
     doc_rules("2024");
 }
 
+/// A delivered capability of the fixture `fx-strict-docs` that binds the
+/// documentation test of `example`, or nothing when it is empty.
+fn strict_capability(slug: &str, example: &str) -> String {
+    let examples = if example.is_empty() {
+        String::new()
+    } else {
+        format!("fx_strict_docs::{example}")
+    };
+    let mut sections = String::new();
+    for name in [
+        "Purpose",
+        "Contract",
+        "Usage",
+        "Examples",
+        "Constraints",
+        "Explanation",
+        "Verification",
+    ] {
+        write!(sections, "## {name}\n\nText for {name}.\n\n").unwrap();
+    }
+    format!(
+        "---\ntype: Capability\nid: cap:{slug}\ntitle: Fixture\ndescription: Fixture.\n\
+         state: delivered\nbindings:\n  code: [fx_strict_docs::good]\n  \
+         tests: [fx_strict_docs::test_crate::it::case]\n  examples: [{examples}]\n\
+         depends: []\n---\n\n# Fixture\n\n{sections}"
+    )
+}
+
+/// Under strict mode the example rule asks a delivered capability for a bound
+/// example and judges no run: a binding whose only documentation test is
+/// `no_run` satisfies it, as one that runs does, while no binding is
+/// `strict-example-missing`. That the example runs is proven by `verify`, the
+/// run that condition 5 of the completion gate shares, which refuses the
+/// `no_run` test and passes the runnable one beside it.
+#[test]
+fn a_no_run_example_meets_the_strict_example_rule_and_verify_refuses_it_beside_a_runnable_one() {
+    let fixture = Fixture::new(
+        "fx-strict-docs",
+        "2021",
+        "",
+        &[
+            ("src/lib.rs", &docs_lib("fx_strict_docs")),
+            ("src/more.rs", "//! More of the fixture.\n"),
+            ("tests/it.rs", "#[test]\nfn case() {}\n"),
+            (
+                "work/coverage/default.md",
+                "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n",
+            ),
+            (
+                "docs/capabilities/norun.md",
+                &strict_capability("norun", "norun"),
+            ),
+            (
+                "docs/capabilities/good.md",
+                &strict_capability("good", "good"),
+            ),
+            ("docs/capabilities/none.md", &strict_capability("none", "")),
+        ],
+    );
+    let gate = raf_workplan::Gate::workspace(&fixture.dir)
+        .tracked_paths(Vec::new())
+        .strict();
+    let opened = gate.open().expect("the fixture opens");
+    let missing: Vec<String> = opened
+        .workplan()
+        .check()
+        .into_iter()
+        .filter(|finding| finding.kind == "strict-example-missing")
+        .map(|finding| finding.file)
+        .collect();
+    assert_eq!(missing, ["docs/capabilities/none.md"]);
+
+    let report =
+        raf_workplan::lifecycle::verify(&opened, &fixture.runner(), None).expect("verify runs");
+    let example = |capability: &str| {
+        report
+            .evidence()
+            .iter()
+            .find(|evidence| {
+                evidence.capability() == capability
+                    && evidence.kind() == raf_workplan::BindingKind::Example
+            })
+            .unwrap_or_else(|| panic!("{capability} has an example: {report:#?}"))
+    };
+    let norun = example("cap:norun");
+    let refusal = unresolved(norun);
+    assert!(matches!(refusal, Refusal::DocNotRunnable { .. }), "{norun}");
+    assert!(refusal.to_string().contains("bind a runnable doc test"));
+    passed(example("cap:good"));
+    assert!(!report.passed(), "{report:#?}");
+}
+
 #[test]
 fn an_item_path_that_begins_with_a_hyphen_never_reaches_cargo() {
     let fixture = docs_fixture("2021");

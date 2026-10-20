@@ -629,47 +629,14 @@ fn findings(
             "make every public name of the crate resolve to one item (the error names the file and line), raise the item-bytes budget of the load, or remove the crate from `scope`; a crate whose surface cannot be read is not judged covered",
         ));
     }
+    let enforced = format!("the coverage record {} enforces", loaded.path());
     for gap in report
         .code
         .iter()
         .chain(&report.tests)
         .filter(|g| gaps && scope.contains(g.package.as_str()))
     {
-        let (kind, fix) = match gap.kind {
-            GapKind::PublicItem => (
-                kind::COVERAGE_ITEM_UNBOUND,
-                "bind the item, or an item it is below, in the `bindings.code` of the capability that explains it, or exclude it in the coverage record with the reason it needs no explanation",
-            ),
-            GapKind::Reexport => (
-                kind::COVERAGE_REEXPORT_UNBOUND,
-                "bind a module the re-export is below in the `bindings.code` of the capability that explains it (the index cannot follow the re-export to an item, so the path itself cannot be bound), or exclude it in the coverage record with the reason it needs no explanation",
-            ),
-            GapKind::Test => (
-                kind::COVERAGE_TEST_UNBOUND,
-                "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none",
-            ),
-        };
-        let defined = match gap.kind {
-            _ if gap.item == gap.path => String::new(),
-            GapKind::Reexport => format!(
-                " (naming `{}`, which the source index cannot follow to an item)",
-                gap.item
-            ),
-            _ => format!(" (defined as `{}`)", gap.item),
-        };
-        out.push(Finding::new(
-            kind,
-            &gap.file,
-            Location::Line(gap.line),
-            format!(
-                "the {} `{}`{defined} of `{}`, which the coverage record {} enforces, is bound by no capability and excluded by no exclusion",
-                gap.kind,
-                gap.path,
-                gap.package,
-                loaded.path()
-            ),
-            fix,
-        ));
+        out.push(gap_finding(gap, &enforced));
     }
     for (exclusion, matched) in loaded.value().exclusions.iter().zip(&computed.matched) {
         if !matched {
@@ -688,10 +655,49 @@ fn findings(
     out
 }
 
+/// The finding of a gap of a package that `enforced` says why it is
+/// enforced, as the clause after `which`: `coverage-item-unbound`,
+/// `coverage-reexport-unbound` or `coverage-test-unbound` at the file and line
+/// of the gap.
+pub(crate) fn gap_finding(gap: &Gap, enforced: &str) -> Finding {
+    let (kind, fix) = match gap.kind {
+        GapKind::PublicItem => (
+            kind::COVERAGE_ITEM_UNBOUND,
+            "bind the item, or an item it is below, in the `bindings.code` of the capability that explains it, or exclude it in the coverage record with the reason it needs no explanation",
+        ),
+        GapKind::Reexport => (
+            kind::COVERAGE_REEXPORT_UNBOUND,
+            "bind a module the re-export is below in the `bindings.code` of the capability that explains it (the index cannot follow the re-export to an item, so the path itself cannot be bound), or exclude it in the coverage record with the reason it needs no explanation",
+        ),
+        GapKind::Test => (
+            kind::COVERAGE_TEST_UNBOUND,
+            "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none",
+        ),
+    };
+    let defined = match gap.kind {
+        _ if gap.item == gap.path => String::new(),
+        GapKind::Reexport => format!(
+            " (naming `{}`, which the source index cannot follow to an item)",
+            gap.item
+        ),
+        _ => format!(" (defined as `{}`)", gap.item),
+    };
+    Finding::new(
+        kind,
+        &gap.file,
+        Location::Line(gap.line),
+        format!(
+            "the {} `{}`{defined} of `{}`, which {enforced}, is bound by no capability and excluded by no exclusion",
+            gap.kind, gap.path, gap.package,
+        ),
+        fix,
+    )
+}
+
 /// A computed report and, for each exclusion of the record in its order,
 /// whether it matched a public item or a test of the packages computed.
-struct Computed {
-    report: CoverageReport,
+pub(crate) struct Computed {
+    pub(crate) report: CoverageReport,
     matched: Vec<bool>,
 }
 
@@ -1089,7 +1095,7 @@ impl Judge<'_> {
 }
 
 /// The report over the packages named in `packages`.
-fn compute(
+pub(crate) fn compute(
     source: &Workspace,
     graph: &Graph,
     record: Option<&CoverageRecord>,

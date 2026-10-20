@@ -20,6 +20,17 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   the key says `default`, its writer leaves `default` out, and any other value is the
   rule `Rule::BadStrictness`. Breaking: `CoverageRecord` gains a field, and `Rule`,
   `RuleTag` and `Rule::ALL` gain a variant.
+- **`raf-workplan`:** strict mode ([workplan-strict](docs/capabilities/workplan-strict.md))
+  judges a repository whose coverage record says `strictness: strict`, or one whose
+  caller sets the floor with `Gate::strict`, `Gate::strictness` or
+  `Workplan::with_strictness`; `Workplan::strictness` is the stronger of the two, and
+  nothing lowers it. Under strict, `check` appends, for each delivered capability,
+  `strict-example-missing`, `strict-matrix-missing`, `strict-section-thin` (a section
+  with fewer than `strict::MIN_SECTION_WORDS`, 20, words of prose),
+  `strict-usage-unbound` and `strict-limitations-missing`, and the two-way coverage
+  gaps of every package outside `scope` that a binding reaches. Under `default` it
+  judges none of them. `Finding::KINDS` gains these five kinds and
+  `okf-bad-strictness`, and `raf_workplan::Strictness` re-exports the enumeration.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed
