@@ -1164,6 +1164,20 @@ fn every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_a
 }
 
 #[test]
+fn a_negative_impl_keeps_its_bang_in_the_trait_path_beside_a_positive_one() {
+    let ws = lib("pub struct G<T>(T);\n\
+         impl !Sync for G<u8> {}\n\
+         unsafe impl Sync for G<u16> {}\n");
+    assert_eq!(
+        block_rows(&ws),
+        [
+            "2 2..3 demo G<u8> !Sync [demo::G] []",
+            "3 3..4 demo G<u16> Sync [demo::G] []",
+        ]
+    );
+}
+
+#[test]
 fn an_impl_block_of_a_file_reached_under_two_module_paths_is_listed_once_for_each() {
     let ws = ok(&[
         (

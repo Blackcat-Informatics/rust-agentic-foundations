@@ -7,7 +7,7 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: bdb4f88c7ac99dea3bfefe97a3d0036fb511c92c6b67474ae8384fae9ebbd458
+    digest: 5ebfe4825ce82d9674ba15376b352c214a944eef9b9bb42c3d37a3c690502c03
   - kind: symbol
     name: raf_source::Budget
     digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
@@ -34,7 +34,7 @@ inputs:
     digest: 90dc1a47d5c6f0b91913a5157e686a0ed32f594ba8009e9db3ceffcabe789da7
   - kind: symbol
     name: raf_source::ImplBlock
-    digest: 060733a5666514233569a795f0eaeb29a2ad26c40b570fb48b29dbf5ac4ba308
+    digest: 6aa893df1a9ae01199f82918efab20349063317b1c2704f8933d06060c57b84e
   - kind: symbol
     name: raf_source::ImplId
     digest: 9bb0ed63e4c24316d5b0070b2cb4a32af5d8b23074f6308251d6e29cfc748f12
@@ -55,7 +55,7 @@ inputs:
     digest: d2f07f9016d388594443ebf1de4544e8a14de4f449f39fc69f813b94a3cf1a08
   - kind: symbol
     name: raf_source::ReachError
-    digest: f575bc61aa1a42306e2411354a903012c19662efeb2b96a381bb8a407d0888e6
+    digest: 1edbd53f4617ca49e1c63acb13db387c3d9188913287c4c3e9fd6187b1467562
   - kind: symbol
     name: raf_source::Reachability
     digest: 60d3a97ace22a55fdb22778c521b8983370fee3fe4cf4ea60319853ccffb362c
@@ -88,10 +88,10 @@ inputs:
     digest: fb2b7a91c6018c4ba02bc6a2ac0aa2053e3a41ec045247b03c254ab70047cbdf
   - kind: symbol
     name: raf_source::Workspace::impls
-    digest: faf8d5bb70bfd1759b468bebb59548a09844ff489085c71b07831c961f99b4f9
+    digest: bcc416debd7ae6ba8ec0973cb5c0567395dba19a04e8974c8b4f58abae34209b
   - kind: symbol
     name: raf_source::Workspace::reachable
-    digest: 9d1eb5daa8b5fdf5a3ce64bcb1da5a16fa41f124f2111556617329c1a954a61c
+    digest: f0b77c61ce921b37a06bf8e7f81a234f84424273c5a4c61ef21ac3afb1c0b064
   - kind: symbol
     name: raf_source::Workspace::resolve_from
     digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94

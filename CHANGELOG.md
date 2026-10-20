@@ -97,16 +97,24 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   an `ImplBlock`: its span, module, target, test role, written self type and
   trait, the key of its self type and its members, and `Workspace::impl_block`
   takes its `ImplId` back. Each record is charged to the item-bytes budget, so a
-  load holds a little more of it.
+  load holds a little more of it. A negative impl keeps its `!` in its trait
+  path (`!Sync`).
 - **`raf-source`:** `Workspace::reachable` gives the items and impl blocks of every
   target that root `Node`s reach over the edges contains (a type to its members,
   a trait to its members, a module that a root opens to its items and blocks),
   impl-of (a type to its impl blocks, a block to its members) and references (the
   `Ident (:: Ident)*` runs of an item's own tokens, read as code of its module
-  reads them). The answer is a `Reachability` of `Reached` nodes with the `Edge`
-  each was first reached by, breadth first from the sorted roots; a root of
-  another workspace is a `ReachError`. Each file is lexed once and each run is
-  resolved at most once for each module, in one walk of its segments.
+  reads them with the keywords of its package's edition, and in a `where` clause
+  the type a bound is put on; a run that `Self` starts and a method called on
+  `self` name the members of that name of the impl block's type, of the block
+  and of its trait, or of the trait). The answer is a `Reachability` of
+  `Reached` nodes with the `Edge` each was first reached by, breadth first from
+  the sorted roots; a root past the items or the impl blocks of the workspace is
+  a `ReachError`, and since an id is a place, an in-range id of another
+  workspace reads as the node of this one at that place. Each file is lexed once
+  and each run is resolved at most once for each module, in one walk of its
+  segments, and what the walk holds is charged to the item-bytes budget of the
+  load, past which the walk is `ReachError::Budget`.
 - **`raf-okf`:** the coverage record takes the optional keys `ceilings` and
   `exceptions` of the reverse coverage of strict mode. A `Ceiling` holds a crate,
   a `CeilingLimit` of whole `lines` or a `percent` from 0 to 100, and the

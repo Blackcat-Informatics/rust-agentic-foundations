@@ -473,8 +473,11 @@ impl Workspace {
     /// brace, the module that holds it, its written self type and trait, the
     /// key of its self type (the struct, enum or union the self type path
     /// names from that module, none when it names nothing of the workspace or
-    /// a type the index cannot place) and its members. An impl block inside a
-    /// function body is not an item of a module and is not listed.
+    /// a type the index cannot place) and its members; a negative impl keeps
+    /// its `!` in its trait path. An impl block inside a
+    /// function body or any other block expression, such as
+    /// `const _: () = { .. };`, is not an item of a module and is not listed,
+    /// nor is one that a macro invocation would generate.
     ///
     /// ```
     /// use raf_source::{MemoryTree, Workspace};
@@ -520,7 +523,11 @@ impl Workspace {
     /// module's visibility, and in edition 2015 from the module), naming the
     /// sites it reaches when they are one symbol; a path that names nothing
     /// of the workspace (a local, a generic, an item of a dependency or one
-    /// that a macro generates) reaches nothing. The own tokens of an item are those
+    /// that a macro generates) reaches nothing. Keywords are those of the
+    /// edition of the package of the reached item. A path that `Self` starts
+    /// in an impl block or a trait, and a method called on `self` there,
+    /// name the members of that name of the block's self type, of the block
+    /// and of its trait, or of the trait. The own tokens of an item are those
     /// of its span outside the items and blocks below it; a module's are its
     /// declaration before its body. The tokens of test code are read as test
     /// code, which names the dev-dependencies too.
@@ -529,7 +536,8 @@ impl Workspace {
     /// by, breadth first from the roots in the order of their nodes, so the
     /// answer does not depend on the order of `roots`. Each file is lexed
     /// once, and each path is resolved at most once for each module it is
-    /// read from.
+    /// read from. What the walk holds is charged to the item-bytes budget of
+    /// the load, on from what the load holds.
     ///
     /// ```
     /// use raf_source::{MemoryTree, Node, Workspace};
@@ -549,11 +557,19 @@ impl Workspace {
     /// # Errors
     ///
     /// Returns [`ReachError::UnknownItem`] or [`ReachError::UnknownImpl`] for
-    /// a root that is not a node of this workspace, and
-    /// [`ReachError::Source`] when a file does not lex, which a file the load
-    /// parsed does not do, or the thread that lexes it cannot start.
+    /// a root past the items or the impl blocks of this workspace (an id is
+    /// a place, so an id of another workspace that is in range reads as the
+    /// node of this one at that place), [`ReachError::Source`] when a file
+    /// does not lex, which a file the load parsed does not do, or the thread
+    /// that lexes it cannot start, and [`ReachError::Budget`] when what the
+    /// walk holds passes the item-bytes budget.
     pub fn reachable(&self, roots: &[Node]) -> Result<Reachability, ReachError> {
-        reach::reachable(&self.index, &self.files, roots)
+        reach::reachable(
+            &self.index,
+            &self.files,
+            (&self.options, self.usage.item_bytes),
+            roots,
+        )
     }
 
     /// The items that share a source item, grouped by its identity: the file

@@ -304,7 +304,8 @@ pub struct ImplBlock {
     pub test: TestRole,
     /// The self type as written, without spaces.
     pub self_type: SharedStr,
-    /// The trait path as written, without spaces, for a trait impl.
+    /// The trait path as written, without spaces, for a trait impl, with the
+    /// `!` of a negative impl (`!Sync`).
     pub trait_path: Option<SharedStr>,
     /// The key of the self type: the struct, enum or union of the workspace
     /// that the self type path names from the block's module, through any

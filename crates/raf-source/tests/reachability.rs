@@ -5,7 +5,8 @@
 //! over the edges contains, impl-of and references.
 
 use raf_source::{
-    Edge, ImplId, ItemId, MemoryTree, Namespace, Node, ReachError, Reachability, Workspace,
+    Budget, Edge, ImplId, ItemId, LoadErrorKind, LoadOptions, MemoryTree, Namespace, Node,
+    ReachError, Reachability, Workspace,
 };
 
 const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
@@ -399,22 +400,34 @@ fn the_answer_does_not_depend_on_the_order_of_the_roots_and_is_the_same_each_run
 }
 
 #[test]
-fn a_root_of_another_workspace_is_refused_beside_one_of_this_workspace() {
+fn a_root_past_the_items_or_the_blocks_of_the_workspace_is_refused_beside_one_in_range() {
     let small = lib("pub fn a() {}\n");
     let big =
         lib("pub struct S;\nimpl S {}\nimpl S {}\npub fn a() {} pub fn b() {} pub fn c() {}\n");
     let far = big.items().map(|item| item.id).max().expect("items");
-    assert!(matches!(
-        small.reachable(&[Node::Item(far)]),
-        Err(ReachError::UnknownItem(id)) if id == far
-    ));
+    let error = small
+        .reachable(&[Node::Item(far)])
+        .expect_err("no item there");
+    assert!(matches!(error, ReachError::UnknownItem(id) if id == far));
+    assert!(error.to_string().contains("past the items"), "{error}");
     let block: ImplId = big.impls().last().expect("a block").id;
     let error = small
         .reachable(&[Node::Impl(block)])
         .expect_err("no block here");
     assert!(matches!(error, ReachError::UnknownImpl(id) if id == block));
-    assert!(error.to_string().contains("not an impl block"), "{error}");
+    assert!(
+        error.to_string().contains("past the impl blocks"),
+        "{error}"
+    );
     assert!(small.reachable(&[value(&small, "demo::a")]).is_ok());
+    // An id is a place in the workspace that gave it: an id of another
+    // workspace that is in range is read as the item at that place here.
+    let near = big.items().map(|item| item.id).min().expect("items");
+    let reached = small.reachable(&[Node::Item(near)]).expect("in range");
+    assert_eq!(
+        names(&small, &reached),
+        [small.item(near).expect("an item here").path.to_string()]
+    );
 }
 
 #[test]
@@ -533,7 +546,11 @@ fn test_code_names_the_dev_dependencies_and_other_code_does_not() {
         ),
         (
             "a/src/lib.rs",
-            "pub fn api() { b::thing() }\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn t() { b::thing() }\n}\n",
+            "pub fn api() { b::thing() }\n\
+             #[cfg(test)]\n\
+             mod tests {\n    #[test]\n    fn t() { b::thing() }\n    fn helper() { b::thing() }\n\
+             impl super::S { fn check() { b::thing() } }\n}\n\
+             pub struct S;\n",
         ),
         (
             "b/Cargo.toml",
@@ -546,5 +563,222 @@ fn test_code_names_the_dev_dependencies_and_other_code_does_not() {
     let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
     let thing = value(&ws, "b::thing");
     assert!(reach(&ws, &[value(&ws, "a::tests::t")]).contains(thing));
+    // A function of a `#[cfg(test)]` module that is no test, and a method of
+    // a block there, are test code too.
+    assert!(reach(&ws, &[value(&ws, "a::tests::helper")]).contains(thing));
+    assert!(reach(&ws, &[value(&ws, "a::S::check")]).contains(thing));
     assert!(!reach(&ws, &[value(&ws, "a::api")]).contains(thing));
+}
+
+/// A library of `text` in a package of `edition`.
+fn lib_of(edition: &str, text: &str) -> Workspace {
+    let manifest =
+        format!("[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"{edition}\"\n");
+    let tree: MemoryTree = [("Cargo.toml", manifest.as_str()), ("src/lib.rs", text)]
+        .into_iter()
+        .collect();
+    Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"))
+}
+
+#[test]
+fn gen_is_a_name_before_edition_2024_and_a_keyword_from_it() {
+    let text = "pub fn f() { gen() }\npub fn g() { r#gen() }\nfn r#gen() {}\n";
+    for edition in ["2015", "2018", "2021"] {
+        let ws = lib_of(edition, text);
+        let generate = value(&ws, "demo::gen");
+        let reached = reach(&ws, &[value(&ws, "demo::f")]);
+        assert_eq!(names(&ws, &reached), ["demo::f", "demo::gen"], "{edition}");
+        assert!(
+            reach(&ws, &[value(&ws, "demo::g")]).contains(generate),
+            "{edition}"
+        );
+    }
+    // From edition 2024 `gen` is a keyword: only the raw name is a path.
+    let ws = lib_of("2024", text);
+    let generate = value(&ws, "demo::gen");
+    assert_eq!(
+        names(&ws, &reach(&ws, &[value(&ws, "demo::f")])),
+        ["demo::f"]
+    );
+    assert!(reach(&ws, &[value(&ws, "demo::g")]).contains(generate));
+}
+
+#[test]
+fn a_pointer_to_a_type_and_a_raw_borrow_of_a_static_reach_them_and_a_constant_its_type() {
+    let ws = lib("pub fn ptr(p: *const Pointee, q: *mut Other) {}\n\
+         struct Pointee;\n\
+         struct Other;\n\
+         pub fn raw() -> *const u8 { &raw const VALUE }\n\
+         static VALUE: u8 = 1;\n\
+         pub const C: Kind = Kind;\n\
+         pub struct Kind;\n\
+         pub const fn named() {}\n");
+    assert_eq!(
+        sorted(&ws, &reach(&ws, &[value(&ws, "demo::ptr")])),
+        ["demo::Other", "demo::Pointee", "demo::ptr"]
+    );
+    assert_eq!(
+        sorted(&ws, &reach(&ws, &[value(&ws, "demo::raw")])),
+        ["demo::VALUE", "demo::raw"]
+    );
+    // A constant names its type, and a const fn nothing beside it.
+    let reached = reach(&ws, &[value(&ws, "demo::C")]);
+    assert!(reached.contains(ty(&ws, "demo::Kind")));
+    assert_eq!(
+        names(&ws, &reach(&ws, &[value(&ws, "demo::named")])),
+        ["demo::named"]
+    );
+}
+
+#[test]
+fn self_paths_and_methods_called_on_self_reach_the_members_of_that_name() {
+    let ws = lib("#[derive(Default)]\n\
+         pub struct S;\n\
+         impl S {\n\
+             pub fn api(&self) -> u8 { Self::helper() + self.method() + Self::CONST + Self::default().method() }\n\
+             fn helper() -> u8 { 1 }\n\
+             const CONST: u8 = 3;\n\
+             fn unused() {}\n\
+             pub fn make() -> Self { Self }\n\
+         }\n\
+         impl S { fn method(&self) -> u8 { 2 } }\n\
+         pub fn elsewhere(s: S) -> u8 { s.method() }\n\
+         fn method() {}\n");
+    // `Self::name` and `self.name()` name the members called `name` of the
+    // type, in every block of it; `Self::default()`, which a derive makes,
+    // names nothing, and the type itself is not reached through `Self`.
+    assert_eq!(
+        sorted(&ws, &reach(&ws, &[value(&ws, "demo::S::api")])),
+        [
+            "demo::S::CONST",
+            "demo::S::api",
+            "demo::S::helper",
+            "demo::S::method"
+        ]
+    );
+    assert_eq!(
+        names(&ws, &reach(&ws, &[value(&ws, "demo::S::make")])),
+        ["demo::S::make"]
+    );
+    // A method called on any other value is not read by its name; the
+    // value's type reaches its methods as their type.
+    let reached = reach(&ws, &[value(&ws, "demo::elsewhere")]);
+    assert!(reached.contains(ty(&ws, "demo::S")));
+    assert!(!reached.contains(value(&ws, "demo::method")));
+}
+
+#[test]
+fn self_in_a_trait_and_in_its_impl_blocks_reaches_the_members_of_the_trait_and_of_the_block() {
+    let ws = lib("pub trait Tr {\n\
+             fn req(&self) -> u8;\n\
+             fn provided(&self) -> u8 { self.req() + Self::other() }\n\
+             fn other() -> u8 { 0 }\n\
+             fn lonely() {}\n\
+         }\n\
+         pub struct S;\n\
+         impl Tr for S { fn req(&self) -> u8 { self.provided() } }\n\
+         impl Tr for String { fn req(&self) -> u8 { Self::other() } fn other() -> u8 { 1 } }\n");
+    // In a trait, the trait's own members.
+    assert_eq!(
+        sorted(&ws, &reach(&ws, &[value(&ws, "demo::Tr::provided")])),
+        ["demo::Tr::other", "demo::Tr::provided", "demo::Tr::req"]
+    );
+    // In a block of the trait, the trait's members too: `provided` is not
+    // the block's.
+    assert_eq!(
+        sorted(&ws, &reach(&ws, &[value(&ws, "demo::S::req")])),
+        [
+            "demo::S::req",
+            "demo::Tr::other",
+            "demo::Tr::provided",
+            "demo::Tr::req"
+        ]
+    );
+    // In a block that no type of the workspace keys, its own members.
+    let foreign = ws.impls().last().expect("the block on String");
+    let (req, other) = (foreign.members[0], foreign.members[1]);
+    let reached = reach(&ws, &[Node::Item(req)]);
+    assert!(reached.contains(Node::Item(other)));
+    assert!(reached.contains(value(&ws, "demo::Tr::other")));
+    assert!(!reached.contains(value(&ws, "demo::Tr::lonely")));
+    assert!(!reached.contains(Node::Impl(foreign.id)));
+}
+
+#[test]
+fn a_variant_through_self_names_its_enum_as_a_path_through_the_enum_does() {
+    let ws = lib("pub enum E { A, B }\n\
+         impl E { pub fn is_a(&self) -> bool { matches!(self, Self::A) } fn unused() {} }\n\
+         pub struct S;\n\
+         impl S { pub fn get() -> u8 { Self::NOT_HERE } }\n");
+    let reached = reach(&ws, &[value(&ws, "demo::E::is_a")]);
+    let enumeration = ty(&ws, "demo::E");
+    assert_eq!(
+        reached.get(enumeration).map(|found| found.edge),
+        Some(Edge::References)
+    );
+    // A struct has no variants: a name that is no member names nothing.
+    assert_eq!(
+        names(&ws, &reach(&ws, &[value(&ws, "demo::S::get")])),
+        ["demo::S::get"]
+    );
+}
+
+#[test]
+fn the_type_a_where_clause_bounds_is_reached_and_a_bound_name_is_not() {
+    let ws = lib(
+        "pub fn bounded<T>() where Helper: Clone, T: Into<Other> {}\n\
+         #[derive(Clone)]\n\
+         struct Helper;\n\
+         struct Other;\n\
+         pub fn param(helper: u8) -> u8 { helper }\n\
+         pub fn generic<Unbound: Clone>() {}\n\
+         struct Unbound;\n",
+    );
+    assert_eq!(
+        sorted(&ws, &reach(&ws, &[value(&ws, "demo::bounded")])),
+        ["demo::Helper", "demo::Other", "demo::bounded"]
+    );
+    // A parameter and a generic parameter before their `:` are names being
+    // bound.
+    assert_eq!(
+        names(&ws, &reach(&ws, &[value(&ws, "demo::generic")])),
+        ["demo::generic"]
+    );
+}
+
+#[test]
+fn a_walk_past_the_item_bytes_budget_is_refused_and_one_within_it_is_given() {
+    let text = "pub fn api() { helper() }\nfn helper() {}\n";
+    let tree: MemoryTree = [("Cargo.toml", MANIFEST), ("src/lib.rs", text)]
+        .into_iter()
+        .collect();
+    let held = lib(text).usage().item_bytes;
+    let with = |limit: usize| {
+        let mut options = LoadOptions::default();
+        options.max_item_bytes = limit;
+        Workspace::load_with(&tree, &["."], &options).unwrap_or_else(|e| panic!("{e}"))
+    };
+    // The load fits its limit exactly, and the first charge of the walk
+    // passes it.
+    let ws = with(held);
+    let error = ws
+        .reachable(&[value(&ws, "demo::api")])
+        .expect_err("over the budget");
+    let ReachError::Budget(ref load) = error else {
+        panic!("{error}");
+    };
+    assert!(
+        matches!(load.kind, LoadErrorKind::Budget { budget: Budget::ItemBytes, limit } if limit == held),
+        "{load}"
+    );
+    assert_eq!(load.file.as_str(), "src/lib.rs");
+    assert!(
+        error.to_string().starts_with("the walk is over budget: "),
+        "{error}"
+    );
+    let ws = with(held + (1 << 16));
+    assert_eq!(
+        names(&ws, &reach(&ws, &[value(&ws, "demo::api")])),
+        ["demo::api", "demo::helper"]
+    );
 }
