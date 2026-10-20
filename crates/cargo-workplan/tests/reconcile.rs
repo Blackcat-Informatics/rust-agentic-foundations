@@ -318,3 +318,77 @@ fn json_is_one_obligation_object_for_each_obligation() {
         .expect(1);
     assert_eq!(quiet.stdout, run.stdout);
 }
+
+/// The repository of `calm` with the change affecting the sections `affects`
+/// of `alpha`, before the checkout, so a test can shape the merge base.
+fn calm_before_checkout(tag: &str, affects: &[&str]) -> Repo {
+    let repo = Repo::synced(tag, false);
+    repo.put(
+        "work/changes/calm.md",
+        &change("calm", "[cap:alpha]", affects)
+            .replace("contract_effect: changes", "contract_effect: none"),
+    );
+    repo.sync();
+    repo.assess("calm");
+    repo
+}
+
+/// Under `--strict`, `contract_effect: none` leaves out the untouched Contract
+/// only: the untouched Usage in `affects` is owed and the run exits 1, while
+/// the run without the flag owes nothing; once the Usage is edited and
+/// assessed the strict run exits 0 too.
+#[test]
+fn under_strict_an_untouched_usage_of_a_none_change_exits_one_and_its_edit_zero() {
+    let repo = calm_before_checkout(
+        "reconcile-strict-usage",
+        &["cap:alpha#contract", "cap:alpha#usage"],
+    );
+    repo.checkout();
+    repo.both(&["change", "reconcile", "calm"]).expect(0);
+    let before = repo.worktree();
+    let run = repo
+        .both(&["--strict", "change", "reconcile", "calm"])
+        .expect(1);
+    assert_eq!(
+        run.stdout,
+        "cap:alpha  usage  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed\n"
+    );
+    assert_eq!(run.stderr, "");
+    assert_eq!(repo.worktree(), before, "reconcile wrote");
+
+    repo.edit(
+        "docs/capabilities/alpha.md",
+        "Text for Usage of alpha.",
+        "Alpha is used as its Contract says.",
+    );
+    repo.sync();
+    repo.assess("calm");
+    let run = repo
+        .both(&["--strict", "change", "reconcile", "calm"])
+        .expect(0);
+    assert_eq!(run.stdout, "");
+}
+
+/// Under `--strict` a change with `contract_effect: none` reads each file that
+/// holds a bound public item at the merge base, so a file there that does not
+/// parse stops it looking: exit 2, with the file and the side named, and
+/// nothing on stdout. The run without the flag reads no source file and
+/// exits 0.
+#[test]
+fn under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exit_two() {
+    let repo = calm_before_checkout("reconcile-strict-unparsed", &["cap:alpha#contract"]);
+    let lib = repo.read("src/lib.rs");
+    repo.put("src/lib.rs", "pub fn real( {\n");
+    repo.checkout();
+    repo.put("src/lib.rs", &lib);
+    repo.both(&["change", "reconcile", "calm"]).expect(0);
+    let run = repo
+        .both(&["--strict", "change", "reconcile", "calm"])
+        .expect(2);
+    assert_eq!(run.stdout, "");
+    assert!(
+        run.stderr
+            .contains("`src/lib.rs` at the merge base cannot be compared: "),
+        "{run:#?}"
+    );
+}

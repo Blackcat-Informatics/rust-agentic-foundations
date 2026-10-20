@@ -93,6 +93,8 @@ bindings:
     - raf_workplan::test_crate::complete::under_strict_an_item_dropped_without_a_reason_refuses_condition_two_and_under_default_it_completes
     - raf_workplan::test_crate::complete::under_strict_an_untouched_usage_or_examples_of_a_none_change_refuses_and_under_default_it_completes
     - raf_workplan::test_crate::complete::under_strict_a_failing_bound_test_and_a_tense_mismatch_refuse_as_under_default_and_their_repairs_complete
+    - cargo_workplan::test_crate::reconcile::under_strict_an_untouched_usage_of_a_none_change_exits_one_and_its_edit_zero
+    - cargo_workplan::test_crate::reconcile::under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exit_two
   examples:
     - raf_workplan::Workplan::strictness
     - raf_workplan::Workplan::claims_report
@@ -745,6 +747,9 @@ visible failure, and the fix is one command.
   is, and a doc comment, a token of the body, an attribute, a visibility or a type
   changes it; the items of inline modules, impl blocks and traits are named below
   their file, and a private one is not counted as removed.
+- `cargo workplan --strict change reconcile` exits 1 for a `none` change with an
+  untouched Usage and 0 once it is edited, while the run without the flag exits 0,
+  and exits 2 when a bound source file does not parse at the merge base.
 - Reverse coverage fixtures: a fully bound crate has 0 orphan lines; an unreferenced
   private helper is exactly its span as one range, beside the same helper reached
   from a bound function; binding a type covers its `impl` blocks and their methods;
@@ -781,6 +786,8 @@ visible failure, and the fix is one command.
 | `cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::claims::the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::reconcile::under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exit_two` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::reconcile::under_strict_an_untouched_usage_of_a_none_change_exits_one_and_its_edit_zero` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key` | test | [Verification](#verification) |
 | `raf_workplan::Workplan::claims_report` | doctest | [Usage](#usage) |
