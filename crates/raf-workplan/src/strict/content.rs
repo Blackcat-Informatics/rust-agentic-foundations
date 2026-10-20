@@ -6,7 +6,7 @@
 //! bound example and a Constraints section that lists a limitation. See the
 //! documentation of [`crate::strict`].
 
-use raf_okf::{Body, Capability, CapabilitySection, Location, Section, State};
+use raf_okf::{Body, Capability, CapabilitySection, Location, ProseLine, Section, State};
 
 use super::MIN_SECTION_WORDS;
 use crate::finding::kind;
@@ -119,16 +119,18 @@ fn holds_matrix(body: &Body) -> bool {
 
 /// The prose lines of one section: below its heading, outside PROPOSED and
 /// generated blocks.
+fn prose_lines<'b>(body: &'b Body, section: &'b Section) -> impl Iterator<Item = &'b ProseLine> {
+    body.prose_lines().iter().filter(move |line| {
+        line.section() == Some(section.slug())
+            && line.line() != section.line()
+            && !line.in_proposed()
+            && !line.in_generated()
+    })
+}
+
+/// The text of the prose lines of one section.
 fn prose<'b>(body: &'b Body, section: &'b Section) -> impl Iterator<Item = &'b str> {
-    body.prose_lines()
-        .iter()
-        .filter(move |line| {
-            line.section() == Some(section.slug())
-                && line.line() != section.line()
-                && !line.in_proposed()
-                && !line.in_generated()
-        })
-        .map(raf_okf::ProseLine::text)
+    prose_lines(body, section).map(ProseLine::text)
 }
 
 /// The heading and the number of words of prose of each of the seven
@@ -148,23 +150,42 @@ fn section_words(body: &Body) -> Vec<(&str, usize)> {
 
 /// Whether the section `which` holds a list item: a prose line that starts,
 /// after its indentation, with `-`, `*` or `+` and a space, or with digits,
-/// `.` or `)` and a space.
+/// `.` or `)` and a space, and holds text after the marker, which may be a code
+/// span. A thematic break such as `* * *` is no list item.
 fn lists_an_item(body: &Body, which: CapabilitySection) -> bool {
     let Some(section) = find(body, which) else {
         return false;
     };
-    prose(body, section).any(|text| is_list_item(text.trim_start()))
+    let first = body.span().lines.start;
+    prose_lines(body, section).any(|line| {
+        let raw = body.text().lines().nth(line.line() - first).unwrap_or("");
+        list_content(line.text().trim_start()).is_some()
+            && list_content(raw.trim_start()).is_some_and(|rest| !rest.trim().is_empty())
+            && !is_thematic_break(raw)
+    })
 }
 
-/// Whether a line, without its indentation, opens a list item.
-fn is_list_item(text: &str) -> bool {
+/// The text after the marker of a line, without its indentation, that opens a
+/// list item, or `None` when it opens none.
+fn list_content(text: &str) -> Option<&str> {
     if let Some(rest) = text.strip_prefix(['-', '*', '+']) {
-        return rest.starts_with(' ');
+        return rest.strip_prefix(' ');
     }
     let digits = text.bytes().take_while(u8::is_ascii_digit).count();
-    digits > 0 && {
-        let rest = &text[digits..];
-        rest.strip_prefix(['.', ')'])
-            .is_some_and(|after| after.starts_with(' '))
+    if digits == 0 {
+        return None;
     }
+    text[digits..]
+        .strip_prefix(['.', ')'])
+        .and_then(|after| after.strip_prefix(' '))
+}
+
+/// Whether a line is a thematic break: three or more of one of `-`, `*` or `_`
+/// and nothing else but spaces and tabs.
+fn is_thematic_break(raw: &str) -> bool {
+    let marks: Vec<char> = raw.chars().filter(|c| !matches!(c, ' ' | '\t')).collect();
+    marks.len() >= 3
+        && ['-', '*', '_']
+            .iter()
+            .any(|mark| marks.iter().all(|c| c == mark))
 }

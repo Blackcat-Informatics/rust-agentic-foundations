@@ -341,8 +341,8 @@ impl Binding {
 
     /// The sections the binding substantiates, in document order. A test or an
     /// example substantiates every section other than Verification whose text
-    /// outside code fences and PROPOSED blocks holds the bound path in a code
-    /// span, and Verification when there is none. A code binding
+    /// outside code fences, PROPOSED blocks and HTML comments holds the bound
+    /// path in a code span, and Verification when there is none. A code binding
     /// substantiates no section.
     #[must_use]
     pub fn sections(&self) -> &[CapabilitySection] {
@@ -1764,7 +1764,8 @@ fn strongly_connected(adjacent: &[Vec<usize>]) -> Vec<Vec<usize>> {
     groups
 }
 
-/// The sections a test or example binding substantiates.
+/// The sections a test or example binding substantiates. A code span inside
+/// an HTML comment does not count: a comment is no text of the section.
 fn substantiated(body: &Body, path: &str) -> Vec<CapabilitySection> {
     let holding: Vec<CapabilitySection> = CapabilitySection::ALL
         .into_iter()
@@ -1773,7 +1774,9 @@ fn substantiated(body: &Body, path: &str) -> Vec<CapabilitySection> {
             body.sections()
                 .iter()
                 .find(|s| s.slug() == section.slug())
-                .and_then(|s| prose_of(body, s).map(|text| names_in_code_span(&text, path)))
+                .and_then(|s| {
+                    prose_of(body, s).map(|text| names_in_code_span(&without_comments(&text), path))
+                })
                 .unwrap_or(false)
         })
         .collect();
@@ -1782,6 +1785,49 @@ fn substantiated(body: &Body, path: &str) -> Vec<CapabilitySection> {
     } else {
         holding
     }
+}
+
+/// `text` with each HTML comment outside a code span removed, its line breaks
+/// kept. Code spans are read per paragraph as [`code_spans`] reads them: a run
+/// of backticks opens a span that the next run of the same length in the
+/// paragraph closes. A `<!--` that no `-->` closes runs to the end.
+fn without_comments(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let run = |from: usize| bytes[from..].iter().take_while(|b| **b == b'`').count();
+    let mut out = String::with_capacity(text.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        if bytes[at] == b'`' {
+            let width = run(at);
+            let mut scan = at + width;
+            let mut close = None;
+            while scan < bytes.len() && !bytes[scan..].starts_with(b"\n\n") {
+                if bytes[scan] == b'`' {
+                    let other = run(scan);
+                    if other == width {
+                        close = Some(scan + width);
+                        break;
+                    }
+                    scan += other;
+                } else {
+                    scan += 1;
+                }
+            }
+            let end = close.unwrap_or(at + width);
+            out.push_str(&text[at..end]);
+            at = end;
+        } else if text[at..].starts_with("<!--") {
+            let body = &text[at + 4..];
+            let end = body.find("-->").map_or(body.len(), |close| close + 3);
+            out.extend(body[..end].chars().filter(|c| *c == '\n'));
+            at += 4 + end;
+        } else {
+            let next = text[at..].chars().next().map_or(1, char::len_utf8);
+            out.push_str(&text[at..at + next]);
+            at += next;
+        }
+    }
+    out
 }
 
 /// The text of a section with its fenced code blocks, PROPOSED blocks and
@@ -1983,7 +2029,7 @@ mod tests {
 
     use raf_source::{MemoryTree, Workspace};
 
-    use super::{code_span_paths, names_in_code_span};
+    use super::{code_span_paths, names_in_code_span, without_comments};
     use crate::Workplan;
     use crate::work::{Work, measure};
 
@@ -2204,6 +2250,36 @@ mod tests {
     /// once: each record is entered into them once, each `for` entry once,
     /// and each slug of each claim is looked up once, however many claims
     /// there are.
+    #[test]
+    fn a_comment_outside_a_code_span_is_removed_and_one_inside_a_span_is_kept() {
+        assert_eq!(
+            without_comments("Call <!-- `demo::run` --> it.\n"),
+            "Call  it.\n"
+        );
+        assert_eq!(
+            without_comments("Write `<!-- x -->` and ``a ` <!-- b``.\n"),
+            "Write `<!-- x -->` and ``a ` <!-- b``.\n"
+        );
+        // A comment keeps its line breaks, and one never closed runs to the end.
+        assert_eq!(without_comments("a <!-- b\nc --> d"), "a \n d");
+        assert_eq!(without_comments("a <!-- b\n\nc"), "a \n\n");
+        // A backtick that its paragraph does not close opens no span, so the
+        // comment after it is removed; text around characters of several bytes
+        // is kept whole.
+        assert_eq!(
+            without_comments("Héllo … <!-- `x` -->\n\n`y\n\nz <!-- c --> …"),
+            "Héllo … \n\n`y\n\nz  …"
+        );
+        assert!(!names_in_code_span(
+            &without_comments("Run <!-- `demo::run` --> it.\n"),
+            "demo::run"
+        ));
+        assert!(names_in_code_span(
+            &without_comments("Run `demo::run` <!-- note --> now.\n"),
+            "demo::run"
+        ));
+    }
+
     #[test]
     fn the_claims_of_many_capabilities_are_judged_against_sets_built_once() {
         let slugs: Vec<String> = ["r0", "r1", "ghost"].map(String::from).to_vec();

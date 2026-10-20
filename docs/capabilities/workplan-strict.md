@@ -28,6 +28,11 @@ bindings:
     - raf_workplan::test_crate::strict::a_package_of_scope_is_judged_by_the_default_rule_once_under_strict
     - raf_workplan::test_crate::strict::an_exclusion_of_the_record_takes_a_gap_of_a_bound_package_out
     - raf_workplan::test_crate::strict::without_a_coverage_record_strict_mode_enforces_no_package
+    - raf_workplan::test_crate::strict::the_words_of_a_generated_block_are_not_prose_of_its_section
+    - raf_workplan::test_crate::strict::a_capability_that_is_not_delivered_has_no_finding_of_the_content_rules
+    - raf_workplan::test_crate::strict::a_code_span_inside_a_comment_names_no_example_in_usage
+    - raf_workplan::test_crate::strict::a_thematic_break_and_an_empty_item_are_no_limitation
+    - raf_workplan::test_crate::strict::while_a_capability_document_does_not_load_no_gap_of_a_bound_package_is_reported
     - raf_workplan::test_crate::strict::every_strict_case_reports_nothing_under_default
     - raf_workplan::test_crate::strict::the_strict_findings_are_made_by_check_after_every_other_finding_and_never_by_the_load
     - raf_workplan::test_crate::strict::the_record_and_the_floor_give_the_stronger_strictness
@@ -190,9 +195,10 @@ runs of letters, digits and `_`. A shorter section is `strict-section-thin` at t
 section, and its fix says that a generated block does not count as prose. The Usage
 section names a path of `bindings.examples` in a code span or in a tested-by marker,
 so the verification matrix lists Usage for an example that `verify` runs; otherwise
-it is `strict-usage-unbound` at Usage. The Constraints section holds at least one
-list item, one limitation; otherwise it is `strict-limitations-missing` at
-Constraints.
+it is `strict-usage-unbound` at Usage. A code span inside an HTML comment names
+nothing. The Constraints section holds at least one list item, one limitation, with
+text or a code span after its marker; an empty item and a thematic break such as
+`* * *` are none. Otherwise it is `strict-limitations-missing` at Constraints.
 
 **Reasons.** A change item takes an optional key `reason` after `outcome`, a
 non-empty line of text, accepted beside any outcome or none; an empty one is
@@ -656,11 +662,14 @@ visible failure, and the fix is one command.
 | `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::a_bound_package_outside_scope_is_enforced_under_strict_and_an_unbound_one_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::a_capability_that_is_not_delivered_has_no_finding_of_the_content_rules` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::a_capability_with_no_example_is_refused_and_one_with_one_example_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::a_code_span_inside_a_comment_names_no_example_in_usage` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::a_misspelt_strictness_is_a_finding_of_the_record_and_strict_and_default_are_not` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::a_package_of_scope_is_judged_by_the_default_rule_once_under_strict` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::a_section_of_nineteen_words_is_thin_and_one_of_twenty_is_not` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::a_strict_gate_judges_strict_and_the_workplans_it_opens_keep_its_floor` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::a_thematic_break_and_an_empty_item_are_no_limitation` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::an_exclusion_of_the_record_takes_a_gap_of_a_bound_package_out` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::code_spans_fenced_code_comments_and_the_heading_are_not_prose` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::constraints_without_a_list_item_are_refused_and_one_list_item_is_not` | test | [Verification](#verification) |
@@ -668,7 +677,9 @@ visible failure, and the fix is one command.
 | `raf_workplan::test_crate::strict::the_record_and_the_floor_give_the_stronger_strictness` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::the_strict_clean_repository_has_no_finding_under_either_strictness` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::the_strict_findings_are_made_by_check_after_every_other_finding_and_never_by_the_load` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::the_words_of_a_generated_block_are_not_prose_of_its_section` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::usage_that_names_no_bound_example_is_refused_and_a_code_span_of_it_is_not` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::verification_without_the_matrix_is_refused_and_with_the_block_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::while_a_capability_document_does_not_load_no_gap_of_a_bound_package_is_reported` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::strict::without_a_coverage_record_strict_mode_enforces_no_package` | test | [Verification](#verification) |
 <!-- raf:generated:end -->

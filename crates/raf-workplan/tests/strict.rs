@@ -184,6 +184,105 @@ fn constraints_without_a_list_item_are_refused_and_one_list_item_is_not() {
     }
 }
 
+/// A verification matrix whose rows hold five words: three in its header and
+/// two in its row.
+const FILLED_MATRIX: &str = "<!-- raf:generated:verification-matrix -->\n| Item | Kind | Section |\n| --- | --- | --- |\n| `demo::test_crate::it::case` | test | [Verification](#verification) |\n<!-- raf:generated:end -->\n";
+
+#[test]
+fn the_words_of_a_generated_block_are_not_prose_of_its_section() {
+    // Nineteen words of prose beside a matrix that holds five words is thin.
+    let thin = fixture::replaced(
+        &fixture::thin("Verification"),
+        fixture::MATRIX,
+        FILLED_MATRIX,
+    );
+    let finding = only(thin, "strict-section-thin", &section("Verification"));
+    assert!(finding.message.contains("19 words"), "{finding:#?}");
+    // The neighbour: twenty words of prose beside the same matrix.
+    let twenty = fixture::replaced(&fixture::capability(), fixture::MATRIX, FILLED_MATRIX);
+    assert_eq!(judged(twenty, Strictness::Strict), []);
+}
+
+/// The strict-clean capability with every content rule broken: no example,
+/// no matrix, thin sections, no example named in Usage and no list item.
+fn broken_everywhere() -> String {
+    let mut text = fixture::replaced(
+        &fixture::capability(),
+        fixture::EXAMPLES,
+        "  examples: []\n",
+    );
+    text = fixture::replaced(&text, &format!("\n{}", fixture::MATRIX), "");
+    text = fixture::replaced(&text, fixture::USAGE_SPAN, "Call it.");
+    text = fixture::replaced(&text, fixture::LIMITATION, "No list.");
+    fixture::replaced(
+        &text,
+        &format!("## Purpose\n\n{}\n", fixture::PROSE),
+        "## Purpose\n\nShort.\n",
+    )
+}
+
+#[test]
+fn a_capability_that_is_not_delivered_has_no_finding_of_the_content_rules() {
+    let delivered = broken_everywhere();
+    let found = judged(delivered.clone(), Strictness::Strict);
+    for kind in [
+        "strict-example-missing",
+        "strict-matrix-missing",
+        "strict-section-thin",
+        "strict-usage-unbound",
+        "strict-limitations-missing",
+    ] {
+        assert!(kinds(&found).contains(&kind), "{kind}: {found:#?}");
+    }
+    for state in ["implementing", "designed", "considered"] {
+        let other = fixture::replaced(&delivered, "state: delivered", &format!("state: {state}"));
+        let strict = judged(other.clone(), Strictness::Strict);
+        assert!(
+            !kinds(&strict)
+                .iter()
+                .any(|kind| kind.starts_with("strict-")),
+            "{state}: {strict:#?}"
+        );
+        // Whatever the default rules say of the document, strict adds nothing.
+        assert_eq!(strict, judged(other, Strictness::Default), "{state}");
+    }
+}
+
+#[test]
+fn a_code_span_inside_a_comment_names_no_example_in_usage() {
+    let hidden = fixture::replaced(
+        &fixture::capability(),
+        fixture::USAGE_SPAN,
+        "Call it once. <!-- `demo::run` -->",
+    );
+    only(hidden, "strict-usage-unbound", &section("Usage"));
+    // The neighbour: the same span outside the comment, beside a comment.
+    let shown = fixture::replaced(
+        &fixture::capability(),
+        fixture::USAGE_SPAN,
+        "Call `demo::run` once. <!-- a note -->",
+    );
+    assert_eq!(judged(shown, Strictness::Strict), []);
+}
+
+#[test]
+fn a_thematic_break_and_an_empty_item_are_no_limitation() {
+    let capability = fixture::capability();
+    for line in ["* * *", "- - -", "___", "- ", "-", "1. "] {
+        let text = fixture::replaced(&capability, fixture::LIMITATION, line);
+        only(text, "strict-limitations-missing", &section("Constraints"));
+    }
+    // The neighbours: an item of text, and an item that is a code span.
+    for line in [
+        "- One limitation of the demo.",
+        "- `demo::run`",
+        "2) One more.",
+    ] {
+        let text = fixture::replaced(&capability, fixture::LIMITATION, line);
+        assert_eq!(judged(text, Strictness::Strict), [], "{line}");
+    }
+}
+
 /// A workspace of the package `demo` and a member `other` with two public
 /// functions and a test.
 fn two_packages() -> Vec<(&'static str, String)> {
@@ -485,4 +584,33 @@ fn a_strict_gate_judges_strict_and_the_workplans_it_opens_keep_its_floor() {
         through(&gate),
         (vec!["strict-section-thin"], Default, Strict)
     );
+}
+
+#[test]
+fn while_a_capability_document_does_not_load_no_gap_of_a_bound_package_is_reported() {
+    let reached = bound("[demo::run, other::helper]", "[demo::test_crate::it::case]");
+    let coverage = fixture::coverage("");
+    let source = workspace_of(&two_packages());
+    // The neighbour: every document loads, and the gaps of `other` are reported.
+    let loading = repo(reached.clone(), coverage.clone());
+    assert_eq!(
+        kinds(&check_in_with(&loading, &source, Strictness::Strict)),
+        ["coverage-item-unbound", "coverage-test-unbound"]
+    );
+    // A second capability document that does not load may bind those items,
+    // so no gap is reported; only its own finding is.
+    let mut broken = repo(reached, coverage);
+    broken.insert(
+        "docs/capabilities/broken.md".to_string(),
+        "---\ntype: Capability\nid: cap:broken\ntitle: [unclosed\n---\n".to_string(),
+    );
+    let strict = check_in_with(&broken, &source, Strictness::Strict);
+    assert!(
+        !strict.is_empty()
+            && strict
+                .iter()
+                .all(|finding| finding.file == "docs/capabilities/broken.md"),
+        "{strict:#?}"
+    );
+    assert_eq!(strict, check_in_with(&broken, &source, Strictness::Default));
 }

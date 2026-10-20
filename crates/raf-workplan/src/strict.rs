@@ -28,10 +28,11 @@
 //!   destination of a link left out.
 //! * `strict-usage-unbound` at the section Usage: no path of
 //!   `bindings.examples` substantiates Usage, that is, none is named in a code
-//!   span of the Usage section, so the verification matrix lists Usage for no
-//!   example that `verify` runs.
+//!   span of the Usage section outside an HTML comment, so the verification
+//!   matrix lists Usage for no example that `verify` runs.
 //! * `strict-limitations-missing` at the section Constraints: the Constraints
-//!   section holds no list item.
+//!   section holds no list item with text or a code span after its marker; an
+//!   empty item and a thematic break such as `* * *` are none.
 //!
 //! # Explained items
 //!

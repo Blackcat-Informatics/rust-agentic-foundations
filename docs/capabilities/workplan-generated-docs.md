@@ -23,6 +23,7 @@ bindings:
     - raf_workplan::test_crate::generated::a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections
     - raf_workplan::test_crate::generated::rows_are_sorted_by_path_whatever_the_order_of_the_lists
     - raf_workplan::test_crate::generated::a_path_named_in_a_fence_or_a_proposal_is_not_a_section_that_it_substantiates
+    - raf_workplan::graph::tests::a_comment_outside_a_code_span_is_removed_and_one_inside_a_span_is_kept
     - raf_workplan::test_crate::generated::a_relationship_table_lists_each_relation_sorted_by_slug_with_links
     - raf_workplan::test_crate::generated::a_capability_with_no_relation_has_a_table_of_the_header_only
     - raf_workplan::test_crate::generated::the_catalogue_is_a_table_per_state_in_order_with_gaps_for_implementing_only
@@ -136,8 +137,8 @@ kebab case. Each block is opened once, closed once and never nested.
   columns Item, Kind and Section and one row per binding in `bindings.tests` (kind
   `test`) and `bindings.examples` (kind `example target` or `doctest`), sorted by
   path. A binding substantiates each section other than Verification whose text,
-  outside fenced code and PROPOSED blocks, holds the bound path whole in a code
-  span; with no such section it substantiates Verification. The Section cell links
+  outside fenced code, PROPOSED blocks and HTML comments, holds the bound path whole
+  in a code span; with no such section it substantiates Verification. The Section cell links
   each of those sections in document order.
 - `relationships`: in a section of a capability document, a table with the columns
   Relation and Capability and the rows Depends on, Depended on by and Changed by
@@ -368,6 +369,7 @@ than written.
 | `raf_workplan::generated::tests::a_state_heading_has_a_capital` | test | [Verification](#verification) |
 | `raf_workplan::generated::tests::cell_text_is_escaped_by_the_documented_rule` | test | [Verification](#verification) |
 | `raf_workplan::generated::tests::the_line_ending_is_the_first_break_and_a_change_is_mixed` | test | [Verification](#verification) |
+| `raf_workplan::graph::tests::a_comment_outside_a_code_span_is_removed_and_one_inside_a_span_is_kept` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_backtick_in_a_binding_path_does_not_break_the_code_span` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_block_in_a_section_other_than_verification_converges_in_one_sync` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check` | test | [Verification](#verification) |
