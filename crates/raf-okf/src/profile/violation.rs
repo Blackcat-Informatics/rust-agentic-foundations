@@ -328,6 +328,25 @@ pub enum Rule {
     TestedByOutsideCapability,
     /// An item whose `reason` is empty or not a line of text.
     ItemReasonEmpty,
+    /// A row of `ceilings` of another shape than `crate`, exactly one of a
+    /// whole number `lines` and a `percent` from 0 to 100, and an optional
+    /// `of` of `shipping`, `test` or `all`.
+    BadCeiling {
+        /// The package the row names.
+        package: String,
+        /// What is wrong with the row.
+        problem: String,
+    },
+    /// A row of `exceptions` that does not hold exactly one of `item` and
+    /// `file`, an `item` that is a crate root or neither an item path nor a
+    /// `<module>::*` prefix, or a `file` that is not a repository-relative
+    /// path.
+    BadException {
+        /// The `item` or `file` the row names, empty when it names neither.
+        found: String,
+        /// What is wrong with the row.
+        problem: &'static str,
+    },
 }
 
 impl fmt::Display for Rule {
@@ -559,7 +578,7 @@ impl fmt::Display for Rule {
                 "exclusion item `{found}` takes out a whole crate; remove the crate from `scope` instead"
             ),
             Self::EmptyReason { item } => {
-                write!(f, "the exclusion of `{item}` has no reason")
+                write!(f, "the exclusion or exception of `{item}` has no reason")
             }
             Self::BadStrictness { found } => {
                 write!(f, "bad strictness `{found}`; it is `default` or `strict`")
@@ -569,6 +588,15 @@ impl fmt::Display for Rule {
             }
             Self::ItemReasonEmpty => {
                 f.write_str("an item's `reason` must be a non-empty line of text")
+            }
+            Self::BadCeiling { package, problem } => {
+                write!(f, "the ceiling of `{package}` {problem}")
+            }
+            Self::BadException { found, problem } if found.is_empty() => {
+                write!(f, "an exception {problem}")
+            }
+            Self::BadException { found, problem } => {
+                write!(f, "the exception `{found}` {problem}")
             }
         }
     }
@@ -759,6 +787,10 @@ pub enum RuleTag {
     TestedByOutsideCapability,
     /// [`Rule::ItemReasonEmpty`].
     ItemReasonEmpty,
+    /// [`Rule::BadCeiling`].
+    BadCeiling,
+    /// [`Rule::BadException`].
+    BadException,
 }
 
 impl RuleTag {
@@ -828,6 +860,8 @@ impl RuleTag {
             Self::BadStrictness => "bad-strictness",
             Self::TestedByOutsideCapability => "tested-by-outside-capability",
             Self::ItemReasonEmpty => "item-reason-empty",
+            Self::BadCeiling => "bad-ceiling",
+            Self::BadException => "bad-exception",
         }
     }
 }
@@ -840,7 +874,7 @@ impl fmt::Display for RuleTag {
 
 impl Rule {
     /// Every tag, in the order of the variants of [`Rule`].
-    pub const ALL: [RuleTag; 62] = [
+    pub const ALL: [RuleTag; 64] = [
         RuleTag::MissingKey,
         RuleTag::UnknownKey,
         RuleTag::ResourceKey,
@@ -903,6 +937,8 @@ impl Rule {
         RuleTag::BadStrictness,
         RuleTag::TestedByOutsideCapability,
         RuleTag::ItemReasonEmpty,
+        RuleTag::BadCeiling,
+        RuleTag::BadException,
     ];
 
     /// The tag of this value, which drops its data.
@@ -971,6 +1007,8 @@ impl Rule {
             Self::BadStrictness { .. } => RuleTag::BadStrictness,
             Self::TestedByOutsideCapability => RuleTag::TestedByOutsideCapability,
             Self::ItemReasonEmpty => RuleTag::ItemReasonEmpty,
+            Self::BadCeiling { .. } => RuleTag::BadCeiling,
+            Self::BadException { .. } => RuleTag::BadException,
         }
     }
 }
@@ -1139,6 +1177,14 @@ mod tag_tests {
             },
             RuleTag::TestedByOutsideCapability => Rule::TestedByOutsideCapability,
             RuleTag::ItemReasonEmpty => Rule::ItemReasonEmpty,
+            RuleTag::BadCeiling => Rule::BadCeiling {
+                package: String::new(),
+                problem: String::new(),
+            },
+            RuleTag::BadException => Rule::BadException {
+                found: String::new(),
+                problem: "",
+            },
         }
     }
 
@@ -1209,11 +1255,13 @@ mod tag_tests {
             Rule::BadStrictness { .. } => 59,
             Rule::TestedByOutsideCapability => 60,
             Rule::ItemReasonEmpty => 61,
+            Rule::BadCeiling { .. } => 62,
+            Rule::BadException { .. } => 63,
         }
     }
 
     /// How many variants `Rule` has.
-    const VARIANTS: usize = 62;
+    const VARIANTS: usize = 64;
 
     #[test]
     fn all_lists_every_rule_once_in_variant_order() {

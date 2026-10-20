@@ -127,9 +127,10 @@ pub use index::{Index, is_capability_index};
 pub use limits::{MAX_BLOCK_NESTING, MAX_TEXT_BYTES, MAX_YAML_DEPTH};
 pub use profile::{
     Actor, Affects, Architecture, AssessmentRecord, AssessmentVerdict, Bindings, Capability,
-    CapabilitySection, Change, ChangeItem, ContractEffect, CoverageRecord, DocType, EvidenceRecord,
-    EvidenceSubject, EvidenceVerdict, Exclusion, ExclusionItem, Header, Input, InputKind, KeySpec,
-    Location, Measure, Number, Outcome, Profile, RafDocument, RecordHeader, Rule, RuleTag,
-    SectionRef, State, Strictness, TimestampError, ValueKind, Violation, validate_timestamp,
+    CapabilitySection, Ceiling, CeilingClass, CeilingLimit, Change, ChangeItem, ContractEffect,
+    CoverageRecord, DocType, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Exception,
+    ExceptionTarget, Exclusion, ExclusionItem, Header, Input, InputKind, KeySpec, Location,
+    Measure, Number, Outcome, Profile, RafDocument, RecordHeader, Rule, RuleTag, SectionRef, State,
+    Strictness, TimestampError, ValueKind, Violation, validate_timestamp,
 };
 pub use span::Span;

@@ -772,6 +772,148 @@ impl Exclusion {
     }
 }
 
+/// The lines a ceiling of the coverage record bounds: the value of its
+/// optional `of` key.
+///
+/// ```rust
+/// use raf_okf::CeilingClass;
+///
+/// assert_eq!(CeilingClass::default(), CeilingClass::All);
+/// assert_eq!(CeilingClass::from_name("shipping"), Some(CeilingClass::Shipping));
+/// assert_eq!(CeilingClass::from_name("Test"), None);
+/// assert_eq!(CeilingClass::Test.name(), "test");
+/// ```
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CeilingClass {
+    /// The lines of code that ships: not test code, in a library, a binary or
+    /// a build script.
+    Shipping,
+    /// The lines of test code: a `#[cfg(test)]` module, a `#[test]` function,
+    /// and every target that does not ship.
+    Test,
+    /// Every counted line. A row without `of` bounds this.
+    #[default]
+    All,
+}
+
+impl CeilingClass {
+    /// Every class, in the order the record names them.
+    pub const ALL: [Self; 3] = [Self::Shipping, Self::Test, Self::All];
+
+    /// The class as the record writes it: `shipping`, `test` or `all`.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Shipping => "shipping",
+            Self::Test => "test",
+            Self::All => "all",
+        }
+    }
+
+    /// The class a record writes as `name`, if it is one of
+    /// [`CeilingClass::ALL`].
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|class| class.name() == name)
+    }
+}
+
+/// How a ceiling bounds the orphan lines of its class.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CeilingLimit {
+    /// At most this many orphan lines: a whole number, `lines`.
+    Lines(Number),
+    /// At most this share of the counted lines of the class, in percent from
+    /// 0 to 100: `percent`.
+    Percent(Number),
+}
+
+/// One ceiling of the coverage record: the most orphan lines a package may
+/// have in one class under strict mode.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Ceiling {
+    /// The package name, as `scope` names a package.
+    pub package: String,
+    /// The bound: `lines` or `percent`.
+    pub limit: CeilingLimit,
+    /// The lines it bounds: `of`, [`CeilingClass::All`] without the key.
+    pub of: CeilingClass,
+}
+
+impl Ceiling {
+    /// The ceiling `limit` of the class `of` for `package`.
+    #[must_use]
+    pub fn new(package: impl Into<String>, limit: CeilingLimit, of: CeilingClass) -> Self {
+        Self {
+            package: package.into(),
+            limit,
+            of,
+        }
+    }
+}
+
+/// What a line exception of the coverage record names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExceptionTarget {
+    /// An item path below a crate root, such as `raf_okf::Body`: the item and
+    /// what is below it.
+    Item(String),
+    /// Every item below a module, written `<module path>::*`; the path held
+    /// here has no `::*`, and names a module below a crate root.
+    Prefix(String),
+    /// One file, by its repository-relative path.
+    File(String),
+    /// Every file below a directory, written with a trailing `/`; the path
+    /// held here has no trailing `/`.
+    Directory(String),
+}
+
+impl ExceptionTarget {
+    /// The target as the record writes it: the path, `<module>::*` for a
+    /// prefix, or the directory with its trailing `/`.
+    #[must_use]
+    pub fn written(&self) -> String {
+        match self {
+            Self::Item(path) | Self::File(path) => path.clone(),
+            Self::Prefix(path) => format!("{path}::*"),
+            Self::Directory(path) => format!("{path}/"),
+        }
+    }
+
+    /// The key of the row: `item` for an item or a prefix, `file` for a file
+    /// or a directory.
+    #[must_use]
+    pub fn key(&self) -> &'static str {
+        match self {
+            Self::Item(_) | Self::Prefix(_) => "item",
+            Self::File(_) | Self::Directory(_) => "file",
+        }
+    }
+}
+
+/// One line exception of the coverage record: what it takes out of the
+/// orphan lines and why.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Exception {
+    /// The item, prefix, file or directory.
+    pub target: ExceptionTarget,
+    /// The reason, non-empty.
+    pub reason: String,
+}
+
+impl Exception {
+    /// The exception of `target` for `reason`.
+    #[must_use]
+    pub fn new(target: ExceptionTarget, reason: impl Into<String>) -> Self {
+        Self {
+            target,
+            reason: reason.into(),
+        }
+    }
+}
+
 /// The coverage record of a repository.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -786,12 +928,17 @@ pub struct CoverageRecord {
     pub scope: Vec<String>,
     /// The exclusions, in author order.
     pub exclusions: Vec<Exclusion>,
+    /// The ceilings of the orphan lines, in author order; empty without the
+    /// key.
+    pub ceilings: Vec<Ceiling>,
+    /// The line exceptions, in author order; empty without the key.
+    pub exceptions: Vec<Exception>,
 }
 
 impl CoverageRecord {
-    /// The coverage record `coverage:default` with no tags, no timestamp and
-    /// the strictness [`Strictness::Default`]. The values are not checked
-    /// here; see [`CoverageRecord::to_document`].
+    /// The coverage record `coverage:default` with no tags, no timestamp,
+    /// the strictness [`Strictness::Default`] and no ceiling or exception.
+    /// The values are not checked here; see [`CoverageRecord::to_document`].
     #[must_use]
     pub fn new(scope: Vec<String>, exclusions: Vec<Exclusion>) -> Self {
         Self {
@@ -799,6 +946,8 @@ impl CoverageRecord {
             strictness: Strictness::Default,
             scope,
             exclusions,
+            ceilings: Vec::new(),
+            exceptions: Vec::new(),
         }
     }
 
@@ -806,6 +955,20 @@ impl CoverageRecord {
     #[must_use]
     pub fn with_strictness(mut self, strictness: Strictness) -> Self {
         self.strictness = strictness;
+        self
+    }
+
+    /// The record with the ceilings `ceilings`.
+    #[must_use]
+    pub fn with_ceilings(mut self, ceilings: Vec<Ceiling>) -> Self {
+        self.ceilings = ceilings;
+        self
+    }
+
+    /// The record with the line exceptions `exceptions`.
+    #[must_use]
+    pub fn with_exceptions(mut self, exceptions: Vec<Exception>) -> Self {
+        self.exceptions = exceptions;
         self
     }
 }

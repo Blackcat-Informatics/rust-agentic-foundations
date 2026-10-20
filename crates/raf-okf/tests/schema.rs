@@ -130,7 +130,9 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
             "timestamp",
             "strictness",
             "scope",
-            "exclusions"
+            "exclusions",
+            "ceilings",
+            "exceptions"
         ]
     );
     // The page states the same table: one row per type, in the order of
@@ -156,11 +158,13 @@ fn tags_and_timestamp_are_optional_and_every_other_key_is_required() {
         for spec in doc_type.keys() {
             // Evidence also leaves out what a run may not have: the command
             // of a bound test, the revision, and the measures. The coverage
-            // record leaves out its strictness, which is `default` without it.
+            // record leaves out its strictness, which is `default` without it,
+            // and its ceilings and exceptions, none without them.
             let optional = matches!(spec.key, "tags" | "timestamp")
                 || (doc_type == DocType::Evidence
                     && matches!(spec.key, "command" | "revision" | "values" | "limits"))
-                || (doc_type == DocType::Coverage && spec.key == "strictness");
+                || (doc_type == DocType::Coverage
+                    && matches!(spec.key, "strictness" | "ceilings" | "exceptions"));
             assert_eq!(spec.required, !optional, "{} {}", doc_type.name(), spec.key);
         }
         let tags = doc_type

@@ -5,9 +5,9 @@
 //! each beside a neighbouring record that is accepted.
 
 use raf_okf::{
-    Actor, AssessmentVerdict, CapabilitySection, DocType, Document, EvidenceSubject,
-    EvidenceVerdict, ExclusionItem, InputKind, Location, Profile, RafDocument, Rule, Strictness,
-    Violation,
+    Actor, AssessmentVerdict, CapabilitySection, Ceiling, CeilingClass, CeilingLimit, DocType,
+    Document, EvidenceSubject, EvidenceVerdict, Exception, ExceptionTarget, ExclusionItem,
+    InputKind, Location, Number, Profile, RafDocument, Rule, Strictness, Violation,
 };
 
 const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
@@ -671,7 +671,7 @@ fn a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float() {
 #[test]
 fn numbers_compare_exactly_by_sign_whole_part_and_fraction() {
     use std::cmp::Ordering::{Equal, Greater, Less};
-    let n = |text: &str| raf_okf::Number::parse(text).expect("a number");
+    let n = |text: &str| Number::parse(text).expect("a number");
     for (left, right, order) in [
         ("0", "-0", Equal),
         ("-0.000", "0", Equal),
@@ -827,6 +827,278 @@ fn an_exclusion_has_a_reason_with_no_placeholder() {
         },
     );
     clean(&coverage(), COVERAGE_PATH);
+}
+
+/// The coverage record with `extra` after its exclusions.
+fn coverage_with(extra: &str) -> String {
+    mutate(&coverage(), "\n---\n", &format!("\n{extra}---\n"))
+}
+
+/// The ceilings and the exceptions of the coverage record `text`.
+fn lines_keys(text: &str) -> (Vec<Ceiling>, Vec<Exception>) {
+    match clean(text, COVERAGE_PATH) {
+        RafDocument::Coverage(record) => (record.ceilings, record.exceptions),
+        other => panic!("not a coverage record: {other:#?}"),
+    }
+}
+
+fn number(text: &str) -> Number {
+    Number::parse(text).expect("a number")
+}
+
+#[test]
+fn a_ceiling_names_a_crate_one_whole_number_of_lines_or_a_percent_and_an_optional_class() {
+    // Without the keys the record has none.
+    assert_eq!(lines_keys(&coverage()), (Vec::new(), Vec::new()));
+    let text = coverage_with(
+        "ceilings:\n  - crate: raf-okf\n    lines: 12\n  - crate: raf-okf\n    lines: 0\n    of: test\n  \
+         - crate: raf_source\n    percent: 12.50\n    of: shipping\n  - crate: demo\n    percent: 100\n    of: all\n",
+    );
+    let (ceilings, _) = lines_keys(&text);
+    assert_eq!(
+        ceilings,
+        [
+            Ceiling::new(
+                "raf-okf",
+                CeilingLimit::Lines(number("12")),
+                CeilingClass::All
+            ),
+            Ceiling::new(
+                "raf-okf",
+                CeilingLimit::Lines(number("0")),
+                CeilingClass::Test
+            ),
+            Ceiling::new(
+                "raf_source",
+                CeilingLimit::Percent(number("12.50")),
+                CeilingClass::Shipping
+            ),
+            Ceiling::new(
+                "demo",
+                CeilingLimit::Percent(number("100")),
+                CeilingClass::All
+            ),
+        ]
+    );
+    // The boundaries of the values are valid.
+    clean(
+        &coverage_with(
+            "ceilings:\n  - crate: demo\n    percent: 0\n  - crate: demo\n    percent: 100.000\n    of: test\n",
+        ),
+        COVERAGE_PATH,
+    );
+}
+
+#[test]
+fn a_ceiling_of_another_shape_is_refused_with_its_rule() {
+    let bad = |problem: &str| Rule::BadCeiling {
+        package: "demo".to_string(),
+        problem: problem.to_string(),
+    };
+    let rows = [
+        (
+            "    lines: 3\n    of: docs\n",
+            bad("has `of: docs`, which is not `shipping`, `test` or `all`"),
+        ),
+        (
+            "    lines: 3\n    of: All\n",
+            bad("has `of: All`, which is not `shipping`, `test` or `all`"),
+        ),
+        (
+            "    lines: 3\n    percent: 1\n",
+            bad("names both `lines` and `percent`; it names one of them"),
+        ),
+        ("    of: test\n", bad("names neither `lines` nor `percent`")),
+        (
+            "    lines: 1.5\n",
+            bad("has `lines: 1.5`, which is not a whole number"),
+        ),
+        (
+            "    lines: -1\n",
+            bad("has `lines: -1`, which is not a whole number"),
+        ),
+        (
+            "    percent: 100.01\n",
+            bad("has `percent: 100.01`, which is not from 0 to 100"),
+        ),
+        (
+            "    percent: -0\n",
+            bad("has `percent: -0`, which is not from 0 to 100"),
+        ),
+        (
+            "    lines: many\n",
+            Rule::BadMeasure {
+                list: "ceilings",
+                name: "lines".to_string(),
+                found: "many".to_string(),
+            },
+        ),
+        (
+            "    percent: 1e3\n",
+            Rule::BadMeasure {
+                list: "ceilings",
+                name: "percent".to_string(),
+                found: "1e3".to_string(),
+            },
+        ),
+        (
+            "    lines: 3\n    note: x\n",
+            Rule::RowUnknownKey {
+                list: "ceilings",
+                key: "note".to_string(),
+            },
+        ),
+    ];
+    for (row, rule) in rows {
+        let text = coverage_with(&format!("ceilings:\n  - crate: demo\n{row}"));
+        assert_only(&text, COVERAGE_PATH, &key("ceilings"), &rule);
+    }
+    let missing = coverage_with("ceilings:\n  - lines: 3\n");
+    let rule = Rule::RowMissingKey {
+        list: "ceilings",
+        key: "crate",
+    };
+    assert_only(&missing, COVERAGE_PATH, &key("ceilings"), &rule);
+    let named = coverage_with("ceilings:\n  - crate: \"de mo\"\n    lines: 3\n");
+    let rule = Rule::BadCrateName {
+        entry: "de mo".to_string(),
+    };
+    assert_only(&named, COVERAGE_PATH, &key("ceilings"), &rule);
+    // One row for each class of a crate: a class without `of` is `all`.
+    let twice = coverage_with(
+        "ceilings:\n  - crate: demo\n    lines: 3\n  - crate: demo\n    percent: 5\n    of: all\n",
+    );
+    let rule = Rule::DuplicateEntry {
+        list: "ceilings",
+        entry: "demo of all".to_string(),
+    };
+    assert_only(&twice, COVERAGE_PATH, &key("ceilings"), &rule);
+    let flat = coverage_with("ceilings: [demo]\n");
+    let rule = Rule::WrongShape {
+        expected: "a list of maps with `crate`, `lines` or `percent`, and an optional `of`",
+    };
+    assert_only(&flat, COVERAGE_PATH, &key("ceilings"), &rule);
+}
+
+#[test]
+fn an_exception_names_one_item_prefix_file_or_directory_and_its_reason() {
+    let text = coverage_with(
+        "exceptions:\n  - item: raf_okf::Body\n    reason: \"One.\"\n  - item: \"raf_okf::profile::*\"\n    reason: \"Two.\"\n  \
+         - file: crates/raf-okf/src/lib.rs\n    reason: \"Three.\"\n  - file: \"crates/raf-source/tests/support/\"\n    reason: \"Four.\"\n",
+    );
+    let (_, exceptions) = lines_keys(&text);
+    assert_eq!(
+        exceptions,
+        [
+            Exception::new(ExceptionTarget::Item("raf_okf::Body".to_string()), "One."),
+            Exception::new(
+                ExceptionTarget::Prefix("raf_okf::profile".to_string()),
+                "Two."
+            ),
+            Exception::new(
+                ExceptionTarget::File("crates/raf-okf/src/lib.rs".to_string()),
+                "Three."
+            ),
+            Exception::new(
+                ExceptionTarget::Directory("crates/raf-source/tests/support".to_string()),
+                "Four."
+            ),
+        ]
+    );
+    let written: Vec<String> = exceptions
+        .iter()
+        .map(|exception| exception.target.written())
+        .collect();
+    assert_eq!(
+        written,
+        [
+            "raf_okf::Body",
+            "raf_okf::profile::*",
+            "crates/raf-okf/src/lib.rs",
+            "crates/raf-source/tests/support/"
+        ]
+    );
+}
+
+#[test]
+fn an_exception_of_another_shape_or_without_a_reason_is_refused_with_its_rule() {
+    let bad = |found: &str, problem: &'static str| Rule::BadException {
+        found: found.to_string(),
+        problem,
+    };
+    let crate_root = "names a whole crate; a crate's lines are bounded by its ceiling";
+    let not_a_path = "is neither an item path nor a `<module>::*` prefix";
+    let absolute = "is an absolute path; it is a path relative to the repository root";
+    let up = "holds a `..` segment; it is a path below the repository root";
+    let unnamed = "is not a repository-relative path of named segments";
+    let rows = [
+        ("item: raf_okf", bad("raf_okf", crate_root)),
+        ("item: \"raf_okf::*\"", bad("raf_okf::*", crate_root)),
+        ("item: \"raf_okf::*::x\"", bad("raf_okf::*::x", not_a_path)),
+        ("item: raf-okf::Body", bad("raf-okf::Body", not_a_path)),
+        ("file: /etc/passwd", bad("/etc/passwd", absolute)),
+        ("file: \"C:/x.rs\"", bad("C:/x.rs", absolute)),
+        ("file: \"crates\\\\x.rs\"", bad("crates\\x.rs", absolute)),
+        ("file: crates/../x.rs", bad("crates/../x.rs", up)),
+        ("file: ../x.rs", bad("../x.rs", up)),
+        ("file: crates//x.rs", bad("crates//x.rs", unnamed)),
+        ("file: ./x.rs", bad("./x.rs", unnamed)),
+        ("file: \"/\"", bad("/", absolute)),
+        (
+            "item: raf_okf::Body\n    file: src/lib.rs",
+            bad("", "names both `item` and `file`; it names one of them"),
+        ),
+        ("note: x", bad("", "names neither `item` nor `file`")),
+    ];
+    for (row, rule) in rows {
+        let text = coverage_with(&format!("exceptions:\n  - {row}\n    reason: \"Why.\"\n"));
+        let found = validate(&text, COVERAGE_PATH).expect_err("a bad exception");
+        let rules: Vec<&Rule> = found.iter().map(Violation::rule).collect();
+        // The row of an unknown key alone is also that.
+        if row.starts_with("note") {
+            assert_eq!(
+                rules,
+                [
+                    &Rule::RowUnknownKey {
+                        list: "exceptions",
+                        key: "note".to_string()
+                    },
+                    &rule
+                ],
+                "{row}"
+            );
+        } else {
+            assert_eq!(rules, [&rule], "{row}");
+        }
+        assert!(found.iter().all(|v| *v.at() == key("exceptions")), "{row}");
+    }
+    let empty = coverage_with("exceptions:\n  - file: src/lib.rs\n    reason: \" \"\n");
+    let rule = Rule::EmptyReason {
+        item: "src/lib.rs".to_string(),
+    };
+    assert_only(&empty, COVERAGE_PATH, &key("exceptions"), &rule);
+    let missing = coverage_with("exceptions:\n  - file: src/lib.rs\n");
+    let rule = Rule::RowMissingKey {
+        list: "exceptions",
+        key: "reason",
+    };
+    assert_only(&missing, COVERAGE_PATH, &key("exceptions"), &rule);
+    let twice = coverage_with(
+        "exceptions:\n  - file: src/\n    reason: \"One.\"\n  - file: src/\n    reason: \"Two.\"\n",
+    );
+    let rule = Rule::DuplicateEntry {
+        list: "exceptions",
+        entry: "src/".to_string(),
+    };
+    assert_only(&twice, COVERAGE_PATH, &key("exceptions"), &rule);
+    let token = concat!("t", "bd");
+    let placeholder = coverage_with(&format!(
+        "exceptions:\n  - file: src/lib.rs\n    reason: \"Reason {token}.\"\n"
+    ));
+    let rule = Rule::Placeholder {
+        token: token.to_string(),
+    };
+    assert_only(&placeholder, COVERAGE_PATH, &key("exceptions"), &rule);
 }
 
 #[test]

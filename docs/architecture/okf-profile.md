@@ -64,7 +64,7 @@ inventory.
 | Architecture | `docs/architecture` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp` |
 | Evidence | `work/evidence` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by`, `for`, optional `command`, optional `revision`, optional `values`, optional `limits` |
 | Assessment | `work/assessments` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by` |
-| Coverage | `work/coverage` | `type`, `id`, optional `tags`, optional `timestamp`, optional `strictness`, `scope`, `exclusions` |
+| Coverage | `work/coverage` | `type`, `id`, optional `tags`, optional `timestamp`, optional `strictness`, `scope`, `exclusions`, optional `ceilings`, optional `exceptions` |
 
 Every key is required except those the table marks optional. The writer emits the
 keys of a type in the order of this table.
@@ -151,6 +151,22 @@ in that type's directory. Each of these directories holds Markdown files only.
   crate root, such as `raf_okf::Body`, or a prefix `<module path>::*` that names a
   module below a crate root. A crate root, alone or as a prefix, is refused: a
   crate that is not covered is left out of `scope`. The reason is non-empty.
+- **`ceilings`** (optional) is a list of maps with `crate`, exactly one of
+  `lines` and `percent`, and an optional `of`; the reverse coverage of
+  [strict mode](../capabilities/workplan-strict.md) holds each package to them.
+  `crate` is a crate package name; `lines` is a whole number and `percent` a
+  number from 0 to 100, compared exactly on its decimal text; `of` is
+  `shipping`, `test` or `all`, and `all` without the key. A crate has at most
+  one row for each `of`. A row of another shape is refused, and a value that is
+  not a number is refused as a measure. An absent key holds none, and the
+  writer leaves out an empty list and an `of` of `all`.
+- **`exceptions`** (optional) is a list of maps with exactly one of `item` and
+  `file`, and `reason`, each `item` or `file` once; an absent key holds none.
+  The item is a path below a crate root or a prefix `<module path>::*`, as an
+  exclusion's is, and a crate root is refused. The file is a path relative to
+  the repository root, of `/`-separated segments none of which is empty, `.`
+  or `..`, or such a path with a trailing `/` for a directory; an absolute path
+  is refused. The reason is non-empty and holds no placeholder token.
 - **Scalars** are quoted or plain. A quoted value closes its quote. A plain value
   contains no `: `, does not start with one of `>`, `|`, `&`, `*`, `!`, `%`, `@` or
   a backtick, and is not a block scalar header. A trailing ` # comment` after a

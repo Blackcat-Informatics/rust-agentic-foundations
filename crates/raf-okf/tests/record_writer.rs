@@ -11,9 +11,10 @@ use std::fs;
 use std::path::Path;
 
 use raf_okf::{
-    Actor, AssessmentRecord, AssessmentVerdict, CapabilitySection, ConstructError, CoverageRecord,
-    DocType, Document, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Exclusion, ExclusionItem,
-    Input, InputKind, Measure, Number, Profile, RafDocument, Rule, SectionRef, Strictness,
+    Actor, AssessmentRecord, AssessmentVerdict, CapabilitySection, Ceiling, CeilingClass,
+    CeilingLimit, ConstructError, CoverageRecord, DocType, Document, EvidenceRecord,
+    EvidenceSubject, EvidenceVerdict, Exception, ExceptionTarget, Exclusion, ExclusionItem, Input,
+    InputKind, Measure, Number, Profile, RafDocument, Rule, SectionRef, Strictness,
 };
 
 const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
@@ -125,6 +126,48 @@ fn a_built_assessment_and_coverage_record_read_back_equal() {
     assert_eq!(
         read(&text, "work/coverage/default.md"),
         RafDocument::Coverage(record)
+    );
+}
+
+#[test]
+fn ceilings_and_exceptions_are_written_after_the_exclusions_and_read_back_equal() {
+    let number = |text: &str| Number::parse(text).expect("a number");
+    let record = CoverageRecord::new(vec!["demo".to_string()], Vec::new())
+        .with_ceilings(vec![
+            Ceiling::new("demo", CeilingLimit::Lines(number("3")), CeilingClass::All),
+            Ceiling::new(
+                "demo",
+                CeilingLimit::Percent(number("12.5")),
+                CeilingClass::Test,
+            ),
+        ])
+        .with_exceptions(vec![
+            Exception::new(ExceptionTarget::Item("demo::Frame".to_string()), "One."),
+            Exception::new(ExceptionTarget::Prefix("demo::tests".to_string()), "Two."),
+            Exception::new(ExceptionTarget::File("src/gen.rs".to_string()), "Three."),
+            Exception::new(
+                ExceptionTarget::Directory("tests/support".to_string()),
+                "Four.",
+            ),
+        ]);
+    let text = record.to_document().expect("the record writes").render();
+    assert_eq!(
+        text,
+        "---\ntype: Coverage\nid: coverage:default\nscope: [demo]\nexclusions: []\n\
+         ceilings:\n  - crate: demo\n    lines: 3\n  - crate: demo\n    percent: 12.5\n    of: test\n\
+         exceptions:\n  - item: demo::Frame\n    reason: One.\n  - item: demo::tests::*\n    reason: Two.\n  \
+         - file: src/gen.rs\n    reason: Three.\n  - file: tests/support/\n    reason: Four.\n---\n"
+    );
+    assert_eq!(
+        read(&text, "work/coverage/default.md"),
+        RafDocument::Coverage(record)
+    );
+    // With none, neither key is written, as a record without them reads.
+    let bare = CoverageRecord::new(Vec::new(), Vec::new());
+    let text = bare.to_document().expect("the record writes").render();
+    assert!(
+        !text.contains("ceilings") && !text.contains("exceptions"),
+        "{text}"
     );
 }
 

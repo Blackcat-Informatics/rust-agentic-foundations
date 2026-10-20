@@ -107,6 +107,19 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   each was first reached by, breadth first from the sorted roots; a root of
   another workspace is a `ReachError`. Each file is lexed once and each run is
   resolved at most once for each module, in one walk of its segments.
+- **`raf-okf`:** the coverage record takes the optional keys `ceilings` and
+  `exceptions` of the reverse coverage of strict mode. A `Ceiling` holds a crate,
+  a `CeilingLimit` of whole `lines` or a `percent` from 0 to 100, and the
+  `CeilingClass` of its optional `of` (`shipping`, `test`, or `all` without the
+  key), one row for each class of a crate; any other shape is `Rule::BadCeiling`.
+  An `Exception` holds an `ExceptionTarget`, an item path, a `<module>::*` prefix,
+  a repository-relative file or a directory ending in `/`, and a non-empty reason;
+  a row with neither or both of `item` and `file`, a crate root and an absolute or
+  `..` path are `Rule::BadException`. `CoverageRecord::with_ceilings` and
+  `with_exceptions` set them, and the writer writes them after the exclusions and
+  leaves out a key that holds none. Breaking: `CoverageRecord` gains two fields,
+  `ValueKind` two variants, and `Rule`, `RuleTag` and `Rule::ALL` two variants; the
+  message of `Rule::EmptyReason` names an exclusion or an exception.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed

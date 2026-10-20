@@ -142,6 +142,8 @@ kinds! {
     OKF_BAD_STRICTNESS = "okf-bad-strictness";
     OKF_TESTED_BY_OUTSIDE_CAPABILITY = "okf-tested-by-outside-capability";
     OKF_ITEM_REASON_EMPTY = "okf-item-reason-empty";
+    OKF_BAD_CEILING = "okf-bad-ceiling";
+    OKF_BAD_EXCEPTION = "okf-bad-exception";
     OKF_PARSE_UNCLOSED_FENCE = "okf-parse-unclosed-fence";
     OKF_PARSE_TOO_LARGE = "okf-parse-too-large";
     OKF_PARSE_MIXED_LINE_ENDINGS = "okf-parse-mixed-line-endings";
@@ -610,7 +612,10 @@ fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
             kind::OKF_CRATE_ROOT_EXCLUSION,
             "remove the crate from `scope` instead of excluding it",
         ),
-        RuleTag::EmptyReason => (kind::OKF_EMPTY_REASON, "give the exclusion its reason"),
+        RuleTag::EmptyReason => (
+            kind::OKF_EMPTY_REASON,
+            "give the exclusion or the exception its reason",
+        ),
         RuleTag::BadStrictness => (
             kind::OKF_BAD_STRICTNESS,
             "set `strictness` to default or strict, or remove the key, which reads as default",
@@ -622,6 +627,14 @@ fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
         RuleTag::ItemReasonEmpty => (
             kind::OKF_ITEM_REASON_EMPTY,
             "give the item a non-empty `reason`, or remove the key",
+        ),
+        RuleTag::BadCeiling => (
+            kind::OKF_BAD_CEILING,
+            "write the row as `crate`, exactly one of `lines` (a whole number) or `percent` (from 0 to 100), and an optional `of` of `shipping`, `test` or `all`",
+        ),
+        RuleTag::BadException => (
+            kind::OKF_BAD_EXCEPTION,
+            "write the row with exactly one of `item` (an item path or a `<module>::*` prefix below a crate root) or `file` (a path relative to the repository root, a directory ending in `/`), and its `reason`",
         ),
     };
     (kind, Cow::Borrowed(fix))

@@ -483,6 +483,16 @@ fn record_rule_case(tag: RuleTag, name: &str, kind: &str) -> Case {
             "strictness: strct\nscope: []",
             key("strictness"),
         ),
+        RuleTag::BadCeiling => coverage(
+            "    reason: \"Unit tests of internals.\"\n",
+            "    reason: \"Unit tests of internals.\"\nceilings:\n  - crate: demo\n    lines: 0\n    of: docs\n",
+            key("ceilings"),
+        ),
+        RuleTag::BadException => coverage(
+            "    reason: \"Unit tests of internals.\"\n",
+            "    reason: \"Unit tests of internals.\"\nexceptions:\n  - item: demo::real\n    file: src/lib.rs\n    reason: \"Both at once.\"\n",
+            key("exceptions"),
+        ),
         other => panic!("{other} is not a rule of the record types"),
     }
 }

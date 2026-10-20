@@ -27,7 +27,14 @@ bindings:
     - raf_okf::CoverageRecord::new
     - raf_okf::CoverageRecord::to_document
     - raf_okf::CoverageRecord::with_strictness
+    - raf_okf::CoverageRecord::with_ceilings
+    - raf_okf::CoverageRecord::with_exceptions
     - raf_okf::Strictness
+    - raf_okf::Ceiling
+    - raf_okf::CeilingClass
+    - raf_okf::CeilingLimit
+    - raf_okf::Exception
+    - raf_okf::ExceptionTarget
     - raf_okf::Number::compare
     - raf_okf::Number::exceeds
   tests:
@@ -95,6 +102,10 @@ bindings:
     - raf_okf::test_crate::records::a_valid_assessment_validates_to_its_typed_value
     - raf_okf::test_crate::records::a_valid_coverage_record_validates_and_an_empty_scope_opts_out_visibly
     - raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key
+    - raf_okf::test_crate::records::a_ceiling_names_a_crate_one_whole_number_of_lines_or_a_percent_and_an_optional_class
+    - raf_okf::test_crate::records::an_exception_names_one_item_prefix_file_or_directory_and_its_reason
+    - raf_okf::test_crate::records::a_ceiling_of_another_shape_is_refused_with_its_rule
+    - raf_okf::test_crate::records::an_exception_of_another_shape_or_without_a_reason_is_refused_with_its_rule
     - raf_okf::test_crate::records::a_verdict_is_one_of_the_verdicts_of_its_type
     - raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name
     - raf_okf::test_crate::records::a_digest_is_sixty_four_lowercase_hex_digits
@@ -117,6 +128,7 @@ bindings:
     - raf_okf::test_crate::record_writer::a_built_evidence_record_renders_to_a_record_that_reads_back_equal
     - raf_okf::test_crate::record_writer::a_built_assessment_and_coverage_record_read_back_equal
     - raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out
+    - raf_okf::test_crate::record_writer::ceilings_and_exceptions_are_written_after_the_exclusions_and_read_back_equal
     - raf_okf::test_crate::record_writer::every_record_fixture_reads_back_equal_after_writing
     - raf_okf::test_crate::record_writer::the_keys_are_written_in_the_order_of_the_key_table
     - raf_okf::test_crate::record_writer::a_value_the_profile_refuses_is_written_and_refused_when_it_is_read_back
@@ -202,31 +214,49 @@ record without the key says `Default`, and any other value is the violation
 `strictness: strict` after `timestamp` and leaves `Default` out, as a record without
 the key reads. [Strict mode](./workplan-strict.md) states what the value sets.
 
+**Ceilings and exceptions.** The coverage record takes, after `exclusions`, the
+optional keys `ceilings` and `exceptions`, which the reverse coverage of
+[strict mode](./workplan-strict.md) reads; [the RAF profile of OKF](../architecture/okf-profile.md)
+states their value rules. A row of `ceilings` is a `Ceiling`: its `crate`, a crate
+package name; its `CeilingLimit`, exactly one of `lines`, a whole number
+(`CeilingLimit::Lines`), and `percent`, a number from 0 to 100
+(`CeilingLimit::Percent`), each held as a `Number` and compared on its decimal
+text; and its `CeilingClass`, the optional `of`, `shipping`, `test` or `all`
+(`CeilingClass::ALL`, `CeilingClass::name`, `CeilingClass::from_name`), and `All`
+without the key. A crate has at most one row for each class
+(`okf-duplicate-entry`); a row with neither or both of `lines` and `percent`, an
+`of` of another value, a `lines` that is not whole or a `percent` outside 0 to 100
+is `Rule::BadCeiling` at `ceilings`, reported as `okf-bad-ceiling`, and a value
+that is not a number is `okf-bad-measure`. A row of `exceptions` is an
+`Exception`: an `ExceptionTarget` and a non-empty `reason`. The target is exactly
+one of `item`, an item path (`ExceptionTarget::Item`) or a `<module>::*` prefix
+(`ExceptionTarget::Prefix`) below a crate root, and `file`, a repository-relative
+path (`ExceptionTarget::File`) or a directory with a trailing `/`
+(`ExceptionTarget::Directory`), as `ExceptionTarget::written` writes it again. A row
+with neither or both of `item` and `file`, an `item` that is a crate root or
+neither an item path nor a prefix, and a `file` that is absolute, holds a `..`, `.`
+or empty segment or a backslash is `Rule::BadException` at `exceptions`, reported as
+`okf-bad-exception`; an empty reason is `okf-empty-reason`, a reason with a
+placeholder token is refused as an exclusion's is, and a target written twice is
+`okf-duplicate-entry`. Whether an exception matches anything is judged by the
+workplan, which needs the source index. `CoverageRecord::ceilings` and
+`CoverageRecord::exceptions` hold them, empty without the keys;
+`CoverageRecord::with_ceilings` and `CoverageRecord::with_exceptions` set them,
+and `CoverageRecord::to_document` writes each list after the exclusions in record
+order, a ceiling's `of` only when it is not `all`, and leaves out a key that holds
+none, as a record without it reads.
+
 > [!PROPOSED change:workplan-strict]
-> **Strict-mode keys and the debt record.** The profile has seven types: the six
-> above and the record `Debt`, the strict debt of [strict mode](./workplan-strict.md),
-> in `work/debt` with the prefix `debt:` and the one id `debt:default`, as the
-> coverage record has `coverage:default`. [The RAF profile of OKF](../architecture/okf-profile.md)
-> states its keys and those below, and `raf-okf` validates them:
->
-> - the coverage record takes, beside `strictness`, the optional `ceilings`, rows of
->   `crate`, exactly one of `lines` or `percent` and an optional
->   `of` (`shipping`, `test` or `all`), each wrong shape `okf-bad-ceiling` and a
->   number that is not one `okf-bad-measure`; and the optional `exceptions`, rows of
->   exactly one of `item` or `file` and a non-empty `reason`. The profile refuses,
->   as `okf-bad-exception`, a row with neither or both of `item` and `file`, an
->   `item` that is a crate root or neither an item path nor a `<module>::*` prefix,
->   and a `file` that is an absolute path or holds a `..` segment, and refuses an
->   empty reason as `okf-empty-reason`; whether an exception matches anything is
->   judged by the workplan, which needs the source index. `CoverageRecord`
->   holds them, and its writer renders them in key-table order, an absent key left
->   out;
-> - the debt record has the keys `type`, `id`, the optional `tags` and `timestamp`,
->   `findings`, rows of exactly `kind` and `subject`, and `lines`, rows of exactly
->   `item` and `orphans`, sorted and without repeats, and an empty body. It is
->   validated into `RafDocument::Debt` holding a `DebtRecord`, which
->   `DebtRecord::new` builds and `DebtRecord::to_document` writes as the other
->   records are written.
+> **The debt record.** The profile has seven types: the six above and the record
+> `Debt`, the strict debt of [strict mode](./workplan-strict.md), in `work/debt` with
+> the prefix `debt:` and the one id `debt:default`, as the coverage record has
+> `coverage:default`. [The RAF profile of OKF](../architecture/okf-profile.md)
+> states its keys, and `raf-okf` validates them: the debt record has the keys
+> `type`, `id`, the optional `tags` and `timestamp`, `findings`, rows of exactly
+> `kind` and `subject`, and `lines`, rows of exactly `item` and `orphans`, sorted
+> and without repeats, and an empty body. It is validated into `RafDocument::Debt`
+> holding a `DebtRecord`, which `DebtRecord::new` builds and
+> `DebtRecord::to_document` writes as the other records are written.
 
 **Validate.** `Profile::validate` checks a parsed document and its path against the
 closed key set of its `type` and returns a typed result: the typed document
@@ -296,10 +326,11 @@ The records follow the key table and value rules of the architecture page:
 - the coverage record is `coverage:default` at `work/coverage/default.md`. Its
   `strictness`, when it is there, is `default` or `strict`, its `scope` holds
   distinct crate package names, and each exclusion an `ExclusionItem` below a crate
-  root with a non-empty reason; a crate root is refused;
+  root with a non-empty reason; a crate root is refused. Its `ceilings` and
+  `exceptions`, when they are there, are the rows above;
 - `DocType`, `InputKind`, `Actor`, `EvidenceVerdict`, `AssessmentVerdict`,
-  `EvidenceSubject`, `ExclusionItem` and `Strictness` are exhaustive enums,
-  because the profile closes each set.
+  `EvidenceSubject`, `ExclusionItem`, `Strictness`, `CeilingClass`, `CeilingLimit`
+  and `ExceptionTarget` are exhaustive enums, because the profile closes each set.
 
 Checks that need other documents, such as whether an id exists or whether a graph is
 acyclic, belong to [the document model](./workplan-document-model.md); `raf-okf`
@@ -545,6 +576,17 @@ would produce noise in the diff, and a clean check could not be told from a stal
   commit id, an empty exclusion reason, a crate-root exclusion, a repeated scope
   entry, a record in another directory or under another file name, and a
   coverage record under another slug.
+- Ceiling and exception fixtures, each beside an accepted neighbour: ceilings of
+  each class, a percent with a fraction and the bounds 0 and 100 accepted; an `of`
+  of another value, both or neither of `lines` and `percent`, a fractional or a
+  negative `lines`, a `percent` over 100 or negative, a value that is not a
+  number, an unknown key, no `crate`, a crate that is not a package name, a class
+  twice for a crate and a list that is not of maps refused; an exception of each
+  target accepted and written again as it was read; a crate root, a prefix of one,
+  a path that is neither, an absolute, a drive, a backslash, a `..`, an empty and a
+  `.` segment, both and neither of `item` and `file`, an empty or a missing reason,
+  a placeholder in the reason and a target twice refused; a record with both keys
+  written and read back equal, and one with neither written without them.
 - Claim fixtures: a claim with one record and with several, after a paragraph
   and after a list item; markers inside a fence, a code span and a PROPOSED block
   are not read; an unknown `raf:` comment is refused; a `raf:generated:` comment
@@ -651,8 +693,11 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `raf_okf::test_crate::record_writer::a_built_evidence_record_renders_to_a_record_that_reads_back_equal` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::a_value_the_profile_refuses_is_written_and_refused_when_it_is_read_back` | test | [Verification](#verification) |
+| `raf_okf::test_crate::record_writer::ceilings_and_exceptions_are_written_after_the_exclusions_and_read_back_equal` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::every_record_fixture_reads_back_equal_after_writing` | test | [Verification](#verification) |
 | `raf_okf::test_crate::record_writer::the_keys_are_written_in_the_order_of_the_key_table` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::a_ceiling_names_a_crate_one_whole_number_of_lines_or_a_percent_and_an_optional_class` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::a_ceiling_of_another_shape_is_refused_with_its_rule` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_digest_is_sixty_four_lowercase_hex_digits` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_list_that_holds_each_entry_once_refuses_a_repeat` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_record_has_no_title_description_or_body` | test | [Verification](#verification) |
@@ -663,6 +708,8 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `raf_okf::test_crate::records::a_valid_evidence_record_validates_to_its_typed_value` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::a_verdict_is_one_of_the_verdicts_of_its_type` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::an_exception_names_one_item_prefix_file_or_directory_and_its_reason` | test | [Verification](#verification) |
+| `raf_okf::test_crate::records::an_exception_of_another_shape_or_without_a_reason_is_refused_with_its_rule` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::an_exclusion_has_a_reason_with_no_placeholder` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::an_exclusion_names_an_item_or_a_module_prefix_below_a_crate_root` | test | [Verification](#verification) |
 | `raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name` | test | [Verification](#verification) |

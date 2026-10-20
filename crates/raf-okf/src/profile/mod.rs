@@ -25,9 +25,10 @@ pub use schema::{DocType, KeySpec, ValueKind};
 pub use timestamp::{TimestampError, validate_timestamp};
 pub use typed::{
     Actor, Affects, Architecture, AssessmentRecord, AssessmentVerdict, Bindings, Capability,
-    CapabilitySection, Change, ChangeItem, ContractEffect, CoverageRecord, EvidenceRecord,
-    EvidenceSubject, EvidenceVerdict, Exclusion, ExclusionItem, Header, Input, InputKind, Measure,
-    Number, Outcome, RafDocument, RecordHeader, SectionRef, State, Strictness,
+    CapabilitySection, Ceiling, CeilingClass, CeilingLimit, Change, ChangeItem, ContractEffect,
+    CoverageRecord, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Exception, ExceptionTarget,
+    Exclusion, ExclusionItem, Header, Input, InputKind, Measure, Number, Outcome, RafDocument,
+    RecordHeader, SectionRef, State, Strictness,
 };
 pub use violation::{Location, Rule, RuleTag, Violation};
 
@@ -175,6 +176,8 @@ struct Collected {
     strictness: Slot<Strictness>,
     scope: Option<Vec<String>>,
     exclusions: Option<Vec<Exclusion>>,
+    ceilings: Slot<Vec<Ceiling>>,
+    exceptions: Slot<Vec<Exception>>,
     /// Whether a rule between the keys of a record was broken.
     between_broken: bool,
 }
@@ -350,6 +353,12 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
             }
             ValueKind::Scope => found.scope = records::check_scope(check, entry),
             ValueKind::Exclusions => found.exclusions = records::check_exclusions(check, entry),
+            ValueKind::Ceilings => {
+                found.ceilings = Slot::from_check(records::check_ceilings(check, entry));
+            }
+            ValueKind::Exceptions => {
+                found.exceptions = Slot::from_check(records::check_exceptions(check, entry));
+            }
             // `type` was read first.
             ValueKind::DocType => {}
         }
@@ -790,6 +799,7 @@ fn check_frontmatter_placeholders(check: &mut Check<'_>, map: &Map) {
         ("items", "claim"),
         ("items", "reason"),
         ("exclusions", "reason"),
+        ("exceptions", "reason"),
     ] {
         if let Some(list) = map.get(key).and_then(|entry| entry.value().as_list()) {
             for item in list.items() {
@@ -889,6 +899,8 @@ fn build_record(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         strictness,
         scope,
         exclusions,
+        ceilings,
+        exceptions,
         ..
     } = found;
     let (id, slug) = id?;
@@ -944,6 +956,8 @@ fn build_record(doc_type: DocType, found: Collected) -> Option<RafDocument> {
             strictness: strictness.settle().ok()?.unwrap_or_default(),
             scope: scope?,
             exclusions: exclusions?,
+            ceilings: ceilings.settle().ok()?.unwrap_or_default(),
+            exceptions: exceptions.settle().ok()?.unwrap_or_default(),
         })),
         // A value that failed its check, or a document type with no record.
         _ => None,
