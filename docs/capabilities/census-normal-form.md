@@ -209,6 +209,8 @@ bindings:
     - raf_census::version::tests::other_versions_are_refused_naming_both_and_the_migration
     - raf_census::version::tests::the_implemented_version_is_one
     - raf_census::version::tests::the_implemented_version_passes
+    - raf_census::test_crate::forms::the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name
+    - raf_census::test_crate::groups::renamed_locals_inside_macro_arguments_land_in_one_body_group
   examples:
     - raf_census::example_crate::baseline
     - raf_census::example_crate::goldens
@@ -243,15 +245,16 @@ implements it as follows.
   (`rename_params`, `rename_locals`, `kind_literals`, `erase_held`) into its shim
   form, its structural form and its value form. Integer literals are respelled to
   decimal at lex time, so every spelling of one value is one token.
-- The value form drops borrows, derefs, `ref` bindings, the value adapters listed
+- The value form drops borrows, derefs, `ref` and `ref mut` bindings, the value adapters listed
   in `VALUE_ADAPTERS` (`as_str`, `as_ref`, `as_slice`, `as_mut`, `as_deref`,
   `borrow`, `borrow_mut`, `clone`, `cloned`, `copied`, `to_owned`), full-range
   reindexing, `let` type annotations and type-only turbofish.
 - A body with fewer than 30 structural tokens keeps its literals verbatim (the
   literal tier). A longer body has its literals abstracted. Every threshold counts
   structural tokens, delimiters included, before the value form drops anything.
-- A body is a shim candidate when it is one expression (no `let`, no `;` before
-  its tail), contains a call, does not mention `self` and has 6 to 29 structural
+- A body is a shim candidate when it is one expression, judged at the top level of
+  the body only (no `let`, no `;` before its tail; a closure inside an argument may
+  hold both), contains a call, does not mention `self` and has 6 to 29 structural
   tokens; its shim form renames its own parameters. `MIN_SHIM_TOKENS` is 6 and
   `SHIM_MAX_TOKENS` is 30. A shim candidate keeps its `body` fingerprint when it
   reaches `min_tokens`, which the index lists, but it never joins a body group:
@@ -260,7 +263,8 @@ implements it as follows.
   that calls through `Self::`, a call at any depth whose callee path starts with
   `Self::`.
 - A body with fewer than `min_tokens` structural tokens has no body fingerprint.
-  `min_tokens` defaults to 20 and `[census] min_tokens` sets it.
+  `min_tokens` defaults to 20 and `CensusOptions::min_tokens` sets it; the ledger key
+  that carries it is the ledger capability's.
 - A fingerprint is `<kind>:` followed by an identifier. For `body` and `shim` the
   identifier is the lowercase hex of the first 8 bytes of the BLAKE3 hash of the
   form under the encoding `tokens-len-u32le-utf8/blake3/first8-be-hex16`. For
@@ -284,9 +288,11 @@ implements it as follows.
   a function, a method (inherent, trait implementation or trait default), a
   constant or a static; its identity is its file, line and symbol, its symbol is
   chosen deterministically (a shipping reach over a test reach, then the smallest
-  path), and it is shipping when any target that reaches it ships. A unit holds its
-  print, its integer constants by value, its string literals with their lines
-  (string, byte string and C string) and the tables it holds.
+  path), and it is shipping when some target that reaches it ships and the item is
+  not test code in that reach. A function or method unit holds its print; a constant
+  or static has no print and no fingerprint. A unit holds its integer constants by
+  value, its string literals with their lines (string, byte string and C string)
+  and the tables it holds.
 - The census groups units by fingerprint in a `BTreeMap` from fingerprint to
   members. A group has two or more members. Groups sort by member count descending,
   then tokens descending, then fingerprint ascending, and their members by symbol,
@@ -564,8 +570,12 @@ the report then begin with the directory's name, as they do for `crates`.
 
 - The census reads Rust source only. Generated code and code behind macros that
   expand to items are compared as written, not as expanded.
-- Macro arguments are re-lexed as token streams. A macro whose arguments are not
-  valid Rust tokens is compared by the tokens `proc_macro2` yields.
+- Macro arguments are re-lexed as token streams and compared as tokens. A file
+  whose macro arguments do not lex cannot reach the census, because `raf-source`
+  must parse the file; a slice that does not lex is an error that names the file and
+  line.
+- A doc comment inside a body is the attribute tokens `# [ doc = "text" ]`, so its
+  text counts; an ordinary comment is not a token.
 - A body shorter than `min_tokens` is never a `body` group, however many copies
   exist. Forwarders of 6 to 29 tokens are caught by the shim form instead.
 - Fingerprints are 64 bits. The census keeps the full digest of every unit it
@@ -580,8 +590,9 @@ the report then begin with the directory's name, as they do for `crates`.
 - A slice that does not lex, a signature that does not parse and an initialiser that
   does not parse are errors that name the file and line; the census does not skip
   them.
-- Integer constants and the fingerprints of a constant or a static come from its
-  initialiser expression only, never from its type or attributes.
+- A constant or a static has no print and no fingerprint. Its integer constants,
+  strings and tables come from its initialiser expression only, never from its type
+  or attributes.
 - A string literal that is not valid UTF-8 is read lossily and never names a table.
 - Nesting depth is bounded by `MAX_NESTING` (128) and by the delimiter budget of
   `raf-source`.
@@ -621,8 +632,15 @@ because there the algorithm, not the constants, is what two copies share.
   fingerprints different, and the same pair at 35 tokens fingerprints equal.
 - Shim fixtures cover the 5, 6, 29 and 30 token boundaries, a two-statement and a
   `let` body without a shim form, a trait-implementation method and a `Self::`
-  forwarder each beside a neighbour that does group, and a module reached by two
-  targets as one unit.
+  forwarder each beside a neighbour that does group, a closure body with a `let`
+  inside an argument that is still a candidate, and a module reached by two targets
+  as one unit.
+- Doc comment fixtures show two bodies that differ only in a renamed local, each
+  with an inner doc comment, fingerprinting equal, and bodies whose doc comment text
+  differs fingerprinting different. A test over a loaded workspace shows two
+  functions that differ only in locals renamed inside `format!`, `vec!` and
+  `assert_eq!` arguments in one body group, beside a neighbour that calls another
+  method and is not in it.
 - A fixture with a `0x`-spelled and a decimal-spelled constant yields one constant
   value.
 - `check_normal_form` is tested with 0 and 2 (refused, the message naming both
@@ -678,6 +696,7 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::test_crate::forms::the_body_print_needs_min_tokens` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::the_digest_is_blake3_of_length_prefixed_tokens` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::the_literal_tier_boundary_is_thirty_structural_tokens` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::the_tower_is_monotone_over_every_registry_pair` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::the_value_adapters_are_the_eleven_of_the_page` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::the_value_form_keeps_binary_operators_and_drops_borrows` | test | [Verification](#verification) |
@@ -698,6 +717,7 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::test_crate::groups::groups_order_by_count_then_tokens_then_fingerprint` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::jobs_match_shim_and_table_fingerprints` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::near_misses_of_a_hex_table_are_not_reported` | test | [Verification](#verification) |
+| `raf_census::test_crate::groups::renamed_locals_inside_macro_arguments_land_in_one_body_group` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::shared_constants_run_by_value_ascending` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::shim_groups_use_the_shim_key_and_skip_trait_impls_and_self_forwarders` | test | [Verification](#verification) |
 | `raf_census::test_crate::page::the_member_lists_are_the_closed_schemas` | test | [Verification](#verification) |

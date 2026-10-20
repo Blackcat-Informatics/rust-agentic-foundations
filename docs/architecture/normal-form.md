@@ -35,8 +35,12 @@ written under another version is refused until `cargo census migrate` rewrites i
 
 ## Token source
 
-A body is lexed with `proc_macro2`, so the census sees tokens, not text. Comments
-and whitespace are not tokens. The input is the text between the braces of a
+A body is lexed with `proc_macro2`, so the census sees tokens, not text. Whitespace
+and ordinary comments (`//` and `/* */`) are not tokens. A doc comment inside a body
+is not a comment to the lexer: it is the attribute tokens `# [ doc = "text" ]`, so
+its text counts like a string literal and its tokens count toward every threshold.
+The names inside an attribute (`#[..]` and `#![..]`) are the attribute's own and are
+never renamed as locals. The input is the text between the braces of a
 function body, or the initialiser expression of a constant or a static, never its
 type or attributes. The arguments of macro invocations are token trees too, so
 `format!("{x:02x}", x = b)` and a call with the same shape compare by their tokens
@@ -112,7 +116,7 @@ The value form is the structural form after `erase_held`. It drops the reference
 and adapter noise that does not change the value an expression computes. These
 tokens are removed:
 
-- borrows (`&x`, `&mut x`, `&&x`), derefs (`*x`) and `ref` bindings;
+- borrows (`&x`, `&mut x`, `&&x`), derefs (`*x`) and `ref` and `ref mut` bindings;
 - a value adapter called with no arguments, from this closed list
   (`VALUE_ADAPTERS`): `as_str`, `as_ref`, `as_slice`, `as_mut`, `as_deref`,
   `borrow`, `borrow_mut`, `clone`, `cloned`, `copied`, `to_owned`;
@@ -140,7 +144,9 @@ spelling are one constant.
 ## Shim form
 
 A shim is a short body that forwards to another function. A body is a shim
-candidate when it is one expression (no `let`, and no `;` before its tail), contains
+candidate when it is one expression, which is judged at the top level of the body
+only: the body has no `let` and no `;` before its tail, though a closure inside an
+argument may hold both, so `g(a, |x| { let y = x; y })` is a candidate. It contains
 at least one call, and does not mention `self`. A call is a name or a macro bang
 followed directly by a parenthesised group, and a turbofish belongs to its name, so
 `f::<T>(x)` is a call. A shim candidate with at least `MIN_SHIM_TOKENS` (6) and
@@ -174,7 +180,7 @@ before `erase_held`, delimiters included.
 
 | Name | Value | Meaning |
 | --- | --- | --- |
-| `DEFAULT_MIN_TOKENS` | 20 | The default of `min_tokens`, which is set by `[census] min_tokens`. A body with fewer structural tokens has no body fingerprint. |
+| `DEFAULT_MIN_TOKENS` | 20 | The default of `min_tokens`, which a run takes from `CensusOptions::min_tokens`; the ledger key that carries it is the ledger capability's. A body with fewer structural tokens has no body fingerprint. |
 | `LITERAL_TIER` | 30 | A body with fewer structural tokens keeps its literals verbatim. |
 | `MIN_SHIM_TOKENS` | 6 | A body with fewer tokens has no shim form. |
 | `SHIM_MAX_TOKENS` | 30 | A body with this many tokens or more has no shim form. |
@@ -231,10 +237,14 @@ targets reach it, so a module declared by a library and a binary yields one unit
   literals; a literal that is not valid UTF-8 is never a table.
 - Its identity is its file, line and symbol. The symbol is chosen deterministically:
   a path that a shipping target reaches over one only a test target reaches, then
-  the smallest path. The unit is shipping when any target that reaches it ships.
+  the smallest path. The unit is shipping when some target that reaches it ships and the item is not test code in that reach.
 - The print holds the structural token count, the `body` fingerprint when the count
-  reaches `min_tokens`, and the `shim` fingerprint when the body has a shim form. A
-  constant or a static is fingerprinted from its initialiser only.
+  reaches `min_tokens`, and the `shim` fingerprint when the body has a shim form.
+- A constant or a static has no print and no fingerprint: its token count in the
+  index is 0 and its `body` and `shim` are `null`, and it never joins a body or shim
+  group. What it contributes is the integer constants, the string literals and the
+  tables read from its initialiser expression, never from its type or attributes.
+  Those feed the shared constants, the hex tables and the constants of a job.
 
 ## Grouping
 
