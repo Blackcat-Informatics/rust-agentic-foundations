@@ -39,6 +39,7 @@ items:
   - claim: "The strict debt in work/debt/default.md can only shrink and always equals the present debt."
   - claim: "A repository whose coverage record says strictness: strict is judged strict without a flag."
   - claim: "The source index resolves paths from the modules of every target, lists impl blocks and gives the reachability of items."
+  - claim: "The RAF profile page states the strictness key, the tested-by marker, the reason of an item, the ceilings and exceptions of the coverage record and the Debt type with its seven types."
 ---
 
 ## Summary

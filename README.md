@@ -19,8 +19,9 @@ to fix the problem.
 ## Crates
 
 `raf-okf`, `raf-source`, `raf-workplan` and `cargo-workplan` are **delivered**:
-twelve capabilities, each with resolved bindings and a generated verification
-matrix. This repository runs the workplan gate on itself
+twelve capabilities state their contract, each with resolved bindings and a
+generated verification matrix, and eight of them are `implementing` beside the
+open change record of strict mode, which changes them. This repository runs the workplan gate on itself
 (`tests/self_workplan.rs`), and the `use`-path resolution of `raf-source` is
 checked against `rustc` on generated programs
 (`crates/raf-source/tests/rustc_oracle.rs`).

@@ -259,8 +259,9 @@ this repository's own policy, such as the capability inventory.
   The body has fixed sections: Purpose, Contract, Usage, Examples, Constraints,
   Explanation, Verification. Outside a proposal, the text states the current
   contract only. The document-contract test pins the set of capabilities in one
-  inventory table (`INVENTORY` in `tests/docs_contract.rs`): changing a state or
-  adding a capability edits that table in the same commit. `make docs-sync`
+  inventory table (`INVENTORY` in `tests/docs_contract.rs`): changing a state,
+  adding a capability, or opening or completing a change edits that table in the
+  same commit. `make docs-sync`
   rewrites the generated blocks, including the catalogue in
   `docs/capabilities/index.md`.
 - **Change records** live in `work/changes/<slug>.md`. Each names the capabilities it

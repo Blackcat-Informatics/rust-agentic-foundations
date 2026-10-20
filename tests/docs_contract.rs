@@ -295,13 +295,38 @@ fn listed_capabilities(repo: &Repo, path: &str) -> Result<Vec<String>, String> {
 }
 
 /// The change records of the inventory against the tree and the capabilities:
-/// each record lists exactly the capabilities the table gives it, and each
-/// capability whose state is not `delivered` is listed by a record of the
-/// table. A missing or unparseable record is reported by the identity check.
+/// each row of the table names each capability once and only capabilities of
+/// the table, each record lists exactly the capabilities the table gives it,
+/// and each capability whose state is not `delivered` is listed by a record of
+/// the table. A missing record is reported by the identity check, and a record
+/// with no `changes` key by the profile (`okf-missing-key`).
 fn change_record_violations(repo: &Repo, inventory: &Inventory) -> Vec<String> {
     let mut out = Vec::new();
     for (slug, capabilities) in inventory.changes {
         let path = format!("work/changes/{slug}.md");
+        let mut seen = BTreeSet::new();
+        for capability in *capabilities {
+            if !seen.insert(*capability) {
+                out.push(violation(
+                    Path::new(&path),
+                    format!(
+                        "inventory lists `cap:{capability}` twice in the `changes` of the record; a record lists each capability once"
+                    ),
+                ));
+            }
+            if !inventory
+                .capabilities
+                .iter()
+                .any(|(known, _)| known == capability)
+            {
+                out.push(violation(
+                    Path::new(&path),
+                    format!(
+                        "inventory lists `cap:{capability}` in the `changes` of the record, and no capability of the inventory has that slug"
+                    ),
+                ));
+            }
+        }
         if let Ok(found) = listed_capabilities(repo, &path) {
             let wanted: Vec<String> = capabilities
                 .iter()
@@ -1263,6 +1288,18 @@ fn inventory_table_has_the_documented_shape() {
         10,
         "10 open change records, each listed once"
     );
+    for (slug, row) in INVENTORY.changes {
+        let unique: BTreeSet<&str> = row.iter().copied().collect();
+        assert_eq!(
+            unique.len(),
+            row.len(),
+            "the row of {slug} lists each capability once"
+        );
+        assert!(
+            unique.is_subset(&slugs),
+            "the row of {slug} lists capabilities of the inventory"
+        );
+    }
     assert_eq!(INVENTORY.architecture.len(), 3);
     assert!(
         INVENTORY.records.windows(2).all(|pair| pair[0] < pair[1]),
@@ -1309,6 +1346,52 @@ fn inventory_rejects_a_change_record_that_lists_other_capabilities() {
     assert_hit(
         &found,
         "work/changes/alpha.md: inventory expects `changes` [cap:alpha], found [cap:alpha, cap:gamma]",
+    );
+}
+
+#[test]
+fn inventory_rejects_a_capability_listed_twice_even_when_the_record_lists_it_twice() {
+    // The record and the table agree, so the comparison of the two passes;
+    // the repeat is refused on its own.
+    let mut repo = inventory_repo();
+    repo.insert(
+        PathBuf::from("work/changes/alpha.md"),
+        change_page("alpha", &["alpha", "alpha"]),
+    );
+    let twice = Inventory {
+        changes: &[("alpha", &["alpha", "alpha"]), ("beta", &["beta"])],
+        ..FIXTURE_INVENTORY
+    };
+    let found = violations(&checkouts::of_repo(&repo), &checkouts::source(), &twice);
+    assert_hit(
+        &found,
+        "work/changes/alpha.md: inventory lists `cap:alpha` twice in the `changes` of the record",
+    );
+    assert!(
+        !found.iter().any(|line| line.contains("inventory expects")),
+        "{found:#?}"
+    );
+    // A row that names a capability the inventory does not have is refused too.
+    repo.insert(
+        PathBuf::from("work/changes/alpha.md"),
+        change_page("alpha", &["alpha", "omega"]),
+    );
+    let unknown = Inventory {
+        changes: &[("alpha", &["alpha", "omega"]), ("beta", &["beta"])],
+        ..FIXTURE_INVENTORY
+    };
+    let found = violations(&checkouts::of_repo(&repo), &checkouts::source(), &unknown);
+    assert_hit(
+        &found,
+        "work/changes/alpha.md: inventory lists `cap:omega` in the `changes` of the record, and no capability of the inventory has that slug",
+    );
+    // The neighbour, each capability once, has neither.
+    let found = inventory_found(&inventory_repo());
+    assert!(
+        !found
+            .iter()
+            .any(|line| line.contains("twice") || line.contains("no capability of the inventory")),
+        "{found:#?}"
     );
 }
 

@@ -190,8 +190,12 @@ and `Architecture`, which people write, and the records `Evidence`, `Assessment`
 >   `ceilings`, rows of `crate`, exactly one of `lines` or `percent` and an optional
 >   `of` (`shipping`, `test` or `all`), each wrong shape `okf-bad-ceiling` and a
 >   number that is not one `okf-bad-measure`; and the optional `exceptions`, rows of
->   exactly one of `item` or `file` and a non-empty `reason`, a wrong shape
->   `okf-bad-exception` and an empty reason `okf-empty-reason`. `CoverageRecord`
+>   exactly one of `item` or `file` and a non-empty `reason`. The profile refuses,
+>   as `okf-bad-exception`, a row with neither or both of `item` and `file`, an
+>   `item` that is a crate root or neither an item path nor a `<module>::*` prefix,
+>   and a `file` that is an absolute path or holds a `..` segment, and refuses an
+>   empty reason as `okf-empty-reason`; whether an exception matches anything is
+>   judged by the workplan, which needs the source index. `CoverageRecord`
 >   holds them, and its writer renders them in key-table order, an absent key left
 >   out;
 > - a change item takes the optional key `reason` after `outcome`, a non-empty line

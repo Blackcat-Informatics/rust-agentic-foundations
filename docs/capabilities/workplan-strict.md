@@ -228,8 +228,10 @@ segment is `okf-bad-exception`, and an empty reason is `okf-empty-reason`. Each 
 decimal, and an optional `of`, one of `shipping`, `test` or `all`, by default `all`.
 Under strict every package of the report is judged: its shipping orphan lines against
 its `shipping` row, its test orphan lines against its `test` row and their sum against
-its `all` row, and a class that no row of the package bounds, by its own row or by an
-`all` row, is held to 0, so a package with no row has no orphan line. A percent
+its `all` row. The shipping lines and the test lines are each held to 0 unless their
+own row or an `all` row bounds them, and the sum is judged only against an `all` row,
+so a package with no row has no orphan line and a package with only a `shipping` row
+has no test orphan line and any shipping orphan lines up to that row. A percent
 ceiling compares `orphan * 100 * scale <= percent * scale * counted` in whole numbers,
 `scale` being the power of ten that makes the percent whole, so no division rounds and
 a package with no counted line passes it. A class over its ceiling is
@@ -423,8 +425,9 @@ the check, and the write refuses it.
 - An item moved to another file reads as touched for `contract-effect-understated`.
 - `strict::MIN_SECTION_WORDS` is 20 and is not configurable. A word count is a proxy:
   it catches the one-sentence section and judges no style.
-- Under strict a package with no ceiling row is held to 0 orphan lines, and a class
-  that no row bounds is held to 0.
+- Under strict a package with no ceiling row is held to 0 orphan lines, and its
+  shipping or its test lines that neither their own row nor an `all` row bounds are
+  held to 0.
 - A caller cannot lower the strictness of a repository whose record says `strict`.
 - A directory that the root workspace excludes and that is a cargo workspace of its
   own, such as a fuzz harness, is not in the source index, so its files have no lines
@@ -578,8 +581,9 @@ visible failure, and the fix is one command.
   are byte-identical, CRLF reads as LF, and `--reverse` prints what `lines` prints.
 - Ceiling fixtures: `lines: N` passes at N and fails at N+1 for each of `shipping`,
   `test` and `all`; a percent ceiling at its boundary; an empty package under a
-  percent ceiling; a `shipping` row alone leaves the test lines held to 0; another
-  `of` value is `okf-bad-ceiling`.
+  percent ceiling; a `shipping` row alone leaves the test lines held to 0 and judges
+  the shipping lines against itself and no sum; another `of` value is
+  `okf-bad-ceiling`.
 - Debt fixtures, one to one with the census ratchet: growth fails and the write
   refuses and writes nothing; a resolved row, a falling count and a count back under
   the ceiling fail with `debt-resolved` and pass after the write, the record equal to

@@ -415,7 +415,8 @@ order, are documented in the crate documentation of `cargo-workplan`.
 > when it writes, 1 when it refuses with the findings printed (growth, or a finding of
 > the default rules), and 2 when the coverage record does not say `strictness: strict`
 > or the tool cannot run. A strict finding of `check` is printed as every finding is,
-> and in JSON with the fields `path`, `section`, `line`, `key`, `message` and `fix`.
+> and in JSON as an object of its kind with the fields `kind`, `path`, `section`,
+> `line`, `key`, `message` and `fix`.
 > The JSON kinds `coverage-claim`, `lines-crate`, `lines-module`, `lines-orphan`,
 > `lines-excepted`, `lines-error` and `debt-written` join the record kinds, and none
 > equals the kind of a rule. `debt --write` writes one file and the reports write

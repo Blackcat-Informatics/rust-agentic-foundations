@@ -32,7 +32,7 @@ keyed, and the record always equals the debt the repository carries now:
 - the write records growth in exactly two cases: it creates a missing record, which
   is how a repository adopts the ratchet, and it writes over a record made for
   another version of what the keys mean;
-- the write has two entry points with one behaviour, a `debt --write` command and
+- the write has two entry points that follow one rule, a `debt --write` command and
   `Gate::write_debt`, which returns a `DebtWrite`, and it is never called from a
   test;
 - equal debt gives byte-equal records: the entries in a stable order and the text
