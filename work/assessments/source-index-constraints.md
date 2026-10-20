@@ -7,13 +7,16 @@ subject: cap:source-index#constraints
 inputs:
   - kind: section
     name: cap:source-index#constraints
-    digest: 77578b5b8342f8d716c1ccee1ff6d94ab32b107b8c1aff37b7ec64d26e8b2085
+    digest: fe5808e9a3ee83c3591731ad8874142daece7c700be5df1f0dbdc42ca2ea6c11
   - kind: symbol
     name: raf_source::Budget
     digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
   - kind: symbol
     name: raf_source::DiskTree
     digest: 8de0bd6cf52eb2437cddff8545a4af80ca0f68b9da0a70b705a32f026eeaef63
+  - kind: symbol
+    name: raf_source::Edge
+    digest: 05e2de77698208d5ec648e7a658929eadf3652257ea36f39c56f28ce44ea5045
   - kind: symbol
     name: raf_source::ExportError
     digest: 800cbc45c1fd58d044f12cfc0ed174c59fb5646501fb95a22bc720280e3025f5
@@ -45,6 +48,9 @@ inputs:
     name: raf_source::MemoryTree
     digest: f4dcd98dc81a25c56fe58967638c60ad348a69335229bd8fe860a7d3788080c7
   - kind: symbol
+    name: raf_source::Node
+    digest: c365fe6be1372189e1eda76455dff31218b3dad752a992a5b5cc7810ac781353
+  - kind: symbol
     name: raf_source::Opened
     digest: 5dc3146ee36264b56b107c1c256126ab14ff871970d0b4acae64bba5a501427e
   - kind: symbol
@@ -53,6 +59,15 @@ inputs:
   - kind: symbol
     name: raf_source::RECURSION_UNIT_BYTES
     digest: d2f07f9016d388594443ebf1de4544e8a14de4f449f39fc69f813b94a3cf1a08
+  - kind: symbol
+    name: raf_source::ReachError
+    digest: f575bc61aa1a42306e2411354a903012c19662efeb2b96a381bb8a407d0888e6
+  - kind: symbol
+    name: raf_source::Reachability
+    digest: 60d3a97ace22a55fdb22778c521b8983370fee3fe4cf4ea60319853ccffb362c
+  - kind: symbol
+    name: raf_source::Reached
+    digest: 1170d90d2d76c51563eb943cd492e5a5f8ba9f75b2717d9bc130b9551db53c65
   - kind: symbol
     name: raf_source::Reexport
     digest: eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
@@ -95,6 +110,9 @@ inputs:
   - kind: symbol
     name: raf_source::Workspace::impls
     digest: faf8d5bb70bfd1759b468bebb59548a09844ff489085c71b07831c961f99b4f9
+  - kind: symbol
+    name: raf_source::Workspace::reachable
+    digest: 9d1eb5daa8b5fdf5a3ce64bcb1da5a16fa41f124f2111556617329c1a954a61c
   - kind: symbol
     name: raf_source::Workspace::resolve_from
     digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94

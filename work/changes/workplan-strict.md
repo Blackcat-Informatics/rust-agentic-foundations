@@ -25,6 +25,7 @@ affects:
   - cap:workplan-generated-docs#contract
   - cap:workplan-document-model#contract
   - cap:source-index#contract
+  - cap:source-index#constraints
   - cap:source-index#verification
   - cap:census-debt-ratchet#explanation
 contract_effect: changes

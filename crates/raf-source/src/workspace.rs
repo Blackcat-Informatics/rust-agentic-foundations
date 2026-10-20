@@ -20,6 +20,7 @@ use crate::meter::{Meter, Usage};
 use crate::modtree::{Reach, TargetId, Visited, Walker, tidy};
 use crate::options::LoadOptions;
 use crate::path::{PathError, RelPath};
+use crate::reach::{self, Node, ReachError, Reachability};
 use crate::resolve::{Resolution, ResolveError};
 use crate::target::TargetKind;
 use crate::target::{Context, Package, Target, check_crate_paths, derive_targets};
@@ -499,6 +500,60 @@ impl Workspace {
     #[must_use]
     pub fn impl_block(&self, id: ImplId) -> Option<&ImplBlock> {
         self.index.impl_blocks.get(id.index())
+    }
+
+    /// The items and impl blocks of every target that `roots` reach over
+    /// three edges: contains (a struct, enum or union to its methods and
+    /// associated items, a trait to its members, a module to its items and
+    /// impl blocks, a crate root to nothing), impl-of (a struct, enum or
+    /// union to the impl blocks whose self type it is, and a block to its
+    /// members) and references (an item or a block to each item that a path
+    /// in its own tokens names from its module). A module is opened only
+    /// when it is a root or is reached by contains from one that is opened:
+    /// a module that a path names reaches nothing below it.
+    ///
+    /// A path is an `Ident (:: Ident)*` run of the tokens that no `.`
+    /// precedes, read as code of the module reads it: each proper prefix in
+    /// the type name space and the whole run in each name space, each walked
+    /// as the resolver walks a path, as code reads it where
+    /// [`Workspace::resolve_from_in`] reads a `use` path (without the reading
+    /// module's visibility, and in edition 2015 from the module), naming the
+    /// sites it reaches when they are one symbol; a path that names nothing
+    /// of the workspace (a local, a generic, an item of a dependency or one
+    /// that a macro generates) reaches nothing. The own tokens of an item are those
+    /// of its span outside the items and blocks below it; a module's are its
+    /// declaration before its body. The tokens of test code are read as test
+    /// code, which names the dev-dependencies too.
+    ///
+    /// Each reached node is listed once, with the edge it was first reached
+    /// by, breadth first from the roots in the order of their nodes, so the
+    /// answer does not depend on the order of `roots`. Each file is lexed
+    /// once, and each path is resolved at most once for each module it is
+    /// read from.
+    ///
+    /// ```
+    /// use raf_source::{MemoryTree, Node, Workspace};
+    ///
+    /// let tree = MemoryTree::from([
+    ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+    ///     ("src/lib.rs", "pub fn run() { helper() }\nfn helper() {}\nfn unused() {}\n"),
+    /// ]);
+    /// let ws = Workspace::load(&tree, &["."])?;
+    /// let site = |path: &str| ws.resolve(path).map(|found| found.sites[0]);
+    /// let reached = ws.reachable(&[Node::Item(site("demo::run")?)])?;
+    /// assert!(reached.contains(Node::Item(site("demo::helper")?)));
+    /// assert!(!reached.contains(Node::Item(site("demo::unused")?)));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReachError::UnknownItem`] or [`ReachError::UnknownImpl`] for
+    /// a root that is not a node of this workspace, and
+    /// [`ReachError::Source`] when a file does not lex, which a file the load
+    /// parsed does not do, or the thread that lexes it cannot start.
+    pub fn reachable(&self, roots: &[Node]) -> Result<Reachability, ReachError> {
+        reach::reachable(&self.index, &self.files, roots)
     }
 
     /// The items that share a source item, grouped by its identity: the file

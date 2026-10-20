@@ -174,6 +174,7 @@ mod options;
 mod parse;
 mod path;
 mod prescan;
+mod reach;
 mod resolve;
 mod settle;
 mod target;
@@ -195,6 +196,7 @@ pub use modtree::{Reach, TargetId};
 pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};
 pub use parse::{PARSE_STACK_BYTES, parse_source};
 pub use path::{PathError, RelPath};
+pub use reach::{Edge, Node, ReachError, Reachability, Reached};
 pub use resolve::{Resolution, ResolveError};
 /// The `syn` that produced the facts, re-exported so a consumer parses with the
 /// same version; a `syn` major bump is a breaking change of this crate.

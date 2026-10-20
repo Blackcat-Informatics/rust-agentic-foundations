@@ -93,6 +93,15 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   trait, the key of its self type and its members, and `Workspace::impl_block`
   takes its `ImplId` back. Each record is charged to the item-bytes budget, so a
   load holds a little more of it.
+- **`raf-source`:** `Workspace::reachable` gives the items and impl blocks of every
+  target that root `Node`s reach over the edges contains (a type to its members,
+  a trait to its members, a module that a root opens to its items and blocks),
+  impl-of (a type to its impl blocks, a block to its members) and references (the
+  `Ident (:: Ident)*` runs of an item's own tokens, read as code of its module
+  reads them). The answer is a `Reachability` of `Reached` nodes with the `Edge`
+  each was first reached by, breadth first from the sorted roots; a root of
+  another workspace is a `ReachError`. Each file is lexed once and each run is
+  resolved at most once for each module, in one walk of its segments.
 - **`raf-source`:** a work budget bounds the glob tables of a load by count.
   `Budget::Work` ("glob table work steps") counts each step of glob table work
   one load makes, before it is made and never released: each glob read listed

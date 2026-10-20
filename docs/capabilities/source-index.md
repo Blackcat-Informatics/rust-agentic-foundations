@@ -33,8 +33,14 @@ bindings:
     - raf_source::Workspace::unresolved_impls
     - raf_source::Workspace::impls
     - raf_source::Workspace::impl_block
+    - raf_source::Workspace::reachable
     - raf_source::ImplBlock
     - raf_source::ImplId
+    - raf_source::Node
+    - raf_source::Edge
+    - raf_source::Reached
+    - raf_source::Reachability
+    - raf_source::ReachError
     - raf_source::Workspace::exported_items
     - raf_source::Workspace::exported_items_with
     - raf_source::Exports
@@ -413,10 +419,35 @@ bindings:
     - raf_source::resolve::tests::a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate
     - raf_source::test_crate::symbol_index::every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members
     - raf_source::test_crate::symbol_index::an_impl_block_of_a_file_reached_under_two_module_paths_is_listed_once_for_each
+    - raf_source::test_crate::reachability::a_bound_type_covers_its_impl_blocks_and_their_members_and_a_bound_method_nothing_beside_it
+    - raf_source::test_crate::reachability::a_bound_module_covers_its_nested_items_and_impl_blocks_and_a_crate_root_nothing
+    - raf_source::test_crate::reachability::a_private_helper_called_by_a_bound_item_is_reached_and_an_unreferenced_one_is_not
+    - raf_source::test_crate::reachability::a_method_call_a_field_a_lifetime_and_a_local_name_no_item_and_a_path_prefix_names_its_type
+    - raf_source::test_crate::reachability::a_path_through_a_type_names_the_type_and_the_member_and_a_leading_colon_names_a_crate
+    - raf_source::test_crate::reachability::paths_inside_tests_and_binaries_reach_their_own_crate_and_the_library
+    - raf_source::test_crate::reachability::an_item_a_macro_generates_is_not_reached_and_a_macro_named_by_a_reached_item_is
+    - raf_source::test_crate::reachability::a_cfg_test_module_is_reached_like_any_module_and_its_tests_reach_their_helpers
+    - raf_source::test_crate::reachability::a_module_named_by_a_path_and_then_reached_by_contains_is_opened_then
+    - raf_source::test_crate::reachability::the_answer_does_not_depend_on_the_order_of_the_roots_and_is_the_same_each_run
+    - raf_source::test_crate::reachability::a_root_of_another_workspace_is_refused_beside_one_of_this_workspace
+    - raf_source::test_crate::reachability::an_impl_block_root_reaches_its_members_and_what_its_header_names
+    - raf_source::test_crate::reachability::a_file_with_a_byte_order_mark_and_crlf_lines_reaches_as_a_plain_one_does
+    - raf_source::test_crate::reachability::a_member_is_read_from_the_module_of_its_block_and_a_trait_member_from_its_trait
+    - raf_source::test_crate::reachability::a_path_the_resolver_refuses_reaches_nothing_beside_one_it_resolves
+    - raf_source::test_crate::reachability::test_code_names_the_dev_dependencies_and_other_code_does_not
     - raf_source::test_crate::load_budgets::an_impl_block_is_charged_its_record_and_what_it_holds
+    - raf_source::reach::tests::a_run_is_an_identifier_path_that_no_dot_precedes_with_its_first_byte
+    - raf_source::reach::tests::path_keywords_start_a_run_and_other_keywords_are_no_segment
+    - raf_source::reach::tests::a_lifetime_a_metavariable_a_declared_name_and_a_bound_name_are_no_run
+    - raf_source::reach::tests::a_byte_order_mark_and_a_shebang_are_left_out_and_offsets_are_those_of_the_text
+    - raf_source::reach::tests::each_run_goes_to_the_innermost_unit_that_holds_its_start
+    - raf_source::reach::tests::the_work_of_a_walk_is_counted_exactly
+    - raf_source::reach::tests::the_work_grows_with_the_items_and_the_references_and_not_their_product
+    - raf_source::reach::tests::a_path_of_fifty_thousand_segments_is_walked_once_and_not_once_for_each_prefix
   examples:
     - raf_source::Workspace::exported_items
     - raf_source::Workspace::impls
+    - raf_source::Workspace::reachable
 depends: []
 ---
 
@@ -1460,8 +1491,9 @@ the index says so.
 
 **Impl blocks.** `Workspace::impls()` lists every `impl` block of every target, inherent and trait alike, once for each module path its file is reached under, in file order: sorted by file, the byte where the block starts, module path and target. Each is an `ImplBlock`: its `id`, an `ImplId` that is its place in that order and that `Workspace::impl_block(id)` takes back, its `file` and the `line` of the `impl` keyword, its `span` from its first attribute or the `impl` keyword to its closing brace, the `module` that holds it and its `target`, its `test` role, its written `self_type` and `trait_path` without spaces, its `self_items`, the key of its self type, and its `members` in source order. The key is the struct, enum or union that the self type path names from the block's module, through type aliases, as the members of the block are placed (two for the `cfg` alternatives of one type); it is empty when the self type names nothing of the workspace or a type the index cannot place: a generic parameter, a reference, a slice, a tuple, a type of a dependency or one that a macro generates, as for `impl Tr for String`, `impl<T> Tr for T`, `impl Tr for &Foo` and `impl Missing`. An impl block inside a function body is not an item of a module and is not listed. Each record is charged to the item-bytes budget at the line of its `impl` keyword.
 
-> [!PROPOSED change:workplan-strict]
-> **Reachability.** `Workspace::reachable(roots)` gives the items of every target that the root items reach over three edges: contains (an item to the items below it, as a type to its methods, a trait to its members and a module to its items, a crate root to nothing), impl-of (a type to the `impl` blocks whose self type it is, and a block to its items), and references (an item to each item that a path in its tokens resolves to from its module, a path being an `Ident (:: Ident)*` run that no `.` precedes, or a prefix of one). Each reached item is given once with the edge it was first reached by, in a stable order, and the work is counted: each item's tokens are read once and each path is resolved at most once per module.
+**Reachability.** `Workspace::reachable(roots)` takes nodes, `Node::Item` and `Node::Impl`, and gives the items and impl blocks of every target that the roots reach over three edges. Contains: a struct, enum or union to its methods and associated items, a trait to its members, and a module to its items and to the impl blocks it holds; a crate root contains nothing, and a module is opened only when it is a root or is reached by contains from an opened module, so a module that a path names reaches nothing below it, and one first named by a path and then reached by contains is opened then. Impl-of: a struct, enum or union to the impl blocks whose self type key it is, and a block to its members. References: an item or a block to each item that a path in its own tokens names. The own tokens of an item are those of its span outside the spans of the items and blocks below it, so a type, a trait and a block leave their members to themselves; a module's own tokens are its declaration before its body, and what a module body holds outside its items and blocks, its `use` declarations, a `const _` and the macro invocations at module level, is no item's; a crate root has none. A path is an `Ident (:: Ident)*` run of those tokens: an identifier that a single `.` precedes (a method call or a field), that follows a `'` (a lifetime or a label) or a `$` other than `$crate` (a metavariable), that names what `fn`, `struct`, `enum`, `union`, `trait`, `type`, `mod`, `const`, `static` or `macro_rules!` declares, or that is a run of one segment before a single `:` (a name being bound or a field, as in `helper: u8`) starts no run; `crate`, `self` and `super` start a run and `super` goes on after them, every other keyword is no segment and ends the run, and what follows such a word through `::` is no run (`Self::new` and `a::self::b` give none past it); a raw identifier is never a keyword, and a run that `::` opens after `>` (`new` in `Vec::<u8>::new`) is none. The run is read as code of the item's module reads it, test code as test code, which also names the dev-dependencies: each proper prefix in the type name space, and the whole run in each name space. Each is walked as the resolver walks a path, as code reads it where `resolve_from_in` reads a `use` path: without the reading module's visibility, and in edition 2015 from the module and not from the crate root. It names the sites its walk reaches when they are one symbol; a prefix whose walk fails, through a name that names nothing, an import that never settles, a glob whose path names nothing or a name that names several symbols, names nothing, and every longer prefix with it. So `E::V` names the enum `E`, `S::new` names `S` and its method, and a path to a local, a generic, an item of a dependency or an item that a macro generates names nothing. The module of a method or associated item of an impl block is the block's module, that of a trait member its trait's, and a `#[macro_export]` macro is read from the crate root where it is indexed. A macro that a reached item invokes by name (`make!`) is reached, and the paths of its body are read from its module.
+
+The answer is a `Reachability`: `reached`, every reached node once as a `Reached` with the `edge` it was first reached by (`Root`, `Contains`, `ImplOf` or `References`) and the node that edge comes `from`, breadth first from the roots in the order of their nodes, so it does not depend on the order or the repeats of the roots, and `get(node)`, `contains(node)`, `items()` and `impls()`. A root that is not a node of the workspace is `ReachError::UnknownItem` or `ReachError::UnknownImpl`; a file that does not lex, which a file the load parsed does not do, or a thread that cannot start to lex it, is `ReachError::Source`. The work is counted, never timed: each file of a reached item is lexed once, on a thread of its own with the stack of the parse, whose span data is dropped with it, and its runs are given to their units in one pass; each run is resolved at most once for each module and test flag it is read with, and its prefixes in one walk of its segments, so a path of 50,000 segments reads each segment at most four times. The work of a walk grows with the items and the references of the workspace and not with their product: over a library of n functions each calling its own helper r times, the tokens read are n(9 + 3r), the steps of placing the runs nr + 4n - 3, the paths resolved n and the steps of the walk 4n + 1 + 3nr.
 
 **Exported items.** `Workspace::exported_items(target)` lists the public surface of
 a library or binary target: the items another crate can name through its crate
@@ -1610,8 +1642,8 @@ is not a breaking change: a pattern over one names the fields it reads and ends 
 per-file facts the index is built from are not public. `LoadOptions` is `Clone` and
 not `Copy`, so adding an option that is not `Copy` is not a breaking change. `Exports`,
 `ExportedItem`, `Reexport`, `ExportOptions` and `ExportError` are `#[non_exhaustive]`
-as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and so
-is `ImplBlock`.
+as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and so are
+`ImplBlock`, `Edge`, `Reached`, `Reachability` and `ReachError`.
 
 ## Usage
 
@@ -1743,6 +1775,13 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
 - The work budget does not count the lookups of settling (`globbed` and `globbed_any`), which read every glob read of a module each time a name is looked up in it, during the load and after it. A module with n globs and n named imports of a name that the globs re-export (`pub mod t { use crate::g0::*; ... use self::X as Y0; ... }`, where each `g<i>` does `pub use crate::d::*` and `d` defines `X`) makes a work count of 4n+2 and visits about 25n^2 glob reads: at n = 2048 the count is 8194 and a load runs about 1.08e11 instructions. The work budget does not bound this shape, so a load of it is not refused by `max_work` and can run long.
 - Resolution covers items the source defines. Items from dependencies are outside the
   index and resolve to a not-found failure.
+- Reachability reads paths from tokens, an approximation of use: a function stored in
+  a field or a variable and called through it, a method called after `.` on a value
+  whose type nothing reached names, a call through a trait object to a type that
+  nothing names, and an item named only inside a macro invocation at module level
+  are not reached; a local, a parameter or a field shorthand that shares its name with
+  an item reaches that item; the body of a macro is read from the macro's module, not
+  from where it is invoked; and a module that a path names reaches nothing below it.
 - An item that syn returns as tokens is indexed only in the three shapes the Contract
   names: a `use` group with a member that starts with `::`, a function with no body and
   a type with no definition. Any other, such as `const C: u8;` written as the input of an
@@ -2229,6 +2268,8 @@ duplicates.
   for each segment plus two, counted in the walk and stopped at that count.
 - `resolve_from` from every target (`target_resolution`): a helper resolves from an integration test root and from a module below it, the library from a test, an example and a binary and not from the build script, `crate` is the reading target's root; from a nested module of a binary in `src/bin/<name>/` and of `src/main.rs`; from an example, a bench and the build script; a support module that two test targets include resolves in each target alone, one site each, related by `same_source`; a module path that no target holds is `UnknownModule` for each kind of target beside the neighbour that one holds; a library module at the crate path of a test target is `Ambiguous` with it beside a module only the library has. A module path of 50,000 segments is read once for each segment (`resolve::tests`, counted).
 - `impls()` (`symbol_index`): the impl shapes (an inherent impl, one through an alias, a trait impl on the type, on `String`, on a generic, on a reference, an impl of a type the index cannot see, a `#[cfg(test)]` block over four lines with its attribute, a block in a module naming `super::Foo`, and one inside a function body, which is not listed) in file order with their lines, spans in lines and bytes, modules, written self types and traits, self type keys and members; the id is the place and finds the block; a file reached under two module paths lists its block once for each, each keyed to its own copy of the type; each block's record is charged to the item-bytes budget (`load_budgets`).
+- `reachable` (`reachability`): a bound type covers its inherent and trait impl blocks and their members and a bound method nothing beside it; a bound module covers its nested items, modules and impl blocks and a crate root nothing; a private helper called by a bound item is reached, by `References` from it, and an unreferenced one is not, through a chain of calls; a module a path names reaches nothing below it and is opened when contains reaches it after, also two modules deep below a root that opens only after the path named them; a method call, a field, a lifetime and a declared name reach nothing and `kinds::E::V` reaches `kinds` and `E` through its prefixes; a leading `::` and a path through a type from an integration test; paths inside a binary and its module and inside a test and its support module, whose copy in another target is not reached; an item a macro generates is not reached, a macro invoked by name is, with the paths of its body, a module-level invocation and a `const _` reach nothing, and a `#[macro_export]` macro is read from the crate root; a `#[cfg(test)]` module is not reached from the library, its test reaches the helper it calls through `use super::*`, and the module bound whole covers its items; an impl block root reaches its members and what its header names, and a block on a type of a dependency reaches its members through the block alone; a member of a block is read from the block's module and a trait member from its trait's; a path the resolver refuses (through a glob whose path names nothing, or a name that two globs bring in as two items) reaches nothing, beside the paths it resolves; test code names a dev-dependency and other code of the library does not; the answer is the same for roots in any order and repeated, and over a file with a byte-order mark and CRLF lines; a root of another workspace is refused beside one of this workspace. The scanner and the placing of runs are unit tests (`reach::tests`): runs, path keywords, keywords, lifetimes, metavariables, declared and bound names, a byte-order mark, a shebang and a text that does not lex; each run to its innermost unit.
+- The work of reachability is counted (`reach::tests`), never timed: exact counts of the tokens read, the steps of placing runs, the paths resolved and the steps of the walk for three sizes, a growth by equal steps in every counted kind (those two and the segment reads and lookups of the resolver) at three sizes in items and three in references, with the paths resolved the same whatever the references, and a path of 50,000 segments walked under a ceiling of four segment reads for each segment.
 - `resolve_from`: a use path counts only what the reading module can access: the module itself, a child of it and a public item of a sibling resolve, and a private item of a module read from outside it and a module private to the one that declares it are `NotFound`; it is read in one name space or in each in turn; a module that is not in the workspace is `UnknownModule`, and a text that is no path is `Invalid`.
 - Missing-glob fixtures: a module with `pub use self::missing::*;`, a module that globs
   it, `crate::a::gone::*`, `super::a::inner::nothing::*` and an import of a name the
@@ -2597,6 +2638,7 @@ duplicates.
 | --- | --- | --- |
 | `raf_source::Workspace::exported_items` | doctest | [Verification](#verification) |
 | `raf_source::Workspace::impls` | doctest | [Verification](#verification) |
+| `raf_source::Workspace::reachable` | doctest | [Verification](#verification) |
 | `raf_source::cost::tests::a_hash_table_is_charged_at_least_its_buckets` | test | [Verification](#verification) |
 | `raf_source::cost::tests::a_list_is_charged_at_least_its_room` | test | [Verification](#verification) |
 | `raf_source::cost::tests::a_map_of_one_entry_is_covered_by_what_a_map_costs_once` | test | [Verification](#verification) |
@@ -2625,6 +2667,14 @@ duplicates.
 | `raf_source::members::tests::duplicate_patterns_are_compiled_and_tested_once` | test | [Verification](#verification) |
 | `raf_source::meter::tests::work_is_never_released_and_each_meter_counts_from_zero` | test | [Verification](#verification) |
 | `raf_source::meter::tests::work_up_to_the_limit_is_accepted_and_the_charge_that_passes_it_is_refused` | test | [Verification](#verification) |
+| `raf_source::reach::tests::a_byte_order_mark_and_a_shebang_are_left_out_and_offsets_are_those_of_the_text` | test | [Verification](#verification) |
+| `raf_source::reach::tests::a_lifetime_a_metavariable_a_declared_name_and_a_bound_name_are_no_run` | test | [Verification](#verification) |
+| `raf_source::reach::tests::a_path_of_fifty_thousand_segments_is_walked_once_and_not_once_for_each_prefix` | test | [Verification](#verification) |
+| `raf_source::reach::tests::a_run_is_an_identifier_path_that_no_dot_precedes_with_its_first_byte` | test | [Verification](#verification) |
+| `raf_source::reach::tests::each_run_goes_to_the_innermost_unit_that_holds_its_start` | test | [Verification](#verification) |
+| `raf_source::reach::tests::path_keywords_start_a_run_and_other_keywords_are_no_segment` | test | [Verification](#verification) |
+| `raf_source::reach::tests::the_work_grows_with_the_items_and_the_references_and_not_their_product` | test | [Verification](#verification) |
+| `raf_source::reach::tests::the_work_of_a_walk_is_counted_exactly` | test | [Verification](#verification) |
 | `raf_source::resolve::tests::a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate` | test | [Verification](#verification) |
 | `raf_source::resolve::tests::a_path_of_fifty_thousand_segments_reads_each_segment_a_bounded_number_of_times` | test | [Verification](#verification) |
 | `raf_source::resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped` | test | [Verification](#verification) |
@@ -2761,6 +2811,22 @@ duplicates.
 | `raf_source::test_crate::prescan_budgets::the_recursion_limit_is_half_the_parse_stack_over_the_measured_cost_of_one_unit` | test | [Verification](#verification) |
 | `raf_source::test_crate::prescan_budgets::the_recursion_refusal_names_the_line_where_the_count_went_over` | test | [Verification](#verification) |
 | `raf_source::test_crate::prescan_budgets::twenty_thousand_else_if_links_are_refused_beside_two_hundred_fifty_six` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_bound_module_covers_its_nested_items_and_impl_blocks_and_a_crate_root_nothing` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_bound_type_covers_its_impl_blocks_and_their_members_and_a_bound_method_nothing_beside_it` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_cfg_test_module_is_reached_like_any_module_and_its_tests_reach_their_helpers` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_file_with_a_byte_order_mark_and_crlf_lines_reaches_as_a_plain_one_does` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_member_is_read_from_the_module_of_its_block_and_a_trait_member_from_its_trait` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_method_call_a_field_a_lifetime_and_a_local_name_no_item_and_a_path_prefix_names_its_type` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_module_named_by_a_path_and_then_reached_by_contains_is_opened_then` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_path_the_resolver_refuses_reaches_nothing_beside_one_it_resolves` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_path_through_a_type_names_the_type_and_the_member_and_a_leading_colon_names_a_crate` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_private_helper_called_by_a_bound_item_is_reached_and_an_unreferenced_one_is_not` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_root_of_another_workspace_is_refused_beside_one_of_this_workspace` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::an_impl_block_root_reaches_its_members_and_what_its_header_names` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::an_item_a_macro_generates_is_not_reached_and_a_macro_named_by_a_reached_item_is` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::paths_inside_tests_and_binaries_reach_their_own_crate_and_the_library` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::test_code_names_the_dev_dependencies_and_other_code_does_not` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::the_answer_does_not_depend_on_the_order_of_the_roots_and_is_the_same_each_run` | test | [Verification](#verification) |
 | `raf_source::test_crate::read_cap::disk_tree_enforces_the_cap_at_eight_mib` | test | [Verification](#verification) |
 | `raf_source::test_crate::read_cap::the_default_cap_is_eight_mib` | test | [Verification](#verification) |
 | `raf_source::test_crate::relpath::a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside` | test | [Verification](#verification) |
