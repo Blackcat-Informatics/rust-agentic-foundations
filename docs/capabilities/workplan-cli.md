@@ -209,6 +209,9 @@ bindings:
     - cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero
     - cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_json_alike_and_reverse_prints_the_same
     - cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why
+    - cargo_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_strict_check_on_the_binary
+    - cargo_workplan::test_crate::lines::an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes
+    - cargo_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero
     - cargo_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing
     - cargo_workplan::test_crate::evidence::a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves
     - cargo_workplan::test_crate::evidence::a_command_that_passes_writes_exactly_one_record_and_exits_zero
@@ -388,7 +391,8 @@ output, `-q` suppresses everything but findings, and `--strict` judges with
 `change reconcile` and `change complete` to [strict mode](./workplan-strict.md), and a
 coverage record that says `strictness: strict` gives the same judgement without it.
 `status`, `docs`, `history`, `evidence`, `assess`, `verify` and the coverage reports
-print the same with and without `--strict`. Findings are printed to stdout in
+print the same with and without `--strict`, except that `coverage lines` shows its
+ceilings as enforced under it. Findings are printed to stdout in
 a stable order and diagnostics to stderr. Each option is accepted before or after the
 command. Under `-q` a command whose output holds no finding (`status`, `docs sync`,
 `docs preview`, `change new`, `change impact`, a completion, the passing bindings of
@@ -626,7 +630,10 @@ rather than kept by hand.
   crates outside the scope and none of `raf-workplan` and `cargo-workplan`.
   `coverage lines`: exit 0 with the literal report of a repository whose every
   counted line is covered, 1 with an orphan helper in text and JSON, 2 for a package
-  that is not one, and `coverage --reverse` printing the same bytes in each case.
+  that is not one, and `coverage --reverse` printing the same bytes in each case;
+  with an exception, the excepted table and the `lines-excepted` members in order; and
+  through `check`, a ceiling row and its `of:` class deciding exit 0 or 1 under
+  `--strict`, and an exception that matches nothing exit 1 beside a matched one.
 - JSON pins of the members of each kind of the record commands in order, and every
   kind unequal to a rule name; `-q` hides each outcome and keeps a `fail` record and a
   coverage gap; the read-only commands leave the tree byte-identical.
@@ -757,8 +764,11 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::json::sync_prints_a_rewrote_object_for_each_file_and_an_empty_array_for_none` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::json::the_json_and_the_text_forms_print_the_same_findings_in_the_same_order` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::json::the_kinds_that_are_not_rules_are_not_rule_names` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_strict_check_on_the_binary` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::lines::an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_json_alike_and_reverse_prints_the_same` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::a_capability_given_twice_is_listed_once` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::a_capability_that_is_missing_or_a_bad_option_is_a_usage_error_before_anything_is_read` | test | [Verification](#verification) |

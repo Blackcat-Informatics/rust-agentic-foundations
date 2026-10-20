@@ -7,19 +7,19 @@ subject: cap:workplan-cli#contract
 inputs:
   - kind: section
     name: cap:workplan-cli#contract
-    digest: b15d6f84a1c804e9676e00c2a4a7cdb38db2e115ee0b0a39259c3ff42a28e364
+    digest: be9a961b9b927af520044b9bc9b2f35cb2ab8bb192fb1a67a1f52abd01ba35e2
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::assess::assess
     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::cli::Args
-    digest: 84c16aedfe3f0f7ff4aac339f71c57e80a559e30358e6424826dfe29c8a1501d
+    digest: d015306c78009bdab35f025e64c6e6d3d584f3ab324ba22d7881cd39784fd41f
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::cli::parse
     digest: 5026669c1a481a4ed2cccb2ad96429c0b67dbb70fdcd296e9698a392dc51c948
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::command::run
-    digest: 725d2084a542374fd1dd0802c3a2028389e6390cb7ce9c94daac17506f499347
+    digest: fbc05cf5eb2f8d625d14c8461ab6f6b48346d389f4964dad5253fd324692463d
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::coverage::coverage
     digest: 0ca201ef2cb19c5771778208ea46c058abc8bf7d60a9d87712274540a65523d0

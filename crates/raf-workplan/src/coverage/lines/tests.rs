@@ -17,6 +17,7 @@ use raf_okf::{CeilingLimit, Number};
 use raf_source::{MemoryTree, Namespace, Node, Workspace};
 
 use super::{compute, lex_runs, times, within};
+use crate::coverage::render;
 use crate::strict::tests::fixture;
 use crate::work::{Work, measure, measure_kind};
 use crate::{Strictness, Workplan};
@@ -206,8 +207,8 @@ fn a_path_that_may_name_what_a_macro_generates_is_a_run_and_a_method_a_field_or_
     assert_eq!(runs[0].start, text.find("made").expect("made"));
 }
 
-#[test]
-fn a_walk_that_fails_is_the_one_error_of_the_report_and_one_finding_under_strict() {
+/// Two workspaces: `demo` with one function, and `wide` with three.
+fn demo_and_wide() -> (Workspace, Workspace) {
     let small = Workspace::load(
         &MemoryTree::from([
             (
@@ -233,6 +234,44 @@ fn a_walk_that_fails_is_the_one_error_of_the_report_and_one_finding_under_strict
         &["."],
     )
     .expect("a workspace");
+    (small, large)
+}
+
+/// The table and the JSON of the report of a failed walk, whose message is
+/// the one the walk gives.
+#[test]
+fn a_walk_that_fails_is_the_error_table_in_text_and_a_lines_error_object_in_json() {
+    let (small, large) = demo_and_wide();
+    let foreign = large
+        .resolve_in("wide::c", Namespace::Value)
+        .expect("the item")
+        .sites[0];
+    let docs = MemoryTree::from([(
+        "work/coverage/default.md",
+        "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n",
+    )]);
+    let plan = Workplan::load(&docs, &small);
+    let report = compute(&plan, &[Node::Item(foreign)]);
+    let message = report.errors()[0].clone();
+    assert_eq!(
+        render::lines_table(&report),
+        format!(
+            "| Crate | Enforced | Counted | Covered | Excepted | Orphan | Shipping orphan | Test orphan | Ceiling | Debt |\n\
+             | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n\n\
+             | Crate | Module | Counted | Orphan |\n| --- | --- | --- | --- |\n\n\
+             | Crate | Item | Kind | File | Orphan lines |\n| --- | --- | --- | --- | --- |\n\n\
+             | Error |\n| --- |\n| {message} |\n"
+        )
+    );
+    assert_eq!(
+        render::lines_json(&report),
+        format!("[\n{{\"kind\":\"lines-error\",\"message\":\"{message}\"}}\n]\n")
+    );
+}
+
+#[test]
+fn a_walk_that_fails_is_the_one_error_of_the_report_and_one_finding_under_strict() {
+    let (small, large) = demo_and_wide();
     // An item of a larger workspace is no item of this one.
     let foreign = large
         .resolve_in("wide::c", Namespace::Value)

@@ -166,7 +166,7 @@ the same exclusions; the message of a gap of a package that only strict mode enf
 says which capability binds which path of it, in place of the coverage record, and a
 surface of such a package that cannot be listed is reported at the `bindings` of
 that capability. The strict rules compute that coverage themselves, so `check` under
-`default` and the reports are the same whatever the strictness. The coverage record
+`default` and the code and tests reports are the same whatever the strictness. The coverage record
 also takes the keys `strictness`, `ceilings` and `exceptions`, which strict mode and
 its line report read and this capability does not; the direction table gains no
 row.

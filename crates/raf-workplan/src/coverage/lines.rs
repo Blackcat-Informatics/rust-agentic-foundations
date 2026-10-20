@@ -1866,9 +1866,10 @@ fn over_message(
         .map(|unit| format!("`{}` ({})", unit.item, unit.lines()))
         .collect();
     format!(
-        "`{}` has {} orphan lines ({} shipping, {} test) of {} counted, and its {lines}, {orphan} of {counted} counted, are over {bound}; the largest orphan items are {}",
+        "`{}` has {} orphan {} ({} shipping, {} test) of {} counted, and its {lines}, {orphan} of {counted} counted, are over {bound}; the largest orphan items are {}",
         row.package,
         row.orphan(),
+        if row.orphan() == 1 { "line" } else { "lines" },
         row.shipping_orphan,
         row.test_orphan,
         row.counted,

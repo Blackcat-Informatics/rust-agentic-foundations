@@ -725,3 +725,103 @@ fn a_ceiling_row_of_no_package_is_scope_crate_missing_at_ceilings() {
         assert!(found[0].message.contains("`ghost`"), "{}", found[0].message);
     }
 }
+
+/// The tables of the report of the helper fixture with its helper excepted
+/// by an exception whose reason holds a pipe.
+const EXCEPTED_TABLE: &str = "\
+| Crate | Enforced | Counted | Covered | Excepted | Orphan | Shipping orphan | Test orphan | Ceiling | Debt |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| demo | no | 6 | 1 | 5 | 0 | 0 | 0 | 0 lines | 0 |
+
+| Crate | Module | Counted | Orphan |
+| --- | --- | --- | --- |
+
+| Crate | Item | Kind | File | Orphan lines |
+| --- | --- | --- | --- | --- |
+
+| Crate | Item | Kind | File | Excepted lines | Exception | Reason |
+| --- | --- | --- | --- | --- | --- | --- |
+| demo | `demo::helper` | fn | src/lib.rs | 3-7 | `demo::helper` | Kept for a caller a \\| away. |
+";
+
+const EXCEPTED_JSON: &str = "[
+{\"kind\":\"lines-crate\",\"crate\":\"demo\",\"enforced\":false,\"counted\":6,\"covered\":1,\"excepted\":5,\"orphan\":0,\"shipping_orphan\":0,\"test_orphan\":0,\"ceiling\":\"0 lines\",\"debt\":0},
+{\"kind\":\"lines-excepted\",\"crate\":\"demo\",\"module\":\"demo\",\"item\":\"demo::helper\",\"unit\":\"fn\",\"file\":\"src/lib.rs\",\"ranges\":[[3,7]],\"exception\":\"demo::helper\",\"reason\":\"Kept for a caller a | away.\"}
+]
+";
+
+#[test]
+fn an_excepted_unit_is_the_excepted_table_in_text_and_a_lines_excepted_object_in_json() {
+    let ws = source(&[("src/lib.rs", HELPER_LIB)]);
+    let record =
+        "exceptions:\n  - item: demo::helper\n    reason: \"Kept for a caller a | away.\"\n";
+    let report = lines_of(&ws, &["demo::run"], &[], record);
+    assert_eq!(render::lines_table(&report), EXCEPTED_TABLE);
+    assert_eq!(render::lines_json(&report), EXCEPTED_JSON);
+    // Without an exception neither the header nor the object is printed.
+    let plain = report_of(&ws, &["demo::run"]);
+    assert!(!render::lines_table(&plain).contains("Excepted lines"));
+    assert!(!render::lines_json(&plain).contains("lines-excepted"));
+}
+
+/// A root workspace that excludes `fuzz`, a directory that is a workspace of
+/// its own and holds one unbound helper, beside the bound package `bound`.
+fn nested_tree() -> MemoryTree {
+    MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"crates/bound\"]\nexclude = [\"fuzz\"]\nresolver = \"2\"\n",
+        ),
+        ("crates/bound/Cargo.toml", &manifest("bound")),
+        ("crates/bound/src/lib.rs", "pub fn run() {}\n"),
+        (
+            "fuzz/Cargo.toml",
+            &format!("{}\n[workspace]\n", manifest("fuzzy")),
+        ),
+        ("fuzz/src/lib.rs", "fn helper() {}\n"),
+    ])
+}
+
+#[test]
+fn a_directory_that_is_a_workspace_of_its_own_has_a_row_when_the_source_roots_reach_it_and_none_when_they_do_not()
+ {
+    let tree = nested_tree();
+    let docs = documents(&["bound::run"], &[], "");
+    let rows = |roots: &[&str]| {
+        let ws = Workspace::load(&tree, roots).expect("a workspace");
+        let report = Workplan::load(&docs, &ws).lines_report();
+        assert!(report.errors().is_empty(), "{:?}", report.errors());
+        report
+    };
+    // Reached: the package is judged as any other, with its own row.
+    let reached = rows(&["."]);
+    let summary: Vec<(&str, usize, usize)> = reached
+        .crates()
+        .iter()
+        .map(|row| (row.package(), row.counted(), row.orphan()))
+        .collect();
+    assert_eq!(summary, [("bound", 1, 0), ("fuzzy", 1, 1)]);
+    assert_eq!(orphans(&reached), pairs(&[("fuzzy::helper", "1-1")]));
+    // Its ceiling is its own: a row for it bounds it and a row of the
+    // neighbour does not.
+    let own = "strictness: strict\nceilings:\n  - crate: fuzzy\n    lines: 1\n";
+    let ws = Workspace::load(&tree, &["."]).expect("a workspace");
+    let found = |record: &str| {
+        Workplan::load(&documents(&["bound::run"], &[], record), &ws)
+            .check()
+            .into_iter()
+            .filter(|finding| finding.kind == "coverage-lines-over-ceiling")
+            .count()
+    };
+    assert_eq!(found(own), 0);
+    assert_eq!(
+        found("strictness: strict\nceilings:\n  - crate: bound\n    lines: 1\n"),
+        1
+    );
+    // Not reached: the roots name the member alone and it has no row.
+    let missed = rows(&["crates/bound"]);
+    let names: Vec<&str> = missed.crates().iter().map(CrateLines::package).collect();
+    assert_eq!(names, ["bound"]);
+    assert!(missed.package("fuzzy").is_none());
+    assert_eq!(missed.orphans(), []);
+}

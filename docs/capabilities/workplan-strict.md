@@ -81,6 +81,9 @@ bindings:
     - cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero
     - cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_json_alike_and_reverse_prints_the_same
     - cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why
+    - cargo_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_strict_check_on_the_binary
+    - cargo_workplan::test_crate::lines::an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes
+    - cargo_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero
     - raf_workplan::lifecycle::touched::tests::whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it
     - raf_workplan::lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only
     - raf_workplan::lifecycle::touched::tests::an_impl_header_is_the_tokens_before_its_brace_at_every_depth_and_a_file_that_does_not_parse_is_an_error
@@ -133,6 +136,8 @@ bindings:
     - raf_workplan::test_crate::lines::a_shipping_row_alone_judges_the_shipping_lines_against_itself_and_holds_the_test_lines_to_zero
     - raf_workplan::test_crate::lines::a_percent_ceiling_compares_whole_numbers_at_its_boundary_and_an_empty_package_passes_it
     - raf_workplan::test_crate::lines::a_ceiling_row_of_no_package_is_scope_crate_missing_at_ceilings
+    - raf_workplan::test_crate::lines::an_excepted_unit_is_the_excepted_table_in_text_and_a_lines_excepted_object_in_json
+    - raf_workplan::test_crate::lines::a_directory_that_is_a_workspace_of_its_own_has_a_row_when_the_source_roots_reach_it_and_none_when_they_do_not
     - raf_workplan::coverage::lines::tests::the_work_grows_with_the_units_and_no_faster_at_fixed_exceptions
     - raf_workplan::coverage::lines::tests::the_work_grows_with_the_exceptions_and_no_faster_at_fixed_units
     - raf_workplan::coverage::lines::tests::every_kind_of_work_is_held_to_a_ceiling_linear_in_the_units_and_the_exceptions
@@ -140,6 +145,7 @@ bindings:
     - raf_workplan::coverage::lines::tests::a_percent_is_compared_as_whole_numbers_without_division_or_overflow
     - raf_workplan::coverage::lines::tests::a_path_that_may_name_what_a_macro_generates_is_a_run_and_a_method_a_field_or_a_declared_name_is_not
     - raf_workplan::coverage::lines::tests::a_walk_that_fails_is_the_one_error_of_the_report_and_one_finding_under_strict
+    - raf_workplan::coverage::lines::tests::a_walk_that_fails_is_the_error_table_in_text_and_a_lines_error_object_in_json
   examples:
     - raf_workplan::Workplan::strictness
     - raf_workplan::Workplan::claims_report
@@ -680,6 +686,7 @@ the check, and the write refuses it.
 - A directory that holds a cargo workspace of its own, such as a fuzz harness that
   the root workspace excludes, is a package of the source index when the source
   roots reach it, so the line report judges its lines as those of any package.
+<!-- raf:tested-by raf_workplan::test_crate::lines::a_directory_that_is_a_workspace_of_its_own_has_a_row_when_the_source_roots_reach_it_and_none_when_they_do_not -->
 - An item a macro generates is counted as the span of its invocation, and an
   expansion that nothing reaches is orphan with the lines of the invocation, as is the
   `macro_rules!` that generates it; a `#[cfg(test)]` module is counted as test lines,
@@ -913,7 +920,19 @@ visible failure, and the fix is one command.
   0, and an `all` row bounds both; under `default` nothing is enforced and the report
   is printed; a row of no package is `scope-crate-missing` at `ceilings` under either
   strictness; another `of` value is `okf-bad-ceiling`; a walk of the index that fails
-  is the one error of the report and one `coverage-lines-over-ceiling`.
+  is the one error of the report and one `coverage-lines-over-ceiling`, and its text
+  and JSON equal the literal `| Error |` table and `lines-error` object.
+- Nested workspace fixture: a directory that is a cargo workspace of its own, which the
+  root workspace excludes, has its own row and ceiling when the source roots reach it
+  and no row when they do not.
+- Excepted-lines fixtures: a report with an exception equals the literal excepted
+  table and `lines-excepted` object, in the library and through the binary, whose
+  member order is pinned.
+- Binary fixtures for the rules: `--strict check` exits 1 with
+  `coverage-lines-over-ceiling` for an `of: shipping` row, an `all` row and an
+  `of: test` row that leaves the shipping lines at 0, and exits 0 with the rows
+  raised; an exception that matches nothing exits 1 under `default` beside a matched
+  one that exits 0.
 - `cargo workplan coverage lines` exits 0 with every counted line covered, printing
   the literal report, hidden under `-q`; 1 with an orphan helper, in text and JSON
   alike and whole under `-q`, with the ceilings shown as enforced under `--strict`;
@@ -949,8 +968,11 @@ visible failure, and the fix is one command.
 | `cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::claims::the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_strict_check_on_the_binary` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::lines::an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_json_alike_and_reverse_prints_the_same` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::reconcile::under_strict_a_bound_package_whose_surface_cannot_be_listed_is_exit_two` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::reconcile::under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exit_two` | test | [Verification](#verification) |
@@ -962,6 +984,7 @@ visible failure, and the fix is one command.
 | `raf_workplan::Workplan::strictness` | doctest | [Usage](#usage) |
 | `raf_workplan::coverage::lines::tests::a_path_that_may_name_what_a_macro_generates_is_a_run_and_a_method_a_field_or_a_declared_name_is_not` | test | [Verification](#verification) |
 | `raf_workplan::coverage::lines::tests::a_percent_is_compared_as_whole_numbers_without_division_or_overflow` | test | [Verification](#verification) |
+| `raf_workplan::coverage::lines::tests::a_walk_that_fails_is_the_error_table_in_text_and_a_lines_error_object_in_json` | test | [Verification](#verification) |
 | `raf_workplan::coverage::lines::tests::a_walk_that_fails_is_the_one_error_of_the_report_and_one_finding_under_strict` | test | [Verification](#verification) |
 | `raf_workplan::coverage::lines::tests::every_kind_of_work_is_held_to_a_ceiling_linear_in_the_units_and_the_exceptions` | test | [Verification](#verification) |
 | `raf_workplan::coverage::lines::tests::the_work_grows_with_the_exceptions_and_no_faster_at_fixed_units` | test | [Verification](#verification) |
@@ -1024,10 +1047,12 @@ visible failure, and the fix is one command.
 | `raf_workplan::test_crate::lines::a_ceiling_row_of_no_package_is_scope_crate_missing_at_ceilings` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lines::a_cfg_test_module_with_one_bound_and_one_unbound_test_reports_the_unbound_one_and_its_helper_as_test_lines` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::lines::a_crate_whose_public_surface_is_bound_and_whose_helpers_are_reached_has_no_orphan_line` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::a_directory_that_is_a_workspace_of_its_own_has_a_row_when_the_source_roots_reach_it_and_none_when_they_do_not` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::lines::a_macro_invocation_is_orphan_with_its_range_and_covered_once_a_bound_function_calls_what_it_generates` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::lines::a_package_that_no_capability_binds_is_reported_with_its_orphan_helper` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lines::a_percent_ceiling_compares_whole_numbers_at_its_boundary_and_an_empty_package_passes_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lines::a_shipping_row_alone_judges_the_shipping_lines_against_itself_and_holds_the_test_lines_to_zero` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::an_excepted_unit_is_the_excepted_table_in_text_and_a_lines_excepted_object_in_json` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lines::an_exception_by_item_prefix_file_and_directory_takes_its_lines_out_and_one_beside_it_that_matches_nothing_is_a_finding` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lines::an_unreferenced_private_helper_is_exactly_its_span_and_the_same_helper_called_by_a_bound_function_is_not` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lines::binding_a_type_covers_its_impl_blocks_and_their_methods_and_binding_a_method_covers_nothing_beside_it` | test | [Verification](#verification) |
