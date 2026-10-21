@@ -4,7 +4,7 @@
 type: Change
 id: change:census-debt-ratchet
 title: "Implement the census debt ratchet"
-description: "Delivers census-debt.json and the check that lets debt only shrink."
+description: "Delivers census-debt.ttl and the check that lets debt only shrink."
 changes: [cap:census-debt-ratchet]
 affects:
   - cap:census-debt-ratchet#purpose

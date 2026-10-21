@@ -86,7 +86,7 @@ const INVENTORY: Inventory = Inventory {
         ("census-detectors", "designed"),
         ("census-ledger", "designed"),
         ("census-migration", "designed"),
-        ("census-normal-form", "designed"),
+        ("census-normal-form", "delivered"),
         ("census-patterns", "designed"),
         ("census-reference-scan", "designed"),
         ("census-rule-api", "designed"),
@@ -110,7 +110,6 @@ const INVENTORY: Inventory = Inventory {
         ("census-detectors", &["census-detectors"]),
         ("census-ledger", &["census-ledger"]),
         ("census-migration", &["census-migration"]),
-        ("census-normal-form", &["census-normal-form"]),
         ("census-patterns", &["census-patterns"]),
         ("census-reference-scan", &["census-reference-scan"]),
         ("census-rule-api", &["census-rule-api"]),
@@ -132,6 +131,13 @@ const INVENTORY: Inventory = Inventory {
     ],
     architecture: &["debt-ratchet", "normal-form", "okf-profile"],
     records: &[
+        "assessment:census-normal-form-constraints",
+        "assessment:census-normal-form-contract",
+        "assessment:census-normal-form-examples",
+        "assessment:census-normal-form-explanation",
+        "assessment:census-normal-form-purpose",
+        "assessment:census-normal-form-usage",
+        "assessment:census-normal-form-verification",
         "assessment:okf-profile-contract",
         "assessment:okf-profile-verification",
         "assessment:source-index-constraints",
@@ -746,6 +752,7 @@ fn repository_bindings_resolve_in_the_source_index() -> Result<(), Box<dyn Error
         packages,
         BTreeSet::from([
             "cargo-workplan",
+            "raf-census",
             "raf-okf",
             "raf-source",
             "raf-source-fuzz",
@@ -1278,16 +1285,12 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|(_, state)| *state == wanted)
             .count()
     };
-    assert_eq!(count("designed"), 9);
+    assert_eq!(count("designed"), 8);
     assert_eq!(count("implementing"), 9);
-    assert_eq!(count("delivered"), 4);
+    assert_eq!(count("delivered"), 5);
     assert_eq!(count("considered"), 0);
     let changes: BTreeSet<&str> = INVENTORY.changes.iter().map(|(s, _)| *s).collect();
-    assert_eq!(
-        changes.len(),
-        10,
-        "10 open change records, each listed once"
-    );
+    assert_eq!(changes.len(), 9, "9 open change records, each listed once");
     for (slug, row) in INVENTORY.changes {
         let unique: BTreeSet<&str> = row.iter().copied().collect();
         assert_eq!(
@@ -1312,10 +1315,10 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|id| id.starts_with(prefix))
             .count()
     };
-    assert_eq!(records("assessment:"), 56);
+    assert_eq!(records("assessment:"), 63);
     assert_eq!(records("coverage:"), 1);
     assert_eq!(records("evidence:"), 1);
-    assert_eq!(INVENTORY.records.len(), 58);
+    assert_eq!(INVENTORY.records.len(), 65);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 

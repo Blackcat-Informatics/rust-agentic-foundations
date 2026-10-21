@@ -1200,3 +1200,82 @@ fn an_impl_block_of_a_file_reached_under_two_module_paths_is_listed_once_for_eac
     // A library without impl blocks lists none.
     assert_eq!(lib("pub fn f() {}\n").impls().count(), 0);
 }
+
+#[test]
+fn parameter_bindings_are_every_bound_name_in_signature_order_beside_a_function_with_none() {
+    let ws = lib("pub struct S;\n\
+                  pub struct P { x: u8, y: u8 }\n\
+                  impl S {\n    \
+                      pub fn go(&mut self, (a, mut b): (u8, u8), ref c: u8, P { x, y: z }: P, r#d: Vec<u8>, [e, ..]: [u8; 4]) {}\n    \
+                      pub fn plain(self) {}\n    \
+                      pub fn none() {}\n\
+                  }\n\
+                  pub trait T {\n    fn dflt(&self, n: u8) {}\n    fn req(&self, m: u8);\n}\n\
+                  pub fn typed(x: Vec<fn(inner: u8) -> u8>) {}\n\
+                  pub const C: u8 = 1;\n");
+    let names = |path: &str| -> Vec<String> {
+        item(&ws, path, Namespace::Value)
+            .parameter_bindings()
+            .to_vec()
+    };
+    assert_eq!(
+        names("demo::S::go"),
+        ["self", "a", "b", "c", "x", "z", "r#d", "e"]
+    );
+    assert_eq!(names("demo::S::plain"), ["self"]);
+    assert_eq!(names("demo::S::none"), Vec::<String>::new());
+    assert_eq!(names("demo::T::dflt"), ["self", "n"]);
+    assert_eq!(names("demo::T::req"), ["self", "m"]);
+    // A name inside a type is not a binding.
+    assert_eq!(names("demo::typed"), ["x"]);
+    assert_eq!(names("demo::C"), Vec::<String>::new());
+}
+
+#[test]
+fn an_initializer_is_the_text_between_the_equals_and_the_semicolon_beside_a_required_constant() {
+    let text = "#[allow(dead_code)]\n\
+                pub const N: [u8; 0x10000] = [0; 4];\n\
+                pub static S: &str = \"a;b\";\n\
+                pub struct W;\n\
+                impl W { pub const A: u8 = 3; }\n\
+                pub trait T {\n    const D: u8 = 9;\n    const R: u8;\n}\n\
+                pub fn f() {}\n";
+    let ws = lib(text);
+    let initializer = |path: &str| {
+        item(&ws, path, Namespace::Value)
+            .initializer()
+            .map(|range| text[range].trim().to_owned())
+    };
+    assert_eq!(initializer("demo::N").as_deref(), Some("[0; 4]"));
+    assert_eq!(initializer("demo::S").as_deref(), Some("\"a;b\""));
+    assert_eq!(initializer("demo::W::A").as_deref(), Some("3"));
+    assert_eq!(initializer("demo::T::D").as_deref(), Some("9"));
+    assert_eq!(initializer("demo::T::R"), None);
+    assert_eq!(initializer("demo::f"), None);
+}
+
+#[test]
+fn bindings_and_an_initializer_are_shared_by_every_path_that_reaches_the_file() {
+    let ws = ok(&[
+        ("src/lib.rs", "pub mod shared;\n"),
+        ("src/main.rs", "mod shared;\nfn main() {}\n"),
+        (
+            "src/shared.rs",
+            "pub fn go(x: u8) {}\npub const C: u8 = 5;\n",
+        ),
+    ]);
+    let mut seen = 0;
+    for (_, _, ids) in ws.items_by_source() {
+        let found: Vec<&Item> = ids.iter().filter_map(|id| ws.item(*id)).collect();
+        if found.iter().any(|i| i.name == "go") {
+            assert!(found.len() > 1, "two targets reach the file");
+            assert!(found.iter().all(|i| i.parameter_bindings() == ["x"]));
+            seen += 1;
+        }
+        if found.iter().any(|i| i.name == "C") {
+            assert!(found.iter().all(|i| i.initializer().is_some()));
+            seen += 1;
+        }
+    }
+    assert_eq!(seen, 2);
+}

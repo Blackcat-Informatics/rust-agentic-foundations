@@ -33,13 +33,13 @@ its own: each subcommand calls `raf-census`. The command registers no `Rule` and
 | Subcommand | Behaviour |
 | --- | --- |
 | `check` | Runs the full census against the ledger, the patterns, the built-in detectors and the debt record, and prints every finding. |
-| `baseline [--json PATH]` | Prints every census group. With `--json PATH`, writes the baseline report as JSON to `PATH`. |
-| `index` | Prints the index report: every unit with its fingerprints, as JSON. |
+| `baseline [--out PATH]` | Prints every census group. With `--out PATH`, writes the baseline report as RDF 1.2 Turtle to `PATH`. |
+| `index` | Prints the index report: every unit with its fingerprints, as RDF 1.2 Turtle. |
 | `job <ID>` | Prints the roles (`HOME`, `VARIANT`, `COPY`) of every match for one job and its copy count. |
 | `count <ID>` | Prints the copy count of one job as a single integer. |
 | `fingerprint <SYM>` | Prints the fingerprints of one function symbol: its `body` and its `shim`. |
-| `debt --write` | Rewrites `census-debt.json` to the present debt, for a ledger that needs no registered code (see [census-debt-ratchet](./census-debt-ratchet.md)). |
-| `migrate --old-baseline <FILE> --ledger <FILE> --out <FILE>` | Migrates a legacy baseline and ledger, or a ledger at an older `normal_form` with its index report, to a new ledger at `--out`, which is required (see [census-migration](./census-migration.md)). |
+| `debt --write` | Rewrites `census-debt.ttl` to the present debt, for a ledger that needs no registered code (see [census-debt-ratchet](./census-debt-ratchet.md)). |
+| `migrate (--old-baseline <FILE> | --old-index <FILE>) --ledger <FILE> --out <FILE>` | Migrates a legacy baseline and ledger, or a ledger at an older `normal_form` with its index report, to a new ledger at `--out`, which is required (see [census-migration](./census-migration.md)). |
 | `dump-ledger` | Prints the parsed ledger. |
 
 Common options are `--root DIR` (default: the current workspace) and `--ledger FILE`
@@ -56,7 +56,7 @@ exits 2, with a message that names `Gate::write_debt` and `Gate::assert_clean`, 
 
 For such a ledger the `Gate`, run from the repository's census test, owns the whole
 census, and `Gate::write_debt`, run from the repository's own binary or xtask, is the
-only path that writes `census-debt.json`. A `rule:<id>` that is neither a built-in
+only path that writes `census-debt.ttl`. A `rule:<id>` that is neither a built-in
 detector, a pattern nor a registered rule is an invalid ledger in the CLI and in the
 Gate alike (see [census-ledger](./census-ledger.md)).
 
@@ -76,7 +76,7 @@ Findings go to standard output and diagnostics to standard error.
 
 ```text
 cargo census check
-cargo census baseline --json /tmp/baseline.json
+cargo census baseline --out /tmp/baseline.ttl
 cargo census index
 cargo census job hex-encode
 cargo census count hex-encode
@@ -109,13 +109,17 @@ rc=2
 
 ## Constraints
 
+- Report output is the canonical Turtle of census-normal-form: baseline output is
+  byte-identical to `Baseline::to_turtle` and index output to `Index::to_turtle`.
+  A file outside the closed report shape is a reader refusal and exits 2.
+
 - The command runs on one workspace at a time.
 - For a ledger that needs no registered code, `check` is the same function as
   `Gate::assert_clean`, except that it prints findings and exits instead of
   panicking. For any other ledger it refuses with exit 2 and does not run a partial
   census.
 - `debt --write` is the only subcommand that writes into the workspace besides
-  `baseline --json PATH` and `migrate --out`. For a ledger that needs registered
+  `baseline --out PATH` and `migrate --out`. For a ledger that needs registered
   code, `Gate::write_debt` is the only write path.
 - Output ordering is deterministic. No subcommand prompts for input.
 
@@ -142,6 +146,6 @@ errors lets a script tell "the repository is dirty" from "the invocation is wron
   unregistered `rule:` id, and that `debt --write` writes nothing in either case.
 - A test shows `migrate` reads the ledger to migrate from its `--ledger` argument and
   that the common `--ledger` default is not applied to it.
-- A test shows `baseline --json PATH` writes a file equal to the baseline report of
+- A test shows `baseline --out PATH` writes a file equal to the baseline report of
   [census-normal-form](./census-normal-form.md).
 - A test shows `debt --write` and `migrate` write only their named files.

@@ -4,7 +4,7 @@
 type: Capability
 id: cap:census-debt-ratchet
 title: "Census debt ratchet"
-description: "A recorded set of existing duplication that can only shrink, stored in census-debt.json."
+description: "A recorded set of existing duplication that can only shrink, stored in census-debt.ttl."
 state: designed
 bindings:
   code: []
@@ -24,18 +24,26 @@ repository gets a clean gate immediately, and the debt can only go down.
 
 ## Contract
 
-The recorded debt lives in `census-debt.json` at the workspace root. It names the
+The recorded debt lives in `census-debt.ttl` at the workspace root. It names the
 `normal_form` it was written for, the census groups that are accepted as debt, and
 the number of copies each unenforced job carries:
 
-```json
-{
-  "normal_form": 1,
-  "groups": [
-    { "kind": "body", "members": ["demo_a::len", "demo_b::len"] }
-  ],
-  "job_copies": { "hex-encode": 3 }
-}
+```turtle
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/f520ad2c373757f914c2940564d088ccd565646b5cfac051d50de557d9c107f3>
+PREFIX census: <https://blackcatinformatics.ca/raf/census#>
+
+<> a census:DebtRecord ;
+    census:normalForm 1 ;
+    census:reportForm 1 .
+
+<#debt/body/demo_a::len,demo_b::len> a census:BodyDebt ;
+    census:memberSymbol "demo_a::len" ,
+        "demo_b::len" .
+
+<#job/hex-encode> a census:JobDebt ;
+    census:copies 3 ;
+    census:jobId "hex-encode" .
 ```
 
 The check compares the debt the workspace carries now with the recorded debt.
@@ -64,14 +72,14 @@ Shrinkage fails until it is re-recorded:
 - a job's copy count falls below its recorded count.
 
 The message names `cargo census debt --write` and `Gate::write_debt` as the ways to
-lower the record. The write rewrites `census-debt.json` to exactly the debt the
+lower the record. The write rewrites `census-debt.ttl` to exactly the debt the
 workspace carries now. Recorded debt never carries slack: the record always equals the
 present debt. Two cases let `debt --write` record a debt that has no earlier record. A
-workspace with no `census-debt.json` has the file created from the present debt, which
+workspace with no `census-debt.ttl` has the file created from the present debt, which
 is how a repository adopts the ratchet. A file whose `normal_form` differs from the
 implemented version is replaced by the present debt, as the bump path below states.
 
-A missing `census-debt.json` records no debt, so every existing group is growth until
+A missing `census-debt.ttl` records no debt, so every existing group is growth until
 the file is created. A file whose `normal_form` differs from the implemented version
 fails hard. The bump path: after a `normal_form` bump, `cargo census migrate`, given
 the index report written before the upgrade, rebuilds the ledger (see
@@ -80,13 +88,13 @@ non-debt finding exists, replaces the record whose `normal_form` differs with th
 present debt. The check itself keeps failing hard until that write has run.
 
 The write computes the record from the present workspace, so deleting
-`census-debt.json` and writing again records any growth. The control is review: every
-creation of `census-debt.json`, and every change of its `normal_form`, is read in
+`census-debt.ttl` and writing again records any growth. The control is review: every
+creation of `census-debt.ttl`, and every change of its `normal_form`, is read in
 the diff as a statement that the listed duplication is accepted.
 
 ## Usage
 
-`cargo census check` and `Gate::assert_clean` read `census-debt.json` as part of
+`cargo census check` and `Gate::assert_clean` read `census-debt.ttl` as part of
 every run. For a ledger that needs no registered code, `cargo census debt --write`
 updates it (see [census-cli](./census-cli.md)). For a ledger that needs registered
 code, the repository calls `Gate::write_debt` from its own xtask, which it runs as:
@@ -106,7 +114,7 @@ recorded group has shrunk, and the developer runs:
 
 ```text
 $ cargo census debt --write
-census-debt.json: 1 group, 0 jobs with copies
+census-debt.ttl: 1 group, 0 jobs with copies
 ```
 
 The next `check` passes. If a developer instead adds a fourth clone to the recorded
@@ -122,10 +130,14 @@ The developer removes the clone or adds a `[[distinct]]` entry for the exact set
   stale ledger row, in both entry points.
 - `Gate::write_debt` is called from the repository's own binary or xtask, never from
   a `#[test]`.
-- The file is JSON with a stable key order and a trailing newline, so equal debt
-  gives byte-equal files.
+- The file is RDF 1.2 Turtle in the census canonical form, read through the same
+  strict closed-profile reader. Equal debt gives byte-equal files; a hand edit
+  without recomputing the unkeyed content digest is refused.
 
 ## Explanation
+
+The content-addressed BASE changes with the debt. A review diff shows the changed
+base beside the changed debt entries.
 
 A ratchet that only blocks growth leaves slack: the record says three copies, the
 code has one, and two new copies can appear unnoticed. Failing on shrinkage closes
@@ -142,6 +154,9 @@ workplan follows it with its own record and keys; this capability states the cen
 keys, the census file and its version bump.
 
 ## Verification
+
+- A member added without recomputing the digest is refused as an invalid debt
+  record, naming the file; an unchanged canonical record reads.
 
 - Growth fixtures: a new group, a group whose member set is a superset of a
   recorded one, and a job copy count above the record each fail the check, and each

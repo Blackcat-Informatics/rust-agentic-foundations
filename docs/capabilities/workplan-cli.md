@@ -25,6 +25,11 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::render::Report
     - raf_workplan::escape
   tests:
+    - raf_workplan::test_crate::root::tree_directory_aliases_fail_instead_of_selecting_lexical_ancestors
+    - raf_workplan::test_crate::root::a_dangling_manifest_is_a_finding_instead_of_an_ancestor_fallback
+    - raf_workplan::test_crate::root::memory_discovery_never_invokes_a_runner
+    - raf_workplan::test_crate::root::a_directory_outside_any_workspace_is_an_actionable_error
+    - raf_workplan::test_crate::root::a_nonexistent_directory_is_refused
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::each_command_parses_in_both_shapes
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option
@@ -56,8 +61,8 @@ bindings:
     - cargo_workplan::test_crate::json::the_kinds_that_are_not_rules_are_not_rule_names
     - cargo_workplan::test_crate::json::every_object_is_a_single_line_inside_one_array
     - cargo_workplan::test_crate::json::a_run_that_could_not_run_prints_nothing_on_standard_output_in_json_too
-    - cargo_workplan::test_crate::process::discovery_runs_exactly_cargo_metadata_from_the_cargo_variable
-    - cargo_workplan::test_crate::process::discovery_runs_the_cargo_on_path_when_the_variable_is_unset
+    - cargo_workplan::test_crate::process::discovery_starts_no_cargo_from_the_cargo_variable
+    - cargo_workplan::test_crate::process::discovery_starts_no_cargo_on_path_when_the_variable_is_unset
     - cargo_workplan::test_crate::process::discovery_does_not_run_the_build_rustc_program_of_the_workspace
     - cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts
     - cargo_workplan::test_crate::process::a_missing_git_is_exit_two_and_names_it
@@ -109,13 +114,11 @@ bindings:
     - cargo_workplan::test_crate::preview::quiet_prints_nothing_because_a_preview_is_not_a_finding
     - cargo_workplan::test_crate::preview::the_output_is_the_text_the_library_previews_under_a_header_for_each_document
     - cargo_workplan::test_crate::preview::the_preview_is_the_same_by_root_from_another_directory
-    - cargo_workplan::test_crate::process::a_cargo_that_cannot_be_started_is_exit_two
-    - cargo_workplan::test_crate::process::a_cargo_that_fails_is_exit_two_with_what_it_said
+    - cargo_workplan::test_crate::process::discovery_succeeds_when_cargo_cannot_be_started
     - cargo_workplan::test_crate::process::a_slug_that_is_not_a_slug_is_refused_before_any_process_starts
     - cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_before_any_process_starts
     - cargo_workplan::test_crate::process::a_usage_error_of_the_change_commands_starts_no_process
     - cargo_workplan::test_crate::process::a_usage_error_starts_no_process
-    - cargo_workplan::test_crate::process::output_from_cargo_that_is_not_the_metadata_is_exit_two
     - cargo_workplan::test_crate::process::root_starts_no_cargo_at_all
     - cargo_workplan::test_crate::reconcile::a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree
     - cargo_workplan::test_crate::reconcile::everything_that_stops_it_looking_is_exit_two
@@ -146,13 +149,6 @@ bindings:
     - cargo_workplan::test_crate::verify::no_slug_runs_every_capability_and_a_slug_only_the_ones_the_change_lists
     - cargo_workplan::test_crate::verify::nothing_to_run_is_exit_zero_with_a_note_that_quiet_hides
     - cargo_workplan::test_crate::verify::quiet_prints_only_the_failing_bindings_and_keeps_the_exit
-    - raf_workplan::test_crate::root::a_cargo_that_does_not_exist_is_an_error
-    - raf_workplan::test_crate::root::a_directory_outside_any_workspace_is_an_error_that_says_what_cargo_said
-    - raf_workplan::test_crate::root::configured_programs::discovery_does_not_run_the_programs_of_the_cargo_configuration
-    - raf_workplan::test_crate::root::stubs::exactly_one_process_runs_with_the_documented_argv_directory_and_locale
-    - raf_workplan::test_crate::root::stubs::hostile_output_is_an_error_and_never_a_guess
-    - raf_workplan::test_crate::root::stubs::output_is_bounded_at_64_mebibytes
-    - raf_workplan::test_crate::root::stubs::the_top_level_member_wins_over_a_nested_one_with_the_same_name
     - raf_workplan::test_crate::root::the_root_is_found_from_the_root_a_member_and_a_subdirectory
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_command_that_takes_a_slug_refuses_one_that_starts_with_a_dash_in_both_forms
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_must_be_a_slug
@@ -164,25 +160,6 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::render::tests::a_record_with_no_text_has_no_line_in_text_and_an_object_in_json
     - cargo_workplan::bin_crate::cargo_workplan::render::tests::an_empty_report_is_nothing_in_text_and_an_empty_array_in_json
     - cargo_workplan::bin_crate::cargo_workplan::render::tests::text_with_quotes_and_control_characters_is_escaped
-    - raf_workplan::root::json::tests::a_large_text_is_scanned_to_its_end
-    - raf_workplan::root::json::tests::a_member_that_is_only_nested_is_not_the_member
-    - raf_workplan::root::json::tests::a_member_twice_is_refused_even_when_the_values_agree
-    - raf_workplan::root::json::tests::a_top_level_value_that_is_not_an_object_is_refused
-    - raf_workplan::root::json::tests::a_value_that_is_not_a_string_is_refused
-    - raf_workplan::root::json::tests::an_unpaired_surrogate_is_text_nobody_can_use
-    - raf_workplan::root::json::tests::escapes_are_decoded
-    - raf_workplan::root::json::tests::every_prefix_of_a_document_is_refused_and_no_mutation_panics
-    - raf_workplan::root::json::tests::nesting_is_bounded_and_never_overflows_the_stack
-    - raf_workplan::root::json::tests::numbers_of_the_grammar_pass
-    - raf_workplan::root::json::tests::random_strings_of_json_punctuation_never_panic
-    - raf_workplan::root::json::tests::text_that_is_not_json_is_refused
-    - raf_workplan::root::json::tests::the_member_is_found_wherever_it_sits_at_the_top_level
-    - raf_workplan::root::json::tests::the_output_of_cargo_metadata_gives_its_root
-    - raf_workplan::root::tests::a_failing_cargo_is_an_error_with_what_it_said
-    - raf_workplan::root::tests::a_root_that_is_not_an_absolute_path_is_refused
-    - raf_workplan::root::tests::cargo_that_cannot_run_or_writes_too_much_is_an_error
-    - raf_workplan::root::tests::output_that_does_not_give_a_root_is_an_error
-    - raf_workplan::root::tests::the_root_is_the_workspace_root_member_and_the_command_is_exactly_one
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_claims_takes_an_optional_capability
@@ -277,28 +254,27 @@ what the documentation owes, and completes the work.
 
 The binary is `cargo-workplan`, a thin wrapper over `raf-workplan`, parsed with clap
 derive. It runs from any directory inside the workspace and finds the root from
-`cargo metadata`. Cargo runs it for `cargo workplan <command>`, passing the argument
+ancestor manifests. Cargo runs it for `cargo workplan <command>`, passing the argument
 vector `cargo-workplan workplan <command>`, and it runs directly as
 `cargo-workplan <command>`; both forms take the same arguments and give the same
 result.
 
-**Root discovery.** When `--root` is absent, root discovery in `raf-workplan` spawns
-exactly this command, directly with no shell, as an argv vector. The program is the
-one named by `$CARGO` when that is set (cargo sets it for a subcommand), and `cargo`
-from `PATH` otherwise:
+**Root discovery.** When `--root` is absent, `raf-workplan` opens a bounded
+`DiskTree` from the filesystem root and calls `raf_source::discover_root` from
+the canonical current directory. Discovery reads ancestor `Cargo.toml` files
+without starting a process, reading Cargo configuration, resolving registry
+dependencies or changing the lockfile. A manifest is bounded by the source
+reader's default file-size limit.
 
-```text
-cargo metadata --format-version 1 --no-deps --frozen
-```
-
-`--no-deps` skips dependency resolution, which is not needed to find the root, and
-`--frozen` forbids network access and any change to `Cargo.lock`. No value from a
-document is placed on the command line. Even so, cargo reads the workspace's
-`.cargo/config.toml` and the rustup proxy reads its `rust-toolchain.toml`, so the
-workspace is trusted build input, as it is for `cargo build` (see
-[the security policy](../../SECURITY.md)). The binary reads no JSON beyond the
-`workspace_root` field and bounds the output at 64 MiB. Root discovery runs before
-the processes of the command itself.
+The nearest explicit `[workspace]` is selected. A package must belong to its
+member set, including transitive in-workspace path dependencies; an unlisted
+package is a finding with instructions to list it, exclude it, or add its own
+`[workspace]`. A standalone package and an excluded package resolve to their
+own directories. A nested workspace resolves to the nested root. An explicit
+`package.workspace` must name a workspace reachable inside the tree whose
+membership includes the package; missing, conflicting or malformed declarations
+fail hard. A directory with no ancestor package or workspace is an error.
+`--root` directly selects a directory and bypasses discovery.
 
 | Command | Effect |
 | --- | --- |
@@ -521,6 +497,9 @@ result holds:
 
 ## Constraints
 
+- Root discovery needs no Cargo executable. An unreadable or malformed ancestor
+  manifest and inconsistent package membership are errors, with no fallback to a
+  guessed root; an explicit `--root` bypasses this lookup.
 - The binary holds no logic of its own. Each command calls a function in
   `raf-workplan`, so the dev-dependency `Gate` and the CLI agree.
 - `check`, `status`, `docs preview`, `change impact` and `change reconcile` write
@@ -584,11 +563,10 @@ rather than kept by hand.
   repetition and `--format`.
 - A fixture repository per command asserting stdout, files written and the exit code,
   with exit 0, 1 and 2 each exercised: a clean check, a finding, and a missing slug.
-- A root-discovery fixture with a stub named by `$CARGO`, and one on `PATH` with
-  `$CARGO` unset, records the argv and asserts
-  it equals `cargo metadata --format-version 1 --no-deps --frozen`. A second fixture
-  has a `.cargo/config.toml` with `build.rustc` set to a script, and asserts that
-  root discovery does not run the script.
+- Root and nested-member fixtures exercise both CLI argument shapes. Recording
+  Cargo stubs on `PATH` and in `$CARGO` observe no discovery calls. Memory-tree
+  fixtures cover standalone, excluded, nested, unlisted and explicit-workspace
+  packages, alongside malformed declarations and missing directories.
 - A slug argument that begins with `-`, such as `-rf` or `--since=x`, is a usage
   error with exit 2 before any process is spawned, and is never read as an option by
   a spawned process.
@@ -619,7 +597,7 @@ rather than kept by hand.
   `git` and no `cargo` and runs no command, with and without `--root`, beside a
   neighbour that starts a process; the refusals of the binary itself (an empty
   program, a word that is not UTF-8, a program name of `--`, `--from-binding` beside
-  a bare `--`) are included, without `--root`, so that root discovery would show. A
+  a bare `--`) are included, without `--root`. A
   recording `git` stub on `PATH` that answers the version shows that `history` asks
   `git --version` before its log, refuses 2.29 and goes on at 2.30.
 - Fixtures through the built binary for each command. `history` on a real Git
@@ -813,8 +791,6 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::preview::the_output_is_the_text_the_library_previews_under_a_header_for_each_document` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::preview::the_preview_is_the_same_by_root_from_another_directory` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::preview::the_proposed_text_is_printed_and_the_markers_are_not` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::a_cargo_that_cannot_be_started_is_exit_two` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::a_cargo_that_fails_is_exit_two_with_what_it_said` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::a_missing_git_is_exit_two_and_names_it` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::a_slug_that_is_not_a_slug_is_refused_before_any_process_starts` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_before_any_process_starts` | test | [Verification](#verification) |
@@ -824,10 +800,10 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::process::an_id_a_day_or_a_value_of_the_record_commands_is_refused_before_any_process_starts` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::discovery_does_not_run_the_build_rustc_program_of_the_workspace` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::discovery_runs_exactly_cargo_metadata_from_the_cargo_variable` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::discovery_runs_the_cargo_on_path_when_the_variable_is_unset` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::process::discovery_starts_no_cargo_from_the_cargo_variable` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::process::discovery_starts_no_cargo_on_path_when_the_variable_is_unset` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::process::discovery_succeeds_when_cargo_cannot_be_started` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::history_asks_the_git_version_before_its_log_and_refuses_a_git_older_than_2_30` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::output_from_cargo_that_is_not_the_metadata_is_exit_two` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::root_starts_no_cargo_at_all` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::reconcile::a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::reconcile::everything_that_stops_it_looking_is_exit_two` | test | [Verification](#verification) |
@@ -872,33 +848,12 @@ rather than kept by hand.
 | `raf_workplan::escape::shown_lines` | doctest | [Constraints](#constraints) |
 | `raf_workplan::escape::tests::each_control_and_bidirectional_formatting_character_is_escaped` | test | [Verification](#verification) |
 | `raf_workplan::escape::tests::lines_keep_their_line_feeds_and_tabs_and_lose_every_other_control` | test | [Verification](#verification) |
-| `raf_workplan::root::json::tests::a_large_text_is_scanned_to_its_end` | test | [Verification](#verification) |
-| `raf_workplan::root::json::tests::a_member_that_is_only_nested_is_not_the_member` | test | [Verification](#verification) |
-| `raf_workplan::root::json::tests::a_member_twice_is_refused_even_when_the_values_agree` | test | [Verification](#verification) |
-| `raf_workplan::root::json::tests::a_top_level_value_that_is_not_an_object_is_refused` | test | [Verification](#verification) |
-| `raf_workplan::root::json::tests::a_value_that_is_not_a_string_is_refused` | test | [Verification](#verification) |
-| `raf_workplan::root::json::tests::an_unpaired_surrogate_is_text_nobody_can_use` | test | [Verification](#verification) |
-| `raf_workplan::root::json::tests::escapes_are_decoded` | test | [Verification](#verification) |
-| `raf_workplan::root::json::tests::every_prefix_of_a_document_is_refused_and_no_mutation_panics` | test | [Verification](#verification) |
-| `raf_workplan::root::json::tests::nesting_is_bounded_and_never_overflows_the_stack` | test | [Verification](#verification) |
-| `raf_workplan::root::json::tests::numbers_of_the_grammar_pass` | test | [Verification](#verification) |
-| `raf_workplan::root::json::tests::random_strings_of_json_punctuation_never_panic` | test | [Verification](#verification) |
-| `raf_workplan::root::json::tests::text_that_is_not_json_is_refused` | test | [Verification](#verification) |
-| `raf_workplan::root::json::tests::the_member_is_found_wherever_it_sits_at_the_top_level` | test | [Verification](#verification) |
-| `raf_workplan::root::json::tests::the_output_of_cargo_metadata_gives_its_root` | test | [Verification](#verification) |
-| `raf_workplan::root::tests::a_failing_cargo_is_an_error_with_what_it_said` | test | [Verification](#verification) |
-| `raf_workplan::root::tests::a_root_that_is_not_an_absolute_path_is_refused` | test | [Verification](#verification) |
-| `raf_workplan::root::tests::cargo_that_cannot_run_or_writes_too_much_is_an_error` | test | [Verification](#verification) |
-| `raf_workplan::root::tests::output_that_does_not_give_a_root_is_an_error` | test | [Verification](#verification) |
-| `raf_workplan::root::tests::the_root_is_the_workspace_root_member_and_the_command_is_exactly_one` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::root::a_cargo_that_does_not_exist_is_an_error` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::root::a_directory_outside_any_workspace_is_an_error_that_says_what_cargo_said` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::root::configured_programs::discovery_does_not_run_the_programs_of_the_cargo_configuration` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::root::stubs::exactly_one_process_runs_with_the_documented_argv_directory_and_locale` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::root::stubs::hostile_output_is_an_error_and_never_a_guess` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::root::stubs::output_is_bounded_at_64_mebibytes` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::root::stubs::the_top_level_member_wins_over_a_nested_one_with_the_same_name` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::root::a_dangling_manifest_is_a_finding_instead_of_an_ancestor_fallback` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::root::a_directory_outside_any_workspace_is_an_actionable_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::root::a_nonexistent_directory_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::root::memory_discovery_never_invokes_a_runner` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::root::the_root_is_found_from_the_root_a_member_and_a_subdirectory` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::root::tree_directory_aliases_fail_instead_of_selecting_lexical_ancestors` | test | [Verification](#verification) |
 <!-- raf:generated:end -->
 
 <!-- raf:generated:relationships -->

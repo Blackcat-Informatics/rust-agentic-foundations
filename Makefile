@@ -92,7 +92,7 @@ fuzz: ## Fuzz harness: fmt, clippy, deny, then a bounded run (needs cargo-fuzz).
 	cargo clippy --manifest-path '$(ROOT)/fuzz/Cargo.toml' --locked -- -D warnings
 	cd '$(ROOT)/fuzz' && cargo deny $(FUZZ_DENY) check
 	@work=$$(mktemp -d) && trap 'rm -rf "$$work"' EXIT && \
-	  for target in parse-source parse-document load-workspace; do \
+	  for target in parse-source parse-document load-workspace census-normalize census-report-read; do \
 	    mkdir "$$work/$$target" && \
 	    cargo fuzz run --no-cfg-fuzzing "$$target" "$$work/$$target" "fuzz/corpus/$$target" -- \
 	      -runs=$(FUZZ_RUNS) -seed=$(FUZZ_SEED) -max_len=$(FUZZ_MAX_LEN) \

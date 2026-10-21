@@ -71,9 +71,6 @@ pub(crate) use pattern::days_in_month;
 /// The bound on each of standard output and standard error: 16 MiB.
 pub const DEFAULT_OUTPUT_BOUND: usize = 16 * 1024 * 1024;
 
-/// The bound on the output of `cargo metadata`: 64 MiB.
-pub const METADATA_OUTPUT_BOUND: usize = 64 * 1024 * 1024;
-
 /// The wall-clock limit of a `cargo test` or `cargo run` that may compile
 /// first: 1800 seconds.
 pub const BUILD_TIMEOUT: Duration = Duration::from_mins(30);
@@ -81,7 +78,7 @@ pub const BUILD_TIMEOUT: Duration = Duration::from_mins(30);
 /// The wall-clock limit of the run of an example: 300 seconds.
 pub const EXAMPLE_TIMEOUT: Duration = Duration::from_mins(5);
 
-/// The wall-clock limit of a `git` or `cargo metadata` query: 300 seconds.
+/// The wall-clock limit of a `git` query: 300 seconds.
 pub const QUERY_TIMEOUT: Duration = Duration::from_mins(5);
 
 /// The programs to start and the directory to start them in.
@@ -169,12 +166,6 @@ impl Limits {
     #[must_use]
     pub fn query() -> Self {
         Self::new(DEFAULT_OUTPUT_BOUND, QUERY_TIMEOUT, true)
-    }
-
-    /// `cargo metadata`: 64 MiB per stream, 300 seconds, `LC_ALL=C`.
-    #[must_use]
-    pub fn metadata() -> Self {
-        Self::new(METADATA_OUTPUT_BOUND, QUERY_TIMEOUT, true)
     }
 
     /// A `cargo test` whose output is parsed: 16 MiB per stream, 1800 seconds,

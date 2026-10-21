@@ -7,7 +7,7 @@ subject: cap:source-index#constraints
 inputs:
   - kind: section
     name: cap:source-index#constraints
-    digest: 6b6fbf022ca8d8e80da84a337c733b26e439efe955977025ccc1d13b63e08e09
+    digest: c01ebdda0f3f239575083f1efe6226c09c06af1705e71139583407f3b88e7720
   - kind: symbol
     name: raf_source::Budget
     digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
@@ -40,7 +40,13 @@ inputs:
     digest: 9bb0ed63e4c24316d5b0070b2cb4a32af5d8b23074f6308251d6e29cfc748f12
   - kind: symbol
     name: raf_source::Item
-    digest: 8d11be3ec8160a775ffb5a0d8e4f62221ea6eff834b65402273c768109a226ca
+    digest: 3d1f2cf9201bb424f16aa86bc15c111d8a1fd4fceb9fbe5dc7276ba6d91d067f
+  - kind: symbol
+    name: raf_source::Item::initializer
+    digest: 276d4255f906d18fc4740f7dc8c1405073bd405597fe1fdb612e0902bf95c42e
+  - kind: symbol
+    name: raf_source::Item::parameter_bindings
+    digest: 4a746d5e49bcfb8e36c65af4dd537ed4a45d46d92397a4fb03837595f2b747c5
   - kind: symbol
     name: raf_source::LoadOptions
     digest: 802e1f183baeb760e1118f5147bcdc02b657bf2231c235d513915e35c5eb2ed0
@@ -125,6 +131,9 @@ inputs:
   - kind: symbol
     name: raf_source::Workspace::unresolved_impls
     digest: b935908e0bf18a62f32f8ce6447950753e6452a8c1fd0aeb0cd92ea522b0f7ea
+  - kind: symbol
+    name: raf_source::discover_root
+    digest: decf25b8720addc5994dca976c46ea7f846dbd6c1321f82887c7990c29ab9c7f
   - kind: symbol
     name: raf_source::parse_source
     digest: 22fd1ef409b6564464dde2df3d2a959170399df0f0f6080e98baad370052438a

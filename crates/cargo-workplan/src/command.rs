@@ -6,7 +6,6 @@
 
 use std::path::{Path, PathBuf};
 
-use raf_workplan::exec::{Programs, SystemRunner};
 use raf_workplan::{Gate, RoadmapEntry, SyncError, SyncOptions, Workplan, root};
 use serde_json::{Value, json};
 
@@ -63,15 +62,14 @@ pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
     }
 }
 
-/// The workspace root: the directory of `--root`, or the root `cargo metadata`
-/// names for the current directory.
+/// The workspace root: the directory of `--root`, or the discovered root.
 fn workspace_root(given: Option<&Path>) -> Result<PathBuf, Failure> {
     if let Some(dir) = given {
         return Ok(dir.to_path_buf());
     }
     let here = std::env::current_dir()
         .map_err(|error| Failure::new(format!("cannot read the current directory: {error}")))?;
-    Ok(root::discover(&SystemRunner::new(Programs::new(here)))?)
+    Ok(root::discover(&here)?)
 }
 
 /// The gate over `root`, raised to strict mode when `strict`.

@@ -37,8 +37,8 @@ enum Cargo {
 #[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
 #[command(version, arg_required_else_help = true, disable_help_subcommand = true)]
 pub(crate) struct Args {
-    /// The workspace root. Without it the root comes from `cargo metadata`,
-    /// run in the current directory.
+    /// The workspace root. Without it ancestor manifests determine the root
+    /// from the current directory, without starting a process.
     #[arg(long, global = true, value_name = "dir")]
     pub(crate) root: Option<PathBuf>,
 

@@ -108,10 +108,11 @@ reference symbol.
 
 ## Examples
 
-A first-party function with the body of `acme_core::iri::parse` is reported as:
+Human output uses `Fingerprint::abbreviated`; machine records retain the full
+identity. A first-party function with the body of `acme_core::iri::parse` is reported as:
 
 ```text
-REFERENCE-COPY  src/iri.rs:12  demo::iri::parse_iri  matches acme_core::iri::parse  body:3f9a1c0b7d2e4a65
+REFERENCE-COPY  src/iri.rs:12  demo::iri::parse_iri  matches acme_core::iri::parse  body:3f9a1c0b7d2e4a65…
 ```
 
 ## Constraints

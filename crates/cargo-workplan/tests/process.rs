@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
 //! The processes the binary starts, seen through stub programs: the exact
-//! command of root discovery from `$CARGO` and from `PATH`, a slug that starts
+//! absence of Cargo calls during root discovery, a slug that starts
 //! with `-` refused before any process starts, an id, a day or a value of the
 //! history, evidence, assessment and coverage commands refused the same way,
 //! a missing `git`, a Git too old for the history, and a `build.rustc`
@@ -15,44 +15,34 @@ mod support;
 use std::fs;
 use std::process::Command;
 
-use support::stubs::{Stubs, metadata_argv, real_cargo, script, serial};
+use support::stubs::{Stubs, real_cargo, script, serial};
 use support::{Repo, Scratch, Shape};
 
 #[test]
-fn discovery_runs_exactly_cargo_metadata_from_the_cargo_variable() {
+fn discovery_starts_no_cargo_from_the_cargo_variable() {
     let _lock = serial();
     let repo = Repo::synced("process-cargo-var", false);
     let stubs = Stubs::new("process-cargo-var-stubs");
     for shape in [Shape::Direct, Shape::Cargo] {
-        let before = stubs.cargo_calls().len();
         let run = stubs
             .run(&repo.root().join("src"), shape, &["status"], true)
             .expect(0);
         assert!(run.stdout.starts_with("delivered"), "{run:#?}");
         let calls = stubs.cargo_calls();
-        assert_eq!(calls.len(), before + 1, "one cargo process per run");
-        assert_eq!(calls[before], metadata_argv());
+        assert!(calls.is_empty(), "root discovery starts no cargo process");
     }
 }
 
 #[test]
-fn discovery_runs_the_cargo_on_path_when_the_variable_is_unset() {
+fn discovery_starts_no_cargo_on_path_when_the_variable_is_unset() {
     let _lock = serial();
     let repo = Repo::synced("process-cargo-path", false);
     let stubs = Stubs::new("process-cargo-path-stubs");
     for shape in [Shape::Direct, Shape::Cargo] {
-        let before = stubs.cargo_calls().len();
         stubs.run(repo.root(), shape, &["check"], false).expect(0);
         let calls = stubs.cargo_calls();
-        assert_eq!(calls.len(), before + 1);
-        assert_eq!(calls[before], metadata_argv());
+        assert!(calls.is_empty(), "root discovery starts no cargo process");
     }
-    // The working directory of the process is the directory of the run.
-    let record = fs::read_to_string(&stubs.cargo_record).expect("a record");
-    assert!(
-        record.contains(&format!("cwd={}", repo.root().display())),
-        "{record}"
-    );
 }
 
 #[test]
@@ -91,7 +81,7 @@ fn a_slug_that_starts_with_a_dash_is_refused_before_any_process_starts() {
     ] {
         for shape in [Shape::Direct, Shape::Cargo] {
             for args in [
-                // No root given: discovery would start cargo.
+                // No root given: discovery would inspect manifests.
                 vec!["docs", "preview", "--", slug],
                 vec!["docs", "preview", slug],
                 // A root given: the repository would be opened by git.
@@ -116,7 +106,7 @@ fn a_slug_that_starts_with_a_dash_is_refused_before_any_process_starts() {
             true,
         )
         .expect(0);
-    assert_eq!(stubs.cargo_calls(), [metadata_argv()]);
+    assert_eq!(stubs.cargo_calls(), Vec::<Vec<String>>::new());
     assert_ne!(stubs.git_calls().len(), 0);
 }
 
@@ -151,61 +141,12 @@ fn a_usage_error_starts_no_process() {
 }
 
 #[test]
-fn a_cargo_that_fails_is_exit_two_with_what_it_said() {
-    let _lock = serial();
-    let repo = Repo::synced("process-cargo-fails", false);
-    let scratch = Scratch::new("process-cargo-fails-stub");
-    let stub = scratch.path().join("cargo");
-    script(&stub, "echo 'the stub refuses' >&2\nexit 101");
-    let mut command = support::command(repo.root(), Shape::Direct, &["check"]);
-    command.env("CARGO", &stub);
-    let run = support::finish(&mut command).expect(2);
-    assert_eq!(run.stdout, "");
-    assert!(run.stderr.contains("the stub refuses"), "{run:#?}");
-    assert!(run.stderr.contains("exit 101"), "{run:#?}");
-}
-
-#[test]
-fn output_from_cargo_that_is_not_the_metadata_is_exit_two() {
-    let _lock = serial();
-    let repo = Repo::synced("process-cargo-garbage", false);
-    let scratch = Scratch::new("process-cargo-garbage-stub");
-    for (name, body) in [
-        ("text", "echo 'not json'"),
-        ("no-root", "echo '{\"packages\":[]}'"),
-        ("relative", "echo '{\"workspace_root\":\"relative/dir\"}'"),
-    ] {
-        let stub = scratch.path().join(name);
-        script(&stub, body);
-        let mut command = support::command(repo.root(), Shape::Direct, &["check"]);
-        command.env("CARGO", &stub);
-        let run = support::finish(&mut command).expect(2);
-        assert_eq!(run.stdout, "", "{name}");
-        assert!(run.stderr.contains("cargo-workplan:"), "{name}: {run:#?}");
-    }
-    // The neighbour: a stub that names the root.
-    let stub = scratch.path().join("good");
-    script(
-        &stub,
-        &format!(
-            "echo '{{\"workspace_root\":\"{}\"}}'",
-            repo.root().display()
-        ),
-    );
-    let mut command = support::command(&support::elsewhere(), Shape::Direct, &["check"]);
-    command.env("CARGO", &stub);
-    support::finish(&mut command).expect(0);
-}
-
-#[test]
-fn a_cargo_that_cannot_be_started_is_exit_two() {
+fn discovery_succeeds_when_cargo_cannot_be_started() {
     let _lock = serial();
     let repo = Repo::synced("process-no-cargo", false);
     let mut command = support::command(repo.root(), Shape::Direct, &["check"]);
     command.env("CARGO", repo.root().join("no-such-cargo"));
-    let run = support::finish(&mut command).expect(2);
-    assert_eq!(run.stdout, "");
-    assert!(run.stderr.contains("no-such-cargo"), "{run:#?}");
+    support::finish(&mut command).expect(0);
 }
 
 #[test]
@@ -644,12 +585,16 @@ fn a_command_that_is_one_runs_after_discovery(stubs: &Stubs, repo: &Repo) {
         true,
     );
     assert_eq!(run.code, 0, "{run:#?}");
-    assert_eq!(stubs.cargo_calls().len(), calls + 1, "discovery ran once");
+    assert_eq!(
+        stubs.cargo_calls().len(),
+        calls,
+        "discovery starts no cargo"
+    );
 }
 
 /// The refusals the binary makes itself after the parser accepted the line,
 /// each without `--root`, so a process started before them would be the
-/// `cargo` of root discovery: an empty program, a word that is not UTF-8, a
+/// runner before the refusal: an empty program, a word that is not UTF-8, a
 /// program named `--`, and `--from-binding` beside a bare `--`.
 fn refused_by_the_reading_of_the_command(stubs: &Stubs, repo: &Repo) {
     use std::os::unix::ffi::OsStringExt as _;

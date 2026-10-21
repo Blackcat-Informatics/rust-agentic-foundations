@@ -17,9 +17,9 @@ use std::time::Duration;
 
 use raf_workplan::exec::{
     Arg, BUILD_TIMEOUT, Commit, DEFAULT_OUTPUT_BOUND, DocFilter, EXAMPLE_TIMEOUT, ExampleName,
-    ExecError, FakeRunner, Filter, Identifier, Invocation, Limits, LineRange,
-    METADATA_OUTPUT_BOUND, Output, Package, Pattern, PatternError, Programs, RefName, Runner,
-    SourcePath, Stream, SystemRunner, Target, TargetName, TreePath,
+    ExecError, FakeRunner, Filter, Identifier, Invocation, Limits, LineRange, Output, Package,
+    Pattern, PatternError, Programs, RefName, Runner, SourcePath, Stream, SystemRunner, Target,
+    TargetName, TreePath,
 };
 use raf_workplan::exec::{Program, QUERY_TIMEOUT};
 
@@ -534,12 +534,6 @@ fn cargo_rows() -> Vec<Row> {
             Program::Cargo,
             "run --frozen --package=raf-demo --example=chunked-1",
         ),
-        (
-            "root discovery",
-            Invocation::metadata(),
-            Program::Cargo,
-            "metadata --format-version 1 --no-deps --frozen",
-        ),
     ]
 }
 
@@ -664,7 +658,7 @@ fn history_rows() -> Vec<Row> {
 #[test]
 fn every_invocation_is_the_row_of_its_table() {
     let rows = rows();
-    assert_eq!(rows.len(), 24);
+    assert_eq!(rows.len(), 23);
     for (label, invocation, program, expected) in rows {
         assert_eq!(invocation.program(), program, "{label}");
         let expected = words(expected);
@@ -742,7 +736,7 @@ fn the_fake_answers_a_scripted_invocation_and_records_it() {
         )
         .on(
             Program::Cargo,
-            &["metadata", "--format-version", "1", "--no-deps", "--frozen"],
+            &["run", "--frozen", "--package=raf-demo", "--example=demo"],
             Ok(answer("{}")),
         );
     let git = runner
@@ -751,7 +745,10 @@ fn the_fake_answers_a_scripted_invocation_and_records_it() {
     assert!(git.success());
     assert_eq!(git.stdout, b"git version 2.45.1\n");
     let meta = runner
-        .run(&Invocation::metadata(), &Limits::metadata())
+        .run(
+            &Invocation::example_run(&pkg(), &ExampleName::new("demo").unwrap()),
+            &Limits::query().with_max_output(64 * 1024 * 1024),
+        )
         .unwrap();
     assert_eq!(meta.stdout, b"{}");
 
@@ -763,10 +760,13 @@ fn the_fake_answers_a_scripted_invocation_and_records_it() {
     assert_eq!(*calls[0].limits(), Limits::query());
     assert_eq!(
         calls[1].command(),
-        "cargo metadata --format-version 1 --no-deps --frozen"
+        "cargo run --frozen --package=raf-demo --example=demo"
     );
-    assert_eq!(*calls[1].limits(), Limits::metadata());
-    assert_eq!(calls[1].limits().max_output(), METADATA_OUTPUT_BOUND);
+    assert_eq!(
+        *calls[1].limits(),
+        Limits::query().with_max_output(64 * 1024 * 1024)
+    );
+    assert_eq!(calls[1].limits().max_output(), 64 * 1024 * 1024);
 }
 
 #[test]
@@ -932,7 +932,6 @@ fn a_runner_reference_is_a_runner() {
 #[test]
 fn the_limits_are_the_documented_bounds() {
     assert_eq!(DEFAULT_OUTPUT_BOUND, 16 * 1024 * 1024);
-    assert_eq!(METADATA_OUTPUT_BOUND, 64 * 1024 * 1024);
     assert_eq!(BUILD_TIMEOUT, Duration::from_mins(30));
     assert_eq!(EXAMPLE_TIMEOUT, Duration::from_mins(5));
 
@@ -945,10 +944,6 @@ fn the_limits_are_the_documented_bounds() {
     assert_eq!(example.max_output(), DEFAULT_OUTPUT_BOUND);
     assert_eq!(example.timeout(), EXAMPLE_TIMEOUT);
     assert!(!example.c_locale(), "an example's output is not parsed");
-
-    let metadata = Limits::metadata();
-    assert_eq!(metadata.max_output(), METADATA_OUTPUT_BOUND);
-    assert!(metadata.c_locale());
 
     let query = Limits::query();
     assert_eq!(query.max_output(), DEFAULT_OUTPUT_BOUND);
@@ -1010,7 +1005,7 @@ fn serial() -> MutexGuard<'static, ()> {
 }
 
 #[test]
-fn the_real_git_and_cargo_start() {
+fn the_real_git_starts() {
     let _lock = serial();
     let runner = SystemRunner::new(Programs::new(here()));
     let git = runner
@@ -1019,18 +1014,6 @@ fn the_real_git_and_cargo_start() {
     assert!(git.success(), "{git:?}");
     assert!(String::from_utf8_lossy(&git.stdout).starts_with("git version "));
     assert_eq!(git.stderr, b"");
-
-    // The root-discovery row, against this package: cargo starts and reports
-    // the workspace this test belongs to.
-    let cargo = runner
-        .run(&Invocation::metadata(), &Limits::metadata())
-        .expect("cargo starts");
-    assert!(cargo.success(), "{cargo:?}");
-    let text = String::from_utf8_lossy(&cargo.stdout);
-    assert!(
-        text.starts_with('{') && text.contains("\"workspace_root\""),
-        "{text}"
-    );
 }
 
 #[test]
@@ -1241,11 +1224,14 @@ echo to-stderr >&2"#;
         assert_eq!(programs.cargo, PathBuf::from("cargo"));
         SystemRunner::new(programs)
             .search_path(found.bin())
-            .run(&Invocation::metadata(), &Limits::metadata())
+            .run(
+                &Invocation::example_run(&pkg(), &ExampleName::new("demo").unwrap()),
+                &Limits::query().with_max_output(64 * 1024 * 1024),
+            )
             .unwrap();
         assert_eq!(
             found.argv(),
-            ["metadata", "--format-version", "1", "--no-deps", "--frozen"]
+            ["run", "--frozen", "--package=raf-demo", "--example=demo"]
         );
 
         // The first directory of the search path that holds the name wins, and
@@ -1421,13 +1407,16 @@ echo to-stderr >&2"#;
     fn the_default_bound_is_sixteen_mebibytes_and_a_larger_one_is_a_parameter() {
         let _lock = serial();
         let scratch = Scratch::new();
-        // 17 MiB passes under the 64 MiB bound of cargo metadata and fails
+        // 17 MiB passes under the explicitly configured 64 MiB bound and fails
         // under the default.
         let size = 17 * 1024 * 1024;
         let stub = writer(&scratch, size);
         let metadata = scratch
             .runner(&stub)
-            .run(&Invocation::git_version(), &Limits::metadata())
+            .run(
+                &Invocation::git_version(),
+                &Limits::query().with_max_output(64 * 1024 * 1024),
+            )
             .unwrap();
         assert_eq!(metadata.stdout.len(), size);
 

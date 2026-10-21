@@ -33,6 +33,12 @@ allow = ["Unicode-3.0"]
 crate = "libfuzzer-sys@=0.4.13"
 allow = ["NCSA"]
 
+# purrdf-lex ships audited Unicode character tables under Unicode-3.0.
+# Scope the additional terms to the audited release.
+[[licenses.exceptions]]
+crate = "purrdf-lex@=3.0.1"
+allow = ["Unicode-3.0"]
+
 [bans]
 multiple-versions = "deny"
 wildcards = "deny"

@@ -292,18 +292,6 @@ impl Invocation {
         ])
     }
 
-    /// Root discovery: `cargo metadata --format-version 1 --no-deps --frozen`.
-    #[must_use]
-    pub fn metadata() -> Self {
-        Self::cargo(vec![
-            Arg::lit("metadata"),
-            Arg::lit("--format-version"),
-            Arg::lit("1"),
-            Arg::lit("--no-deps"),
-            Arg::lit("--frozen"),
-        ])
-    }
-
     /// The version gate: `git --version`.
     #[must_use]
     pub fn git_version() -> Self {

@@ -150,7 +150,7 @@ bindings:
     - raf_workplan::test_crate::exec::the_fake_repeats_an_answer_and_a_later_one_replaces_it
     - raf_workplan::test_crate::exec::the_fake_returns_a_failing_exit_and_a_scripted_error
     - raf_workplan::test_crate::exec::the_programs_come_from_cargo_and_the_path_and_can_be_replaced
-    - raf_workplan::test_crate::exec::the_real_git_and_cargo_start
+    - raf_workplan::test_crate::exec::the_real_git_starts
     - raf_workplan::test_crate::scenarios::each_fault_of_the_account_has_a_document_that_breaks_only_it
     - raf_workplan::test_crate::verify::a_capability_that_did_not_load_is_an_error_and_not_a_pass
     - raf_workplan::test_crate::verify::a_process_that_cannot_start_is_an_error_and_not_a_failing_binding
@@ -589,6 +589,10 @@ that still matters has already been written into the Explanation section.
 
 ## Verification
 
+The process smoke test starts the real Git executable. Scripted Cargo runs
+exercise the process adapter independently of workspace-root discovery, which
+reads manifests without invoking Cargo.
+
 The gate has two flagship acceptance fixtures, built as repositories in temporary
 directories.
 
@@ -927,7 +931,7 @@ Further checks:
 | `raf_workplan::test_crate::exec::the_limits_are_the_documented_bounds` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::the_patterns_are_the_ones_the_documents_state` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::the_programs_come_from_cargo_and_the_path_and_can_be_replaced` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::the_real_git_and_cargo_start` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::the_real_git_starts` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::a_document_that_merely_exists_does_not_satisfy_the_scenario` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::a_thin_document_is_not_the_account_the_scenario_builds` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::each_fault_of_the_account_has_a_document_that_breaks_only_it` | test | [Verification](#verification) |

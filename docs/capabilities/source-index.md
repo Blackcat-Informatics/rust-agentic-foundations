@@ -9,6 +9,7 @@ state: implementing
 bindings:
   code:
     - raf_source::Tree
+    - raf_source::discover_root
     - raf_source::DiskTree
     - raf_source::MemoryTree
     - raf_source::RelPath
@@ -48,7 +49,15 @@ bindings:
     - raf_source::Reexport
     - raf_source::ExportOptions
     - raf_source::ExportError
+    - raf_source::Item::parameter_bindings
+    - raf_source::Item::initializer
   tests:
+    - raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit
+    - raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources
+    - raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots
+    - raf_source::test_crate::root::transitive_path_dependencies_are_members
+    - raf_source::test_crate::root::explicit_workspace_requires_a_safe_path_and_agreed_membership
+    - raf_source::test_crate::root::malformed_manifests_and_missing_directories_fail_hard
     - raf_source::test_crate::relpath::a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside
     - raf_source::test_crate::relpath::an_absolute_input_is_refused_beside_its_relative_form
     - raf_source::test_crate::memory_tree::duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_keys
@@ -303,6 +312,9 @@ bindings:
     - raf_source::test_crate::symbol_index::a_glob_of_a_local_path_the_index_cannot_see_is_a_candidate_that_cannot_be_confirmed
     - raf_source::test_crate::symbol_index::a_first_party_test_crate_module_and_a_test_target_are_ambiguous_only_where_their_paths_meet
     - raf_source::test_crate::trait_keys::a_macro_call_in_a_trait_body_is_skipped
+    - raf_source::test_crate::symbol_index::parameter_bindings_are_every_bound_name_in_signature_order_beside_a_function_with_none
+    - raf_source::test_crate::symbol_index::an_initializer_is_the_text_between_the_equals_and_the_semicolon_beside_a_required_constant
+    - raf_source::test_crate::symbol_index::bindings_and_an_initializer_are_shared_by_every_path_that_reaches_the_file
     - raf_source::test_crate::use_resolution::two_libraries_with_one_crate_name_are_ambiguous_until_the_package_is_named
     - raf_source::test_crate::use_resolution::a_crate_name_in_an_import_is_the_dependency_its_target_declares
     - raf_source::test_crate::use_resolution::a_dev_dependency_is_named_only_by_test_code_even_under_a_normal_dependencys_name
@@ -475,6 +487,18 @@ workplan resolves code and test bindings with it, so one walker and one index se
 both and cannot disagree.
 
 ## Contract
+
+`discover_root(tree, start)` discovers the nearest ancestor workspace through
+`Tree`, without a process or source parsing. It validates the nearest package
+against the workspace member set, including transitive path dependencies, under
+the same member-walk bounds as loading. Standalone and excluded packages own
+their roots; nested workspaces select the nearest root. Unlisted packages fail
+with an actionable finding. `package.workspace` must safely name an existing
+workspace inside the tree which includes the package. Malformed manifests,
+conflicting declarations and inaccessible paths are hard errors. The starting
+path must be an existing directory; discovery stops at the supplied tree boundary.
+Directory symlinks are refused because their lexical ancestors can name a
+different workspace; a disk caller can canonicalize the starting directory first.
 
 **Tree.** All file access goes through the `Tree` trait, which takes `RelPath` values:
 validated root-relative `/`-separated UTF-8 paths. `RelPath::join` drops `.` segments
@@ -996,8 +1020,9 @@ source file once with its text and the module paths it was reached by. The facts
 file stay inside the crate, and a caller reads them through the items of the index
 (`Workspace::items_in`, `Workspace::item_at` and the other accessors). The
 facts of a file are read on the parse thread and owned: items with their name line,
-span, body span, attributes, visibility, documentation, test role and, for a struct, its
-field shape; `mod` declarations with their raw `path` and `cfg_attr` attributes; `use`
+span, body span, attributes, visibility, documentation, test role, for a function the
+names its parameters bind, for a constant or static the range of its value, and, for a
+struct, its field shape; `mod` declarations with their raw `path` and `cfg_attr` attributes; `use`
 trees; impl headers with the written self type and its leading `::`; `macro_export`;
 an unnamed `const _` as an explicit kind; and the file's own inner documentation.
 Documentation counts a non-blank `#[doc]` text or `#[doc = include_str!(..)]`, and
@@ -1029,7 +1054,17 @@ and `trait_path` and the `self_key` that says how its self type placed it (`Loca
 `Trait` or `Unresolved`). Line ranges are 1-based and half-open: the `lines` of a
 `SpanFact` run from its first line to the line after its last, as in `raf_okf::Span`,
 so an item on line `n` alone has the lines `n..n+1`, and its bytes run from
-`start_byte` to `end_byte`, the offset just past its end. The module path in an item's `path` is the chain of `mod`
+`start_byte` to `end_byte`, the offset just past its end. `Item::parameter_bindings` gives the names the
+parameters of a function or method bind, in signature order, as the source writes them:
+`mut x`, `ref x`, the names inside tuple, struct and slice patterns, a raw identifier
+with its `r#`, and `self` first for a receiver; a name that only occurs in a type is not
+a binding, and the list is empty for any item that is not a function and for a function
+with none. `Item::initializer` gives the byte range of the value of a constant,
+associated constant or static, after the `=` and before the `;`, and `None` for a
+required associated constant and for every other item. Both are read during the
+budgeted parse, on its thread, so a caller that needs them never re-parses a signature
+or an item on its own stack, and every record of a source item that several paths reach
+shares them. The module path in an item's `path` is the chain of `mod`
 declarations that reached its file, whatever the order of the file names. The name
 spaces are type, value and macro. A function, constant or static is a value; a
 module, trait, enum, union, alias and `extern crate` item is a type; a unit or tuple
@@ -1766,6 +1801,11 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
 
 ## Constraints
 
+- Root discovery requires real directory ancestors inside its tree. It refuses
+  directory aliases and parent segments that cannot be safely reduced; a disk
+  caller can canonicalize its starting path before constructing the tree-relative
+  path. A present manifest whose target is missing is an error, rather than an
+  absent manifest that permits an ancestor fallback.
 - Parsing is syntactic. The crate does not expand macros, evaluate `cfg` other than
   the `test` tag, or run type inference. An item is indexed as written, so a function
   with no body or a type with no definition, which rustc accepts only as the input of
@@ -1875,6 +1915,10 @@ duplicates.
 
 ## Verification
 
+- Root fixtures resolve explicit sibling workspaces whose members use parent
+  segments, while refusing the same package when the target workspace does not
+  list it. Disk discovery also asserts that the selected root is the sibling
+  workspace directory.
 - A `MemoryTree` fixture per target kind (library, binary, test, bench, example and
   build script) with default and with explicit paths, asserting the kind, the Cargo
   name, the shipping flag, the crate path and that each target's root module is
@@ -2892,6 +2936,12 @@ duplicates.
 | `raf_source::test_crate::resolve_paths::globs_of_dependencies_in_one_module_leave_a_missing_name_not_found` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::the_cfg_alternatives_of_one_module_a_glob_brings_in_are_one_candidate_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::two_different_modules_of_one_name_stay_ambiguous_beside_the_cfg_alternatives_of_one` | test | [Verification](#verification) |
+| `raf_source::test_crate::root::explicit_workspace_requires_a_safe_path_and_agreed_membership` | test | [Verification](#verification) |
+| `raf_source::test_crate::root::malformed_manifests_and_missing_directories_fail_hard` | test | [Verification](#verification) |
+| `raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit` | test | [Verification](#verification) |
+| `raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources` | test | [Verification](#verification) |
+| `raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots` | test | [Verification](#verification) |
+| `raf_source::test_crate::root::transitive_path_dependencies_are_members` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::a_divergence_that_matches_no_class_is_unclassified` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::a_wrong_index_answer_is_reported_beside_the_right_one_which_is_not` | test | [Verification](#verification) |
@@ -2917,11 +2967,14 @@ duplicates.
 | `raf_source::test_crate::symbol_index::an_impl_block_of_a_file_reached_under_two_module_paths_is_listed_once_for_each` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::an_impl_of_a_local_trait_object_loads_with_its_members_marked_unresolved` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::an_inherent_impl_on_a_type_the_index_cannot_see_is_indexed_under_its_written_self_path` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::an_initializer_is_the_text_between_the_equals_and_the_semicolon_beside_a_required_constant` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::bindings_and_an_initializer_are_shared_by_every_path_that_reaches_the_file` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::cfg_twins_are_one_symbol_with_two_sorted_sites` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::every_kind_is_indexed_with_its_kind_line_file_and_visibility` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::parameter_bindings_are_every_bound_name_in_signature_order_beside_a_function_with_none` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::test_functions_carry_the_package_target_and_crate_relative_name` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::target_resolution::a_helper_resolves_from_a_nested_module_of_a_binary` | test | [Verification](#verification) |

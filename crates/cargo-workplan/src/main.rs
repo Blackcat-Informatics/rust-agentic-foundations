@@ -52,11 +52,9 @@
 //!
 //! # Root
 //!
-//! `--root <dir>` names the workspace root. Without it the root is the
-//! `workspace_root` of `cargo metadata --format-version 1 --no-deps --frozen`
-//! run in the current directory (`raf_workplan::root::discover`), so the
-//! command runs from any directory inside the workspace. The program is the
-//! one `$CARGO` names, and `cargo` from `PATH` otherwise.
+//! `--root <dir>` names the workspace root. Without it the root is found by
+//! walking ancestor manifests through `raf-source`, without starting a process
+//! (`raf_workplan::root::discover`).
 //!
 //! # Strict mode
 //!

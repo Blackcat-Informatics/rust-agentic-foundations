@@ -5,10 +5,10 @@
 
 use std::borrow::Borrow;
 use std::fmt;
-use std::ops::Deref;
+use std::ops::{Deref, Range};
 use std::sync::Arc;
 
-use crate::facts::{FieldShape, SpanFact, TestRole, Vis};
+use crate::facts::{FieldShape, ItemDetail, SpanFact, TestRole, Vis};
 use crate::modtree::TargetId;
 use crate::path::RelPath;
 
@@ -356,6 +356,9 @@ pub struct Item {
     pub span: SpanFact,
     /// The braced body, or the function block, if there is one.
     pub body: Option<SpanFact>,
+    /// The parameter bindings and the initializer; see
+    /// [`Item::parameter_bindings`] and [`Item::initializer`].
+    pub(crate) detail: Option<Arc<ItemDetail>>,
     /// The declared visibility.
     pub visibility: Vis,
     /// True when the item has non-blank documentation: an unconditional
@@ -399,6 +402,34 @@ impl Item {
             || (namespace == Namespace::Value
                 && self.kind == SymbolKind::Struct
                 && matches!(self.shape, Some(FieldShape::Unit | FieldShape::Tuple)))
+    }
+
+    /// The names the parameters of a function or method bind, in signature
+    /// order, as the source writes them: a `mut x`, a `ref x`, the names
+    /// inside tuple, struct and slice patterns, a raw identifier with its
+    /// `r#`. A receiver contributes `self`, first. Names that occur only in
+    /// types are not bindings. Empty for an item that is not a function, for
+    /// a function with no parameters and for a function the index reads from
+    /// a declaration with no body.
+    ///
+    /// The names are read during the budgeted parse, so no caller re-parses
+    /// the signature.
+    #[must_use]
+    pub fn parameter_bindings(&self) -> &[String] {
+        self.detail
+            .as_deref()
+            .map_or(&[], |detail| detail.bindings.as_slice())
+    }
+
+    /// The byte range, in the text of the item's file, of the value of a
+    /// constant, an associated constant or a static: after the `=` and before
+    /// the `;`, never the type and never an attribute. `None` for an item that
+    /// has no such value, such as a trait's required constant or a function.
+    #[must_use]
+    pub fn initializer(&self) -> Option<Range<usize>> {
+        self.detail
+            .as_deref()
+            .and_then(|detail| detail.initializer.clone())
     }
 
     /// The identity of the source item: its file and the byte offset where its

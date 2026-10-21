@@ -44,12 +44,12 @@ of `raf-workplan` over the tracked documents, the self-workplan test
 (`tests/self_workplan.rs`), which runs the workplan gate from disk and requires
 every assessment to be current and accepted, and the repository gates
 (`tests/repo_gates.rs`: licence digests, issue-reference and process-wording
-scan, version agreement, and the clock gate below); the census gate joins them when `raf-census` is
-built.
+scan, version agreement, and the clock gate below); the census gate joins them when the census
+`Gate` is built.
 
 ### Crates
 
-`raf-okf`, `raf-source`, `raf-workplan` and `cargo-workplan` are workspace members. `raf-okf` and
+`raf-okf`, `raf-source`, `raf-census`, `raf-workplan` and `cargo-workplan` are workspace members. `raf-okf` and
 `raf-source` are **delivered**: the frontmatter reader, the deterministic writer,
 the body model and the profile validation of `raf-okf`, and the `Tree` trait of
 `raf-source` with its disk and memory backends and path containment, its bounded
@@ -73,14 +73,14 @@ literal reading of `contract_effect: none` and the owed Usage and Examples), and
 with the command `coverage lines` (also spelled `coverage --reverse`) and the
 ceilings and exceptions of the coverage record, and the strict debt record with the
 command `debt --write`, are built, and the capabilities it
-changes are `implementing` beside its open change record. Every other crate below is
+changes are `implementing` beside its open change record. `raf-census` is **delivered** for its normal-form capability: the normaliser, full fingerprints, units, grouping, job matching and canonical RDF 1.2 baseline and index reports. Its remaining capabilities state their designed contracts. `cargo-census` is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
 |---|---|---|
 | `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | delivered |
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, impl blocks, item reachability, `Tree` trait with disk and memory backends | delivered |
-| `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | designed |
+| `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | delivered for normal form v1, fingerprints, grouping and the reports |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
 | `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |
 | `cargo-workplan` | Thin command-line wrapper over `raf-workplan` | delivered |
@@ -93,7 +93,7 @@ bindings.
 
 | Path | Contents |
 |---|---|
-| `crates/` | The workspace member crates (`raf-okf`, `raf-source`, `raf-workplan` and `cargo-workplan`; each other crate joins `members` when it is built) |
+| `crates/` | The workspace member crates (`raf-okf`, `raf-source`, `raf-census`, `raf-workplan` and `cargo-workplan`; each other crate joins `members` when it is built) |
 | `docs/capabilities/` | One permanent capability document per capability |
 | `docs/architecture/` | Shared current decisions (normal form, OKF profile, debt ratchet) |
 | `work/changes/` | In-flight change records |
@@ -242,8 +242,10 @@ with `[lints] workspace = true`:
 - **Fail hard.** Schemas are strict and closed: unknown keys are errors. A ledger or
   document that is stale, malformed or ambiguous is an error with a message that
   says how to fix it. No silent fallbacks, no best-effort parsing, no skipped checks.
-- **Normal-form stability.** Any change to what a census fingerprint hashes requires
-  a `normal_form` version bump and updated golden tests.
+- **Normal-form stability.** A normal form version is fixed by the content of its
+  first merge to the default branch. After that, any change that can move a census
+  fingerprint is a new version with a migration path: a `normal_form` bump, updated
+  golden tests, and `cargo census migrate`.
 - **Every rule has a negative fixture.** A rule or check with no input that makes it
   fail is not enforced.
 - **A refusal is a claim too.** When you add or tighten a refusal, run the case you

@@ -41,15 +41,13 @@ a stated reason, the literal reading of `contract_effect: none` and the owed Usa
 and Examples, and reverse coverage, with the command `coverage lines` (also spelled
 `coverage --reverse`) and the ceilings and exceptions of the coverage record, are
 built, as are the strict debt record `work/debt/default.md` and the command
-`debt --write` that writes it. The census crates
-are **designed — not yet published**: their nine capability documents are the
-specification they will be built against, and no census code exists yet.
+`debt --write` that writes it. `raf-census` is **delivered** for normal form 1, full fingerprints, units, grouping, job matching and canonical RDF 1.2 baseline and index reports. Its remaining capabilities and the census command-line crate are designed; their capability documents state those contracts.
 
 | Crate | Kind | Purpose | Status | Specification |
 |---|---|---|---|---|
 | `raf-okf` | library | Reads and writes the RAF profile of OKF documents. | **delivered** | [okf-profile](docs/capabilities/okf-profile.md) |
 | `raf-source` | library | Indexes Rust source so tools can bind documents to code. | **delivered** | [source-index](docs/capabilities/source-index.md) |
-| `raf-census` | library | The duplicate-helper census, ledger and debt ratchet, with a test gate. | **designed — not yet published** | [census-normal-form](docs/capabilities/census-normal-form.md) |
+| `raf-census` | library | The duplicate-helper census, ledger and debt ratchet, with a test gate. | **delivered** for the capability listed — not yet published | [census-normal-form](docs/capabilities/census-normal-form.md) |
 | `cargo-census` | cargo subcommand | Runs the census from the command line. | **designed — not yet published** | [census-cli](docs/capabilities/census-cli.md) |
 | `raf-workplan` | library | The workplan document model, generated documentation blocks, reconcile step, completion gate, entity history, evidence and claims, prose assessments, two-way coverage and current rationale. | **delivered** for the capabilities listed — not yet published | [workplan-document-model](docs/capabilities/workplan-document-model.md), [workplan-generated-docs](docs/capabilities/workplan-generated-docs.md), [workplan-reconcile](docs/capabilities/workplan-reconcile.md), [workplan-complete-gate](docs/capabilities/workplan-complete-gate.md), [workplan-entity-history](docs/capabilities/workplan-entity-history.md), [workplan-evidence-claims](docs/capabilities/workplan-evidence-claims.md), [workplan-prose-assessment](docs/capabilities/workplan-prose-assessment.md), [workplan-two-way-coverage](docs/capabilities/workplan-two-way-coverage.md), [workplan-current-rationale](docs/capabilities/workplan-current-rationale.md) |
 | `cargo-workplan` | cargo subcommand | Runs the workplan from the command line. | **delivered** — not yet published | [workplan-cli](docs/capabilities/workplan-cli.md) |
