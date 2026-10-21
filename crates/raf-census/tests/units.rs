@@ -717,3 +717,112 @@ fn min_tokens_counts_the_value_form_so_erased_noise_never_straddles_it() {
     .expect("the workspace loads");
     assert!(has_body(&ten, "plain") && has_body(&ten, "noisy"));
 }
+
+/// A parameter type of `levels` tuples, each holding `generics` nested generic
+/// arguments around the next level.
+fn deep_type(levels: usize, generics: usize) -> String {
+    let mut ty = String::from("u8");
+    for _ in 0..levels {
+        ty = format!("({}{ty}{},)", "A<".repeat(generics), ">".repeat(generics));
+    }
+    ty
+}
+
+/// Runs `body` on a thread with a stack of 2 MiB, the stack of a test thread.
+fn on_small_stack<R: Send>(body: impl FnOnce() -> R + Send) -> R {
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn_scoped(scope, body)
+            .expect("the thread starts")
+            .join()
+            .expect("the load does not abort or panic")
+    })
+}
+
+#[test]
+fn a_deep_signature_loads_on_a_small_stack_and_beyond_the_budget_is_refused() {
+    let source = |levels: usize| {
+        format!(
+            "pub fn go(x: {}) -> u8 {{\n    0\n}}\n",
+            deep_type(levels, 60)
+        )
+    };
+    let admitted = source(8);
+    let census =
+        on_small_stack(|| load_with(&[("src/lib.rs", &admitted)], &CensusOptions::default()))
+            .expect("raf-source admits 8 levels of 60");
+    assert_eq!(census.units().len(), 1);
+    assert_eq!(unit(&census, "demo::go").params, ["x"]);
+
+    let refused = source(24);
+    let failure =
+        on_small_stack(|| load_with(&[("src/lib.rs", &refused)], &CensusOptions::default()))
+            .expect_err("raf-source refuses 24 levels of 60");
+    match failure {
+        Error::Load(error) => {
+            let text = error.to_string();
+            assert!(
+                text.contains("recursion"),
+                "names the recursion budget: {text}"
+            );
+        }
+        other => panic!("expected a load error, found {other:?}"),
+    }
+}
+
+#[test]
+fn a_deep_constant_type_loads_on_a_small_stack() {
+    let source = format!("pub const N: {} = (0,);\n", deep_type(8, 60));
+    let census =
+        on_small_stack(|| load_with(&[("src/lib.rs", &source)], &CensusOptions::default()))
+            .expect("raf-source admits the type");
+    assert_eq!(unit(&census, "demo::N").constants, BTreeSet::from([0]));
+}
+
+/// The byte offset where the first token of a freshly lexed text starts, in
+/// the table of spans that `proc_macro2` keeps for the thread: 0 when the
+/// table is empty, the length of what was lexed before otherwise.
+fn first_offset() -> usize {
+    let tokens: proc_macro2::TokenStream = "fresh".parse().expect("lexes");
+    tokens
+        .into_iter()
+        .next()
+        .expect("one token")
+        .span()
+        .byte_range()
+        .start
+}
+
+#[test]
+fn loading_one_tree_twice_on_one_thread_leaves_no_span_map() {
+    let files = [(
+        "src/lib.rs",
+        "pub fn go(x: u8) -> &'static str {\n    let _ = x + 1;\n    \"text\"\n}\n\npub const C: u8 = 7;\n",
+    )];
+    let tree = tree(&files);
+    let options = CensusOptions::default();
+    let (before, first, between, second, after) = std::thread::spawn(move || {
+        let before = first_offset();
+        let first = Census::load(&tree, &["."], &options).expect("loads");
+        let between = first_offset();
+        let second = Census::load(&tree, &["."], &options).expect("loads again");
+        (before, first, between, second, first_offset())
+    })
+    .join()
+    .expect("the thread finishes");
+    assert_eq!(
+        (before, between, after),
+        (0, 0, 0),
+        "a load leaves no span map on its thread"
+    );
+    assert_eq!(first.units().len(), 2);
+    for (a, b) in first.units().iter().zip(second.units()) {
+        assert_eq!(
+            (&a.symbol, a.line, &a.params),
+            (&b.symbol, b.line, &b.params)
+        );
+        assert_eq!(a.strings, b.strings);
+        assert_eq!(a.constants, b.constants);
+    }
+}

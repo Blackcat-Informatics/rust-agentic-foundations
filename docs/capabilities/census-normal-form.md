@@ -193,6 +193,8 @@ bindings:
     - raf_census::test_crate::reports::two_fresh_loads_of_the_fixtures_give_identical_bytes
     - raf_census::test_crate::reports::two_fresh_loads_of_this_repository_give_identical_bytes
     - raf_census::test_crate::units::a_constant_whose_type_names_a_number_does_not_hold_it
+    - raf_census::test_crate::units::a_deep_constant_type_loads_on_a_small_stack
+    - raf_census::test_crate::units::a_deep_signature_loads_on_a_small_stack_and_beyond_the_budget_is_refused
     - raf_census::test_crate::units::a_module_declared_by_a_library_and_a_binary_is_one_unit
     - raf_census::test_crate::units::a_self_call_at_any_depth_removes_the_shim_key
     - raf_census::test_crate::units::a_support_module_shared_by_two_test_binaries_is_one_unit_that_does_not_ship
@@ -204,6 +206,7 @@ bindings:
     - raf_census::test_crate::units::every_spelling_of_an_integer_is_one_constant
     - raf_census::test_crate::units::file_context_names_package_path_and_shipping
     - raf_census::test_crate::units::hex_tables_are_read_from_strings_and_arrays
+    - raf_census::test_crate::units::loading_one_tree_twice_on_one_thread_leaves_no_span_map
     - raf_census::test_crate::units::max_file_bytes_caps_a_file_and_the_cap_itself_loads
     - raf_census::test_crate::units::min_tokens_counts_the_value_form_so_erased_noise_never_straddles_it
     - raf_census::test_crate::units::min_tokens_decides_the_body_fingerprint_at_the_default_and_at_ten
@@ -213,12 +216,6 @@ bindings:
     - raf_census::test_crate::units::strings_carry_their_absolute_lines
     - raf_census::test_crate::units::test_code_of_a_shipping_target_does_not_ship
     - raf_census::test_crate::units::this_repositorys_own_crates_load_into_distinct_units
-    - raf_census::units::sig::tests::a_default_method_of_an_implementation_is_a_signature
-    - raf_census::units::sig::tests::an_unparsable_initializer_is_a_source_error_beside_a_valid_one
-    - raf_census::units::sig::tests::an_unparsable_signature_is_a_source_error_beside_a_valid_one
-    - raf_census::units::sig::tests::parameters_are_every_bound_name_in_signature_order
-    - raf_census::units::sig::tests::the_initializer_is_between_the_equals_and_the_semicolon
-    - raf_census::units::tests::text_outside_an_item_is_a_source_error_beside_text_inside_it
     - raf_census::version::tests::other_versions_are_refused_naming_both_and_the_migration
     - raf_census::version::tests::the_implemented_version_is_one
     - raf_census::version::tests::the_implemented_version_passes
@@ -303,7 +300,7 @@ implements it as follows.
   `Error::Options`. `max_file_bytes` defaults to 8 MiB and is the per-file read cap
   of the workspace load; a file above it is a load error that names the file.
 - `raf_census::Error` is the one error type: `Source` (file, line and reason of a
-  slice that does not lex or a signature or initialiser that does not parse),
+  slice that does not lex, or text of an item that the workspace does not hold),
   `Options`, `Collision` (two different forms with one fingerprint, naming both
   symbols), `Version`, `Report` and a load error of `raf-source`. Nothing falls back
   to a partial result.
@@ -613,9 +610,9 @@ the report then begin with the directory's name, as they do for `crates`.
   module once per target.
 - A shim candidate never joins a body group, so a 20-token forwarder is judged by
   its shim form alone.
-- A slice that does not lex, a signature that does not parse and an initialiser that
-  does not parse are errors that name the file and line; the census does not skip
-  them.
+- A slice that does not lex is an error that names the file and line; the census does
+  not skip it. A signature or an item that does not parse never reaches the census:
+  `raf-source` refuses the file when it loads.
 - A constant or a static has no print and no fingerprint. Its integer constants,
   strings and tables come from its initialiser expression only, never from its type
   or attributes.
@@ -624,8 +621,16 @@ the report then begin with the directory's name, as they do for `crates`.
   or named macro argument binds is an item name and is kept, so a body that uses an
   item the census cannot see bound is compared by that item's name. A name is bound
   for the whole body, not for one scope: two uses of one name are one name.
-- Nesting depth is bounded by `MAX_NESTING` (128) and by the delimiter budget of
-  `raf-source`.
+- The census parses no signature and no item. The names a function's parameters bind
+  and the range of a constant's initialiser are facts of the one parse of
+  `raf-source` (`Item::parameter_bindings`, `Item::initializer`), which runs on its
+  own 64 MiB stack under its recursion budget; a signature that exceeds the budget
+  is an `Error::Load` that names the budget, and no signature of any depth can
+  overflow the stack of the caller of `Census::load`, a 2 MiB test thread included.
+  What the census itself lexes is a body or an initialiser, whose nesting is
+  bounded by `MAX_NESTING` (128) and by the delimiter budget of `raf-source`, which
+  the file has already passed. The span table that `proc_macro2` keeps for the
+  thread is cleared when the load ends.
 
 ## Explanation
 
@@ -796,6 +801,8 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::test_crate::reports::two_fresh_loads_of_the_fixtures_give_identical_bytes` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::two_fresh_loads_of_this_repository_give_identical_bytes` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_constant_whose_type_names_a_number_does_not_hold_it` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::a_deep_constant_type_loads_on_a_small_stack` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::a_deep_signature_loads_on_a_small_stack_and_beyond_the_budget_is_refused` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_module_declared_by_a_library_and_a_binary_is_one_unit` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_self_call_at_any_depth_removes_the_shim_key` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_support_module_shared_by_two_test_binaries_is_one_unit_that_does_not_ship` | test | [Verification](#verification) |
@@ -807,6 +814,7 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::test_crate::units::every_spelling_of_an_integer_is_one_constant` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::file_context_names_package_path_and_shipping` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::hex_tables_are_read_from_strings_and_arrays` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::loading_one_tree_twice_on_one_thread_leaves_no_span_map` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::max_file_bytes_caps_a_file_and_the_cap_itself_loads` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::min_tokens_counts_the_value_form_so_erased_noise_never_straddles_it` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::min_tokens_decides_the_body_fingerprint_at_the_default_and_at_ten` | test | [Verification](#verification) |
@@ -816,12 +824,6 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::test_crate::units::strings_carry_their_absolute_lines` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::test_code_of_a_shipping_target_does_not_ship` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::this_repositorys_own_crates_load_into_distinct_units` | test | [Verification](#verification) |
-| `raf_census::units::sig::tests::a_default_method_of_an_implementation_is_a_signature` | test | [Verification](#verification) |
-| `raf_census::units::sig::tests::an_unparsable_initializer_is_a_source_error_beside_a_valid_one` | test | [Verification](#verification) |
-| `raf_census::units::sig::tests::an_unparsable_signature_is_a_source_error_beside_a_valid_one` | test | [Verification](#verification) |
-| `raf_census::units::sig::tests::parameters_are_every_bound_name_in_signature_order` | test | [Verification](#verification) |
-| `raf_census::units::sig::tests::the_initializer_is_between_the_equals_and_the_semicolon` | test | [Verification](#verification) |
-| `raf_census::units::tests::text_outside_an_item_is_a_source_error_beside_text_inside_it` | test | [Verification](#verification) |
 | `raf_census::version::tests::other_versions_are_refused_naming_both_and_the_migration` | test | [Verification](#verification) |
 | `raf_census::version::tests::the_implemented_version_is_one` | test | [Verification](#verification) |
 | `raf_census::version::tests::the_implemented_version_passes` | test | [Verification](#verification) |

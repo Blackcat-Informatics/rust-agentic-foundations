@@ -7,9 +7,13 @@
 //! A unit is one source item. A file that several targets reach, a module
 //! declared by both a library and a binary, a support module shared by two
 //! test binaries, is one unit, whatever number of paths it is reached under.
+//!
+//! The parameter bindings of a function and the range of a constant's
+//! initialiser come from the parse of `raf-source`, which runs on its own
+//! budgeted stack. The census itself lexes bodies, which does not recurse, and
+//! parses no signature and no item.
 
 mod scan;
-mod sig;
 
 use std::collections::BTreeSet;
 
@@ -116,13 +120,28 @@ const fn unit_kind(kind: SymbolKind) -> Option<(UnitKind, bool)> {
     }
 }
 
+/// Forgets, when dropped, the source text that `proc_macro2` keeps for the
+/// spans of the thread, so a load leaves no span map on the caller's thread.
+struct SpanMap;
+
+impl Drop for SpanMap {
+    fn drop(&mut self) {
+        proc_macro2::extra::invalidate_current_thread_spans();
+    }
+}
+
 /// The units of `workspace`, in the order of file and position.
+///
+/// The lexer of bodies keeps the text of every lexed slice in a table of the
+/// thread; the table is cleared when the collection ends, on success and on
+/// failure.
 ///
 /// # Errors
 ///
-/// [`Error::Source`] when a body does not lex, or a signature or an
-/// initialiser does not parse.
+/// [`Error::Source`] when a body or an initialiser does not lex, or the
+/// workspace does not hold the text of an item.
 pub(crate) fn collect(workspace: &Workspace, options: &CensusOptions) -> Result<Vec<Unit>, Error> {
+    let _span_map = SpanMap;
     let normalizer = Normalizer::new(options);
     let mut units = Vec::new();
     for (_, _, ids) in workspace.items_by_source() {
@@ -170,15 +189,6 @@ fn text<'a>(
         })
 }
 
-/// `part` of an item's text, or the failure that it is not text of the item.
-fn outside<'a>(part: Option<&'a str>, file: &str, line: usize) -> Result<&'a str, Error> {
-    part.ok_or_else(|| Error::Source {
-        file: file.to_owned(),
-        line,
-        reason: "the initializer is not text of its item".to_owned(),
-    })
-}
-
 /// The unit of `item`, or `None` for a function without a body or a
 /// constant without a value.
 fn build(
@@ -210,31 +220,28 @@ fn build(
                     line: body.lines.start,
                     reason: "the body of the item is not a braced block".to_owned(),
                 })?;
-            let signature = text(
-                workspace,
-                &item.file,
-                item.span.start_byte..body.start_byte,
-                item.span.lines.start,
-            )?;
-            let params = sig::parameters(&file, item.span.lines.start, item.kind, signature)?;
+            // A receiver is `self`, which the body does not rename.
+            let params = item
+                .parameter_bindings()
+                .iter()
+                .filter(|name| *name != "self")
+                .cloned()
+                .collect();
             (params, contents, body.lines.start)
         }
         UnitKind::Const | UnitKind::Static => {
-            let whole = text(
-                workspace,
-                &item.file,
-                item.span.start_byte..item.span.end_byte,
-                item.span.lines.start,
-            )?;
-            let Some(range) = sig::initializer(&file, item.span.lines.start, item.kind, whole)?
-            else {
+            let line = item.span.lines.start;
+            let Some(range) = item.initializer() else {
                 return Ok(None);
             };
-            let skipped = outside(whole.get(..range.start), &file, item.span.lines.start)?
-                .matches('\n')
-                .count();
-            let contents = outside(whole.get(range), &file, item.span.lines.start)?;
-            (Vec::new(), contents, item.span.lines.start + skipped)
+            let before = text(
+                workspace,
+                &item.file,
+                item.span.start_byte..range.start,
+                line,
+            )?;
+            let contents = text(workspace, &item.file, range, line)?;
+            (Vec::new(), contents, line + before.matches('\n').count())
         }
     };
     let package = workspace
@@ -273,19 +280,4 @@ fn build(
         tables: facts.tables,
         strings: facts.strings,
     }))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn text_outside_an_item_is_a_source_error_beside_text_inside_it() {
-        let item = "const N: u8 = 3;";
-        assert_eq!(outside(item.get(14..15), "a.rs", 2).expect("inside"), "3");
-        match outside(item.get(14..99), "a.rs", 2) {
-            Err(Error::Source { file, line, .. }) => assert_eq!((file.as_str(), line), ("a.rs", 2)),
-            other => panic!("expected a source error, found {other:?}"),
-        }
-    }
 }

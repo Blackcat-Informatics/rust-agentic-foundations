@@ -46,7 +46,11 @@ never renamed as locals. The input is the text between the braces of a
 function body, or the initialiser expression of a constant or a static, never its
 type or attributes. The arguments of macro invocations are token trees too, so
 `format!("{x:02x}", x = b)` and a call with the same shape compare by their tokens
-like any other code.
+like any other code. The names that a function's parameters bind and the extent of a
+constant's initialiser are not found by parsing the item again: they are facts of the
+parse of `raf-source`, which runs on its own budgeted stack, so the census parses no
+signature and no item, a signature too deep for that parse is a load error that names
+the recursion budget, and the lexer's span table is cleared when a load ends.
 
 - A token is an identifier, a literal, a punctuation character or a delimiter.
   Both delimiters of a group are tokens, and every threshold counts them. A
