@@ -1,0 +1,45 @@
+    Updating crates.io index
+     Locking 10 packages to highest Rust 1.98.1 compatible versions
+      Adding arrayvec v0.7.8
+      Adding blake3 v1.8.7
+      Adding constant_time_eq v0.4.2
+      Adding cpufeatures v0.3.1
+      Adding itoa v1.0.18
+      Adding memchr v2.8.3
+      Adding raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-census)
+      Adding serde v1.0.229
+      Adding serde_json v1.0.154
+      Adding zmij v1.0.23
+   Compiling libc v0.2.190
+   Compiling serde_core v1.0.229
+   Compiling find-msvc-tools v0.1.14
+   Compiling shlex v2.0.1
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.27
+   Compiling quote v1.0.47
+   Compiling zmij v1.0.23
+    Checking winnow v1.0.4
+   Compiling serde_json v1.0.154
+   Compiling serde v1.0.229
+    Checking cpufeatures v0.3.1
+    Checking arrayvec v0.7.8
+    Checking memchr v2.8.3
+    Checking constant_time_eq v0.4.2
+    Checking itoa v1.0.18
+    Checking cfg-if v1.0.5
+    Checking arbitrary v1.4.2
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-okf)
+    Checking toml_parser v1.1.5+spec-1.1.0
+    Checking syn v3.0.8
+    Checking toml_datetime v1.1.2+spec-1.1.0
+    Checking serde_spanned v1.1.2
+   Compiling jobserver v0.1.35
+    Checking toml v1.1.8+spec-1.1.0
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-source)
+   Compiling cc v1.8.0
+   Compiling serde_derive v1.0.229
+   Compiling blake3 v1.8.7
+   Compiling libfuzzer-sys v0.4.13
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-census)
+    Checking raf-source-fuzz v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/fuzz)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 18.42s

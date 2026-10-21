@@ -1,0 +1,3 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-census)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.87s
+     Running `/opt/.cargo/target/3-raf-census-core-normal-form-v1-eca56293/debug/examples/baseline`

@@ -1,0 +1,26 @@
+Run the completion gate and, when every condition holds, remove the record
+
+Usage: cargo workplan change complete [OPTIONS] <slug>
+
+Arguments:
+  <slug>
+          The slug of the change record
+
+Options:
+      --root <dir>
+          The workspace root. Without it the root comes from `cargo metadata`, run in the current directory
+
+      --format <format>
+          How findings are printed: text, or one JSON array for the run
+
+          Possible values:
+          - text: One line or block of text for each record
+          - json: One JSON array for the run
+          
+          [default: text]
+
+  -q, --quiet
+          Print nothing but findings
+
+  -h, --help
+          Print help (see a summary with '-h')

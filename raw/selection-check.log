@@ -1,0 +1,19 @@
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-census)
+error[E0433]: cannot find `scan` in the crate root
+   --> crates/raf-census/src/normalize/mod.rs:218:16
+    |
+218 |         crate::scan::calls_through_self(&self.form(Level::Verbatim).nodes)
+    |                ^^^^ unresolved import
+    |
+note: module `crate::units::scan` exists but is inaccessible
+   --> crates/raf-census/src/units/mod.rs:16:1
+    |
+ 16 | mod scan;
+    | ^^^^^^^^^ not accessible
+help: a similar path exists
+    |
+218 |         crate::purrdf_lex::scan::calls_through_self(&self.form(Level::Verbatim).nodes)
+    |                ++++++++++++
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `raf-census` (lib) due to 1 previous error

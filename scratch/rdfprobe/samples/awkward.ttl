@@ -1,0 +1,9 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/00>
+PREFIX census: <https://blackcatinformatics.ca/raf/census#>
+
+<#unit/demo::r%23type%40x@my%20dir/a%23b:c.rs:3> a census:Unit ;
+    census:file "my dir/a#b:c.rs" ;
+    census:line 3 ;
+    census:symbol "demo::r#type@x\"q\\é" ;
+    census:value 1208925819614629174706176 .

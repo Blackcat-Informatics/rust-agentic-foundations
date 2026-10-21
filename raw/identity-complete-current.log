@@ -1,0 +1,1 @@
+Terminated                 systemd-run --user --scope --quiet --slice=stage-builds.slice -- "$real_cargo" "${caller_config[@]}" "${policy[@]}" "$@" "${tail_args[@]}"

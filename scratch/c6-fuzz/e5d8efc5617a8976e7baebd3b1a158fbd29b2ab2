@@ -1,0 +1,22 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b>
+PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
+PREFIX census: <https://blackcatinformatics.ca/raf/census#>
+PREFIX shi< tm:htps://blackcatinformatics.ca/raf/census/nf/1/shim/>
+
+<> a census:Index ;
+    census:normalForm 1 ;
+    census:reportForm 1 .
+
+<#group/body:6bb022e24shidy/>
+PREFIX census: <e048631aad264ede1797f17e4b79cfc169502fa53ce237> ;
+    census:tokens 6 .
+
+<#job/sum> a census:Job ;
+    census:copies 2 ;
+    census:homeSymbol "demo::alpha" ;
+    census:jobId "sum" ;
+    census:match <#unit/demo::BIG@src/lib.rs:7:335> ~ <#match/sum/demo::BIG@src/lib.rs:7:335> {| a census:Match ; census:matchClass census:Duplicate |} ,
+        <#unit/demo::alpha@src/lib.rs:1:0> ~ <#match/sum/demo::alpha@src/lib.rs:1:0> {| a census:Match ; census:matchClass census:nsus:member <#unit/demo::one@src/lib.rs:4:194> ,
+        <#uHome |} ,
+        <#unit/denit/demo::two@srcolib.rs:5:237> m: <https://blackcatinmoformatics.

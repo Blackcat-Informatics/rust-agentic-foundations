@@ -1,0 +1,103 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.03s
+     Running unittests src/lib.rs (/opt/.cargo/6f/435daf0133b057/debug/build/raf-census/298ac7269d90c215/out/raf_census-298ac7269d90c215)
+
+running 22 tests
+test error::tests::an_options_error_has_no_nested_source ... ok
+test error::tests::each_variant_renders_its_facts ... ok
+test group::tests::inconsistent_metadata_is_refused_beside_an_unrelated_unit ... ok
+test group::tests::digest_suffixes_are_distinct_group_keys ... ok
+test group::tests::inconsistent_metadata_is_refused_beside_equal_digests ... ok
+test group::tests::members_order_by_symbol_then_file_then_line ... ok
+test normalize::literal::tests::each_literal_kind_has_its_name ... ok
+test normalize::literal::tests::an_integer_beyond_u128_is_still_an_int ... ok
+test normalize::literal::tests::floats_and_strings_are_not_integers ... ok
+test normalize::literal::tests::spellings_of_one_value_respell_alike ... ok
+test options::tests::defaults_are_twenty_tokens_and_eight_mebibytes ... ok
+test options::tests::max_file_bytes_is_set ... ok
+test options::tests::zero_min_tokens_is_refused_and_one_is_accepted ... ok
+test report::mint::tests::fragments_are_injective_over_their_separators ... ok
+test report::mint::tests::fragments_are_ascii_and_percent_encode_reserved_bytes ... ok
+test report::read::tests::each_token_outside_the_profile_names_its_line_and_column ... ok
+test version::tests::other_versions_are_refused_naming_both_and_the_migration ... ok
+test report::write::tests::the_digest_covers_everything_but_the_base_line ... ok
+test version::tests::the_implemented_version_passes ... ok
+test version::tests::the_implemented_version_is_one ... ok
+test report::read::tests::the_graph_of_each_example_is_its_pinned_triple_set ... ok
+test report::shape::tests::every_required_shape_property_has_a_missing_and_unknown_neighbor ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/forms.rs (/opt/.cargo/6f/435daf0133b057/debug/build/raf-census/5a39b699e46738c9/out/forms-5a39b699e46738c9)
+
+running 26 tests
+test a_fingerprint_refuses_every_malformed_spelling ... ok
+test a_fingerprint_displays_and_parses_back ... ok
+test an_unlexable_slice_is_a_source_error_with_a_valid_neighbour ... ok
+test fingerprint_refusals_escape_untrusted_controls_beside_valid_names ... ok
+test a_shim_candidate_keeps_its_body_print_and_the_shim_print_differs_by_callee ... ok
+test fingerprints_sort_by_kind_then_value ... ok
+test human_abbreviations_do_not_replace_complete_identity ... ok
+test below_the_tier_the_final_sequence_keeps_literals_and_above_it_abstracts_them ... ok
+test explain_names_the_levels_and_the_first_differing_token_with_its_line ... ok
+test copies_with_reordered_parameters_share_a_body_print_and_forwarders_keep_their_order ... ok
+test self_is_not_a_parameter_and_a_field_named_like_one_is_kept ... ok
+test parameters_and_locals_are_numbered_together_by_first_appearance ... ok
+test the_digest_is_blake3_of_length_prefixed_tokens ... ok
+test explain_reports_reordered_parameters_as_equal_from_the_literal_tier ... ok
+test the_body_print_needs_min_tokens ... ok
+test the_value_adapters_are_the_eleven_of_the_page ... ok
+test the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name ... ok
+test the_value_form_keeps_binary_operators_and_drops_borrows ... ok
+test shim_forms_exist_for_six_to_twenty_nine_tokens ... ok
+test the_literal_tier_boundary_is_thirty_value_tokens ... ok
+test a_fixture_named_for_a_size_has_that_many_value_tokens ... ok
+test nesting_at_the_budget_lexes_and_one_deeper_is_refused ... ok
+test every_threshold_counts_the_value_form ... ok
+test every_registered_pair_compares_as_registered ... ok
+test the_tower_is_monotone_over_every_registry_pair ... ok
+test literal_value_introspection_selects_the_production_default ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/golden.rs (/opt/.cargo/6f/435daf0133b057/debug/build/raf-census/0a794311bd6925ce/out/golden-0a794311bd6925ce)
+
+running 4 tests
+test the_manifest_is_pinned ... ok
+test the_pinned_version_is_the_implemented_one ... ok
+test the_pin_check_names_an_unpinned_orphan_moved_and_duplicated_entry ... ok
+test every_fixture_fingerprint_is_pinned ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/reports.rs (/opt/.cargo/6f/435daf0133b057/debug/build/raf-census/d7a40ac170d87aa2/out/reports-d7a40ac170d87aa2)
+
+running 25 tests
+test duplicate_job_ids_are_refused ... ok
+test a_shared_constant_is_an_integer ... ok
+test two_cfg_alternatives_on_one_line_have_distinct_unit_nodes ... ok
+test awkward_names_round_trip ... ok
+test an_index_of_another_normal_form_reads_and_keeps_its_version ... ok
+test a_report_of_another_report_form_is_refused_naming_both ... ok
+test decoded_control_characters_are_escaped_in_report_diagnostics ... ok
+test an_index_is_not_a_baseline ... ok
+test the_example_output_is_the_pinned_golden ... ok
+test the_writer_refuses_a_value_outside_the_shape ... ok
+test constructs_outside_the_profile_are_not_a_report ... ok
+test canonical_line_diagnostics_preserve_crlf_and_the_final_newline ... ok
+test the_index_renders_the_classified_matches_of_every_job ... ok
+test names_that_disagree_with_their_node_are_not_a_report ... ok
+test an_edited_or_respaced_text_is_not_a_report ... ok
+test orphan_units_and_matches_without_a_named_reifier_are_not_a_report ... ok
+test both_reports_read_back_what_they_write ... ok
+test output_is_the_canonical_turtle ... ok
+test the_example_output_names_the_expected_group_fingerprints ... ok
+test the_capability_examples_hold_the_example_output ... ok
+test unknown_terms_are_not_a_report ... ok
+test missing_repeated_and_mistyped_properties_are_not_a_report ... ok
+test two_fresh_loads_of_the_fixtures_give_identical_bytes ... ok
+test two_fresh_loads_of_this_repository_give_identical_bytes ... ok
+test an_absolute_directory_reports_the_same_as_the_relative_spelling ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.96s
+

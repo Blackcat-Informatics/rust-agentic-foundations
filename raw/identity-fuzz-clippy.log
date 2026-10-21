@@ -1,0 +1,5 @@
+    Checking constant_time_eq v0.4.2
+   Compiling blake3 v1.8.7
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-census)
+    Checking raf-source-fuzz v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/fuzz)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 27.61s

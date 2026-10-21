@@ -1,0 +1,1 @@
+pub fn go(values: &[u8]) -> u8 { value |sum, value| sum + value) }

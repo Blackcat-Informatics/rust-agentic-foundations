@@ -1,0 +1,47 @@
+{
+  "issue": 3,
+  "repo": "Blackcat-Informatics/rust-agentic-foundations",
+  "forge": "github",
+  "title": "raf-census core: normal form v1, fingerprints, grouping, reports",
+  "state": "OPEN",
+  "adrs": [],
+  "linked_issues": {
+    "2": "Shared crates: raf-okf + raf-source",
+    "1": "Scaffold workspace, project docs and branding, plus spec-first capability docs"
+  },
+  "link_relations": {
+    "2": "mentions",
+    "1": "2-hop"
+  },
+  "related": [
+    {
+      "number": 1,
+      "title": "Scaffold workspace, project docs and branding, plus spec-first capability docs",
+      "state": "CLOSED"
+    },
+    {
+      "number": 2,
+      "title": "Shared crates: raf-okf + raf-source",
+      "state": "CLOSED"
+    }
+  ],
+  "defect_classes": {
+    "none": 8
+  },
+  "prior_attempts": {
+    "commits": [],
+    "branches": [],
+    "prs": [],
+    "own_branch": "paudley/3-raf-census-core-normal-form-v1"
+  },
+  "coverage": [
+    "issue #3 + 0 comment(s) via github",
+    "link crawl: 2 issue(s) within 2 hop(s) of `#N` references",
+    "forge search on ['raf-census', 'core:', 'normal']: 2 other item(s)",
+    "GhpRsq-Defect-Class trailers: 1 distinct class(es) in the last 200 commits",
+    "prior attempts: 0 commit(s) citing #3 (second parents walked), 0 other branch(es) named for it",
+    "PRs citing #3: 0",
+    "requirement candidates: 15 line(s); 0 comment(s) matched no rule",
+    "referenced artifacts: 2 path(s) (2 on disk), 13 identifier(s), 0 workspace package(s), 0 URL(s)"
+  ]
+}

@@ -1,0 +1,3 @@
+pub fn go(v/ u8 { let next = valuee: let next = valuee: 1; next }
+ 1; ngo(valuu e:8) ->/ u8 { let next = valuee: let next = valuee: 1; next }
+ 1; next ext alues: &[u8]) -> u8 { values.iter().cop/**ied()fold(0, |sum, vAlue| sum + value) }

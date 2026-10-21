@@ -1,0 +1,1 @@
+pub fnalues.iter().copied().fold(0, |sugo value| sum + value) }

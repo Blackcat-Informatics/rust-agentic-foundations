@@ -1,0 +1,2027 @@
+diff --git crates/raf-census/Cargo.toml crates/raf-census/Cargo.toml
+index 62d10f9..4c10652 100644
+--- crates/raf-census/Cargo.toml
++++ crates/raf-census/Cargo.toml
+@@ -12,9 +12,9 @@ license.workspace = true
+ repository.workspace = true
+ 
+ [dependencies]
+-# The BLAKE3 hash a fingerprint is cut from; the floor excludes the older
+-# platform dependency and the normal-form goldens pin the hash bytes.
+-blake3 = "1.8.7"
++# Full BLAKE3 identities; pure avoids native assembly and C implementations.
++# The floor excludes the older platform dependency; goldens pin portable bytes.
++blake3 = { version = "1.8.7", default-features = false, features = ["pure"] }
+ # The lexer for function bodies and macro arguments; `span-locations` gives
+ # string literals their absolute lines.
+ proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
+diff --git crates/raf-census/src/census.rs crates/raf-census/src/census.rs
+index 3b8611c..8ef66bb 100644
+--- crates/raf-census/src/census.rs
++++ crates/raf-census/src/census.rs
+@@ -46,14 +46,13 @@ impl Census {
+     ///
+     /// [`Error::Load`] when the workspace does not load, and [`Error::Source`]
+     /// when a body or an initialiser does not lex or the source index is
+-    /// inconsistent, and [`Error::Collision`] when two different forms have one
+-    /// fingerprint. Nothing falls back to a partial result.
++    /// inconsistent. Nothing falls back to a partial result.
+     pub fn load(tree: &impl Tree, roots: &[&str], options: &CensusOptions) -> Result<Self, Error> {
+         let mut load = LoadOptions::default();
+         load.max_file_bytes = options.max_file_bytes;
+         let workspace = Workspace::load_with(tree, roots, &load)?;
+         let units = units::collect(&workspace, options)?;
+-        let grouping = group::group(&units)?;
++        let grouping = group::group(&units);
+         let files = workspace
+             .files()
+             .map(|file| {
+diff --git crates/raf-census/src/error.rs crates/raf-census/src/error.rs
+index ffced0d..17991a1 100644
+--- crates/raf-census/src/error.rs
++++ crates/raf-census/src/error.rs
+@@ -24,15 +24,6 @@ pub enum Error {
+     },
+     /// A [`CensusOptions`](crate::CensusOptions) value is refused.
+     Options(String),
+-    /// Two units with different digests have one fingerprint.
+-    Collision {
+-        /// The shared fingerprint.
+-        fingerprint: String,
+-        /// The symbol of the first unit.
+-        first: String,
+-        /// The symbol of the second unit.
+-        second: String,
+-    },
+     /// A declared normal-form version is not the implemented one.
+     Version {
+         /// The version that was declared.
+@@ -52,14 +43,6 @@ impl fmt::Display for Error {
+         match self {
+             Self::Source { file, line, reason } => write!(f, "{file}:{line}: {reason}"),
+             Self::Options(reason) => write!(f, "invalid census options: {reason}"),
+-            Self::Collision {
+-                fingerprint,
+-                first,
+-                second,
+-            } => write!(
+-                f,
+-                "fingerprint {fingerprint} names two different forms, `{first}` and `{second}`"
+-            ),
+             Self::Version {
+                 declared,
+                 implemented,
+@@ -108,16 +91,6 @@ mod tests {
+                 .to_string()
+                 .contains("min_tokens is 0")
+         );
+-        let collision = Error::Collision {
+-            fingerprint: "body:0123456789abcdef".into(),
+-            first: "a::f".into(),
+-            second: "b::g".into(),
+-        }
+-        .to_string();
+-        assert!(
+-            collision.contains("a::f") && collision.contains("b::g"),
+-            "{collision}"
+-        );
+         let report = Error::Report(crate::ReportError::Form {
+             declared: 2,
+             implemented: 1,
+diff --git crates/raf-census/src/group.rs crates/raf-census/src/group.rs
+index 1a55955..bfbea20 100644
+--- crates/raf-census/src/group.rs
++++ crates/raf-census/src/group.rs
+@@ -10,9 +10,9 @@
+ 
+ use std::collections::{BTreeMap, BTreeSet};
+ 
++use crate::Fingerprint;
+ use crate::normalize::TableKind;
+ use crate::units::Unit;
+-use crate::{Error, Fingerprint};
+ 
+ /// The smallest integer constant that is a large one: values above `0xffff`.
+ pub(crate) const LARGE_CONSTANT: u128 = 0xffff;
+@@ -106,32 +106,16 @@ pub(crate) struct Candidate<'a> {
+     pub(crate) member: Member,
+     pub(crate) tokens: usize,
+     pub(crate) fingerprint: &'a Fingerprint,
+-    pub(crate) digest: &'a [u8; 32],
+ }
+ 
+ /// Every group of two or more candidates, ordered by member count descending,
+ /// then tokens descending, then fingerprint ascending.
+ ///
+-/// The full digest is kept for every candidate, singletons included.
+-///
+-/// # Errors
+-///
+-/// [`Error::Collision`] when two candidates have one fingerprint and different
+-/// digests.
+-pub(crate) fn build_groups<'a>(
+-    candidates: impl IntoIterator<Item = Candidate<'a>>,
+-) -> Result<Vec<Group>, Error> {
+-    let mut by_print: BTreeMap<(GroupKind, Fingerprint), (&[u8; 32], Group)> = BTreeMap::new();
++pub(crate) fn build_groups<'a>(candidates: impl IntoIterator<Item = Candidate<'a>>) -> Vec<Group> {
++    let mut by_print: BTreeMap<(GroupKind, Fingerprint), Group> = BTreeMap::new();
+     for candidate in candidates {
+         let key = (candidate.kind, candidate.fingerprint.clone());
+-        if let Some((holder, group)) = by_print.get_mut(&key) {
+-            if *holder != candidate.digest {
+-                return Err(Error::Collision {
+-                    fingerprint: key.1.to_string(),
+-                    first: group.members[0].symbol.clone(),
+-                    second: candidate.member.symbol,
+-                });
+-            }
++        if let Some(group) = by_print.get_mut(&key) {
+             group.tokens = group.tokens.max(candidate.tokens);
+             group.members.push(candidate.member);
+             continue;
+@@ -142,11 +126,10 @@ pub(crate) fn build_groups<'a>(
+             tokens: candidate.tokens,
+             members: vec![candidate.member],
+         };
+-        by_print.insert(key, (candidate.digest, group));
++        by_print.insert(key, group);
+     }
+     let mut groups: Vec<Group> = by_print
+         .into_values()
+-        .map(|(_, group)| group)
+         .filter(|group| group.members.len() >= 2)
+         .collect();
+     for group in &mut groups {
+@@ -160,7 +143,7 @@ pub(crate) fn build_groups<'a>(
+             .then_with(|| a.fingerprint.cmp(&b.fingerprint))
+             .then_with(|| a.kind.cmp(&b.kind))
+     });
+-    Ok(groups)
++    groups
+ }
+ 
+ /// Everything the census derives from its units by comparing them.
+@@ -172,24 +155,19 @@ pub(crate) struct Grouping {
+ }
+ 
+ /// Groups `units`, finds their hex tables and their shared large constants.
+-///
+-/// # Errors
+-///
+-/// [`Error::Collision`], see [`build_groups`].
+-pub(crate) fn group(units: &[Unit]) -> Result<Grouping, Error> {
++pub(crate) fn group(units: &[Unit]) -> Grouping {
+     let mut candidates = Vec::new();
+     for unit in units {
+         let Some(print) = &unit.print else { continue };
+         if print.shim.is_some() {
+             // A forwarder is never compared by structure; it groups by its
+             // shim, and only when its shim key allows.
+-            if let (Some(key), Some(hashed)) = (&unit.shim_key, &print.shim) {
++            if let Some(key) = &unit.shim_key {
+                 candidates.push(Candidate {
+                     kind: GroupKind::Shim,
+                     member: Member::of(unit),
+                     tokens: print.tokens,
+                     fingerprint: key,
+-                    digest: &hashed.digest,
+                 });
+             }
+         } else if let Some(hashed) = &print.body {
+@@ -197,12 +175,11 @@ pub(crate) fn group(units: &[Unit]) -> Result<Grouping, Error> {
+                 kind: GroupKind::Body,
+                 member: Member::of(unit),
+                 tokens: print.tokens,
+-                fingerprint: &hashed.fingerprint,
+-                digest: &hashed.digest,
++                fingerprint: hashed,
+             });
+         }
+     }
+-    let groups = build_groups(candidates)?;
++    let groups = build_groups(candidates);
+ 
+     let mut hex_tables: Vec<HexTable> = units
+         .iter()
+@@ -237,29 +214,25 @@ pub(crate) fn group(units: &[Unit]) -> Result<Grouping, Error> {
+             })
+         })
+         .collect();
+-    Ok(Grouping {
++    Grouping {
+         groups,
+         hex_tables,
+         shared_constants,
+-    })
++    }
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+-    use crate::normalize::Hashed;
+ 
+-    fn hashed(id: u64, tail: u8) -> Hashed {
++    fn hashed(id: u64, tail: u8) -> Fingerprint {
+         let mut digest = [0_u8; 32];
+         digest[..8].copy_from_slice(&id.to_be_bytes());
+         digest[31] = tail;
+-        Hashed {
+-            fingerprint: Fingerprint::Body(id),
+-            digest,
+-        }
++        Fingerprint::body(&digest)
+     }
+ 
+-    fn candidate<'a>(symbol: &str, hashed: &'a Hashed) -> Candidate<'a> {
++    fn candidate<'a>(symbol: &str, hashed: &'a Fingerprint) -> Candidate<'a> {
+         Candidate {
+             kind: GroupKind::Body,
+             member: Member {
+@@ -270,39 +243,19 @@ mod tests {
+                 package: "demo".to_owned(),
+             },
+             tokens: 30,
+-            fingerprint: &hashed.fingerprint,
+-            digest: &hashed.digest,
++            fingerprint: hashed,
+         }
+     }
+ 
+     #[test]
+-    fn one_fingerprint_with_two_digests_is_a_collision_beside_equal_digests() {
++    fn digest_suffixes_are_distinct_group_keys() {
+         let a = hashed(7, 0);
+-        let same = hashed(7, 0);
+-        let forged = hashed(7, 1);
+-        let groups = build_groups([candidate("a::f", &a), candidate("b::f", &same)])
+-            .expect("equal digests group");
+-        assert_eq!(groups.len(), 1);
+-        match build_groups([candidate("a::f", &a), candidate("b::g", &forged)]) {
+-            Err(Error::Collision {
+-                fingerprint,
+-                first,
+-                second,
+-            }) => {
+-                assert_eq!(fingerprint, Fingerprint::Body(7).to_string());
+-                assert_eq!((first.as_str(), second.as_str()), ("a::f", "b::g"));
+-            }
+-            other => panic!("expected a collision, found {other:?}"),
+-        }
+-    }
+-
+-    #[test]
+-    fn a_collision_is_found_even_when_a_third_unit_stands_alone() {
+-        let a = hashed(9, 0);
+-        let b = hashed(9, 2);
+-        let c = hashed(10, 0);
+-        let result = build_groups([candidate("a", &a), candidate("c", &c), candidate("b", &b)]);
+-        assert!(matches!(result, Err(Error::Collision { .. })), "{result:?}");
++        let b = hashed(7, 1);
++        assert_eq!(a.abbreviated(), b.abbreviated());
++        assert_ne!(a, b);
++        assert_eq!(build_groups([candidate("a", &a), candidate("b", &b)]), []);
++        let equal = build_groups([candidate("a", &a), candidate("b", &a)]);
++        assert_eq!(equal.len(), 1);
+     }
+ 
+     #[test]
+@@ -319,8 +272,7 @@ mod tests {
+             at("a", "z.rs", 1),
+             at("a", "y.rs", 9),
+             at("a", "y.rs", 2),
+-        ])
+-        .expect("one digest");
++        ]);
+         let order: Vec<(&str, &str, usize)> = groups[0]
+             .members
+             .iter()
+diff --git crates/raf-census/src/job.rs crates/raf-census/src/job.rs
+index 9a1b409..6d55f2a 100644
+--- crates/raf-census/src/job.rs
++++ crates/raf-census/src/job.rs
+@@ -82,7 +82,7 @@ impl Job {
+         let print = unit.print.as_ref();
+         print
+             .and_then(|print| print.body.as_ref())
+-            .is_some_and(|hashed| forbids(&hashed.fingerprint))
++            .is_some_and(forbids)
+             || unit.shim_key.as_ref().is_some_and(forbids)
+             || unit
+                 .tables
+diff --git crates/raf-census/src/lib.rs crates/raf-census/src/lib.rs
+index f7db240..03a0137 100644
+--- crates/raf-census/src/lib.rs
++++ crates/raf-census/src/lib.rs
+@@ -58,9 +58,9 @@ pub use error::Error;
+ pub use group::{Group, GroupKind, HexTable, Member, SharedConstant};
+ pub use job::{Job, JobForbidden, JobMatch, JobReport, MatchClass};
+ pub use normalize::{
+-    Divergence, ENCODING, Fingerprint, Form, Hashed, LITERAL_TIER, Level, MAX_NESTING,
+-    MIN_SHIM_TOKENS, Normalizer, PASSES, ParseFingerprintError, Print, RuleId, SHIM_MAX_TOKENS,
+-    Slice, TableKind, Token, TokenDiff, Tower, VALUE_ADAPTERS, WEAK_KEYWORDS, manifest,
++    Divergence, ENCODING, Fingerprint, Form, LITERAL_TIER, Level, MAX_NESTING, MIN_SHIM_TOKENS,
++    Normalizer, PASSES, ParseFingerprintError, Print, RuleId, SHIM_MAX_TOKENS, Slice, TableKind,
++    Token, TokenDiff, Tower, VALUE_ADAPTERS, WEAK_KEYWORDS, manifest,
+ };
+ pub use options::{CensusOptions, DEFAULT_MAX_FILE_BYTES, DEFAULT_MIN_TOKENS};
+ pub use report::{
+diff --git crates/raf-census/src/normalize/fingerprint.rs crates/raf-census/src/normalize/fingerprint.rs
+index eb6bc3c..6baa258 100644
+--- crates/raf-census/src/normalize/fingerprint.rs
++++ crates/raf-census/src/normalize/fingerprint.rs
+@@ -1,7 +1,7 @@
+ // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+ // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+ 
+-//! Fingerprints: the short names of normal forms.
++//! Fingerprints: the complete names of normal forms.
+ 
+ use std::error::Error as StdError;
+ use std::fmt;
+@@ -11,9 +11,8 @@ use super::form::Form;
+ 
+ /// The id of the byte encoding a form is hashed under: the tokens in order,
+ /// each as its UTF-8 length (u32, little endian) followed by its bytes; the
+-/// BLAKE3 digest of that concatenation; the identifier is the first 8 bytes
+-/// as one big-endian u64 in 16 lowercase hexadecimal digits.
+-pub const ENCODING: &str = "tokens-len-u32le-utf8/blake3/first8-be-hex16";
++/// complete BLAKE3 digest of that concatenation in 64 lowercase hexadecimal digits.
++pub const ENCODING: &str = "tokens-len-u32le-utf8/blake3/hex64";
+ 
+ /// The BLAKE3 digest of a form under [`ENCODING`].
+ pub(crate) fn digest(form: &Form) -> [u8; 32] {
+@@ -27,13 +26,6 @@ pub(crate) fn digest(form: &Form) -> [u8; 32] {
+     *hasher.finalize().as_bytes()
+ }
+ 
+-/// The first 8 bytes of a digest as the big-endian number a fingerprint holds.
+-pub(crate) fn short(digest: &[u8; 32]) -> u64 {
+-    let mut head = [0_u8; 8];
+-    head.copy_from_slice(&digest[..8]);
+-    u64::from_be_bytes(head)
+-}
+-
+ /// A recognised table.
+ #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+ pub enum TableKind {
+@@ -86,9 +78,9 @@ impl RuleId {
+ #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+ pub enum Fingerprint {
+     /// A function body in its value form.
+-    Body(u64),
++    Body([u8; 32]),
+     /// A forwarder in its shim form.
+-    Shim(u64),
++    Shim([u8; 32]),
+     /// A recognised table.
+     Table(TableKind),
+     /// A hit of a detector, a declarative pattern or a rule.
+@@ -99,13 +91,28 @@ impl Fingerprint {
+     /// The `body` fingerprint of a digest.
+     #[must_use]
+     pub fn body(digest: &[u8; 32]) -> Self {
+-        Self::Body(short(digest))
++        Self::Body(*digest)
+     }
+ 
+     /// The `shim` fingerprint of a digest.
+     #[must_use]
+     pub fn shim(digest: &[u8; 32]) -> Self {
+-        Self::Shim(short(digest))
++        Self::Shim(*digest)
++    }
++
++    /// A human-facing abbreviation, separate from canonical display and parsing.
++    ///
++    /// Hashed names retain their first sixteen hexadecimal digits and an ellipsis;
++    /// table and rule names remain complete. Abbreviations are not identities.
++    #[must_use]
++    pub fn abbreviated(&self) -> String {
++        match self {
++            Self::Body(hash) | Self::Shim(hash) => {
++                let hex = blake3::Hash::from_bytes(*hash).to_hex();
++                format!("{}:{}…", self.kind(), &hex.as_str()[..16])
++            }
++            _ => self.to_string(),
++        }
+     }
+ 
+     /// The kind prefix.
+@@ -123,7 +130,9 @@ impl Fingerprint {
+ impl fmt::Display for Fingerprint {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         match self {
+-            Self::Body(hash) | Self::Shim(hash) => write!(f, "{}:{hash:016x}", self.kind()),
++            Self::Body(hash) | Self::Shim(hash) => {
++                write!(f, "{}:{}", self.kind(), blake3::Hash::from_bytes(*hash))
++            }
+             Self::Table(table) => write!(f, "table:{}", table.name()),
+             Self::Rule(rule) => write!(f, "rule:{}", rule.as_str()),
+         }
+@@ -138,7 +147,7 @@ pub enum ParseFingerprintError {
+     NoKind(String),
+     /// The kind is not `body`, `shim`, `table` or `rule`.
+     Kind(String),
+-    /// A `body` or `shim` identifier is not 16 characters.
++    /// A `body` or `shim` identifier is not 64 characters.
+     Width(usize),
+     /// A `body` or `shim` identifier has a character other than `0-9a-f`.
+     Hex(String),
+@@ -151,21 +160,27 @@ pub enum ParseFingerprintError {
+ impl fmt::Display for ParseFingerprintError {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         match self {
+-            Self::NoKind(text) => write!(f, "`{text}` has no `<kind>:` prefix"),
++            Self::NoKind(text) => write!(f, "`{}` has no `<kind>:` prefix", text.escape_debug()),
+             Self::Kind(kind) => write!(
+                 f,
+-                "unknown fingerprint kind `{kind}`; the kinds are body, shim, table and rule"
++                "unknown fingerprint kind `{}`; the kinds are body, shim, table and rule",
++                kind.escape_debug()
+             ),
+             Self::Width(width) => write!(
+                 f,
+-                "a body or shim identifier has 16 hexadecimal digits, not {width}"
++                "a body or shim identifier has 64 hexadecimal digits, not {width}"
++            ),
++            Self::Hex(id) => write!(
++                f,
++                "`{}` is not 64 lowercase hexadecimal digits",
++                id.escape_debug()
+             ),
+-            Self::Hex(id) => write!(f, "`{id}` is not 16 lowercase hexadecimal digits"),
+             Self::Table(name) => write!(
+                 f,
+-                "unknown table `{name}`; the tables are hex-lower and hex-upper"
++                "unknown table `{}`; the tables are hex-lower and hex-upper",
++                name.escape_debug()
+             ),
+-            Self::Rule(id) => write!(f, "`{id}` is not a rule id"),
++            Self::Rule(id) => write!(f, "`{}` is not a rule id", id.escape_debug()),
+         }
+     }
+ }
+@@ -181,18 +196,18 @@ impl FromStr for Fingerprint {
+             .ok_or_else(|| ParseFingerprintError::NoKind(text.to_owned()))?;
+         match kind {
+             "body" | "shim" => {
+-                if id.len() != 16 {
++                if id.len() != 64 {
+                     return Err(ParseFingerprintError::Width(id.len()));
+                 }
+                 if !id.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+                     return Err(ParseFingerprintError::Hex(id.to_owned()));
+                 }
+-                let hash = u64::from_str_radix(id, 16)
++                let hash = blake3::Hash::from_hex(id)
+                     .map_err(|_| ParseFingerprintError::Hex(id.to_owned()))?;
+                 Ok(if kind == "body" {
+-                    Self::Body(hash)
++                    Self::Body(*hash.as_bytes())
+                 } else {
+-                    Self::Shim(hash)
++                    Self::Shim(*hash.as_bytes())
+                 })
+             }
+             "table" => match id {
+diff --git crates/raf-census/src/normalize/mod.rs crates/raf-census/src/normalize/mod.rs
+index 3745c62..7ba720c 100644
+--- crates/raf-census/src/normalize/mod.rs
++++ crates/raf-census/src/normalize/mod.rs
+@@ -180,6 +180,19 @@ impl Tower {
+         &self.forms[level as usize]
+     }
+ 
++    /// Computes the retained and abstracted literal-value forms, in that order.
++    ///
++    /// Both start at the existing literal-tier form and apply the production
++    /// literal-kind and held-value erasure passes. This on-demand introspection
++    /// does not change selection policy or create candidate fingerprints.
++    #[must_use]
++    pub fn literal_values(&self) -> (Form, Form) {
++        let source = self.form(Level::LiteralTier);
++        let retained = passes::erase_held(&passes::kind_literals(source, true));
++        let abstracted = passes::erase_held(&passes::kind_literals(source, false));
++        (retained, abstracted)
++    }
++
+     /// The number of tokens of the value form: what every threshold counts. It
+     /// is known before the literals are abstracted, so the literal tier is
+     /// decided on it too.
+@@ -196,16 +209,22 @@ impl Tower {
+         self.shim_candidate
+     }
+ 
++    /// Whether calls in this body go through a `Self::` callee path.
++    ///
++    /// Such a body may have a shim print but never supplies a grouping key.
++    /// The query shares the production unit collector's call scan.
++    #[must_use]
++    pub fn calls_through_self(&self) -> bool {
++        shim::calls_through_self(&self.form(Level::Verbatim).nodes)
++    }
++
+     /// The fingerprints this slice has under `min_tokens`.
+     #[must_use]
+     pub fn print(&self, min_tokens: usize) -> Print {
+         let tokens = self.value_tokens();
+         let named = |level: Level, make: fn(&[u8; 32]) -> Fingerprint| {
+             let digest = fingerprint::digest(self.form(level));
+-            Hashed {
+-                fingerprint: make(&digest),
+-                digest,
+-            }
++            make(&digest)
+         };
+         let shim = (self.shim_candidate && (MIN_SHIM_TOKENS..SHIM_MAX_TOKENS).contains(&tokens))
+             .then(|| named(Level::Shim, Fingerprint::shim));
+@@ -214,15 +233,6 @@ impl Tower {
+     }
+ }
+ 
+-/// A fingerprint with the full digest it was cut from.
+-#[derive(Clone, Debug, PartialEq, Eq)]
+-pub struct Hashed {
+-    /// The first 8 bytes of the digest, named.
+-    pub fingerprint: Fingerprint,
+-    /// The BLAKE3 digest of the form under [`ENCODING`].
+-    pub digest: [u8; 32],
+-}
+-
+ /// What the census learns from one slice.
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ pub struct Print {
+@@ -231,10 +241,10 @@ pub struct Print {
+     /// The `body` fingerprint of the value form, when the slice has at least
+     /// `min_tokens` value tokens. A shim candidate has one too, but it
+     /// never joins a body group: only its shim print groups.
+-    pub body: Option<Hashed>,
++    pub body: Option<Fingerprint>,
+     /// The `shim` fingerprint of the shim form, when the slice is a shim
+     /// candidate of 6 to 29 value tokens.
+-    pub shim: Option<Hashed>,
++    pub shim: Option<Fingerprint>,
+ }
+ 
+ /// The first place two slices part ways.
+diff --git crates/raf-census/src/normalize/shim.rs crates/raf-census/src/normalize/shim.rs
+index 50066e1..32d2deb 100644
+--- crates/raf-census/src/normalize/shim.rs
++++ crates/raf-census/src/normalize/shim.rs
+@@ -3,7 +3,7 @@
+ 
+ //! The shim candidate predicate.
+ 
+-use super::form::{Form, Kind, Node};
++use super::form::{Delim, Form, Kind, Node};
+ 
+ /// Whether the body is a thin forwarder: one expression (no `let`, no
+ /// statement boundary before the tail), at least one call, and no `self`, since
+@@ -36,7 +36,7 @@ fn has_call(nodes: &[Node]) -> bool {
+     while index < nodes.len() {
+         match &nodes[index] {
+             Node::Group(group) => {
+-                if previous_is_name && group.delim == super::form::Delim::Paren {
++                if previous_is_name && group.delim == Delim::Paren {
+                     return true;
+                 }
+                 if has_call(&group.children) {
+@@ -107,3 +107,51 @@ fn mentions_self(nodes: &[Node]) -> bool {
+         Node::Leaf(token) => token.kind == Kind::Ident && token.text == "self",
+     })
+ }
++
++/// Whether `nodes`, at any depth, hold a call whose callee path starts with
++/// `Self`: `Self::go(x)`, `Self::go::<T>(x)`.
++pub(super) fn calls_through_self(nodes: &[Node]) -> bool {
++    for (index, node) in nodes.iter().enumerate() {
++        match node {
++            Node::Group(group) => {
++                if calls_through_self(&group.children) {
++                    return true;
++                }
++            }
++            Node::Leaf(leaf) => {
++                if leaf.kind == Kind::Ident
++                    && leaf.text == "Self"
++                    && path_ends_in_call(&nodes[index + 1..])
++                {
++                    return true;
++                }
++            }
++        }
++    }
++    false
++}
++
++/// Whether `rest`, which follows `Self`, is `::` and a path, then a call.
++fn path_ends_in_call(rest: &[Node]) -> bool {
++    let is_colon = |node: Option<&Node>| {
++        node.and_then(Node::as_leaf)
++            .is_some_and(|leaf| leaf.kind == Kind::Punct && leaf.text == ":")
++    };
++    if !(is_colon(rest.first()) && is_colon(rest.get(1))) {
++        return false;
++    }
++    let mut angles = 0_usize;
++    for node in &rest[2..] {
++        match node {
++            Node::Group(group) => return group.delim == Delim::Paren,
++            Node::Leaf(leaf) => match (leaf.kind, leaf.text.as_str()) {
++                (Kind::Ident, _) | (Kind::Punct, ":") => {}
++                (Kind::Punct, "<") => angles += 1,
++                (Kind::Punct, ">") if angles > 0 => angles -= 1,
++                (Kind::Punct, "," | "&") if angles > 0 => {}
++                _ => return false,
++            },
++        }
++    }
++    false
++}
+diff --git crates/raf-census/src/report/mod.rs crates/raf-census/src/report/mod.rs
+index f2224de..f9816ba 100644
+--- crates/raf-census/src/report/mod.rs
++++ crates/raf-census/src/report/mod.rs
+@@ -276,7 +276,7 @@ impl Census {
+                     .print
+                     .as_ref()
+                     .and_then(|print| print.body.as_ref())
+-                    .map(|hashed| hashed.fingerprint.clone()),
++                    .cloned(),
+                 shim: unit.shim_key.clone(),
+             })
+             .collect();
+diff --git crates/raf-census/src/report/write.rs crates/raf-census/src/report/write.rs
+index f2dafaa..4e46ed2 100644
+--- crates/raf-census/src/report/write.rs
++++ crates/raf-census/src/report/write.rs
+@@ -31,9 +31,9 @@ fn fingerprint(value: &Fingerprint, nf: u32) -> Result<Term, E> {
+         _ => return Err(E::Value(format!("group fingerprint {value}"))),
+     };
+     Ok(Term::Iri(format!(
+-        "{}{:016x}",
++        "{}{}",
+         vocab::fingerprint_namespace(nf, kind),
+-        hex
++        blake3::Hash::from_bytes(*hex)
+     )))
+ }
+ fn unit(graph: &mut Graph, row: &MemberRow) -> Result<String, E> {
+diff --git crates/raf-census/src/units/mod.rs crates/raf-census/src/units/mod.rs
+index 03aef7e..2d4d3da 100644
+--- crates/raf-census/src/units/mod.rs
++++ crates/raf-census/src/units/mod.rs
+@@ -282,12 +282,12 @@ fn build(
+     let facts = scan::facts(&file, tower.form(Level::Verbatim))?;
+     let functionlike = matches!(kind, UnitKind::Fn | UnitKind::Method);
+     let print = functionlike.then(|| tower.print(options.min_tokens));
+-    let via_self = functionlike && scan::calls_through_self(&tower.form(Level::Verbatim).nodes);
++    let via_self = functionlike && tower.calls_through_self();
+     let shim_key = print
+         .as_ref()
+         .and_then(|print| print.shim.as_ref())
+         .filter(|_| !trait_impl && !via_self)
+-        .map(|shim| shim.fingerprint.clone());
++        .cloned();
+     Ok(Some(Unit {
+         symbol: item.path.to_string(),
+         name: item.name.to_string(),
+diff --git crates/raf-census/src/units/scan.rs crates/raf-census/src/units/scan.rs
+index afef8b1..4a7dded 100644
+--- crates/raf-census/src/units/scan.rs
++++ crates/raf-census/src/units/scan.rs
+@@ -127,51 +127,3 @@ fn digit_array(group: &Group) -> Option<TableKind> {
+     }
+     classify_digits(&digits)
+ }
+-
+-/// Whether `nodes`, at any depth, hold a call whose callee path starts with
+-/// `Self`: `Self::go(x)`, `Self::go::<T>(x)`.
+-pub(super) fn calls_through_self(nodes: &[Node]) -> bool {
+-    for (index, node) in nodes.iter().enumerate() {
+-        match node {
+-            Node::Group(group) => {
+-                if calls_through_self(&group.children) {
+-                    return true;
+-                }
+-            }
+-            Node::Leaf(leaf) => {
+-                if leaf.kind == Kind::Ident
+-                    && leaf.text == "Self"
+-                    && path_ends_in_call(&nodes[index + 1..])
+-                {
+-                    return true;
+-                }
+-            }
+-        }
+-    }
+-    false
+-}
+-
+-/// Whether `rest`, which follows `Self`, is `::` and a path, then a call.
+-fn path_ends_in_call(rest: &[Node]) -> bool {
+-    let is_colon = |node: Option<&Node>| {
+-        node.and_then(Node::as_leaf)
+-            .is_some_and(|leaf| leaf.kind == Kind::Punct && leaf.text == ":")
+-    };
+-    if !(is_colon(rest.first()) && is_colon(rest.get(1))) {
+-        return false;
+-    }
+-    let mut angles = 0_usize;
+-    for node in &rest[2..] {
+-        match node {
+-            Node::Group(group) => return group.delim == Delim::Paren,
+-            Node::Leaf(leaf) => match (leaf.kind, leaf.text.as_str()) {
+-                (Kind::Ident, _) | (Kind::Punct, ":") => {}
+-                (Kind::Punct, "<") => angles += 1,
+-                (Kind::Punct, ">") if angles > 0 => angles -= 1,
+-                (Kind::Punct, "," | "&") if angles > 0 => {}
+-                _ => return false,
+-            },
+-        }
+-    }
+-    false
+-}
+diff --git crates/raf-census/tests/fixtures/reports/baseline.nt crates/raf-census/tests/fixtures/reports/baseline.nt
+index 34d26f1..44e9a11 100644
+--- crates/raf-census/tests/fixtures/reports/baseline.nt
++++ crates/raf-census/tests/fixtures/reports/baseline.nt
+@@ -1,41 +1,41 @@
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#group/body:6bb022e241a79a28> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#BodyGroup> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#group/body:6bb022e241a79a28> <https://blackcatinformatics.ca/raf/census#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a28> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#group/body:6bb022e241a79a28> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::alpha@src/lib.rs:1:0> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#group/body:6bb022e241a79a28> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::beta@src/lib.rs:2:74> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#group/body:6bb022e241a79a28> <https://blackcatinformatics.ca/raf/census#tokens> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#group/shim:203616cb54a3e53d> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#ShimGroup> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#group/shim:203616cb54a3e53d> <https://blackcatinformatics.ca/raf/census#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53d> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#group/shim:203616cb54a3e53d> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::one@src/lib.rs:4:194> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#group/shim:203616cb54a3e53d> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::two@src/lib.rs:5:237> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#group/shim:203616cb54a3e53d> <https://blackcatinformatics.ca/raf/census#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#line> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#startByte> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#symbol> "demo::alpha" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#line> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#startByte> "74"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#symbol> "demo::beta" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::digits@src/lib.rs:6:280> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#holds> <https://blackcatinformatics.ca/raf/census/table/hex-lower> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#line> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#startByte> "280"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#symbol> "demo::digits" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::one@src/lib.rs:4:194> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#line> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#startByte> "194"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#symbol> "demo::one" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::two@src/lib.rs:5:237> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#line> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#startByte> "237"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#symbol> "demo::two" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Baseline> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0> <https://blackcatinformatics.ca/raf/census#minTokens> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0> <https://blackcatinformatics.ca/raf/census#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0> <https://blackcatinformatics.ca/raf/census#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0> <https://blackcatinformatics.ca/raf/census#unitCount> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#BodyGroup> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/census#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::alpha@src/lib.rs:1:0> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::beta@src/lib.rs:2:74> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/census#tokens> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#ShimGroup> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/census#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::one@src/lib.rs:4:194> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::two@src/lib.rs:5:237> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/census#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#line> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#startByte> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#symbol> "demo::alpha" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#line> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#startByte> "74"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#symbol> "demo::beta" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::digits@src/lib.rs:6:280> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#holds> <https://blackcatinformatics.ca/raf/census/table/hex-lower> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#line> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#startByte> "280"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#symbol> "demo::digits" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::one@src/lib.rs:4:194> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#line> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#startByte> "194"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#symbol> "demo::one" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::two@src/lib.rs:5:237> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#line> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#startByte> "237"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#symbol> "demo::two" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Baseline> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284> <https://blackcatinformatics.ca/raf/census#minTokens> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284> <https://blackcatinformatics.ca/raf/census#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284> <https://blackcatinformatics.ca/raf/census#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284> <https://blackcatinformatics.ca/raf/census#unitCount> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+diff --git crates/raf-census/tests/fixtures/reports/baseline.ttl crates/raf-census/tests/fixtures/reports/baseline.ttl
+index b664fe9..ffa61d8 100644
+--- crates/raf-census/tests/fixtures/reports/baseline.ttl
++++ crates/raf-census/tests/fixtures/reports/baseline.ttl
+@@ -1,5 +1,5 @@
+ VERSION "1.2"
+-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0>
++BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284>
+ PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
+ PREFIX census: <https://blackcatinformatics.ca/raf/census#>
+ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+@@ -11,14 +11,14 @@ PREFIX table: <https://blackcatinformatics.ca/raf/census/table/>
+     census:reportForm 1 ;
+     census:unitCount 7 .
+ 
+-<#group/body:6bb022e241a79a28> a census:BodyGroup ;
+-    census:fingerprint body:6bb022e241a79a28 ;
++<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> a census:BodyGroup ;
++    census:fingerprint body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
+     census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
+         <#unit/demo::beta@src/lib.rs:2:74> ;
+     census:tokens 21 .
+ 
+-<#group/shim:203616cb54a3e53d> a census:ShimGroup ;
+-    census:fingerprint shim:203616cb54a3e53d ;
++<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> a census:ShimGroup ;
++    census:fingerprint shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
+     census:member <#unit/demo::one@src/lib.rs:4:194> ,
+         <#unit/demo::two@src/lib.rs:5:237> ;
+     census:tokens 6 .
+diff --git crates/raf-census/tests/fixtures/reports/example.txt crates/raf-census/tests/fixtures/reports/example.txt
+index 0bd0132..d297c44 100644
+--- crates/raf-census/tests/fixtures/reports/example.txt
++++ crates/raf-census/tests/fixtures/reports/example.txt
+@@ -1,6 +1,6 @@
+ baseline
+ VERSION "1.2"
+-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0>
++BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284>
+ PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
+ PREFIX census: <https://blackcatinformatics.ca/raf/census#>
+ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+@@ -12,14 +12,14 @@ PREFIX table: <https://blackcatinformatics.ca/raf/census/table/>
+     census:reportForm 1 ;
+     census:unitCount 7 .
+ 
+-<#group/body:6bb022e241a79a28> a census:BodyGroup ;
+-    census:fingerprint body:6bb022e241a79a28 ;
++<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> a census:BodyGroup ;
++    census:fingerprint body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
+     census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
+         <#unit/demo::beta@src/lib.rs:2:74> ;
+     census:tokens 21 .
+ 
+-<#group/shim:203616cb54a3e53d> a census:ShimGroup ;
+-    census:fingerprint shim:203616cb54a3e53d ;
++<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> a census:ShimGroup ;
++    census:fingerprint shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
+     census:member <#unit/demo::one@src/lib.rs:4:194> ,
+         <#unit/demo::two@src/lib.rs:5:237> ;
+     census:tokens 6 .
+@@ -56,7 +56,7 @@ PREFIX table: <https://blackcatinformatics.ca/raf/census/table/>
+     census:symbol "demo::two" .
+ index
+ VERSION "1.2"
+-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b>
++BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37>
+ PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
+ PREFIX census: <https://blackcatinformatics.ca/raf/census#>
+ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+@@ -65,14 +65,14 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+     census:normalForm 1 ;
+     census:reportForm 1 .
+ 
+-<#group/body:6bb022e241a79a28> a census:BodyGroup ;
+-    census:fingerprint body:6bb022e241a79a28 ;
++<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> a census:BodyGroup ;
++    census:fingerprint body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
+     census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
+         <#unit/demo::beta@src/lib.rs:2:74> ;
+     census:tokens 21 .
+ 
+-<#group/shim:203616cb54a3e53d> a census:ShimGroup ;
+-    census:fingerprint shim:203616cb54a3e53d ;
++<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> a census:ShimGroup ;
++    census:fingerprint shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
+     census:member <#unit/demo::one@src/lib.rs:4:194> ,
+         <#unit/demo::two@src/lib.rs:5:237> ;
+     census:tokens 6 .
+@@ -95,7 +95,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+     census:tokens 0 .
+ 
+ <#unit/demo::alpha@src/lib.rs:1:0> a census:Unit ;
+-    census:body body:6bb022e241a79a28 ;
++    census:body body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
+     census:file "src/lib.rs" ;
+     census:line 1 ;
+     census:package "demo" ;
+@@ -105,7 +105,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+     census:tokens 21 .
+ 
+ <#unit/demo::beta@src/lib.rs:2:74> a census:Unit ;
+-    census:body body:6bb022e241a79a28 ;
++    census:body body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
+     census:file "src/lib.rs" ;
+     census:line 2 ;
+     census:package "demo" ;
+@@ -136,7 +136,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+     census:file "src/lib.rs" ;
+     census:line 4 ;
+     census:package "demo" ;
+-    census:shim shim:203616cb54a3e53d ;
++    census:shim shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
+     census:shipping true ;
+     census:startByte 194 ;
+     census:symbol "demo::one" ;
+@@ -146,7 +146,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+     census:file "src/lib.rs" ;
+     census:line 5 ;
+     census:package "demo" ;
+-    census:shim shim:203616cb54a3e53d ;
++    census:shim shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
+     census:shipping true ;
+     census:startByte 237 ;
+     census:symbol "demo::two" ;
+diff --git crates/raf-census/tests/fixtures/reports/index.nt crates/raf-census/tests/fixtures/reports/index.nt
+index cd988f4..8efea1f 100644
+--- crates/raf-census/tests/fixtures/reports/index.nt
++++ crates/raf-census/tests/fixtures/reports/index.nt
+@@ -1,89 +1,89 @@
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#group/body:6bb022e241a79a28> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#BodyGroup> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#group/body:6bb022e241a79a28> <https://blackcatinformatics.ca/raf/census#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a28> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#group/body:6bb022e241a79a28> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::alpha@src/lib.rs:1:0> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#group/body:6bb022e241a79a28> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::beta@src/lib.rs:2:74> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#group/body:6bb022e241a79a28> <https://blackcatinformatics.ca/raf/census#tokens> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#group/shim:203616cb54a3e53d> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#ShimGroup> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#group/shim:203616cb54a3e53d> <https://blackcatinformatics.ca/raf/census#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53d> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#group/shim:203616cb54a3e53d> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::one@src/lib.rs:4:194> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#group/shim:203616cb54a3e53d> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::two@src/lib.rs:5:237> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#group/shim:203616cb54a3e53d> <https://blackcatinformatics.ca/raf/census#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#job/sum> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Job> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#job/sum> <https://blackcatinformatics.ca/raf/census#copies> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#job/sum> <https://blackcatinformatics.ca/raf/census#homeSymbol> "demo::alpha" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#job/sum> <https://blackcatinformatics.ca/raf/census#jobId> "sum" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#job/sum> <https://blackcatinformatics.ca/raf/census#match> <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::BIG@src/lib.rs:7:335> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#job/sum> <https://blackcatinformatics.ca/raf/census#match> <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::alpha@src/lib.rs:1:0> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#job/sum> <https://blackcatinformatics.ca/raf/census#match> <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::beta@src/lib.rs:2:74> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#match/sum/demo::BIG@src/lib.rs:7:335> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#job/sum> <https://blackcatinformatics.ca/raf/census#match> <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::BIG@src/lib.rs:7:335> )>> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#match/sum/demo::BIG@src/lib.rs:7:335> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Match> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#match/sum/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#matchClass> <https://blackcatinformatics.ca/raf/census#Copy> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#match/sum/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#job/sum> <https://blackcatinformatics.ca/raf/census#match> <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::alpha@src/lib.rs:1:0> )>> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#match/sum/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Match> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#match/sum/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#matchClass> <https://blackcatinformatics.ca/raf/census#Home> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#match/sum/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#job/sum> <https://blackcatinformatics.ca/raf/census#match> <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::beta@src/lib.rs:2:74> )>> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#match/sum/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Match> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#match/sum/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#matchClass> <https://blackcatinformatics.ca/raf/census#Copy> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::BIG@src/lib.rs:7:335> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#line> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#package> "demo" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#startByte> "335"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#symbol> "demo::BIG" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#tokens> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#body> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a28> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#line> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#package> "demo" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#startByte> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#symbol> "demo::alpha" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#tokens> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#body> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a28> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#line> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#package> "demo" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#startByte> "74"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#symbol> "demo::beta" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#tokens> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::digits@src/lib.rs:6:280> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#line> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#package> "demo" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#startByte> "280"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#symbol> "demo::digits" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#tokens> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::helper@src/lib.rs:3:147> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/census#line> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/census#package> "demo" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/census#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/census#startByte> "147"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/census#symbol> "demo::helper" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/census#tokens> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::one@src/lib.rs:4:194> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#line> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#package> "demo" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#shim> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53d> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#startByte> "194"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#symbol> "demo::one" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::two@src/lib.rs:5:237> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#line> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#package> "demo" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#shim> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53d> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#startByte> "237"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#symbol> "demo::two" .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Index> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b> <https://blackcatinformatics.ca/raf/census#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+-<https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b> <https://blackcatinformatics.ca/raf/census#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#BodyGroup> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/census#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::alpha@src/lib.rs:1:0> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::beta@src/lib.rs:2:74> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/census#tokens> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#ShimGroup> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/census#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::one@src/lib.rs:4:194> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/census#member> <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::two@src/lib.rs:5:237> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/census#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#job/sum> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Job> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#job/sum> <https://blackcatinformatics.ca/raf/census#copies> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#job/sum> <https://blackcatinformatics.ca/raf/census#homeSymbol> "demo::alpha" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#job/sum> <https://blackcatinformatics.ca/raf/census#jobId> "sum" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#job/sum> <https://blackcatinformatics.ca/raf/census#match> <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::BIG@src/lib.rs:7:335> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#job/sum> <https://blackcatinformatics.ca/raf/census#match> <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::alpha@src/lib.rs:1:0> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#job/sum> <https://blackcatinformatics.ca/raf/census#match> <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::beta@src/lib.rs:2:74> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#match/sum/demo::BIG@src/lib.rs:7:335> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#job/sum> <https://blackcatinformatics.ca/raf/census#match> <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::BIG@src/lib.rs:7:335> )>> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#match/sum/demo::BIG@src/lib.rs:7:335> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Match> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#match/sum/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#matchClass> <https://blackcatinformatics.ca/raf/census#Copy> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#match/sum/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#job/sum> <https://blackcatinformatics.ca/raf/census#match> <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::alpha@src/lib.rs:1:0> )>> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#match/sum/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Match> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#match/sum/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#matchClass> <https://blackcatinformatics.ca/raf/census#Home> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#match/sum/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#job/sum> <https://blackcatinformatics.ca/raf/census#match> <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::beta@src/lib.rs:2:74> )>> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#match/sum/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Match> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#match/sum/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#matchClass> <https://blackcatinformatics.ca/raf/census#Copy> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::BIG@src/lib.rs:7:335> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#line> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#package> "demo" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#startByte> "335"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#symbol> "demo::BIG" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/census#tokens> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#body> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#line> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#package> "demo" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#startByte> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#symbol> "demo::alpha" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/census#tokens> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#body> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#line> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#package> "demo" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#startByte> "74"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#symbol> "demo::beta" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/census#tokens> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::digits@src/lib.rs:6:280> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#line> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#package> "demo" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#startByte> "280"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#symbol> "demo::digits" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/census#tokens> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::helper@src/lib.rs:3:147> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/census#line> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/census#package> "demo" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/census#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/census#startByte> "147"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/census#symbol> "demo::helper" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/census#tokens> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::one@src/lib.rs:4:194> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#line> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#package> "demo" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#shim> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#startByte> "194"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#symbol> "demo::one" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/census#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::two@src/lib.rs:5:237> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Unit> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#file> "src/lib.rs" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#line> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#package> "demo" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#shim> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#startByte> "237"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#symbol> "demo::two" .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/census#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/census#Index> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37> <https://blackcatinformatics.ca/raf/census#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
++<https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37> <https://blackcatinformatics.ca/raf/census#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+diff --git crates/raf-census/tests/fixtures/reports/index.ttl crates/raf-census/tests/fixtures/reports/index.ttl
+index 3adee03..660fcc8 100644
+--- crates/raf-census/tests/fixtures/reports/index.ttl
++++ crates/raf-census/tests/fixtures/reports/index.ttl
+@@ -1,5 +1,5 @@
+ VERSION "1.2"
+-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b>
++BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37>
+ PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
+ PREFIX census: <https://blackcatinformatics.ca/raf/census#>
+ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+@@ -8,14 +8,14 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+     census:normalForm 1 ;
+     census:reportForm 1 .
+ 
+-<#group/body:6bb022e241a79a28> a census:BodyGroup ;
+-    census:fingerprint body:6bb022e241a79a28 ;
++<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> a census:BodyGroup ;
++    census:fingerprint body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
+     census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
+         <#unit/demo::beta@src/lib.rs:2:74> ;
+     census:tokens 21 .
+ 
+-<#group/shim:203616cb54a3e53d> a census:ShimGroup ;
+-    census:fingerprint shim:203616cb54a3e53d ;
++<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> a census:ShimGroup ;
++    census:fingerprint shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
+     census:member <#unit/demo::one@src/lib.rs:4:194> ,
+         <#unit/demo::two@src/lib.rs:5:237> ;
+     census:tokens 6 .
+@@ -38,7 +38,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+     census:tokens 0 .
+ 
+ <#unit/demo::alpha@src/lib.rs:1:0> a census:Unit ;
+-    census:body body:6bb022e241a79a28 ;
++    census:body body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
+     census:file "src/lib.rs" ;
+     census:line 1 ;
+     census:package "demo" ;
+@@ -48,7 +48,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+     census:tokens 21 .
+ 
+ <#unit/demo::beta@src/lib.rs:2:74> a census:Unit ;
+-    census:body body:6bb022e241a79a28 ;
++    census:body body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
+     census:file "src/lib.rs" ;
+     census:line 2 ;
+     census:package "demo" ;
+@@ -79,7 +79,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+     census:file "src/lib.rs" ;
+     census:line 4 ;
+     census:package "demo" ;
+-    census:shim shim:203616cb54a3e53d ;
++    census:shim shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
+     census:shipping true ;
+     census:startByte 194 ;
+     census:symbol "demo::one" ;
+@@ -89,7 +89,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+     census:file "src/lib.rs" ;
+     census:line 5 ;
+     census:package "demo" ;
+-    census:shim shim:203616cb54a3e53d ;
++    census:shim shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
+     census:shipping true ;
+     census:startByte 237 ;
+     census:symbol "demo::two" ;
+diff --git crates/raf-census/tests/forms.rs crates/raf-census/tests/forms.rs
+index 1309560..1cc9a6a 100644
+--- crates/raf-census/tests/forms.rs
++++ crates/raf-census/tests/forms.rs
+@@ -404,20 +404,23 @@ fn the_digest_is_blake3_of_length_prefixed_tokens() {
+     );
+     let print = print_of(&["x"], "f(x, 1)", 1);
+     let body = print.body.expect("a body print");
+-    assert_eq!(&body.digest, expected.as_bytes());
+-    assert_eq!(body.fingerprint.to_string(), "body:abac387fdaf62db5");
++    assert_eq!(body, Fingerprint::body(expected.as_bytes()));
+     assert_eq!(
+-        body.fingerprint.to_string(),
+-        format!("body:{}", &expected.to_hex().as_str()[..16])
++        body.to_string(),
++        "body:abac387fdaf62db5bee4e554a8fe7d4fc574f2e61594275430ddab702ef76288"
++    );
++    assert_eq!(
++        body.to_string(),
++        format!("body:{}", expected.to_hex().as_str())
+     );
+ }
+ 
+ #[test]
+ fn a_fingerprint_displays_and_parses_back() {
+     let accepted = [
+-        "body:0123456789abcdef",
+-        "shim:ffffffffffffffff",
+-        "body:0000000000000000",
++        "body:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
++        "shim:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
++        "body:0000000000000000000000000000000000000000000000000000000000000000",
+         "table:hex-lower",
+         "table:hex-upper",
+         "rule:std-default-hasher",
+@@ -431,13 +434,86 @@ fn a_fingerprint_displays_and_parses_back() {
+         Fingerprint::Table(TableKind::HexLower)
+     );
+     assert_eq!(
+-        "body:0000000000000001"
++        "body:0000000000000001000000000000000100000000000000010000000000000001"
+             .parse::<Fingerprint>()
+             .expect("parses"),
+-        Fingerprint::Body(1)
++        Fingerprint::Body({
++            let mut bytes = [0; 32];
++            for index in [7, 15, 23, 31] {
++                bytes[index] = 1;
++            }
++            bytes
++        })
+     );
+ }
+ 
++#[test]
++fn human_abbreviations_do_not_replace_complete_identity() {
++    let first = [0; 32];
++    let mut second = first;
++    second[31] = 1;
++    let a = Fingerprint::body(&first);
++    let b = Fingerprint::body(&second);
++    assert_ne!(a, b);
++    assert_ne!(a.to_string(), b.to_string());
++    assert_eq!(a.abbreviated(), "body:0000000000000000…");
++    assert_eq!(a.abbreviated(), b.abbreviated());
++    assert!(a.abbreviated().parse::<Fingerprint>().is_err());
++    assert!("body:0000000000000000".parse::<Fingerprint>().is_err());
++    assert_eq!(a.to_string().parse::<Fingerprint>().expect("canonical"), a);
++    assert_eq!(
++        Fingerprint::Table(TableKind::HexLower).abbreviated(),
++        "table:hex-lower"
++    );
++}
++
++#[test]
++fn fingerprint_refusals_escape_untrusted_controls_beside_valid_names() {
++    for text in ["\u{1b}", "\u{1b}:x", "table:\u{1b}", "rule:\u{1b}"] {
++        let message = text
++            .parse::<Fingerprint>()
++            .expect_err("control refused")
++            .to_string();
++        assert!(!message.contains('\u{1b}'));
++        assert!(message.contains("\\u{1b}"), "{message}");
++    }
++    let bad_hex = format!("body:{}\u{1b}", "0".repeat(63));
++    let message = bad_hex
++        .parse::<Fingerprint>()
++        .expect_err("hex control refused")
++        .to_string();
++    assert!(!message.contains('\u{1b}'));
++    assert!(message.contains("\\u{1b}"));
++    assert!(
++        format!("body:{}", "0".repeat(64))
++            .parse::<Fingerprint>()
++            .is_ok()
++    );
++    assert!("table:hex-lower".parse::<Fingerprint>().is_ok());
++    assert!("rule:valid-name".parse::<Fingerprint>().is_ok());
++}
++
++#[test]
++fn literal_value_introspection_selects_the_production_default() {
++    for fixture in registry().fixtures {
++        let tower = tower(&fixture);
++        let (retained, abstracted) = tower.literal_values();
++        assert_eq!(retained.len(), tower.value_tokens(), "{}", fixture.id);
++        assert_eq!(abstracted.len(), tower.value_tokens(), "{}", fixture.id);
++        let selected = if tower.value_tokens() < raf_census::LITERAL_TIER {
++            retained
++        } else {
++            abstracted
++        };
++        assert_eq!(
++            selected.texts(),
++            tower.form(Level::Value).texts(),
++            "{}",
++            fixture.id
++        );
++    }
++}
++
+ /// The check a refusal must satisfy.
+ type Refusal = fn(&ParseFingerprintError) -> bool;
+ 
+@@ -453,18 +529,22 @@ fn a_fingerprint_refuses_every_malformed_spelling() {
+         ("body:0123456789abcde", |e| {
+             matches!(e, ParseFingerprintError::Width(15))
+         }),
+-        ("body:0123456789abcdef0", |e| {
+-            matches!(e, ParseFingerprintError::Width(17))
+-        }),
+-        ("body:0123456789ABCDEF", |e| {
+-            matches!(e, ParseFingerprintError::Hex(_))
+-        }),
+-        ("shim:0123456789abcdeg", |e| {
+-            matches!(e, ParseFingerprintError::Hex(_))
+-        }),
+-        ("body:+123456789abcdef", |e| {
+-            matches!(e, ParseFingerprintError::Hex(_))
+-        }),
++        (
++            "body:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0",
++            |e| matches!(e, ParseFingerprintError::Width(65)),
++        ),
++        (
++            "body:0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF",
++            |e| matches!(e, ParseFingerprintError::Hex(_)),
++        ),
++        (
++            "shim:0123456789abcdeg0123456789abcdeg0123456789abcdeg0123456789abcdeg",
++            |e| matches!(e, ParseFingerprintError::Hex(_)),
++        ),
++        (
++            "body:+123456789abcdef+123456789abcdef+123456789abcdef+123456789abcdef",
++            |e| matches!(e, ParseFingerprintError::Hex(_)),
++        ),
+         ("table:hex-mixed", |e| {
+             matches!(e, ParseFingerprintError::Table(_))
+         }),
+@@ -486,9 +566,9 @@ fn fingerprints_sort_by_kind_then_value() {
+     let mut all: Vec<Fingerprint> = [
+         "rule:a",
+         "table:hex-upper",
+-        "shim:0000000000000002",
+-        "body:0000000000000009",
+-        "body:0000000000000001",
++        "shim:0000000000000002000000000000000200000000000000020000000000000002",
++        "body:0000000000000009000000000000000900000000000000090000000000000009",
++        "body:0000000000000001000000000000000100000000000000010000000000000001",
+     ]
+     .iter()
+     .map(|text| text.parse().expect("parses"))
+@@ -498,9 +578,9 @@ fn fingerprints_sort_by_kind_then_value() {
+     assert_eq!(
+         shown,
+         [
+-            "body:0000000000000001",
+-            "body:0000000000000009",
+-            "shim:0000000000000002",
++            "body:0000000000000001000000000000000100000000000000010000000000000001",
++            "body:0000000000000009000000000000000900000000000000090000000000000009",
++            "shim:0000000000000002000000000000000200000000000000020000000000000002",
+             "table:hex-upper",
+             "rule:a"
+         ]
+diff --git crates/raf-census/tests/golden.rs crates/raf-census/tests/golden.rs
+index 2ae7b15..3578c86 100644
+--- crates/raf-census/tests/golden.rs
++++ crates/raf-census/tests/golden.rs
+@@ -23,7 +23,7 @@ use support::fixtures::{registry, table};
+ 
+ /// The manifest of normal form 1: encoding, passes, levels, thresholds, lists.
+ const MANIFEST: &str = "\
+-encoding tokens-len-u32le-utf8/blake3/first8-be-hex16\n\
++encoding tokens-len-u32le-utf8/blake3/hex64\n\
+ passes rename_params rename_locals kind_literals erase_held\n\
+ levels verbatim shim literal-tier structural value\n\
+ literal_tier 30\n\
+@@ -31,270 +31,271 @@ min_shim_tokens 6\n\
+ shim_max_tokens 30\n\
+ max_nesting 128\n\
+ value_adapters as_str as_ref as_slice as_mut as_deref borrow borrow_mut clone cloned copied to_owned\n\
+-weak_keywords gen union raw safe macro_rules\n";
++weak_keywords gen union raw safe macro_rules\n\
++";
+ 
+ /// One line per registry fixture: `id tokens body shim`.
+ const TABLE: &str = "\
+-structural_renamed_locals.a 21 body:7eba4ed550accd1d -\n\
+-structural_renamed_locals.b 21 body:7eba4ed550accd1d -\n\
+-structural_renamed_params.a 21 body:7eba4ed550accd1d -\n\
+-structural_renamed_params.b 21 body:7eba4ed550accd1d -\n\
+-structural_renamed_lifetimes.a 23 body:6655792c092e7b92 -\n\
+-structural_renamed_lifetimes.b 23 body:6655792c092e7b92 -\n\
+-structural_different_function.a 21 body:7eba4ed550accd1d -\n\
+-structural_different_function.b 21 body:147db542e10d6fdb -\n\
+-structural_different_method.a 12 body:aef8faa355e76e88 -\n\
+-structural_different_method.b 12 body:119083d53ce8028e -\n\
+-structural_different_field.a 10 body:5af97b733352c985 -\n\
+-structural_different_field.b 10 body:9de1572698747005 -\n\
+-structural_different_type.a 15 body:7d1a4d959447ea28 -\n\
+-structural_different_type.b 15 body:1c6ca5063215def7 -\n\
+-structural_local_type_declared.a 13 body:decd3988380fa1a5 -\n\
+-structural_local_type_declared.b 13 body:decd3988380fa1a5 -\n\
+-structural_tuple_field_kept.a 7 body:e2a9d8c5dbcad44f -\n\
+-structural_tuple_field_kept.b 7 body:4f345172b382003e -\n\
+-binder_let.a 12 body:95ab577a2b33b1a9 -\n\
+-binder_let.b 12 body:95ab577a2b33b1a9 -\n\
+-binder_let_tuple.a 18 body:ce48def1369fd476 -\n\
+-binder_let_tuple.b 18 body:ce48def1369fd476 -\n\
+-binder_let_struct.a 20 body:24afc73f3ccd9ef4 -\n\
+-binder_let_struct.b 20 body:24afc73f3ccd9ef4 -\n\
+-binder_closure_param.a 11 body:8d22095fbc512e00 shim:f1f10228fc9a17a3\n\
+-binder_closure_param.b 11 body:8d22095fbc512e00 shim:3d04f0ef836626da\n\
+-binder_for.a 11 body:64e10090f7ac2a2e shim:7079b970a584887b\n\
+-binder_for.b 11 body:64e10090f7ac2a2e shim:9c2a4db9cff8701c\n\
+-binder_match_arm.a 19 body:c51942289b8a65e7 shim:49c20ccc3dd9ed2f\n\
+-binder_match_arm.b 19 body:c51942289b8a65e7 shim:1e231492e23d499b\n\
+-binder_if_let.a 18 body:38f212b00c4e9b92 -\n\
+-binder_if_let.b 18 body:38f212b00c4e9b92 -\n\
+-binder_while_let.a 19 body:46ebfa0602c11e7a -\n\
+-binder_while_let.b 19 body:46ebfa0602c11e7a -\n\
+-binder_at_binding_match_arm.a 22 body:47a8e2d90e7de853 shim:bf079faf7d3d7788\n\
+-binder_at_binding_match_arm.b 22 body:47a8e2d90e7de853 shim:3a22ace1b228da11\n\
+-binder_at_binding_if_let.a 24 body:b8469c5781b9287c -\n\
+-binder_at_binding_if_let.b 24 body:b8469c5781b9287c -\n\
+-binder_label.a 17 body:b17d7810ac4506ab shim:61ecd3c261e33ff1\n\
+-binder_label.b 17 body:b17d7810ac4506ab shim:6b9712b2ac291064\n\
+-binder_lifetime.a 25 body:3498957fe46e7bdb shim:35075f7d9dbca4ff\n\
+-binder_lifetime.b 25 body:3498957fe46e7bdb shim:646a83a3d347c20a\n\
+-binder_local_fn.a 19 body:b33834e695b27295 shim:798cd2a2d81dcaea\n\
+-binder_local_fn.b 19 body:b33834e695b27295 shim:ad3995d8d8c92cc3\n\
+-binder_local_struct.a 13 body:decd3988380fa1a5 -\n\
+-binder_local_struct.b 13 body:decd3988380fa1a5 -\n\
+-binder_call_position.a 14 body:67ab1937176da6b7 -\n\
+-binder_call_position.b 14 body:67ab1937176da6b7 -\n\
+-binder_shadows_an_item.a 12 body:e574c21f9d162ffa -\n\
+-binder_shadows_an_item.b 12 body:e574c21f9d162ffa -\n\
+-binder_macro_metavariable.a 18 body:19d5de816f22dba7 -\n\
+-binder_macro_metavariable.b 18 body:19d5de816f22dba7 -\n\
+-item_function_passed_by_name.a 14 body:2de5bf3e4a15f6aa shim:2de5bf3e4a15f6aa\n\
+-item_function_passed_by_name.b 14 body:022271b4904b12f9 shim:022271b4904b12f9\n\
+-item_predicate_passed_by_name.a 14 body:f8737da45c113adb shim:f8737da45c113adb\n\
+-item_predicate_passed_by_name.b 14 body:5fd82dee39077112 shim:5fd82dee39077112\n\
+-item_lowercase_static.a 3 body:554875b54e037814 -\n\
+-item_lowercase_static.b 3 body:8e8085da3443f90f -\n\
+-item_in_struct_shorthand_field.a 4 body:49dac68971098cc1 -\n\
+-item_in_struct_shorthand_field.b 4 body:6e01a576a56490a2 -\n\
+-item_field_name_kept_beside_a_local.a 11 body:bfbf8fbc1ba0c2c0 -\n\
+-item_field_name_kept_beside_a_local.b 11 body:e6b771da520a1ebe -\n\
+-head_block_if.a 26 body:b48bd54506cdefb3 -\n\
+-head_block_if.b 26 body:b48bd54506cdefb3 -\n\
+-head_block_else_if.a 28 body:8f6dadb834bce346 -\n\
+-head_block_else_if.b 28 body:8f6dadb834bce346 -\n\
+-head_block_while.a 14 body:29c41d6ed732840f -\n\
+-head_block_while.b 14 body:29c41d6ed732840f -\n\
+-head_block_match.a 20 body:64524777c9baf3fd -\n\
+-head_block_match.b 20 body:64524777c9baf3fd -\n\
+-head_block_for.a 23 body:d1a6109ed96cf234 -\n\
+-head_block_for.b 23 body:d1a6109ed96cf234 -\n\
+-threshold_literal_tier_straddle.a 21 body:37da5aac3e618d93 -\n\
+-threshold_literal_tier_straddle.b 21 body:37da5aac3e618d93 -\n\
+-threshold_min_tokens_straddle.a 15 body:7ed517820c72f5a5 shim:7ed517820c72f5a5\n\
+-threshold_min_tokens_straddle.b 15 body:7ed517820c72f5a5 shim:aa42edc601af1b15\n\
+-value_borrow.a 4 body:0f767795a70a02bb -\n\
+-value_borrow.b 4 body:0f767795a70a02bb -\n\
+-value_borrow_mut.a 4 body:0f767795a70a02bb -\n\
+-value_borrow_mut.b 4 body:0f767795a70a02bb -\n\
+-value_double_borrow.a 4 body:0f767795a70a02bb -\n\
+-value_double_borrow.b 4 body:0f767795a70a02bb -\n\
+-value_deref.a 4 body:0f767795a70a02bb -\n\
+-value_deref.b 4 body:0f767795a70a02bb -\n\
+-value_ref_binding.a 19 body:c51942289b8a65e7 shim:291cf14185c65d60\n\
+-value_ref_binding.b 19 body:c51942289b8a65e7 shim:47be6280f16d0bb8\n\
+-value_ref_mut_binding.a 19 body:c51942289b8a65e7 shim:f01dfa44a5b9ec50\n\
+-value_ref_mut_binding.b 19 body:c51942289b8a65e7 shim:47be6280f16d0bb8\n\
+-value_adapter_as_str.a 4 body:0f767795a70a02bb -\n\
+-value_adapter_as_str.b 4 body:0f767795a70a02bb -\n\
+-value_adapter_as_ref.a 4 body:0f767795a70a02bb -\n\
+-value_adapter_as_ref.b 4 body:0f767795a70a02bb -\n\
+-value_adapter_as_slice.a 4 body:0f767795a70a02bb -\n\
+-value_adapter_as_slice.b 4 body:0f767795a70a02bb -\n\
+-value_adapter_as_mut.a 4 body:0f767795a70a02bb -\n\
+-value_adapter_as_mut.b 4 body:0f767795a70a02bb -\n\
+-value_adapter_as_deref.a 4 body:0f767795a70a02bb -\n\
+-value_adapter_as_deref.b 4 body:0f767795a70a02bb -\n\
+-value_adapter_borrow.a 4 body:0f767795a70a02bb -\n\
+-value_adapter_borrow.b 4 body:0f767795a70a02bb -\n\
+-value_adapter_borrow_mut.a 4 body:0f767795a70a02bb -\n\
+-value_adapter_borrow_mut.b 4 body:0f767795a70a02bb -\n\
+-value_adapter_clone.a 4 body:0f767795a70a02bb -\n\
+-value_adapter_clone.b 4 body:0f767795a70a02bb -\n\
+-value_adapter_cloned.a 4 body:0f767795a70a02bb -\n\
+-value_adapter_cloned.b 4 body:0f767795a70a02bb -\n\
+-value_adapter_copied.a 4 body:0f767795a70a02bb -\n\
+-value_adapter_copied.b 4 body:0f767795a70a02bb -\n\
+-value_adapter_to_owned.a 4 body:0f767795a70a02bb -\n\
+-value_adapter_to_owned.b 4 body:0f767795a70a02bb -\n\
+-value_adapter_with_argument_kept.a 9 body:2347a33ac3e35344 shim:2347a33ac3e35344\n\
+-value_adapter_with_argument_kept.b 4 body:0f767795a70a02bb -\n\
+-value_full_range.a 4 body:0f767795a70a02bb -\n\
+-value_full_range.b 4 body:0f767795a70a02bb -\n\
+-value_partial_range_kept.a 9 body:94e9d03d52d1a4b5 shim:d063387bf9110515\n\
+-value_partial_range_kept.b 4 body:0f767795a70a02bb -\n\
+-value_range_to_kept.a 9 body:a6765939ad39f54a shim:93141a8e3e9bb77a\n\
+-value_range_to_kept.b 4 body:0f767795a70a02bb -\n\
+-value_let_annotation.a 9 body:5b76112b24b9e8c3 -\n\
+-value_let_annotation.b 9 body:5b76112b24b9e8c3 -\n\
+-value_let_annotation_generic.a 9 body:5b76112b24b9e8c3 -\n\
+-value_let_annotation_generic.b 9 body:5b76112b24b9e8c3 -\n\
+-value_erased_names_do_not_shift_numbers.a 17 body:3ba2ecaed0b39ba6 -\n\
+-value_erased_names_do_not_shift_numbers.b 17 body:3ba2ecaed0b39ba6 -\n\
+-value_type_turbofish.a 5 body:7fb66880a8b3a845 -\n\
+-value_type_turbofish.b 5 body:7fb66880a8b3a845 -\n\
+-value_const_turbofish_kept.a 9 body:45026bbba235f1d2 shim:45026bbba235f1d2\n\
+-value_const_turbofish_kept.b 4 body:534ed5ba5aac4f5c -\n\
+-value_bool_turbofish_kept.a 9 body:87ee53773ccf49ef shim:87ee53773ccf49ef\n\
+-value_bool_turbofish_kept.b 9 body:020a9a61097d4835 shim:020a9a61097d4835\n\
+-value_index_reference.a 4 body:b195ad401e59e444 -\n\
+-value_index_reference.b 4 body:b195ad401e59e444 -\n\
+-value_binary_and_kept.a 6 body:4ff5873ae1028c47 shim:4ff5873ae1028c47\n\
+-value_binary_and_kept.b 5 body:ae705e38df2ce7e6 -\n\
+-value_binary_mul_kept.a 6 body:cf6fcb46129a87b3 shim:cf6fcb46129a87b3\n\
+-value_binary_mul_kept.b 5 body:ae705e38df2ce7e6 -\n\
+-value_logical_and_kept.a 7 body:17a8159319a7b254 shim:17a8159319a7b254\n\
+-value_logical_and_kept.b 5 body:ae705e38df2ce7e6 -\n\
+-value_compound_assign_kept.a 10 body:a972fadf6c45665f -\n\
+-value_compound_assign_kept.b 6 body:5e73238be60a98f7 -\n\
+-value_binary_after_call_kept.a 6 body:14555388857cf65f shim:14555388857cf65f\n\
+-value_binary_after_call_kept.b 5 body:dbd2b465e2f37a46 -\n\
+-tier_25.a 25 body:bae17ce423758aed -\n\
+-tier_25.b 25 body:291a4f75ee3b7d6e -\n\
+-tier_29.a 29 body:5363862fa58ae661 -\n\
+-tier_29.b 29 body:147e186d4c12f6b2 -\n\
+-tier_30.a 30 body:0fe4f26092b867f9 -\n\
+-tier_30.b 30 body:0fe4f26092b867f9 -\n\
+-tier_35.a 35 body:742087969dfcf3f6 -\n\
+-tier_35.b 35 body:742087969dfcf3f6 -\n\
+-tier_30_kinds_differ.a 30 body:0fe4f26092b867f9 -\n\
+-tier_30_kinds_differ.b 30 body:7ab910272c018957 -\n\
+-tier_30_float_is_not_int.a 30 body:a9c176eabd1d7aa9 -\n\
+-tier_30_float_is_not_int.b 30 body:7ab910272c018957 -\n\
+-tier_30_big_int_is_int.a 30 body:7ab910272c018957 -\n\
+-tier_30_big_int_is_int.b 30 body:7ab910272c018957 -\n\
+-tier_29_big_int_kept.a 29 body:2bdd17114b5c6230 -\n\
+-tier_29_big_int_kept.b 29 body:2f5cd06a65147fcd -\n\
+-tier_30_suffix_is_part_of_the_kind.a 30 body:7ab910272c018957 -\n\
+-tier_30_suffix_is_part_of_the_kind.b 30 body:7ab910272c018957 -\n\
+-tier_30_tuple_index_kept.a 30 body:719a04df3958129a -\n\
+-tier_30_tuple_index_kept.b 30 body:573b08b98205895a -\n\
+-tier_30_range_end_is_a_literal.a 30 body:1e4c474c7db0f5a5 -\n\
+-tier_30_range_end_is_a_literal.b 30 body:1e4c474c7db0f5a5 -\n\
+-literal_hex_and_decimal.a 4 body:260e2d80b4f84d52 -\n\
+-literal_hex_and_decimal.b 4 body:260e2d80b4f84d52 -\n\
+-literal_separators.a 4 body:8b9ed6eb71e56078 -\n\
+-literal_separators.b 4 body:8b9ed6eb71e56078 -\n\
+-literal_octal_binary.a 6 body:a5a021dc7409bb02 shim:a5a021dc7409bb02\n\
+-literal_octal_binary.b 6 body:a5a021dc7409bb02 shim:a5a021dc7409bb02\n\
+-literal_suffix_kept.a 4 body:d1d35c896bca55db -\n\
+-literal_suffix_kept.b 4 body:d1d35c896bca55db -\n\
+-literal_different_value.a 4 body:260e2d80b4f84d52 -\n\
+-literal_different_value.b 4 body:8b99bdb0caa7c4be -\n\
+-literal_suffix_differs.a 4 body:d1d35c896bca55db -\n\
+-literal_suffix_differs.b 4 body:093bbeb77c74b484 -\n\
+-literal_float_is_not_int.a 4 body:c8af592a4ac2eb3f -\n\
+-literal_float_is_not_int.b 4 body:9de2285b669c60b2 -\n\
+-literal_string_spelling_differs.a 4 body:31cb562ee0c5f4b3 -\n\
+-literal_string_spelling_differs.b 4 body:cfd65c1c5bc135c1 -\n\
+-shim_5 5 body:072159ca8d2de444 -\n\
+-shim_6 6 body:900b617d60d4ddb6 shim:900b617d60d4ddb6\n\
+-shim_29 29 body:0b3f0d99a9e75aa1 shim:0b3f0d99a9e75aa1\n\
+-shim_30 30 body:552388bd5c9348b8 -\n\
+-shim_renamed_params.a 6 body:0bc8930ce972b811 shim:0bc8930ce972b811\n\
+-shim_renamed_params.b 6 body:0bc8930ce972b811 shim:0bc8930ce972b811\n\
+-shim_only_own_params_renamed.a 6 body:2acd60af59007ce5 shim:2acd60af59007ce5\n\
+-shim_only_own_params_renamed.b 6 body:da2914a4c6b3f8e3 shim:da2914a4c6b3f8e3\n\
+-shim_different_callee.a 6 body:0bc8930ce972b811 shim:0bc8930ce972b811\n\
+-shim_different_callee.b 6 body:7af8d8648cdb2db5 shim:7af8d8648cdb2db5\n\
+-shim_different_fixed_argument.a 6 body:0bc8930ce972b811 shim:0bc8930ce972b811\n\
+-shim_different_fixed_argument.b 6 body:69e11e4c9c80a35e shim:69e11e4c9c80a35e\n\
+-shim_parameter_order.a 8 body:de92a8b3421d9329 shim:de92a8b3421d9329\n\
+-shim_parameter_order.b 8 body:de92a8b3421d9329 shim:9adc3c2762f42733\n\
+-shim_let_body 13 body:f343854017fb0ae1 -\n\
+-shim_two_statements 13 body:4a7648548b773432 -\n\
+-shim_trailing_semicolon 9 body:32a80c15e231526c shim:32a80c15e231526c\n\
+-shim_mentions_self 10 body:21c93a1e0ab84e9e -\n\
+-shim_turbofish_forwarder.a 6 body:0bc8930ce972b811 shim:0678d206215e13d2\n\
+-shim_turbofish_forwarder.b 6 body:0bc8930ce972b811 shim:0678d206215e13d2\n\
+-shim_closure_body_with_let.a 16 body:0a90b60003db2dc6 shim:0bf63e12ac9e8960\n\
+-shim_closure_body_with_let.b 16 body:0a90b60003db2dc6 shim:0bf63e12ac9e8960\n\
+-doc_comment_renamed_local.a 16 body:766fd2419fec7933 -\n\
+-doc_comment_renamed_local.b 16 body:766fd2419fec7933 -\n\
+-doc_comment_text_differs.a 16 body:766fd2419fec7933 -\n\
+-doc_comment_text_differs.b 16 body:ee9292675376f425 -\n\
+-shim_method_turbofish 8 body:fddf4bcd3df9ca1e shim:9e32ffb9dd6ec680\n\
+-shim_turbofish_type_differs.a 6 body:0bc8930ce972b811 shim:0678d206215e13d2\n\
+-shim_turbofish_type_differs.b 6 body:0bc8930ce972b811 shim:9ccd131097a9b704\n\
+-shim_turbofish_without_call 10 body:75c451cb055aa503 -\n\
+-shim_without_call 9 body:cd8e7181776f4160 -\n\
+-shim_macro_call 9 body:d6a18ab1d813e0a5 shim:d6a18ab1d813e0a5\n\
+-macro_arguments.a 9 body:2077d1fcd504fa72 shim:f05e44a0be6bd1a3\n\
+-macro_arguments.b 9 body:2077d1fcd504fa72 shim:a468d3a9dbc58e56\n\
+-macro_inline_capture.a 5 body:4add99615ee9bb66 -\n\
+-macro_inline_capture.b 5 body:4add99615ee9bb66 -\n\
+-macro_inline_capture_local.a 13 body:50b5364bdaf2e541 -\n\
+-macro_inline_capture_local.b 13 body:50b5364bdaf2e541 -\n\
+-macro_unknown_name_kept.a 7 body:2b20a1eef898aae0 shim:2b20a1eef898aae0\n\
+-macro_unknown_name_kept.b 7 body:cc7b50db97a93c13 shim:cc7b50db97a93c13\n\
+-macro_positional_kept.a 7 body:5f39f17eae70196b shim:5f39f17eae70196b\n\
+-macro_positional_kept.b 7 body:bbde246f89d6ae90 shim:bbde246f89d6ae90\n\
+-macro_escaped_brace_kept.a 9 body:5d0c64128f4c5f2c shim:5d0c64128f4c5f2c\n\
+-macro_escaped_brace_kept.b 9 body:e2b9a82f27480b9b shim:e2b9a82f27480b9b\n\
+-macro_unicode_escape_is_not_a_placeholder.a 5 body:149fb6d70b94c8d5 -\n\
+-macro_unicode_escape_is_not_a_placeholder.b 5 body:149fb6d70b94c8d5 -\n\
+-macro_arguments_above_tier.a 50 body:7f12262ec5c73d6d -\n\
+-macro_arguments_above_tier.b 50 body:7f12262ec5c73d6d -\n\
+-macro_inline_capture_above_tier.a 46 body:e09a3dbbb1020730 -\n\
+-macro_inline_capture_above_tier.b 46 body:e09a3dbbb1020730 -\n\
+-numbering_unused_trailing_parameter.a 6 body:9aad3e89f6d6af9b -\n\
+-numbering_unused_trailing_parameter.b 6 body:9aad3e89f6d6af9b -\n\
+-numbering_used_trailing_parameter.a 6 body:9aad3e89f6d6af9b -\n\
+-numbering_used_trailing_parameter.b 6 body:9aad3e89f6d6af9b -\n\
+-numbering_parameter_order.a 8 body:31a5488b1691eb8c -\n\
+-numbering_parameter_order.b 8 body:31a5488b1691eb8c -\n\
+-numbering_placeholder_parameter.a 10 body:37ed09ed5fd20c2a -\n\
+-numbering_placeholder_parameter.b 10 body:2027574a377e6303 -\n\
+-numbering_placeholder_parameter_above_tier.a 51 body:edb8aec3a585bf74 -\n\
+-numbering_placeholder_parameter_above_tier.b 51 body:edb8aec3a585bf74 -\n\
+-numbering_placeholder_first_appearance.a 10 body:cd08fc57ab4da176 -\n\
+-numbering_placeholder_first_appearance.b 10 body:cd08fc57ab4da176 -\n\
+-numbering_placeholder_versus_argument.a 10 body:37ed09ed5fd20c2a -\n\
+-numbering_placeholder_versus_argument.b 12 body:f75be63fa5375e95 -\n\
+-lexical_gen_kept.a 9 body:0d185a5e08a04275 -\n\
+-lexical_gen_kept.b 9 body:5b76112b24b9e8c3 -\n\
+-lexical_union_kept.a 9 body:21953eda92b74112 -\n\
+-lexical_union_kept.b 9 body:5b76112b24b9e8c3 -\n\
+-lexical_raw_kept.a 9 body:1c8f2dac62d70929 -\n\
+-lexical_raw_kept.b 9 body:5b76112b24b9e8c3 -\n\
+-lexical_safe_kept.a 9 body:4bcd02328941de90 -\n\
+-lexical_safe_kept.b 9 body:5b76112b24b9e8c3 -\n\
+-lexical_macro_rules_kept.a 9 body:1ab877ecb3fa6f35 -\n\
+-lexical_macro_rules_kept.b 9 body:5b76112b24b9e8c3 -\n\
+-lexical_macro_rules_definition.a 18 body:19d5de816f22dba7 -\n\
+-lexical_macro_rules_definition.b 18 body:19d5de816f22dba7 -\n\
+-lexical_wildcard_kept.a 8 body:c53227ea2077fa9c -\n\
+-lexical_wildcard_kept.b 8 body:b90ccc00dcd1aa81 -\n\
+-lexical_nesting_128.a 257 body:577e8c5e2bdea440 -\n\
+-lexical_nesting_128.b 257 body:577e8c5e2bdea440 -\n\
++structural_renamed_locals.a 21 body:7eba4ed550accd1d4ed45f2dc46a44626b59f27d0b032e0d3ca9466fb92dea36 -\n\
++structural_renamed_locals.b 21 body:7eba4ed550accd1d4ed45f2dc46a44626b59f27d0b032e0d3ca9466fb92dea36 -\n\
++structural_renamed_params.a 21 body:7eba4ed550accd1d4ed45f2dc46a44626b59f27d0b032e0d3ca9466fb92dea36 -\n\
++structural_renamed_params.b 21 body:7eba4ed550accd1d4ed45f2dc46a44626b59f27d0b032e0d3ca9466fb92dea36 -\n\
++structural_renamed_lifetimes.a 23 body:6655792c092e7b92c44992ad9bfa9c9ea3d9eacb662cc5b6267acd45c7d31d7e -\n\
++structural_renamed_lifetimes.b 23 body:6655792c092e7b92c44992ad9bfa9c9ea3d9eacb662cc5b6267acd45c7d31d7e -\n\
++structural_different_function.a 21 body:7eba4ed550accd1d4ed45f2dc46a44626b59f27d0b032e0d3ca9466fb92dea36 -\n\
++structural_different_function.b 21 body:147db542e10d6fdb69c0f73e333a05d628d2d9de6e7f85646449d6c49135dc59 -\n\
++structural_different_method.a 12 body:aef8faa355e76e88c0dee747673cc15603e26ac3c8a75754ee9ebf97ae188ab1 -\n\
++structural_different_method.b 12 body:119083d53ce8028e534d4054dabd01b2d97f80fed1aae2bcb26ff036846862a3 -\n\
++structural_different_field.a 10 body:5af97b733352c98580b5a847ba44ff65eb0cabe623aad67ec2d8fe939a35cf77 -\n\
++structural_different_field.b 10 body:9de15726987470056305d6e73f6fec3432dded12f97412bab190f34cfba61656 -\n\
++structural_different_type.a 15 body:7d1a4d959447ea281d91dae90ea69c008d14cf3aa0b751f2ff8642cb1ca44082 -\n\
++structural_different_type.b 15 body:1c6ca5063215def73fd1d1e529abc6e201dc275b572e3f4018ca8ae253640465 -\n\
++structural_local_type_declared.a 13 body:decd3988380fa1a558a7d41ebad7422d4978e63f686699f8ec6ca0f3d2e31fe0 -\n\
++structural_local_type_declared.b 13 body:decd3988380fa1a558a7d41ebad7422d4978e63f686699f8ec6ca0f3d2e31fe0 -\n\
++structural_tuple_field_kept.a 7 body:e2a9d8c5dbcad44fb20bcaa179bf9e2dd427c179478ef33b797c1c05f58ee609 -\n\
++structural_tuple_field_kept.b 7 body:4f345172b382003e665c8370b59ae57177472ce378485ef1c26140fbfef48a3e -\n\
++binder_let.a 12 body:95ab577a2b33b1a9ab326429788d45452204f89b9bf12da5811dac25797b617a -\n\
++binder_let.b 12 body:95ab577a2b33b1a9ab326429788d45452204f89b9bf12da5811dac25797b617a -\n\
++binder_let_tuple.a 18 body:ce48def1369fd476d5c0145b94df238b1f6ef856ed2ff76b9e1f84cca1d40256 -\n\
++binder_let_tuple.b 18 body:ce48def1369fd476d5c0145b94df238b1f6ef856ed2ff76b9e1f84cca1d40256 -\n\
++binder_let_struct.a 20 body:24afc73f3ccd9ef49863c848165cd8be3aa2aa0ded211eaa079b85e887ee6d12 -\n\
++binder_let_struct.b 20 body:24afc73f3ccd9ef49863c848165cd8be3aa2aa0ded211eaa079b85e887ee6d12 -\n\
++binder_closure_param.a 11 body:8d22095fbc512e009fbe15844abb56281d2bfd46fc33d477f7fee7c01f1794bc shim:f1f10228fc9a17a3272563a76cc997c0afa167ddea39cb2fdb5e1836ab4e58e3\n\
++binder_closure_param.b 11 body:8d22095fbc512e009fbe15844abb56281d2bfd46fc33d477f7fee7c01f1794bc shim:3d04f0ef836626da79dbe628e280458c31c2a36a630b1e491d1f70e792fffc20\n\
++binder_for.a 11 body:64e10090f7ac2a2e5b46360fd3bf748d3b913c626dc85e669f28fccfb3715c7a shim:7079b970a584887b1ca96db21bd58d677f3dbbd115024a27dea2d04e86e02258\n\
++binder_for.b 11 body:64e10090f7ac2a2e5b46360fd3bf748d3b913c626dc85e669f28fccfb3715c7a shim:9c2a4db9cff8701c64a9156a5063e75b6313c5fad828953501dcb45241d765ef\n\
++binder_match_arm.a 19 body:c51942289b8a65e781209b09a473c679e9f5df44e25d63ab0748be177dea5c3e shim:49c20ccc3dd9ed2f02945200fe918e61be39fbc656b419a7fc20cecc313d222f\n\
++binder_match_arm.b 19 body:c51942289b8a65e781209b09a473c679e9f5df44e25d63ab0748be177dea5c3e shim:1e231492e23d499b431c991f8dd34f2924c0e33b40248328248b9724ebee6778\n\
++binder_if_let.a 18 body:38f212b00c4e9b928d55df8f99e1ae41f8c64453c8c2d69cc68dfeae48d5fd35 -\n\
++binder_if_let.b 18 body:38f212b00c4e9b928d55df8f99e1ae41f8c64453c8c2d69cc68dfeae48d5fd35 -\n\
++binder_while_let.a 19 body:46ebfa0602c11e7ace0884734af90c0adb7d9a6f0dd8c11cb7daaca30dd30711 -\n\
++binder_while_let.b 19 body:46ebfa0602c11e7ace0884734af90c0adb7d9a6f0dd8c11cb7daaca30dd30711 -\n\
++binder_at_binding_match_arm.a 22 body:47a8e2d90e7de853773b15325640bd02faae2d7e16d0bffc642694e19fb824e6 shim:bf079faf7d3d7788515672d7250e23d60bbb749f63e2a6c1bdb6813787bd161c\n\
++binder_at_binding_match_arm.b 22 body:47a8e2d90e7de853773b15325640bd02faae2d7e16d0bffc642694e19fb824e6 shim:3a22ace1b228da118c53d35b88a40c6f1f866c010b162bb575b5170d7242523f\n\
++binder_at_binding_if_let.a 24 body:b8469c5781b9287c6afc004f19b2d5f3295704fd9d1aefb93389d48bcbeaf470 -\n\
++binder_at_binding_if_let.b 24 body:b8469c5781b9287c6afc004f19b2d5f3295704fd9d1aefb93389d48bcbeaf470 -\n\
++binder_label.a 17 body:b17d7810ac4506ab898e6db6564d3e4660fd9e0d3d2f74faab931d3f6fc1efe6 shim:61ecd3c261e33ff15fa4d1b01ad5f623ee23c89668ab60f65d8ed05d84918581\n\
++binder_label.b 17 body:b17d7810ac4506ab898e6db6564d3e4660fd9e0d3d2f74faab931d3f6fc1efe6 shim:6b9712b2ac29106456d16185d888be65dad09f6d7774c5a2c7040fe5b0233a90\n\
++binder_lifetime.a 25 body:3498957fe46e7bdb2c560ff558ebda450b93c51ccb2d13bd6903db806d6a433c shim:35075f7d9dbca4ffc40b9aa5beff7d5d6b49936c78cf398c0dcb15703fc5ec17\n\
++binder_lifetime.b 25 body:3498957fe46e7bdb2c560ff558ebda450b93c51ccb2d13bd6903db806d6a433c shim:646a83a3d347c20aa7fcb41814dd318b33df834b66686e715889271e93252db8\n\
++binder_local_fn.a 19 body:b33834e695b2729538b5b82a7436553e604d2ba4c1191f052db5b271e404b6ad shim:798cd2a2d81dcaea029528d87ec606e0056a45ce2243a085c0f7320708b23c76\n\
++binder_local_fn.b 19 body:b33834e695b2729538b5b82a7436553e604d2ba4c1191f052db5b271e404b6ad shim:ad3995d8d8c92cc340e965042a258c4913257055f20cdd90d0ae29875a483c73\n\
++binder_local_struct.a 13 body:decd3988380fa1a558a7d41ebad7422d4978e63f686699f8ec6ca0f3d2e31fe0 -\n\
++binder_local_struct.b 13 body:decd3988380fa1a558a7d41ebad7422d4978e63f686699f8ec6ca0f3d2e31fe0 -\n\
++binder_call_position.a 14 body:67ab1937176da6b7e6a60ca1c8b6fbb49f3417c4a0e83d1083f7cdaa0ef7c3cf -\n\
++binder_call_position.b 14 body:67ab1937176da6b7e6a60ca1c8b6fbb49f3417c4a0e83d1083f7cdaa0ef7c3cf -\n\
++binder_shadows_an_item.a 12 body:e574c21f9d162ffa1f9081f62cebee05a6a88fc7ef174b29ef477c01914ac0ae -\n\
++binder_shadows_an_item.b 12 body:e574c21f9d162ffa1f9081f62cebee05a6a88fc7ef174b29ef477c01914ac0ae -\n\
++binder_macro_metavariable.a 18 body:19d5de816f22dba7b2b582370256074ed2bb2457d9ed583486ec5c3f83f962fc -\n\
++binder_macro_metavariable.b 18 body:19d5de816f22dba7b2b582370256074ed2bb2457d9ed583486ec5c3f83f962fc -\n\
++item_function_passed_by_name.a 14 body:2de5bf3e4a15f6aa928c5e79973fda6cab529f00cb58a74328f2792cf6573305 shim:2de5bf3e4a15f6aa928c5e79973fda6cab529f00cb58a74328f2792cf6573305\n\
++item_function_passed_by_name.b 14 body:022271b4904b12f99210899252bcbb31ffe189480e1a5e9a5fbb3ec27b3a76f1 shim:022271b4904b12f99210899252bcbb31ffe189480e1a5e9a5fbb3ec27b3a76f1\n\
++item_predicate_passed_by_name.a 14 body:f8737da45c113adbaf7d56e799e9bb003655b78302ae1d5156874139531fae57 shim:f8737da45c113adbaf7d56e799e9bb003655b78302ae1d5156874139531fae57\n\
++item_predicate_passed_by_name.b 14 body:5fd82dee390771121ba2e48edde373545af10b7a52ad9b6e2e9360fd2c5fc512 shim:5fd82dee390771121ba2e48edde373545af10b7a52ad9b6e2e9360fd2c5fc512\n\
++item_lowercase_static.a 3 body:554875b54e03781463d28f2e4b0f440f9e7026cd520d3f2f079c45bd840e857a -\n\
++item_lowercase_static.b 3 body:8e8085da3443f90fcd39bce9a500e5bf2b5765dd60e057508c8ff9b8c25a85a0 -\n\
++item_in_struct_shorthand_field.a 4 body:49dac68971098cc17f0bd2a80ec8e818e16873ad18884e7343aaa95d745bb0ba -\n\
++item_in_struct_shorthand_field.b 4 body:6e01a576a56490a2c0aa4281f607eb15caffa4b418b268fbebfa8c6a69bb3237 -\n\
++item_field_name_kept_beside_a_local.a 11 body:bfbf8fbc1ba0c2c0ddf8d7fa4b67b6e0b35feb54b243d7ccf9d31bc414fa64e2 -\n\
++item_field_name_kept_beside_a_local.b 11 body:e6b771da520a1ebe759fdb5246a1d70f732dd6d8c53daf0876467792e19cce8a -\n\
++head_block_if.a 26 body:b48bd54506cdefb3d55912590625c4c426e2309c442e3384335cd50f00f3623d -\n\
++head_block_if.b 26 body:b48bd54506cdefb3d55912590625c4c426e2309c442e3384335cd50f00f3623d -\n\
++head_block_else_if.a 28 body:8f6dadb834bce346109d54d73ea982a375d38d32a3b5777d765c38fc652a4ee0 -\n\
++head_block_else_if.b 28 body:8f6dadb834bce346109d54d73ea982a375d38d32a3b5777d765c38fc652a4ee0 -\n\
++head_block_while.a 14 body:29c41d6ed732840fa2eeeae150edf35aa3fdd245b260b273468aa1a6dc527eeb -\n\
++head_block_while.b 14 body:29c41d6ed732840fa2eeeae150edf35aa3fdd245b260b273468aa1a6dc527eeb -\n\
++head_block_match.a 20 body:64524777c9baf3fda9011d4c35e0f4bb181b202ad8a1ec9a06bcb3d6315ed670 -\n\
++head_block_match.b 20 body:64524777c9baf3fda9011d4c35e0f4bb181b202ad8a1ec9a06bcb3d6315ed670 -\n\
++head_block_for.a 23 body:d1a6109ed96cf2349162d7628f81c2d1ab2f2d7646f625bbcbdfaf7997b3ad68 -\n\
++head_block_for.b 23 body:d1a6109ed96cf2349162d7628f81c2d1ab2f2d7646f625bbcbdfaf7997b3ad68 -\n\
++threshold_literal_tier_straddle.a 21 body:37da5aac3e618d930835fe916157aa45eabfde986654a5faf9fec53f2cbe8a47 -\n\
++threshold_literal_tier_straddle.b 21 body:37da5aac3e618d930835fe916157aa45eabfde986654a5faf9fec53f2cbe8a47 -\n\
++threshold_min_tokens_straddle.a 15 body:7ed517820c72f5a530067710e1a9397754f3922796d182d71cbd6e1f5f5942d7 shim:7ed517820c72f5a530067710e1a9397754f3922796d182d71cbd6e1f5f5942d7\n\
++threshold_min_tokens_straddle.b 15 body:7ed517820c72f5a530067710e1a9397754f3922796d182d71cbd6e1f5f5942d7 shim:aa42edc601af1b15db6183c201db9d8368770fab7f7b6b78ca8a83705d298fbb\n\
++value_borrow.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_borrow.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_borrow_mut.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_borrow_mut.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_double_borrow.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_double_borrow.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_deref.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_deref.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_ref_binding.a 19 body:c51942289b8a65e781209b09a473c679e9f5df44e25d63ab0748be177dea5c3e shim:291cf14185c65d604cb18ad5f8ef9cedb2483ba72a58579f5548caa54213325f\n\
++value_ref_binding.b 19 body:c51942289b8a65e781209b09a473c679e9f5df44e25d63ab0748be177dea5c3e shim:47be6280f16d0bb842fd895cf0eb5b5e08212c6e5aa8535f151ff3eb85fc11b4\n\
++value_ref_mut_binding.a 19 body:c51942289b8a65e781209b09a473c679e9f5df44e25d63ab0748be177dea5c3e shim:f01dfa44a5b9ec50d248314c3637805b7cd69f3842cb80ed40b32cdf6af98375\n\
++value_ref_mut_binding.b 19 body:c51942289b8a65e781209b09a473c679e9f5df44e25d63ab0748be177dea5c3e shim:47be6280f16d0bb842fd895cf0eb5b5e08212c6e5aa8535f151ff3eb85fc11b4\n\
++value_adapter_as_str.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_as_str.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_as_ref.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_as_ref.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_as_slice.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_as_slice.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_as_mut.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_as_mut.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_as_deref.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_as_deref.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_borrow.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_borrow.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_borrow_mut.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_borrow_mut.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_clone.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_clone.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_cloned.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_cloned.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_copied.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_copied.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_to_owned.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_to_owned.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_adapter_with_argument_kept.a 9 body:2347a33ac3e3534443013cdec45597d964a41051c4f3f07a00c9f3bd8afd8265 shim:2347a33ac3e3534443013cdec45597d964a41051c4f3f07a00c9f3bd8afd8265\n\
++value_adapter_with_argument_kept.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_full_range.a 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_full_range.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_partial_range_kept.a 9 body:94e9d03d52d1a4b5510a6a8736879a51f987012a6d8a95ce5241d629f83307b2 shim:d063387bf91105159101aa0edd840c231a097ed6a6536ff738f4b379cdf5763d\n\
++value_partial_range_kept.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_range_to_kept.a 9 body:a6765939ad39f54af47fa6e6eb283029e6d2adbc847d9953da65ca5cac128686 shim:93141a8e3e9bb77a0e9e0db43bfb3365b26fa2a2ae050e816b408a4072538ae3\n\
++value_range_to_kept.b 4 body:0f767795a70a02bb2f41642fc65ae92a5b248b4401b8a3754b0823031a67707f -\n\
++value_let_annotation.a 9 body:5b76112b24b9e8c336a6e299bbb44a0328b4c745bb9ef0d8830d9b83e0944a8a -\n\
++value_let_annotation.b 9 body:5b76112b24b9e8c336a6e299bbb44a0328b4c745bb9ef0d8830d9b83e0944a8a -\n\
++value_let_annotation_generic.a 9 body:5b76112b24b9e8c336a6e299bbb44a0328b4c745bb9ef0d8830d9b83e0944a8a -\n\
++value_let_annotation_generic.b 9 body:5b76112b24b9e8c336a6e299bbb44a0328b4c745bb9ef0d8830d9b83e0944a8a -\n\
++value_erased_names_do_not_shift_numbers.a 17 body:3ba2ecaed0b39ba642e9788325d4a4aba5d2eed3dbdf3d0112e0678af2ab1f71 -\n\
++value_erased_names_do_not_shift_numbers.b 17 body:3ba2ecaed0b39ba642e9788325d4a4aba5d2eed3dbdf3d0112e0678af2ab1f71 -\n\
++value_type_turbofish.a 5 body:7fb66880a8b3a845eb586c2594e5c4694d23ba6035f9f358f3264774da9a4dec -\n\
++value_type_turbofish.b 5 body:7fb66880a8b3a845eb586c2594e5c4694d23ba6035f9f358f3264774da9a4dec -\n\
++value_const_turbofish_kept.a 9 body:45026bbba235f1d203cd9b17950f6b127d6d810714490d97b2de01216830a5a6 shim:45026bbba235f1d203cd9b17950f6b127d6d810714490d97b2de01216830a5a6\n\
++value_const_turbofish_kept.b 4 body:534ed5ba5aac4f5c535ba8f36508b6af8bc12179688c65104278cb4c35f07479 -\n\
++value_bool_turbofish_kept.a 9 body:87ee53773ccf49ef9903d23166e847029472a87e8376986a9910dfb5bec5055c shim:87ee53773ccf49ef9903d23166e847029472a87e8376986a9910dfb5bec5055c\n\
++value_bool_turbofish_kept.b 9 body:020a9a61097d48357c0f34ae9987267b4542a9bafc25e05da5cfbd23365a1b03 shim:020a9a61097d48357c0f34ae9987267b4542a9bafc25e05da5cfbd23365a1b03\n\
++value_index_reference.a 4 body:b195ad401e59e44475a993c4461bea325f1633c00146acabb07c54127c739d93 -\n\
++value_index_reference.b 4 body:b195ad401e59e44475a993c4461bea325f1633c00146acabb07c54127c739d93 -\n\
++value_binary_and_kept.a 6 body:4ff5873ae1028c47e427ee6732fd6614db42df8dec89366252eda6baf2f7544e shim:4ff5873ae1028c47e427ee6732fd6614db42df8dec89366252eda6baf2f7544e\n\
++value_binary_and_kept.b 5 body:ae705e38df2ce7e69e7f0269862350460623ec1e3bda0ad4806fa4f073d34c1d -\n\
++value_binary_mul_kept.a 6 body:cf6fcb46129a87b3688e9b19645be00d1bf8b0cc0bb91c008833ff0187b13f43 shim:cf6fcb46129a87b3688e9b19645be00d1bf8b0cc0bb91c008833ff0187b13f43\n\
++value_binary_mul_kept.b 5 body:ae705e38df2ce7e69e7f0269862350460623ec1e3bda0ad4806fa4f073d34c1d -\n\
++value_logical_and_kept.a 7 body:17a8159319a7b25444aaf63da1bc5a46f4e637a91443985785ef5f04ce70ec44 shim:17a8159319a7b25444aaf63da1bc5a46f4e637a91443985785ef5f04ce70ec44\n\
++value_logical_and_kept.b 5 body:ae705e38df2ce7e69e7f0269862350460623ec1e3bda0ad4806fa4f073d34c1d -\n\
++value_compound_assign_kept.a 10 body:a972fadf6c45665f1877d86ba40b465370f0c83709f0d0573989a0688d3157aa -\n\
++value_compound_assign_kept.b 6 body:5e73238be60a98f7777ff878152c8549b8f35cc118cd7fe699c46f90277c32ea -\n\
++value_binary_after_call_kept.a 6 body:14555388857cf65fd1e5c05e8bb08304979861daacd4340667bf5f1463793684 shim:14555388857cf65fd1e5c05e8bb08304979861daacd4340667bf5f1463793684\n\
++value_binary_after_call_kept.b 5 body:dbd2b465e2f37a46873544726707b7b805d55a13159b758513a18e0e8bc39a3c -\n\
++tier_25.a 25 body:bae17ce423758aed59ff2128052ad945c9906f5e7990caeb7c3054a2a15914c9 -\n\
++tier_25.b 25 body:291a4f75ee3b7d6e239e100a958b008ce91d01da1fa4a123c1ebe1f91d2fa18c -\n\
++tier_29.a 29 body:5363862fa58ae6611c24be5b41b6e707df7b88abd6d653a7cd401c85c78c44a1 -\n\
++tier_29.b 29 body:147e186d4c12f6b27f8e5b0cfcfe434b25dab3e9f58af57adb0ae1d7402c53e4 -\n\
++tier_30.a 30 body:0fe4f26092b867f9079243dc32fae3befeffd38a9940fe8f3c8631f942cc8c35 -\n\
++tier_30.b 30 body:0fe4f26092b867f9079243dc32fae3befeffd38a9940fe8f3c8631f942cc8c35 -\n\
++tier_35.a 35 body:742087969dfcf3f6d657ef34c0dd306f1ba56a5b7d0db96bc4bab3a7d6c42382 -\n\
++tier_35.b 35 body:742087969dfcf3f6d657ef34c0dd306f1ba56a5b7d0db96bc4bab3a7d6c42382 -\n\
++tier_30_kinds_differ.a 30 body:0fe4f26092b867f9079243dc32fae3befeffd38a9940fe8f3c8631f942cc8c35 -\n\
++tier_30_kinds_differ.b 30 body:7ab910272c01895729672c4183ebd06d9cfdeeaafb842723918f1a4db0cdb1e7 -\n\
++tier_30_float_is_not_int.a 30 body:a9c176eabd1d7aa9d9a2f1b0bd5bb8c881edd9c6ab4fc5477851121eb9cb3569 -\n\
++tier_30_float_is_not_int.b 30 body:7ab910272c01895729672c4183ebd06d9cfdeeaafb842723918f1a4db0cdb1e7 -\n\
++tier_30_big_int_is_int.a 30 body:7ab910272c01895729672c4183ebd06d9cfdeeaafb842723918f1a4db0cdb1e7 -\n\
++tier_30_big_int_is_int.b 30 body:7ab910272c01895729672c4183ebd06d9cfdeeaafb842723918f1a4db0cdb1e7 -\n\
++tier_29_big_int_kept.a 29 body:2bdd17114b5c62300205b1d95994ac41860672cfec9b44639e65f351521d0788 -\n\
++tier_29_big_int_kept.b 29 body:2f5cd06a65147fcde833c495cf5469d4bed28c57671d76641641215930038b8b -\n\
++tier_30_suffix_is_part_of_the_kind.a 30 body:7ab910272c01895729672c4183ebd06d9cfdeeaafb842723918f1a4db0cdb1e7 -\n\
++tier_30_suffix_is_part_of_the_kind.b 30 body:7ab910272c01895729672c4183ebd06d9cfdeeaafb842723918f1a4db0cdb1e7 -\n\
++tier_30_tuple_index_kept.a 30 body:719a04df3958129a4db50331b18127a5ce3b4084c92e6250bc93de8ae906aedf -\n\
++tier_30_tuple_index_kept.b 30 body:573b08b98205895a8e1a481731f92f6cc730871e0b58033e200392fb2ff2e143 -\n\
++tier_30_range_end_is_a_literal.a 30 body:1e4c474c7db0f5a5fae3c0c50c1c336e531d395a73c06aa24aee46cd513e0fd6 -\n\
++tier_30_range_end_is_a_literal.b 30 body:1e4c474c7db0f5a5fae3c0c50c1c336e531d395a73c06aa24aee46cd513e0fd6 -\n\
++literal_hex_and_decimal.a 4 body:260e2d80b4f84d52dda59e88fcbdca6c1fcb6ba6fa758fed817c0a4d313beeed -\n\
++literal_hex_and_decimal.b 4 body:260e2d80b4f84d52dda59e88fcbdca6c1fcb6ba6fa758fed817c0a4d313beeed -\n\
++literal_separators.a 4 body:8b9ed6eb71e560784cc4a2064411e22a648707462f327c4a8e23299cc02a25f4 -\n\
++literal_separators.b 4 body:8b9ed6eb71e560784cc4a2064411e22a648707462f327c4a8e23299cc02a25f4 -\n\
++literal_octal_binary.a 6 body:a5a021dc7409bb02b5b619ddfca3ec5fe2569676f581b80f17041260b8338ce8 shim:a5a021dc7409bb02b5b619ddfca3ec5fe2569676f581b80f17041260b8338ce8\n\
++literal_octal_binary.b 6 body:a5a021dc7409bb02b5b619ddfca3ec5fe2569676f581b80f17041260b8338ce8 shim:a5a021dc7409bb02b5b619ddfca3ec5fe2569676f581b80f17041260b8338ce8\n\
++literal_suffix_kept.a 4 body:d1d35c896bca55db8e9303bc0191fa6d8c6ddc7f4988088507d4988ce55f87cd -\n\
++literal_suffix_kept.b 4 body:d1d35c896bca55db8e9303bc0191fa6d8c6ddc7f4988088507d4988ce55f87cd -\n\
++literal_different_value.a 4 body:260e2d80b4f84d52dda59e88fcbdca6c1fcb6ba6fa758fed817c0a4d313beeed -\n\
++literal_different_value.b 4 body:8b99bdb0caa7c4be8bc76a384c5b90ffbf70753ca76fd64bb45f3849aa0bacef -\n\
++literal_suffix_differs.a 4 body:d1d35c896bca55db8e9303bc0191fa6d8c6ddc7f4988088507d4988ce55f87cd -\n\
++literal_suffix_differs.b 4 body:093bbeb77c74b484ab42f290dae86e6f5c5cbd0794c7fd7773c86c48ddd89e98 -\n\
++literal_float_is_not_int.a 4 body:c8af592a4ac2eb3fbd103d5117256fb4a6b4d5a10f8c904c0934caba89b8ed76 -\n\
++literal_float_is_not_int.b 4 body:9de2285b669c60b20dc473ef2fc2860bfea208c8bdcf9a421c452ce987d156d1 -\n\
++literal_string_spelling_differs.a 4 body:31cb562ee0c5f4b383f1a8d6212b937548d98f49f14eecd28eaf6051f6b60be2 -\n\
++literal_string_spelling_differs.b 4 body:cfd65c1c5bc135c1f545b22f8d144bc79faea9b715228ed99bc1aa5f967d0a5c -\n\
++shim_5 5 body:072159ca8d2de444481f93b0e01e53080f3d94108903a72342c4b5eaaed27506 -\n\
++shim_6 6 body:900b617d60d4ddb6ea0d75aad4149216e2980c83b1a564ca5845488b48226ee1 shim:900b617d60d4ddb6ea0d75aad4149216e2980c83b1a564ca5845488b48226ee1\n\
++shim_29 29 body:0b3f0d99a9e75aa1e4f50d373f6673d5af3441264167061a152e28095eabf37f shim:0b3f0d99a9e75aa1e4f50d373f6673d5af3441264167061a152e28095eabf37f\n\
++shim_30 30 body:552388bd5c9348b807948e58a543df4d5c5b8b65fe2ec58a55ca6e4e999fa185 -\n\
++shim_renamed_params.a 6 body:0bc8930ce972b811e782acbb2b74855bdde83f67186acb79b4113e7771ed8655 shim:0bc8930ce972b811e782acbb2b74855bdde83f67186acb79b4113e7771ed8655\n\
++shim_renamed_params.b 6 body:0bc8930ce972b811e782acbb2b74855bdde83f67186acb79b4113e7771ed8655 shim:0bc8930ce972b811e782acbb2b74855bdde83f67186acb79b4113e7771ed8655\n\
++shim_only_own_params_renamed.a 6 body:2acd60af59007ce5fb9917950c276e7a1dab44e9763c00deefd4ce06db63e92c shim:2acd60af59007ce5fb9917950c276e7a1dab44e9763c00deefd4ce06db63e92c\n\
++shim_only_own_params_renamed.b 6 body:da2914a4c6b3f8e3d37870a588871f5d385689b4407046cd2c3c01f4bcf324d5 shim:da2914a4c6b3f8e3d37870a588871f5d385689b4407046cd2c3c01f4bcf324d5\n\
++shim_different_callee.a 6 body:0bc8930ce972b811e782acbb2b74855bdde83f67186acb79b4113e7771ed8655 shim:0bc8930ce972b811e782acbb2b74855bdde83f67186acb79b4113e7771ed8655\n\
++shim_different_callee.b 6 body:7af8d8648cdb2db557896c626d24fb61462358b61170b147e346c8fe6d6cc359 shim:7af8d8648cdb2db557896c626d24fb61462358b61170b147e346c8fe6d6cc359\n\
++shim_different_fixed_argument.a 6 body:0bc8930ce972b811e782acbb2b74855bdde83f67186acb79b4113e7771ed8655 shim:0bc8930ce972b811e782acbb2b74855bdde83f67186acb79b4113e7771ed8655\n\
++shim_different_fixed_argument.b 6 body:69e11e4c9c80a35eb60bdad19c00b835b4901e49fa58146d74eec9a7b77ec8e8 shim:69e11e4c9c80a35eb60bdad19c00b835b4901e49fa58146d74eec9a7b77ec8e8\n\
++shim_parameter_order.a 8 body:de92a8b3421d9329287bf5caf4295656880b02131701549a9a82c9671919ce6a shim:de92a8b3421d9329287bf5caf4295656880b02131701549a9a82c9671919ce6a\n\
++shim_parameter_order.b 8 body:de92a8b3421d9329287bf5caf4295656880b02131701549a9a82c9671919ce6a shim:9adc3c2762f4273377031b639ee9ec6ca95b32e0fb63c45955a4082bc96ad7c6\n\
++shim_let_body 13 body:f343854017fb0ae1ba5a0333a6c0978b4a2413b793d1f2b958b1fd04f2119d22 -\n\
++shim_two_statements 13 body:4a7648548b773432501e0de6bdf3d079c7df0c7271125c6695330f867c4a3154 -\n\
++shim_trailing_semicolon 9 body:32a80c15e231526ca8bc5e3f09e9505eadde077f8760f2ee666c3fed1eb0fe7d shim:32a80c15e231526ca8bc5e3f09e9505eadde077f8760f2ee666c3fed1eb0fe7d\n\
++shim_mentions_self 10 body:21c93a1e0ab84e9e30f7be7e3612e605f9900018ad58d8893d3d2ea5bb8b97ad -\n\
++shim_turbofish_forwarder.a 6 body:0bc8930ce972b811e782acbb2b74855bdde83f67186acb79b4113e7771ed8655 shim:0678d206215e13d2d373f1d330f57aa4e2108fb722c48ff64fe55232cf10959b\n\
++shim_turbofish_forwarder.b 6 body:0bc8930ce972b811e782acbb2b74855bdde83f67186acb79b4113e7771ed8655 shim:0678d206215e13d2d373f1d330f57aa4e2108fb722c48ff64fe55232cf10959b\n\
++shim_closure_body_with_let.a 16 body:0a90b60003db2dc64791d38a22e7f16c9447ee69c75cba69bc97e8a94f292e5f shim:0bf63e12ac9e89601548f37fb9a703357dcb3de1d4cfd9c8640b9f625559c6e6\n\
++shim_closure_body_with_let.b 16 body:0a90b60003db2dc64791d38a22e7f16c9447ee69c75cba69bc97e8a94f292e5f shim:0bf63e12ac9e89601548f37fb9a703357dcb3de1d4cfd9c8640b9f625559c6e6\n\
++doc_comment_renamed_local.a 16 body:766fd2419fec79338f4a280fbe020ce4efb5d282849f49009a24deafc0f0da6a -\n\
++doc_comment_renamed_local.b 16 body:766fd2419fec79338f4a280fbe020ce4efb5d282849f49009a24deafc0f0da6a -\n\
++doc_comment_text_differs.a 16 body:766fd2419fec79338f4a280fbe020ce4efb5d282849f49009a24deafc0f0da6a -\n\
++doc_comment_text_differs.b 16 body:ee9292675376f425155ee3dae048a141680bfb7642025b146b90180eb70478fc -\n\
++shim_method_turbofish 8 body:fddf4bcd3df9ca1e88883b3cc323cd395ce935a989dedb1228bd9f82b1c63a50 shim:9e32ffb9dd6ec68033ac8091ac4d3505239d3cb50b24b64a7e28ca2dfe1b05b1\n\
++shim_turbofish_type_differs.a 6 body:0bc8930ce972b811e782acbb2b74855bdde83f67186acb79b4113e7771ed8655 shim:0678d206215e13d2d373f1d330f57aa4e2108fb722c48ff64fe55232cf10959b\n\
++shim_turbofish_type_differs.b 6 body:0bc8930ce972b811e782acbb2b74855bdde83f67186acb79b4113e7771ed8655 shim:9ccd131097a9b704d7f1da65577ee9cb1ad61dd91e12e04b610fb5eb4b687822\n\
++shim_turbofish_without_call 10 body:75c451cb055aa50383b3111bf6eeb1f19918a1d49eddbcaab50cb3813edd7ec5 -\n\
++shim_without_call 9 body:cd8e7181776f4160bac53f222722152a5a16da9b1306d10dfa4781f46475b180 -\n\
++shim_macro_call 9 body:d6a18ab1d813e0a5d4970c09859c8c5103252291b829a445e8056bf03b89b25c shim:d6a18ab1d813e0a5d4970c09859c8c5103252291b829a445e8056bf03b89b25c\n\
++macro_arguments.a 9 body:2077d1fcd504fa727d23dc7776e2a40fb6f107ba113613cc3165711c9405c0c2 shim:f05e44a0be6bd1a33c3cf86dc1e1435807337464acb13d880adf2081638d63b4\n\
++macro_arguments.b 9 body:2077d1fcd504fa727d23dc7776e2a40fb6f107ba113613cc3165711c9405c0c2 shim:a468d3a9dbc58e5644243f8eacc5493d42d0c800eb58aa2395468d5b43b2d846\n\
++macro_inline_capture.a 5 body:4add99615ee9bb66095f85901da80513e9a1fea31d825d6e04715b5b6521625c -\n\
++macro_inline_capture.b 5 body:4add99615ee9bb66095f85901da80513e9a1fea31d825d6e04715b5b6521625c -\n\
++macro_inline_capture_local.a 13 body:50b5364bdaf2e541cbc8de0ac9f62754f548bf46e94dd865e48797b6e0156530 -\n\
++macro_inline_capture_local.b 13 body:50b5364bdaf2e541cbc8de0ac9f62754f548bf46e94dd865e48797b6e0156530 -\n\
++macro_unknown_name_kept.a 7 body:2b20a1eef898aae0331c6fc3cf0ff4f221e793cef69d2e08229080ea8ee844cf shim:2b20a1eef898aae0331c6fc3cf0ff4f221e793cef69d2e08229080ea8ee844cf\n\
++macro_unknown_name_kept.b 7 body:cc7b50db97a93c132817c268bb5f84a500f4a8d1242cc819c47ab4d4a7a590e7 shim:cc7b50db97a93c132817c268bb5f84a500f4a8d1242cc819c47ab4d4a7a590e7\n\
++macro_positional_kept.a 7 body:5f39f17eae70196bb1e2be5d69db7fa56b1ee91f328eb3a417d18f0cc0b25b5b shim:5f39f17eae70196bb1e2be5d69db7fa56b1ee91f328eb3a417d18f0cc0b25b5b\n\
++macro_positional_kept.b 7 body:bbde246f89d6ae9030e07018ecea0a0a9502680845d5a98922d644b4ed3b721c shim:bbde246f89d6ae9030e07018ecea0a0a9502680845d5a98922d644b4ed3b721c\n\
++macro_escaped_brace_kept.a 9 body:5d0c64128f4c5f2c17111eb08f10ee8f6e8559a680956aac956f3808ff1bc824 shim:5d0c64128f4c5f2c17111eb08f10ee8f6e8559a680956aac956f3808ff1bc824\n\
++macro_escaped_brace_kept.b 9 body:e2b9a82f27480b9bc57f3ab63f1d40bf886d2e9069eabbb09b5e05cad5793942 shim:e2b9a82f27480b9bc57f3ab63f1d40bf886d2e9069eabbb09b5e05cad5793942\n\
++macro_unicode_escape_is_not_a_placeholder.a 5 body:149fb6d70b94c8d544fd48dd3db56f088a5c22997da0d33c5b9f3098e16f176e -\n\
++macro_unicode_escape_is_not_a_placeholder.b 5 body:149fb6d70b94c8d544fd48dd3db56f088a5c22997da0d33c5b9f3098e16f176e -\n\
++macro_arguments_above_tier.a 50 body:7f12262ec5c73d6d18a30637587282d939a9fbed08fe7dd7645c6f9209341314 -\n\
++macro_arguments_above_tier.b 50 body:7f12262ec5c73d6d18a30637587282d939a9fbed08fe7dd7645c6f9209341314 -\n\
++macro_inline_capture_above_tier.a 46 body:e09a3dbbb102073016e4409990aaf0804f99ff55e4549eef725c1d49cf07b453 -\n\
++macro_inline_capture_above_tier.b 46 body:e09a3dbbb102073016e4409990aaf0804f99ff55e4549eef725c1d49cf07b453 -\n\
++numbering_unused_trailing_parameter.a 6 body:9aad3e89f6d6af9b22a6c79837d59bad03dc979a45acccc923fd42df76140ee3 -\n\
++numbering_unused_trailing_parameter.b 6 body:9aad3e89f6d6af9b22a6c79837d59bad03dc979a45acccc923fd42df76140ee3 -\n\
++numbering_used_trailing_parameter.a 6 body:9aad3e89f6d6af9b22a6c79837d59bad03dc979a45acccc923fd42df76140ee3 -\n\
++numbering_used_trailing_parameter.b 6 body:9aad3e89f6d6af9b22a6c79837d59bad03dc979a45acccc923fd42df76140ee3 -\n\
++numbering_parameter_order.a 8 body:31a5488b1691eb8c2aabde440342a4c87efe78e47e89cddd13ef5796eb0977c4 -\n\
++numbering_parameter_order.b 8 body:31a5488b1691eb8c2aabde440342a4c87efe78e47e89cddd13ef5796eb0977c4 -\n\
++numbering_placeholder_parameter.a 10 body:37ed09ed5fd20c2af5b46edb9107c88f4d02f2d66ec03b0d38f81e8772c4a223 -\n\
++numbering_placeholder_parameter.b 10 body:2027574a377e6303405a645e38a1ee229aac2e0612fff97b3aef7652bec64ace -\n\
++numbering_placeholder_parameter_above_tier.a 51 body:edb8aec3a585bf743f7989dde6effa7dfc84ba8375407c8e3c0e421354578f9e -\n\
++numbering_placeholder_parameter_above_tier.b 51 body:edb8aec3a585bf743f7989dde6effa7dfc84ba8375407c8e3c0e421354578f9e -\n\
++numbering_placeholder_first_appearance.a 10 body:cd08fc57ab4da17664535d1855536c2f56e404782056183fff383ed76d78aa58 -\n\
++numbering_placeholder_first_appearance.b 10 body:cd08fc57ab4da17664535d1855536c2f56e404782056183fff383ed76d78aa58 -\n\
++numbering_placeholder_versus_argument.a 10 body:37ed09ed5fd20c2af5b46edb9107c88f4d02f2d66ec03b0d38f81e8772c4a223 -\n\
++numbering_placeholder_versus_argument.b 12 body:f75be63fa5375e955f20df61bbb5e17639d7c59f10ae24451dab32faa7818228 -\n\
++lexical_gen_kept.a 9 body:0d185a5e08a042756a17efe75e4d573bdf1dc6cc540694cb740acf6bab8f1eeb -\n\
++lexical_gen_kept.b 9 body:5b76112b24b9e8c336a6e299bbb44a0328b4c745bb9ef0d8830d9b83e0944a8a -\n\
++lexical_union_kept.a 9 body:21953eda92b7411201c6fd638ce79b2ddddbfa0129d8a53ab69b59b06e96061e -\n\
++lexical_union_kept.b 9 body:5b76112b24b9e8c336a6e299bbb44a0328b4c745bb9ef0d8830d9b83e0944a8a -\n\
++lexical_raw_kept.a 9 body:1c8f2dac62d70929b57d4e7bc4e1c47abed6334572220477c6f365fd806b7d24 -\n\
++lexical_raw_kept.b 9 body:5b76112b24b9e8c336a6e299bbb44a0328b4c745bb9ef0d8830d9b83e0944a8a -\n\
++lexical_safe_kept.a 9 body:4bcd02328941de9054517685e91856f69b6a4dfd75e69dd923de387bf59bcb01 -\n\
++lexical_safe_kept.b 9 body:5b76112b24b9e8c336a6e299bbb44a0328b4c745bb9ef0d8830d9b83e0944a8a -\n\
++lexical_macro_rules_kept.a 9 body:1ab877ecb3fa6f35632db94023632239cc97f4652adecf58e4351f7558403360 -\n\
++lexical_macro_rules_kept.b 9 body:5b76112b24b9e8c336a6e299bbb44a0328b4c745bb9ef0d8830d9b83e0944a8a -\n\
++lexical_macro_rules_definition.a 18 body:19d5de816f22dba7b2b582370256074ed2bb2457d9ed583486ec5c3f83f962fc -\n\
++lexical_macro_rules_definition.b 18 body:19d5de816f22dba7b2b582370256074ed2bb2457d9ed583486ec5c3f83f962fc -\n\
++lexical_wildcard_kept.a 8 body:c53227ea2077fa9c9da031fa6f56e925f439c20f080dc550bd8471afe8552e2b -\n\
++lexical_wildcard_kept.b 8 body:b90ccc00dcd1aa8151d5c60394f9e6600f9aeb1e0dda358c97d60a4a43ec7d82 -\n\
++lexical_nesting_128.a 257 body:577e8c5e2bdea44001e725898204971e75df7decdda85f725ebfc4fd0bc2d5cb -\n\
++lexical_nesting_128.b 257 body:577e8c5e2bdea44001e725898204971e75df7decdda85f725ebfc4fd0bc2d5cb -\n\
+ empty_body 0 - -\n\
+ ";
+ 
+diff --git crates/raf-census/tests/groups.rs crates/raf-census/tests/groups.rs
+index 912d83b..3a54d36 100644
+--- crates/raf-census/tests/groups.rs
++++ crates/raf-census/tests/groups.rs
+@@ -435,7 +435,7 @@ fn a_job_classifies_home_entry_point_variant_and_copies() {
+ fn a_job_that_matches_nothing_has_an_empty_list() {
+     let census = load(JOB_SOURCE);
+     let none = Job::new("none", "demo::home").forbidding(JobForbidden {
+-        fingerprints: vec![Fingerprint::Body(1)],
++        fingerprints: vec![Fingerprint::Body([1; 32])],
+         constants: vec![123_456],
+     });
+     // A rule id names no unit.
+@@ -525,7 +525,6 @@ fn a_shim_id_matches_the_units_that_group_under_it_and_not_the_excluded_ones() {
+         .as_ref()
+         .and_then(|p| p.shim.as_ref())
+         .expect("a `Self::` forwarder has a shim form")
+-        .fingerprint
+         .clone();
+     let job = Job::new("via", "demo::S::via").forbidding(JobForbidden {
+         fingerprints: vec![via_shim],
+diff --git crates/raf-census/tests/reports.rs crates/raf-census/tests/reports.rs
+index f5a1c31..84c8bce 100644
+--- crates/raf-census/tests/reports.rs
++++ crates/raf-census/tests/reports.rs
+@@ -51,8 +51,14 @@ fn the_example_output_names_the_expected_group_fingerprints() {
+     assert!(matches!(shim[0].fingerprint, Fingerprint::Shim(_)));
+     assert!(output.contains(&body[0].fingerprint.to_string()));
+     assert!(output.contains(&shim[0].fingerprint.to_string()));
+-    assert!(output.contains("body:6bb022e241a79a28"), "{output}");
+-    assert!(output.contains("shim:203616cb54a3e53d"), "{output}");
++    assert!(
++        output.contains("body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609"),
++        "{output}"
++    );
++    assert!(
++        output.contains("shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725"),
++        "{output}"
++    );
+     assert!(output.contains("census:jobId \"sum\""), "{output}");
+ }
+ 
+@@ -180,7 +186,7 @@ fn missing_repeated_and_mistyped_properties_are_not_a_report() {
+     refused(
+         Index::from_turtle(&index.replacen(
+             "census:body body:",
+-            "census:body body:0000000000000000 ;\n    census:body body:",
++            "census:body body:0000000000000000000000000000000000000000000000000000000000000000 ;\n    census:body body:",
+             1,
+         )),
+         "body",
+diff --git crates/raf-census/tests/support/fixtures.rs crates/raf-census/tests/support/fixtures.rs
+index 8b60255..48ab3e3 100644
+--- crates/raf-census/tests/support/fixtures.rs
++++ crates/raf-census/tests/support/fixtures.rs
+@@ -989,10 +989,10 @@ pub(crate) fn table(registry: &Registry) -> String {
+         let print = normalizer
+             .print(&fixture.slice())
+             .unwrap_or_else(|error| panic!("fixture {} does not normalise: {error}", fixture.id));
+-        let name = |hashed: &Option<raf_census::Hashed>| {
++        let name = |hashed: &Option<raf_census::Fingerprint>| {
+             hashed
+                 .as_ref()
+-                .map_or_else(|| "-".to_owned(), |h| h.fingerprint.to_string())
++                .map_or_else(|| "-".to_owned(), ToString::to_string)
+         };
+         writeln!(
+             out,
+diff --git crates/raf-census/tests/units.rs crates/raf-census/tests/units.rs
+index f9c75c3..d1b3cc4 100644
+--- crates/raf-census/tests/units.rs
++++ crates/raf-census/tests/units.rs
+@@ -303,7 +303,7 @@ impl S {
+             .print
+             .as_ref()
+             .and_then(|print| print.shim.as_ref())
+-            .map(|hashed| hashed.digest)
++            .cloned()
+     };
+     assert!(shim("demo::S::pattern").is_some());
+     assert_eq!(shim("demo::S::pattern"), shim("demo::S::twin"));
+@@ -541,7 +541,7 @@ impl U {
+             .print
+             .as_ref()
+             .and_then(|print| print.shim.as_ref())
+-            .map(|hashed| hashed.fingerprint.clone())
++            .cloned()
+     };
+ 
+     // Forwarders with a key: the free-standing neighbours that do group.

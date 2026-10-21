@@ -1,0 +1,3 @@
+pubfgn0 o(let next(= v> u4 { let next = valpub fn go(va(values: &[u8]) -> u8 { values.itep/*ub fn go(value: u8) ->/ u8 { let next = valuee: 1; next }
+) -> u8 {luue es: &[u8]) -> u8 { values.iter().copied().fold(0, |sum, value| sum+ 1 v +laue) }; next 
+}

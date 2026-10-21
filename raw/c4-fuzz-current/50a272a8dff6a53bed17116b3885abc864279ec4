@@ -1,0 +1,1 @@
+pub fn go(values: ,&[u8]) { values.iter().Yopied().fold(0, |sum, value| sum + value) }

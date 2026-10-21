@@ -1,0 +1,26 @@
+Run the bound tests and examples of a change, or of every capability, and print pass or fail for each binding
+
+Usage: cargo workplan verify [OPTIONS] [slug]
+
+Arguments:
+  [slug]
+          The slug of the change record. Without it every capability is verified
+
+Options:
+      --root <dir>
+          The workspace root. Without it the root comes from `cargo metadata`, run in the current directory
+
+      --format <format>
+          How findings are printed: text, or one JSON array for the run
+
+          Possible values:
+          - text: One line or block of text for each record
+          - json: One JSON array for the run
+          
+          [default: text]
+
+  -q, --quiet
+          Print nothing but findings
+
+  -h, --help
+          Print help (see a summary with '-h')

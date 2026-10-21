@@ -1,0 +1,38 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "## Context\nThis is the heart of the unified helper-census. Today there are seven diverged copies of purrdf's `crates/helper-census` (purrdf, gmeow-ontology branch, lillith_memetics, purrassist, lillith_decodes, katamari, sparrow). They use different hashes (BLAKE3 vs SHA-256), thresholds (20 vs 30) and normalizer generations. Per the decision, this issue defines a **fresh, versioned normal form v1**.\n\nCapability delivered: `cap:census-normal-form`.\n\n## Scope\n- [ ] `normalize`: `proc_macro2` token streams with bodies re-lexed, so macro arguments are normalized too\n  - **structural form**: keywords, punctuation and delimiters kept; names of items the body uses kept; locals, parameters and lifetimes become `$0..` by first appearance; literals become their kind\n  - **value form**: drops `&`, `&mut`, `*`, `ref`, the value adapters (`.clone()`, `.as_str()`, `.to_owned()`\u2026), full-range reindex, `let` type annotations and type-only turbofishes\n  - **literal tier**: bodies under 30 tokens keep their literals verbatim\n  - **shim form**: single-expression forwarders (6\u201330 tokens), with only the function's own parameters renamed; katamari's `shim_key` refinement excludes trait-impl methods and `Self::` forwarders\n- [ ] Fingerprints: `<kind>:` + hex of the first 8 bytes of BLAKE3 (`blake3` crate); kinds are `body`, `shim`, `table`, `rule`\n- [ ] Units: fn, method, const, static, with symbol, package, file, line, shipping flag, print, integer constants (compared by value regardless of spelling), tables and strings\n- [ ] Grouping: `BTreeMap<fingerprint, members>`, groups of two or more, deterministic ordering (member count, then tokens, then fingerprint)\n- [ ] Hex-table detection (`table:hex-lower` / `table:hex-upper` across string, byte-string and array forms); shared large constants (>0xffff in two or more packages)\n- [ ] Reports (`serde_json`): baseline JSON (`min_tokens`, units, body/shim groups, hex tables, shared constants) and index JSON (symbols, groups, job matches); byte-deterministic output\n- [ ] `docs/architecture/normal-form.md` updated: the normative description of v1\n\n## Acceptance criteria\n- [ ] **Golden tests** pin the fingerprint of every fixture; a comment states that any change needs a `normal_form` bump\n- [ ] Fixtures prove that renamed locals, reference/adapter noise and different literal spellings collapse, while different called items do not\n- [ ] Running twice gives identical bytes\n- [ ] `cap:census-normal-form` reconciled with the result\n\n## Depends on\n- #2",
+  "closedAt": null,
+  "comments": [],
+  "createdAt": "2026-10-12T04:28:13Z",
+  "labels": [
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bapUQ",
+      "name": "enhancement",
+      "description": "New feature or request",
+      "color": "a2eeef"
+    },
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bfx6w",
+      "name": "crate:raf-census",
+      "description": "",
+      "color": "5319e7"
+    }
+  ],
+  "milestone": {
+    "number": 2,
+    "title": "M1 Census",
+    "description": "raf-census + cargo-census: unified helper-census replacing the 7 diverged copies",
+    "dueOn": null
+  },
+  "number": 3,
+  "state": "OPEN",
+  "title": "raf-census core: normal form v1, fingerprints, grouping, reports",
+  "updatedAt": "2026-10-12T04:28:13Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/3"
+}

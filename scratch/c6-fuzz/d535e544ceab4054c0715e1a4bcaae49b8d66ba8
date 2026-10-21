@@ -1,0 +1,5 @@
+VERSION 41a79a28> a census:BodyGroup ;
+    census:fingerprin+t body:6bb022e241a79a28 ;
+    census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
+        <#unbody: <https://blackcatinformatics.ca/raf/census/nf/1/boVERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/geniVERSION "1.2"

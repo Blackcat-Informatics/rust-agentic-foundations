@@ -1,0 +1,53 @@
+    Checking constant_time_eq v0.4.2
+    Checking blake3 v1.8.7
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-census)
+error: unnecessary qualification
+  --> crates/raf-census/src/normalize/shim.rs:39:55
+   |
+39 |                 if previous_is_name && group.delim == super::form::Delim::Paren {
+   |                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `-D unused-qualifications` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(unused_qualifications)]`
+help: remove the unnecessary path segments
+   |
+39 -                 if previous_is_name && group.delim == super::form::Delim::Paren {
+39 +                 if previous_is_name && group.delim == Delim::Paren {
+   |
+
+error[E0599]: `&group::Group` is not an iterator
+   --> crates/raf-census/src/group.rs:145:29
+    |
+ 63 | pub struct Group {
+    | ---------------- doesn't satisfy `group::Group: Iterator`
+...
+145 |             .then_with(|| a.cmp(&b))
+    |                             ^^^ `&group::Group` is not an iterator
+    |
+    = note: the following trait bounds were not satisfied:
+            `&group::Group: Iterator`
+            which is required by `&mut &group::Group: Iterator`
+            `group::Group: Iterator`
+            which is required by `&mut group::Group: Iterator`
+note: the trait `Iterator` must be implemented
+   --> /rustc/21b707e3f97e0b522ebd2f277a862339625ad83f/library/core/src/iter/traits/iterator.rs:42:1
+    |
+ 42 | pub const trait Iterator {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: items from traits can only be used if the trait is implemented and in scope
+    = note: the following traits define an item `cmp`, perhaps you need to implement one of them:
+            candidate #1: `Ord`
+    = note: the trait `Iterator` defines an item `cmp`, but is explicitly unimplemented
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `raf-census` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error[E0609]: no field `fingerprint` on type `&'a fingerprint::Fingerprint`
+   --> crates/raf-census/src/group.rs:248:34
+    |
+248 |             fingerprint: &hashed.fingerprint,
+    |                                  ^^^^^^^^^^^ unknown field
+
+Some errors have detailed explanations: E0599, E0609.
+For more information about an error, try `rustc --explain E0599`.
+error: could not compile `raf-census` (lib test) due to 3 previous errors

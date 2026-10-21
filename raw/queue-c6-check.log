@@ -1,0 +1,30 @@
+    Updating crates.io index
+     Locking 2 packages to highest Rust 1.98.1 compatible versions
+      Adding purrdf-hash v3.0.1
+      Adding purrdf-lex v3.0.1
+    Checking serde_core v1.0.229
+    Checking purrdf-hash v3.0.1
+    Checking blake3 v1.8.7
+    Checking serde_spanned v1.1.2
+    Checking toml_datetime v1.1.2+spec-1.1.0
+    Checking toml v1.1.8+spec-1.1.0
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-source)
+    Checking purrdf-lex v3.0.1
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-census)
+error[E0599]: `UcharError` doesn't implement `std::fmt::Display`
+    --> crates/raf-census/src/report/read.rs:27:91
+     |
+  27 | ...ap_err(|e|self.error(e.to_string()))?;out.push(value);self.at+=len;
+     |                           ^^^^^^^^^ method cannot be called on `UcharError` due to unsatisfied trait bounds
+     |
+    ::: /kache/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/purrdf-lex-3.0.1/src/terminals.rs:1327:1
+     |
+1327 | pub enum UcharError {
+     | ------------------- doesn't satisfy `UcharError: ToString` or `UcharError: std::fmt::Display`
+     |
+     = note: the following trait bounds were not satisfied:
+             `UcharError: std::fmt::Display`
+             which is required by `UcharError: ToString`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `raf-census` (lib) due to 1 previous error

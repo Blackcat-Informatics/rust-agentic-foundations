@@ -1,0 +1,170 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "line": 7,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `normalize`: `proc_macro2` token streams with bodies re-lexed, so macro arguments are normalized too",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B2",
+      "line": 8,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "- **structural form**: keywords, punctuation and delimiters kept; names of items the body uses kept; locals, parameters and lifetimes become `$0..` by first appearance; literals become their kind",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B3",
+      "line": 9,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "- **value form**: drops `&`, `&mut`, `*`, `ref`, the value adapters (`.clone()`, `.as_str()`, `.to_owned()`\u2026), full-range reindex, `let` type annotations and type-only turbofishes",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B4",
+      "line": 10,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "- **literal tier**: bodies under 30 tokens keep their literals verbatim",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B5",
+      "line": 11,
+      "rules": [
+        "list-under-requirement-heading"
+      ],
+      "text": "- **shim form**: single-expression forwarders (6\u201330 tokens), with only the function's own parameters renamed; katamari's `shim_key` refinement excludes trait-impl methods and `Self::` forwarders",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B6",
+      "line": 12,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Fingerprints: `<kind>:` + hex of the first 8 bytes of BLAKE3 (`blake3` crate); kinds are `body`, `shim`, `table`, `rule`",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B7",
+      "line": 13,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Units: fn, method, const, static, with symbol, package, file, line, shipping flag, print, integer constants (compared by value regardless of spelling), tables and strings",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B8",
+      "line": 14,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Grouping: `BTreeMap<fingerprint, members>`, groups of two or more, deterministic ordering (member count, then tokens, then fingerprint)",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B9",
+      "line": 15,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Hex-table detection (`table:hex-lower` / `table:hex-upper` across string, byte-string and array forms); shared large constants (>0xffff in two or more packages)",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B10",
+      "line": 16,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Reports (`serde_json`): baseline JSON (`min_tokens`, units, body/shim groups, hex tables, shared constants) and index JSON (symbols, groups, job matches); byte-deterministic output",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B11",
+      "line": 17,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `docs/architecture/normal-form.md` updated: the normative description of v1",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B12",
+      "line": 20,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] **Golden tests** pin the fingerprint of every fixture; a comment states that any change needs a `normal_form` bump",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B13",
+      "line": 21,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Fixtures prove that renamed locals, reference/adapter noise and different literal spellings collapse, while different called items do not",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B14",
+      "line": 22,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Running twice gives identical bytes",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B15",
+      "line": 23,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `cap:census-normal-form` reconciled with the result",
+      "source": "body",
+      "author": "",
+      "date": ""
+    }
+  ],
+  "silent_comments": []
+}

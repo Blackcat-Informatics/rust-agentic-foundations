@@ -1,0 +1,12 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-census)
+error: unused closure in tuple element 1 that must be used
+ --> crates/raf-census/examples/report_fixture.rs:6:1
+  |
+6 | std::hint::black_box((builtin::builtin,|tree:&raf_source::MemoryTree| builtin::of(tree,"."),builtin::of_dir));
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: closures are lazy and do nothing unless called
+  = note: `-D unused-must-use` implied by `-D warnings`
+  = help: to override `-D warnings` add `#[allow(unused_must_use)]`
+
+error: could not compile `raf-census` (example "report_fixture") due to 1 previous error

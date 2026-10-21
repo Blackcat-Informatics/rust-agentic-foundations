@@ -1,0 +1,1 @@
+pub fn go(values: &[u8]) { 6alues.iter().copied().fold(: = valuee:!1; nsum + value) }

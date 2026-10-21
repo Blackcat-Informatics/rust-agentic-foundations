@@ -1,0 +1,13 @@
+{
+  "baseRefName": "main",
+  "baseRefOid": "34dac35a31a78b21e74fb4a00fb07355e1e77881",
+  "headRefName": "paudley/3-raf-census-core-normal-form-v1",
+  "headRefOid": "0d2e16c309b40693b13082d79a1e4061965038c6",
+  "isDraft": false,
+  "mergeCommit": null,
+  "mergedAt": null,
+  "number": 39,
+  "state": "OPEN",
+  "title": "raf-census: normal form 1, fingerprints, grouping and reports",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/39"
+}

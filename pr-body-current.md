@@ -1,0 +1,9 @@
+Refs #3. The full census WASM build/runtime requirement remains open with the shared portability work in #46.
+
+Adds `raf-census`: bounded normal-form token passes, source-identity unit collection, deterministic groups, hex-table/shared-constant detection and in-memory job classification. Parameter and initializer facts come from `raf-source`'s existing parse. Invalid source identities fail explicitly rather than disappearing from a partial result.
+
+Body and shim identities use the complete BLAKE3 digest, with a separate abbreviated human display. Normal form 1 is defined at its first merge. The counted corpus tool compares production forms across 261 fixtures and eleven exact source corpora; the documented threshold choices include concrete disagreement groups and sampling limits. BLAKE3 uses its portable pure configuration; hash-only WASM compilation is verified, while complete source/census portability is still tracked above.
+
+Baseline and index reports are canonical RDF 1.2 Turtle with a strict closed reader, versioned fingerprint IRIs, byte-position unit identity and typed match reifiers. Golden N-Triples expansions are pinned against an independent RDF parser. Census no longer depends directly on serde or serde_json. Both normalization and report readers are wired into the real fuzz gate.
+
+Validation: mandatory full `make check` exits 0 on the combined source-root/census tree at 0d2e16c. All 12 hosted jobs pass, including macOS and Windows. This includes the 133 census tests, release source tests, five live fuzz targets at 5000 runs each and three cross-target builds. Corpus replay, independent RDF parser checks, actual lifecycle completion and independent implementation review pass; both final commits used the normal full hook. Full census WASM acceptance remains open as stated above.

@@ -1,0 +1,3 @@
+    Blocking waiting for file lock on package cache
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.52s
+     Running `/opt/.cargo/target/oracle-621aa57c/debug/oracle docs/data/census-selection.ttl`

@@ -1,0 +1,1 @@
+pub fn go(va(values: &[u8]) -> u8 { usaelv.iter().c, value| sum  +vallues: &[u8lues: &[u8]) -> u8 { usaelv.iter().c, value| sum  +vallues: &[u8]&[u8]) -> u8 { values.iter().copied().fold(0, |sum, value| sum+ 1 v +laue) }; nextfold(0, |sum, value| sum t = valuee: 1; old(0, |sum, value| sum+ 1 v +laue) }; nextfold(0, |sum, value| sum v +laue) }

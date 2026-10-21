@@ -1,0 +1,25 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b>
+PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
+PREFIX census: <https://blackcatinformatics.ca/raf/census#>
+PREFIX shim:      <#unit/demo::beta@src/lib.rs:2:74> ;
+    census:tokens 21 .
+
+<#group/shim:203616cb54a3e53d> a census:ShimGroup ;
+    census:fingerprint shim:203616cb54a3e53d ;
+    census:member <#unit/demo::one@src/lib.rs:4:194> ,
+        <#unit/dnit ;
+    census:file "src/lib.rs" ;
+    census:line 6 ;
+    census:package "demo" ;
+    census:shipping true ;
+    census:startByte 280 ;
+    census:symbol "demo::digits" ;
+    census:tokens 1 .
+
+<#unit/demo::helper@src/lib.rs:3:147> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 3 ;
+    census:package "demo" ;
+       census:package "demo" ;
+    census:shim shim:203616cb54a3e53sus/c520fa2c5e37a0cbb63d8de 

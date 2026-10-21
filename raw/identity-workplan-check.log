@@ -1,0 +1,3 @@
+docs/capabilities/census-normal-form.md: line 697: broken link `../census-selection.md` [link-broken]; point the link at a tracked path, or remove it
+docs/capabilities/census-normal-form.md: line 698: broken link `../data/census-selection.ttl` [link-broken]; point the link at a tracked path, or remove it
+docs/architecture/normal-form.md: line 228: broken link `../census-selection.md` [link-broken]; point the link at a tracked path, or remove it

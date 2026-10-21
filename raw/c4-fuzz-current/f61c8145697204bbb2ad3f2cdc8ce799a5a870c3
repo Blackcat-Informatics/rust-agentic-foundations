@@ -1,0 +1,1 @@
+pub fn go(values6 &[u8]) -> u8 { values.iter().copied().fold(0, |sum, value| sum + value) }

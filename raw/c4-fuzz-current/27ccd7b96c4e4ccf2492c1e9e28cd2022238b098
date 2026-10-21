@@ -1,0 +1,1 @@
+pub fn go(value: u#) -> u8 { let next = value + 2; next }<

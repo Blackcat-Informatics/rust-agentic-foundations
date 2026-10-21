@@ -1,0 +1,10 @@
+   Compiling serde_core v1.0.229
+    Checking purrdf-hash v3.0.1
+    Checking purrdf-lex v3.0.1
+    Checking toml_datetime v1.1.2+spec-1.1.0
+    Checking serde_spanned v1.1.2
+    Checking toml v1.1.8+spec-1.1.0
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-source)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-census)
+    Checking raf-source-fuzz v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/fuzz)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.25s

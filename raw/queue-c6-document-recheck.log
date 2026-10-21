@@ -1,0 +1,43 @@
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.49s
+     Running tests/docs_contract.rs (/opt/.cargo/6f/435daf0133b057/debug/build/rust-agentic-foundations/c7015d65ce5e1a4c/out/docs_contract-c7015d65ce5e1a4c)
+
+running 28 tests
+test inventory_table_has_the_documented_shape ... ok
+test doctest_comparison_fixtures ... ok
+test refuses_a_file_swapped_in_after_inspection ... ok
+test refuses_non_regular_files_instead_of_reading_them ... ok
+test inventory_accepts_a_matching_tree ... ok
+test a_tilde_fenced_usage_block_is_accepted_and_an_unclosed_block_is_refused ... ok
+test inventory_rejects_a_missing_architecture_document ... ok
+test inventory_rejects_an_id_change ... ok
+test inventory_rejects_a_missing_capability_index ... ok
+test the_checker_judges_the_documents_through_the_model ... ok
+test inventory_rejects_a_document_the_table_does_not_list ... ok
+test inventory_rejects_a_state_change ... ok
+test rejects_a_tracked_symlink_that_nothing_links_to ... ok
+test inventory_rejects_a_missing_change_record ... ok
+test inventory_rejects_a_missing_capability ... ok
+test inventory_refuses_a_record_id_of_no_record_type ... ok
+test the_checker_accepts_a_valid_checkout ... ok
+test inventory_rejects_an_index_the_table_does_not_list ... ok
+test the_checker_judges_markdown_outside_the_document_directories ... ok
+test a_delivered_capability_holds_a_verification_matrix ... ok
+test the_checker_judges_links_against_the_tracked_paths_and_symlinks ... ok
+test inventory_rejects_a_missing_or_unlisted_record ... ok
+test rejects_non_markdown_file_in_a_document_directory ... ok
+test usage_and_examples_blocks_are_the_crate_doctests ... ok
+test a_block_that_differs_by_one_line_is_reported ... ok
+test rejects_a_typed_document_outside_the_document_directories ... ok
+test repository_bindings_resolve_in_the_source_index ... ok
+test repository_documents_satisfy_the_profile ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 33.72s
+
+     Running tests/self_workplan.rs (/opt/.cargo/6f/435daf0133b057/debug/build/rust-agentic-foundations/91d92da2379a866f/out/self_workplan-91d92da2379a866f)
+
+running 1 test
+test repository_workplan_is_clean_and_assessed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.73s
+

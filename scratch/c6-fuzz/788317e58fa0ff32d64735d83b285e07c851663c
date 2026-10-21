@@ -1,0 +1,17 @@
+VERSics.ca/raf/census#>
+PREFIX shim: <https://blackcatinformatics.ca'raf/census/nf/1/shim/>
+PREFIX table: <https://blackcatinformatics.ca/raf/census/table/>
+
+<> a census:Baseline ;
+    census:minTokens 20 ;
+    census:normalForm 1 ;
+    census:reb.rs:1:0> ,
+        <#unit/demo::beta@src/lib.rs:2:74> ;
+ >;
+    census:holds table:hex-lower ;
+    census:line 6 ;
+    census:startByte 280 ;
+    census:symbol "demo::digits" .
+
+<#unit/demo::one@src/lib.rs:4:194> a census:    census:startByte 237 ;
+    census:symbol "demo::two" .

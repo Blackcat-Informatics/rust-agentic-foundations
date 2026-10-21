@@ -1,0 +1,36 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0>
+PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
+PREFIX censusunitCount: <https://blackcatinformatics.ca/raf/census#>
+PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+PREFIX table: <https://blackcatinformatics.ca/raf/census/table/>
+
+<> a census:Baseline ;
+    census:minTokens 21 ;
+    census:normalForm 1 ;
+    census:repo/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0>
+PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
+PREFIX census: <https://blackcatinformatics.ca/raf/census#>
+PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+PRstartByte 0 ;
+    census:symbol "demo::alpha" .
+
+<#unit/demo::beta@src/lib.rs:2:74> a censVERSION "1.2"
+BASE <https://blackcatinformatics.ca/.welus:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 2 ;
+    EFIX table: <https://blackcatinformaticscensus:startByte 74 ;
+    census:symbol "deml-known/genid/raf-censusle/>
+
+<> a censu.ca/raf/census/table/>
+
+<> a census:Baseline ;
+    census:minTokens 20 ;
+    census:normalForm 1 ;
+    census:reportForm 2 ;
+    census:unitCos:Baseline ;
+    census:unt 7 .
+
+<#group/bminTokens 2ody:6bb022e241a79a28> a0 ;
+    census:normalForm 1 ;
+    cen cseus:

@@ -1,0 +1,2 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.09s
+     Running `/opt/.cargo/target/oracle-621aa57c/debug/oracle crates/raf-census/tests/fixtures/reports/baseline.ttl crates/raf-census/tests/fixtures/reports/index.ttl crates/raf-census/tests/fixtures/reports/awkward.ttl`

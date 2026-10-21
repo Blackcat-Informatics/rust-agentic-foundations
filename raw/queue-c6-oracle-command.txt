@@ -1,0 +1,13 @@
+Independent parser replay (exit 0):
+
+NOBASE=1 cargo run --manifest-path .stage/raf-census-core-normal-form-v1/scratch/rdfprobe/oracle/Cargo.toml -- crates/raf-census/tests/fixtures/reports/baseline.ttl crates/raf-census/tests/fixtures/reports/index.ttl crates/raf-census/tests/fixtures/reports/awkward.ttl
+
+Retained oracle source: scratch/rdfprobe/oracle/src/main.rs, with the original
+scratch manifest/lock. It uses purrdf-rdf and purrdf-core 3.0.1. No caller BASE
+was supplied. Inputs are the exact committed-intent fixture paths above.
+Full expansion: raw/queue-c6-oracle.nt; build/command output:
+raw/queue-c6-oracle.log. Expansions contain 41, 89 and 11 triples respectively.
+Each set was sorted into its adjacent .nt fixture. The report-reader unit test
+compares its own expanded graph against those independent pins.
+
+No external build products were copied into the stage archive.

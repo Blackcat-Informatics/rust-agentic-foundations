@@ -1,0 +1,52 @@
+Prose assessment of one section: print what an assessor reads, record a verdict, or list each assessment and whether it is current
+
+Usage: cargo workplan assess [OPTIONS] <--context|--verdict <accepted|rejected>|--list> [cap:<slug>#<section>]
+
+Arguments:
+  [cap:<slug>#<section>]
+          The section, `cap:<slug>#<section>`. Optional with `--list`, which then lists every assessment
+
+Options:
+      --context
+          Print what an assessor reads: the section, the bound symbols that are its inputs and the evidence its claims name
+
+      --root <dir>
+          The workspace root. Without it the root comes from `cargo metadata`, run in the current directory
+
+      --format <format>
+          How findings are printed: text, or one JSON array for the run
+
+          Possible values:
+          - text: One line or block of text for each record
+          - json: One JSON array for the run
+          
+          [default: text]
+
+      --verdict <accepted|rejected>
+          Record this verdict on the section, replacing its assessment
+
+          Possible values:
+          - accepted: The section states the delivered contract clearly
+          - rejected: It does not
+
+      --list
+          List each assessment and whether it is current
+
+  -q, --quiet
+          Print nothing but findings
+
+      --by <human|agent>
+          Who assesses: `human` or `agent`. Required with `--verdict`; the context is the same for both
+
+          Possible values:
+          - human: A person
+          - agent: An agent
+
+      --copyright <text>
+          The copyright text of the first SPDX line of the record. Given with `--licence` and `--verdict`, or not at all
+
+      --licence <id>
+          The licence identifier of the second SPDX line of the record. Given with `--copyright` and `--verdict`, or not at all
+
+  -h, --help
+          Print help (see a summary with '-h')

@@ -1,0 +1,2 @@
+pub fn go(va(values: &[u8]) -> u8 { usaelv.iter().c, value| sum + vallues: &[u8]) -> u8 {lues: &[u8]) -> u8 { values.iter().copied().u8 { values.itep/*ub fn go(value: u8) ->/ u8 { let next = valuee: 1; next }
+) -> u8 {luue es: &[u8]) -> u8 { values.iter().copied().fold(0, |sum, value| sum+ 1 v +laue) }; nextfold(0, |sum, value| sum v +laue) }

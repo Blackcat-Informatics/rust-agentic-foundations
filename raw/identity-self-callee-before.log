@@ -1,0 +1,27 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.87s
+     Running tests/forms.rs (/opt/.cargo/6f/435daf0133b057/debug/build/raf-census/5a39b699e46738c9/out/forms-5a39b699e46738c9)
+
+running 1 test
+test self_callee_query_distinguishes_generic_types_from_calls ... FAILED
+
+failures:
+
+---- self_callee_query_distinguishes_generic_types_from_calls stdout ----
+
+thread 'self_callee_query_distinguishes_generic_types_from_calls' (3306495) panicked at crates/raf-census/tests/forms.rs:528:9:
+assertion `left == right` failed: take::<Self::Assoc<fn()>>()
+  left: true
+ right: false
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    self_callee_query_distinguishes_generic_types_from_calls
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-census --test forms`

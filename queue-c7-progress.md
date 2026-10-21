@@ -1,0 +1,7 @@
+C7 is committed and pushed as 3669223 after independent implementation review and the normal commit hook. Body/shim identities now retain all 32 BLAKE3 bytes; canonical parsing/display/report IRIs use 64 lowercase hex, while a separate short human display is never an identity. The obsolete duplicate digest/truncated collision guard was removed.
+
+The counted selection tool compares production forms over 261 labelled fixtures and eleven exact source corpora, 432 policies each. Final source counts are 9009 selected bodies, 155 body groups + 49 shim groups, 393 pairs. Concrete disagreement inspection supports keeping the 20-token floor, 30-token literal tier and 6–29 shim range, with explicit unexpanded-macro/sampling limits rather than a claim of measured real-source precision. A shared generic-Self-call bug found in review was repaired and reproduced against rustc before replaying the corpus.
+
+All 133 census tests, census/fuzz all-target clippy, independent RDF parser checks, deny and REUSE pass. The actual seven-section lifecycle completed and removed its record; focused root gates passed 28/68/1. Root-discovery 34dac35 is now being integrated before the mandatory combined-tree make check and current hosted checks.
+
+Portable pure BLAKE3 hashing has a passing exact-version hash-only WASM probe. Full census/source WASM builds and runtime remain unverified and owned through #46; this parent stays open until that acceptance is proved. PR #39's stale closure and JSON/64-bit description have been corrected to reflect the actual foundation delivery.

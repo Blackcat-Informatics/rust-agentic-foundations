@@ -1,0 +1,96 @@
+{
+  "paths": [
+    {
+      "ref": "crates/helper-census",
+      "path": "/home/paudley/Active/purrdf/crates/helper-census",
+      "where": "sibling",
+      "exists": true,
+      "kind": "dir",
+      "lines": null,
+      "licence": "",
+      "commits": [
+        "b9a014566 Bind assembly aggregation to the measured producer compiler",
+        "724b530a2 docs: ship the current Simplified Chinese documentation",
+        "525b3cf1b Add a graph-free RDF carrier and rule execution",
+        "58c1fa987 Enforce logical capacity refusal at native producer boundaries",
+        "675df1658 Implement native geodesic kernel and physical spatial ownership",
+        "cdc43aaa6 Reject ambiguous keep-English anchors and preserve restoration failures",
+        "b1833aeed glossary: use exact link and fence whitespace boundaries",
+        "4db9f7947 refactor(i18n): route glossary checks through the native gate",
+        "97b05f758 Implement native visible-text glossary enforcement",
+        "be69bace1 core: execute admitted dated XPath patterns natively"
+      ]
+    },
+    {
+      "ref": "docs/architecture/normal-form.md",
+      "path": "/home/paudley/Active/rust-agentic-foundations/docs/architecture/normal-form.md",
+      "where": "repo",
+      "exists": true,
+      "kind": "file",
+      "lines": 168,
+      "licence": "SPDX: CC-BY-4.0",
+      "commits": [
+        "21499bcf6 docs: cite recorded evidence for the time limit of a bound test and assess a rationale section",
+        "edf93d5b5 docs: resolve contradictions in the census and workplan contracts",
+        "25e1978a3 docs(capabilities): add census capability specs and architecture pages"
+      ]
+    }
+  ],
+  "identifiers": [
+    {
+      "name": "normalize",
+      "files": 2
+    },
+    {
+      "name": "proc_macro2",
+      "files": 8
+    },
+    {
+      "name": "ref",
+      "files": 285
+    },
+    {
+      "name": "let",
+      "files": 348
+    },
+    {
+      "name": "shim_key",
+      "files": 2
+    },
+    {
+      "name": "blake3",
+      "files": 0
+    },
+    {
+      "name": "body",
+      "files": 155
+    },
+    {
+      "name": "shim",
+      "files": 11
+    },
+    {
+      "name": "table",
+      "files": 169
+    },
+    {
+      "name": "rule",
+      "files": 133
+    },
+    {
+      "name": "serde_json",
+      "files": 19
+    },
+    {
+      "name": "min_tokens",
+      "files": 7
+    },
+    {
+      "name": "normal_form",
+      "files": 20
+    }
+  ],
+  "packages": [],
+  "urls": [],
+  "truncated": []
+}

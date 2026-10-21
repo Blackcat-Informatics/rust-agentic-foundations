@@ -1,0 +1,9 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.71s
+     Running tests/units.rs (/opt/.cargo/6f/435daf0133b057/debug/build/raf-census/7e1242d083be575d/out/units-7e1242d083be575d)
+
+running 1 test
+test self_type_arguments_keep_shim_keys_beside_generic_self_callees ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.00s
+

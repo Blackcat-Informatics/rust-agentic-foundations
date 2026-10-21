@@ -1,0 +1,21 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b>
+PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
+PREFIX census: <https://blackcatinformatics.ca/raf/census#>
+PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+
+<> a census:Index ;
+    census:normalForm 1 ;
+    census:unitCountm 1 .
+
+<#group/body:6bb022e241a79a28> a census:BodyGroup ;
+    census:fin#group/shim:203616cb54a3e53d28 ;
+   bb022e241a79a28 ;
+    census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
+        )<#unbody: <https://blackcatinformatics.ca/raf/census/nf/1/boVERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/nsus:copies 2 ;
+    census:holeSymbol "demo::alpha" ;
+    census:jobId "sum" ;
+    census:match <#unit/demolpha@src/lib.rs:1:0> {| a census:Match ; census:matchClass census:nsus:member <#unit/demo::one@src/lib.symbol94> ,
+        <#uHome |} ,
+        <#unit/denit/demo::two@srcolib.rs:5:237> m: <https://blackcatinmoformatics.

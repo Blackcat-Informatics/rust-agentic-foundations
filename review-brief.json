@@ -1,0 +1,117 @@
+{
+  "issue": 3,
+  "branch": "paudley/3-raf-census-core-normal-form-v1",
+  "base": "origin/main",
+  "commits": [
+    {
+      "oid": "be93118c27c8c581c95761f9c2116c2c3375758f",
+      "subject": "docs(census): correct the normal form page and capability against the code",
+      "date": "2026-10-20"
+    },
+    {
+      "oid": "ab627954245d2ed1b6df2ebf8efb9098bd28d27a",
+      "subject": "fix(raf-census): keep the names inside an attribute, never rename them as locals",
+      "date": "2026-10-20"
+    },
+    {
+      "oid": "7a49256eb91003b6bc7b609693d82300a7592491",
+      "subject": "docs(census): normal form 1 as delivered, census-normal-form complete",
+      "date": "2026-10-20"
+    },
+    {
+      "oid": "2ec6a1e2aabbcdebf63e6817663064c0c5988f3a",
+      "subject": "fix(raf-census): require the index body and shim keys, read an absolute directory from its parent",
+      "date": "2026-10-20"
+    },
+    {
+      "oid": "a8452e586754e289764fa7265ae2715905289634",
+      "subject": "feat(raf-census): baseline and index reports, the baseline example, byte-determinism",
+      "date": "2026-10-20"
+    },
+    {
+      "oid": "e02a4443b099ae4d47465c813f2786ef2035fbae",
+      "subject": "fix(raf-census): match shim ids by the shim key, group by the same field",
+      "date": "2026-10-20"
+    },
+    {
+      "oid": "e9ea57e20f68fb050f2304cc23798dcb267af3a0",
+      "subject": "feat(raf-census): grouping, hex tables, shared constants and job matching",
+      "date": "2026-10-20"
+    },
+    {
+      "oid": "e1073f94d5b2ea385e01458a6ba723d8f8a3865c",
+      "subject": "fix(raf-census): recognise turbofish calls, fail hard on bad spans, collect all string literals",
+      "date": "2026-10-20"
+    },
+    {
+      "oid": "05d7be1c669cc698308aef8cf3f428032099a94c",
+      "subject": "feat(raf-census): units by source identity and Census::load",
+      "date": "2026-10-20"
+    },
+    {
+      "oid": "3f8f46968ebd986fc902006c5692ac422440baab",
+      "subject": "fix(raf-census): number locals after every parameter a body uses, placeholders included",
+      "date": "2026-10-20"
+    },
+    {
+      "oid": "08071b896581ea5f3c7eaa5f46cdb62e38d7e73e",
+      "subject": "feat(raf-census): normal form 1 as a tower of passes, its fingerprints and pinned goldens",
+      "date": "2026-10-20"
+    },
+    {
+      "oid": "cb08b0c6e1de2099f5012f7d2144ebeff47ff266",
+      "subject": "feat(raf-census): the crate, its options, errors and normal-form version gate",
+      "date": "2026-10-20"
+    }
+  ],
+  "files": [
+    "AGENTS.md",
+    "CHANGELOG.md",
+    "Cargo.lock",
+    "Cargo.toml",
+    "README.md",
+    "crates/raf-census/Cargo.toml",
+    "crates/raf-census/examples/baseline.rs",
+    "crates/raf-census/examples/goldens.rs",
+    "crates/raf-census/src/census.rs",
+    "crates/raf-census/src/error.rs",
+    "crates/raf-census/src/group.rs",
+    "crates/raf-census/src/job.rs",
+    "crates/raf-census/src/lib.rs",
+    "crates/raf-census/src/normalize/fingerprint.rs",
+    "crates/raf-census/src/normalize/form.rs",
+    "crates/raf-census/src/normalize/literal.rs",
+    "crates/raf-census/src/normalize/mod.rs",
+    "crates/raf-census/src/normalize/passes.rs",
+    "crates/raf-census/src/normalize/shim.rs",
+    "crates/raf-census/src/normalize/words.rs",
+    "crates/raf-census/src/options.rs",
+    "crates/raf-census/src/report.rs",
+    "crates/raf-census/src/units/mod.rs",
+    "crates/raf-census/src/units/scan.rs",
+    "crates/raf-census/src/units/sig.rs",
+    "crates/raf-census/src/version.rs",
+    "crates/raf-census/tests/forms.rs",
+    "crates/raf-census/tests/golden.rs",
+    "crates/raf-census/tests/groups.rs",
+    "crates/raf-census/tests/page.rs",
+    "crates/raf-census/tests/reports.rs",
+    "crates/raf-census/tests/support/builtin.rs",
+    "crates/raf-census/tests/support/fixtures.rs",
+    "crates/raf-census/tests/support/mod.rs",
+    "crates/raf-census/tests/units.rs",
+    "docs/architecture/normal-form.md",
+    "docs/capabilities/census-normal-form.md",
+    "docs/capabilities/index.md",
+    "tests/docs_contract.rs",
+    "work/assessments/census-normal-form-constraints.md",
+    "work/assessments/census-normal-form-contract.md",
+    "work/assessments/census-normal-form-examples.md",
+    "work/assessments/census-normal-form-purpose.md",
+    "work/assessments/census-normal-form-usage.md",
+    "work/assessments/census-normal-form-verification.md",
+    "work/changes/census-ledger.md",
+    "work/changes/census-normal-form.md"
+  ],
+  "adrs_touched": []
+}

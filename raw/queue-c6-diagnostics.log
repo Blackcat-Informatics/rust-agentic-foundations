@@ -1,0 +1,9 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.94s
+     Running tests/reports.rs (/opt/.cargo/6f/435daf0133b057/debug/build/raf-census/2d95c503ac85f423/out/reports-2d95c503ac85f423)
+
+running 1 test
+test decoded_control_characters_are_escaped_in_report_diagnostics ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.00s
+

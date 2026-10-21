@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+[package]
+name = "raf-census"
+description = "The RAF census: normal form 1, BLAKE3 fingerprints, grouping and the baseline and index reports."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# The BLAKE3 hash a fingerprint is cut from; pinned to the exact version the
+# normal form was built and its goldens recorded against.
+blake3 = "=1.8.7"
+# The lexer for function bodies and macro arguments; `span-locations` gives
+# string literals their absolute lines.
+proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
+# The workspace walk: packages, targets, the symbol index and the item bodies.
+raf-source = { path = "../raf-source", version = "0.1.0" }
+# Derives the closed schemas of the baseline and index reports.
+serde = { version = "1", default-features = false, features = ["derive", "std"] }
+# Renders and reads the reports; the output is sorted and byte-stable.
+serde_json = { version = "1", default-features = false, features = ["std"] }
+# Parses function signatures and constant initialisers; the same version and
+# features `raf-source` re-exports, so the two share one build.
+syn = { version = "3", default-features = false, features = ["full", "parsing", "printing", "visit"] }
+
+purrdf-rdf = "=3.0.1"
+purrdf-core = "=3.0.1"
+
+[lints]
+workspace = true

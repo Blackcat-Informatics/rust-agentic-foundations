@@ -1,0 +1,88 @@
+VERSION "1.2"
+PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
+PREFIX census: <https://blackcatinformatics.ca/raf/census#>
+PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+
+<> a census:Index ;
+    census:normalForm 1 ;
+    census:reportForm 1 .
+
+<#group/body:6bb022e241a79a28> a census:BodyGroup ;
+    census:fingerprint body:6bb022e241a79a28 ;
+    census:member <#unit/demo::alpha@src/lib.rs:1> ,
+        <#unit/demo::beta@src/lib.rs:2> ;
+    census:tokens 21 .
+
+<#group/shim:203616cb54a3e53d> a census:ShimGroup ;
+    census:fingerprint shim:203616cb54a3e53d ;
+    census:member <#unit/demo::one@src/lib.rs:4> ,
+        <#unit/demo::two@src/lib.rs:5> ;
+    census:tokens 6 .
+
+<#job/sum> a census:Job ;
+    census:copies 2 ;
+    census:homeSymbol "demo::alpha" ;
+    census:jobId "sum" ;
+    census:match <#unit/demo::BIG@src/lib.rs:7> ~ <#match/sum/demo::BIG@src/lib.rs:7> {| census:matchClass census:Copy |} ,
+        <#unit/demo::alpha@src/lib.rs:1> ~ <#match/sum/demo::alpha@src/lib.rs:1> {| census:matchClass census:Home |} ,
+        <#unit/demo::beta@src/lib.rs:2> ~ <#match/sum/demo::beta@src/lib.rs:2> {| census:matchClass census:Copy |} .
+
+<#unit/demo::BIG@src/lib.rs:7> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 7 ;
+    census:package "demo" ;
+    census:shipping true ;
+    census:symbol "demo::BIG" ;
+    census:tokens 0 .
+
+<#unit/demo::alpha@src/lib.rs:1> a census:Unit ;
+    census:body body:6bb022e241a79a28 ;
+    census:file "src/lib.rs" ;
+    census:line 1 ;
+    census:package "demo" ;
+    census:shipping true ;
+    census:symbol "demo::alpha" ;
+    census:tokens 21 .
+
+<#unit/demo::beta@src/lib.rs:2> a census:Unit ;
+    census:body body:6bb022e241a79a28 ;
+    census:file "src/lib.rs" ;
+    census:line 2 ;
+    census:package "demo" ;
+    census:shipping true ;
+    census:symbol "demo::beta" ;
+    census:tokens 21 .
+
+<#unit/demo::digits@src/lib.rs:6> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 6 ;
+    census:package "demo" ;
+    census:shipping true ;
+    census:symbol "demo::digits" ;
+    census:tokens 1 .
+
+<#unit/demo::helper@src/lib.rs:3> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 3 ;
+    census:package "demo" ;
+    census:shipping true ;
+    census:symbol "demo::helper" ;
+    census:tokens 3 .
+
+<#unit/demo::one@src/lib.rs:4> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 4 ;
+    census:package "demo" ;
+    census:shim shim:203616cb54a3e53d ;
+    census:shipping true ;
+    census:symbol "demo::one" ;
+    census:tokens 6 .
+
+<#unit/demo::two@src/lib.rs:5> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 5 ;
+    census:package "demo" ;
+    census:shim shim:203616cb54a3e53d ;
+    census:shipping true ;
+    census:symbol "demo::two" ;
+    census:tokens 6 .

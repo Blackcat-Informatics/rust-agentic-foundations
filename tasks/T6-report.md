@@ -1,0 +1,12 @@
+# T6 report
+
+Status: DONE. One commit (docs and completion together, because the document contract refuses a delivered capability beside its open change record). Not pushed.
+
+Files: docs/architecture/normal-form.md (normative v1: token source, four passes and levels, structural/value forms, literal tier, shim form and shim_key, thresholds, fingerprint and encoding, units, grouping, tables, shared constants, jobs, reports), docs/capabilities/census-normal-form.md (delivered, PROPOSED blocks resolved, bindings: 104 code, 96 tests, examples baseline and goldens, matrix marker, Examples hold the real example output), docs/capabilities/index.md, work/assessments/census-normal-form-{purpose,contract,usage,examples,constraints,verification}.md (accepted, by agent, SPDX flags), work/changes/census-normal-form.md (deleted by change complete), tests/docs_contract.rs (INVENTORY delivered, counts 8/0/13, assessments 62, records 64), crates/raf-census/tests/page.rs (new, 5 tests), crates/raf-census/tests/reports.rs (capability Examples equal the example output), CHANGELOG.md, AGENTS.md, README.md.
+
+Checks (exit 0): cargo test -p raf-census --locked (22, 19, 4, 15, 5, 11, 20, doctest); docs_contract + self_workplan + repo_gates; cargo workplan check; make fmt clippy doc deny reuse issue-refs msrv; change complete census-normal-form (completed: removed the record). No timing, no mutation runs.
+
+## Review fixes
+Commits: ab62795 (code: names inside an attribute kept; goldens regenerated, no bump; fixtures shim_closure_body_with_let, doc_comment_renamed_local, doc_comment_text_differs; forms test for attribute names; groups test for macro arguments) and the following docs commit.
+Mapping: F1 page Units + capability Contract/Constraints (constants/statics have no print); F2 code + page Token source + Constraints; F3 shipping rule (some target reaches it and not test code); F4 top-level shim predicate with the closure fixture; F5 groups.rs test renamed_locals_inside_macro_arguments_land_in_one_body_group with a non-grouping neighbour; F6 contract, constraints and verification re-accepted (all six current, 62 assessments); F7 min_tokens via CensusOptions, macro-argument sentence, ref and ref mut.
+Checks (exit 0): cargo test -p raf-census --locked (22/20/4/16/5/11/20/doctest); docs_contract, self_workplan, repo_gates; make fmt clippy doc deny reuse issue-refs; cargo workplan check. The change record stays deleted.
