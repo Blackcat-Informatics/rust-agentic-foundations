@@ -31,7 +31,13 @@ inputs:
     digest: 90dc1a47d5c6f0b91913a5157e686a0ed32f594ba8009e9db3ceffcabe789da7
   - kind: symbol
     name: raf_source::Item
-    digest: 8d11be3ec8160a775ffb5a0d8e4f62221ea6eff834b65402273c768109a226ca
+    digest: 3d1f2cf9201bb424f16aa86bc15c111d8a1fd4fceb9fbe5dc7276ba6d91d067f
+  - kind: symbol
+    name: raf_source::Item::initializer
+    digest: 276d4255f906d18fc4740f7dc8c1405073bd405597fe1fdb612e0902bf95c42e
+  - kind: symbol
+    name: raf_source::Item::parameter_bindings
+    digest: 4a746d5e49bcfb8e36c65af4dd537ed4a45d46d92397a4fb03837595f2b747c5
   - kind: symbol
     name: raf_source::LoadOptions
     digest: 802e1f183baeb760e1118f5147bcdc02b657bf2231c235d513915e35c5eb2ed0
