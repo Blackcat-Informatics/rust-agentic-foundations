@@ -122,30 +122,41 @@ const fn unit_kind(kind: SymbolKind) -> Option<(UnitKind, bool)> {
     }
 }
 
-/// Forgets, when dropped, the source text that `proc_macro2` keeps for the
-/// spans of the thread, so a load leaves no span map on the caller's thread.
-struct SpanMap;
-
-impl Drop for SpanMap {
-    fn drop(&mut self) {
-        proc_macro2::extra::invalidate_current_thread_spans();
-    }
-}
-
 /// The units of `workspace`, in the order of file and position.
 ///
 /// The lexer of bodies keeps the text of every lexed slice in a table of the
-/// thread; the table is cleared when the collection ends, on success and on
-/// failure.
+/// thread. Collection owns a fresh thread; its teardown releases the table
+/// on success, error and unwinding, without changing caller-owned spans.
 ///
 /// # Errors
 ///
 /// [`Error::Source`] when a body or an initialiser does not lex, the
 /// workspace does not hold the text of an item, or the source index names an
 /// item that does not resolve or lists a source item with no reach. Each names
-/// the file; nothing is skipped.
+/// the file; nothing is skipped. [`Error::CollectionSpawn`] when the owned
+/// thread cannot start; a panic resumes on the caller with its original payload.
 pub(crate) fn collect(workspace: &Workspace, options: &CensusOptions) -> Result<Vec<Unit>, Error> {
-    let _span_map = SpanMap;
+    on_thread(|| collect_units(workspace, options))?
+}
+
+/// Run only span-owning work on a fresh thread. Both the closure and its
+/// result must be Send: a caller's proc-macro span cannot enter or escape.
+fn on_thread<R: Send>(work: impl FnOnce() -> R + Send) -> Result<R, Error> {
+    std::thread::scope(|scope| {
+        let worker = std::thread::Builder::new()
+            .name("raf-census-units".into())
+            .stack_size(2 * 1024 * 1024)
+            .spawn_scoped(scope, work)
+            .map_err(Error::CollectionSpawn)?;
+        match worker.join() {
+            Ok(result) => Ok(result),
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    })
+}
+
+/// Collect plain unit data while all temporary token spans belong to the worker.
+fn collect_units(workspace: &Workspace, options: &CensusOptions) -> Result<Vec<Unit>, Error> {
     let normalizer = Normalizer::new(options);
     let mut units = Vec::new();
     for (file, offset, ids) in workspace.items_by_source() {
@@ -306,4 +317,84 @@ fn build(
         tables: facts.tables,
         strings: facts.strings,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    use super::on_thread;
+    use crate::{CensusOptions, Error, MAX_NESTING, Normalizer, Slice};
+
+    struct Teardown(Arc<AtomicUsize>);
+    impl Drop for Teardown {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    thread_local! {
+        static TEARDOWN: RefCell<Option<Teardown>> = const { RefCell::new(None) };
+    }
+
+    fn attach(count: &Arc<AtomicUsize>) {
+        TEARDOWN.with(|slot| *slot.borrow_mut() = Some(Teardown(Arc::clone(count))));
+    }
+
+    #[test]
+    fn collection_worker_tears_down_on_normalization_success_and_error_beside_a_preserved_caller_span()
+     {
+        let tokens: proc_macro2::TokenStream = "\n\ncaller".parse().expect("caller tokens");
+        let span = tokens.into_iter().next().expect("caller token").span();
+        let before = (span.start(), span.source_text(), span.file());
+        let count = Arc::new(AtomicUsize::new(0));
+        let options = CensusOptions::default();
+        for (depth, succeeds) in [(MAX_NESTING, true), (MAX_NESTING + 1, false)] {
+            let body = format!("{}1{}", "(".repeat(depth), ")".repeat(depth));
+            let result = on_thread(|| {
+                attach(&count);
+                Normalizer::new(&options).tower(&Slice::new("body.rs", 7, &body))
+            })
+            .expect("worker starts");
+            match result {
+                Ok(_) => assert!(succeeds),
+                Err(Error::Source { file, line, reason }) => {
+                    assert!(!succeeds);
+                    assert_eq!((file.as_str(), line), ("body.rs", 7));
+                    assert!(reason.contains("delimiters nest deeper"));
+                }
+                Err(other) => panic!("unexpected normalization error: {other}"),
+            }
+            assert_eq!((span.start(), span.source_text(), span.file()), before);
+        }
+        assert_eq!(
+            count.load(Ordering::SeqCst),
+            2,
+            "both owned workers completed TLS teardown"
+        );
+    }
+
+    #[test]
+    fn collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans()
+    {
+        let tokens: proc_macro2::TokenStream = "caller".parse().expect("caller tokens");
+        let span = tokens.into_iter().next().expect("caller token").span();
+        let before = (span.start(), span.source_text());
+        let count = Arc::new(AtomicUsize::new(0));
+        let caught = std::panic::catch_unwind(|| {
+            on_thread::<()>(|| {
+                attach(&count);
+                let _: proc_macro2::TokenStream =
+                    "owned_worker_tokens".parse().expect("worker tokens");
+                std::panic::panic_any(37_u32);
+            })
+        })
+        .expect_err("worker panic resumes on caller");
+        assert_eq!(caught.downcast_ref::<u32>(), Some(&37));
+        assert_eq!(count.load(Ordering::SeqCst), 1);
+        assert_eq!((span.start(), span.source_text()), before);
+    }
 }

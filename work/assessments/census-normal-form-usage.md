@@ -7,7 +7,7 @@ subject: cap:census-normal-form#usage
 inputs:
   - kind: section
     name: cap:census-normal-form#usage
-    digest: fc4a2105c3f07504c7dec60187ad770a155dc3490d7f7723c5f19e4e8b79fdd4
+    digest: 2a67edce12ff5797fd262191b44327705bd677ac20b360f4625e6d337cca575c
   - kind: symbol
     name: raf_census::Baseline::from_turtle
     digest: f1ef5112d2ccd86f16aecc78d3d5c17fd364cacba63b2943fe903eda1f7dc56b
@@ -22,7 +22,7 @@ inputs:
     digest: bb132b08e167fc9fd624e775777ed8e6ec84f789ce8076fb914f31089ce39259
   - kind: symbol
     name: raf_census::Census::load
-    digest: 1a61d35544402c2b1830dd485c840986b0d8795d0fb3627600946c8caf36cb08
+    digest: 65ea7fa65069882ddd229ed3ef68db1c436012938f902503465f84ad1344ccf1
   - kind: symbol
     name: raf_census::Census::match_jobs
     digest: 4158a8083145416d7d1327cd6c1698eb314b9b6ea4e4b9cd326e01a5e80b905f

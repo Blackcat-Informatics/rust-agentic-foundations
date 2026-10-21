@@ -831,22 +831,109 @@ fn a_deep_constant_type_loads_on_a_small_stack() {
     assert_eq!(unit(&census, "demo::N").constants, BTreeSet::from([0]));
 }
 
-/// The byte offset where the first token of a freshly lexed text starts, in
-/// the table of spans that `proc_macro2` keeps for the thread: 0 when the
-/// table is empty, the length of what was lexed before otherwise.
-fn first_offset() -> usize {
-    let tokens: proc_macro2::TokenStream = "fresh".parse().expect("lexes");
-    tokens
-        .into_iter()
-        .next()
-        .expect("one token")
-        .span()
-        .byte_range()
-        .start
+fn assert_caller_span_survives(source: &str, succeeds: bool) {
+    let tokens: proc_macro2::TokenStream = "\n\ncaller_symbol".parse().expect("caller tokens");
+    let span = tokens.into_iter().next().expect("caller token").span();
+    let before = (
+        span.start(),
+        span.end(),
+        span.byte_range(),
+        span.source_text(),
+    );
+    assert_eq!(before.0.line, 3);
+    assert_eq!(before.3.as_deref(), Some("caller_symbol"));
+    let loaded = Census::load(
+        &tree(&[("src/lib.rs", source)]),
+        &["."],
+        &CensusOptions::default(),
+    );
+    assert_eq!(loaded.is_ok(), succeeds, "{loaded:?}");
+    assert_eq!(
+        (
+            span.start(),
+            span.end(),
+            span.byte_range(),
+            span.source_text()
+        ),
+        before
+    );
 }
 
 #[test]
-fn loading_one_tree_twice_on_one_thread_leaves_no_span_map() {
+fn caller_spans_survive_a_successful_census_load() {
+    assert_caller_span_survives("pub fn go(x: u8) -> u8 { x + 1 }\n", true);
+}
+
+#[test]
+fn caller_spans_survive_a_refused_census_load() {
+    assert_caller_span_survives("pub fn broken(\n", false);
+}
+
+#[test]
+fn loading_a_tree_with_caller_local_state_needs_no_sync_bound() {
+    use raf_source::{Entry, EntryKind, FileId, Opened, RelPath, Tree, TreeError};
+
+    struct LocalTree {
+        inner: MemoryTree,
+        reads: std::cell::Cell<usize>,
+    }
+    impl Tree for LocalTree {
+        fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
+            self.inner.read(path, max_bytes)
+        }
+        fn read_unseen(
+            &self,
+            path: &RelPath,
+            max_bytes: u64,
+            seen: &dyn Fn(&FileId) -> bool,
+        ) -> Result<Opened, TreeError> {
+            self.reads.set(self.reads.get() + 1);
+            self.inner.read_unseen(path, max_bytes, seen)
+        }
+        fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
+            self.inner.list(path)
+        }
+        fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
+            self.inner.entry(path)
+        }
+    }
+    let tree = LocalTree {
+        inner: tree(&[("src/lib.rs", "pub fn go() {}\n")]),
+        reads: std::cell::Cell::new(0),
+    };
+    let census =
+        Census::load(&tree, &["."], &CensusOptions::default()).expect("a Cell-backed Tree loads");
+    assert_eq!(symbols(&census), ["demo::go"]);
+    assert!(tree.reads.get() > 0);
+}
+
+#[test]
+fn a_held_standalone_tower_keeps_its_forms_and_print_across_census_loads() {
+    let options = CensusOptions::default();
+    let tower = raf_census::Normalizer::new(&options)
+        .tower(&raf_census::Slice::new("held.rs", 3, "let y = x + 7; y").params(["x"]))
+        .expect("standalone body");
+    let before = (
+        tower.form(raf_census::Level::Verbatim).texts(),
+        tower.print(1),
+    );
+    for (source, succeeds) in [("pub fn go() {}\n", true), ("pub fn broken(\n", false)] {
+        assert_eq!(
+            load_with(&[("src/lib.rs", source)], &options).is_ok(),
+            succeeds
+        );
+        assert_eq!(
+            (
+                tower.form(raf_census::Level::Verbatim).texts(),
+                tower.print(1)
+            ),
+            before
+        );
+    }
+}
+
+#[test]
+fn loading_one_tree_twice_preserves_the_callers_span_storage_and_unit_results() {
     let files = [(
         "src/lib.rs",
         "pub fn go(x: u8) -> &'static str {\n    let _ = x + 1;\n    \"text\"\n}\n\npub const C: u8 = 7;\n",
@@ -854,18 +941,22 @@ fn loading_one_tree_twice_on_one_thread_leaves_no_span_map() {
     let tree = tree(&files);
     let options = CensusOptions::default();
     let (before, first, between, second, after) = std::thread::spawn(move || {
-        let before = first_offset();
+        let before = first_file();
         let first = Census::load(&tree, &["."], &options).expect("loads");
-        let between = first_offset();
+        let between = first_file();
         let second = Census::load(&tree, &["."], &options).expect("loads again");
-        (before, first, between, second, first_offset())
+        (before, first, between, second, first_file())
     })
     .join()
     .expect("the thread finishes");
     assert_eq!(
         (before, between, after),
-        (0, 0, 0),
-        "a load leaves no span map on its thread"
+        (
+            "<parsed string 1>".to_owned(),
+            "<parsed string 2>".to_owned(),
+            "<parsed string 3>".to_owned()
+        ),
+        "only the three caller probes add source files; census neither adds nor clears them"
     );
     assert_eq!(first.units().len(), 2);
     for (a, b) in first.units().iter().zip(second.units()) {
@@ -876,4 +967,10 @@ fn loading_one_tree_twice_on_one_thread_leaves_no_span_map() {
         assert_eq!(a.strings, b.strings);
         assert_eq!(a.constants, b.constants);
     }
+}
+
+/// The observable source-file ordinal, unlike `byte_range` which is file-relative.
+fn first_file() -> String {
+    let tokens: proc_macro2::TokenStream = "fresh".parse().expect("lexes");
+    tokens.into_iter().next().expect("one token").span().file()
 }

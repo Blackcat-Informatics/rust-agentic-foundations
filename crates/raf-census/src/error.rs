@@ -33,6 +33,8 @@ pub enum Error {
     },
     /// The workspace could not be loaded.
     Load(LoadError),
+    /// The owned unit-collection thread could not start.
+    CollectionSpawn(std::io::Error),
     /// A report could not be rendered, or a text is not a report: unknown
     /// predicates, missing properties and wrong types are refused.
     Report(crate::ReportError),
@@ -53,6 +55,11 @@ impl fmt::Display for Error {
                  `cargo census migrate` to move the ledger to normal_form {implemented}"
             ),
             Self::Load(error) => write!(f, "the workspace did not load: {error}"),
+            Self::CollectionSpawn(error) => write!(
+                f,
+                "the census unit-collection thread could not start: {}",
+                error.to_string().escape_debug()
+            ),
             Self::Report(reason) => write!(f, "invalid census report: {reason}"),
         }
     }
@@ -62,6 +69,7 @@ impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             Self::Load(error) => Some(error),
+            Self::CollectionSpawn(error) => Some(error),
             Self::Report(error) => Some(error),
             _ => None,
         }
@@ -97,6 +105,17 @@ mod tests {
         });
         assert!(report.to_string().contains("reportForm 2, implemented 1"));
         assert!(report.source().is_some());
+        let spawn = Error::CollectionSpawn(std::io::Error::other("refused\u{1b}"));
+        assert!(
+            spawn
+                .to_string()
+                .contains("unit-collection thread could not start")
+        );
+        assert!(!spawn.to_string().contains('\u{1b}'));
+        assert!(spawn.to_string().contains("\\u{1b}"));
+        assert!(spawn.source().is_some());
+        let neighbor = Error::CollectionSpawn(std::io::Error::other("refused"));
+        assert!(neighbor.to_string().ends_with("refused"));
     }
 
     #[test]
