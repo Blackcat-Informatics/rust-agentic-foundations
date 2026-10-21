@@ -42,11 +42,18 @@ impl Census {
     /// `options.max_file_bytes` is the cap on one source file: a larger file
     /// is a load error that names it.
     ///
+    /// The tree is read on the caller's thread and need not be Send or Sync.
+    /// Unit collection borrows the loaded workspace on a fresh owned thread;
+    /// only plain unit data returns. Caller-owned proc-macro spans remain valid,
+    /// and the worker's thread-local span storage ends with that worker.
+    ///
     /// # Errors
     ///
     /// [`Error::Load`] when the workspace does not load, and [`Error::Source`]
     /// when a body or an initialiser does not lex or the source index is
     /// inconsistent. Nothing falls back to a partial result.
+    /// [`Error::CollectionSpawn`] when the collection worker cannot start.
+    /// A worker panic resumes on the caller with its original payload.
     pub fn load(tree: &impl Tree, roots: &[&str], options: &CensusOptions) -> Result<Self, Error> {
         let mut load = LoadOptions::default();
         load.max_file_bytes = options.max_file_bytes;

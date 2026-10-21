@@ -10,6 +10,11 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ### Changed
 
+- Census unit collection owns a fresh worker thread and preserves caller-owned
+  proc-macro spans. Worker teardown releases its lexical storage on success,
+  error and panic; spawn failures retain a typed I/O source and panic payloads
+  resume unchanged. The supplied Tree needs no Send or Sync bound.
+
 - Census reports use canonical RDF 1.2 Turtle with ground snapshot IRIs, typed
   named match reifiers and a strict closed-shape reader. The layout version is
   independent of the normal-form version. `purrdf-lex` has a 3.0.1 caret floor
@@ -22,7 +27,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `rename_locals`, `kind_literals`, `erase_held`) into its shim, structural and value
   forms; only the names a body binds are renamed, together with its parameters and
   by first appearance, and every threshold counts the value form. A `body` or
-  `shim` fingerprint is `<kind>:` and the first 8 bytes of the
+  `shim` fingerprint is `<kind>:` and all 32 bytes of the
   BLAKE3 hash of the form, and `Normalizer::explain` names the level at which two
   bodies part. The census groups units by fingerprint, finds hex-digit tables and
   large constants shared across packages, matches `Job`s as home, variant or copy,
