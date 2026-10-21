@@ -150,11 +150,3 @@ impl Stubs {
         calls(&self.git_record)
     }
 }
-
-pub(crate) const METADATA: [&str; 4] = ["metadata", "--format-version", "1", "--no-deps"];
-
-pub(crate) fn metadata_argv() -> Vec<String> {
-    let mut argv: Vec<String> = METADATA.iter().map(ToString::to_string).collect();
-    argv.push("--frozen".to_string());
-    argv
-}

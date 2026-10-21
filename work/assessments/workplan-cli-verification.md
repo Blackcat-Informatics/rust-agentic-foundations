@@ -7,13 +7,13 @@ subject: cap:workplan-cli#verification
 inputs:
   - kind: section
     name: cap:workplan-cli#verification
-    digest: eaaa6ce0fa7c71148733e3b200c9bbf7d335dd99d7dad9a1d01ac18cd5408747
+    digest: bca9f50d6b41730be5772df2b5aa657f06a2a82f0036f6bc893f9f02b7d4a876
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::assess::assess
     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::cli::Args
-    digest: 762ece6b9d833774ae63974c7935a5c9c5f1f4ad5713ed77ad691c54d4adb622
+    digest: 23c4dcbfee7a282e96c8cf20745fac25731180929cae68974c8bdb3d87bcad2c
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::cli::parse
     digest: 5026669c1a481a4ed2cccb2ad96429c0b67dbb70fdcd296e9698a392dc51c948
@@ -52,10 +52,10 @@ inputs:
     digest: 652b550815b3496adfaceff0e308c64e0a5da4bd015131f3f8622c40afe85492
   - kind: symbol
     name: raf_workplan::root
-    digest: a1c58d0670756165083ca5de437a1e4646d29f895c043ee2c5acecbe02bf0437
+    digest: af7231370e24355eb50b43057b8a1f3ceade8a79971efc515a0df0a23652190b
   - kind: symbol
     name: raf_workplan::root::discover
-    digest: 66f58a368a4a2cc26a40d9744520614f6f9abc6158f3051d3ad90f99842ee62b
+    digest: 9d7ad8657e30c160c446b156d9e9177039240df337d0aad0be3095ab0b8332f2
 verdict: accepted
 by: agent
 ---
