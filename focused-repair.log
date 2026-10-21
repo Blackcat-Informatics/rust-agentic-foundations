@@ -1,0 +1,32 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/42-raf-workplan-root-discovery-without-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.50s
+     Running tests/root.rs (/opt/.cargo/b0/fc80d9de9911d2/debug/build/raf-source/e98bb0043b40ec1f/out/root-e98bb0043b40ec1f)
+
+running 6 tests
+test malformed_manifests_and_missing_directories_fail_hard ... ok
+test standalone_excluded_and_nested_packages_have_their_own_roots ... ok
+test transitive_path_dependencies_are_members ... ok
+test member_and_virtual_workspace_directories_resolve_without_sources ... ok
+test explicit_workspace_requires_a_safe_path_and_agreed_membership ... ok
+test manifest_size_bound_is_enforced_beside_the_exact_limit ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/42-raf-workplan-root-discovery-without-a/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.92s
+     Running tests/root.rs (/opt/.cargo/b0/fc80d9de9911d2/debug/build/raf-workplan/d59a6fdfe7597d2a/out/root-d59a6fdfe7597d2a)
+
+running 6 tests
+test a_nonexistent_directory_is_refused ... ok
+test a_directory_outside_any_workspace_is_an_actionable_error ... ok
+test memory_discovery_never_invokes_a_runner ... ok
+test a_dangling_manifest_is_a_finding_instead_of_an_ancestor_fallback ... ok
+test tree_directory_aliases_fail_instead_of_selecting_lexical_ancestors ... ok
+test the_root_is_found_from_the_root_a_member_and_a_subdirectory ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/42-raf-workplan-root-discovery-without-a/crates/raf-source)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/42-raf-workplan-root-discovery-without-a/crates/raf-workplan)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/42-raf-workplan-root-discovery-without-a/crates/cargo-workplan)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 9.93s

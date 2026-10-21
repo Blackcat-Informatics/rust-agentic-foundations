@@ -1,0 +1,13 @@
+{
+  "baseRefName": "main",
+  "baseRefOid": "c5fc94fb8340eba0195af740dda028807837dbbc",
+  "headRefName": "paudley/42-raf-workplan-root-discovery-without-a",
+  "headRefOid": "4040bc7c352e7860467ea66482c0919dfc3f012c",
+  "isDraft": false,
+  "mergeCommit": null,
+  "mergedAt": null,
+  "number": 51,
+  "state": "OPEN",
+  "title": "feat(raf-source): discover roots without a Cargo subprocess",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/51"
+}
