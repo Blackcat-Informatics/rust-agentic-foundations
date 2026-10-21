@@ -1,0 +1,22 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.44s
+     Running tests/units.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-census/7e1242d083be575d/out/units-7e1242d083be575d)
+
+running 1 test
+test caller_spans_survive_a_collection_error ... FAILED
+
+failures:
+
+---- caller_spans_survive_a_collection_error stdout ----
+
+thread 'caller_spans_survive_a_collection_error' (848844) panicked at crates/raf-census/tests/units.rs:876:5:
+collection error, not workspace load: the workspace did not load: src/lib.rs:1: syntax error at column 21: cannot parse string into token stream (reached by package discovery)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    caller_spans_survive_a_collection_error
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 28 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-census --test units`

@@ -1,0 +1,30 @@
+   Compiling arrayvec v0.7.8
+   Compiling purrdf-hash v3.0.1
+   Compiling cfg-if v1.0.5
+   Compiling constant_time_eq v0.4.2
+   Compiling cpufeatures v0.3.1
+   Compiling blake3 v1.8.7
+   Compiling purrdf-lex v3.0.1
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.95s
+     Running tests/units.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-census/7e1242d083be575d/out/units-7e1242d083be575d)
+
+running 2 tests
+test caller_spans_survive_a_refused_census_load ... ok
+test caller_spans_survive_a_successful_census_load ... FAILED
+
+failures:
+
+---- caller_spans_survive_a_successful_census_load stdout ----
+
+thread 'caller_spans_survive_a_successful_census_load' (827133) panicked at /kache/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.107/src/fallback.rs:495:23:
+internal error: entered unreachable code: Invalid span with no related FileInfo!
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    caller_spans_survive_a_successful_census_load
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-census --test units`

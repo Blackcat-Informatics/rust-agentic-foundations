@@ -1,0 +1,19 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-source)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/3-raf-census-core-normal-form-v1/crates/raf-census)
+error: item in documentation is missing backticks
+   --> crates/raf-census/tests/units.rs:972:48
+    |
+972 | /// The observable source-file ordinal, unlike byte_range which is file-relative.
+    |                                                ^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#doc_markdown
+    = note: `-D clippy::doc-markdown` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::doc_markdown)]`
+help: try
+    |
+972 - /// The observable source-file ordinal, unlike byte_range which is file-relative.
+972 + /// The observable source-file ordinal, unlike `byte_range` which is file-relative.
+    |
+
+error: could not compile `raf-census` (test "units") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

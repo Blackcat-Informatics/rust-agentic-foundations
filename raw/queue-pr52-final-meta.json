@@ -1,0 +1,13 @@
+{
+  "baseRefName": "main",
+  "baseRefOid": "e1e52f60930494089aa8035d54608b2d87a5cb97",
+  "headRefName": "paudley/3-raf-census-core-normal-form-v1",
+  "headRefOid": "9fae762af63f9a2e1e621187085296ebf04f548e",
+  "isDraft": false,
+  "mergeCommit": null,
+  "mergedAt": null,
+  "number": 52,
+  "state": "OPEN",
+  "title": "fix(raf-census): preserve caller spans during collection",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/52"
+}

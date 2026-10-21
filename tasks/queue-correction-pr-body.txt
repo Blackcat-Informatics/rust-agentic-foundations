@@ -1,0 +1,7 @@
+Unit collection cleared the caller's proc-macro span table, requiring callers to finish using their spans before loading a census. Collection now borrows the completed workspace on a fresh worker. Worker teardown releases its lexer storage while caller spans remain valid, without adding Send or Sync requirements to Tree. Spawn failures retain their I/O source, and worker panics resume with their original payload.
+
+The correction replaces an ineffective file-offset cleanup assertion with caller-span, file-registration and worker-teardown checks, updates the contract, and completes its fresh change lifecycle. Normal-form and report bytes are unchanged.
+
+Validation: 139 census tests, workspace all-target compilation, denied-warning census clippy, documentation sync and current assessments pass. Full make check passed with exit 0, including all five fuzz targets at 5,000 runs. Normal commit hooks passed; all 12 hosted CI jobs passed in run 39550508241.
+
+This establishes native collection ownership. Standalone lexical/session storage and thread-free core build/runtime qualification remain open under #46. Refs #3; the parent remains open.

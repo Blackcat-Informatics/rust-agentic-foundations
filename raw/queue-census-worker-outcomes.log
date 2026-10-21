@@ -1,0 +1,10 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 17.48s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-census/298ac7269d90c215/out/raf_census-298ac7269d90c215)
+
+running 2 tests
+test units::tests::collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans ... ok
+test units::tests::collection_worker_tears_down_on_normalization_success_and_error_beside_a_preserved_caller_span ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 20 filtered out; finished in 0.00s
+

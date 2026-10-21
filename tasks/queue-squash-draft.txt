@@ -1,0 +1,21 @@
+fix(raf-census): preserve caller spans during collection
+
+Collect source units on a scoped worker borrowing the completed workspace.
+Worker teardown owns lexer storage, so loading a census no longer invalidates
+the caller's live proc-macro spans. Tree implementations need no new Send or
+Sync bound. Spawn errors keep their I/O source, and panics retain their payload.
+
+Replace the ineffective file-relative cleanup assertion with public caller,
+repeated-load registration and worker teardown checks. Reconcile the capability,
+architecture, assessments and completed change lifecycle. Normal-form and report
+bytes remain unchanged.
+
+Validation: 139 census tests, all-target workspace compilation, denied-warning
+census clippy, current assessments, full make check and normal commit hooks
+passed. All 12 hosted CI jobs passed in run 39550508241. The clean candidate equals the tested head tree.
+
+Native collection ownership does not establish the remaining portable-core or
+standalone lexical-session acceptance. The parent remains open.
+
+Refs #3
+Defect-Class: lexical-storage-ownership

@@ -1,0 +1,474 @@
+assess cap:census-normal-form#contract
+record assessment:census-normal-form-contract (work/assessments/census-normal-form-contract.md)
+section docs/capabilities/census-normal-form.md
+    Contract
+    
+    The normative definition of the normal form is
+    [the architecture page](../architecture/normal-form.md). This capability
+    implements it as follows.
+    
+    - The census implements `normal_form = 1`. A body is lexed with `proc_macro2`,
+      including the arguments of macro invocations, and rewritten by four passes
+      (`rename_params`, `rename_locals`, `kind_literals`, `erase_held`) into its shim
+      form, its structural form and its value form. Integer literals are respelled to
+      decimal at lex time, so every spelling of one value is one token.
+    - The value form drops borrows, derefs, `ref` and `ref mut` bindings, the value adapters listed
+      in `VALUE_ADAPTERS` (`as_str`, `as_ref`, `as_slice`, `as_mut`, `as_deref`,
+      `borrow`, `borrow_mut`, `clone`, `cloned`, `copied`, `to_owned`), full-range
+      reindexing, `let` type annotations and type-only turbofish.
+    - `rename_locals` renames only the names that the body or its signature binds
+      (the patterns of `let`, `if let`, `while let`, `for` and `match` arms, closure
+      parameters, local functions and types, labels, lifetimes, macro metavariables and
+      named macro arguments) and every use of them, and numbers them together with the
+      parameters by order of first appearance. Every other identifier is the name of an
+      item and is kept: `map(double)` and `map(triple)` are different bodies, as are two
+      reads of different statics. A name in field position is kept, `S { x }` included.
+      The block after the head of an `if`, `while`, `match` or `for` is never a struct
+      literal. The shim level keeps the signature order of the parameters.
+    - A body whose value form has fewer than 30 tokens keeps its literals verbatim (the
+      literal tier). A longer body has its literals abstracted. Every threshold counts
+      the tokens of the value form, delimiters included, and the count is taken before
+      the literals are abstracted, so noise the value form erases never moves a body
+      across a threshold.
+    - A body is a shim candidate when it is one expression, judged at the top level of
+      the body only (no `let`, no `;` before its tail; a closure inside an argument may
+      hold both), contains a call, does not mention `self` and has 6 to 29 value
+      tokens; its shim form renames its own parameters in signature order.
+      `MIN_SHIM_TOKENS` is 6 and `SHIM_MAX_TOKENS` is 30. A shim candidate keeps its `body` fingerprint when it
+      reaches `min_tokens`, which the index lists, but it never joins a body group:
+      only its `shim` fingerprint groups, and only when its `shim_key` is present. The
+      `shim_key` is absent for a method of a trait implementation and for a forwarder
+      that calls through `Self::`, a call at any depth whose callee path starts with
+      `Self::`. An associated type inside generic arguments is not a callee; generic
+      Self calls still count when their arguments include lifetimes or function types.
+    - A body with fewer than `min_tokens` value tokens has no body fingerprint.
+      `min_tokens` defaults to 20 and `CensusOptions::min_tokens` sets it; the ledger key
+      that carries it is the ledger capability's.
+    - A fingerprint is `<kind>:` followed by an identifier. For `body` and `shim` the
+      identifier is the 64 lowercase hexadecimal digits of the complete 32-byte BLAKE3
+      digest under `tokens-len-u32le-utf8/blake3/hex64`. Canonical display, parsing,
+      equality, grouping and report IRIs all use the complete digest.
+      `Fingerprint::abbreviated` supplies a human-only sixteen-digit prefix with an
+      ellipsis; it cannot be parsed as an identity. For
+      `table` and `rule` it is a fixed name. The kinds are `body`, `shim`, `table` and
+      `rule`.
+    - BLAKE3 is requested with default features disabled and `pure` enabled. The hash
+      implementation needs no native C or assembly backend, and its token encoding is
+      independent of pointer width and endianness: each UTF-8 token has a little-endian
+      `u32` byte length before its bytes. `cargo metadata` discovery for reference
+      packages belongs to the host reference-scan layer; this core never invokes it.
+    - `raf_census::NORMAL_FORM` is 1. `raf_census::check_normal_form(declared)`
+      accepts 1 and refuses every other version with `Error::Version`, whose message
+      names the declared version, the implemented version and `cargo census migrate`.
+      Reading a version out of a ledger file is the ledger's.
+    - `raf_census::CensusOptions` is `#[non_exhaustive]` and has `Default` and two
+      setters. `min_tokens` defaults to 20, and the setter refuses 0 with
+      `Error::Options`. `max_file_bytes` defaults to 8 MiB and is the per-file read cap
+      of the workspace load; a file above it is a load error that names the file.
+    - `raf_census::Error` is the one error type: `Source` (file, line and reason of a
+      slice that does not lex, text of an item that the workspace does not hold, or a
+      source item of the index whose item does not resolve or that has no reach: such an
+      inconsistency is an error that names the file and never drops a unit),
+      `Options`, `Version`, `Report` (a typed `ReportError`), a load error of `raf-source`,
+      and `CollectionSpawn` with its I/O source when the collection worker cannot start.
+      A collection-worker panic resumes on the caller with the original payload after
+      worker teardown. Nothing falls back to a partial result.
+    - `raf_census::FileCtx` describes one file of the workspace: its `package` (of
+      the first target that reaches it), its `path`, `shipping`, and `target_kinds`, the
+      set of raf-source `TargetKind` values (library, binary, test, bench, example,
+      build script) of every target whose module tree reaches the file, test code
+      included. A file of a library has `{Lib}`, a file under `tests/` has `{Test}`
+      and a file under `examples/` has `{Example}`; a module that two targets declare
+      has both kinds. `shipping` stays the question of whether shipped code reaches it.
+    - Units are collected once per source item, whatever number of targets reach it,
+      so a module declared by both a library and a binary yields one unit. A unit is
+      a function, a method (inherent, trait implementation or trait default), a
+      constant or a static; its identity is its file, line, start byte and symbol, its symbol is
+      chosen deterministically (a shipping reach over a test reach, then the smallest
+      path), and it is shipping when some target that reaches it ships and the item is
+      not test code in that reach. A function or method unit holds its print; a constant
+      or static has no print and no fingerprint. A unit holds its integer constants by
+      value, its string literals with their lines (string, byte string and C string)
+      and the tables it holds.
+    - The census groups units by fingerprint in a `BTreeMap` from fingerprint to
+      members. A group has two or more members. Groups sort by member count descending,
+      then tokens descending, then fingerprint ascending, and their members by symbol,
+      file, line and start byte, so the same source always produces the same output. Body and shim prints each hold a single complete fingerprint,
+      without a redundant truncated identity or separate digest.
+    - Integer constants are compared by value in any spelling. The census recognises
+      hex-digit tables (a string, a byte string or an array of 16 `char` or `u8`
+      literals that is exactly the sixteen digits in one case) and reports them as
+      `table:hex-lower` and `table:hex-upper`. A value above `0xffff` that units of two
+      or more packages hold is a shared constant.
+    - A job (`raf_census::Job`) has an id, a home symbol, entry-point symbols, variant
+      symbols and a forbidden set of fingerprints and integer constants.
+      `Census::match_jobs` returns one report per job. A unit matches when its `body`
+      fingerprint, its `shim_key` or its `table:` id is a forbidden fingerprint, or when
+      one of its integer constants equals a forbidden constant by value. A match is
+      `Home` when the unit's symbol is the home or an entry point, `Variant` when it is a
+      listed variant, and `Copy` otherwise, and the job counts its copies. A `rule:`
+      fingerprint matches no unit here.
+    - The baseline and index are ground RDF 1.2 graphs in one canonical Turtle 1.2
+      spelling, with the closed shape in the architecture page's Reports section.
+      A content-addressed BASE separates snapshot-local nodes; its BLAKE3-256 digest
+      covers the document without the BASE line. This is an unkeyed integrity check,
+      refusing an edit whose digest was not recomputed. Each unit's identity includes
+      symbol, file, line and start byte. Job matches have named, typed RDF 1.2 reifiers
+      carrying Home, Variant or Copy. Constants are decimal xsd:integer values.
+      The shared purrdf-lex canonical RDF 1.2 term spelling escapes literals and IRIs.
+      Readers return the declared normal form without gating it, while enforcing
+      reportForm 1 and matching fingerprint namespaces. Unknown terms, missing,
+      repeated and mistyped properties, dangling references, orphan units and node
+      names that disagree with properties are errors. Alternate spellings and an
+      incorrect BASE digest are errors. Writers validate the same closed shape.
+    - A normal form version is fixed by the content of its first merge to the default
+      branch. After that, any change that can alter a fingerprint is a new version with
+      a migration path.
+    
+symbol raf_census::Census::match_jobs (named in the section)
+  in crates/raf-census/src/job.rs
+    /// Matches every job against the units: a unit matches when its `body`
+        /// fingerprint, its shim key, or the `table:` id of a table it holds, is
+        /// among the job's forbidden fingerprints, or one of its integer constants
+        /// equals a forbidden constant by value. A shim id matches the units that
+        /// group under it: a method of a trait implementation and a forwarder
+        /// that calls through `Self::` have no shim key and never match one. One report per job, in the order given.
+        #[must_use]
+        pub fn match_jobs(&self, jobs: &[Job]) -> Vec<JobReport> {
+            jobs.iter()
+                .map(|job| {
+                    let mut matches: Vec<JobMatch> = self
+                        .units()
+                        .iter()
+                        .filter(|unit| job.matches(unit))
+                        .map(|unit| JobMatch {
+                            symbol: unit.symbol.clone(),
+                            file: unit.file.clone(),
+                            line: unit.line,
+                            start_byte: unit.start_byte,
+                            class: job.classify(&unit.symbol),
+                        })
+                        .collect();
+                    matches.sort_by(|a, b| {
+                        (&a.symbol, &a.file, a.line).cmp(&(&b.symbol, &b.file, b.line))
+                    });
+                    let copies = matches
+                        .iter()
+                        .filter(|found| found.class == MatchClass::Copy)
+                        .count();
+                    JobReport {
+                        id: job.id.clone(),
+                        home: job.home.clone(),
+                        matches,
+                        copies,
+                    }
+                })
+                .collect()
+        }
+symbol raf_census::CensusOptions (named in the section)
+  in crates/raf-census/src/options.rs
+    /// The options of one census run.
+    ///
+    /// The options are `#[non_exhaustive]`: build them from [`Default`] and the
+    /// setters, which refuse a value the census cannot honour.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct CensusOptions {
+        /// A body with fewer value-form tokens has no `body` fingerprint.
+        pub min_tokens: usize,
+        /// The most bytes one source file may hold; a larger file is a load error.
+        pub max_file_bytes: u64,
+    }
+symbol raf_census::CensusOptions::max_file_bytes (named in the section)
+  in crates/raf-census/src/options.rs
+    /// Sets the cap on the size of one source file.
+        #[must_use]
+        pub fn max_file_bytes(mut self, max_file_bytes: u64) -> Self {
+            self.max_file_bytes = max_file_bytes;
+            self
+        }
+symbol raf_census::CensusOptions::min_tokens (named in the section)
+  in crates/raf-census/src/options.rs
+    /// Sets the smallest body that has a `body` fingerprint.
+        ///
+        /// # Errors
+        ///
+        /// [`Error::Options`] when `min_tokens` is 0, which would fingerprint
+        /// every empty body.
+        pub fn min_tokens(mut self, min_tokens: usize) -> Result<Self, Error> {
+            if min_tokens == 0 {
+                return Err(Error::Options(
+                    "min_tokens is 0; it must be at least 1".to_owned(),
+                ));
+            }
+            self.min_tokens = min_tokens;
+            Ok(self)
+        }
+symbol raf_census::Error (named in the section)
+  in crates/raf-census/src/error.rs
+    /// Why a census run failed. Every variant is final: the census never falls
+    /// back to a partial result.
+    #[derive(Debug)]
+    #[non_exhaustive]
+    pub enum Error {
+        /// A source slice does not lex or the source index is inconsistent.
+        Source {
+            /// The file, relative to the workspace root.
+            file: String,
+            /// The 1-based line of the failure.
+            line: usize,
+            /// What went wrong.
+            reason: String,
+        },
+        /// A [`CensusOptions`](crate::CensusOptions) value is refused.
+        Options(String),
+        /// A declared normal-form version is not the implemented one.
+        Version {
+            /// The version that was declared.
+            declared: u32,
+            /// The version this crate implements.
+            implemented: u32,
+        },
+        /// The workspace could not be loaded.
+        Load(LoadError),
+        /// The owned unit-collection thread could not start.
+        CollectionSpawn(std::io::Error),
+        /// A report could not be rendered, or a text is not a report: unknown
+        /// predicates, missing properties and wrong types are refused.
+        Report(crate::ReportError),
+    }
+symbol raf_census::FileCtx (named in the section)
+  in crates/raf-census/src/census.rs
+    /// What a rule needs to know about the file it checks.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct FileCtx {
+        /// The package of the first target that reaches the file.
+        pub package: String,
+        /// The path, relative to the workspace root.
+        pub path: String,
+        /// True when some target that ships reaches the file other than through
+        /// test code.
+        pub shipping: bool,
+        /// The kinds of the targets whose module trees reach the file (a library,
+        /// a test, an example, ...), by any reach, test code included.
+        pub target_kinds: BTreeSet<TargetKind>,
+    }
+symbol raf_census::Fingerprint::abbreviated (named in the section)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// A human-facing abbreviation, separate from canonical display and parsing.
+        ///
+        /// Hashed names retain their first sixteen hexadecimal digits and an ellipsis;
+        /// table and rule names remain complete. Abbreviations are not identities.
+        #[must_use]
+        pub fn abbreviated(&self) -> String {
+            match self {
+                Self::Body(hash) | Self::Shim(hash) => {
+                    let hex = blake3::Hash::from_bytes(*hash).to_hex();
+                    format!("{}:{}…", self.kind(), &hex.as_str()[..16])
+                }
+                _ => self.to_string(),
+            }
+        }
+symbol raf_census::Fingerprint::body (named in the section)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// The `body` fingerprint of a digest.
+        #[must_use]
+        pub fn body(digest: &[u8; 32]) -> Self {
+            Self::Body(*digest)
+        }
+symbol raf_census::Fingerprint::kind (named in the section)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// The kind prefix.
+        #[must_use]
+        pub const fn kind(&self) -> &'static str {
+            match self {
+                Self::Body(_) => "body",
+                Self::Shim(_) => "shim",
+                Self::Table(_) => "table",
+                Self::Rule(_) => "rule",
+            }
+        }
+symbol raf_census::Fingerprint::shim (named in the section)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// The `shim` fingerprint of a digest.
+        #[must_use]
+        pub fn shim(digest: &[u8; 32]) -> Self {
+            Self::Shim(*digest)
+        }
+symbol raf_census::Form::len (named in the section)
+  in crates/raf-census/src/normalize/form.rs
+    /// The number of tokens, delimiters included.
+        #[must_use]
+        pub fn len(&self) -> usize {
+            count(&self.nodes)
+        }
+symbol raf_census::Form::tokens (named in the section)
+  in crates/raf-census/src/normalize/form.rs
+    /// The tokens in order, delimiters included. Every threshold counts these.
+        #[must_use]
+        pub fn tokens(&self) -> Vec<Token> {
+            let mut out = Vec::new();
+            flatten(&self.nodes, &mut out);
+            out
+        }
+symbol raf_census::Job (named in the section)
+  in crates/raf-census/src/job.rs
+    /// One job, held in memory. The ledger builds these from its `[[job]]` tables.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Job {
+        /// The job's id.
+        pub id: String,
+        /// The symbol of the unit that is the job's home.
+        pub home: String,
+        /// Symbols of further units that count as the home: the public ways in.
+        pub entry_points: Vec<String>,
+        /// Symbols of units that may differ on purpose.
+        pub variants: Vec<String>,
+        /// What the job forbids elsewhere.
+        pub forbidden: JobForbidden,
+    }
+symbol raf_census::MIN_SHIM_TOKENS (named in the section)
+  in crates/raf-census/src/normalize/mod.rs
+    /// A body whose value form has fewer tokens has no shim form: below it every
+    /// `{ f(x) }` would be a group.
+    pub const MIN_SHIM_TOKENS: usize = 6;
+symbol raf_census::NORMAL_FORM (named in the section)
+  in crates/raf-census/src/version.rs
+    /// The version of the normal form this crate implements. Any change to what a
+    /// fingerprint hashes bumps it.
+    pub const NORMAL_FORM: u32 = 1;
+symbol raf_census::ReportError (named in the section)
+  in crates/raf-census/src/report/error.rs
+    /// Why text or a value is not a canonical census report.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum ReportError {
+        /// A construct outside the grammar, with its one-based position.
+        Syntax {
+            /// Source line.
+            line: usize,
+            /// Source column.
+            column: usize,
+            /// Refused construct.
+            reason: String,
+        },
+        /// Missing or unsupported RDF version announcement.
+        Version(String),
+        /// Unsupported report layout version.
+        Form {
+            /// Declared layout.
+            declared: u32,
+            /// Implemented layout.
+            implemented: u32,
+        },
+        /// The other report kind was supplied.
+        Kind {
+            /// Requested class.
+            expected: String,
+            /// Actual class.
+            found: String,
+        },
+        /// A class outside this report kind.
+        Class(String),
+        /// A predicate outside a subject's closed shape.
+        UnknownPredicate(String),
+        /// A required property is absent.
+        Missing(String),
+        /// A property exceeds its cardinality or repeats an object.
+        Repeated(String),
+        /// A mistyped or out-of-range value.
+        Value(String),
+        /// A reference names no node.
+        Dangling(String),
+        /// A node is not referenced by the report.
+        Orphan(String),
+        /// A node name disagrees with its properties.
+        Name(String),
+        /// Related facts disagree.
+        Inconsistent(String),
+        /// A spelling differs from the canonical layout.
+        NotCanonical {
+            /// First differing source line.
+            line: usize,
+        },
+        /// The base's unkeyed integrity digest disagrees with the content.
+        Digest {
+            /// Declared digest.
+            declared: String,
+            /// Computed digest.
+            computed: String,
+        },
+        /// Two jobs would mint the same node.
+        DuplicateJob(String),
+    }
+symbol raf_census::RuleId::as_str (named in the section)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// The id as text.
+        #[must_use]
+        pub fn as_str(&self) -> &str {
+            &self.0
+        }
+symbol raf_census::SHIM_MAX_TOKENS (named in the section)
+  in crates/raf-census/src/normalize/mod.rs
+    /// A body whose value form has this many tokens or more has no shim form.
+    pub const SHIM_MAX_TOKENS: usize = 30;
+symbol raf_census::VALUE_ADAPTERS (named in the section)
+  in crates/raf-census/src/normalize/words.rs
+    /// The value adapters the value form drops: a method called with no arguments
+    /// that changes how a value is held (borrowed, copied, owned) and not what it
+    /// is. `next.as_str()` and `next` over a `&str` and over a `usize` are one
+    /// algorithm.
+    pub const VALUE_ADAPTERS: [&str; 11] = [
+        "as_str",
+        "as_ref",
+        "as_slice",
+        "as_mut",
+        "as_deref",
+        "borrow",
+        "borrow_mut",
+        "clone",
+        "cloned",
+        "copied",
+        "to_owned",
+    ];
+symbol raf_census::check_normal_form (named in the section)
+  in crates/raf-census/src/version.rs
+    /// Accepts `declared` when it is [`NORMAL_FORM`].
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Version`] for any other version; its message names both versions
+    /// and `cargo census migrate`.
+    pub fn check_normal_form(declared: u32) -> Result<(), Error> {
+        if declared == NORMAL_FORM {
+            Ok(())
+        } else {
+            Err(Error::Version {
+                declared,
+                implemented: NORMAL_FORM,
+            })
+        }
+    }
+inputs
+  section cap:census-normal-form#contract 8a95d75f9253c0498dba09d46534a510a408620210c578c6fdb162956b75a1bc
+  symbol raf_census::Census::match_jobs 4158a8083145416d7d1327cd6c1698eb314b9b6ea4e4b9cd326e01a5e80b905f
+  symbol raf_census::CensusOptions 3374a4ce9c59f9ee5a5444a70a1803f5a560846fb99259baa6bad8ebf721ed2c
+  symbol raf_census::CensusOptions::max_file_bytes f2b8608bc6fa2a63b793880707e3d72480ef2702447f4d0a317c85d090ed0922
+  symbol raf_census::CensusOptions::min_tokens 8df57f2ea55e951529af334bdad02dd05b2f8cf08425583f147a467ff6a9d573
+  symbol raf_census::Error 53f5addbd5014b66dc670c72c967db695dd3fec76cecba0e53016ceebeadb4fb
+  symbol raf_census::FileCtx dc820cd4bb1dfd693cf6cb0f66493c8438837ee5177cc381ba2cc9a94be75afe
+  symbol raf_census::Fingerprint::abbreviated 68973bdc91a8b1861553d9e693a75c397d6f88fc13db370114367cb4da8de97c
+  symbol raf_census::Fingerprint::body 2b854a575414e8b5dda1067acda06f67e8e3f396838793dd6d0df98cb34da8c3
+  symbol raf_census::Fingerprint::kind eb4b48fc22497b1f5c7cc18395487480ba1b8c49b9d4b6ce9aca52ee266612d5
+  symbol raf_census::Fingerprint::shim eb15e75c3c1c314523e4b657523065ecc897f1d25e1002dacc0b94908be1ad78
+  symbol raf_census::Form::len 1be76935d4254c218510323b79bfb4c0fc2902069d238eb74ff5c6dd7e9b1cf4
+  symbol raf_census::Form::tokens b5bbce341eab299f132c8b5f16a9c374850834f0e6718da1e0043d8b9113c05d
+  symbol raf_census::Job 3f9d93038d32676c236ad951441859c4141dbbc4a7ae6315e6fcdb6de9611496
+  symbol raf_census::MIN_SHIM_TOKENS 54f2b932b7b6d424762c9c8f5ad66367feb972884de3b2cc403a3b5b90ecee71
+  symbol raf_census::NORMAL_FORM 70e3fd42fe1cc7ca511c05dbe4bba480e6de8865632b4e51b4a6efb61b02f802
+  symbol raf_census::ReportError 2dada3392b167cd12dce28477d0ada92744270ee66a79738470f7cb9d3b90c27
+  symbol raf_census::RuleId::as_str 5a3a2181673435534898b2e73556d9576f0a1319ecc5dae1dc2ac6eba3718335
+  symbol raf_census::SHIM_MAX_TOKENS b799e30dd83cb15dc8196c1cea5c1d1cf90a18cef86e69d1e249b750266a6e5e
+  symbol raf_census::VALUE_ADAPTERS 9100a960c0cf4235ad4942ca485b675927ad21a4643cb69e08f7e7f91baf1391
+  symbol raf_census::check_normal_form 06ce3b7c873c268047a884b76f018848a7bb7fcd51f95b8c5b41c55b596a3812
