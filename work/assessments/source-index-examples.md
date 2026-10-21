@@ -102,6 +102,9 @@ inputs:
     name: raf_source::Workspace::unresolved_impls
     digest: b935908e0bf18a62f32f8ce6447950753e6452a8c1fd0aeb0cd92ea522b0f7ea
   - kind: symbol
+    name: raf_source::discover_root
+    digest: decf25b8720addc5994dca976c46ea7f846dbd6c1321f82887c7990c29ab9c7f
+  - kind: symbol
     name: raf_source::parse_source
     digest: 22fd1ef409b6564464dde2df3d2a959170399df0f0f6080e98baad370052438a
 verdict: accepted

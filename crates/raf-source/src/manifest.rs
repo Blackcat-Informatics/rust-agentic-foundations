@@ -153,6 +153,7 @@ impl PackageDecl {
 pub(crate) struct Manifest {
     pub(crate) package: Option<PackageDecl>,
     pub(crate) has_workspace: bool,
+    pub(crate) package_workspace: Option<String>,
     /// `[workspace.package] edition`, for the packages that inherit it.
     pub(crate) workspace_edition: Option<u16>,
     /// `workspace.members`, when the manifest has a `[workspace]` table.
@@ -374,6 +375,20 @@ fn package(root: &Table) -> Result<Option<PackageDecl>, ManifestError> {
     }))
 }
 
+fn workspace_edition(root: &Table) -> Result<Option<u16>, ManifestError> {
+    match root
+        .get("workspace")
+        .and_then(Value::as_table)
+        .and_then(|workspace| workspace.get("package"))
+        .and_then(Value::as_table)
+        .and_then(|package| package.get("edition"))
+    {
+        None => Ok(None),
+        Some(Value::String(edition)) => Ok(Some(year(edition, "workspace.package.edition")?)),
+        Some(_) => Err(at_key("workspace.package.edition", "must be a string")),
+    }
+}
+
 /// Read a manifest from its text.
 ///
 /// # Errors
@@ -390,6 +405,15 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
         })?;
     let package = package(&root)?;
     let has_workspace = root.contains_key("workspace");
+    if let Some(value) = root.get("workspace") {
+        table_of(value, "workspace")?;
+    }
+    let package_workspace = root
+        .get("package")
+        .and_then(Value::as_table)
+        .map(|table| string(table, "package", "workspace"))
+        .transpose()?
+        .flatten();
     let workspace = root.get("workspace").and_then(Value::as_table);
     let strings = |key: &str, cap: usize| -> Result<Vec<String>, ManifestError> {
         let Some(value) = workspace.and_then(|table| table.get(key)) else {
@@ -440,17 +464,7 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
     }
     let members = strings("members", MAX_MEMBERS)?;
     let exclude = strings("exclude", MAX_EXCLUDES)?;
-    let workspace_edition = match root
-        .get("workspace")
-        .and_then(Value::as_table)
-        .and_then(|workspace| workspace.get("package"))
-        .and_then(Value::as_table)
-        .and_then(|package| package.get("edition"))
-    {
-        None => None,
-        Some(Value::String(edition)) => Some(year(edition, "workspace.package.edition")?),
-        Some(_) => return Err(at_key("workspace.package.edition", "must be a string")),
-    };
+    let workspace_edition = workspace_edition(&root)?;
     if package.is_none() && !has_workspace {
         return Err(ManifestError {
             message: "has neither a [package] nor a [workspace] table".to_owned(),
@@ -471,6 +485,7 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
     Ok(Manifest {
         package,
         has_workspace,
+        package_workspace,
         workspace_edition,
         members,
         exclude,

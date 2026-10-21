@@ -119,10 +119,7 @@ fn a_directory_outside_any_workspace_is_exit_two_and_names_the_command() {
         let run = run_in(scratch.path(), shape, &["check"]).expect(2);
         assert_eq!(run.stdout, "");
         assert!(
-            run.stderr.starts_with("cargo-workplan: ")
-                && run
-                    .stderr
-                    .contains("cargo metadata --format-version 1 --no-deps --frozen"),
+            run.stderr.starts_with("cargo-workplan: ") && run.stderr.contains("no Cargo.toml"),
             "{run:#?}"
         );
         // `--root` is the way out, whatever the directory.
