@@ -44,8 +44,8 @@ of `raf-workplan` over the tracked documents, the self-workplan test
 (`tests/self_workplan.rs`), which runs the workplan gate from disk and requires
 every assessment to be current and accepted, and the repository gates
 (`tests/repo_gates.rs`: licence digests, issue-reference and process-wording
-scan, version agreement, and the clock gate below); the census gate joins them when `raf-census` is
-built.
+scan, version agreement, and the clock gate below); the census gate joins them when the census
+`Gate` is built.
 
 ### Crates
 

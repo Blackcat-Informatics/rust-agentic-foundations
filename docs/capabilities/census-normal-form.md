@@ -225,7 +225,7 @@ bindings:
   examples:
     - raf_census::example_crate::baseline
     - raf_census::example_crate::goldens
-depends: []
+depends: [cap:source-index]
 ---
 
 # Census normal form, fingerprints and grouping
@@ -640,7 +640,9 @@ the report then begin with the directory's name, as they do for `crates`.
   What the census itself lexes is a body or an initialiser, whose nesting is
   bounded by `MAX_NESTING` (128) and by the delimiter budget of `raf-source`, which
   the file has already passed. The span table that `proc_macro2` keeps for the
-  thread is cleared when the load ends.
+  thread is cleared when the load ends, including on an error. This also
+  invalidates any `proc_macro2` spans the caller holds on that thread; callers
+  must finish using those spans before loading a census.
 
 ## Explanation
 

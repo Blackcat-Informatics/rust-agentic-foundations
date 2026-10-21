@@ -34,8 +34,8 @@ and pull requests are welcome.
   test suite carries the repository's own gates: a document-contract test that
   runs the `raf-workplan` checks over the capability, change and architecture
   documents, and the repository gates (licence digests, issue-reference scan,
-  version agreement), all in Rust. The census gate joins them when `raf-census`
-  is built. A change that makes a gate fail on RAF itself does not merge, and
+  version agreement), all in Rust. The census gate joins them when the census
+  `Gate` is built. A change that makes a gate fail on RAF itself does not merge, and
   gates are never relaxed to get a change through. `make docs-sync` rewrites the
   generated documentation blocks that the workplan checks find stale.
 - **The workplan completion gate.** A change is complete only when the capability
@@ -70,7 +70,7 @@ make help    # list every target
   at a command that runs the 1.98.1 toolchain.
 - **Fuzz harness.** `make fuzz` checks `fuzz/` (its own cargo-fuzz workspace) with
   fmt, clippy and an offline `cargo deny`, then runs each of its targets
-  (`parse-source`, `parse-document` and `load-workspace`) over its committed corpus,
+  (`parse-source`, `parse-document`, `load-workspace` and `census-normalize`) over its committed corpus,
   with inputs of up to 400000 bytes and limits on resident memory and on one
   allocation. It needs `cargo-fuzz` (`cargo install --locked
   cargo-fuzz@0.13.2`); a missing tool is a failure. `make msrv` and `make fmt` cover

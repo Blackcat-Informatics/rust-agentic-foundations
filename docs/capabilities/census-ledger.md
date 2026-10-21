@@ -95,7 +95,13 @@ For each job the census classifies every matching item as one of three roles:
 - `VARIANT`: a symbol named by a `[[job.variant]]`.
 - `COPY`: any other match of the job's `forbidden` entries outside the home.
 
-`copies` for a job is the number of `COPY` items.
+`copies` for a job is the number of `COPY` items. Fingerprint and constant
+matching and the classification of their matches belong to
+[`cap:census-normal-form`](./census-normal-form.md); the ledger extends those
+matches with forbidden names, patterns and registered rule hits. Every matching
+unit is counted once, even when several forbidden entries match it. Home,
+entry-point and variant paths resolve through re-exports to unit symbols before
+classification.
 
 The census fails with a staleness finding when:
 

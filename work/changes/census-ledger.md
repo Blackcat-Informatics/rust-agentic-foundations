@@ -4,7 +4,7 @@
 type: Change
 id: change:census-ledger
 title: "Implement the census ledger"
-description: "Delivers the helpers-ledger.toml reader, job classification and the staleness checks."
+description: "Delivers the helpers-ledger.toml reader, extended job matching and the staleness checks."
 changes: [cap:census-ledger]
 affects:
   - cap:census-ledger#purpose
@@ -22,6 +22,8 @@ items:
   - claim: "A normal_form mismatch fails before any job is read."
   - claim: "The ledger read is bounded in file size and nesting depth."
   - claim: "The census table accepts max_file_bytes, which sets the per-file read cap and defaults to 8 MiB."
+  - claim: "Matches of forbidden.names, forbidden.patterns and registered rule hits are classified HOME, VARIANT or COPY beside fingerprint and constant matches, each unit counted once."
+  - claim: "Home, entry-point and variant paths resolve through re-exports to unit symbols before jobs are matched."
 ---
 
 ## Summary

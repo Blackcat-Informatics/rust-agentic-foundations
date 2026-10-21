@@ -7,7 +7,7 @@ subject: cap:census-normal-form#constraints
 inputs:
   - kind: section
     name: cap:census-normal-form#constraints
-    digest: 045137f5f8214935fd2e8dbc2b61059c9ee23222e0387f5b9c20981efdccb627
+    digest: f513f355418d6b65283c399f7f3b89c114666223ddbaf5acfbf9db1cd6d4b53f
   - kind: symbol
     name: raf_census::Census::load
     digest: 3c08f4d7a30e9a319a885435dc37e6ce156b66c272383640191d425805df3201

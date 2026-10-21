@@ -143,6 +143,17 @@ guarantees are these, and no wider:
   partial index. Report
   an overflow as a robustness bug: under the trust model above its impact is a failed
   run and not a breach. The parsers set no time bound.
+- **Census input.** `Census::load` reads Rust through the source index with an
+  8 MiB per-file cap by default and its parser recursion, token and nesting
+  budgets. Parameter bindings and initializer ranges come from that parse;
+  signatures are never reparsed on the caller's stack. The census lexes bodies
+  and initializers under a delimiter-depth limit of 128. Invalid text and a
+  source-index inconsistency are typed errors naming the file; no unit is
+  silently omitted. The public `Normalizer` accepts UTF-8 text directly and
+  applies the same delimiter limit. The `census-normalize` fuzz target exercises
+  both public paths, including the deeply nested signature corpus, and checks
+  that valid source yields a unit before processing mutations. Census collection
+  clears the lexer's thread-local span storage on success and failure.
 - **Subprocesses.** Every spawned `cargo` or `git` process runs with no shell and
   takes its arguments as an argv vector, and `cargo` runs with `--frozen`. The one
   further process is the caller's own command of `evidence record`: the words after
