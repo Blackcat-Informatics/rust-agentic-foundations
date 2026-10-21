@@ -604,6 +604,73 @@ fn gen_is_a_name_before_edition_2024_and_a_keyword_from_it() {
 }
 
 #[test]
+fn a_shared_file_reads_keywords_in_each_reached_packages_edition() {
+    for (alpha, zeta) in [("2024", "2021"), ("2021", "2024")] {
+        let manifest = |name: &str, edition: &str| {
+            format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"{edition}\"\n")
+        };
+        let a = manifest("alpha", alpha);
+        let z = manifest("zeta", zeta);
+        let tree = MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[workspace]\nmembers = [\"alpha\", \"zeta\"]\n",
+            ),
+            ("alpha/Cargo.toml", a.as_str()),
+            ("zeta/Cargo.toml", z.as_str()),
+            (
+                "alpha/src/lib.rs",
+                "#[path = \"../../shared.rs\"] mod shared;\n",
+            ),
+            (
+                "zeta/src/lib.rs",
+                "#[path = \"../../shared.rs\"] mod shared;\n",
+            ),
+            // Both unused macro definitions are valid in either edition;
+            // their bodies are tokens, not expanded Rust expressions.
+            (
+                "shared.rs",
+                "macro_rules! probe { () => { gen() }; }\nmacro_rules! raw { () => { r#gen() }; }\nfn r#gen() {}\n",
+            ),
+        ]);
+        let ws = Workspace::load(&tree, &["."]).expect("shared source loads");
+        let macro_node = |package: &str, name: &str| {
+            Node::Item(site(
+                &ws,
+                &format!("{package}::shared::{name}"),
+                Namespace::Macro,
+            ))
+        };
+        let roots = [macro_node("alpha", "probe"), macro_node("zeta", "probe")];
+        let generators = [
+            value(&ws, "alpha::shared::gen"),
+            value(&ws, "zeta::shared::gen"),
+        ];
+        let files: Vec<_> = generators
+            .iter()
+            .map(|node| match node {
+                Node::Item(id) => &ws.item(*id).expect("generator").file,
+                Node::Impl(_) => unreachable!("generator is a function"),
+            })
+            .collect();
+        assert_eq!(files[0], files[1], "one physical cached source file");
+        let mut separate = std::collections::BTreeSet::new();
+        for (i, edition) in [alpha, zeta].into_iter().enumerate() {
+            let single = reach(&ws, &[roots[i]]);
+            assert_eq!(single.contains(generators[i]), edition == "2021");
+            separate.extend(single.reached.iter().map(|found| found.node));
+            assert!(reach(&ws, &[macro_node(["alpha", "zeta"][i], "raw")]).contains(generators[i]));
+        }
+        for ordered in [roots, [roots[1], roots[0]]] {
+            let combined = reach(&ws, &ordered);
+            let nodes: std::collections::BTreeSet<_> =
+                combined.reached.iter().map(|found| found.node).collect();
+            assert_eq!(nodes, separate, "editions {alpha}/{zeta}");
+        }
+    }
+}
+
+#[test]
 fn a_pointer_to_a_type_and_a_raw_borrow_of_a_static_reach_them_and_a_constant_its_type() {
     let ws = lib("pub fn ptr(p: *const Pointee, q: *mut Other) {}\n\
          struct Pointee;\n\

@@ -535,9 +535,9 @@ impl Workspace {
     /// Each reached node is listed once, with the edge it was first reached
     /// by, breadth first from the roots in the order of their nodes, so the
     /// answer does not depend on the order of `roots`. Each file is lexed
-    /// once, and each path is resolved at most once for each module it is
-    /// read from. What the walk holds is charged to the item-bytes budget of
-    /// the load, on from what the load holds.
+    /// once per package edition, and each path is resolved at most once for
+    /// each module it is read from. What the walk holds is charged to the
+    /// item-bytes budget of the load, on from what the load holds.
     ///
     /// ```
     /// use raf_source::{MemoryTree, Node, Workspace};

@@ -89,7 +89,7 @@ fn whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_c
 #[test]
 fn the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only()
  {
-    let lib = "pub mod inner {\n    pub fn go() {}\n    fn helper() {}\n}\npub struct Frame;\nimpl Frame {\n    pub fn push(&self) {}\n    fn grow(&self) {}\n}\nimpl Clone for Frame {\n    fn clone(&self) -> Self { Frame }\n}\npub trait Shape {\n    fn area(&self) -> u32;\n}\nstruct Quiet;\nimpl Clone for Quiet {\n    fn clone(&self) -> Self { Quiet }\n}\npub(crate) fn narrow() {}\nmacro_rules! make { () => {} }\npub use inner::go as run;\n";
+    let lib = "pub mod inner {\n    pub fn go() {}\n    fn helper() {}\n}\n#[derive(PartialEq)]\npub struct Frame;\nimpl Frame {\n    pub fn push(&self) {}\n    fn grow(&self) {}\n}\nimpl Clone for Frame {\n    fn clone(&self) -> Self { Frame }\n}\nimpl Eq for Frame {}\npub trait Shape {\n    fn area(&self) -> u32;\n}\nstruct Quiet;\nimpl Clone for Quiet {\n    fn clone(&self) -> Self { Quiet }\n}\npub(crate) fn narrow() {}\nmacro_rules! make { () => {} }\npub use inner::go as run;\n";
     let source = workspace(lib);
     let packages = BTreeSet::from(["demo"]);
     let surface = Surface::of(&source, &packages, Side::WorkingTree).expect("a surface");

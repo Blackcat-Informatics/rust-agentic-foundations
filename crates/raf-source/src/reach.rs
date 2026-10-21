@@ -23,7 +23,8 @@
 //! units. A module's own tokens are its declaration before its body; what a
 //! module body holds outside its items and blocks (its `use` declarations and
 //! the macro invocations at module level) is no item's, and a crate root has
-//! none. Each file is lexed once, the first time an item of it is reached, and
+//! none. Each file is lexed once per package edition, the first time an item
+//! of it is reached in that edition, and
 //! each run is resolved, and what it names given to the walk, at most once
 //! for each place it is read in: a module with a test flag, or an impl block
 //! or a trait. What the walk holds is charged to the item-bytes budget of the
@@ -851,8 +852,9 @@ struct Walk<'a> {
     blocks_of_module: BTreeMap<usize, Vec<ImplId>>,
     /// The crate root items.
     roots: BTreeSet<ItemId>,
-    /// The runs of each file lexed so far.
-    files_runs: BTreeMap<RelPath, FileRuns>,
+    /// The runs of each file lexed so far, with the edition whose keywords
+    /// were used. One physical file can be shared by packages of different editions.
+    files_runs: BTreeMap<(RelPath, u16), FileRuns>,
     /// The texts of the runs resolved so far, by the place they were read
     /// in. What a run named was given to the walk when it was resolved, so a
     /// run of the same text read in the same place again gives nothing.
@@ -920,7 +922,7 @@ impl<'a> Walk<'a> {
             + lists_bytes(&blocks_of_module)
             + btree_map::<ItemId, ()>()
             + roots.len() * btree_entry::<ItemId, ()>()
-            + btree_map::<RelPath, FileRuns>()
+            + btree_map::<(RelPath, u16), FileRuns>()
             + btree_map::<Ctx, BTreeSet<Box<str>>>()
             + btree_map::<ImplId, BlockNames<'_>>();
         meter
@@ -943,15 +945,16 @@ impl<'a> Walk<'a> {
     /// Lex and place the runs of `file` the first time they are asked, with
     /// the keywords of the edition of the package of `module`, and charge
     /// what they hold.
-    fn load(&mut self, file: &RelPath, module: usize) -> Result<(), ReachError> {
-        if self.files_runs.contains_key(file) {
-            return Ok(());
+    fn load(&mut self, file: &RelPath, module: usize) -> Result<(RelPath, u16), ReachError> {
+        let key = (file.clone(), self.index.edition(module));
+        if self.files_runs.contains_key(&key) {
+            return Ok(key);
         }
         let text = self
             .files
             .get(file)
             .map_or("", |source| source.text.as_str());
-        let lexed = lex(file, text, self.index.edition(module))?;
+        let lexed = lex(file, text, key.1)?;
         work::add(Work::ReachTokens, lexed.tokens);
         let mut units: Vec<(usize, usize)> = self
             .index
@@ -976,7 +979,7 @@ impl<'a> Walk<'a> {
                 .map(|block| (block.span.start_byte, block.span.end_byte)),
         );
         let by_unit = place_runs(&lexed.runs, units);
-        let mut held = btree_entry::<RelPath, FileRuns>()
+        let mut held = btree_entry::<(RelPath, u16), FileRuns>()
             + lexed.runs.capacity() * size_of::<Run>()
             + lexed.segs.capacity() * size_of::<(usize, usize)>();
         if !by_unit.is_empty() {
@@ -990,27 +993,27 @@ impl<'a> Walk<'a> {
             .items(held, file, None)
             .map_err(ReachError::Budget)?;
         self.files_runs.insert(
-            file.clone(),
+            key.clone(),
             FileRuns {
                 runs: lexed.runs,
                 segs: lexed.segs,
                 by_unit,
             },
         );
-        Ok(())
+        Ok(key)
     }
 
     /// The items the own tokens of `unit` name: the runs of its file given
     /// to its span that start before where its own tokens end, each read in
     /// its place the first time its text is read there.
     fn references(&mut self, unit: &Unit<'_>) -> Result<Vec<ItemId>, ReachError> {
-        self.load(unit.file, unit.module)?;
+        let key = self.load(unit.file, unit.module)?;
         let index = self.index;
         let text = self
             .files
             .get(unit.file)
             .map_or("", |source| source.text.as_str());
-        let runs = &self.files_runs[unit.file];
+        let runs = &self.files_runs[&key];
         let mut out = Vec::new();
         for position in runs.by_unit.get(&unit.span).into_iter().flatten() {
             let run = runs.runs[*position];
@@ -1388,10 +1391,11 @@ mod tests {
     use std::fmt::Write as _;
     use std::mem::size_of;
 
-    use super::{DECLARES, Run, RunKind, lex_text, place_runs};
+    use super::{DECLARES, Run, RunKind, Walk, lex_text, place_runs};
     use crate::budget::Budget;
     use crate::error::LoadErrorKind;
     use crate::item::Namespace;
+    use crate::meter::Meter;
     use crate::reach::{Node, ReachError};
     use crate::work::{self, Work};
     use crate::{LoadOptions, MemoryTree, Workspace};
@@ -1916,5 +1920,104 @@ mod tests {
         #[cfg(target_pointer_width = "64")]
         assert_eq!(per_run, 56);
         assert!(per_run < 20 * 3, "{per_run}");
+    }
+
+    #[test]
+    fn a_shared_files_edition_caches_are_each_counted_and_charged_once() {
+        let tree = MemoryTree::from([
+            ("Cargo.toml", "[workspace]\nmembers = [\"old\", \"new\"]\n"),
+            (
+                "old/Cargo.toml",
+                "[package]\nname = \"old\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "new/Cargo.toml",
+                "[package]\nname = \"new\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+            ),
+            (
+                "old/src/lib.rs",
+                "#[path = \"../../shared.rs\"] mod shared;\n",
+            ),
+            (
+                "new/src/lib.rs",
+                "#[path = \"../../shared.rs\"] mod shared;\n",
+            ),
+            ("shared.rs", "pub fn f() { r#gen() }\nfn r#gen() {}\n"),
+        ]);
+        let ws = Workspace::load(&tree, &["."]).expect("shared source");
+        let options = LoadOptions::default();
+        let meter = Meter::new(&options);
+        let files = ws
+            .files()
+            .map(|source| {
+                (
+                    source.path.clone(),
+                    crate::SourceFile {
+                        path: source.path.clone(),
+                        package: source.package.clone(),
+                        shipping: source.shipping,
+                        test: source.test,
+                        text: source.text.clone(),
+                        facts: source.facts.clone(),
+                        reached: source.reached.clone(),
+                    },
+                )
+            })
+            .collect();
+        let item = |name| {
+            ws.resolve_in(name, Namespace::Value)
+                .expect("function")
+                .sites[0]
+        };
+        let old = item("old::shared::f");
+        let new = item("new::shared::f");
+        let file = &ws.item(old).expect("old function").file;
+        assert_eq!(file, &ws.item(new).expect("new function").file);
+        let mut walk = Walk::new(ws.index(), &files, &meter, (file, 1)).expect("walk tables");
+        let old_module = walk.homes[old.0].module.expect("old module");
+        let new_module = walk.homes[new.0].module.expect("new module");
+        let (_, first) = work::measure(usize::MAX, || {
+            walk.load(file, old_module).expect("old cache")
+        });
+        let first_bytes = meter.usage().item_bytes;
+        let (_, repeated) = work::measure(usize::MAX, || {
+            walk.load(file, old_module).expect("old cache again")
+        });
+        assert!(first.get(Work::ReachTokens) > 0);
+        assert_eq!(repeated.get(Work::ReachTokens), 0);
+        assert_eq!(meter.usage().item_bytes, first_bytes);
+        let (_, second) = work::measure(usize::MAX, || {
+            walk.load(file, new_module).expect("new cache")
+        });
+        let both_bytes = meter.usage().item_bytes;
+        assert_eq!(second.get(Work::ReachTokens), first.get(Work::ReachTokens));
+        assert!(both_bytes > first_bytes);
+        assert_eq!(walk.files_runs.len(), 2);
+        let (_, repeated) = work::measure(usize::MAX, || {
+            walk.load(file, new_module).expect("new cache again")
+        });
+        assert_eq!(repeated.get(Work::ReachTokens), 0);
+        assert_eq!(meter.usage().item_bytes, both_bytes);
+
+        let under = |limit| -> Result<usize, ReachError> {
+            let options = LoadOptions {
+                max_item_bytes: limit,
+                ..LoadOptions::default()
+            };
+            let meter = Meter::new(&options);
+            let mut walk = Walk::new(ws.index(), &files, &meter, (file, 1))?;
+            walk.load(file, old_module)?;
+            walk.load(file, new_module)?;
+            Ok(meter.usage().item_bytes)
+        };
+        assert_eq!(
+            under(both_bytes).expect("exact retained-byte limit"),
+            both_bytes
+        );
+        let error = under(both_bytes - 1).expect_err("one byte short refuses second cache");
+        assert!(
+            matches!(error, ReachError::Budget(ref load) if matches!(load.kind,
+            LoadErrorKind::Budget { budget: Budget::ItemBytes, limit } if limit == both_bytes - 1))
+        );
     }
 }

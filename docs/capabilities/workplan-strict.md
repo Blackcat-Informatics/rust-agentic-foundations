@@ -142,6 +142,9 @@ bindings:
     - raf_workplan::test_crate::lines::a_ceiling_row_of_no_package_is_scope_crate_missing_at_ceilings
     - raf_workplan::test_crate::lines::an_excepted_unit_is_the_excepted_table_in_text_and_a_lines_excepted_object_in_json
     - raf_workplan::test_crate::lines::a_directory_that_is_a_workspace_of_its_own_has_a_row_when_the_source_roots_reach_it_and_none_when_they_do_not
+    - raf_workplan::test_crate::lines::shared_source_coverage_uses_each_packages_edition_beside_raw_names
+    - raf_workplan::test_crate::lines::an_impl_for_a_type_that_nothing_names_is_orphan_and_one_for_a_type_that_a_covered_unit_names_is_not
+    - raf_workplan::test_crate::lines::an_excluded_item_that_nothing_covers_is_orphan_until_an_exception_names_it
     - raf_workplan::coverage::lines::tests::the_work_grows_with_the_units_and_no_faster_at_fixed_exceptions
     - raf_workplan::coverage::lines::tests::the_work_grows_with_the_exceptions_and_no_faster_at_fixed_units
     - raf_workplan::coverage::lines::tests::every_kind_of_work_is_held_to_a_ceiling_linear_in_the_units_and_the_exceptions
@@ -1160,9 +1163,12 @@ visible failure, and the fix is one command.
 | `raf_workplan::test_crate::lines::a_shipping_row_alone_judges_the_shipping_lines_against_itself_and_holds_the_test_lines_to_zero` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lines::an_excepted_unit_is_the_excepted_table_in_text_and_a_lines_excepted_object_in_json` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lines::an_exception_by_item_prefix_file_and_directory_takes_its_lines_out_and_one_beside_it_that_matches_nothing_is_a_finding` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::an_excluded_item_that_nothing_covers_is_orphan_until_an_exception_names_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::an_impl_for_a_type_that_nothing_names_is_orphan_and_one_for_a_type_that_a_covered_unit_names_is_not` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lines::an_unreferenced_private_helper_is_exactly_its_span_and_the_same_helper_called_by_a_bound_function_is_not` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lines::binding_a_type_covers_its_impl_blocks_and_their_methods_and_binding_a_method_covers_nothing_beside_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lines::crlf_reads_as_lf_and_two_runs_give_the_same_bytes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::lines::shared_source_coverage_uses_each_packages_edition_beside_raw_names` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lines::the_report_renders_as_three_tables_and_as_json_with_the_same_rows` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::lines::with_strict_mode_off_the_report_is_printed_and_nothing_is_enforced` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::obligations::an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome` | test | [Verification](#verification) |

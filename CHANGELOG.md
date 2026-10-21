@@ -111,7 +111,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   `Reached` nodes with the `Edge` each was first reached by, breadth first from
   the sorted roots; a root past the items or the impl blocks of the workspace is
   a `ReachError`, and since an id is a place, an in-range id of another
-  workspace reads as the node of this one at that place. Each file is lexed once
+  workspace reads as the node of this one at that place. Each file is lexed once per package edition
   and each run is resolved at most once for each module, in one walk of its
   segments, and what the walk holds is charged to the item-bytes budget of the
   load, past which the walk is `ReachError::Budget`.

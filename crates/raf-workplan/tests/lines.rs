@@ -36,7 +36,8 @@ fn source(files: &[(&str, &str)]) -> Workspace {
 }
 
 /// A capability that binds `code` and `tests`, and the coverage record with
-/// `scope: []`, no exclusion and `record` after them.
+/// `scope: []`, no exclusion unless `record` opens with the `exclusions`
+/// key, and `record` after them.
 fn documents(code: &[&str], tests: &[&str], record: &str) -> MemoryTree {
     let mut sections = String::new();
     for name in [
@@ -57,9 +58,13 @@ fn documents(code: &[&str], tests: &[&str], record: &str) -> MemoryTree {
         code.join(", "),
         tests.join(", ")
     );
-    let coverage = format!(
-        "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n{record}---\n"
-    );
+    let exclusions = if record.starts_with("exclusions:") {
+        ""
+    } else {
+        "exclusions: []\n"
+    };
+    let coverage =
+        format!("---\ntype: Coverage\nid: coverage:default\nscope: []\n{exclusions}{record}---\n");
     MemoryTree::from([
         ("docs/capabilities/lines.md", capability.as_str()),
         ("work/coverage/default.md", coverage.as_str()),
@@ -824,4 +829,111 @@ fn a_directory_that_is_a_workspace_of_its_own_has_a_row_when_the_source_roots_re
     assert_eq!(names, ["bound"]);
     assert!(missed.package("fuzzy").is_none());
     assert_eq!(missed.orphans(), []);
+}
+
+#[test]
+fn an_impl_for_a_type_that_nothing_names_is_orphan_and_one_for_a_type_that_a_covered_unit_names_is_not()
+ {
+    let unnamed = "\
+pub trait Speak {
+    fn speak(&self);
+}
+
+pub fn run(speaker: &dyn Speak) {
+    speaker.speak();
+}
+
+struct Dog;
+
+impl Speak for Dog {
+    fn speak(&self) {}
+}
+";
+    let ws = source(&[("src/lib.rs", unnamed)]);
+    assert_eq!(
+        orphans(&report_of(&ws, &["demo::run"])),
+        pairs(&[
+            ("demo::Dog", "9-9"),
+            ("demo::<impl Speak for Dog>", "11-11, 13-13"),
+            ("demo::Dog::speak", "12-12"),
+        ])
+    );
+    // A covered unit that names the type reaches it and its impl.
+    let named = unnamed.replace(
+        "    speaker.speak();\n",
+        "    let _ = Dog;\n    speaker.speak();\n",
+    );
+    let ws = source(&[("src/lib.rs", &named)]);
+    assert_eq!(report_of(&ws, &["demo::run"]).orphans(), []);
+}
+
+#[test]
+fn an_excluded_item_that_nothing_covers_is_orphan_until_an_exception_names_it() {
+    let ws = source(&[("src/lib.rs", "pub fn run() {}\n\npub fn extra() {}\n")]);
+    let excluded =
+        "exclusions:\n  - item: demo::extra\n    reason: \"Shown to the fixtures only.\"\n";
+    let report = lines_of(&ws, &["demo::run"], &[], excluded);
+    assert_eq!(orphans(&report), pairs(&[("demo::extra", "3-3")]));
+    assert_eq!(excepted(&report), []);
+    let both = format!(
+        "{excluded}exceptions:\n  - item: demo::extra\n    reason: \"Explained elsewhere.\"\n"
+    );
+    let report = lines_of(&ws, &["demo::run"], &[], &both);
+    assert_eq!(report.orphans(), []);
+    assert_eq!(excepted(&report), pairs(&[("demo::extra", "demo::extra")]));
+}
+
+#[test]
+fn shared_source_coverage_uses_each_packages_edition_beside_raw_names() {
+    let ws = source(&[
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"alpha\", \"zeta\"]\n",
+        ),
+        (
+            "alpha/Cargo.toml",
+            "[package]\nname = \"alpha\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+        ),
+        (
+            "zeta/Cargo.toml",
+            "[package]\nname = \"zeta\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        ),
+        (
+            "alpha/src/lib.rs",
+            "#[path = \"../../shared.rs\"] mod shared;\n",
+        ),
+        (
+            "zeta/src/lib.rs",
+            "#[path = \"../../shared.rs\"] mod shared;\n",
+        ),
+        (
+            "shared.rs",
+            "macro_rules! probe { () => { gen() }; }\nmacro_rules! raw { () => { r#gen() }; }\nfn r#gen() {}\n",
+        ),
+    ]);
+    let bindings = ["alpha::shared::probe", "zeta::shared::probe"];
+    let report = report_of(&ws, &bindings);
+    assert!(
+        !report
+            .orphans()
+            .iter()
+            .any(|unit| unit.item().ends_with("::gen")),
+        "{:?}",
+        orphans(&report)
+    );
+    // With only the 2024 probe, no context names the function. A raw path
+    // names it in that edition too; shared source is covered if any copy is.
+    let refused = report_of(&ws, &[bindings[0]]);
+    assert!(
+        refused
+            .orphans()
+            .iter()
+            .any(|unit| unit.item().ends_with("::gen"))
+    );
+    let raw = report_of(&ws, &["alpha::shared::raw"]);
+    assert!(
+        !raw.orphans()
+            .iter()
+            .any(|unit| unit.item().ends_with("::gen"))
+    );
 }
