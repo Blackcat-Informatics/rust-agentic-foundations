@@ -8,7 +8,7 @@
 
 [package]
 name = "raf-source-fuzz"
-description = "Fuzz harness for the bounded parse and the workspace load of raf-source and the document reader of raf-okf."
+description = "Fuzz harness for source parsing and workspace loads, document reading and census normalization."
 version = "0.0.0"
 edition = "2024"
 rust-version = "1.98.1"
@@ -24,6 +24,8 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 raf-okf = { path = "../crates/raf-okf", version = "0.1.0" }
 raf-source = { path = "../crates/raf-source", version = "0.1.0" }
+raf-census = { path = "../crates/raf-census", version = "0.1.0" }
+proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
 
 [[bin]]
 name = "parse-source"
@@ -48,6 +50,20 @@ bench = false
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "census-normalize"
+path = "fuzz_targets/census_normalize.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "census-report-read"
+path = "fuzz_targets/census_report_read.rs"
+test = false
+doc = false
+bench = false
 
 [workspace]
 

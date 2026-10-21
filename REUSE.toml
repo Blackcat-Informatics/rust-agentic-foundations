@@ -43,3 +43,10 @@ path = "fuzz/corpus/**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>"
 SPDX-License-Identifier = "MIT OR Apache-2.0 OR MulanPSL-2.0"
+
+# Canonical report bytes and independent parser fixtures cannot carry headers.
+[[annotations]]
+path = "crates/raf-census/tests/fixtures/reports/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>"
+SPDX-License-Identifier = "MIT OR Apache-2.0 OR MulanPSL-2.0"

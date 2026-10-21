@@ -1,0 +1,18 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/4cee2040d7eebb5bb58c4297f1a930a1cc1318e870670dbb70fcd431198977cf>
+PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
+PREFIX census: <https://blackcatinformatics.ca/raf/census#>
+PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+
+<> a census:Index ;
+    census:normalForm 1 ;
+    census:reportForm 1 .
+
+<#unit/demo::r%23type%40x%22q%5C%C3%A9@a%20b/%23%25%3F:@%5C%C3%A9.rs:7:335> a census:Unit ;
+    census:file "a b/#%?:@\\é.rs" ;
+    census:line 7 ;
+    census:package "demo" ;
+    census:shipping true ;
+    census:startByte 335 ;
+    census:symbol "demo::r#type@x\"q\\é" ;
+    census:tokens 0 .

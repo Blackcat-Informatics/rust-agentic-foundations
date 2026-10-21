@@ -13,9 +13,11 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::mem::size_of;
 use std::ops::Range;
+use std::sync::Arc;
 
 use quote::ToTokens as _;
 use syn::spanned::Spanned as _;
+use syn::visit::Visit;
 use syn::{Attribute, Expr, ExprLit, Item, Lit, Meta, Visibility};
 
 use crate::cfg::{CfgExpr, parse_list};
@@ -141,6 +143,18 @@ pub(crate) struct AttrFact {
     pub(crate) args: String,
 }
 
+/// What the parameters of a function and the value of a constant add to the
+/// item, shared by every record of the item.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub(crate) struct ItemDetail {
+    /// The names the parameters bind, in signature order, with `self` first
+    /// for a receiver.
+    pub(crate) bindings: Vec<String>,
+    /// The byte range between the `=` and the `;` of a constant or a static
+    /// that has a value.
+    pub(crate) initializer: Option<Range<usize>>,
+}
+
 /// A named item.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ItemFact {
@@ -157,6 +171,8 @@ pub(crate) struct ItemFact {
     pub(crate) span: SpanFact,
     /// The braced body, or the function block, when there is one.
     pub(crate) body: Option<SpanFact>,
+    /// What a signature or a constant adds; `None` when it adds nothing.
+    pub(crate) detail: Option<Arc<ItemDetail>>,
     /// The declared visibility.
     pub(crate) vis: Vis,
     /// Every attribute, in order.
@@ -460,6 +476,20 @@ impl<'t> Positions<'t> {
             end_byte: self.byte(end.line, end.column)?,
         })
     }
+}
+
+/// Every name a parameter pattern binds, in source order. Types are not
+/// visited, so a path in a type is not a binding.
+#[derive(Default)]
+struct Bindings(Vec<String>);
+
+impl<'ast> Visit<'ast> for Bindings {
+    fn visit_pat_ident(&mut self, pat: &'ast syn::PatIdent) {
+        self.0.push(pat.ident.to_string());
+        syn::visit::visit_pat_ident(self, pat);
+    }
+
+    fn visit_type(&mut self, _: &'ast syn::Type) {}
 }
 
 /// The fact bytes a file takes, charged on its parse thread as each fact is
@@ -867,6 +897,7 @@ impl Extractor<'_> {
             name_line,
             span: self.positions.span(whole)?,
             body: body.map(|span| self.positions.span(span)).transpose()?,
+            detail: None,
             vis,
             attrs: summary.facts,
             documented: summary.documented,
@@ -877,6 +908,45 @@ impl Extractor<'_> {
             shape: None,
             alias: None,
         })
+    }
+
+    /// `fact` with the parameter bindings of `sig`.
+    fn with_bindings(&self, mut fact: ItemFact, sig: &syn::Signature) -> Found<ItemFact> {
+        let mut names = Bindings::default();
+        for input in &sig.inputs {
+            match input {
+                syn::FnArg::Receiver(_) => names.0.push("self".to_owned()),
+                syn::FnArg::Typed(typed) => names.visit_pat(&typed.pat),
+            }
+        }
+        if !names.0.is_empty() {
+            self.meter.charge(
+                size_of::<ItemDetail>() + strings_bytes(&names.0),
+                fact.name_line,
+            )?;
+            fact.detail = Some(Arc::new(ItemDetail {
+                bindings: names.0,
+                initializer: None,
+            }));
+        }
+        Ok(fact)
+    }
+
+    /// `fact` with the range between `eq` and `semi` as its initializer.
+    fn with_initializer(
+        &self,
+        mut fact: ItemFact,
+        eq: proc_macro2::Span,
+        semi: proc_macro2::Span,
+    ) -> Found<ItemFact> {
+        let start = self.positions.span(eq)?.end_byte;
+        let end = self.positions.span(semi)?.start_byte;
+        self.meter.charge(size_of::<ItemDetail>(), fact.name_line)?;
+        fact.detail = Some(Arc::new(ItemDetail {
+            bindings: Vec::new(),
+            initializer: Some(start..end),
+        }));
+        Ok(fact)
     }
 
     fn module(&self, items: &[Item], inherited: TestRole, line: usize) -> Found<ModBody> {
@@ -969,16 +1039,19 @@ impl Extractor<'_> {
     fn named(&self, item: &Item, inherited: TestRole) -> Found<Option<ItemFact>> {
         let whole = item.span();
         let fact = match item {
-            Item::Fn(f) => self.item(
-                &f.sig.ident,
-                ItemKind::Fn,
-                &f.vis,
-                &f.attrs,
-                whole,
-                Some(f.block.brace_token.span.join()),
-                inherited,
-                Vec::new(),
-            )?,
+            Item::Fn(f) => {
+                let fact = self.item(
+                    &f.sig.ident,
+                    ItemKind::Fn,
+                    &f.vis,
+                    &f.attrs,
+                    whole,
+                    Some(f.block.brace_token.span.join()),
+                    inherited,
+                    Vec::new(),
+                )?;
+                self.with_bindings(fact, &f.sig)?
+            }
             Item::Struct(s) => self.struct_fact(s, whole, inherited)?,
             Item::Enum(e) => self.item(
                 &e.ident,
@@ -1016,30 +1089,36 @@ impl Extractor<'_> {
                 }
                 fact
             }
-            Item::Const(c) => self.item(
-                &c.ident,
-                if c.ident == "_" {
-                    ItemKind::UnnamedConst
-                } else {
-                    ItemKind::Const
-                },
-                &c.vis,
-                &c.attrs,
-                whole,
-                None,
-                inherited,
-                Vec::new(),
-            )?,
-            Item::Static(s) => self.item(
-                &s.ident,
-                ItemKind::Static,
-                &s.vis,
-                &s.attrs,
-                whole,
-                None,
-                inherited,
-                Vec::new(),
-            )?,
+            Item::Const(c) => {
+                let fact = self.item(
+                    &c.ident,
+                    if c.ident == "_" {
+                        ItemKind::UnnamedConst
+                    } else {
+                        ItemKind::Const
+                    },
+                    &c.vis,
+                    &c.attrs,
+                    whole,
+                    None,
+                    inherited,
+                    Vec::new(),
+                )?;
+                self.with_initializer(fact, c.eq_token.span(), c.semi_token.span())?
+            }
+            Item::Static(s) => {
+                let fact = self.item(
+                    &s.ident,
+                    ItemKind::Static,
+                    &s.vis,
+                    &s.attrs,
+                    whole,
+                    None,
+                    inherited,
+                    Vec::new(),
+                )?;
+                self.with_initializer(fact, s.eq_token.span(), s.semi_token.span())?
+            }
             // Modules, impls, `use`, macros and `extern` items are read by the
             // caller.
             _ => return Ok(None),
@@ -1169,16 +1248,19 @@ impl Extractor<'_> {
         inherited: TestRole,
     ) -> Found<ItemFact> {
         match read {
-            Bodiless::Fn(f) => self.item(
-                &f.sig.ident,
-                ItemKind::Fn,
-                &f.vis,
-                &f.attrs,
-                whole,
-                None,
-                inherited,
-                Vec::new(),
-            ),
+            Bodiless::Fn(f) => {
+                let fact = self.item(
+                    &f.sig.ident,
+                    ItemKind::Fn,
+                    &f.vis,
+                    &f.attrs,
+                    whole,
+                    None,
+                    inherited,
+                    Vec::new(),
+                )?;
+                self.with_bindings(fact, &f.sig)
+            }
             Bodiless::Type(t) => self.item(
                 &t.ident,
                 ItemKind::TypeAlias,
@@ -1245,28 +1327,35 @@ impl Extractor<'_> {
     ) -> Found<Option<ItemFact>> {
         let whole = member.span();
         let fact = match member {
-            syn::TraitItem::Fn(f) => self.item(
-                &f.sig.ident,
-                ItemKind::Fn,
-                &Visibility::Inherited,
-                &f.attrs,
-                whole,
-                f.default
-                    .as_ref()
-                    .map(|block| block.brace_token.span.join()),
-                inherited,
-                Vec::new(),
-            ),
-            syn::TraitItem::Const(c) => self.item(
-                &c.ident,
-                ItemKind::Const,
-                &Visibility::Inherited,
-                &c.attrs,
-                whole,
-                None,
-                inherited,
-                Vec::new(),
-            ),
+            syn::TraitItem::Fn(f) => self
+                .item(
+                    &f.sig.ident,
+                    ItemKind::Fn,
+                    &Visibility::Inherited,
+                    &f.attrs,
+                    whole,
+                    f.default
+                        .as_ref()
+                        .map(|block| block.brace_token.span.join()),
+                    inherited,
+                    Vec::new(),
+                )
+                .and_then(|fact| self.with_bindings(fact, &f.sig)),
+            syn::TraitItem::Const(c) => self
+                .item(
+                    &c.ident,
+                    ItemKind::Const,
+                    &Visibility::Inherited,
+                    &c.attrs,
+                    whole,
+                    None,
+                    inherited,
+                    Vec::new(),
+                )
+                .and_then(|fact| match &c.default {
+                    Some((eq, _)) => self.with_initializer(fact, eq.span(), c.semi_token.span()),
+                    None => Ok(fact),
+                }),
             syn::TraitItem::Type(t) => self.item(
                 &t.ident,
                 ItemKind::TypeAlias,
@@ -1288,26 +1377,32 @@ impl Extractor<'_> {
     fn impl_member(&self, member: &syn::ImplItem, inherited: TestRole) -> Found<Option<ItemFact>> {
         let whole = member.span();
         let fact = match member {
-            syn::ImplItem::Fn(f) => self.item(
-                &f.sig.ident,
-                ItemKind::Fn,
-                &f.vis,
-                &f.attrs,
-                whole,
-                Some(f.block.brace_token.span.join()),
-                inherited,
-                Vec::new(),
-            )?,
-            syn::ImplItem::Const(c) => self.item(
-                &c.ident,
-                ItemKind::Const,
-                &c.vis,
-                &c.attrs,
-                whole,
-                None,
-                inherited,
-                Vec::new(),
-            )?,
+            syn::ImplItem::Fn(f) => {
+                let fact = self.item(
+                    &f.sig.ident,
+                    ItemKind::Fn,
+                    &f.vis,
+                    &f.attrs,
+                    whole,
+                    Some(f.block.brace_token.span.join()),
+                    inherited,
+                    Vec::new(),
+                )?;
+                self.with_bindings(fact, &f.sig)?
+            }
+            syn::ImplItem::Const(c) => {
+                let fact = self.item(
+                    &c.ident,
+                    ItemKind::Const,
+                    &c.vis,
+                    &c.attrs,
+                    whole,
+                    None,
+                    inherited,
+                    Vec::new(),
+                )?;
+                self.with_initializer(fact, c.eq_token.span(), c.semi_token.span())?
+            }
             syn::ImplItem::Type(t) => self.item(
                 &t.ident,
                 ItemKind::TypeAlias,

@@ -22,6 +22,7 @@ items:
   - claim: "The old ledger and baseline are never modified."
   - claim: "A migrated dialect ledger is validated and its debt recorded through the repository's census test and xtask, not the CLI."
   - claim: "Legacy ledger and baseline reads are bounded in file size and nesting depth."
+  - claim: "The index-report read is bounded to admit reports the census writes under its load budgets rather than the ledger's document-size bound, and migration preserves max_file_bytes."
 ---
 
 ## Summary

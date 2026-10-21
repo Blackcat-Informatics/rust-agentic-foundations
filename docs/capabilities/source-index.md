@@ -39,6 +39,8 @@ bindings:
     - raf_source::Reexport
     - raf_source::ExportOptions
     - raf_source::ExportError
+    - raf_source::Item::parameter_bindings
+    - raf_source::Item::initializer
   tests:
     - raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit
     - raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources
@@ -300,6 +302,9 @@ bindings:
     - raf_source::test_crate::symbol_index::a_glob_of_a_local_path_the_index_cannot_see_is_a_candidate_that_cannot_be_confirmed
     - raf_source::test_crate::symbol_index::a_first_party_test_crate_module_and_a_test_target_are_ambiguous_only_where_their_paths_meet
     - raf_source::test_crate::trait_keys::a_macro_call_in_a_trait_body_is_skipped
+    - raf_source::test_crate::symbol_index::parameter_bindings_are_every_bound_name_in_signature_order_beside_a_function_with_none
+    - raf_source::test_crate::symbol_index::an_initializer_is_the_text_between_the_equals_and_the_semicolon_beside_a_required_constant
+    - raf_source::test_crate::symbol_index::bindings_and_an_initializer_are_shared_by_every_path_that_reaches_the_file
     - raf_source::test_crate::use_resolution::two_libraries_with_one_crate_name_are_ambiguous_until_the_package_is_named
     - raf_source::test_crate::use_resolution::a_crate_name_in_an_import_is_the_dependency_its_target_declares
     - raf_source::test_crate::use_resolution::a_dev_dependency_is_named_only_by_test_code_even_under_a_normal_dependencys_name
@@ -953,8 +958,9 @@ source file once with its text and the module paths it was reached by. The facts
 file stay inside the crate, and a caller reads them through the items of the index
 (`Workspace::items_in`, `Workspace::item_at` and the other accessors). The
 facts of a file are read on the parse thread and owned: items with their name line,
-span, body span, attributes, visibility, documentation, test role and, for a struct, its
-field shape; `mod` declarations with their raw `path` and `cfg_attr` attributes; `use`
+span, body span, attributes, visibility, documentation, test role, for a function the
+names its parameters bind, for a constant or static the range of its value, and, for a
+struct, its field shape; `mod` declarations with their raw `path` and `cfg_attr` attributes; `use`
 trees; impl headers with the written self type and its leading `::`; `macro_export`;
 an unnamed `const _` as an explicit kind; and the file's own inner documentation.
 Documentation counts a non-blank `#[doc]` text or `#[doc = include_str!(..)]`, and
@@ -986,7 +992,17 @@ and `trait_path` and the `self_key` that says how its self type placed it (`Loca
 `Trait` or `Unresolved`). Line ranges are 1-based and half-open: the `lines` of a
 `SpanFact` run from its first line to the line after its last, as in `raf_okf::Span`,
 so an item on line `n` alone has the lines `n..n+1`, and its bytes run from
-`start_byte` to `end_byte`, the offset just past its end. The module path in an item's `path` is the chain of `mod`
+`start_byte` to `end_byte`, the offset just past its end. `Item::parameter_bindings` gives the names the
+parameters of a function or method bind, in signature order, as the source writes them:
+`mut x`, `ref x`, the names inside tuple, struct and slice patterns, a raw identifier
+with its `r#`, and `self` first for a receiver; a name that only occurs in a type is not
+a binding, and the list is empty for any item that is not a function and for a function
+with none. `Item::initializer` gives the byte range of the value of a constant,
+associated constant or static, after the `=` and before the `;`, and `None` for a
+required associated constant and for every other item. Both are read during the
+budgeted parse, on its thread, so a caller that needs them never re-parses a signature
+or an item on its own stack, and every record of a source item that several paths reach
+shares them. The module path in an item's `path` is the chain of `mod`
 declarations that reached its file, whatever the order of the file names. The name
 spaces are type, value and macro. A function, constant or static is a value; a
 module, trait, enum, union, alias and `extern crate` item is a type; a unit or tuple
@@ -2811,10 +2827,13 @@ duplicates.
 | `raf_source::test_crate::symbol_index::a_glob_of_enum_variants_beside_an_impl_loads` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::an_impl_of_a_local_trait_object_loads_with_its_members_marked_unresolved` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::an_inherent_impl_on_a_type_the_index_cannot_see_is_indexed_under_its_written_self_path` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::an_initializer_is_the_text_between_the_equals_and_the_semicolon_beside_a_required_constant` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::bindings_and_an_initializer_are_shared_by_every_path_that_reaches_the_file` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::cfg_twins_are_one_symbol_with_two_sorted_sites` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::every_kind_is_indexed_with_its_kind_line_file_and_visibility` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::parameter_bindings_are_every_bound_name_in_signature_order_beside_a_function_with_none` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::test_functions_carry_the_package_target_and_crate_relative_name` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::target_roots::a_build_script_main_beside_a_lib_module_build_script_is_ambiguous` | test | [Verification](#verification) |

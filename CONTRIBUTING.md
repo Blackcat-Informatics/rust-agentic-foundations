@@ -22,9 +22,10 @@ and pull requests are welcome.
 
 - **Normal-form stability.** A census fingerprint is a promise: the same code
   hashes to the same value across releases, so ledgers and recorded debt stay
-  valid. Any change to what a fingerprint hashes requires a `normal_form` version
-  bump, updated golden tests, and a migration path. Never change normal form 1 in
-  place.
+  valid. A normal form version is fixed by the content of its first merge to the
+  default branch. After that, any change that can move a fingerprint is a new
+  version with a migration path: a `normal_form` bump, updated golden tests, and
+  `cargo census migrate`.
 - **Strict schemas and hard failures.** Every ledger, manifest and document schema
   is closed: unknown keys are errors, not warnings. A stale, malformed or ambiguous
   input fails with a message that says how to fix it. Do not add silent fallbacks,
@@ -33,8 +34,8 @@ and pull requests are welcome.
   test suite carries the repository's own gates: a document-contract test that
   runs the `raf-workplan` checks over the capability, change and architecture
   documents, and the repository gates (licence digests, issue-reference scan,
-  version agreement), all in Rust. The census gate joins them when `raf-census`
-  is built. A change that makes a gate fail on RAF itself does not merge, and
+  version agreement), all in Rust. The census gate joins them when the census
+  `Gate` is built. A change that makes a gate fail on RAF itself does not merge, and
   gates are never relaxed to get a change through. `make docs-sync` rewrites the
   generated documentation blocks that the workplan checks find stale.
 - **The workplan completion gate.** A change is complete only when the capability
@@ -69,7 +70,7 @@ make help    # list every target
   at a command that runs the 1.98.1 toolchain.
 - **Fuzz harness.** `make fuzz` checks `fuzz/` (its own cargo-fuzz workspace) with
   fmt, clippy and an offline `cargo deny`, then runs each of its targets
-  (`parse-source`, `parse-document` and `load-workspace`) over its committed corpus,
+  (`parse-source`, `parse-document`, `load-workspace`, `census-normalize` and `census-report-read`) over its committed corpus,
   with inputs of up to 400000 bytes and limits on resident memory and on one
   allocation. It needs `cargo-fuzz` (`cargo install --locked
   cargo-fuzz@0.13.2`); a missing tool is a failure. `make msrv` and `make fmt` cover

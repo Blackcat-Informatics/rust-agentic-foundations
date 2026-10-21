@@ -95,7 +95,13 @@ For each job the census classifies every matching item as one of three roles:
 - `VARIANT`: a symbol named by a `[[job.variant]]`.
 - `COPY`: any other match of the job's `forbidden` entries outside the home.
 
-`copies` for a job is the number of `COPY` items.
+`copies` for a job is the number of `COPY` items. Fingerprint and constant
+matching and the classification of their matches belong to
+[`cap:census-normal-form`](./census-normal-form.md); the ledger extends those
+matches with forbidden names, patterns and registered rule hits. Every matching
+unit is counted once, even when several forbidden entries match it. Home,
+entry-point and variant paths resolve through re-exports to unit symbols before
+classification.
 
 The census fails with a staleness finding when:
 
@@ -157,7 +163,11 @@ reason = "Each forwards to a different standard-library type."
 
 ## Constraints
 
-- Only TOML is read. The census has no hand-written parser.
+- A ledger's `normal_form` and a report's `census:normalForm` pass through the same
+  `check_normal_form` gate.
+
+- The ledger is read only as TOML through the `toml` crate. The census report
+  reader accepts only its canonical RDF 1.2 closed profile.
 - The ledger is at most 1 MiB and 32 levels of nesting deep.
 - A key not listed above is an error; there is no pass-through for unknown keys
   outside `[job.ext]`.
