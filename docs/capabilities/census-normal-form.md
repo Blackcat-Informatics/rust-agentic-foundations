@@ -205,6 +205,7 @@ bindings:
     - raf_census::test_crate::units::each_kind_yields_one_unit_with_every_field
     - raf_census::test_crate::units::every_spelling_of_an_integer_is_one_constant
     - raf_census::test_crate::units::file_context_names_package_path_and_shipping
+    - raf_census::test_crate::units::file_context_names_the_target_kinds_that_reach_the_file
     - raf_census::test_crate::units::hex_tables_are_read_from_strings_and_arrays
     - raf_census::test_crate::units::loading_one_tree_twice_on_one_thread_leaves_no_span_map
     - raf_census::test_crate::units::max_file_bytes_caps_a_file_and_the_cap_itself_loads
@@ -300,10 +301,19 @@ implements it as follows.
   `Error::Options`. `max_file_bytes` defaults to 8 MiB and is the per-file read cap
   of the workspace load; a file above it is a load error that names the file.
 - `raf_census::Error` is the one error type: `Source` (file, line and reason of a
-  slice that does not lex, or text of an item that the workspace does not hold),
+  slice that does not lex, text of an item that the workspace does not hold, or a
+  source item of the index whose item does not resolve or that has no reach: such an
+  inconsistency is an error that names the file and never drops a unit),
   `Options`, `Collision` (two different forms with one fingerprint, naming both
   symbols), `Version`, `Report` and a load error of `raf-source`. Nothing falls back
   to a partial result.
+- `raf_census::FileCtx` describes one file of the workspace: its `package` (of
+  the first target that reaches it), its `path`, `shipping`, and `target_kinds`, the
+  set of raf-source `TargetKind` values (library, binary, test, bench, example,
+  build script) of every target whose module tree reaches the file, test code
+  included. A file of a library has `{Lib}`, a file under `tests/` has `{Test}`
+  and a file under `examples/` has `{Example}`; a module that two targets declare
+  has both kinds. `shipping` stays the question of whether shipped code reaches it.
 - Units are collected once per source item, whatever number of targets reach it,
   so a module declared by both a library and a binary yields one unit. A unit is
   a function, a method (inherent, trait implementation or trait default), a
@@ -813,6 +823,7 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::test_crate::units::each_kind_yields_one_unit_with_every_field` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::every_spelling_of_an_integer_is_one_constant` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::file_context_names_package_path_and_shipping` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::file_context_names_the_target_kinds_that_reach_the_file` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::hex_tables_are_read_from_strings_and_arrays` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::loading_one_tree_twice_on_one_thread_leaves_no_span_map` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::max_file_bytes_caps_a_file_and_the_cap_itself_loads` | test | [Verification](#verification) |

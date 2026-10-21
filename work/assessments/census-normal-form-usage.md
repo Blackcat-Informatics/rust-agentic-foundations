@@ -16,7 +16,7 @@ inputs:
     digest: c141bc383d18684cf3f01d12350c39505d4de34b001d577ee41d74ee8e128788
   - kind: symbol
     name: raf_census::Census::load
-    digest: 66563d0bc43e21ae0f507d79a2c1b8e70bbdba1087629412ff810e74bf3da2e3
+    digest: 3c08f4d7a30e9a319a885435dc37e6ce156b66c272383640191d425805df3201
   - kind: symbol
     name: raf_census::Census::match_jobs
     digest: 78f4576b39e3fd93d799990aff9482e488f00b5ef8f90cc40a28001a8ec4a861

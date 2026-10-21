@@ -138,20 +138,34 @@ impl Drop for SpanMap {
 ///
 /// # Errors
 ///
-/// [`Error::Source`] when a body or an initialiser does not lex, or the
-/// workspace does not hold the text of an item.
+/// [`Error::Source`] when a body or an initialiser does not lex, the
+/// workspace does not hold the text of an item, or the source index names an
+/// item that does not resolve or lists a source item with no reach. Each names
+/// the file; nothing is skipped.
 pub(crate) fn collect(workspace: &Workspace, options: &CensusOptions) -> Result<Vec<Unit>, Error> {
     let _span_map = SpanMap;
     let normalizer = Normalizer::new(options);
     let mut units = Vec::new();
-    for (_, _, ids) in workspace.items_by_source() {
-        let mut reaches: Vec<&Item> = ids.iter().filter_map(|id| workspace.item(*id)).collect();
+    for (file, offset, ids) in workspace.items_by_source() {
+        let source_error = |reason: &str| Error::Source {
+            file: file.to_string(),
+            line: line_at(workspace, file, offset),
+            reason: reason.to_owned(),
+        };
+        let mut reaches: Vec<&Item> = Vec::with_capacity(ids.len());
+        for id in ids {
+            reaches.push(
+                workspace
+                    .item(*id)
+                    .ok_or_else(|| source_error("an item of the source index does not resolve"))?,
+            );
+        }
         // A shipping reach first, then the smallest path.
         reaches.sort_by(|a, b| {
             (!workspace.is_shipping(a), &a.path).cmp(&(!workspace.is_shipping(b), &b.path))
         });
         let Some(&chosen) = reaches.first() else {
-            continue;
+            return Err(source_error("a source item of the index has no reach"));
         };
         let Some((kind, trait_impl)) = unit_kind(chosen.kind) else {
             continue;
@@ -169,6 +183,15 @@ pub(crate) fn collect(workspace: &Workspace, options: &CensusOptions) -> Result<
         }
     }
     Ok(units)
+}
+
+/// The 1-based line of byte `offset` of `file`; 1 when the workspace does not
+/// hold the text or the offset.
+fn line_at(workspace: &Workspace, file: &RelPath, offset: usize) -> usize {
+    workspace
+        .source(file)
+        .and_then(|source| source.get(..offset))
+        .map_or(1, |head| head.bytes().filter(|b| *b == b'\n').count() + 1)
 }
 
 /// The text of `range` of `file`, or the failure that the workspace does not

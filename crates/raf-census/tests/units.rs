@@ -9,7 +9,7 @@
 use std::collections::BTreeSet;
 
 use raf_census::{Census, CensusOptions, Error, StringKind, TableKind, Unit, UnitKind};
-use raf_source::{DiskTree, MemoryTree};
+use raf_source::{DiskTree, MemoryTree, TargetKind};
 
 const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
 
@@ -218,6 +218,13 @@ fn shipping_is_true_when_any_reach_ships_and_the_shipping_path_is_the_symbol() {
     // loses to the reach that ships.
     assert_eq!(go[0].symbol, "demo::zed::go");
     assert!(go[0].shipping);
+    assert_eq!(
+        census
+            .file("src/zed.rs")
+            .expect("the shared source file")
+            .target_kinds,
+        BTreeSet::from([TargetKind::Lib, TargetKind::Test])
+    );
 }
 
 #[test]
@@ -246,6 +253,27 @@ fn file_context_names_package_path_and_shipping() {
     assert_eq!((test.package.as_str(), test.shipping), ("demo", false));
     assert!(census.file("src/missing.rs").is_none());
     assert_eq!(census.files().len(), 2);
+}
+
+#[test]
+fn file_context_names_the_target_kinds_that_reach_the_file() {
+    let census = load(&[
+        ("src/lib.rs", "pub fn go() {}\n"),
+        ("tests/it.rs", "#[test]\nfn t() {}\n"),
+        ("examples/ex.rs", "fn main() {}\n"),
+    ]);
+    let kinds = |path: &str| {
+        census
+            .file(path)
+            .unwrap_or_else(|| panic!("no file `{path}`"))
+            .target_kinds
+            .iter()
+            .copied()
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(kinds("src/lib.rs"), [TargetKind::Lib]);
+    assert_eq!(kinds("tests/it.rs"), [TargetKind::Test]);
+    assert_eq!(kinds("examples/ex.rs"), [TargetKind::Example]);
 }
 
 #[test]

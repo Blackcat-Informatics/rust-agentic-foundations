@@ -3,7 +3,9 @@
 
 //! The loaded census: the units of a workspace and the context of its files.
 
-use raf_source::{LoadOptions, Tree, Workspace};
+use std::collections::BTreeSet;
+
+use raf_source::{LoadOptions, TargetKind, Tree, Workspace};
 
 use crate::group::{self, Group, GroupKind, Grouping, HexTable, SharedConstant};
 use crate::units::{self, Unit};
@@ -20,6 +22,9 @@ pub struct FileCtx {
     /// True when some target that ships reaches the file other than through
     /// test code.
     pub shipping: bool,
+    /// The kinds of the targets whose module trees reach the file (a library,
+    /// a test, an example, ...), by any reach, test code included.
+    pub target_kinds: BTreeSet<TargetKind>,
 }
 
 /// The units and files of one workspace, under the options of one run.
@@ -41,7 +46,7 @@ impl Census {
     ///
     /// [`Error::Load`] when the workspace does not load, and [`Error::Source`]
     /// when a body does not lex or a signature or an initialiser does not
-    /// parse, and [`Error::Collision`] when two different forms have one
+    /// parse or the source index is inconsistent, and [`Error::Collision`] when two different forms have one
     /// fingerprint. Nothing falls back to a partial result.
     pub fn load(tree: &impl Tree, roots: &[&str], options: &CensusOptions) -> Result<Self, Error> {
         let mut load = LoadOptions::default();
@@ -51,12 +56,30 @@ impl Census {
         let grouping = group::group(&units)?;
         let files = workspace
             .files()
-            .map(|file| FileCtx {
-                package: file.package.clone(),
-                path: file.path.to_string(),
-                shipping: file.shipping,
+            .map(|file| {
+                let target_kinds = file
+                    .reached
+                    .iter()
+                    .map(|reach| {
+                        workspace
+                            .target(reach.target)
+                            .map(|target| target.kind)
+                            .ok_or_else(|| Error::Source {
+                                file: file.path.to_string(),
+                                line: 1,
+                                reason: "a target that reaches the file does not resolve"
+                                    .to_owned(),
+                            })
+                    })
+                    .collect::<Result<_, _>>()?;
+                Ok(FileCtx {
+                    package: file.package.clone(),
+                    path: file.path.to_string(),
+                    shipping: file.shipping,
+                    target_kinds,
+                })
             })
-            .collect();
+            .collect::<Result<_, Error>>()?;
         Ok(Self {
             options: options.clone(),
             units,
