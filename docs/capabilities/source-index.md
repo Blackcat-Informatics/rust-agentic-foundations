@@ -9,6 +9,7 @@ state: delivered
 bindings:
   code:
     - raf_source::Tree
+    - raf_source::discover_root
     - raf_source::DiskTree
     - raf_source::MemoryTree
     - raf_source::RelPath
@@ -39,6 +40,12 @@ bindings:
     - raf_source::ExportOptions
     - raf_source::ExportError
   tests:
+    - raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit
+    - raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources
+    - raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots
+    - raf_source::test_crate::root::transitive_path_dependencies_are_members
+    - raf_source::test_crate::root::explicit_workspace_requires_a_safe_path_and_agreed_membership
+    - raf_source::test_crate::root::malformed_manifests_and_missing_directories_fail_hard
     - raf_source::test_crate::relpath::a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside
     - raf_source::test_crate::relpath::an_absolute_input_is_refused_beside_its_relative_form
     - raf_source::test_crate::memory_tree::duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_keys
@@ -415,6 +422,18 @@ workplan resolves code and test bindings with it, so one walker and one index se
 both and cannot disagree.
 
 ## Contract
+
+`discover_root(tree, start)` discovers the nearest ancestor workspace through
+`Tree`, without a process or source parsing. It validates the nearest package
+against the workspace member set, including transitive path dependencies, under
+the same member-walk bounds as loading. Standalone and excluded packages own
+their roots; nested workspaces select the nearest root. Unlisted packages fail
+with an actionable finding. `package.workspace` must safely name an existing
+workspace inside the tree which includes the package. Malformed manifests,
+conflicting declarations and inaccessible paths are hard errors. The starting
+path must be an existing directory; discovery stops at the supplied tree boundary.
+Directory symlinks are refused because their lexical ancestors can name a
+different workspace; a disk caller can canonicalize the starting directory first.
 
 **Tree.** All file access goes through the `Tree` trait, which takes `RelPath` values:
 validated root-relative `/`-separated UTF-8 paths. `RelPath::join` drops `.` segments
@@ -1693,6 +1712,11 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
 
 ## Constraints
 
+- Root discovery requires real directory ancestors inside its tree. It refuses
+  directory aliases and parent segments that cannot be safely reduced; a disk
+  caller can canonicalize its starting path before constructing the tree-relative
+  path. A present manifest whose target is missing is an error, rather than an
+  absent manifest that permits an ancestor fallback.
 - Parsing is syntactic. The crate does not expand macros, evaluate `cfg` other than
   the `test` tag, or run type inference. An item is indexed as written, so a function
   with no body or a type with no definition, which rustc accepts only as the input of
@@ -1782,6 +1806,10 @@ duplicates.
 
 ## Verification
 
+- Root fixtures resolve explicit sibling workspaces whose members use parent
+  segments, while refusing the same package when the target workspace does not
+  list it. Disk discovery also asserts that the selected root is the sibling
+  workspace directory.
 - A `MemoryTree` fixture per target kind (library, binary, test, bench, example and
   build script) with default and with explicit paths, asserting the kind, the Cargo
   name, the shipping flag, the crate path and that each target's root module is
@@ -2754,6 +2782,12 @@ duplicates.
 | `raf_source::test_crate::resolve_paths::globs_of_dependencies_in_one_module_leave_a_missing_name_not_found` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::the_cfg_alternatives_of_one_module_a_glob_brings_in_are_one_candidate_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::two_different_modules_of_one_name_stay_ambiguous_beside_the_cfg_alternatives_of_one` | test | [Verification](#verification) |
+| `raf_source::test_crate::root::explicit_workspace_requires_a_safe_path_and_agreed_membership` | test | [Verification](#verification) |
+| `raf_source::test_crate::root::malformed_manifests_and_missing_directories_fail_hard` | test | [Verification](#verification) |
+| `raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit` | test | [Verification](#verification) |
+| `raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources` | test | [Verification](#verification) |
+| `raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots` | test | [Verification](#verification) |
+| `raf_source::test_crate::root::transitive_path_dependencies_are_members` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::a_divergence_that_matches_no_class_is_unclassified` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::a_wrong_index_answer_is_reported_beside_the_right_one_which_is_not` | test | [Verification](#verification) |

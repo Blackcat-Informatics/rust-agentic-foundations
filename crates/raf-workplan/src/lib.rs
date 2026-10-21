@@ -184,8 +184,7 @@
 //! ([`git::show_prefix`]), and the four commands that read a file as it was at the merge
 //! base of the current branch and the default branch (the file is read only at a
 //! [`git::MergeBase`], which only [`git::merge_base`] makes). [`root::discover`] finds
-//! the workspace root with `cargo metadata --format-version 1 --no-deps
-//! --frozen`, reading nothing but its `workspace_root` field.
+//! the workspace root through the bounded `raf-source` tree lookup, without a process.
 //!
 //! [`Workplan::history`] answers how a document came to be what it is, from
 //! Git and on request: the commits of the document of a `cap:`, `change:`,

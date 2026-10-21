@@ -175,6 +175,7 @@ mod parse;
 mod path;
 mod prescan;
 mod resolve;
+mod root;
 mod settle;
 mod target;
 mod tree;
@@ -195,6 +196,7 @@ pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};
 pub use parse::{PARSE_STACK_BYTES, parse_source};
 pub use path::{PathError, RelPath};
 pub use resolve::{Resolution, ResolveError};
+pub use root::discover_root;
 /// The `syn` that produced the facts, re-exported so a consumer parses with the
 /// same version; a `syn` major bump is a breaking change of this crate.
 pub use syn;

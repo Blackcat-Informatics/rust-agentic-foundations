@@ -49,8 +49,11 @@ with a typed error, and that a failure never passes: a run ends in an error, a c
 result or an abort, and never in success with a wrong or partial result. The
 guarantees are these, and no wider:
 
-- **Containment.** A file is read only if it lies inside the canonical workspace
-  root. The one exception is the reference scan, which reads the sources of
+- **Containment.** Source files are read only inside the canonical workspace
+  root. Root discovery first reads bounded ancestor Cargo manifests and the
+  manifests reached by workspace membership through a tree rooted at the
+  filesystem root; it reads no Rust sources and starts no process. The reference
+  scan reads the sources of
   reference packages by design; each of those files must lie inside the package
   directory that `cargo metadata` reports for that package. Symlinks that leave the
   root or package, directory-symlink loops and non-regular files are refused. A file
@@ -182,8 +185,8 @@ guarantees are these, and no wider:
   because neither place reads an option, and it holds no control character, no
   `\`, `*`, `?` or `[`, no empty, `.` or `..` segment and no leading `/` or `:`,
   so it is never a pathspec pattern or magic. The `cargo-workplan` binary starts no process of its own:
-  root discovery (`cargo metadata --format-version 1 --no-deps --frozen`) and the
-  `git` calls of the gate are made by `raf-workplan`, and a slug argument is checked
+  root discovery reads bounded manifests through `raf-source`, and the
+  `git` calls of the gate are made by `raf-workplan`. A slug argument is checked
   against the slug pattern when the arguments are parsed, so one that starts with `-`
   is a usage error before any process starts. So is every value of the record
   commands that is not of its form or starts with `-`: the id of `history`,

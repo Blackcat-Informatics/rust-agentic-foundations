@@ -56,7 +56,7 @@ impl Scratch {
         fs::create_dir_all(&path)
             .unwrap_or_else(|e| panic!("cannot create {}: {e}", path.display()));
         // A Unix temporary directory may be reached through a link (macOS), and
-        // the root `cargo metadata` names is the canonical one. On Windows the
+        // root discovery returns the canonical path. On Windows the
         // canonical form is a verbatim path that not every program takes.
         #[cfg(unix)]
         let path = fs::canonicalize(&path).expect("a canonical scratch directory");
