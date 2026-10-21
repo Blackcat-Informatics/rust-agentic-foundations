@@ -10,9 +10,8 @@ use std::fs;
 use std::path::Path;
 
 use raf_census::{
-    Baseline, DEFAULT_MIN_TOKENS, ENCODING, Index, LITERAL_TIER, Level, MAX_NESTING,
-    MIN_SHIM_TOKENS, NORMAL_FORM, PASSES, SHIM_MAX_TOKENS, Slice, Tower, VALUE_ADAPTERS,
-    WEAK_KEYWORDS, manifest,
+    DEFAULT_MIN_TOKENS, ENCODING, LITERAL_TIER, Level, MAX_NESTING, MIN_SHIM_TOKENS, NORMAL_FORM,
+    PASSES, SHIM_MAX_TOKENS, Slice, Tower, VALUE_ADAPTERS, WEAK_KEYWORDS, manifest,
 };
 
 fn page() -> String {
@@ -156,85 +155,57 @@ fn the_page_names_every_value_adapter_and_weak_keyword() {
     }
 }
 
-/// The members the page must name for the baseline report, by object.
-const BASELINE: &[&str] = &[
-    "normal_form",
-    "min_tokens",
-    "units",
-    "body_groups",
-    "shim_groups",
-    "hex_tables",
-    "shared_constants",
-    "fingerprint",
-    "tokens",
-    "members",
-    "symbol",
-    "file",
-    "line",
-    "table",
-    "value",
-    "packages",
-];
-
-/// The members the page must name for the index report, by object.
-const INDEX: &[&str] = &[
-    "normal_form",
-    "units",
-    "symbol",
-    "package",
-    "file",
-    "line",
-    "shipping",
-    "tokens",
-    "body",
-    "shim",
-    "groups",
-    "kind",
-    "fingerprint",
-    "members",
-    "jobs",
-    "id",
-    "home",
-    "matches",
-    "class",
-    "copies",
-];
-
 #[test]
-fn the_page_names_every_report_member_of_both_reports() {
+fn the_page_states_the_closed_shape_of_every_report() {
     let page = page();
     let reports = section(&page, "Reports");
-    let (baseline, index) = reports
-        .split_once("The index report")
-        .expect("the section describes the baseline report, then the index report");
-    for member in BASELINE {
-        assert!(baseline.contains(&quoted(member)), "baseline: {member}");
-    }
-    for member in INDEX {
-        assert!(index.contains(&quoted(member)), "index: {member}");
-    }
+    let expected = raf_census::report::vocab::SHAPES
+        .iter()
+        .map(|row| {
+            let max = if row.max == usize::MAX {
+                "unbounded".to_owned()
+            } else {
+                row.max.to_string()
+            };
+            let prefix = if row.property == "reifies" {
+                "rdf"
+            } else {
+                "census"
+            };
+            format!(
+                "| {} | `census:{}` | `{}:{}` | {}..{} | {} |",
+                row.report, row.class, prefix, row.property, row.min, max, row.object
+            )
+        })
+        .collect::<Vec<_>>();
+    let actual = reports
+        .lines()
+        .filter(|line| {
+            line.starts_with("| baseline |")
+                || line.starts_with("| index |")
+                || line.starts_with("| both |")
+                || line.starts_with("| debt |")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(actual, expected);
 }
 
-/// A report member list is the closed schema: a document with exactly these
-/// members reads, and one with another member does not.
 #[test]
-fn the_member_lists_are_the_closed_schemas() {
-    let baseline = r#"{"normal_form":1,"min_tokens":20,"units":0,"body_groups":[
-        {"fingerprint":"body:0000000000000000","tokens":1,"members":
-        [{"symbol":"s","file":"f","line":1}]}],"shim_groups":[],
-        "hex_tables":[{"symbol":"s","file":"f","line":1,"table":"hex-lower"}],
-        "shared_constants":[{"value":"0x10000","packages":2,"members":
-        [{"symbol":"s","file":"f","line":1}]}]}"#;
-    Baseline::from_json(baseline).expect("every named baseline member reads");
-    let extra = baseline.replacen("\"units\":0", "\"units\":0,\"extra\":1", 1);
-    assert!(Baseline::from_json(&extra).is_err());
-    let index = r#"{"normal_form":1,"units":[{"symbol":"s","package":"p","file":"f",
-        "line":1,"shipping":true,"tokens":1,"body":null,"shim":null}],
-        "groups":[{"kind":"body","fingerprint":"body:0000000000000000","members":
-        [{"symbol":"s","file":"f","line":1}]}],
-        "jobs":[{"id":"j","home":"s","matches":[{"symbol":"s","class":"home"}],
-        "copies":0}]}"#;
-    Index::from_json(index).expect("every named index member reads");
-    let extra = index.replacen("\"copies\":0", "\"copies\":0,\"extra\":1", 1);
-    assert!(Index::from_json(&extra).is_err());
+fn the_shape_table_is_the_reader_shape() {
+    let rows = raf_census::report::vocab::SHAPES;
+    for row in rows {
+        assert!(row.min <= row.max);
+        assert_eq!(
+            rows.iter()
+                .filter(|other| other.report == row.report
+                    && other.class == row.class
+                    && other.property == row.property)
+                .count(),
+            1
+        );
+    }
+    assert!(
+        rows.iter()
+            .any(|r| r.class == "Match" && r.property == "reifies" && r.min == 1 && r.max == 1)
+    );
 }

@@ -51,8 +51,8 @@ pub(crate) fn render(census: &Census, jobs: &[Job]) -> Result<String, Error> {
     let reports: Vec<JobReport> = census.match_jobs(jobs);
     Ok(format!(
         "baseline\n{}index\n{}",
-        census.baseline().to_json()?,
-        census.index(&reports).to_json()?
+        census.baseline().to_turtle()?,
+        census.index(&reports)?.to_turtle()?
     ))
 }
 
@@ -80,6 +80,10 @@ pub(crate) fn of_dir(dir: &str) -> Result<String, Error> {
         (_, _) if path.is_absolute() => (path, "."),
         _ => (Path::new("."), dir),
     };
-    let tree = DiskTree::new(base).map_err(|e| Error::Report(format!("{dir}: {e}")))?;
+    let tree = DiskTree::new(base).map_err(|e| Error::Source {
+        file: dir.to_owned(),
+        line: 1,
+        reason: e.to_string(),
+    })?;
     of(&tree, root)
 }

@@ -31,7 +31,7 @@ check, and `cargo-workplan` runs `check`, `status`, `docs sync|preview`,
 `change new|impact|reconcile|complete`, `verify`, `history`,
 `evidence record|claims|for`, `assess` and `coverage code|tests`: their contract
 is stated in [workplan-cli](docs/capabilities/workplan-cli.md). `raf-census` is **delivered** for its normal-form capability: normal form 1 and its
-fingerprints, units, grouping, job matching and the baseline and index reports; the
+fingerprints, units, grouping, job matching and the RDF 1.2 baseline and index reports; the
 rest of the census is specified by its other capability documents. The census
 command-line crate is **designed — not yet published**: the nine census capability
 documents are the specification both are built against.

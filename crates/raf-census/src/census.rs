@@ -45,8 +45,8 @@ impl Census {
     /// # Errors
     ///
     /// [`Error::Load`] when the workspace does not load, and [`Error::Source`]
-    /// when a body does not lex or a signature or an initialiser does not
-    /// parse or the source index is inconsistent, and [`Error::Collision`] when two different forms have one
+    /// when a body or an initialiser does not lex or the source index is
+    /// inconsistent, and [`Error::Collision`] when two different forms have one
     /// fingerprint. Nothing falls back to a partial result.
     pub fn load(tree: &impl Tree, roots: &[&str], options: &CensusOptions) -> Result<Self, Error> {
         let mut load = LoadOptions::default();

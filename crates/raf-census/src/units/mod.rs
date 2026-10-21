@@ -78,6 +78,8 @@ pub struct Unit {
     pub file: String,
     /// The 1-based line of the item's name.
     pub line: usize,
+    /// The byte offset where the source item starts.
+    pub start_byte: usize,
     /// What the unit is.
     pub kind: UnitKind,
     /// True for a method of a trait implementation.
@@ -292,6 +294,7 @@ fn build(
         package,
         file,
         line: item.name_line,
+        start_byte: item.span.start_byte,
         kind,
         trait_impl,
         via_self,

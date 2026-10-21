@@ -3,7 +3,7 @@
 
 [package]
 name = "raf-census"
-description = "The RAF census: normal form 1, BLAKE3 fingerprints, grouping and the baseline and index reports."
+description = "The RAF census: normal form 1, BLAKE3 fingerprints, grouping and the RDF 1.2 baseline and index reports."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -20,10 +20,8 @@ blake3 = "1.8.7"
 proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
 # The workspace walk: packages, targets, the symbol index and the item bodies.
 raf-source = { path = "../raf-source", version = "0.1.0" }
-# Derives the closed schemas of the baseline and index reports.
-serde = { version = "1", default-features = false, features = ["derive", "std"] }
-# Renders and reads the reports; the output is sorted and byte-stable.
-serde_json = { version = "1", default-features = false, features = ["std"] }
+# Shared RDF 1.2 lexical laws; canonical report goldens pin the term spelling.
+purrdf-lex = "3.0.1"
 # Decodes individual string literals; signatures and initialiser ranges come
 # from raf-source's budgeted parse rather than a second parse.
 syn = { version = "3", default-features = false, features = ["full", "parsing", "printing", "visit"] }

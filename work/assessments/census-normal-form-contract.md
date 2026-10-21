@@ -7,28 +7,10 @@ subject: cap:census-normal-form#contract
 inputs:
   - kind: section
     name: cap:census-normal-form#contract
-    digest: 739c962e32affc04507651659e1c131625a4abc8cc7a24d20f8e40b1d79c8ed7
-  - kind: symbol
-    name: raf_census::Census::body_groups
-    digest: 527fdf3ff8cdea454013daf1816b8e8307bd7e2bb7dbd938aabf4f18defe0f8d
-  - kind: symbol
-    name: raf_census::Census::groups
-    digest: 80d4052fa23b59709ee188531b2eaa34db43da26936a53ceebc0465c9393af1a
-  - kind: symbol
-    name: raf_census::Census::hex_tables
-    digest: f859dd2ff349b68907b45292f05f87bf1c8485c2d433ec8e16807a166caa8c85
+    digest: c5ba36474f7e6232cfc1d4b0877716fd5c90923ecd652df8f620d433ba0de46e
   - kind: symbol
     name: raf_census::Census::match_jobs
-    digest: 78f4576b39e3fd93d799990aff9482e488f00b5ef8f90cc40a28001a8ec4a861
-  - kind: symbol
-    name: raf_census::Census::shared_constants
-    digest: 02ead0cfd9e2945789421fb4730343238ede2c97d20a3c020607c594745bcadb
-  - kind: symbol
-    name: raf_census::Census::shim_groups
-    digest: 255985d84a9159b3175c00ecdad4b92d4d908710d41fdd4e138c38bc8eca7700
-  - kind: symbol
-    name: raf_census::Census::units
-    digest: 675d80fbc16cdd1d51784a395151f41dfa5172ab8d383588f4b07a45d12a0e05
+    digest: 4158a8083145416d7d1327cd6c1698eb314b9b6ea4e4b9cd326e01a5e80b905f
   - kind: symbol
     name: raf_census::CensusOptions
     digest: 3374a4ce9c59f9ee5a5444a70a1803f5a560846fb99259baa6bad8ebf721ed2c
@@ -40,7 +22,7 @@ inputs:
     digest: 8df57f2ea55e951529af334bdad02dd05b2f8cf08425583f147a467ff6a9d573
   - kind: symbol
     name: raf_census::Error
-    digest: f335c3c1d164bff833364c0ceb0bfc430b1944e88548b85075dd30d192fd9ff6
+    digest: cd8d84ca0caead22123b730eeb3ed2594af7a9508801d48f468f36a62fb92589
   - kind: symbol
     name: raf_census::FileCtx
     digest: dc820cd4bb1dfd693cf6cb0f66493c8438837ee5177cc381ba2cc9a94be75afe
@@ -68,6 +50,9 @@ inputs:
   - kind: symbol
     name: raf_census::NORMAL_FORM
     digest: 70e3fd42fe1cc7ca511c05dbe4bba480e6de8865632b4e51b4a6efb61b02f802
+  - kind: symbol
+    name: raf_census::ReportError
+    digest: 2dada3392b167cd12dce28477d0ada92744270ee66a79738470f7cb9d3b90c27
   - kind: symbol
     name: raf_census::RuleId::as_str
     digest: 5a3a2181673435534898b2e73556d9576f0a1319ecc5dae1dc2ac6eba3718335

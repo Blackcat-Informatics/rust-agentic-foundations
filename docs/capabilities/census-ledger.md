@@ -163,7 +163,11 @@ reason = "Each forwards to a different standard-library type."
 
 ## Constraints
 
-- Only TOML is read. The census has no hand-written parser.
+- A ledger's `normal_form` and a report's `census:normalForm` pass through the same
+  `check_normal_form` gate.
+
+- The ledger is read only as TOML through the `toml` crate. The census report
+  reader accepts only its canonical RDF 1.2 closed profile.
 - The ledger is at most 1 MiB and 32 levels of nesting deep.
 - A key not listed above is an error; there is no pass-through for unknown keys
   outside `[job.ext]`.

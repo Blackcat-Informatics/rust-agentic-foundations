@@ -317,37 +317,85 @@ copies.
 
 ## Reports
 
-The census renders two JSON reports. Both are closed schemas that read back what
-they write. They are rendered with sorted keys, two-space indentation and one
-trailing newline, and a fingerprint is a string. An integer constant is a
-lowercase hexadecimal string with a `0x` prefix, because it can exceed what a JSON
-number holds.
+The census writes two ground RDF 1.2 graphs as canonical Turtle 1.2: the baseline
+summarizes repeated bodies, shims, tables and large constants; the index lists
+every unit, group and classified job match. Every subject has exactly one type.
+There are no blank nodes or named graphs. The census vocabulary is
+`https://blackcatinformatics.ca/raf/census#`. Body and shim fingerprint IRIs
+include their normal-form version; table names are version-free.
 
-The baseline report lists what the workspace repeats. Its members are:
+Every report starts with `VERSION "1.2"`, then a `BASE` under
+`https://blackcatinformatics.ca/.well-known/genid/raf-census/` followed by the
+BLAKE3-256 digest of the UTF-8 document without its second line and that line's LF.
+This is an unkeyed integrity check: an edit without recomputing the digest is refused.
+Equal content mints equal snapshot IRIs; different content keeps local nodes apart.
+Units are named from symbol, file, line and start byte, percent-encoded with the
+shared RFC 3986 encoder. A same-line cfg alternative therefore has a distinct node.
 
-- `normal_form`, the version;
-- `min_tokens`, the threshold the run used;
-- `units`, the number of units;
-- `body_groups` and `shim_groups`, each a list of groups with `fingerprint`,
-  `tokens` and `members`;
-- `hex_tables`, each with `symbol`, `file`, `line` and `table`;
-- `shared_constants`, each with `value`, `packages` and `members`.
+The fixed prefixes follow label order: body, census, shim, and table for a baseline;
+body, census and shim for an index. Blocks follow report node, groups, constants or
+jobs, then units. Groups sort by descending members, descending value-token count,
+then fingerprint. Constants sort by value, jobs by id. Units sort by symbol, then
+file, then line, then start byte. Predicates follow full IRI order, with type first.
+Members and matches follow unit order. Strings use the canonical RDF 1.2 N-Triples
+term spelling supplied by purrdf-lex; integer constants are decimal xsd:integer.
+One LF ends the text; comments, alternate layouts and extra whitespace are refused.
 
-A member has `symbol`, `file` and `line`.
+A job match asserts `job census:match unit`; its named RDF 1.2 reifier carries
+`a census:Match` and its Home, Variant or Copy classification. The annotation
+syntax also supplies `rdf:reifies` with the corresponding triple term. Only one
+annotation level exists. A match requires exactly one reifier, and copies equals
+the number classified Copy.
 
-The index report lists every unit, group and job. Its members are:
+The closed shape is stated below. Every class also requires exactly one rdf:type;
+no other subject, predicate, class, individual or datatype is admitted. Baseline
+units must be referenced by a group, shared constant or holds property. Every
+reference must resolve, and minted node names must agree with their properties.
 
-- `normal_form`, the version;
-- `units`, each with `symbol`, `package`, `file`, `line`, `shipping`, `tokens`,
-  `body` and `shim`; `body` is the body fingerprint or `null`, `shim` is the
-  `shim_key` or `null`, and `tokens` is 0 for a unit that is not a function;
-- `groups`, each with `kind` (`body` or `shim`), `fingerprint` and `members`;
-- `jobs`, each with `id`, `home`, `matches` (each with `symbol` and `class`) and
-  `copies`.
-
-Units sort by symbol, then file, then line.
+| Report | Class | Property | Count | Object |
+|---|---|---|---|---|
+| baseline | `census:Baseline` | `census:minTokens` | 1..1 | positive integer |
+| baseline | `census:Baseline` | `census:normalForm` | 1..1 | u32 |
+| baseline | `census:Baseline` | `census:reportForm` | 1..1 | report version |
+| baseline | `census:Baseline` | `census:unitCount` | 1..1 | integer |
+| index | `census:Index` | `census:normalForm` | 1..1 | u32 |
+| index | `census:Index` | `census:reportForm` | 1..1 | report version |
+| both | `census:BodyGroup` | `census:fingerprint` | 1..1 | body fingerprint |
+| both | `census:BodyGroup` | `census:member` | 2..unbounded | unit |
+| both | `census:BodyGroup` | `census:tokens` | 1..1 | integer |
+| both | `census:ShimGroup` | `census:fingerprint` | 1..1 | shim fingerprint |
+| both | `census:ShimGroup` | `census:member` | 2..unbounded | unit |
+| both | `census:ShimGroup` | `census:tokens` | 1..1 | integer |
+| baseline | `census:SharedConstant` | `census:value` | 1..1 | large integer |
+| baseline | `census:SharedConstant` | `census:packageCount` | 1..1 | package count |
+| baseline | `census:SharedConstant` | `census:member` | 2..unbounded | unit |
+| both | `census:Unit` | `census:symbol` | 1..1 | string |
+| both | `census:Unit` | `census:file` | 1..1 | string |
+| both | `census:Unit` | `census:line` | 1..1 | positive integer |
+| both | `census:Unit` | `census:startByte` | 1..1 | integer |
+| baseline | `census:Unit` | `census:holds` | 0..2 | table |
+| index | `census:Unit` | `census:package` | 1..1 | string |
+| index | `census:Unit` | `census:shipping` | 1..1 | boolean |
+| index | `census:Unit` | `census:tokens` | 1..1 | integer |
+| index | `census:Unit` | `census:body` | 0..1 | body fingerprint |
+| index | `census:Unit` | `census:shim` | 0..1 | shim fingerprint |
+| index | `census:Job` | `census:jobId` | 1..1 | string |
+| index | `census:Job` | `census:homeSymbol` | 1..1 | string |
+| index | `census:Job` | `census:copies` | 1..1 | integer |
+| index | `census:Job` | `census:match` | 0..unbounded | unit |
+| index | `census:Match` | `rdf:reifies` | 1..1 | triple term |
+| index | `census:Match` | `census:matchClass` | 1..1 | match class |
+| debt | `census:DebtRecord` | `census:normalForm` | 1..1 | u32 |
+| debt | `census:DebtRecord` | `census:reportForm` | 1..1 | report version |
+| debt | `census:BodyDebt` | `census:memberSymbol` | 2..unbounded | string |
+| debt | `census:ShimDebt` | `census:memberSymbol` | 2..unbounded | string |
+| debt | `census:JobDebt` | `census:jobId` | 1..1 | string |
+| debt | `census:JobDebt` | `census:copies` | 1..1 | positive integer |
 
 ## Version-bump rule
+
+A change to report vocabulary, shape or canonical layout bumps `census:reportForm`,
+not `normal_form`.
 
 A normal form version is fixed by the content of its first merge to the default
 branch. After that, any change that can alter a fingerprint of any input is a new
@@ -372,6 +420,11 @@ too. A fixture without a pinned value fails the test, and so does a pinned value
 without a fixture.
 
 ## Compatibility
+
+The report reader returns its declared `census:normalForm` without gating it; callers
+apply `check_normal_form`, so migration can read another normal form. Its body and
+shim namespaces must agree with that version. `census:reportForm` gates the layout
+and must equal the implemented `REPORT_FORM` (1).
 
 A ledger names the version it was written for with `normal_form`. If the value differs
 from the version the census implements, the census fails hard before reading any job.

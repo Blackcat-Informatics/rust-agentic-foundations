@@ -59,7 +59,7 @@ pub trait Rule: Sync {
 - `.assert_clean()` runs the census and panics with every finding in one message
   when there is any, and returns when there is none.
 - `.write_debt()` has the signature `fn write_debt(&self) -> Result<DebtWrite, Error>`.
-  It rewrites `census-debt.json` beside the ledger to the present debt (see
+  It rewrites `census-debt.ttl` beside the ledger to the present debt (see
   [census-debt-ratchet](./census-debt-ratchet.md)) and refuses, with an `Error` that
   lists them, while any finding that is not debt exists, the same refusal as
   `cargo census debt --write`. `DebtWrite` reports the path written, the number of
@@ -190,7 +190,7 @@ The gate makes that a precondition of running the rule, not a review comment.
 - A test shows `.assert_clean()` returns on a clean fixture workspace and panics
   with every finding on a fixture workspace that contains a planted duplicate
   helper.
-- A test shows `.write_debt()` writes `census-debt.json` beside the ledger of a
+- A test shows `.write_debt()` writes `census-debt.ttl` beside the ledger of a
   fixture workspace that registers a rule and an extension, and that two runs give
   byte-identical files.
 - A test shows `.write_debt()` returns an `Error` that lists the findings, and writes

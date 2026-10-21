@@ -8,9 +8,12 @@ description: "How the RAF census normalises function bodies, fingerprints them w
 state: delivered
 bindings:
   code:
+    - raf_census::report::vocab
+    - raf_census::REPORT_FORM
+    - raf_census::ReportError
     - raf_census::Baseline
-    - raf_census::Baseline::from_json
-    - raf_census::Baseline::to_json
+    - raf_census::Baseline::from_turtle
+    - raf_census::Baseline::to_turtle
     - raf_census::BaselineGroup
     - raf_census::Census
     - raf_census::Census::baseline
@@ -53,8 +56,8 @@ bindings:
     - raf_census::Hashed
     - raf_census::HexTable
     - raf_census::Index
-    - raf_census::Index::from_json
-    - raf_census::Index::to_json
+    - raf_census::Index::from_turtle
+    - raf_census::Index::to_turtle
     - raf_census::IndexGroup
     - raf_census::IndexUnit
     - raf_census::Job
@@ -114,7 +117,7 @@ bindings:
     - raf_census::manifest
   tests:
     - raf_census::error::tests::each_variant_renders_its_facts
-    - raf_census::error::tests::only_a_load_error_has_a_source
+    - raf_census::error::tests::an_options_error_has_no_nested_source
     - raf_census::group::tests::a_collision_is_found_even_when_a_third_unit_stands_alone
     - raf_census::group::tests::members_order_by_symbol_then_file_then_line
     - raf_census::group::tests::one_fingerprint_with_two_digests_is_a_collision_beside_equal_digests
@@ -125,7 +128,12 @@ bindings:
     - raf_census::options::tests::defaults_are_twenty_tokens_and_eight_mebibytes
     - raf_census::options::tests::max_file_bytes_is_set
     - raf_census::options::tests::zero_min_tokens_is_refused_and_one_is_accepted
-    - raf_census::report::tests::render_ends_with_one_newline_and_sorts_keys
+    - raf_census::report::mint::tests::fragments_are_ascii_and_percent_encode_reserved_bytes
+    - raf_census::report::read::tests::each_token_outside_the_profile_names_its_line_and_column
+    - raf_census::report::read::tests::the_graph_of_each_example_is_its_pinned_triple_set
+    - raf_census::report::shape::tests::every_required_shape_property_has_a_missing_and_unknown_neighbor
+    - raf_census::report::write::tests::the_digest_covers_everything_but_the_base_line
+    - raf_census::report::mint::tests::fragments_are_injective_over_their_separators
     - raf_census::test_crate::forms::a_fingerprint_displays_and_parses_back
     - raf_census::test_crate::forms::a_fingerprint_refuses_every_malformed_spelling
     - raf_census::test_crate::forms::a_fixture_named_for_a_size_has_that_many_value_tokens
@@ -174,18 +182,20 @@ bindings:
     - raf_census::test_crate::groups::near_misses_of_a_hex_table_are_not_reported
     - raf_census::test_crate::groups::shared_constants_run_by_value_ascending
     - raf_census::test_crate::groups::shim_groups_use_the_shim_key_and_skip_trait_impls_and_self_forwarders
-    - raf_census::test_crate::page::the_member_lists_are_the_closed_schemas
+    - raf_census::test_crate::page::the_shape_table_is_the_reader_shape
     - raf_census::test_crate::page::the_page_names_every_pass_level_and_the_encoding
-    - raf_census::test_crate::page::the_page_names_every_report_member_of_both_reports
+    - raf_census::test_crate::page::the_page_states_the_closed_shape_of_every_report
     - raf_census::test_crate::page::the_page_names_every_threshold_with_its_value
     - raf_census::test_crate::page::the_page_names_every_value_adapter_and_weak_keyword
     - raf_census::test_crate::page::the_page_states_that_every_threshold_counts_the_value_form
     - raf_census::test_crate::page::the_page_states_the_renaming_and_numbering_rules
-    - raf_census::test_crate::reports::a_shared_constant_is_hexadecimal_text
+    - raf_census::test_crate::reports::a_shared_constant_is_an_integer
     - raf_census::test_crate::reports::an_absolute_directory_reports_the_same_as_the_relative_spelling
-    - raf_census::test_crate::reports::an_unknown_key_missing_key_or_wrong_type_is_not_a_report
+    - raf_census::test_crate::reports::unknown_terms_are_not_a_report
+    - raf_census::test_crate::reports::decoded_control_characters_are_escaped_in_report_diagnostics
+    - raf_census::test_crate::reports::orphan_units_and_matches_without_a_named_reifier_are_not_a_report
     - raf_census::test_crate::reports::both_reports_read_back_what_they_write
-    - raf_census::test_crate::reports::output_has_sorted_keys_and_one_trailing_newline
+    - raf_census::test_crate::reports::output_is_the_canonical_turtle
     - raf_census::test_crate::reports::the_capability_examples_hold_the_example_output
     - raf_census::test_crate::reports::the_example_output_is_the_pinned_golden
     - raf_census::test_crate::reports::the_example_output_names_the_expected_group_fingerprints
@@ -222,6 +232,18 @@ bindings:
     - raf_census::version::tests::the_implemented_version_passes
     - raf_census::test_crate::forms::the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name
     - raf_census::test_crate::groups::renamed_locals_inside_macro_arguments_land_in_one_body_group
+    - raf_census::test_crate::reports::missing_repeated_and_mistyped_properties_are_not_a_report
+    - raf_census::test_crate::reports::names_that_disagree_with_their_node_are_not_a_report
+    - raf_census::test_crate::reports::constructs_outside_the_profile_are_not_a_report
+    - raf_census::test_crate::reports::an_edited_or_respaced_text_is_not_a_report
+    - raf_census::test_crate::reports::canonical_line_diagnostics_preserve_crlf_and_the_final_newline
+    - raf_census::test_crate::reports::an_index_is_not_a_baseline
+    - raf_census::test_crate::reports::duplicate_job_ids_are_refused
+    - raf_census::test_crate::reports::a_report_of_another_report_form_is_refused_naming_both
+    - raf_census::test_crate::reports::an_index_of_another_normal_form_reads_and_keeps_its_version
+    - raf_census::test_crate::reports::awkward_names_round_trip
+    - raf_census::test_crate::reports::two_cfg_alternatives_on_one_line_have_distinct_unit_nodes
+    - raf_census::test_crate::reports::the_writer_refuses_a_value_outside_the_shape
   examples:
     - raf_census::example_crate::baseline
     - raf_census::example_crate::goldens
@@ -242,8 +264,8 @@ census capability stands on.
 The census is a library: a caller loads a workspace through `raf-source`, and the
 census reports which units share a fingerprint and which of them a ledger job
 forbids outside its home. The fingerprint is only comparable inside one normal-form
-version, so the version is a value the library exposes and a gate it applies to
-every version a caller declares.
+version, so the library exposes the version and an explicit gate callers apply
+before comparing fingerprints. Reading a report preserves its declared version.
 
 ## Contract
 
@@ -305,7 +327,7 @@ implements it as follows.
   source item of the index whose item does not resolve or that has no reach: such an
   inconsistency is an error that names the file and never drops a unit),
   `Options`, `Collision` (two different forms with one fingerprint, naming both
-  symbols), `Version`, `Report` and a load error of `raf-source`. Nothing falls back
+  symbols), `Version`, `Report` (a typed `ReportError`) and a load error of `raf-source`. Nothing falls back
   to a partial result.
 - `raf_census::FileCtx` describes one file of the workspace: its `package` (of
   the first target that reaches it), its `path`, `shipping`, and `target_kinds`, the
@@ -317,7 +339,7 @@ implements it as follows.
 - Units are collected once per source item, whatever number of targets reach it,
   so a module declared by both a library and a binary yields one unit. A unit is
   a function, a method (inherent, trait implementation or trait default), a
-  constant or a static; its identity is its file, line and symbol, its symbol is
+  constant or a static; its identity is its file, line, start byte and symbol, its symbol is
   chosen deterministically (a shipping reach over a test reach, then the smallest
   path), and it is shipping when some target that reaches it ships and the item is
   not test code in that reach. A function or method unit holds its print; a constant
@@ -327,7 +349,7 @@ implements it as follows.
 - The census groups units by fingerprint in a `BTreeMap` from fingerprint to
   members. A group has two or more members. Groups sort by member count descending,
   then tokens descending, then fingerprint ascending, and their members by symbol,
-  file and line, so the same source always produces the same output. Two units with
+  file, line and start byte, so the same source always produces the same output. Two units with
   one 8-byte fingerprint and different digests are an `Error::Collision`.
 - Integer constants are compared by value in any spelling. The census recognises
   hex-digit tables (a string, a byte string or an array of 16 `char` or `u8`
@@ -342,14 +364,19 @@ implements it as follows.
   `Home` when the unit's symbol is the home or an entry point, `Variant` when it is a
   listed variant, and `Copy` otherwise, and the job counts its copies. A `rule:`
   fingerprint matches no unit here.
-- The baseline report has the members `normal_form`, `min_tokens`, `units` (the
-  count), `body_groups`, `shim_groups`, `hex_tables` and `shared_constants`. The
-  index report has `normal_form`, `units` (symbol, package, file, line, shipping,
-  tokens, body and shim), `groups` (kind, fingerprint and members) and `jobs`
-  (id, home, matches with symbol and class, and copies). The `shim` of an index unit
-  is its `shim_key`. Both reports are closed schemas that read back what they write,
-  and they render with sorted keys and a trailing newline. A constant value is a
-  `0x` hexadecimal string.
+- The baseline and index are ground RDF 1.2 graphs in one canonical Turtle 1.2
+  spelling, with the closed shape in the architecture page's Reports section.
+  A content-addressed BASE separates snapshot-local nodes; its BLAKE3-256 digest
+  covers the document without the BASE line. This is an unkeyed integrity check,
+  refusing an edit whose digest was not recomputed. Each unit's identity includes
+  symbol, file, line and start byte. Job matches have named, typed RDF 1.2 reifiers
+  carrying Home, Variant or Copy. Constants are decimal xsd:integer values.
+  The shared purrdf-lex canonical RDF 1.2 term spelling escapes literals and IRIs.
+  Readers return the declared normal form without gating it, while enforcing
+  reportForm 1 and matching fingerprint namespaces. Unknown terms, missing,
+  repeated and mistyped properties, dangling references, orphan units and node
+  names that disagree with properties are errors. Alternate spellings and an
+  incorrect BASE digest are errors. Writers validate the same closed shape.
 - A normal form version is fixed by the content of its first merge to the default
   branch. After that, any change that can alter a fingerprint is a new version with
   a migration path.
@@ -359,7 +386,9 @@ implements it as follows.
 A caller loads the workspace with `raf_census::Census::load(&tree, roots,
 &options)`, normalises single sources with `raf_census::Normalizer`, and asks
 `Census::match_jobs` which units a set of `Job` values forbids. `Census::baseline`
-and `Census::index` build the two reports. `check_normal_form` is the gate a ledger
+and `Census::index` build the two reports. `Census::index` refuses duplicate job
+ids; its jobs sort by id. `to_turtle` writes a report and `from_turtle` reads its
+canonical bytes, preserving its normal-form version for the caller to judge. `check_normal_form` is the gate a ledger
 reader applies to the version it finds. `cargo census` ([census-cli](./census-cli.md))
 and the rule API ([census-rule-api](./census-rule-api.md)) are the designed
 consumers of this library.
@@ -406,193 +435,164 @@ hexadecimal digit table, the constant 65536 and one job `sum` whose home is
 `alpha` and which forbids the body group's fingerprint and the constant 65536. The
 baseline report:
 
-```json
-{
-  "body_groups": [
-    {
-      "fingerprint": "body:6bb022e241a79a28",
-      "members": [
-        {
-          "file": "src/lib.rs",
-          "line": 1,
-          "symbol": "demo::alpha"
-        },
-        {
-          "file": "src/lib.rs",
-          "line": 2,
-          "symbol": "demo::beta"
-        }
-      ],
-      "tokens": 21
-    }
-  ],
-  "hex_tables": [
-    {
-      "file": "src/lib.rs",
-      "line": 6,
-      "symbol": "demo::digits",
-      "table": "hex-lower"
-    }
-  ],
-  "min_tokens": 20,
-  "normal_form": 1,
-  "shared_constants": [],
-  "shim_groups": [
-    {
-      "fingerprint": "shim:203616cb54a3e53d",
-      "members": [
-        {
-          "file": "src/lib.rs",
-          "line": 4,
-          "symbol": "demo::one"
-        },
-        {
-          "file": "src/lib.rs",
-          "line": 5,
-          "symbol": "demo::two"
-        }
-      ],
-      "tokens": 6
-    }
-  ],
-  "units": 7
-}
+```turtle
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0>
+PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
+PREFIX census: <https://blackcatinformatics.ca/raf/census#>
+PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+PREFIX table: <https://blackcatinformatics.ca/raf/census/table/>
+
+<> a census:Baseline ;
+    census:minTokens 20 ;
+    census:normalForm 1 ;
+    census:reportForm 1 ;
+    census:unitCount 7 .
+
+<#group/body:6bb022e241a79a28> a census:BodyGroup ;
+    census:fingerprint body:6bb022e241a79a28 ;
+    census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
+        <#unit/demo::beta@src/lib.rs:2:74> ;
+    census:tokens 21 .
+
+<#group/shim:203616cb54a3e53d> a census:ShimGroup ;
+    census:fingerprint shim:203616cb54a3e53d ;
+    census:member <#unit/demo::one@src/lib.rs:4:194> ,
+        <#unit/demo::two@src/lib.rs:5:237> ;
+    census:tokens 6 .
+
+<#unit/demo::alpha@src/lib.rs:1:0> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 1 ;
+    census:startByte 0 ;
+    census:symbol "demo::alpha" .
+
+<#unit/demo::beta@src/lib.rs:2:74> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 2 ;
+    census:startByte 74 ;
+    census:symbol "demo::beta" .
+
+<#unit/demo::digits@src/lib.rs:6:280> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:holds table:hex-lower ;
+    census:line 6 ;
+    census:startByte 280 ;
+    census:symbol "demo::digits" .
+
+<#unit/demo::one@src/lib.rs:4:194> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 4 ;
+    census:startByte 194 ;
+    census:symbol "demo::one" .
+
+<#unit/demo::two@src/lib.rs:5:237> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 5 ;
+    census:startByte 237 ;
+    census:symbol "demo::two" .
 ```
 
 The index report of the same workspace lists each unit with its `body` and `shim`
 fingerprints, each group with its members, and the job with its classified matches:
 
-```json
-{
-  "groups": [
-    {
-      "fingerprint": "body:6bb022e241a79a28",
-      "kind": "body",
-      "members": [
-        {
-          "file": "src/lib.rs",
-          "line": 1,
-          "symbol": "demo::alpha"
-        },
-        {
-          "file": "src/lib.rs",
-          "line": 2,
-          "symbol": "demo::beta"
-        }
-      ]
-    },
-    {
-      "fingerprint": "shim:203616cb54a3e53d",
-      "kind": "shim",
-      "members": [
-        {
-          "file": "src/lib.rs",
-          "line": 4,
-          "symbol": "demo::one"
-        },
-        {
-          "file": "src/lib.rs",
-          "line": 5,
-          "symbol": "demo::two"
-        }
-      ]
-    }
-  ],
-  "jobs": [
-    {
-      "copies": 2,
-      "home": "demo::alpha",
-      "id": "sum",
-      "matches": [
-        {
-          "class": "copy",
-          "symbol": "demo::BIG"
-        },
-        {
-          "class": "home",
-          "symbol": "demo::alpha"
-        },
-        {
-          "class": "copy",
-          "symbol": "demo::beta"
-        }
-      ]
-    }
-  ],
-  "normal_form": 1,
-  "units": [
-    {
-      "body": null,
-      "file": "src/lib.rs",
-      "line": 7,
-      "package": "demo",
-      "shim": null,
-      "shipping": true,
-      "symbol": "demo::BIG",
-      "tokens": 0
-    },
-    {
-      "body": "body:6bb022e241a79a28",
-      "file": "src/lib.rs",
-      "line": 1,
-      "package": "demo",
-      "shim": null,
-      "shipping": true,
-      "symbol": "demo::alpha",
-      "tokens": 21
-    },
-    {
-      "body": "body:6bb022e241a79a28",
-      "file": "src/lib.rs",
-      "line": 2,
-      "package": "demo",
-      "shim": null,
-      "shipping": true,
-      "symbol": "demo::beta",
-      "tokens": 21
-    },
-    {
-      "body": null,
-      "file": "src/lib.rs",
-      "line": 6,
-      "package": "demo",
-      "shim": null,
-      "shipping": true,
-      "symbol": "demo::digits",
-      "tokens": 1
-    },
-    {
-      "body": null,
-      "file": "src/lib.rs",
-      "line": 3,
-      "package": "demo",
-      "shim": null,
-      "shipping": true,
-      "symbol": "demo::helper",
-      "tokens": 3
-    },
-    {
-      "body": null,
-      "file": "src/lib.rs",
-      "line": 4,
-      "package": "demo",
-      "shim": "shim:203616cb54a3e53d",
-      "shipping": true,
-      "symbol": "demo::one",
-      "tokens": 6
-    },
-    {
-      "body": null,
-      "file": "src/lib.rs",
-      "line": 5,
-      "package": "demo",
-      "shim": "shim:203616cb54a3e53d",
-      "shipping": true,
-      "symbol": "demo::two",
-      "tokens": 6
-    }
-  ]
-}
+```turtle
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b>
+PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
+PREFIX census: <https://blackcatinformatics.ca/raf/census#>
+PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+
+<> a census:Index ;
+    census:normalForm 1 ;
+    census:reportForm 1 .
+
+<#group/body:6bb022e241a79a28> a census:BodyGroup ;
+    census:fingerprint body:6bb022e241a79a28 ;
+    census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
+        <#unit/demo::beta@src/lib.rs:2:74> ;
+    census:tokens 21 .
+
+<#group/shim:203616cb54a3e53d> a census:ShimGroup ;
+    census:fingerprint shim:203616cb54a3e53d ;
+    census:member <#unit/demo::one@src/lib.rs:4:194> ,
+        <#unit/demo::two@src/lib.rs:5:237> ;
+    census:tokens 6 .
+
+<#job/sum> a census:Job ;
+    census:copies 2 ;
+    census:homeSymbol "demo::alpha" ;
+    census:jobId "sum" ;
+    census:match <#unit/demo::BIG@src/lib.rs:7:335> ~ <#match/sum/demo::BIG@src/lib.rs:7:335> {| a census:Match ; census:matchClass census:Copy |} ,
+        <#unit/demo::alpha@src/lib.rs:1:0> ~ <#match/sum/demo::alpha@src/lib.rs:1:0> {| a census:Match ; census:matchClass census:Home |} ,
+        <#unit/demo::beta@src/lib.rs:2:74> ~ <#match/sum/demo::beta@src/lib.rs:2:74> {| a census:Match ; census:matchClass census:Copy |} .
+
+<#unit/demo::BIG@src/lib.rs:7:335> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 7 ;
+    census:package "demo" ;
+    census:shipping true ;
+    census:startByte 335 ;
+    census:symbol "demo::BIG" ;
+    census:tokens 0 .
+
+<#unit/demo::alpha@src/lib.rs:1:0> a census:Unit ;
+    census:body body:6bb022e241a79a28 ;
+    census:file "src/lib.rs" ;
+    census:line 1 ;
+    census:package "demo" ;
+    census:shipping true ;
+    census:startByte 0 ;
+    census:symbol "demo::alpha" ;
+    census:tokens 21 .
+
+<#unit/demo::beta@src/lib.rs:2:74> a census:Unit ;
+    census:body body:6bb022e241a79a28 ;
+    census:file "src/lib.rs" ;
+    census:line 2 ;
+    census:package "demo" ;
+    census:shipping true ;
+    census:startByte 74 ;
+    census:symbol "demo::beta" ;
+    census:tokens 21 .
+
+<#unit/demo::digits@src/lib.rs:6:280> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 6 ;
+    census:package "demo" ;
+    census:shipping true ;
+    census:startByte 280 ;
+    census:symbol "demo::digits" ;
+    census:tokens 1 .
+
+<#unit/demo::helper@src/lib.rs:3:147> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 3 ;
+    census:package "demo" ;
+    census:shipping true ;
+    census:startByte 147 ;
+    census:symbol "demo::helper" ;
+    census:tokens 3 .
+
+<#unit/demo::one@src/lib.rs:4:194> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 4 ;
+    census:package "demo" ;
+    census:shim shim:203616cb54a3e53d ;
+    census:shipping true ;
+    census:startByte 194 ;
+    census:symbol "demo::one" ;
+    census:tokens 6 .
+
+<#unit/demo::two@src/lib.rs:5:237> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 5 ;
+    census:package "demo" ;
+    census:shim shim:203616cb54a3e53d ;
+    census:shipping true ;
+    census:startByte 237 ;
+    census:symbol "demo::two" ;
+    census:tokens 6 .
 ```
 
 A directory is read as a root of the tree at the current directory when it is
@@ -639,8 +639,8 @@ the report then begin with the directory's name, as they do for `crates`.
   overflow the stack of the caller of `Census::load`, a 2 MiB test thread included.
   What the census itself lexes is a body or an initialiser, whose nesting is
   bounded by `MAX_NESTING` (128) and by the delimiter budget of `raf-source`, which
-  the file has already passed. The span table that `proc_macro2` keeps for the
-  thread is cleared when the load ends, including on an error. This also
+  the file has already passed. Collection clears the span table that `proc_macro2`
+  keeps for the thread when collection ends, including on a collection error. This also
   invalidates any `proc_macro2` spans the caller holds on that thread; callers
   must finish using those spans before loading a census.
 
@@ -719,18 +719,22 @@ because there the algorithm, not the constants, is what two copies share.
   constant by value, with a copy count of 2, and a job that matches nothing has no
   matches.
 - The reports are tested for byte-identical output over two fresh loads, including
-  this repository's own crates, for a round trip through their JSON, and for
-  refusal of an unknown key. The Examples above are the output of the `baseline`
-  example, which a test compares byte for byte.
+  this repository's own crates, and for canonical Turtle 1.2 round trips. Negative
+  fixtures refuse unknown predicates/classes, missing, repeated and mistyped
+  properties, inconsistent matches, node names, unsupported constructs, respacing
+  and edits without a fresh digest; the canonical neighbours read. Independent
+  purrdf-rdf expansions pin the graph as N-Triples, including awkward escaped names.
+  The Examples above are the exact output of the `baseline` example.
 - A page test reads the architecture page and fails when it does not name every
-  pass, level, threshold with its value, value adapter, report member and the
-  encoding id.
+  pass, level, threshold with its value, value adapter, closed report shape and
+  encoding id. Every required baseline or index shape property has a missing-property fixture and
+  an unknown-property neighbour against the same production shape validator.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `raf_census::error::tests::an_options_error_has_no_nested_source` | test | [Verification](#verification) |
 | `raf_census::error::tests::each_variant_renders_its_facts` | test | [Verification](#verification) |
-| `raf_census::error::tests::only_a_load_error_has_a_source` | test | [Verification](#verification) |
 | `raf_census::example_crate::baseline` | example target | [Verification](#verification) |
 | `raf_census::example_crate::goldens` | example target | [Verification](#verification) |
 | `raf_census::group::tests::a_collision_is_found_even_when_a_third_unit_stands_alone` | test | [Verification](#verification) |
@@ -743,7 +747,12 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::options::tests::defaults_are_twenty_tokens_and_eight_mebibytes` | test | [Verification](#verification) |
 | `raf_census::options::tests::max_file_bytes_is_set` | test | [Verification](#verification) |
 | `raf_census::options::tests::zero_min_tokens_is_refused_and_one_is_accepted` | test | [Verification](#verification) |
-| `raf_census::report::tests::render_ends_with_one_newline_and_sorts_keys` | test | [Verification](#verification) |
+| `raf_census::report::mint::tests::fragments_are_ascii_and_percent_encode_reserved_bytes` | test | [Verification](#verification) |
+| `raf_census::report::mint::tests::fragments_are_injective_over_their_separators` | test | [Verification](#verification) |
+| `raf_census::report::read::tests::each_token_outside_the_profile_names_its_line_and_column` | test | [Verification](#verification) |
+| `raf_census::report::read::tests::the_graph_of_each_example_is_its_pinned_triple_set` | test | [Verification](#verification) |
+| `raf_census::report::shape::tests::every_required_shape_property_has_a_missing_and_unknown_neighbor` | test | [Verification](#verification) |
+| `raf_census::report::write::tests::the_digest_covers_everything_but_the_base_line` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::a_fingerprint_displays_and_parses_back` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::a_fingerprint_refuses_every_malformed_spelling` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::a_fixture_named_for_a_size_has_that_many_value_tokens` | test | [Verification](#verification) |
@@ -794,24 +803,38 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::test_crate::groups::renamed_locals_inside_macro_arguments_land_in_one_body_group` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::shared_constants_run_by_value_ascending` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::shim_groups_use_the_shim_key_and_skip_trait_impls_and_self_forwarders` | test | [Verification](#verification) |
-| `raf_census::test_crate::page::the_member_lists_are_the_closed_schemas` | test | [Verification](#verification) |
 | `raf_census::test_crate::page::the_page_names_every_pass_level_and_the_encoding` | test | [Verification](#verification) |
-| `raf_census::test_crate::page::the_page_names_every_report_member_of_both_reports` | test | [Verification](#verification) |
 | `raf_census::test_crate::page::the_page_names_every_threshold_with_its_value` | test | [Verification](#verification) |
 | `raf_census::test_crate::page::the_page_names_every_value_adapter_and_weak_keyword` | test | [Verification](#verification) |
 | `raf_census::test_crate::page::the_page_states_that_every_threshold_counts_the_value_form` | test | [Verification](#verification) |
+| `raf_census::test_crate::page::the_page_states_the_closed_shape_of_every_report` | test | [Verification](#verification) |
 | `raf_census::test_crate::page::the_page_states_the_renaming_and_numbering_rules` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::a_shared_constant_is_hexadecimal_text` | test | [Verification](#verification) |
+| `raf_census::test_crate::page::the_shape_table_is_the_reader_shape` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::a_report_of_another_report_form_is_refused_naming_both` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::a_shared_constant_is_an_integer` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::an_absolute_directory_reports_the_same_as_the_relative_spelling` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::an_unknown_key_missing_key_or_wrong_type_is_not_a_report` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::an_edited_or_respaced_text_is_not_a_report` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::an_index_is_not_a_baseline` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::an_index_of_another_normal_form_reads_and_keeps_its_version` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::awkward_names_round_trip` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::both_reports_read_back_what_they_write` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::output_has_sorted_keys_and_one_trailing_newline` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::canonical_line_diagnostics_preserve_crlf_and_the_final_newline` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::constructs_outside_the_profile_are_not_a_report` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::decoded_control_characters_are_escaped_in_report_diagnostics` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::duplicate_job_ids_are_refused` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::missing_repeated_and_mistyped_properties_are_not_a_report` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::names_that_disagree_with_their_node_are_not_a_report` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::orphan_units_and_matches_without_a_named_reifier_are_not_a_report` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::output_is_the_canonical_turtle` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::the_capability_examples_hold_the_example_output` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::the_example_output_is_the_pinned_golden` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::the_example_output_names_the_expected_group_fingerprints` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::the_index_renders_the_classified_matches_of_every_job` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::the_writer_refuses_a_value_outside_the_shape` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::two_cfg_alternatives_on_one_line_have_distinct_unit_nodes` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::two_fresh_loads_of_the_fixtures_give_identical_bytes` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::two_fresh_loads_of_this_repository_give_identical_bytes` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::unknown_terms_are_not_a_report` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_constant_whose_type_names_a_number_does_not_hold_it` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_deep_constant_type_loads_on_a_small_stack` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_deep_signature_loads_on_a_small_stack_and_beyond_the_budget_is_refused` | test | [Verification](#verification) |

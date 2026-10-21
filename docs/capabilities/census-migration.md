@@ -25,21 +25,21 @@ re-deriving its ledger by hand.
 
 ## Contract
 
-`cargo census migrate --old-baseline <clone-baseline.json> --ledger <old.toml> --out <new.toml>`
-reads a baseline and a ledger and writes a ledger in the unified schema, at the
-implemented `normal_form`, to the path given by `--out`, which is required; omitting
-it is a usage error (see [census-ledger](./census-ledger.md)). The ledger is one of
-two kinds: a legacy ledger of an earlier census copy, or a ledger in the current
-format whose `normal_form` is older than the implemented version. The file named by
-`--old-baseline` is the one that matches the ledger: the legacy baseline for a legacy
-ledger, or the index report (`cargo census index`, every unit with its fingerprints,
-see [census-normal-form](./census-normal-form.md)) that the older version wrote for a
-current-format ledger. The baseline report is not used for a current-format ledger,
-because it drops groups of one member, and a clean job's forbidden fingerprint is
-carried by its home alone.
+`cargo census migrate (--old-baseline <legacy.json> | --old-index <index.ttl>) --ledger <old.toml> --out <new.toml>`
+reads exactly one report input and writes only the required output ledger. A
+legacy ledger requires its legacy JSON baseline; a current-format ledger requires
+an RDF 1.2 index written under its older normal form. A missing, repeated or
+mismatched report option is a usage error (exit 2). Format is never inferred.
+The baseline report cannot replace an index, since it omits single-member groups.
+
+- The index is read with `Index::from_turtle`, preserving its declared
+  `census:normalForm`; migration requires that version to be older than the
+  implemented one. Otherwise it exits 2 with nothing to migrate. An unsupported
+  `census:reportForm` is a usage error naming both forms.
+- The legacy baseline is read with `purrdf_lex::json` only in this import path.
 
 - The old baseline maps each old fingerprint to the member symbols of its group. In
-  an index report, the members of a fingerprint are the units that list it.
+  an index report, the members of a fingerprint are the units whose `census:body` or `census:shim` names it.
 - For each old fingerprint named in the old ledger, the command finds the member
   symbols in the current source, computes their fingerprint at the implemented
   `normal_form`, and writes that fingerprint in place of the old one. When the members
@@ -74,8 +74,8 @@ A current-format ledger at an older `normal_form` is migrated the same way, with
 index report written before the upgrade:
 
 ```text
-cargo census index > index-before-upgrade.json
-cargo census migrate --old-baseline index-before-upgrade.json --ledger helpers-ledger.toml --out helpers-ledger.new.toml
+cargo census index > index-before-upgrade.ttl
+cargo census migrate --old-index index-before-upgrade.ttl --ledger helpers-ledger.toml --out helpers-ledger.new.toml
 ```
 
 The output is a new file; move it over `helpers-ledger.toml` to replace the ledger.
@@ -140,6 +140,10 @@ unmapped: job iri-parse fingerprint body:aa11bb22cc33dd44: no member symbol reso
 
 ## Constraints
 
+- The index-report reader admits reports produced under census load budgets,
+  rather than imposing the ledger's 1 MiB cap. An oversized input is a typed
+  error naming the file. Migration preserves `max_file_bytes`.
+
 - Migration needs the report that lists each fingerprint's members: the legacy
   baseline, or the index report the older version wrote. A ledger fingerprint absent
   from it cannot be mapped.
@@ -148,7 +152,7 @@ unmapped: job iri-parse fingerprint body:aa11bb22cc33dd44: no member symbol reso
 - The output requires a person to write the `summary` of any row the old ledger did
   not state; the command writes an empty string and the ledger check does not accept
   an empty summary until it is filled in.
-- The input ledger and baseline are read with the bounds of
+- The input ledger and legacy baseline are read with the bounds of
   [census-ledger](./census-ledger.md): at most 1 MiB each and 32 levels of nesting,
   with a larger or deeper input refused as a typed error that names the file.
 - The command knows the legacy ledger layouts of the earlier census copies and the
@@ -167,6 +171,10 @@ unmapped rows instead of dropping them keeps the migration honest, because a row
 silently disappears is a rule that silently stops running.
 
 ## Verification
+
+- A noncanonical index, unknown predicate or BASE that does not name its content
+  is refused with the file named and no output written. Both mismatched combinations
+  of ledger kind and report option exit 2; the matching neighbours succeed.
 
 - A fixture legacy baseline and ledger migrate to an expected unified ledger, byte
   for byte.

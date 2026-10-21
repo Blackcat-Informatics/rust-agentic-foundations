@@ -70,7 +70,7 @@ make help    # list every target
   at a command that runs the 1.98.1 toolchain.
 - **Fuzz harness.** `make fuzz` checks `fuzz/` (its own cargo-fuzz workspace) with
   fmt, clippy and an offline `cargo deny`, then runs each of its targets
-  (`parse-source`, `parse-document`, `load-workspace` and `census-normalize`) over its committed corpus,
+  (`parse-source`, `parse-document`, `load-workspace`, `census-normalize` and `census-report-read`) over its committed corpus,
   with inputs of up to 400000 bytes and limits on resident memory and on one
   allocation. It needs `cargo-fuzz` (`cargo install --locked
   cargo-fuzz@0.13.2`); a missing tool is a failure. `make msrv` and `make fmt` cover

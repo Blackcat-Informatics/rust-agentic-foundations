@@ -17,7 +17,7 @@ contract_effect: changes
 items:
   - claim: "The Rule trait has id, check and fixtures methods with the documented signatures."
   - claim: "Gate::workspace builds a gate with rules, extensions and assert_clean."
-  - claim: "Gate::write_debt writes census-debt.json beside the ledger, refuses while a non-debt finding exists, and is called from a binary or xtask, not a test."
+  - claim: "Gate::write_debt writes census-debt.ttl beside the ledger, refuses while a non-debt finding exists, and is called from a binary or xtask, not a test."
   - claim: "A forbidden rule id that is not a built-in detector, a pattern or a registered rule fails the gate."
   - claim: "Before running a rule the gate runs its fixtures and fails, naming the rule, on an empty positive set, an empty negative set, a negative fixture with a hit, or a positive fixture with none."
   - claim: "Duplicate rule ids fail the gate."

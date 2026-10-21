@@ -64,7 +64,7 @@ architecture pages. `cargo-workplan` is **delivered** with the commands `check`,
 `history`, `evidence record|claims|for`, `assess` and `coverage code|tests`, their
 contract stated in the command-line capability. `raf-census` is **delivered** for its normal-form capability: the
 normaliser and its fingerprints, the units, grouping, hex tables and shared constants,
-job matching, the baseline and index reports and the normal-form version gate; its
+job matching, the RDF 1.2 baseline and index reports and the normal-form version gate; its
 ledger, detectors, rule API, patterns, debt ratchet and reference scan are specified by
 their own capability documents. `cargo-census` is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.

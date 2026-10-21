@@ -58,6 +58,13 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "census-report-read"
+path = "fuzz_targets/census_report_read.rs"
+test = false
+doc = false
+bench = false
+
 [workspace]
 
 [workspace.lints.rust]

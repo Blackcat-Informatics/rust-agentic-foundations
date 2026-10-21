@@ -25,7 +25,7 @@
 | Capability | Description | Gaps |
 | --- | --- | --- |
 | [census-cli](./census-cli.md) | The cargo census subcommands, their options and exit codes. |  |
-| [census-debt-ratchet](./census-debt-ratchet.md) | A recorded set of existing duplication that can only shrink, stored in census-debt.json. |  |
+| [census-debt-ratchet](./census-debt-ratchet.md) | A recorded set of existing duplication that can only shrink, stored in census-debt.ttl. |  |
 | [census-detectors](./census-detectors.md) | The fourteen generic detectors the RAF census ships, each with a positive and a negative fixture. |  |
 | [census-ledger](./census-ledger.md) | The helpers-ledger.toml schema: jobs, variants, distinct sets, extensions and the staleness checks. |  |
 | [census-migration](./census-migration.md) | Move a legacy census baseline and ledger, or a ledger at an older normal form, to the implemented normal form and the unified ledger schema. |  |

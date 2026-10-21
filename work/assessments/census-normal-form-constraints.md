@@ -7,10 +7,10 @@ subject: cap:census-normal-form#constraints
 inputs:
   - kind: section
     name: cap:census-normal-form#constraints
-    digest: f513f355418d6b65283c399f7f3b89c114666223ddbaf5acfbf9db1cd6d4b53f
+    digest: cc506d3d0fc1f644d89f8094cdd5830e12f75bb1903193c1971483d1549b36b9
   - kind: symbol
     name: raf_census::Census::load
-    digest: 3c08f4d7a30e9a319a885435dc37e6ce156b66c272383640191d425805df3201
+    digest: 295c41bf5982d087d839110392dee82529b43f0c5b5f432dbf9e2e3c6c2261d5
   - kind: symbol
     name: raf_census::CensusOptions::min_tokens
     digest: 8df57f2ea55e951529af334bdad02dd05b2f8cf08425583f147a467ff6a9d573

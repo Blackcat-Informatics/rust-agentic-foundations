@@ -23,8 +23,8 @@
 //! classifies the units it finds.
 //!
 //! [`Census::baseline`] and [`Census::index`] render the two reports; both
-//! are closed schemas, `to_json` writes sorted keys and a trailing newline,
-//! and `from_json` reads back what `to_json` wrote.
+//! are ground RDF 1.2 graphs with a closed shape. `to_turtle` writes their
+//! canonical spelling and `from_turtle` validates that spelling and its digest.
 //!
 //! [`CensusOptions`] holds the limits of one run and [`Error`] is the one error
 //! type of the crate.
@@ -49,7 +49,7 @@ mod group;
 mod job;
 mod normalize;
 mod options;
-mod report;
+pub mod report;
 mod units;
 mod version;
 
@@ -65,7 +65,7 @@ pub use normalize::{
 pub use options::{CensusOptions, DEFAULT_MAX_FILE_BYTES, DEFAULT_MIN_TOKENS};
 pub use report::{
     Baseline, BaselineGroup, ConstantRow, Index, IndexGroup, IndexUnit, JobRow, MatchRow,
-    MemberRow, TableRow,
+    MemberRow, REPORT_FORM, ReportError, TableRow,
 };
 pub use units::{StringKind, StringLiteral, Unit, UnitKind};
 pub use version::{NORMAL_FORM, check_normal_form};

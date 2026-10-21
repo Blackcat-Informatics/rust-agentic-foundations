@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The baseline and index reports: exact JSON over the built-in workspace of
+//! The baseline and index reports: canonical Turtle 1.2 over the built-in workspace of
 //! the `baseline` example, the round trip, the closed schema, the job
 //! classification, and byte-identical output from two fresh loads, on fixtures
 //! and on this repository's own `crates`.
@@ -10,198 +10,16 @@ use std::path::Path;
 
 use raf_census::{
     Baseline, Census, CensusOptions, Error, Fingerprint, Index, Job, JobForbidden, MatchClass,
+    ReportError,
 };
 use raf_source::{DiskTree, MemoryTree};
-use serde_json::Value;
 
 #[path = "support/builtin.rs"]
 mod builtin;
 
 /// The output of `cargo run -p raf-census --example baseline`. A change to a
 /// fingerprint here is a change of the normal form.
-const BUILTIN: &str = r#"baseline
-{
-  "body_groups": [
-    {
-      "fingerprint": "body:6bb022e241a79a28",
-      "members": [
-        {
-          "file": "src/lib.rs",
-          "line": 1,
-          "symbol": "demo::alpha"
-        },
-        {
-          "file": "src/lib.rs",
-          "line": 2,
-          "symbol": "demo::beta"
-        }
-      ],
-      "tokens": 21
-    }
-  ],
-  "hex_tables": [
-    {
-      "file": "src/lib.rs",
-      "line": 6,
-      "symbol": "demo::digits",
-      "table": "hex-lower"
-    }
-  ],
-  "min_tokens": 20,
-  "normal_form": 1,
-  "shared_constants": [],
-  "shim_groups": [
-    {
-      "fingerprint": "shim:203616cb54a3e53d",
-      "members": [
-        {
-          "file": "src/lib.rs",
-          "line": 4,
-          "symbol": "demo::one"
-        },
-        {
-          "file": "src/lib.rs",
-          "line": 5,
-          "symbol": "demo::two"
-        }
-      ],
-      "tokens": 6
-    }
-  ],
-  "units": 7
-}
-index
-{
-  "groups": [
-    {
-      "fingerprint": "body:6bb022e241a79a28",
-      "kind": "body",
-      "members": [
-        {
-          "file": "src/lib.rs",
-          "line": 1,
-          "symbol": "demo::alpha"
-        },
-        {
-          "file": "src/lib.rs",
-          "line": 2,
-          "symbol": "demo::beta"
-        }
-      ]
-    },
-    {
-      "fingerprint": "shim:203616cb54a3e53d",
-      "kind": "shim",
-      "members": [
-        {
-          "file": "src/lib.rs",
-          "line": 4,
-          "symbol": "demo::one"
-        },
-        {
-          "file": "src/lib.rs",
-          "line": 5,
-          "symbol": "demo::two"
-        }
-      ]
-    }
-  ],
-  "jobs": [
-    {
-      "copies": 2,
-      "home": "demo::alpha",
-      "id": "sum",
-      "matches": [
-        {
-          "class": "copy",
-          "symbol": "demo::BIG"
-        },
-        {
-          "class": "home",
-          "symbol": "demo::alpha"
-        },
-        {
-          "class": "copy",
-          "symbol": "demo::beta"
-        }
-      ]
-    }
-  ],
-  "normal_form": 1,
-  "units": [
-    {
-      "body": null,
-      "file": "src/lib.rs",
-      "line": 7,
-      "package": "demo",
-      "shim": null,
-      "shipping": true,
-      "symbol": "demo::BIG",
-      "tokens": 0
-    },
-    {
-      "body": "body:6bb022e241a79a28",
-      "file": "src/lib.rs",
-      "line": 1,
-      "package": "demo",
-      "shim": null,
-      "shipping": true,
-      "symbol": "demo::alpha",
-      "tokens": 21
-    },
-    {
-      "body": "body:6bb022e241a79a28",
-      "file": "src/lib.rs",
-      "line": 2,
-      "package": "demo",
-      "shim": null,
-      "shipping": true,
-      "symbol": "demo::beta",
-      "tokens": 21
-    },
-    {
-      "body": null,
-      "file": "src/lib.rs",
-      "line": 6,
-      "package": "demo",
-      "shim": null,
-      "shipping": true,
-      "symbol": "demo::digits",
-      "tokens": 1
-    },
-    {
-      "body": null,
-      "file": "src/lib.rs",
-      "line": 3,
-      "package": "demo",
-      "shim": null,
-      "shipping": true,
-      "symbol": "demo::helper",
-      "tokens": 3
-    },
-    {
-      "body": null,
-      "file": "src/lib.rs",
-      "line": 4,
-      "package": "demo",
-      "shim": "shim:203616cb54a3e53d",
-      "shipping": true,
-      "symbol": "demo::one",
-      "tokens": 6
-    },
-    {
-      "body": null,
-      "file": "src/lib.rs",
-      "line": 5,
-      "package": "demo",
-      "shim": "shim:203616cb54a3e53d",
-      "shipping": true,
-      "symbol": "demo::two",
-      "tokens": 6
-    }
-  ]
-}
-"#;
+const BUILTIN: &str = include_str!("fixtures/reports/example.txt");
 
 fn builtin_census() -> Census {
     Census::load(&builtin::tree(), &["."], &CensusOptions::default()).expect("the fixture loads")
@@ -235,7 +53,7 @@ fn the_example_output_names_the_expected_group_fingerprints() {
     assert!(output.contains(&shim[0].fingerprint.to_string()));
     assert!(output.contains("body:6bb022e241a79a28"), "{output}");
     assert!(output.contains("shim:203616cb54a3e53d"), "{output}");
-    assert!(output.contains("\"id\": \"sum\""), "{output}");
+    assert!(output.contains("census:jobId \"sum\""), "{output}");
 }
 
 /// The capability document shows the reports the example prints, byte for
@@ -247,7 +65,7 @@ fn the_capability_examples_hold_the_example_output() {
     let document = std::fs::read_to_string(&path).expect("the capability document reads");
     let (baseline, index) = halves();
     for (name, report) in [("baseline", baseline), ("index", index)] {
-        let block = format!("```json\n{report}```");
+        let block = format!("```turtle\n{report}```");
         assert!(
             document.contains(&block),
             "the Examples lack the {name} report"
@@ -258,11 +76,11 @@ fn the_capability_examples_hold_the_example_output() {
 #[test]
 fn both_reports_read_back_what_they_write() {
     let (baseline, index) = halves();
-    let b = Baseline::from_json(&baseline).expect("a baseline");
-    assert_eq!(b.to_json().expect("renders"), baseline);
+    let b = Baseline::from_turtle(&baseline).expect("a baseline");
+    assert_eq!(b.to_turtle().expect("renders"), baseline);
     assert_eq!(b, builtin_census().baseline());
-    let i = Index::from_json(&index).expect("an index");
-    assert_eq!(i.to_json().expect("renders"), index);
+    let i = Index::from_turtle(&index).expect("an index");
+    assert_eq!(i.to_turtle().expect("renders"), index);
     assert_eq!((b.units, i.units.len()), (7, 7));
     assert_eq!((b.body_groups.len(), b.shim_groups.len()), (1, 1));
     assert_eq!(b.hex_tables.len(), 1);
@@ -270,89 +88,312 @@ fn both_reports_read_back_what_they_write() {
     assert_eq!(b.min_tokens, 20);
 }
 
-#[test]
-fn output_has_sorted_keys_and_one_trailing_newline() {
-    let (baseline, index) = halves();
-    for text in [baseline, index] {
-        assert!(text.ends_with("}\n") && !text.ends_with("\n\n"));
-        let value: Value = serde_json::from_str(&text).expect("json");
-        assert_sorted(&value);
-    }
-}
-
-fn assert_sorted(value: &Value) {
-    match value {
-        Value::Object(map) => {
-            let keys: Vec<&String> = map.keys().collect();
-            assert!(keys.windows(2).all(|w| w[0] < w[1]), "{keys:?}");
-            map.values().for_each(assert_sorted);
-        }
-        Value::Array(items) => items.iter().for_each(assert_sorted),
-        _ => {}
-    }
-}
-
 fn refused(result: Result<impl std::fmt::Debug, Error>, needle: &str) {
     match result {
-        Err(Error::Report(reason)) => assert!(reason.contains(needle), "{reason}"),
-        other => panic!("expected a report error naming {needle}, found {other:?}"),
+        Err(Error::Report(reason)) => assert!(reason.to_string().contains(needle), "{reason}"),
+        other => panic!("expected report refusal naming {needle}, got {other:?}"),
     }
 }
 
 #[test]
-fn an_unknown_key_missing_key_or_wrong_type_is_not_a_report() {
+fn output_is_the_canonical_turtle() {
+    for text in [halves().0, halves().1] {
+        assert!(text.starts_with("VERSION \"1.2\"\nBASE <"));
+        assert!(text.ends_with(" .\n") && !text.ends_with("\n\n"));
+        assert!(!text.contains('\r') && !text.contains('\t') && !text.contains("_:"));
+        assert!(text.lines().all(|line| !line.ends_with(' ')));
+        let body = text
+            .split_inclusive('\n')
+            .enumerate()
+            .filter_map(|(i, line)| (i != 1).then_some(line))
+            .collect::<String>();
+        assert!(
+            text.lines()
+                .nth(1)
+                .expect("BASE")
+                .contains(blake3::hash(body.as_bytes()).to_hex().as_str())
+        );
+    }
+}
+
+#[test]
+fn unknown_terms_are_not_a_report() {
     let (baseline, index) = halves();
-    // An unknown key at the top and inside nested rows.
+    assert!(Baseline::from_turtle(&baseline).is_ok());
+    assert!(Index::from_turtle(&index).is_ok());
+    for (from, to, needle) in [
+        (
+            "census:minTokens 20 ;",
+            "census:extra 1 ;\n    census:minTokens 20 ;",
+            "extra",
+        ),
+        (
+            "census:symbol \"demo::alpha\"",
+            "census:column 1 ;\n    census:symbol \"demo::alpha\"",
+            "column",
+        ),
+        ("a census:Unit", "a census:Widget", "Widget"),
+        (
+            "census:minTokens 20",
+            "<https://foreign.example/key> 20",
+            "foreign.example",
+        ),
+    ] {
+        refused(
+            Baseline::from_turtle(&baseline.replacen(from, to, 1)),
+            needle,
+        );
+    }
     refused(
-        Baseline::from_json(&baseline.replacen("{\n", "{\n  \"extra\": 1,\n", 1)),
-        "extra",
-    );
-    refused(
-        Baseline::from_json(&baseline.replacen(
-            "\"line\"",
-            "\"column\": 1,\n          \"line\"",
-            1,
-        )),
-        "column",
-    );
-    refused(
-        Index::from_json(&index.replacen("\"home\"", "\"owner\": \"x\", \"home\"", 1)),
+        Index::from_turtle(&index.replacen("census:homeSymbol", "census:owner", 1)),
         "owner",
     );
-    // A missing key and a wrong type.
+}
+
+#[test]
+fn decoded_control_characters_are_escaped_in_report_diagnostics() {
+    let (baseline, _) = halves();
+    assert!(Baseline::from_turtle(&baseline).is_ok());
+    let edited = baseline.replacen("census:minTokens", "<https://foreign.example/\\u001B>", 1);
+    let error = Baseline::from_turtle(&edited)
+        .expect_err("foreign predicate")
+        .to_string();
+    assert!(!error.contains('\u{1b}'));
+    assert!(error.contains("\\u{1b}"));
+}
+
+#[test]
+fn missing_repeated_and_mistyped_properties_are_not_a_report() {
+    let (baseline, index) = halves();
+    assert!(Baseline::from_turtle(&baseline).is_ok());
+    assert!(Index::from_turtle(&index).is_ok());
     refused(
-        Baseline::from_json(&baseline.replacen("\"min_tokens\": 20,", "", 1)),
-        "min_tokens",
+        Baseline::from_turtle(&baseline.replace("    census:minTokens 20 ;\n", "")),
+        "minTokens",
     );
     refused(
-        Baseline::from_json(&baseline.replacen(
-            "\"normal_form\": 1",
-            "\"normal_form\": \"one\"",
+        Baseline::from_turtle(
+            &baseline.replace("census:normalForm 1", "census:normalForm \"one\""),
+        ),
+        "normalForm",
+    );
+    refused(
+        Index::from_turtle(&index.replacen(
+            "census:body body:",
+            "census:body body:0000000000000000 ;\n    census:body body:",
             1,
         )),
-        "expected u32",
-    );
-    refused(
-        Index::from_json(&index.replacen("\"copy\"", "\"duplicate\"", 1)),
-        "duplicate",
-    );
-    // `body` and `shim` may be null but must be present.
-    assert!(
-        Index::from_json(&index).is_ok(),
-        "the null-carrying form reads"
-    );
-    assert!(index.contains("\"body\": null,") && index.contains("\"shim\": null,"));
-    refused(
-        Index::from_json(&index.replacen("\"body\": null,", "", 1)),
         "body",
     );
     refused(
-        Index::from_json(&index.replacen("\"shim\": null,", "", 1)),
-        "shim",
+        Index::from_turtle(&index.replace(
+            "census:matchClass census:Copy",
+            "census:matchClass census:Duplicate",
+        )),
+        "matchClass",
     );
-    // An index is not a baseline.
-    assert!(Baseline::from_json(&index).is_err());
-    assert!(Index::from_json(&baseline).is_err());
+    refused(
+        Index::from_turtle(&index.replace("census:copies 2", "census:copies 3")),
+        "copies",
+    );
+}
+
+#[test]
+fn names_that_disagree_with_their_node_are_not_a_report() {
+    let (baseline, _) = halves();
+    assert!(Baseline::from_turtle(&baseline).is_ok());
+    refused(
+        Baseline::from_turtle(&baseline.replacen("census:line 1 ;", "census:line 9 ;", 1)),
+        "node name",
+    );
+    refused(
+        Baseline::from_turtle(&baseline.replace("/nf/1/", "/nf/2/")),
+        "normalForm",
+    );
+    let missing = baseline.rfind("\n<#unit/").expect("unit block");
+    refused(Baseline::from_turtle(&baseline[..missing]), "dangling");
+}
+
+#[test]
+fn orphan_units_and_matches_without_a_named_reifier_are_not_a_report() {
+    let (baseline, index) = halves();
+    assert!(Baseline::from_turtle(&baseline).is_ok());
+    assert!(Index::from_turtle(&index).is_ok());
+    refused(
+        Baseline::from_turtle(&baseline.replace("    census:holds table:hex-lower ;\n", "")),
+        "orphan",
+    );
+    refused(
+        Baseline::from_turtle(&baseline.replacen("a census:BodyGroup", "a census:ShimGroup", 1)),
+        "fingerprint",
+    );
+    let missing = index.replacen(" ~ <#match/sum/demo::BIG@src/lib.rs:7:335> {| a census:Match ; census:matchClass census:Copy |}","",1).replace("census:copies 2","census:copies 1");
+    refused(Index::from_turtle(&missing), "exactly one named reifier");
+}
+
+#[test]
+fn constructs_outside_the_profile_are_not_a_report() {
+    let (baseline, _) = halves();
+    assert!(Baseline::from_turtle(&baseline).is_ok());
+    for construct in [
+        "_:b",
+        "[]",
+        "()",
+        "# comment",
+        "\"\"\"x\"\"\"",
+        "'x'",
+        "<<( <> census:p <> )>>",
+        "{| census:p 1 |}",
+    ] {
+        refused(
+            Baseline::from_turtle(&baseline.replacen("<> a", &format!("{construct} a"), 1)),
+            "",
+        );
+    }
+    for version in ["1.1", "1.2-basic"] {
+        refused(
+            Baseline::from_turtle(&baseline.replacen("1.2", version, 1)),
+            "VERSION",
+        );
+    }
+    refused(
+        Baseline::from_turtle(baseline.strip_prefix("VERSION \"1.2\"\n").expect("header")),
+        "VERSION",
+    );
+    refused(
+        Baseline::from_turtle(&baseline.replacen("PREFIX", "@prefix", 1)),
+        "",
+    );
+    for suffix in ["@en", "^^<http://www.w3.org/2001/XMLSchema#string>"] {
+        refused(
+            Baseline::from_turtle(&baseline.replacen(
+                "\"src/lib.rs\"",
+                &format!("\"src/lib.rs\"{suffix}"),
+                1,
+            )),
+            "",
+        );
+    }
+}
+
+#[test]
+fn an_edited_or_respaced_text_is_not_a_report() {
+    let (baseline, _) = halves();
+    assert!(Baseline::from_turtle(&baseline).is_ok());
+    assert!(matches!(
+        Baseline::from_turtle(&baseline.replace("    census:minTokens", "     census:minTokens")),
+        Err(Error::Report(ReportError::NotCanonical { .. }))
+    ));
+    assert!(matches!(
+        Baseline::from_turtle(&baseline.replace("census:minTokens 20", "census:minTokens 21")),
+        Err(Error::Report(ReportError::Digest { .. }))
+    ));
+}
+
+#[test]
+fn canonical_line_diagnostics_preserve_crlf_and_the_final_newline() {
+    let (baseline, _) = halves();
+    assert!(Baseline::from_turtle(&baseline).is_ok());
+    assert!(matches!(
+        Baseline::from_turtle(&baseline.replace('\n', "\r\n")),
+        Err(Error::Report(ReportError::NotCanonical { line: 1 }))
+    ));
+    let last = baseline.lines().count();
+    assert!(
+        matches!(Baseline::from_turtle(baseline.strip_suffix('\n').expect("final newline")),Err(Error::Report(ReportError::NotCanonical{line})) if line==last)
+    );
+}
+
+#[test]
+fn an_index_is_not_a_baseline() {
+    let (baseline, index) = halves();
+    refused(Baseline::from_turtle(&index), "expected Baseline");
+    refused(Index::from_turtle(&baseline), "expected Index");
+}
+
+#[test]
+fn duplicate_job_ids_are_refused() {
+    let census = builtin_census();
+    let job = Job::new("same", "demo::alpha");
+    assert!(matches!(
+        census.index(&census.match_jobs(&[job.clone(), job])),
+        Err(Error::Report(ReportError::DuplicateJob(_)))
+    ));
+}
+
+#[test]
+fn a_report_of_another_report_form_is_refused_naming_both() {
+    let (baseline, _) = halves();
+    assert!(Baseline::from_turtle(&baseline).is_ok());
+    assert!(matches!(
+        Baseline::from_turtle(&baseline.replace("census:reportForm 1", "census:reportForm 2")),
+        Err(Error::Report(ReportError::Form {
+            declared: 2,
+            implemented: 1
+        }))
+    ));
+}
+
+#[test]
+fn an_index_of_another_normal_form_reads_and_keeps_its_version() {
+    let mut report = builtin_census().index(&[]).expect("index");
+    report.normal_form = 7;
+    let text = report.to_turtle().expect("renders old version");
+    assert!(text.contains("/nf/7/"));
+    let read = Index::from_turtle(&text).expect("reader preserves version");
+    assert_eq!(read, report);
+    assert!(raf_census::check_normal_form(read.normal_form).is_err());
+}
+
+#[test]
+fn awkward_names_round_trip() {
+    let mut report = builtin_census().index(&[]).expect("index");
+    report.groups.clear();
+    report.units.truncate(1);
+    let unit = &mut report.units[0];
+    unit.symbol = "demo::r#type@x\"q\\é".into();
+    unit.file = "a b/#%?:@\\é.rs".into();
+    let text = report.to_turtle().expect("awkward terms");
+    assert!(text.contains("%C3%A9") && text.contains("\\\"") && text.contains("\\\\"));
+    assert_eq!(
+        Index::from_turtle(&text).expect("reads escaped terms"),
+        report
+    );
+    assert_eq!(text, include_str!("fixtures/reports/awkward.ttl"));
+}
+
+#[test]
+fn two_cfg_alternatives_on_one_line_have_distinct_unit_nodes() {
+    let tree = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='cfgs'\nversion='0.1.0'\nedition='2024'\n",
+        ),
+        (
+            "src/lib.rs",
+            "#[cfg(a)] pub fn f() {} #[cfg(b)] pub fn f() {}",
+        ),
+    ]);
+    let census = Census::load(&tree, &["."], &CensusOptions::default()).expect("cfg alternatives");
+    let report = census.index(&[]).expect("index");
+    assert_eq!(report.units.len(), 2);
+    assert_eq!(report.units[0].symbol, report.units[1].symbol);
+    assert_eq!(report.units[0].line, report.units[1].line);
+    assert_ne!(report.units[0].start_byte, report.units[1].start_byte);
+    assert_eq!(
+        Index::from_turtle(&report.to_turtle().expect("renders")).expect("reads"),
+        report
+    );
+}
+
+#[test]
+fn the_writer_refuses_a_value_outside_the_shape() {
+    let mut baseline = builtin_census().baseline();
+    baseline.body_groups[0].members.truncate(1);
+    assert!(matches!(
+        baseline.to_turtle(),
+        Err(Error::Report(ReportError::Missing(_)))
+    ));
 }
 
 const JOB_SOURCE: &str = "\
@@ -385,9 +426,11 @@ fn the_index_renders_the_classified_matches_of_every_job() {
             constants: vec![0x1_0000],
         });
     let idle = Job::new("idle", "demo::home");
-    let index = census.index(&census.match_jobs(&[job, idle]));
+    let index = census
+        .index(&census.match_jobs(&[job, idle]))
+        .expect("unique jobs");
     assert_eq!(index.jobs.len(), 2);
-    let sum = &index.jobs[0];
+    let sum = &index.jobs[1];
     let classes: Vec<(&str, MatchClass)> = sum
         .matches
         .iter()
@@ -404,14 +447,14 @@ fn the_index_renders_the_classified_matches_of_every_job() {
         ]
     );
     assert_eq!(sum.copies, 2);
-    assert!(index.jobs[1].matches.is_empty() && index.jobs[1].copies == 0);
-    let text = index.to_json().expect("renders");
-    assert_eq!(Index::from_json(&text).expect("reads"), index);
-    assert!(text.contains("\"class\": \"variant\""));
+    assert!(index.jobs[0].matches.is_empty() && index.jobs[0].copies == 0);
+    let text = index.to_turtle().expect("renders");
+    assert_eq!(Index::from_turtle(&text).expect("reads"), index);
+    assert!(text.contains("census:matchClass census:Variant"));
 }
 
 #[test]
-fn a_shared_constant_is_hexadecimal_text() {
+fn a_shared_constant_is_an_integer() {
     let manifest = |name: &str| {
         format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n")
     };
@@ -438,10 +481,10 @@ fn a_shared_constant_is_hexadecimal_text() {
     let baseline = census.baseline();
     assert_eq!(baseline.shared_constants.len(), 1);
     let row = &baseline.shared_constants[0];
-    assert_eq!(row.value, "0x100000000000000000000");
+    assert_eq!(row.value, 0x1_0000_0000_0000_0000_0000);
     assert_eq!(row.packages, 2);
-    let text = baseline.to_json().expect("renders");
-    assert_eq!(Baseline::from_json(&text).expect("reads"), baseline);
+    let text = baseline.to_turtle().expect("renders");
+    assert_eq!(Baseline::from_turtle(&text).expect("reads"), baseline);
 }
 
 #[test]
@@ -465,7 +508,7 @@ fn two_fresh_loads_of_this_repository_give_identical_bytes() {
         builtin::of(&tree, "crates").expect("the crates load and render")
     };
     let first = run();
-    assert!(first.contains("\"normal_form\": 1"));
+    assert!(first.contains("census:normalForm 1"));
     assert_eq!(first, run());
 }
 

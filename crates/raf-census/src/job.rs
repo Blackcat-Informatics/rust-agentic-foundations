@@ -4,8 +4,6 @@
 //! Jobs: a job names the one place a piece of work lives and what would be a
 //! second copy of it; matching finds the units that are one.
 
-use serde::{Deserialize, Serialize};
-
 use crate::Fingerprint;
 use crate::census::Census;
 use crate::units::Unit;
@@ -109,8 +107,7 @@ impl Job {
 }
 
 /// How a matching unit stands to its job.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum MatchClass {
     /// The home or one of its entry points.
@@ -130,6 +127,8 @@ pub struct JobMatch {
     pub file: String,
     /// The 1-based line of the unit's name.
     pub line: usize,
+    /// The byte offset where the source item starts.
+    pub start_byte: usize,
     /// How the unit stands to the job.
     pub class: MatchClass,
 }
@@ -166,6 +165,7 @@ impl Census {
                         symbol: unit.symbol.clone(),
                         file: unit.file.clone(),
                         line: unit.line,
+                        start_byte: unit.start_byte,
                         class: job.classify(&unit.symbol),
                     })
                     .collect();

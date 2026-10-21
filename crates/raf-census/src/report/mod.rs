@@ -1,17 +1,18 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The baseline and index reports.
-//!
-//! Both are closed schemas: a text with an unknown key, a missing key or a
-//! value of the wrong type is not a report. `to_json` renders sorted keys,
-//! two-space indentation and a trailing newline, so equal reports are equal
-//! bytes. Fingerprints are the text of their `Display` form and integer
-//! constants are hexadecimal text, since a constant can exceed what a JSON
-//! number carries.
+//! Canonical ground RDF 1.2 reports with a strict closed-shape reader.
 
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+mod error;
+mod mint;
+mod read;
+mod shape;
+/// The report vocabulary and closed shapes.
+pub mod vocab;
+mod write;
+
+pub use error::ReportError;
+pub use vocab::REPORT_FORM;
 
 use crate::census::Census;
 use crate::group::{Group, GroupKind, Member};
@@ -19,8 +20,7 @@ use crate::job::{JobReport, MatchClass};
 use crate::{Error, NORMAL_FORM};
 
 /// Where a unit is, as a report row.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MemberRow {
     /// The symbol of the unit.
     pub symbol: String,
@@ -28,6 +28,8 @@ pub struct MemberRow {
     pub file: String,
     /// The 1-based line of the unit's name.
     pub line: usize,
+    /// The byte offset of the source item.
+    pub start_byte: usize,
 }
 
 impl From<&Member> for MemberRow {
@@ -36,16 +38,16 @@ impl From<&Member> for MemberRow {
             symbol: member.symbol.clone(),
             file: member.file.clone(),
             line: member.line,
+            start_byte: member.start_byte,
         }
     }
 }
 
 /// A group of the baseline report.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BaselineGroup {
     /// The shared fingerprint.
-    pub fingerprint: String,
+    pub fingerprint: crate::Fingerprint,
     /// The tokens of the value form of the shared body.
     pub tokens: usize,
     /// The units, ordered by symbol, then file, then line.
@@ -53,8 +55,7 @@ pub struct BaselineGroup {
 }
 
 /// A unit that holds a hexadecimal digit table.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TableRow {
     /// The symbol of the unit.
     pub symbol: String,
@@ -62,16 +63,17 @@ pub struct TableRow {
     pub file: String,
     /// The 1-based line of the unit's name.
     pub line: usize,
+    /// The byte offset of the source item.
+    pub start_byte: usize,
     /// The table's name after `table:`.
-    pub table: String,
+    pub table: crate::TableKind,
 }
 
 /// An integer constant above `0xffff` held by units of two or more packages.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConstantRow {
-    /// The value, as lowercase hexadecimal text with a `0x` prefix.
-    pub value: String,
+    /// The integer value.
+    pub value: u128,
     /// The number of packages that hold it.
     pub packages: usize,
     /// The units that hold it.
@@ -79,8 +81,7 @@ pub struct ConstantRow {
 }
 
 /// The baseline report: what the workspace repeats.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Baseline {
     /// The normal form the fingerprints belong to.
     pub normal_form: u32,
@@ -99,8 +100,7 @@ pub struct Baseline {
 }
 
 /// One unit of the index report.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexUnit {
     /// The symbol of the unit.
     pub symbol: String,
@@ -110,54 +110,49 @@ pub struct IndexUnit {
     pub file: String,
     /// The 1-based line of the unit's name.
     pub line: usize,
+    /// The byte offset of the source item.
+    pub start_byte: usize,
     /// Whether the unit ships.
     pub shipping: bool,
     /// The tokens of the value form of the body; 0 for a unit that is not a function.
     pub tokens: usize,
     /// The `body` fingerprint, when the body reaches `min_tokens`.
-    #[serde(deserialize_with = "required")]
-    pub body: Option<String>,
+    pub body: Option<crate::Fingerprint>,
     /// The `shim` fingerprint the unit groups under; none for a unit that is
     /// not an eligible forwarder.
-    #[serde(deserialize_with = "required")]
-    pub shim: Option<String>,
-}
-
-/// Reads a key that must be present: its value may be `null`, but a missing
-/// key is an error, which a plain `Option` field would read as `None`.
-fn required<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    Option::<T>::deserialize(deserializer)
+    pub shim: Option<crate::Fingerprint>,
 }
 
 /// A group of the index report.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexGroup {
+    /// The value-form token count.
+    pub tokens: usize,
     /// Whether the units share a body or a shim.
     pub kind: GroupKind,
     /// The shared fingerprint.
-    pub fingerprint: String,
+    pub fingerprint: crate::Fingerprint,
     /// The units, ordered by symbol, then file, then line.
     pub members: Vec<MemberRow>,
 }
 
 /// One match of a job.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MatchRow {
     /// The symbol of the unit.
     pub symbol: String,
     /// How the unit stands to the job.
     pub class: MatchClass,
+    /// The source file.
+    pub file: String,
+    /// The one-based source line.
+    pub line: usize,
+    /// The byte offset of the source item.
+    pub start_byte: usize,
 }
 
 /// One job of the index report.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JobRow {
     /// The job's id.
     pub id: String,
@@ -170,8 +165,7 @@ pub struct JobRow {
 }
 
 /// The index report: every unit with its fingerprints, every group, every job.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Index {
     /// The normal form the fingerprints belong to.
     pub normal_form: u32,
@@ -179,64 +173,40 @@ pub struct Index {
     pub units: Vec<IndexUnit>,
     /// Every group, in the order of [`Census::groups`].
     pub groups: Vec<IndexGroup>,
-    /// The jobs the caller matched, in the order given.
+    /// The jobs the caller matched, sorted by id.
     pub jobs: Vec<JobRow>,
 }
 
-/// Renders `report` with sorted keys, two-space indentation and a trailing
-/// newline.
-fn render<T: Serialize>(report: &T) -> Result<String, Error> {
-    // A `Value` object is a sorted map, so the keys come out in order.
-    let value = serde_json::to_value(report).map_err(|e| Error::Report(e.to_string()))?;
-    let mut text =
-        serde_json::to_string_pretty(&value).map_err(|e| Error::Report(e.to_string()))?;
-    text.push('\n');
-    Ok(text)
-}
-
-fn parse<T: DeserializeOwned>(text: &str) -> Result<T, Error> {
-    serde_json::from_str(text).map_err(|e| Error::Report(e.to_string()))
-}
-
 impl Baseline {
-    /// The report as JSON: sorted keys, a trailing newline.
+    /// The report's one canonical Turtle 1.2 spelling.
     ///
     /// # Errors
-    ///
-    /// [`Error::Report`] when the report cannot be rendered.
-    pub fn to_json(&self) -> Result<String, Error> {
-        render(self)
+    /// Returns a typed report error for a value outside the closed shape.
+    pub fn to_turtle(&self) -> Result<String, Error> {
+        write::baseline(self)
     }
-
-    /// Reads a report written by [`Baseline::to_json`].
+    /// Reads exactly the canonical report, preserving its declared normal form.
     ///
     /// # Errors
-    ///
-    /// [`Error::Report`] when `text` is not a baseline report: an unknown key,
-    /// a missing key or a value of the wrong type.
-    pub fn from_json(text: &str) -> Result<Self, Error> {
-        parse(text)
+    /// Refuses unknown terms, invalid shapes, noncanonical spelling and digest edits.
+    pub fn from_turtle(text: &str) -> Result<Self, Error> {
+        read::baseline(text)
     }
 }
-
 impl Index {
-    /// The report as JSON: sorted keys, a trailing newline.
+    /// The report's one canonical Turtle 1.2 spelling.
     ///
     /// # Errors
-    ///
-    /// [`Error::Report`] when the report cannot be rendered.
-    pub fn to_json(&self) -> Result<String, Error> {
-        render(self)
+    /// Returns a typed report error for a value outside the closed shape.
+    pub fn to_turtle(&self) -> Result<String, Error> {
+        write::index(self)
     }
-
-    /// Reads a report written by [`Index::to_json`].
+    /// Reads exactly the canonical report, preserving its declared normal form.
     ///
     /// # Errors
-    ///
-    /// [`Error::Report`] when `text` is not an index report: an unknown key,
-    /// a missing key or a value of the wrong type.
-    pub fn from_json(text: &str) -> Result<Self, Error> {
-        parse(text)
+    /// Refuses unknown terms, invalid shapes, noncanonical spelling and digest edits.
+    pub fn from_turtle(text: &str) -> Result<Self, Error> {
+        read::index(text)
     }
 }
 
@@ -246,7 +216,7 @@ fn rows(members: &[Member]) -> Vec<MemberRow> {
 
 fn baseline_group(group: &Group) -> BaselineGroup {
     BaselineGroup {
-        fingerprint: group.fingerprint.to_string(),
+        fingerprint: group.fingerprint.clone(),
         tokens: group.tokens,
         members: rows(&group.members),
     }
@@ -269,14 +239,15 @@ impl Census {
                     symbol: t.member.symbol.clone(),
                     file: t.member.file.clone(),
                     line: t.member.line,
-                    table: t.table.name().to_owned(),
+                    table: t.table,
+                    start_byte: t.member.start_byte,
                 })
                 .collect(),
             shared_constants: self
                 .shared_constants()
                 .iter()
                 .map(|c| ConstantRow {
-                    value: format!("{:#x}", c.value),
+                    value: c.value,
                     packages: c.packages,
                     members: rows(&c.members),
                 })
@@ -286,8 +257,10 @@ impl Census {
 
     /// The index report of the loaded workspace, with the jobs the caller
     /// matched through [`Census::match_jobs`].
-    #[must_use]
-    pub fn index(&self, jobs: &[JobReport]) -> Index {
+    ///
+    /// # Errors
+    /// Refuses duplicate job ids.
+    pub fn index(&self, jobs: &[JobReport]) -> Result<Index, Error> {
         let mut units: Vec<IndexUnit> = self
             .units()
             .iter()
@@ -296,26 +269,28 @@ impl Census {
                 package: unit.package.clone(),
                 file: unit.file.clone(),
                 line: unit.line,
+                start_byte: unit.start_byte,
                 shipping: unit.shipping,
                 tokens: unit.print.as_ref().map_or(0, |print| print.tokens),
                 body: unit
                     .print
                     .as_ref()
                     .and_then(|print| print.body.as_ref())
-                    .map(|hashed| hashed.fingerprint.to_string()),
-                shim: unit.shim_key.as_ref().map(ToString::to_string),
+                    .map(|hashed| hashed.fingerprint.clone()),
+                shim: unit.shim_key.clone(),
             })
             .collect();
         units.sort_by(|a, b| (&a.symbol, &a.file, a.line).cmp(&(&b.symbol, &b.file, b.line)));
-        Index {
+        let mut report = Index {
             normal_form: NORMAL_FORM,
             units,
             groups: self
                 .groups()
                 .iter()
                 .map(|group| IndexGroup {
+                    tokens: group.tokens,
                     kind: group.kind,
-                    fingerprint: group.fingerprint.to_string(),
+                    fingerprint: group.fingerprint.clone(),
                     members: rows(&group.members),
                 })
                 .collect(),
@@ -329,27 +304,20 @@ impl Census {
                         .iter()
                         .map(|found| MatchRow {
                             symbol: found.symbol.clone(),
+                            file: found.file.clone(),
+                            line: found.line,
+                            start_byte: found.start_byte,
                             class: found.class,
                         })
                         .collect(),
                     copies: job.copies,
                 })
                 .collect(),
+        };
+        report.jobs.sort_by(|a, b| a.id.cmp(&b.id));
+        if let Some(pair) = report.jobs.windows(2).find(|pair| pair[0].id == pair[1].id) {
+            return Err(ReportError::DuplicateJob(pair[0].id.clone()).into());
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn render_ends_with_one_newline_and_sorts_keys() {
-        let text = render(&MatchRow {
-            symbol: "a".into(),
-            class: MatchClass::Copy,
-        })
-        .expect("renders");
-        assert_eq!(text, "{\n  \"class\": \"copy\",\n  \"symbol\": \"a\"\n}\n");
+        Ok(report)
     }
 }

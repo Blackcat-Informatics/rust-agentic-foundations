@@ -13,8 +13,7 @@ use raf_source::LoadError;
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Error {
-    /// A source slice does not lex, or a signature or an initialiser does not
-    /// parse.
+    /// A source slice does not lex or the source index is inconsistent.
     Source {
         /// The file, relative to the workspace root.
         file: String,
@@ -44,8 +43,8 @@ pub enum Error {
     /// The workspace could not be loaded.
     Load(LoadError),
     /// A report could not be rendered, or a text is not a report: unknown
-    /// keys, missing keys and wrong types are refused.
-    Report(String),
+    /// predicates, missing properties and wrong types are refused.
+    Report(crate::ReportError),
 }
 
 impl fmt::Display for Error {
@@ -80,6 +79,7 @@ impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             Self::Load(error) => Some(error),
+            Self::Report(error) => Some(error),
             _ => None,
         }
     }
@@ -118,10 +118,16 @@ mod tests {
             collision.contains("a::f") && collision.contains("b::g"),
             "{collision}"
         );
+        let report = Error::Report(crate::ReportError::Form {
+            declared: 2,
+            implemented: 1,
+        });
+        assert!(report.to_string().contains("reportForm 2, implemented 1"));
+        assert!(report.source().is_some());
     }
 
     #[test]
-    fn only_a_load_error_has_a_source() {
+    fn an_options_error_has_no_nested_source() {
         assert!(Error::Options("x".into()).source().is_none());
     }
 }

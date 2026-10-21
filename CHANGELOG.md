@@ -8,6 +8,14 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
+### Changed
+
+- Census reports use canonical RDF 1.2 Turtle with ground snapshot IRIs, typed
+  named match reifiers and a strict closed-shape reader. The layout version is
+  independent of the normal-form version. `purrdf-lex` has a 3.0.1 caret floor
+  with an audited crate-scoped Unicode-3.0 exception; census no longer depends
+  on `serde` or `serde_json`.
+
 - **`raf-census`:** the census normal form 1 is delivered. `Census::load` collects
   the functions, methods, constants and statics of a workspace once per source item,
   and a `Normalizer` rewrites each body through four passes (`rename_params`,
@@ -18,7 +26,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   BLAKE3 hash of the form, and `Normalizer::explain` names the level at which two
   bodies part. The census groups units by fingerprint, finds hex-digit tables and
   large constants shared across packages, matches `Job`s as home, variant or copy,
-  and renders the byte-deterministic baseline and index JSON reports; the `baseline`
+  and renders the baseline and index reports as canonical RDF 1.2 Turtle with a closed-shape reader; the `baseline`
   example prints them. `check_normal_form` refuses any version but 1, naming
   `cargo census migrate`. The architecture page of the normal form is its normative
   definition.

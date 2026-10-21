@@ -10,8 +10,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use serde::{Deserialize, Serialize};
-
 use crate::normalize::TableKind;
 use crate::units::Unit;
 use crate::{Error, Fingerprint};
@@ -31,6 +29,8 @@ pub struct Member {
     pub file: String,
     /// The 1-based line of the unit's name.
     pub line: usize,
+    /// The byte offset where the source item starts.
+    pub start_byte: usize,
     /// The package of the unit.
     pub package: String,
 }
@@ -41,14 +41,14 @@ impl Member {
             symbol: unit.symbol.clone(),
             file: unit.file.clone(),
             line: unit.line,
+            start_byte: unit.start_byte,
             package: unit.package.clone(),
         }
     }
 }
 
 /// What a group is keyed by.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum GroupKind {
     /// Bodies with one value form.
@@ -263,6 +263,7 @@ mod tests {
         Candidate {
             kind: GroupKind::Body,
             member: Member {
+                start_byte: 0,
                 symbol: symbol.to_owned(),
                 file: "src/lib.rs".to_owned(),
                 line: 1,
