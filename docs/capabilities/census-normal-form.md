@@ -223,7 +223,13 @@ bindings:
     - raf_census::test_crate::units::file_context_names_package_path_and_shipping
     - raf_census::test_crate::units::file_context_names_the_target_kinds_that_reach_the_file
     - raf_census::test_crate::units::hex_tables_are_read_from_strings_and_arrays
-    - raf_census::test_crate::units::loading_one_tree_twice_on_one_thread_leaves_no_span_map
+    - raf_census::test_crate::units::loading_one_tree_twice_preserves_the_callers_span_storage_and_unit_results
+    - raf_census::test_crate::units::caller_spans_survive_a_successful_census_load
+    - raf_census::test_crate::units::caller_spans_survive_a_refused_census_load
+    - raf_census::test_crate::units::loading_a_tree_with_caller_local_state_needs_no_sync_bound
+    - raf_census::test_crate::units::a_held_standalone_tower_keeps_its_forms_and_print_across_census_loads
+    - raf_census::units::tests::collection_worker_tears_down_on_normalization_success_and_error_beside_a_preserved_caller_span
+    - raf_census::units::tests::collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans
     - raf_census::test_crate::units::max_file_bytes_caps_a_file_and_the_cap_itself_loads
     - raf_census::test_crate::units::min_tokens_counts_the_value_form_so_erased_noise_never_straddles_it
     - raf_census::test_crate::units::min_tokens_decides_the_body_fingerprint_at_the_default_and_at_ten
@@ -346,8 +352,10 @@ implements it as follows.
   slice that does not lex, text of an item that the workspace does not hold, or a
   source item of the index whose item does not resolve or that has no reach: such an
   inconsistency is an error that names the file and never drops a unit),
-  `Options`, `Version`, `Report` (a typed `ReportError`) and a load error of `raf-source`. Nothing falls back
-  to a partial result.
+  `Options`, `Version`, `Report` (a typed `ReportError`), a load error of `raf-source`,
+  and `CollectionSpawn` with its I/O source when the collection worker cannot start.
+  A collection-worker panic resumes on the caller with the original payload after
+  worker teardown. Nothing falls back to a partial result.
 - `raf_census::FileCtx` describes one file of the workspace: its `package` (of
   the first target that reaches it), its `path`, `shipping`, and `target_kinds`, the
   set of raf-source `TargetKind` values (library, binary, test, bench, example,
@@ -401,6 +409,10 @@ implements it as follows.
   a migration path.
 
 ## Usage
+
+A caller can keep its own proc-macro spans and standalone normalizer forms while
+loading a census. The supplied Tree may hold caller-local state; collection shares
+only the already loaded workspace.
 
 A caller loads the workspace with `raf_census::Census::load(&tree, roots,
 &options)`, normalises single sources with `raf_census::Normalizer`, and asks
@@ -649,6 +661,11 @@ the report then begin with the directory's name, as they do for `crates`.
   Census loads remain coupled to `raf-source` target support; a hash-only wasm
   build does not establish that a complete load builds or runs there. Source reads
   and containment remain the supplied `Tree`'s responsibility.
+- Census unit collection uses a fresh native thread. The completed workspace is
+  borrowed there, while Tree access stays on the caller's thread without a Send or Sync
+  requirement. This ownership boundary is not a thread-free or complete portable-core
+  guarantee. Standalone Normalizer and Tower calls still register lexer source on
+  their caller thread; their returned forms contain owned text and ranges, not spans.
 - A unit that several targets reach is one unit; the census never counts a shared
   module once per target.
 - A shim candidate never joins a body group, so a 20-token forwarder is judged by
@@ -672,12 +689,19 @@ the report then begin with the directory's name, as they do for `crates`.
   overflow the stack of the caller of `Census::load`, a 2 MiB test thread included.
   What the census itself lexes is a body or an initialiser, whose nesting is
   bounded by `MAX_NESTING` (128) and by the delimiter budget of `raf-source`, which
-  the file has already passed. Collection clears the span table that `proc_macro2`
-  keeps for the thread when collection ends, including on a collection error. This also
-  invalidates any `proc_macro2` spans the caller holds on that thread; callers
-  must finish using those spans before loading a census.
+  the file has already passed. Collection owns a fresh thread with a 2 MiB stack.
+  Worker teardown releases its thread-local span table on success, collection error
+  and unwinding; caller-owned spans remain valid. No global span invalidation is
+  performed by Census::load.
 
 ## Explanation
+
+The lexer owns thread-local source storage, while its input Tree may own
+caller-local state. Loading that Tree before borrowing the completed workspace in
+a collection worker keeps both ownership boundaries explicit. Ending the worker
+releases the census's lexical storage without resetting unrelated caller spans.
+Only owned text, ranges and fingerprints leave it. This native lifetime decision
+does not provide a thread-free execution model.
 
 Seven copies of one helper census had diverged across the Blackcat repositories,
 each with its own normal form. A fingerprint recorded in one repository meant
@@ -704,6 +728,18 @@ tradeoffs over written bodies, with no claim of measured real-source precision.
 loads retain the single fixed policy.
 
 ## Verification
+
+Public loading preserves a live caller span after successful loading and a
+workspace-load refusal, and held standalone forms keep their bytes and prints. A
+Cell-backed Tree loads without a Sync bound. Repeated loads preserve unit results
+and add no caller lexer registrations: the locked lexer's parsed-file ordinals
+advance only for the caller probes. File-relative byte offsets are not a measure
+of retained storage. The collection-worker adapter runs the real normalizer at its
+nesting limit and refuses the next depth, with worker-local TLS destruction
+observed on both paths. A panic retains its typed payload and destroys worker TLS
+before it resumes on the caller. These are lifetime observations, not RSS or
+allocation-byte measurements. Spawn-error formatting retains an I/O error source
+and escapes controls beside a plain diagnostic neighbor.
 
 - A count-tool test pins the labelled fixture corpus and relates its default
   selection directly to production prints. Full-suffix identity tests show two
@@ -885,6 +921,7 @@ loads retain the single fixed policy.
 | `raf_census::test_crate::units::a_constant_whose_type_names_a_number_does_not_hold_it` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_deep_constant_type_loads_on_a_small_stack` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_deep_signature_loads_on_a_small_stack_and_beyond_the_budget_is_refused` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::a_held_standalone_tower_keeps_its_forms_and_print_across_census_loads` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_module_declared_by_a_library_and_a_binary_is_one_unit` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_self_call_at_any_depth_removes_the_shim_key` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_support_module_shared_by_two_test_binaries_is_one_unit_that_does_not_ship` | test | [Verification](#verification) |
@@ -892,12 +929,15 @@ loads retain the single fixed policy.
 | `raf_census::test_crate::units::a_unit_is_found_by_symbol` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_workspace_without_roots_does_not_load` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::byte_strings_and_c_strings_are_strings` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::caller_spans_survive_a_refused_census_load` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::caller_spans_survive_a_successful_census_load` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::each_kind_yields_one_unit_with_every_field` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::every_spelling_of_an_integer_is_one_constant` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::file_context_names_package_path_and_shipping` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::file_context_names_the_target_kinds_that_reach_the_file` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::hex_tables_are_read_from_strings_and_arrays` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::loading_one_tree_twice_on_one_thread_leaves_no_span_map` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::loading_a_tree_with_caller_local_state_needs_no_sync_bound` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::loading_one_tree_twice_preserves_the_callers_span_storage_and_unit_results` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::max_file_bytes_caps_a_file_and_the_cap_itself_loads` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::min_tokens_counts_the_value_form_so_erased_noise_never_straddles_it` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::min_tokens_decides_the_body_fingerprint_at_the_default_and_at_ten` | test | [Verification](#verification) |
@@ -908,6 +948,8 @@ loads retain the single fixed policy.
 | `raf_census::test_crate::units::strings_carry_their_absolute_lines` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::test_code_of_a_shipping_target_does_not_ship` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::this_repositorys_own_crates_load_into_distinct_units` | test | [Verification](#verification) |
+| `raf_census::units::tests::collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans` | test | [Verification](#verification) |
+| `raf_census::units::tests::collection_worker_tears_down_on_normalization_success_and_error_beside_a_preserved_caller_span` | test | [Verification](#verification) |
 | `raf_census::version::tests::other_versions_are_refused_naming_both_and_the_migration` | test | [Verification](#verification) |
 | `raf_census::version::tests::the_implemented_version_is_one` | test | [Verification](#verification) |
 | `raf_census::version::tests::the_implemented_version_passes` | test | [Verification](#verification) |

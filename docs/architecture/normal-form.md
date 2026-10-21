@@ -50,7 +50,9 @@ like any other code. The names that a function's parameters bind and the extent 
 constant's initialiser are not found by parsing the item again: they are facts of the
 parse of `raf-source`, which runs on its own budgeted stack, so the census parses no
 signature and no item, a signature too deep for that parse is a load error that names
-the recursion budget, and the lexer's span table is cleared when a load ends.
+the recursion budget. Unit collection runs on a fresh owned thread, whose
+thread-local lexer storage ends with it; it never invalidates caller-owned spans.
+The supplied Tree remains on the caller's thread and need not be Send or Sync.
 
 - A token is an identifier, a literal, a punctuation character or a delimiter.
   Both delimiters of a group are tokens, and every threshold counts them. A

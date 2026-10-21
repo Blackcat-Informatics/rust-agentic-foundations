@@ -181,6 +181,11 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   2 when the repository is not judged strict.
 ### Changed
 
+- Census unit collection owns a fresh worker thread and preserves caller-owned
+  proc-macro spans. Worker teardown releases its lexical storage on success,
+  error and panic; spawn failures retain a typed I/O source and panic payloads
+  resume unchanged. The supplied Tree needs no Send or Sync bound.
+
 - Census reports use canonical RDF 1.2 Turtle with ground snapshot IRIs, typed
   named match reifiers and a strict closed-shape reader. The layout version is
   independent of the normal-form version. `purrdf-lex` has a 3.0.1 caret floor
