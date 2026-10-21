@@ -51,8 +51,14 @@ fn the_example_output_names_the_expected_group_fingerprints() {
     assert!(matches!(shim[0].fingerprint, Fingerprint::Shim(_)));
     assert!(output.contains(&body[0].fingerprint.to_string()));
     assert!(output.contains(&shim[0].fingerprint.to_string()));
-    assert!(output.contains("body:6bb022e241a79a28"), "{output}");
-    assert!(output.contains("shim:203616cb54a3e53d"), "{output}");
+    assert!(
+        output.contains("body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609"),
+        "{output}"
+    );
+    assert!(
+        output.contains("shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725"),
+        "{output}"
+    );
     assert!(output.contains("census:jobId \"sum\""), "{output}");
 }
 
@@ -180,7 +186,7 @@ fn missing_repeated_and_mistyped_properties_are_not_a_report() {
     refused(
         Index::from_turtle(&index.replacen(
             "census:body body:",
-            "census:body body:0000000000000000 ;\n    census:body body:",
+            "census:body body:0000000000000000000000000000000000000000000000000000000000000000 ;\n    census:body body:",
             1,
         )),
         "body",

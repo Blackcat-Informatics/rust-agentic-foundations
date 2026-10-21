@@ -8,14 +8,14 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
     census:normalForm 1 ;
     census:reportForm 1 .
 
-<#group/body:6bb022e241a79a28> a census:BodyGroup ;
-    census:fingerprint body:6bb022e241a79a28 ;
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> a census:BodyGroup ;
+    census:fingerprint body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
     census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
         <#unit/demo::beta@src/lib.rs:2:74> ;
     census:tokens 21 .
 
-<#group/shim:203616cb54a3e53d> a census:ShimGroup ;
-    census:fingerprint shim:203616cb54a3e53d ;
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> a census:ShimGroup ;
+    census:fingerprint shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
     census:member <#unit/demo::one@src/lib.rs:4:194> ,
         <#unit/demo::two@src/lib.rs:5:237> ;
     census:tokens 6 .
@@ -39,7 +39,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
 
 <#unit/demo::alpha@src/lib.rs:1:0> a census:Unit ;
     census:body body:0000000000000000 ;
-    census:body body:6bb022e241a79a28 ;
+    census:body body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
     census:file "src/lib.rs" ;
     census:line 1 ;
     census:package "demo" ;
@@ -49,7 +49,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
     census:tokens 21 .
 
 <#unit/demo::beta@src/lib.rs:2:74> a census:Unit ;
-    census:body body:6bb022e241a79a28 ;
+    census:body body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
     census:file "src/lib.rs" ;
     census:line 2 ;
     census:package "demo" ;
@@ -80,7 +80,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
     census:file "src/lib.rs" ;
     census:line 4 ;
     census:package "demo" ;
-    census:shim shim:203616cb54a3e53d ;
+    census:shim shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
     census:shipping true ;
     census:startByte 194 ;
     census:symbol "demo::one" ;
@@ -90,7 +90,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
     census:file "src/lib.rs" ;
     census:line 5 ;
     census:package "demo" ;
-    census:shim shim:203616cb54a3e53d ;
+    census:shim shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
     census:shipping true ;
     census:startByte 237 ;
     census:symbol "demo::two" ;

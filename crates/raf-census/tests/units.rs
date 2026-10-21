@@ -33,6 +33,29 @@ fn unit<'a>(census: &'a Census, symbol: &str) -> &'a Unit {
         .unwrap_or_else(|| panic!("no unit `{symbol}` in {:?}", symbols(census)))
 }
 
+#[test]
+fn self_type_arguments_keep_shim_keys_beside_generic_self_callees() {
+    let census = load(&[("src/lib.rs", include_str!("fixtures/self-generics.rs"))]);
+    for name in ["kept", "kept_arrow"] {
+        let unit = unit(&census, &format!("demo::Factory::{name}"));
+        assert!(!unit.via_self, "{name}");
+        assert!(
+            unit.print.as_ref().expect("function print").shim.is_some(),
+            "{name}"
+        );
+        assert!(unit.shim_key.is_some(), "{name}");
+    }
+    for name in ["excluded", "excluded_arrow"] {
+        let unit = unit(&census, &format!("demo::Factory::{name}"));
+        assert!(unit.via_self, "{name}");
+        assert!(
+            unit.print.as_ref().expect("function print").shim.is_some(),
+            "{name}"
+        );
+        assert!(unit.shim_key.is_none(), "{name}");
+    }
+}
+
 fn symbols(census: &Census) -> Vec<&str> {
     census.units().iter().map(|u| u.symbol.as_str()).collect()
 }
@@ -303,7 +326,7 @@ impl S {
             .print
             .as_ref()
             .and_then(|print| print.shim.as_ref())
-            .map(|hashed| hashed.digest)
+            .cloned()
     };
     assert!(shim("demo::S::pattern").is_some());
     assert_eq!(shim("demo::S::pattern"), shim("demo::S::twin"));
@@ -541,7 +564,7 @@ impl U {
             .print
             .as_ref()
             .and_then(|print| print.shim.as_ref())
-            .map(|hashed| hashed.fingerprint.clone())
+            .cloned()
     };
 
     // Forwarders with a key: the free-standing neighbours that do group.

@@ -10,9 +10,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::Fingerprint;
 use crate::normalize::TableKind;
 use crate::units::Unit;
-use crate::{Error, Fingerprint};
 
 /// The smallest integer constant that is a large one: values above `0xffff`.
 pub(crate) const LARGE_CONSTANT: u128 = 0xffff;
@@ -106,32 +106,16 @@ pub(crate) struct Candidate<'a> {
     pub(crate) member: Member,
     pub(crate) tokens: usize,
     pub(crate) fingerprint: &'a Fingerprint,
-    pub(crate) digest: &'a [u8; 32],
 }
 
 /// Every group of two or more candidates, ordered by member count descending,
 /// then tokens descending, then fingerprint ascending.
 ///
-/// The full digest is kept for every candidate, singletons included.
-///
-/// # Errors
-///
-/// [`Error::Collision`] when two candidates have one fingerprint and different
-/// digests.
-pub(crate) fn build_groups<'a>(
-    candidates: impl IntoIterator<Item = Candidate<'a>>,
-) -> Result<Vec<Group>, Error> {
-    let mut by_print: BTreeMap<(GroupKind, Fingerprint), (&[u8; 32], Group)> = BTreeMap::new();
+pub(crate) fn build_groups<'a>(candidates: impl IntoIterator<Item = Candidate<'a>>) -> Vec<Group> {
+    let mut by_print: BTreeMap<(GroupKind, Fingerprint), Group> = BTreeMap::new();
     for candidate in candidates {
         let key = (candidate.kind, candidate.fingerprint.clone());
-        if let Some((holder, group)) = by_print.get_mut(&key) {
-            if *holder != candidate.digest {
-                return Err(Error::Collision {
-                    fingerprint: key.1.to_string(),
-                    first: group.members[0].symbol.clone(),
-                    second: candidate.member.symbol,
-                });
-            }
+        if let Some(group) = by_print.get_mut(&key) {
             group.tokens = group.tokens.max(candidate.tokens);
             group.members.push(candidate.member);
             continue;
@@ -142,11 +126,10 @@ pub(crate) fn build_groups<'a>(
             tokens: candidate.tokens,
             members: vec![candidate.member],
         };
-        by_print.insert(key, (candidate.digest, group));
+        by_print.insert(key, group);
     }
     let mut groups: Vec<Group> = by_print
         .into_values()
-        .map(|(_, group)| group)
         .filter(|group| group.members.len() >= 2)
         .collect();
     for group in &mut groups {
@@ -160,7 +143,7 @@ pub(crate) fn build_groups<'a>(
             .then_with(|| a.fingerprint.cmp(&b.fingerprint))
             .then_with(|| a.kind.cmp(&b.kind))
     });
-    Ok(groups)
+    groups
 }
 
 /// Everything the census derives from its units by comparing them.
@@ -172,24 +155,19 @@ pub(crate) struct Grouping {
 }
 
 /// Groups `units`, finds their hex tables and their shared large constants.
-///
-/// # Errors
-///
-/// [`Error::Collision`], see [`build_groups`].
-pub(crate) fn group(units: &[Unit]) -> Result<Grouping, Error> {
+pub(crate) fn group(units: &[Unit]) -> Grouping {
     let mut candidates = Vec::new();
     for unit in units {
         let Some(print) = &unit.print else { continue };
         if print.shim.is_some() {
             // A forwarder is never compared by structure; it groups by its
             // shim, and only when its shim key allows.
-            if let (Some(key), Some(hashed)) = (&unit.shim_key, &print.shim) {
+            if let Some(key) = &unit.shim_key {
                 candidates.push(Candidate {
                     kind: GroupKind::Shim,
                     member: Member::of(unit),
                     tokens: print.tokens,
                     fingerprint: key,
-                    digest: &hashed.digest,
                 });
             }
         } else if let Some(hashed) = &print.body {
@@ -197,12 +175,11 @@ pub(crate) fn group(units: &[Unit]) -> Result<Grouping, Error> {
                 kind: GroupKind::Body,
                 member: Member::of(unit),
                 tokens: print.tokens,
-                fingerprint: &hashed.fingerprint,
-                digest: &hashed.digest,
+                fingerprint: hashed,
             });
         }
     }
-    let groups = build_groups(candidates)?;
+    let groups = build_groups(candidates);
 
     let mut hex_tables: Vec<HexTable> = units
         .iter()
@@ -237,29 +214,25 @@ pub(crate) fn group(units: &[Unit]) -> Result<Grouping, Error> {
             })
         })
         .collect();
-    Ok(Grouping {
+    Grouping {
         groups,
         hex_tables,
         shared_constants,
-    })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::normalize::Hashed;
 
-    fn hashed(id: u64, tail: u8) -> Hashed {
+    fn hashed(id: u64, tail: u8) -> Fingerprint {
         let mut digest = [0_u8; 32];
         digest[..8].copy_from_slice(&id.to_be_bytes());
         digest[31] = tail;
-        Hashed {
-            fingerprint: Fingerprint::Body(id),
-            digest,
-        }
+        Fingerprint::body(&digest)
     }
 
-    fn candidate<'a>(symbol: &str, hashed: &'a Hashed) -> Candidate<'a> {
+    fn candidate<'a>(symbol: &str, hashed: &'a Fingerprint) -> Candidate<'a> {
         Candidate {
             kind: GroupKind::Body,
             member: Member {
@@ -270,39 +243,19 @@ mod tests {
                 package: "demo".to_owned(),
             },
             tokens: 30,
-            fingerprint: &hashed.fingerprint,
-            digest: &hashed.digest,
+            fingerprint: hashed,
         }
     }
 
     #[test]
-    fn one_fingerprint_with_two_digests_is_a_collision_beside_equal_digests() {
+    fn digest_suffixes_are_distinct_group_keys() {
         let a = hashed(7, 0);
-        let same = hashed(7, 0);
-        let forged = hashed(7, 1);
-        let groups = build_groups([candidate("a::f", &a), candidate("b::f", &same)])
-            .expect("equal digests group");
-        assert_eq!(groups.len(), 1);
-        match build_groups([candidate("a::f", &a), candidate("b::g", &forged)]) {
-            Err(Error::Collision {
-                fingerprint,
-                first,
-                second,
-            }) => {
-                assert_eq!(fingerprint, Fingerprint::Body(7).to_string());
-                assert_eq!((first.as_str(), second.as_str()), ("a::f", "b::g"));
-            }
-            other => panic!("expected a collision, found {other:?}"),
-        }
-    }
-
-    #[test]
-    fn a_collision_is_found_even_when_a_third_unit_stands_alone() {
-        let a = hashed(9, 0);
-        let b = hashed(9, 2);
-        let c = hashed(10, 0);
-        let result = build_groups([candidate("a", &a), candidate("c", &c), candidate("b", &b)]);
-        assert!(matches!(result, Err(Error::Collision { .. })), "{result:?}");
+        let b = hashed(7, 1);
+        assert_eq!(a.abbreviated(), b.abbreviated());
+        assert_ne!(a, b);
+        assert_eq!(build_groups([candidate("a", &a), candidate("b", &b)]), []);
+        let equal = build_groups([candidate("a", &a), candidate("b", &a)]);
+        assert_eq!(equal.len(), 1);
     }
 
     #[test]
@@ -319,8 +272,7 @@ mod tests {
             at("a", "z.rs", 1),
             at("a", "y.rs", 9),
             at("a", "y.rs", 2),
-        ])
-        .expect("one digest");
+        ]);
         let order: Vec<(&str, &str, usize)> = groups[0]
             .members
             .iter()

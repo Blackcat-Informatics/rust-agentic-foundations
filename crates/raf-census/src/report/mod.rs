@@ -276,7 +276,7 @@ impl Census {
                     .print
                     .as_ref()
                     .and_then(|print| print.body.as_ref())
-                    .map(|hashed| hashed.fingerprint.clone()),
+                    .cloned(),
                 shim: unit.shim_key.clone(),
             })
             .collect();

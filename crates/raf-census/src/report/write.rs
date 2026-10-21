@@ -31,9 +31,9 @@ fn fingerprint(value: &Fingerprint, nf: u32) -> Result<Term, E> {
         _ => return Err(E::Value(format!("group fingerprint {value}"))),
     };
     Ok(Term::Iri(format!(
-        "{}{:016x}",
+        "{}{}",
         vocab::fingerprint_namespace(nf, kind),
-        hex
+        blake3::Hash::from_bytes(*hex)
     )))
 }
 fn unit(graph: &mut Graph, row: &MemberRow) -> Result<String, E> {

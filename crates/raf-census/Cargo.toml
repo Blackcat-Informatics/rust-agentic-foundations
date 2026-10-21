@@ -12,9 +12,9 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-# The BLAKE3 hash a fingerprint is cut from; the floor excludes the older
-# platform dependency and the normal-form goldens pin the hash bytes.
-blake3 = "1.8.7"
+# Full BLAKE3 identities; pure avoids native assembly and C implementations.
+# The floor excludes the older platform dependency; goldens pin portable bytes.
+blake3 = { version = "1.8.7", default-features = false, features = ["pure"] }
 # The lexer for function bodies and macro arguments; `span-locations` gives
 # string literals their absolute lines.
 proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }

@@ -24,15 +24,6 @@ pub enum Error {
     },
     /// A [`CensusOptions`](crate::CensusOptions) value is refused.
     Options(String),
-    /// Two units with different digests have one fingerprint.
-    Collision {
-        /// The shared fingerprint.
-        fingerprint: String,
-        /// The symbol of the first unit.
-        first: String,
-        /// The symbol of the second unit.
-        second: String,
-    },
     /// A declared normal-form version is not the implemented one.
     Version {
         /// The version that was declared.
@@ -52,14 +43,6 @@ impl fmt::Display for Error {
         match self {
             Self::Source { file, line, reason } => write!(f, "{file}:{line}: {reason}"),
             Self::Options(reason) => write!(f, "invalid census options: {reason}"),
-            Self::Collision {
-                fingerprint,
-                first,
-                second,
-            } => write!(
-                f,
-                "fingerprint {fingerprint} names two different forms, `{first}` and `{second}`"
-            ),
             Self::Version {
                 declared,
                 implemented,
@@ -107,16 +90,6 @@ mod tests {
             Error::Options("min_tokens is 0".into())
                 .to_string()
                 .contains("min_tokens is 0")
-        );
-        let collision = Error::Collision {
-            fingerprint: "body:0123456789abcdef".into(),
-            first: "a::f".into(),
-            second: "b::g".into(),
-        }
-        .to_string();
-        assert!(
-            collision.contains("a::f") && collision.contains("b::g"),
-            "{collision}"
         );
         let report = Error::Report(crate::ReportError::Form {
             declared: 2,

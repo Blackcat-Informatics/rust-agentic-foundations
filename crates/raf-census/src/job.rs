@@ -82,7 +82,7 @@ impl Job {
         let print = unit.print.as_ref();
         print
             .and_then(|print| print.body.as_ref())
-            .is_some_and(|hashed| forbids(&hashed.fingerprint))
+            .is_some_and(forbids)
             || unit.shim_key.as_ref().is_some_and(forbids)
             || unit
                 .tables

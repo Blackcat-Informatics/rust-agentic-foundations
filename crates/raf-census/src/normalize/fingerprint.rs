@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Fingerprints: the short names of normal forms.
+//! Fingerprints: the complete names of normal forms.
 
 use std::error::Error as StdError;
 use std::fmt;
@@ -11,9 +11,8 @@ use super::form::Form;
 
 /// The id of the byte encoding a form is hashed under: the tokens in order,
 /// each as its UTF-8 length (u32, little endian) followed by its bytes; the
-/// BLAKE3 digest of that concatenation; the identifier is the first 8 bytes
-/// as one big-endian u64 in 16 lowercase hexadecimal digits.
-pub const ENCODING: &str = "tokens-len-u32le-utf8/blake3/first8-be-hex16";
+/// complete BLAKE3 digest of that concatenation in 64 lowercase hexadecimal digits.
+pub const ENCODING: &str = "tokens-len-u32le-utf8/blake3/hex64";
 
 /// The BLAKE3 digest of a form under [`ENCODING`].
 pub(crate) fn digest(form: &Form) -> [u8; 32] {
@@ -25,13 +24,6 @@ pub(crate) fn digest(form: &Form) -> [u8; 32] {
         hasher.update(token.text.as_bytes());
     }
     *hasher.finalize().as_bytes()
-}
-
-/// The first 8 bytes of a digest as the big-endian number a fingerprint holds.
-pub(crate) fn short(digest: &[u8; 32]) -> u64 {
-    let mut head = [0_u8; 8];
-    head.copy_from_slice(&digest[..8]);
-    u64::from_be_bytes(head)
 }
 
 /// A recognised table.
@@ -86,9 +78,9 @@ impl RuleId {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Fingerprint {
     /// A function body in its value form.
-    Body(u64),
+    Body([u8; 32]),
     /// A forwarder in its shim form.
-    Shim(u64),
+    Shim([u8; 32]),
     /// A recognised table.
     Table(TableKind),
     /// A hit of a detector, a declarative pattern or a rule.
@@ -99,13 +91,28 @@ impl Fingerprint {
     /// The `body` fingerprint of a digest.
     #[must_use]
     pub fn body(digest: &[u8; 32]) -> Self {
-        Self::Body(short(digest))
+        Self::Body(*digest)
     }
 
     /// The `shim` fingerprint of a digest.
     #[must_use]
     pub fn shim(digest: &[u8; 32]) -> Self {
-        Self::Shim(short(digest))
+        Self::Shim(*digest)
+    }
+
+    /// A human-facing abbreviation, separate from canonical display and parsing.
+    ///
+    /// Hashed names retain their first sixteen hexadecimal digits and an ellipsis;
+    /// table and rule names remain complete. Abbreviations are not identities.
+    #[must_use]
+    pub fn abbreviated(&self) -> String {
+        match self {
+            Self::Body(hash) | Self::Shim(hash) => {
+                let hex = blake3::Hash::from_bytes(*hash).to_hex();
+                format!("{}:{}…", self.kind(), &hex.as_str()[..16])
+            }
+            _ => self.to_string(),
+        }
     }
 
     /// The kind prefix.
@@ -123,7 +130,9 @@ impl Fingerprint {
 impl fmt::Display for Fingerprint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Body(hash) | Self::Shim(hash) => write!(f, "{}:{hash:016x}", self.kind()),
+            Self::Body(hash) | Self::Shim(hash) => {
+                write!(f, "{}:{}", self.kind(), blake3::Hash::from_bytes(*hash))
+            }
             Self::Table(table) => write!(f, "table:{}", table.name()),
             Self::Rule(rule) => write!(f, "rule:{}", rule.as_str()),
         }
@@ -138,7 +147,7 @@ pub enum ParseFingerprintError {
     NoKind(String),
     /// The kind is not `body`, `shim`, `table` or `rule`.
     Kind(String),
-    /// A `body` or `shim` identifier is not 16 characters.
+    /// A `body` or `shim` identifier is not 64 characters.
     Width(usize),
     /// A `body` or `shim` identifier has a character other than `0-9a-f`.
     Hex(String),
@@ -151,21 +160,27 @@ pub enum ParseFingerprintError {
 impl fmt::Display for ParseFingerprintError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NoKind(text) => write!(f, "`{text}` has no `<kind>:` prefix"),
+            Self::NoKind(text) => write!(f, "`{}` has no `<kind>:` prefix", text.escape_debug()),
             Self::Kind(kind) => write!(
                 f,
-                "unknown fingerprint kind `{kind}`; the kinds are body, shim, table and rule"
+                "unknown fingerprint kind `{}`; the kinds are body, shim, table and rule",
+                kind.escape_debug()
             ),
             Self::Width(width) => write!(
                 f,
-                "a body or shim identifier has 16 hexadecimal digits, not {width}"
+                "a body or shim identifier has 64 hexadecimal digits, not {width}"
             ),
-            Self::Hex(id) => write!(f, "`{id}` is not 16 lowercase hexadecimal digits"),
+            Self::Hex(id) => write!(
+                f,
+                "`{}` is not 64 lowercase hexadecimal digits",
+                id.escape_debug()
+            ),
             Self::Table(name) => write!(
                 f,
-                "unknown table `{name}`; the tables are hex-lower and hex-upper"
+                "unknown table `{}`; the tables are hex-lower and hex-upper",
+                name.escape_debug()
             ),
-            Self::Rule(id) => write!(f, "`{id}` is not a rule id"),
+            Self::Rule(id) => write!(f, "`{}` is not a rule id", id.escape_debug()),
         }
     }
 }
@@ -181,18 +196,18 @@ impl FromStr for Fingerprint {
             .ok_or_else(|| ParseFingerprintError::NoKind(text.to_owned()))?;
         match kind {
             "body" | "shim" => {
-                if id.len() != 16 {
+                if id.len() != 64 {
                     return Err(ParseFingerprintError::Width(id.len()));
                 }
                 if !id.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
                     return Err(ParseFingerprintError::Hex(id.to_owned()));
                 }
-                let hash = u64::from_str_radix(id, 16)
+                let hash = blake3::Hash::from_hex(id)
                     .map_err(|_| ParseFingerprintError::Hex(id.to_owned()))?;
                 Ok(if kind == "body" {
-                    Self::Body(hash)
+                    Self::Body(*hash.as_bytes())
                 } else {
-                    Self::Shim(hash)
+                    Self::Shim(*hash.as_bytes())
                 })
             }
             "table" => match id {

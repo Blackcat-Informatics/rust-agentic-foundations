@@ -180,6 +180,19 @@ impl Tower {
         &self.forms[level as usize]
     }
 
+    /// Computes the retained and abstracted literal-value forms, in that order.
+    ///
+    /// Both start at the existing literal-tier form and apply the production
+    /// literal-kind and held-value erasure passes. This on-demand introspection
+    /// does not change selection policy or create candidate fingerprints.
+    #[must_use]
+    pub fn literal_values(&self) -> (Form, Form) {
+        let source = self.form(Level::LiteralTier);
+        let retained = passes::erase_held(&passes::kind_literals(source, true));
+        let abstracted = passes::erase_held(&passes::kind_literals(source, false));
+        (retained, abstracted)
+    }
+
     /// The number of tokens of the value form: what every threshold counts. It
     /// is known before the literals are abstracted, so the literal tier is
     /// decided on it too.
@@ -196,31 +209,28 @@ impl Tower {
         self.shim_candidate
     }
 
+    /// Whether calls in this body go through a `Self::` callee path.
+    ///
+    /// Such a body may have a shim print but never supplies a grouping key.
+    /// The query shares the production unit collector's call scan.
+    #[must_use]
+    pub fn calls_through_self(&self) -> bool {
+        shim::calls_through_self(&self.form(Level::Verbatim).nodes)
+    }
+
     /// The fingerprints this slice has under `min_tokens`.
     #[must_use]
     pub fn print(&self, min_tokens: usize) -> Print {
         let tokens = self.value_tokens();
         let named = |level: Level, make: fn(&[u8; 32]) -> Fingerprint| {
             let digest = fingerprint::digest(self.form(level));
-            Hashed {
-                fingerprint: make(&digest),
-                digest,
-            }
+            make(&digest)
         };
         let shim = (self.shim_candidate && (MIN_SHIM_TOKENS..SHIM_MAX_TOKENS).contains(&tokens))
             .then(|| named(Level::Shim, Fingerprint::shim));
         let body = (tokens >= min_tokens).then(|| named(Level::Value, Fingerprint::body));
         Print { tokens, body, shim }
     }
-}
-
-/// A fingerprint with the full digest it was cut from.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Hashed {
-    /// The first 8 bytes of the digest, named.
-    pub fingerprint: Fingerprint,
-    /// The BLAKE3 digest of the form under [`ENCODING`].
-    pub digest: [u8; 32],
 }
 
 /// What the census learns from one slice.
@@ -231,10 +241,10 @@ pub struct Print {
     /// The `body` fingerprint of the value form, when the slice has at least
     /// `min_tokens` value tokens. A shim candidate has one too, but it
     /// never joins a body group: only its shim print groups.
-    pub body: Option<Hashed>,
+    pub body: Option<Fingerprint>,
     /// The `shim` fingerprint of the shim form, when the slice is a shim
     /// candidate of 6 to 29 value tokens.
-    pub shim: Option<Hashed>,
+    pub shim: Option<Fingerprint>,
 }
 
 /// The first place two slices part ways.

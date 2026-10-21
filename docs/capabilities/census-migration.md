@@ -125,7 +125,7 @@ enforced = false
 [job.forbidden]
 names = []
 constants = []
-fingerprints = ["body:3f9a1c0b7d2e4a65"]
+fingerprints = ["body:3f9a1c0b7d2e4a653f9a1c0b7d2e4a653f9a1c0b7d2e4a653f9a1c0b7d2e4a65"]
 patterns = []
 
 [job.ext]

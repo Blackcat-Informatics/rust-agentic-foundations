@@ -103,6 +103,7 @@ const INVENTORY: Inventory = Inventory {
         "assessment:census-normal-form-constraints",
         "assessment:census-normal-form-contract",
         "assessment:census-normal-form-examples",
+        "assessment:census-normal-form-explanation",
         "assessment:census-normal-form-purpose",
         "assessment:census-normal-form-usage",
         "assessment:census-normal-form-verification",
@@ -1164,10 +1165,10 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|id| id.starts_with(prefix))
             .count()
     };
-    assert_eq!(records("assessment:"), 62);
+    assert_eq!(records("assessment:"), 63);
     assert_eq!(records("coverage:"), 1);
     assert_eq!(records("evidence:"), 1);
-    assert_eq!(INVENTORY.records.len(), 64);
+    assert_eq!(INVENTORY.records.len(), 65);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 

@@ -58,9 +58,9 @@ pub use error::Error;
 pub use group::{Group, GroupKind, HexTable, Member, SharedConstant};
 pub use job::{Job, JobForbidden, JobMatch, JobReport, MatchClass};
 pub use normalize::{
-    Divergence, ENCODING, Fingerprint, Form, Hashed, LITERAL_TIER, Level, MAX_NESTING,
-    MIN_SHIM_TOKENS, Normalizer, PASSES, ParseFingerprintError, Print, RuleId, SHIM_MAX_TOKENS,
-    Slice, TableKind, Token, TokenDiff, Tower, VALUE_ADAPTERS, WEAK_KEYWORDS, manifest,
+    Divergence, ENCODING, Fingerprint, Form, LITERAL_TIER, Level, MAX_NESTING, MIN_SHIM_TOKENS,
+    Normalizer, PASSES, ParseFingerprintError, Print, RuleId, SHIM_MAX_TOKENS, Slice, TableKind,
+    Token, TokenDiff, Tower, VALUE_ADAPTERS, WEAK_KEYWORDS, manifest,
 };
 pub use options::{CensusOptions, DEFAULT_MAX_FILE_BYTES, DEFAULT_MIN_TOKENS};
 pub use report::{

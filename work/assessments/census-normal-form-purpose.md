@@ -7,7 +7,7 @@ subject: cap:census-normal-form#purpose
 inputs:
   - kind: section
     name: cap:census-normal-form#purpose
-    digest: 672c1d8d9daa21dafdcbfecba141969cdc6b80865680f9f0ad8d7b55f58271b8
+    digest: edde464050c0d5d5b29acf5ccc5ce533c7475f34eacd0bd2b2d93f65aaca3e78
   - kind: symbol
     name: raf_census::Baseline
     digest: 79033c79f4d11654eaca8e0765fcd3ae438248382961ae0bb77f0bebfcc5b66b
@@ -43,10 +43,10 @@ inputs:
     digest: f859dd2ff349b68907b45292f05f87bf1c8485c2d433ec8e16807a166caa8c85
   - kind: symbol
     name: raf_census::Census::index
-    digest: b53810be0a19e8352c0972ac494db6a6a5d21a64e084d0dc95d45ca102333f22
+    digest: bb132b08e167fc9fd624e775777ed8e6ec84f789ce8076fb914f31089ce39259
   - kind: symbol
     name: raf_census::Census::load
-    digest: 295c41bf5982d087d839110392dee82529b43f0c5b5f432dbf9e2e3c6c2261d5
+    digest: 1a61d35544402c2b1830dd485c840986b0d8795d0fb3627600946c8caf36cb08
   - kind: symbol
     name: raf_census::Census::match_jobs
     digest: 4158a8083145416d7d1327cd6c1698eb314b9b6ea4e4b9cd326e01a5e80b905f
@@ -91,25 +91,28 @@ inputs:
     digest: 1041f47b15ea7f2f6e7d16ef3143f98fdcc61d6b27cb75d64ac74021cb6228ea
   - kind: symbol
     name: raf_census::ENCODING
-    digest: bb6bb7f42866f184c7db76fd81e8c2fb7e5ff9d14d84a190f8c964b921377c22
+    digest: ed26a671fea5e33a046208e05e5c69d72cf3b995dc2c615d9188ce290b332211
   - kind: symbol
     name: raf_census::Error
-    digest: cd8d84ca0caead22123b730eeb3ed2594af7a9508801d48f468f36a62fb92589
+    digest: 039c0d822a5d93b55017193c10358f38bc5cf4c655340ea5a5ffdae918710bac
   - kind: symbol
     name: raf_census::FileCtx
     digest: dc820cd4bb1dfd693cf6cb0f66493c8438837ee5177cc381ba2cc9a94be75afe
   - kind: symbol
     name: raf_census::Fingerprint
-    digest: e9c972c4c296097f51f4b83fbcb91c2e6f36b0215c51a2c31b3aa6a9d77cdd7a
+    digest: adc45c51c55b4610c80dbe7d48fd3704c26ccdee1e6ceea7cb9ba65d3ddbb821
+  - kind: symbol
+    name: raf_census::Fingerprint::abbreviated
+    digest: 68973bdc91a8b1861553d9e693a75c397d6f88fc13db370114367cb4da8de97c
   - kind: symbol
     name: raf_census::Fingerprint::body
-    digest: 40d1c822199d1b607fc97db49d89fe7ad7e462bb05933d49f2d65b030d1b5e1b
+    digest: 2b854a575414e8b5dda1067acda06f67e8e3f396838793dd6d0df98cb34da8c3
   - kind: symbol
     name: raf_census::Fingerprint::kind
     digest: eb4b48fc22497b1f5c7cc18395487480ba1b8c49b9d4b6ce9aca52ee266612d5
   - kind: symbol
     name: raf_census::Fingerprint::shim
-    digest: 0a73384503114687f0e79f66defa940ebd76f0184e619c167c5f0fef9673005f
+    digest: eb15e75c3c1c314523e4b657523065ecc897f1d25e1002dacc0b94908be1ad78
   - kind: symbol
     name: raf_census::Form
     digest: 46cebbabba2086ba8444ce47932338a69fc870ddad13647a5e6add72afa2b5e3
@@ -134,9 +137,6 @@ inputs:
   - kind: symbol
     name: raf_census::GroupKind
     digest: 4ad8dfee4a8a6c69498e55f4f2b32044e3b215e14528aab9655fa8bd221ac182
-  - kind: symbol
-    name: raf_census::Hashed
-    digest: 9b68b149d3751d49885af241173130d18e6984325b55aeda4854d2c633676ad0
   - kind: symbol
     name: raf_census::HexTable
     digest: e6fcb7c28ae863ded739cae83eaa7c147891bb7b1b38d546652e7684f50f43b8
@@ -235,10 +235,10 @@ inputs:
     digest: ba1aa80e87843de29f724ae62f9f27643070937639461ba9615b8cfc49f9cb26
   - kind: symbol
     name: raf_census::ParseFingerprintError
-    digest: c5cb998c296b80e0132c51e36d679974f3a543fd360b514520fb9609f9ac81f5
+    digest: 036eadc8ec0215d5c97bec57450801489c9880f9857685ef57cc45ed7286b175
   - kind: symbol
     name: raf_census::Print
-    digest: dea415a13940a3e13c98862df25bcd2f787746b59ee338e022cc401d82e6c9bc
+    digest: d8980657b9a90b4db0436bc4a0b9f874eb19915aa29f15faadf6175342c0ec8c
   - kind: symbol
     name: raf_census::REPORT_FORM
     digest: 7eefaa4a48795d1a8eb9cd04e3e3973f98b81046b03f676e415b6152552a222f
@@ -294,14 +294,20 @@ inputs:
     name: raf_census::Tower
     digest: 8ec2bfc7089fba46f272c24c0bd525fe65ce8019f0abca21f72dd5875314cea5
   - kind: symbol
+    name: raf_census::Tower::calls_through_self
+    digest: 2c9dd7f30ebc1f14f6c44584c43f8dd01a4212b5fd9c03e2296f05373cea3775
+  - kind: symbol
     name: raf_census::Tower::form
     digest: c6b42a8431c2e335eaeeeaac33c8ec57b5d52bdb898db6c2d2fb0d1342901548
+  - kind: symbol
+    name: raf_census::Tower::literal_values
+    digest: 57c46dbf4fbb532ecce55ec553c05e0acfbaf8872d8e42286c84d39b7375d8e8
   - kind: symbol
     name: raf_census::Tower::new
     digest: 6a6bffb0e06aa92e064579f11b46085e7bae0555ba0f281fa948d19c038c5f15
   - kind: symbol
     name: raf_census::Tower::print
-    digest: d6485a78822c146d262b3307cdacdace9680402ac1b0de18c2527f48572c53a6
+    digest: 68f136aa330c46f88d0f9080f712bef887e66eead66f59f5b073777a394b2126
   - kind: symbol
     name: raf_census::Tower::shim_candidate
     digest: def8a1b3c38dd5cea2a14a653c4d94343790a0269d36ccd2c6529266c517d6ea

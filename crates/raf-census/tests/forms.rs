@@ -404,20 +404,23 @@ fn the_digest_is_blake3_of_length_prefixed_tokens() {
     );
     let print = print_of(&["x"], "f(x, 1)", 1);
     let body = print.body.expect("a body print");
-    assert_eq!(&body.digest, expected.as_bytes());
-    assert_eq!(body.fingerprint.to_string(), "body:abac387fdaf62db5");
+    assert_eq!(body, Fingerprint::body(expected.as_bytes()));
     assert_eq!(
-        body.fingerprint.to_string(),
-        format!("body:{}", &expected.to_hex().as_str()[..16])
+        body.to_string(),
+        "body:abac387fdaf62db5bee4e554a8fe7d4fc574f2e61594275430ddab702ef76288"
+    );
+    assert_eq!(
+        body.to_string(),
+        format!("body:{}", expected.to_hex().as_str())
     );
 }
 
 #[test]
 fn a_fingerprint_displays_and_parses_back() {
     let accepted = [
-        "body:0123456789abcdef",
-        "shim:ffffffffffffffff",
-        "body:0000000000000000",
+        "body:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "shim:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "body:0000000000000000000000000000000000000000000000000000000000000000",
         "table:hex-lower",
         "table:hex-upper",
         "rule:std-default-hasher",
@@ -431,11 +434,104 @@ fn a_fingerprint_displays_and_parses_back() {
         Fingerprint::Table(TableKind::HexLower)
     );
     assert_eq!(
-        "body:0000000000000001"
+        "body:0000000000000001000000000000000100000000000000010000000000000001"
             .parse::<Fingerprint>()
             .expect("parses"),
-        Fingerprint::Body(1)
+        Fingerprint::Body({
+            let mut bytes = [0; 32];
+            for index in [7, 15, 23, 31] {
+                bytes[index] = 1;
+            }
+            bytes
+        })
     );
+}
+
+#[test]
+fn human_abbreviations_do_not_replace_complete_identity() {
+    let first = [0; 32];
+    let mut second = first;
+    second[31] = 1;
+    let a = Fingerprint::body(&first);
+    let b = Fingerprint::body(&second);
+    assert_ne!(a, b);
+    assert_ne!(a.to_string(), b.to_string());
+    assert_eq!(a.abbreviated(), "body:0000000000000000…");
+    assert_eq!(a.abbreviated(), b.abbreviated());
+    assert!(a.abbreviated().parse::<Fingerprint>().is_err());
+    assert!("body:0000000000000000".parse::<Fingerprint>().is_err());
+    assert_eq!(a.to_string().parse::<Fingerprint>().expect("canonical"), a);
+    assert_eq!(
+        Fingerprint::Table(TableKind::HexLower).abbreviated(),
+        "table:hex-lower"
+    );
+}
+
+#[test]
+fn fingerprint_refusals_escape_untrusted_controls_beside_valid_names() {
+    for text in ["\u{1b}", "\u{1b}:x", "table:\u{1b}", "rule:\u{1b}"] {
+        let message = text
+            .parse::<Fingerprint>()
+            .expect_err("control refused")
+            .to_string();
+        assert!(!message.contains('\u{1b}'));
+        assert!(message.contains("\\u{1b}"), "{message}");
+    }
+    let bad_hex = format!("body:{}\u{1b}", "0".repeat(63));
+    let message = bad_hex
+        .parse::<Fingerprint>()
+        .expect_err("hex control refused")
+        .to_string();
+    assert!(!message.contains('\u{1b}'));
+    assert!(message.contains("\\u{1b}"));
+    assert!(
+        format!("body:{}", "0".repeat(64))
+            .parse::<Fingerprint>()
+            .is_ok()
+    );
+    assert!("table:hex-lower".parse::<Fingerprint>().is_ok());
+    assert!("rule:valid-name".parse::<Fingerprint>().is_ok());
+}
+
+#[test]
+fn literal_value_introspection_selects_the_production_default() {
+    for fixture in registry().fixtures {
+        let tower = tower(&fixture);
+        let (retained, abstracted) = tower.literal_values();
+        assert_eq!(retained.len(), tower.value_tokens(), "{}", fixture.id);
+        assert_eq!(abstracted.len(), tower.value_tokens(), "{}", fixture.id);
+        let selected = if tower.value_tokens() < raf_census::LITERAL_TIER {
+            retained
+        } else {
+            abstracted
+        };
+        assert_eq!(
+            selected.texts(),
+            tower.form(Level::Value).texts(),
+            "{}",
+            fixture.id
+        );
+    }
+}
+
+#[test]
+fn self_callee_query_distinguishes_generic_types_from_calls() {
+    let cases = [
+        ("take::<Self::Assoc<fn()>>()", false),
+        ("take::<Self::Assoc<fn() -> u8>>()", false),
+        ("Self::go::<'a>(x)", true),
+        ("Self::go::<fn() -> u8>(x)", true),
+        ("Self::go::<for<'a> fn(&'a u8) -> u8>(x)", true),
+        ("take::<Self::Assoc<for<'a> fn(&'a u8) -> u8>>()", false),
+    ];
+    let actual = cases
+        .iter()
+        .map(|(text, _)| {
+            let tower = Tower::new(&Slice::new("fixture.rs", 1, text)).expect("lexes");
+            (*text, tower.calls_through_self())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(actual, cases);
 }
 
 /// The check a refusal must satisfy.
@@ -453,18 +549,22 @@ fn a_fingerprint_refuses_every_malformed_spelling() {
         ("body:0123456789abcde", |e| {
             matches!(e, ParseFingerprintError::Width(15))
         }),
-        ("body:0123456789abcdef0", |e| {
-            matches!(e, ParseFingerprintError::Width(17))
-        }),
-        ("body:0123456789ABCDEF", |e| {
-            matches!(e, ParseFingerprintError::Hex(_))
-        }),
-        ("shim:0123456789abcdeg", |e| {
-            matches!(e, ParseFingerprintError::Hex(_))
-        }),
-        ("body:+123456789abcdef", |e| {
-            matches!(e, ParseFingerprintError::Hex(_))
-        }),
+        (
+            "body:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0",
+            |e| matches!(e, ParseFingerprintError::Width(65)),
+        ),
+        (
+            "body:0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF",
+            |e| matches!(e, ParseFingerprintError::Hex(_)),
+        ),
+        (
+            "shim:0123456789abcdeg0123456789abcdeg0123456789abcdeg0123456789abcdeg",
+            |e| matches!(e, ParseFingerprintError::Hex(_)),
+        ),
+        (
+            "body:+123456789abcdef+123456789abcdef+123456789abcdef+123456789abcdef",
+            |e| matches!(e, ParseFingerprintError::Hex(_)),
+        ),
         ("table:hex-mixed", |e| {
             matches!(e, ParseFingerprintError::Table(_))
         }),
@@ -486,9 +586,9 @@ fn fingerprints_sort_by_kind_then_value() {
     let mut all: Vec<Fingerprint> = [
         "rule:a",
         "table:hex-upper",
-        "shim:0000000000000002",
-        "body:0000000000000009",
-        "body:0000000000000001",
+        "shim:0000000000000002000000000000000200000000000000020000000000000002",
+        "body:0000000000000009000000000000000900000000000000090000000000000009",
+        "body:0000000000000001000000000000000100000000000000010000000000000001",
     ]
     .iter()
     .map(|text| text.parse().expect("parses"))
@@ -498,9 +598,9 @@ fn fingerprints_sort_by_kind_then_value() {
     assert_eq!(
         shown,
         [
-            "body:0000000000000001",
-            "body:0000000000000009",
-            "shim:0000000000000002",
+            "body:0000000000000001000000000000000100000000000000010000000000000001",
+            "body:0000000000000009000000000000000900000000000000090000000000000009",
+            "shim:0000000000000002000000000000000200000000000000020000000000000002",
             "table:hex-upper",
             "rule:a"
         ]

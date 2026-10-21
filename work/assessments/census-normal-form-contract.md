@@ -7,7 +7,7 @@ subject: cap:census-normal-form#contract
 inputs:
   - kind: section
     name: cap:census-normal-form#contract
-    digest: c5ba36474f7e6232cfc1d4b0877716fd5c90923ecd652df8f620d433ba0de46e
+    digest: c2de897fa429eb367586c020c1c90b88800a848b5e222892592b2ff74f263d60
   - kind: symbol
     name: raf_census::Census::match_jobs
     digest: 4158a8083145416d7d1327cd6c1698eb314b9b6ea4e4b9cd326e01a5e80b905f
@@ -22,19 +22,22 @@ inputs:
     digest: 8df57f2ea55e951529af334bdad02dd05b2f8cf08425583f147a467ff6a9d573
   - kind: symbol
     name: raf_census::Error
-    digest: cd8d84ca0caead22123b730eeb3ed2594af7a9508801d48f468f36a62fb92589
+    digest: 039c0d822a5d93b55017193c10358f38bc5cf4c655340ea5a5ffdae918710bac
   - kind: symbol
     name: raf_census::FileCtx
     digest: dc820cd4bb1dfd693cf6cb0f66493c8438837ee5177cc381ba2cc9a94be75afe
   - kind: symbol
+    name: raf_census::Fingerprint::abbreviated
+    digest: 68973bdc91a8b1861553d9e693a75c397d6f88fc13db370114367cb4da8de97c
+  - kind: symbol
     name: raf_census::Fingerprint::body
-    digest: 40d1c822199d1b607fc97db49d89fe7ad7e462bb05933d49f2d65b030d1b5e1b
+    digest: 2b854a575414e8b5dda1067acda06f67e8e3f396838793dd6d0df98cb34da8c3
   - kind: symbol
     name: raf_census::Fingerprint::kind
     digest: eb4b48fc22497b1f5c7cc18395487480ba1b8c49b9d4b6ce9aca52ee266612d5
   - kind: symbol
     name: raf_census::Fingerprint::shim
-    digest: 0a73384503114687f0e79f66defa940ebd76f0184e619c167c5f0fef9673005f
+    digest: eb15e75c3c1c314523e4b657523065ecc897f1d25e1002dacc0b94908be1ad78
   - kind: symbol
     name: raf_census::Form::len
     digest: 1be76935d4254c218510323b79bfb4c0fc2902069d238eb74ff5c6dd7e9b1cf4

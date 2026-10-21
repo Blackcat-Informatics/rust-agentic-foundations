@@ -11,7 +11,7 @@ description: "The normative definition of how the RAF census turns a function bo
 
 The census finds duplicated helpers by comparing what function bodies say, not how
 they are spelled. The normal form is the rewrite that makes two spellings of one
-algorithm identical, and the fingerprint is the short name of the result. This
+algorithm identical, and the fingerprint is the stable name of the result. This
 page is the normative definition of version 1. The ledger declares it as
 `normal_form = 1`, and every fingerprint a ledger names is a version 1
 fingerprint.
@@ -29,7 +29,7 @@ renamed by order of first appearance, the reference and adapter noise that does 
 change a value is removed, a body whose value form has fewer than 30 tokens keeps
 its literals verbatim, and a body whose value form has 6 to 29 tokens that is a thin
 forwarder also has a shim form that groups forwarders. The fingerprint of a body or
-a shim is the first 8 bytes of the BLAKE3 hash of the form's token sequence under
+a shim is the complete 32-byte BLAKE3 hash of the form's token sequence under
 one fixed byte encoding. A version is fixed by the content of its first merge to the
 default branch: after that, any change that can alter a fingerprint is a new
 version, and a ledger written under another version is refused until
@@ -225,13 +225,19 @@ form erases never moves a body across a threshold.
 `min_tokens` is a ledger setting and must be at least 1. The other values are fixed
 by the normal form version.
 
+The [counted selection rationale](../census-selection.md) records candidate
+floors, literal tiers and shim bounds, labelled outcomes and inspected source
+groups. The selected values trade sensitivity for review volume; they are not
+a claim of real-source precision or a universal optimum.
+
 ## Fingerprint
 
 A fingerprint is `<kind>:` followed by an identifier.
 
-- For the kinds `body` and `shim`, the identifier is the first 8 bytes of the
-  BLAKE3 digest of the form, read as a big-endian number and written in 16
-  lowercase hexadecimal digits.
+- For `body` and `shim`, the identifier is the complete 32-byte BLAKE3 digest
+  written in 64 lowercase hexadecimal digits. A human display can abbreviate it
+  to sixteen digits and an ellipsis with `Fingerprint::abbreviated`; canonical
+  display, parsing and machine identities always use all 64 digits.
 - For the kinds `table` and `rule`, the identifier is a fixed name: `table:hex-lower`
   and `table:hex-upper` are the tables, and a rule id is a non-empty name of ASCII
   letters, digits, `-`, `_` and `.`, such as `rule:std-default-hasher`.
@@ -245,7 +251,7 @@ The four kinds are:
 | `table` | A recognised table, such as a hex-digit table. |
 | `rule` | A hit of a detector, a declarative pattern or a `Rule`. |
 
-The hashed encoding has the id `tokens-len-u32le-utf8/blake3/first8-be-hex16`
+The hashed encoding has the id `tokens-len-u32le-utf8/blake3/hex64`
 (`ENCODING`): each token of the form, in order, is written as its UTF-8 length as a
 little-endian `u32` followed by its bytes, and the digest is the BLAKE3 hash of the
 concatenation. A joined punctuation character is written with a trailing `~`, and a
@@ -253,9 +259,17 @@ delimiter as its character. A fingerprint string that has another kind, an
 identifier of another width, uppercase hexadecimal digits, an unknown table name or
 an empty rule id is refused.
 
-The census keeps the full 32-byte digest of every unit it groups. Two units whose
-digests differ but whose 8-byte fingerprints are equal are an error that names both
-symbols.
+BLAKE3 is configured with default features disabled and `pure` enabled, avoiding
+native C and assembly backends. The portable hash itself builds for wasm32;
+complete census loads also require the source dependency to support the target.
+The core accesses source only through its supplied `Tree`; normalization, hashing,
+grouping and report conversion use owned values and invoke no filesystem or
+process APIs. Host reference discovery owns `cargo metadata`.
+
+The census stores one complete digest per body or shim print and uses every byte
+as its grouping key. Correctness relies on BLAKE3 collision resistance rather than
+detecting a full-digest collision. No separate truncated digest or collision guard
+is needed.
 
 ## Units
 
@@ -443,7 +457,7 @@ the implemented version.
 - Bodies that compute different values share a fingerprint through the value form
   or the literal tier often enough that ledger entries group code that is not
   duplicated.
-- Two different token sequences are found with the same 8-byte fingerprint in a
+- Two different token sequences are found with the same complete BLAKE3 fingerprint in a
   real ledger.
 - A release of the token source lexes unchanged code into other tokens, so
   fingerprints move with a dependency update and not with a version bump.

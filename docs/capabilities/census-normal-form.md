@@ -42,6 +42,7 @@ bindings:
     - raf_census::Error
     - raf_census::FileCtx
     - raf_census::Fingerprint
+    - raf_census::Fingerprint::abbreviated
     - raf_census::Fingerprint::body
     - raf_census::Fingerprint::kind
     - raf_census::Fingerprint::shim
@@ -53,7 +54,6 @@ bindings:
     - raf_census::Group
     - raf_census::Group::member_symbols
     - raf_census::GroupKind
-    - raf_census::Hashed
     - raf_census::HexTable
     - raf_census::Index
     - raf_census::Index::from_turtle
@@ -104,6 +104,8 @@ bindings:
     - raf_census::Token
     - raf_census::TokenDiff
     - raf_census::Tower
+    - raf_census::Tower::calls_through_self
+    - raf_census::Tower::literal_values
     - raf_census::Tower::form
     - raf_census::Tower::new
     - raf_census::Tower::print
@@ -118,9 +120,8 @@ bindings:
   tests:
     - raf_census::error::tests::each_variant_renders_its_facts
     - raf_census::error::tests::an_options_error_has_no_nested_source
-    - raf_census::group::tests::a_collision_is_found_even_when_a_third_unit_stands_alone
+    - raf_census::group::tests::digest_suffixes_are_distinct_group_keys
     - raf_census::group::tests::members_order_by_symbol_then_file_then_line
-    - raf_census::group::tests::one_fingerprint_with_two_digests_is_a_collision_beside_equal_digests
     - raf_census::normalize::literal::tests::an_integer_beyond_u128_is_still_an_int
     - raf_census::normalize::literal::tests::each_literal_kind_has_its_name
     - raf_census::normalize::literal::tests::floats_and_strings_are_not_integers
@@ -151,6 +152,10 @@ bindings:
     - raf_census::test_crate::forms::self_is_not_a_parameter_and_a_field_named_like_one_is_kept
     - raf_census::test_crate::forms::shim_forms_exist_for_six_to_twenty_nine_tokens
     - raf_census::test_crate::forms::the_body_print_needs_min_tokens
+    - raf_census::test_crate::forms::human_abbreviations_do_not_replace_complete_identity
+    - raf_census::test_crate::forms::fingerprint_refusals_escape_untrusted_controls_beside_valid_names
+    - raf_census::test_crate::forms::self_callee_query_distinguishes_generic_types_from_calls
+    - raf_census::test_crate::forms::literal_value_introspection_selects_the_production_default
     - raf_census::test_crate::forms::the_digest_is_blake3_of_length_prefixed_tokens
     - raf_census::test_crate::forms::the_literal_tier_boundary_is_thirty_value_tokens
     - raf_census::test_crate::forms::the_tower_is_monotone_over_every_registry_pair
@@ -212,6 +217,7 @@ bindings:
     - raf_census::test_crate::units::a_unit_is_found_by_symbol
     - raf_census::test_crate::units::a_workspace_without_roots_does_not_load
     - raf_census::test_crate::units::byte_strings_and_c_strings_are_strings
+    - raf_census::test_crate::units::self_type_arguments_keep_shim_keys_beside_generic_self_callees
     - raf_census::test_crate::units::each_kind_yields_one_unit_with_every_field
     - raf_census::test_crate::units::every_spelling_of_an_integer_is_one_constant
     - raf_census::test_crate::units::file_context_names_package_path_and_shipping
@@ -247,6 +253,7 @@ bindings:
   examples:
     - raf_census::example_crate::baseline
     - raf_census::example_crate::goldens
+    - raf_census::example_crate::selection
 depends: [cap:source-index]
 ---
 
@@ -260,6 +267,10 @@ local names, borrows and clones. The normal form rewrites a function body into a
 canonical token sequence, and the fingerprint names that sequence, so equal
 algorithms get equal fingerprints. This capability is the foundation every other
 census capability stands on.
+
+The input boundary is a supplied `Tree`; normalization, fingerprinting, grouping
+and report conversion are deterministic functions of its admitted source and owned
+values. This core opens no filesystem paths and starts no processes itself.
 
 The census is a library: a caller loads a workspace through `raf-source`, and the
 census reports which units share a fingerprint and which of them a ledger job
@@ -305,15 +316,24 @@ implements it as follows.
   only its `shim` fingerprint groups, and only when its `shim_key` is present. The
   `shim_key` is absent for a method of a trait implementation and for a forwarder
   that calls through `Self::`, a call at any depth whose callee path starts with
-  `Self::`.
+  `Self::`. An associated type inside generic arguments is not a callee; generic
+  Self calls still count when their arguments include lifetimes or function types.
 - A body with fewer than `min_tokens` value tokens has no body fingerprint.
   `min_tokens` defaults to 20 and `CensusOptions::min_tokens` sets it; the ledger key
   that carries it is the ledger capability's.
 - A fingerprint is `<kind>:` followed by an identifier. For `body` and `shim` the
-  identifier is the lowercase hex of the first 8 bytes of the BLAKE3 hash of the
-  form under the encoding `tokens-len-u32le-utf8/blake3/first8-be-hex16`. For
+  identifier is the 64 lowercase hexadecimal digits of the complete 32-byte BLAKE3
+  digest under `tokens-len-u32le-utf8/blake3/hex64`. Canonical display, parsing,
+  equality, grouping and report IRIs all use the complete digest.
+  `Fingerprint::abbreviated` supplies a human-only sixteen-digit prefix with an
+  ellipsis; it cannot be parsed as an identity. For
   `table` and `rule` it is a fixed name. The kinds are `body`, `shim`, `table` and
   `rule`.
+- BLAKE3 is requested with default features disabled and `pure` enabled. The hash
+  implementation needs no native C or assembly backend, and its token encoding is
+  independent of pointer width and endianness: each UTF-8 token has a little-endian
+  `u32` byte length before its bytes. `cargo metadata` discovery for reference
+  packages belongs to the host reference-scan layer; this core never invokes it.
 - `raf_census::NORMAL_FORM` is 1. `raf_census::check_normal_form(declared)`
   accepts 1 and refuses every other version with `Error::Version`, whose message
   names the declared version, the implemented version and `cargo census migrate`.
@@ -326,8 +346,7 @@ implements it as follows.
   slice that does not lex, text of an item that the workspace does not hold, or a
   source item of the index whose item does not resolve or that has no reach: such an
   inconsistency is an error that names the file and never drops a unit),
-  `Options`, `Collision` (two different forms with one fingerprint, naming both
-  symbols), `Version`, `Report` (a typed `ReportError`) and a load error of `raf-source`. Nothing falls back
+  `Options`, `Version`, `Report` (a typed `ReportError`) and a load error of `raf-source`. Nothing falls back
   to a partial result.
 - `raf_census::FileCtx` describes one file of the workspace: its `package` (of
   the first target that reaches it), its `path`, `shipping`, and `target_kinds`, the
@@ -349,8 +368,8 @@ implements it as follows.
 - The census groups units by fingerprint in a `BTreeMap` from fingerprint to
   members. A group has two or more members. Groups sort by member count descending,
   then tokens descending, then fingerprint ascending, and their members by symbol,
-  file, line and start byte, so the same source always produces the same output. Two units with
-  one 8-byte fingerprint and different digests are an `Error::Collision`.
+  file, line and start byte, so the same source always produces the same output. Body and shim prints each hold a single complete fingerprint,
+  without a redundant truncated identity or separate digest.
 - Integer constants are compared by value in any spelling. The census recognises
   hex-digit tables (a string, a byte string or an array of 16 `char` or `u8`
   literals that is exactly the sixteen digits in one case) and reports them as
@@ -402,7 +421,17 @@ to see which functions the census considers the same.
 level at which they still differ and the first differing token with its line, which
 is how a reader learns why two bodies that look alike are reported as distinct.
 
+`Tower::literal_values` computes retained and abstracted literal-value forms on
+demand from the existing literal-tier form, with the production kind-literal and
+held-value passes. The ordinary load computes only its selected form. The
+`selection` example counts alternative selection policies over these forms; it
+does not mint fingerprints for candidate policies or change production defaults.
+
 ## Examples
+
+`fingerprint.to_string()` produces a complete machine identity;
+`fingerprint.abbreviated()` produces human text such as `body:6bb022e241a79a28…`.
+The latter is intentionally refused by the canonical parser.
 
 These two functions are one algorithm in the value form, and the census puts them
 in one `body` group:
@@ -437,7 +466,7 @@ baseline report:
 
 ```turtle
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284>
 PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
 PREFIX census: <https://blackcatinformatics.ca/raf/census#>
 PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
@@ -449,14 +478,14 @@ PREFIX table: <https://blackcatinformatics.ca/raf/census/table/>
     census:reportForm 1 ;
     census:unitCount 7 .
 
-<#group/body:6bb022e241a79a28> a census:BodyGroup ;
-    census:fingerprint body:6bb022e241a79a28 ;
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> a census:BodyGroup ;
+    census:fingerprint body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
     census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
         <#unit/demo::beta@src/lib.rs:2:74> ;
     census:tokens 21 .
 
-<#group/shim:203616cb54a3e53d> a census:ShimGroup ;
-    census:fingerprint shim:203616cb54a3e53d ;
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> a census:ShimGroup ;
+    census:fingerprint shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
     census:member <#unit/demo::one@src/lib.rs:4:194> ,
         <#unit/demo::two@src/lib.rs:5:237> ;
     census:tokens 6 .
@@ -498,7 +527,7 @@ fingerprints, each group with its members, and the job with its classified match
 
 ```turtle
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/66c75be6e5c251f854f254807d4c992033861fe03c0fb36721fb4e84ee70914b>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37>
 PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
 PREFIX census: <https://blackcatinformatics.ca/raf/census#>
 PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
@@ -507,14 +536,14 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
     census:normalForm 1 ;
     census:reportForm 1 .
 
-<#group/body:6bb022e241a79a28> a census:BodyGroup ;
-    census:fingerprint body:6bb022e241a79a28 ;
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> a census:BodyGroup ;
+    census:fingerprint body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
     census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
         <#unit/demo::beta@src/lib.rs:2:74> ;
     census:tokens 21 .
 
-<#group/shim:203616cb54a3e53d> a census:ShimGroup ;
-    census:fingerprint shim:203616cb54a3e53d ;
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> a census:ShimGroup ;
+    census:fingerprint shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
     census:member <#unit/demo::one@src/lib.rs:4:194> ,
         <#unit/demo::two@src/lib.rs:5:237> ;
     census:tokens 6 .
@@ -537,7 +566,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
     census:tokens 0 .
 
 <#unit/demo::alpha@src/lib.rs:1:0> a census:Unit ;
-    census:body body:6bb022e241a79a28 ;
+    census:body body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
     census:file "src/lib.rs" ;
     census:line 1 ;
     census:package "demo" ;
@@ -547,7 +576,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
     census:tokens 21 .
 
 <#unit/demo::beta@src/lib.rs:2:74> a census:Unit ;
-    census:body body:6bb022e241a79a28 ;
+    census:body body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
     census:file "src/lib.rs" ;
     census:line 2 ;
     census:package "demo" ;
@@ -578,7 +607,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
     census:file "src/lib.rs" ;
     census:line 4 ;
     census:package "demo" ;
-    census:shim shim:203616cb54a3e53d ;
+    census:shim shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
     census:shipping true ;
     census:startByte 194 ;
     census:symbol "demo::one" ;
@@ -588,7 +617,7 @@ PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
     census:file "src/lib.rs" ;
     census:line 5 ;
     census:package "demo" ;
-    census:shim shim:203616cb54a3e53d ;
+    census:shim shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
     census:shipping true ;
     census:startByte 237 ;
     census:symbol "demo::two" ;
@@ -611,11 +640,15 @@ the report then begin with the directory's name, as they do for `crates`.
   text counts; an ordinary comment is not a token.
 - A body shorter than `min_tokens` is never a `body` group, however many copies
   exist. Forwarders of 6 to 29 tokens are caught by the shim form instead.
-- Fingerprints are 64 bits. The census keeps the full digest of every unit it
-  groups and refuses two forms that share a fingerprint, naming both symbols, and a
-  ledger that names a fingerprint still lists member symbols that a reader can
-  check.
+- Body and shim fingerprints carry all 256 BLAKE3 bits. Identity assumes the
+  collision resistance of BLAKE3; this is not a proof that two token sequences
+  are equal. A ledger also records member symbols. Human abbreviated
+  prefixes provide no collision-resistance guarantee.
 - The `table` and `rule` kinds carry names, not hashes.
+- Portable hashing alone does not make the complete source dependency portable.
+  Census loads remain coupled to `raf-source` target support; a hash-only wasm
+  build does not establish that a complete load builds or runs there. Source reads
+  and containment remain the supplied `Tree`'s responsibility.
 - A unit that several targets reach is one unit; the census never counts a shared
   module once per target.
 - A shim candidate never joins a body group, so a 20-token forwarder is judged by
@@ -660,12 +693,22 @@ census refuses a mismatch instead of reporting spurious drift. Golden tests turn
 the version-bump rule from a convention into a check: a normaliser change that
 moves a fingerprint fails until the version moves with it.
 
-Literals are kept below 30 tokens because short bodies are mostly constants, and
-abstracting them would merge unrelated tables. Longer bodies abstract literals
-because there the algorithm, not the constants, is what two copies share.
+The fixed selection policy is justified by [counted corpus evidence](../census-selection.md),
+with machine-readable [RDF counts](../data/census-selection.ttl). A 20-token body
+floor removes large small-overload groups before the marginal reduction flattens.
+Literal tier 30 is the lowest sampled tier without a labelled distinct merge;
+raising it loses labelled equal pairs. Shim bounds 6–29 avoid trivial result
+constructors and preserve short fixed-argument forwarding. These are conservative
+tradeoffs over written bodies, with no claim of measured real-source precision.
+`Tower::literal_values` exposes the production candidate forms on demand; normal
+loads retain the single fixed policy.
 
 ## Verification
 
+- A count-tool test pins the labelled fixture corpus and relates its default
+  selection directly to production prints. Full-suffix identity tests show two
+  hashes sharing a human prefix remain distinct; parser refusals escape controls
+  beside valid names.
 - Golden tests pin the fingerprint of every fixture under `normal_form = 1`, beside
   a manifest of the encoding, the passes, the levels, the thresholds and the word
   lists. They fail when a fixture has no pinned value, when a pinned value has no
@@ -737,9 +780,9 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::error::tests::each_variant_renders_its_facts` | test | [Verification](#verification) |
 | `raf_census::example_crate::baseline` | example target | [Verification](#verification) |
 | `raf_census::example_crate::goldens` | example target | [Verification](#verification) |
-| `raf_census::group::tests::a_collision_is_found_even_when_a_third_unit_stands_alone` | test | [Verification](#verification) |
+| `raf_census::example_crate::selection` | example target | [Verification](#verification) |
+| `raf_census::group::tests::digest_suffixes_are_distinct_group_keys` | test | [Verification](#verification) |
 | `raf_census::group::tests::members_order_by_symbol_then_file_then_line` | test | [Verification](#verification) |
-| `raf_census::group::tests::one_fingerprint_with_two_digests_is_a_collision_beside_equal_digests` | test | [Verification](#verification) |
 | `raf_census::normalize::literal::tests::an_integer_beyond_u128_is_still_an_int` | test | [Verification](#verification) |
 | `raf_census::normalize::literal::tests::each_literal_kind_has_its_name` | test | [Verification](#verification) |
 | `raf_census::normalize::literal::tests::floats_and_strings_are_not_integers` | test | [Verification](#verification) |
@@ -764,9 +807,13 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::test_crate::forms::every_threshold_counts_the_value_form` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::explain_names_the_levels_and_the_first_differing_token_with_its_line` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::explain_reports_reordered_parameters_as_equal_from_the_literal_tier` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::fingerprint_refusals_escape_untrusted_controls_beside_valid_names` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::fingerprints_sort_by_kind_then_value` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::human_abbreviations_do_not_replace_complete_identity` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::literal_value_introspection_selects_the_production_default` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::nesting_at_the_budget_lexes_and_one_deeper_is_refused` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::parameters_and_locals_are_numbered_together_by_first_appearance` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::self_callee_query_distinguishes_generic_types_from_calls` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::self_is_not_a_parameter_and_a_field_named_like_one_is_kept` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::shim_forms_exist_for_six_to_twenty_nine_tokens` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::the_body_print_needs_min_tokens` | test | [Verification](#verification) |
@@ -855,6 +902,7 @@ because there the algorithm, not the constants, is what two copies share.
 | `raf_census::test_crate::units::min_tokens_counts_the_value_form_so_erased_noise_never_straddles_it` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::min_tokens_decides_the_body_fingerprint_at_the_default_and_at_ten` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::parameters_of_every_pattern_are_renamed` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::self_type_arguments_keep_shim_keys_beside_generic_self_callees` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::shim_keys_are_absent_for_trait_impl_methods_and_self_forwarders` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::shipping_is_true_when_any_reach_ships_and_the_shipping_path_is_the_symbol` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::strings_carry_their_absolute_lines` | test | [Verification](#verification) |

@@ -435,7 +435,7 @@ fn a_job_classifies_home_entry_point_variant_and_copies() {
 fn a_job_that_matches_nothing_has_an_empty_list() {
     let census = load(JOB_SOURCE);
     let none = Job::new("none", "demo::home").forbidding(JobForbidden {
-        fingerprints: vec![Fingerprint::Body(1)],
+        fingerprints: vec![Fingerprint::Body([1; 32])],
         constants: vec![123_456],
     });
     // A rule id names no unit.
@@ -525,7 +525,6 @@ fn a_shim_id_matches_the_units_that_group_under_it_and_not_the_excluded_ones() {
         .as_ref()
         .and_then(|p| p.shim.as_ref())
         .expect("a `Self::` forwarder has a shim form")
-        .fingerprint
         .clone();
     let job = Job::new("via", "demo::S::via").forbidding(JobForbidden {
         fingerprints: vec![via_shim],

@@ -7,7 +7,7 @@ subject: cap:census-normal-form#usage
 inputs:
   - kind: section
     name: cap:census-normal-form#usage
-    digest: 259be42d052d86eee0d44bfa6ad3b3d196d2a15654c46173810752aec488e6a2
+    digest: fc4a2105c3f07504c7dec60187ad770a155dc3490d7f7723c5f19e4e8b79fdd4
   - kind: symbol
     name: raf_census::Baseline::from_turtle
     digest: f1ef5112d2ccd86f16aecc78d3d5c17fd364cacba63b2943fe903eda1f7dc56b
@@ -19,10 +19,10 @@ inputs:
     digest: 96e7a3a451b71f0d553632dae4fc5292ef260c01b380bf3c003e3ba910647b53
   - kind: symbol
     name: raf_census::Census::index
-    digest: b53810be0a19e8352c0972ac494db6a6a5d21a64e084d0dc95d45ca102333f22
+    digest: bb132b08e167fc9fd624e775777ed8e6ec84f789ce8076fb914f31089ce39259
   - kind: symbol
     name: raf_census::Census::load
-    digest: 295c41bf5982d087d839110392dee82529b43f0c5b5f432dbf9e2e3c6c2261d5
+    digest: 1a61d35544402c2b1830dd485c840986b0d8795d0fb3627600946c8caf36cb08
   - kind: symbol
     name: raf_census::Census::match_jobs
     digest: 4158a8083145416d7d1327cd6c1698eb314b9b6ea4e4b9cd326e01a5e80b905f
@@ -44,6 +44,9 @@ inputs:
   - kind: symbol
     name: raf_census::Normalizer::explain
     digest: 83ed59bbc24715c894fdc18cb99720df8d9118b7efdae49cc10fc3f389492873
+  - kind: symbol
+    name: raf_census::Tower::literal_values
+    digest: 57c46dbf4fbb532ecce55ec553c05e0acfbaf8872d8e42286c84d39b7375d8e8
   - kind: symbol
     name: raf_census::check_normal_form
     digest: 06ce3b7c873c268047a884b76f018848a7bb7fcd51f95b8c5b41c55b596a3812

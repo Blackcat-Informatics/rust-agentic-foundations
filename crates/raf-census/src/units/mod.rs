@@ -282,12 +282,12 @@ fn build(
     let facts = scan::facts(&file, tower.form(Level::Verbatim))?;
     let functionlike = matches!(kind, UnitKind::Fn | UnitKind::Method);
     let print = functionlike.then(|| tower.print(options.min_tokens));
-    let via_self = functionlike && scan::calls_through_self(&tower.form(Level::Verbatim).nodes);
+    let via_self = functionlike && tower.calls_through_self();
     let shim_key = print
         .as_ref()
         .and_then(|print| print.shim.as_ref())
         .filter(|_| !trait_impl && !via_self)
-        .map(|shim| shim.fingerprint.clone());
+        .cloned();
     Ok(Some(Unit {
         symbol: item.path.to_string(),
         name: item.name.to_string(),

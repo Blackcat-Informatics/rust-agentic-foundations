@@ -989,10 +989,10 @@ pub(crate) fn table(registry: &Registry) -> String {
         let print = normalizer
             .print(&fixture.slice())
             .unwrap_or_else(|error| panic!("fixture {} does not normalise: {error}", fixture.id));
-        let name = |hashed: &Option<raf_census::Hashed>| {
+        let name = |hashed: &Option<raf_census::Fingerprint>| {
             hashed
                 .as_ref()
-                .map_or_else(|| "-".to_owned(), |h| h.fingerprint.to_string())
+                .map_or_else(|| "-".to_owned(), ToString::to_string)
         };
         writeln!(
             out,

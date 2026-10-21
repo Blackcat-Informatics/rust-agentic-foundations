@@ -46,14 +46,13 @@ impl Census {
     ///
     /// [`Error::Load`] when the workspace does not load, and [`Error::Source`]
     /// when a body or an initialiser does not lex or the source index is
-    /// inconsistent, and [`Error::Collision`] when two different forms have one
-    /// fingerprint. Nothing falls back to a partial result.
+    /// inconsistent. Nothing falls back to a partial result.
     pub fn load(tree: &impl Tree, roots: &[&str], options: &CensusOptions) -> Result<Self, Error> {
         let mut load = LoadOptions::default();
         load.max_file_bytes = options.max_file_bytes;
         let workspace = Workspace::load_with(tree, roots, &load)?;
         let units = units::collect(&workspace, options)?;
-        let grouping = group::group(&units)?;
+        let grouping = group::group(&units);
         let files = workspace
             .files()
             .map(|file| {

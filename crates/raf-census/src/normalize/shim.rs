@@ -3,7 +3,8 @@
 
 //! The shim candidate predicate.
 
-use super::form::{Form, Kind, Node};
+use super::form::{Delim, Form, Kind, Node};
+use super::passes::is_punct;
 
 /// Whether the body is a thin forwarder: one expression (no `let`, no
 /// statement boundary before the tail), at least one call, and no `self`, since
@@ -36,7 +37,7 @@ fn has_call(nodes: &[Node]) -> bool {
     while index < nodes.len() {
         match &nodes[index] {
             Node::Group(group) => {
-                if previous_is_name && group.delim == super::form::Delim::Paren {
+                if previous_is_name && group.delim == Delim::Paren {
                     return true;
                 }
                 if has_call(&group.children) {
@@ -70,17 +71,27 @@ fn has_call(nodes: &[Node]) -> bool {
 /// When `nodes[start..]` begins a turbofish, `::<...>` with balanced angle
 /// brackets, the index just past its closing `>`.
 fn turbofish_end(nodes: &[Node], start: usize) -> Option<usize> {
+    if !(is_punct(nodes.get(start), ':')
+        && is_punct(nodes.get(start + 1), ':')
+        && is_punct(nodes.get(start + 2), '<'))
+    {
+        return None;
+    }
+    angle_end(nodes, start + 2)
+}
+
+/// The index after a balanced generic argument list starting at `<`.
+/// Parenthesised function types and grouped const arguments do not end the
+/// list, and the `>` of a function-pointer return arrow closes no angle.
+fn angle_end(nodes: &[Node], start: usize) -> Option<usize> {
     let punct = |index: usize, wanted: &str| {
         nodes
             .get(index)
             .and_then(Node::as_leaf)
             .is_some_and(|leaf| leaf.kind == Kind::Punct && leaf.text == wanted)
     };
-    if !(punct(start, ":") && punct(start + 1, ":") && punct(start + 2, "<")) {
-        return None;
-    }
     let mut depth = 0_usize;
-    for index in start + 2..nodes.len() {
+    for index in start..nodes.len() {
         if punct(index, "<") {
             depth += 1;
         } else if punct(index, ">") {
@@ -106,4 +117,53 @@ fn mentions_self(nodes: &[Node]) -> bool {
         Node::Group(group) => mentions_self(&group.children),
         Node::Leaf(token) => token.kind == Kind::Ident && token.text == "self",
     })
+}
+
+/// Whether `nodes`, at any depth, hold a call whose callee path starts with
+/// `Self`: `Self::go(x)`, `Self::go::<T>(x)`.
+pub(super) fn calls_through_self(nodes: &[Node]) -> bool {
+    for (index, node) in nodes.iter().enumerate() {
+        match node {
+            Node::Group(group) => {
+                if calls_through_self(&group.children) {
+                    return true;
+                }
+            }
+            Node::Leaf(leaf) => {
+                if leaf.kind == Kind::Ident
+                    && leaf.text == "Self"
+                    && path_ends_in_call(&nodes[index + 1..])
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Whether `rest`, which follows `Self`, is `::` and a path, then a call.
+fn path_ends_in_call(rest: &[Node]) -> bool {
+    if !(is_punct(rest.first(), ':') && is_punct(rest.get(1), ':')) {
+        return false;
+    }
+    let mut index = 2;
+    while let Some(node) = rest.get(index) {
+        match node {
+            Node::Group(group) => return group.delim == Delim::Paren,
+            Node::Leaf(leaf) => match (leaf.kind, leaf.text.as_str()) {
+                (Kind::Ident, _) | (Kind::Punct, ":") => {}
+                (Kind::Punct, "<") => {
+                    let Some(end) = angle_end(rest, index) else {
+                        return false;
+                    };
+                    index = end;
+                    continue;
+                }
+                _ => return false,
+            },
+        }
+        index += 1;
+    }
+    false
 }
