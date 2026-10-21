@@ -35,6 +35,9 @@ Quick orientation:
   request creation and merge of the work that produced it. The normal file holds
   only its notice and marker.
 
+Notes:
+ * Python is banned in this repo for now.
+
 <!-- rtk-instructions v2 -->
 # Command output
 
