@@ -13,7 +13,7 @@ inputs:
     digest: 996da76879a859b9c0a01b6be3dc7862a444aee4cfe0dbd054e0a08ac336b203
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
-    digest: 6aa6f9478651fd33ebbafb61943d3d9fec61901d54c0bb5b3629267841f838ed
+    digest: bec099f361a73484802d3ba2100665bd3197e6fd6780a363732bcb475eb1b580
   - kind: symbol
     name: raf_rdf::Builder
     digest: c40e01dbc48f103c03ffae3dd956b102d2bf164b4b639eb6878d90856aead765

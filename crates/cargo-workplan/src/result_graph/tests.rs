@@ -13,6 +13,38 @@ use raf_source::{LoadOptions, MemoryTree, Workspace};
 )]
 mod strict;
 
+fn reach_item_budget_error(limit: usize) -> String {
+    format!(
+        "the walk of the bound items failed: the walk is over budget: src/lib.rs:1: exceeds the budget for bytes of index records ({limit})"
+    )
+}
+
+fn golden_at_item_budget(golden: &Graph, limit: usize) -> Graph {
+    let message = |limit| Triple {
+        subject: local("#result/0/error/0"),
+        predicate: iri("message"),
+        object: TermValue::simple_literal(reach_item_budget_error(limit)),
+    };
+    let mut expected = Builder::from_graph(golden);
+    assert!(
+        expected
+            .remove(message(22_810))
+            .expect("the representative fixture message is valid")
+    );
+    expected
+        .insert(message(limit))
+        .expect("the configured item ceiling is a valid message");
+    expected
+        .finish()
+        .expect("all other golden assertions remain")
+}
+
+fn sorted_triples(text: &str) -> String {
+    let mut triples: Vec<&str> = text.lines().collect();
+    triples.sort_unstable();
+    format!("{}\n", triples.join("\n"))
+}
+
 #[test]
 fn actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows() {
     let tree = MemoryTree::from([
@@ -26,11 +58,14 @@ fn actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows() {
     assert_eq!(valid.errors(), Vec::<String>::new());
     assert_ne!(valid.crates(), []);
     let mut options = LoadOptions::default();
-    options.max_item_bytes = source.usage().item_bytes;
+    // One spare byte cannot hold a reach slot and varies the golden ceiling.
+    options.max_item_bytes = source.usage().item_bytes + 1;
     let bounded = Workspace::load_with(&tree, &["."], &options).unwrap();
     let refused = raf_workplan::Workplan::load(&docs, &bounded).lines_report();
-    assert_eq!(refused.errors().len(), 1);
-    assert!(refused.errors()[0].contains("budget"));
+    assert_eq!(
+        refused.errors(),
+        vec![reach_item_budget_error(options.max_item_bytes)]
+    );
     assert_eq!(refused.crates(), []);
     assert_eq!(refused.orphans(), []);
     for (report, expected) in [(valid, false), (refused, true)] {
@@ -60,14 +95,19 @@ fn actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows() {
                         .join(format!("tests/fixtures/reports/lines-error.{suffix}")),
                 )
                 .unwrap();
-                assert_eq!(text, expected);
+                let golden = Graph::from_text(&expected, format)
+                    .expect("the representative golden has the closed report profile");
+                assert_eq!(golden.to_text(format).unwrap(), expected);
+                let instantiated = golden_at_item_budget(&golden, options.max_item_bytes)
+                    .to_text(format)
+                    .expect("the same golden with the actual configured ceiling renders");
+                assert_eq!(text, instantiated);
                 if format == raf_rdf::Format::NTriples {
-                    let mut triples: Vec<&str> = text.lines().collect();
-                    triples.sort_unstable();
                     assert_eq!(
-                        format!("{}\n", triples.join("\n")),
+                        sorted_triples(&expected),
                         include_str!("../../tests/fixtures/reports/lines-error.oracle.nt")
                     );
+                    assert_eq!(sorted_triples(&text), sorted_triples(&instantiated));
                 }
             }
         }
