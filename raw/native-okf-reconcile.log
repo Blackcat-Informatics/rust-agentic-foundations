@@ -1,0 +1,4 @@
+cap:okf-profile  contract  assessment-stale  the section assessed again with assess (`assessment:okf-profile-contract`: the section `cap:okf-profile#contract` has changed since)
+cap:okf-profile  contract  assessment-stale  the section assessed again with assess (`assessment:okf-profile-contract`: the symbol `raf_okf::Number::compare` has changed since)
+cap:okf-profile  contract  assessment-stale  the section assessed again with assess (`assessment:okf-profile-contract`: the symbol `raf_okf::Number::exact` is an input now and was not then)
+cap:okf-profile  verification  assessment-stale  the section assessed again with assess (`assessment:okf-profile-verification`: the section `cap:okf-profile#verification` has changed since)

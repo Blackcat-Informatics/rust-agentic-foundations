@@ -1,0 +1,16 @@
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-okf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.28s
+     Running tests/alloc_bound.rs (/opt/.cargo/17/3e17776e99e3b1/debug/build/raf-okf/166abd4dbbe1152e/out/alloc_bound-166abd4dbbe1152e)
+
+running 1 test
+test refused_documents_stay_within_eight_times_their_size ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+     Running tests/bounds.rs (/opt/.cargo/17/3e17776e99e3b1/debug/build/raf-okf/ae1a8030d0f5c67b/out/bounds-ae1a8030d0f5c67b)
+
+running 1 test
+test a_long_heading_over_many_lines_stays_linear ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.71s
+

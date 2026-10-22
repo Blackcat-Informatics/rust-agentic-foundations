@@ -1,0 +1,581 @@
+assess cap:okf-profile#contract
+record assessment:okf-profile-contract (work/assessments/okf-profile-contract.md)
+section docs/capabilities/okf-profile.md
+    Contract
+    
+    The facts of the profile, which are the document types, the closed key sets, the
+    value rules, the body rules and the syntax of the PROPOSED blocks, the generated
+    blocks and the claim markers, are stated
+    once, in [the RAF profile of OKF](../architecture/okf-profile.md). `raf-okf`
+    implements that page and adds no rule of its own. This document states only what the
+    crate does with it.
+    
+    **Parse.** `Document::parse` takes the text of one file and returns the frontmatter
+    and a body model. It fails with a positioned error when the file has no frontmatter
+    fence on line 1, when the YAML does not parse, or when the YAML is not a mapping.
+    SPDX lines are YAML comments inside the frontmatter and are preserved. Comments are
+    kept with the key they belong to: a full-line comment or blank line attaches to the
+    key that follows it, a trailing ` # comment` stays on its line, and comments after
+    the last key stay last. The frontmatter accepts the subset of YAML stated in
+    [the RAF profile of OKF](../architecture/okf-profile.md#frontmatter-subset) and
+    refuses the rest. Numbers are read as strings.
+    
+    **Resource bounds.** Documents are read from sources the reader may not control, so
+    `Document::parse` bounds its input and fails with a positioned error and never a
+    panic, abort or unbounded allocation:
+    
+    - the text is at most 1 MiB;
+    - YAML nesting is at most 32 levels, and the check runs before any recursive
+      descent can overflow the stack;
+    - YAML anchors, aliases and merge keys are refused, because the closed key schema
+      has no use for them and an alias expansion can grow without bound;
+    - Markdown block nesting (quotes and lists) is at most 64 levels;
+    - a link destination or title is at most 4096 bytes, not counting the delimiters of a
+      title or of an angle-bracket destination. This bounds the link scanner, which
+      would otherwise rescan a long paragraph for every `](`. A longer part is a
+      positioned error, never a link that is silently not read.
+    
+    **Document types.** The profile has six types: the documents `Capability`, `Change`
+    and `Architecture`, which people write, and the records `Evidence`, `Assessment` and
+    `Coverage`, which state a result in their frontmatter. `DocType::ALL` lists them.
+    
+    **Validate.** `Profile::validate` checks a parsed document and its path against the
+    closed key set of its `type` and returns a typed result: the typed document
+    (`RafDocument`, with `State`, `Bindings`, `Affects` entries, `ChangeItem` entries and
+    their `Outcome`), a record as `RafDocument::Evidence`, `RafDocument::Assessment` or
+    `RafDocument::Coverage`, holding an `EvidenceRecord`, an `AssessmentRecord` or a
+    `CoverageRecord` with a `RecordHeader`, since a record has no `title` and no
+    `description`, or the list of every violation, not only the first. Each violation
+    names the file, the rule and, for a frontmatter rule, the key; a body rule names the
+    section or the line instead. The rules are:
+    
+    - the key set comes from one table per type, in the order of the architecture page. A
+      key outside the table, a missing required key, and the base key `resource` (a rule of
+      its own, which names the key set of the type) are violations. The optional keys
+      `tags` and `timestamp` may be absent;
+    - a missing `type`, or one outside `DocType::ALL`, is the only violation reported for
+      that document, because no key set applies;
+    - a document of a known type sits directly in the directory of its type;
+    - the `id` carries the prefix of its type and a kebab-case slug equal to the file name
+      without `.md`; `title` and `description` are non-empty strings;
+    - `state` is an enumeration, and `bindings` is a map with exactly `code`, `tests` and
+      `examples`, each a list. A `designed` or `considered` capability binds nothing, and a
+      `delivered` one binds at least one `code` and one `tests` entry;
+    - `depends` and `changes` hold capability ids (`changes` at least one), `affects`
+      entries are parsed into a capability id and one of the seven sections, and name a
+      capability listed in `changes`; `contract_effect` is `none` or `changes`; `items`
+      entries are parsed into a non-empty claim and an optional outcome
+      (`implemented`, `dropped` or `moved:change:<slug>`). `Outcome` and `LinkTarget`
+      are exhaustive enums, because the profile closes both sets: a consumer matches
+      every variant with no fallback arm, and a new variant is a breaking change;
+    - `tags` is a list of non-empty strings with no duplicate, and `timestamp` is an RFC
+      3339 date and time;
+    - a Capability body holds the seven sections in order, none empty; a Change body holds
+      a non-empty `Summary`; an Architecture body is not empty; a record body is empty. A
+      section is empty when nothing is left after its HTML comments and generated blocks
+      are removed;
+    - a PROPOSED block appears only in a Capability and only inside a section;
+    - a claim marker appears only in a Capability: one in any other document is a
+      violation;
+    - no prose line, title, description or item claim holds a placeholder token, and
+      no link is split across lines. `Body::placeholder_lines` returns the
+      placeholder tokens of any body, with their lines, by the same rule, so a caller
+      that reads Markdown without frontmatter applies the rule `Profile::validate`
+      applies; fenced code, code spans and HTML comments are not read.
+    
+    The records follow the key table and value rules of the architecture page:
+    
+    - evidence and an assessment share the trace keys `subject`, `inputs`, `verdict`
+      and `by`. The subject is parsed into an `EvidenceSubject` (`command` or
+      `binding:<path>`) or a `SectionRef`, each input row into an `Input` with its
+      `InputKind` and a digest of 64 lowercase hexadecimal digits, the verdict into
+      an `EvidenceVerdict` or an `AssessmentVerdict`, and `by` into an `Actor`, which
+      is `human` or `agent` and never the name of a person;
+    - evidence names the capabilities it covers in `for`, takes `symbol` inputs
+      only, and states `command` exactly when its subject is `command`; `revision`
+      is a full commit id; `values` and `limits` hold `Number`s, each limit of
+      evidence that passes names a value, and evidence that passes holds no value
+      above its limit, compared exactly on retained native decimal values
+      (`Number::compare`). `Number::exact` borrows that value without reparsing;
+      textual equality retains the authored spelling, while numeric comparison
+      ignores padding and the sign of zero. `Number::value` is a display conversion
+      to the nearest float and retains the authored sign of zero;
+    - an assessment holds the `section` input of its subject;
+    - the coverage record is `coverage:default` at `work/coverage/default.md`. Its
+      `scope` holds distinct crate package names, and each exclusion an
+      `ExclusionItem` below a crate root with a non-empty reason; a crate root is
+      refused;
+    - `DocType`, `InputKind`, `Actor`, `EvidenceVerdict`, `AssessmentVerdict`,
+      `EvidenceSubject` and `ExclusionItem` are exhaustive enums, because the profile
+      closes each set.
+    
+    Checks that need other documents, such as whether an id exists or whether a graph is
+    acyclic, belong to [the document model](./workplan-document-model.md); `raf-okf`
+    validates one document at a time. Prose that talks about future work is not a
+    violation: the crate takes no position on tense.
+    
+    **Body model.** The body is parsed into a structure that tools query instead of
+    re-scanning text. `Document::parse` builds the body of a document through
+    `Body::parse`, which also reads Markdown that has no frontmatter, such as a README: a
+    leading `---` fence closed by a later `---` line is skipped, and otherwise the whole
+    text is the body. Every span the model returns carries both line numbers and byte
+    offsets, in the coordinates of the whole text. Line ranges are 1-based and half-open,
+    as are byte ranges, so a span on line `n` alone has the lines `n..n+1`. The model
+    holds:
+    
+    - headings of levels 1 to 6 outside fenced code, each with its GitHub anchor (repeats
+      numbered `-1`, `-2`), and a check whether an anchor exists;
+    - second-level sections, each with its heading, its slug and a span that starts on the
+      line after the heading and ends before the next second-level heading;
+    - links, each with its target, its anchor, its line and its form: inline link, image,
+      reference definition, `href` attribute or `src` attribute. Links inside fenced
+      code, code spans of any backtick length and HTML comments are not links. A target
+      resolves against the path of the linking document to an external target, a
+      fragment, or a path inside the repository, and a target that climbs above the root
+      or is an absolute path is an error, never clamped. A link inside a block quote reads
+      the same on every quoted line;
+    - split links: an inline link or image whose text or parentheses span a line break is
+      not read as a link and is recorded with its line, so that a split link is a
+      violation;
+    - fenced code blocks, matched by character and length and recognised inside block
+      quotes and lists, so markers inside a fence are never read as markers. Each block
+      has its span, its info string, its content (`FencedBlock::content`, the text between
+      the fence lines as written) and whether a closing fence ends it
+      (`FencedBlock::is_closed`); a block that is never closed runs to the end of the body;
+    - generated blocks, each with its kind, its outer span (markers included) and its
+      content span (markers excluded);
+    - PROPOSED blocks, each with the change slug it names, its span, its marker line, its
+      unquoted content and the section that holds it;
+    - prose lines: the lines outside fenced code and HTML comments with code spans
+      removed, each with its section and whether it lies in a PROPOSED or generated block;
+    - claims: `Body::claims` returns each claim marker outside fenced code, code spans
+      and PROPOSED blocks as a `Claim`: the evidence slugs it names, its line, its marker
+      span, the span of the paragraph or list item it supports, and its section.
+    
+    A malformed PROPOSED marker in any spelling, an unclosed generated block, a nested
+    generated block and an end marker without a start are parse errors with line numbers.
+    So are block quotes and list items nested over 64 levels and, outside fenced code,
+    code spans and PROPOSED blocks, a malformed claim marker, a claim marker with no
+    statement directly above it, and a `raf:` comment that is neither a `raf:generated:`
+    comment nor a claim marker, so a misspelt claim marker never reads as a plain comment.
+    A marker is one line: an HTML comment that `<!--` opens at the end of a line, outside
+    its code spans, and whose first non-blank text on the lines below is `raf:` in any
+    letter case and not `raf:generated:`, is the same error at the line of `<!--`,
+    `okf-parse-malformed-claim` for `raf:claim` and `okf-parse-unknown-marker` for
+    another word, so a claim marker split over lines never reads as a plain comment
+    either. A multi-line `raf:generated:` comment, an SPDX header written over several
+    lines and every other multi-line comment are plain comments. `Body::replace_spans`
+    applies non-overlapping byte-range edits in one pass and reads the model again; it
+    is all or nothing, and it fails with a typed error for a range outside the body, a
+    range inside a character, two ranges that overlap, or a result that no longer
+    parses. `Document` and `Index` delegate to it.
+    
+    **Write.** `Document::render` writes a document back. The writer is deterministic
+    and round-trips: parsing the output yields an equal document, and rendering a
+    document that was produced by `render` returns identical bytes. Key order follows
+    the order of the profile table: the keys of the document's type come first in table
+    order, then any other keys in input order, and a document of an unknown type keeps
+    input order. The top-level `tags` list is put in sorted order when a document is
+    parsed or built, so it is written sorted and a document equals the reading of its own
+    rendering; every other list keeps author order. Comments travel with the key they are attached to, and the body is written
+    unchanged apart from the replaced spans that a caller supplies, such as a generated
+    block. Two documents are equal when their keys, compared as a map, have equal values
+    and equal attached comments, and their bodies hold the same bytes.
+    
+    **Writing records.** `EvidenceRecord::new`, `AssessmentRecord::new` and
+    `CoverageRecord::new` build a record with its header (`RecordHeader::new`), from
+    `Input::new`, `SectionRef::new`, `Measure::new` and `Exclusion::new`; the
+    constructors judge nothing. `EvidenceRecord::to_document`,
+    `AssessmentRecord::to_document` and `CoverageRecord::to_document` write a record as
+    a document with its keys in key-table order, its lists and measures in record
+    order, numbers unquoted as written, an empty list as `[]`, absent optional keys left
+    out, and an empty body. `Profile::validate` reads the rendering back as an equal
+    record when the values satisfy the profile, and refuses it with the violations
+    otherwise; a value the frontmatter cannot hold is a `ConstructError`.
+    `EvidenceVerdict::name`, `AssessmentVerdict::name` and `EvidenceSubject::text` give
+    the values of the keys.
+    
+    **Index handling.** `docs/capabilities/index.md` is the one navigation file in the
+    capability directory. `is_capability_index` is true for that path and false for any
+    other, including `docs/index.md`. `Index::parse` accepts a text only when apart from an
+    SPDX header comment (one line, or several between `<!--` and `-->` lines, each tag with
+    a value) every non-blank line lies inside a generated block and each marker starts its
+    own line with no indentation. Prose, an indented or mid-line marker, an empty header
+    tag, a header after a block, an unclosed block and a text with no block are errors with
+    a line. The text of an index never parses as a Capability document: `Document::parse`
+    fails on it at line 1. `Index::render` returns the text, and `Index::replace_spans`
+    replaces a block and refuses an edit that leaves anything but an index.
+    
+    Scalar escape values, numeric quoting, calendar validation, exact decimal
+    comparison and canonical hexadecimal decoding use PurRDF primitives. The
+    document boundary retains the closed profile: six permitted escapes, the
+    authored decimal grammar, uppercase timestamp separators and no leap seconds.
+    Timestamp diagnostics first check date, clock and fraction syntax, then
+    calendar and clock ranges, then the complete offset syntax and its ranges.
+    Thus an incomplete date is malformed even when its month is invalid, while
+    an invalid month in a complete date and clock precedes a missing timezone.
+    
+symbol raf_okf::AssessmentRecord (named in the section)
+  in crates/raf-okf/src/profile/typed.rs
+    /// An assessment record: the verdict on one authored section and the inputs
+    /// it was given.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct AssessmentRecord {
+        /// The shared keys.
+        pub header: RecordHeader,
+        /// The section assessed.
+        pub subject: SectionRef,
+        /// The inputs, one of them the `section` row of the subject.
+        pub inputs: Vec<Input>,
+        /// The verdict.
+        pub verdict: AssessmentVerdict,
+        /// Who assessed.
+        pub by: Actor,
+    }
+symbol raf_okf::AssessmentRecord::new (named in the section)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The assessment record `assessment:<slug>` with no tags and no
+        /// timestamp. The values are not checked here; see
+        /// [`AssessmentRecord::to_document`].
+        #[must_use]
+        pub fn new(
+            slug: impl Into<String>,
+            subject: SectionRef,
+            inputs: Vec<Input>,
+            verdict: AssessmentVerdict,
+            by: Actor,
+        ) -> Self {
+            Self {
+                header: RecordHeader::new(DocType::Assessment, slug),
+                subject,
+                inputs,
+                verdict,
+                by,
+            }
+        }
+symbol raf_okf::AssessmentRecord::to_document (named in the section)
+  in crates/raf-okf/src/profile/write.rs
+    /// The record as a document, with its keys in the order of the profile's
+        /// key table and an empty body; see [`EvidenceRecord::to_document`].
+        ///
+        /// # Errors
+        ///
+        /// A [`ConstructError`] when a value cannot be written in the frontmatter
+        /// subset.
+        pub fn to_document(&self) -> Result<Document, ConstructError> {
+            let mut entries = header(DocType::Assessment, &self.header)?;
+            entries.push(text("subject", &self.subject.text())?);
+            entries.push(inputs(&self.inputs)?);
+            entries.push(text("verdict", self.verdict.name())?);
+            entries.push(text("by", self.by.name())?);
+            document(entries)
+        }
+symbol raf_okf::Claim (named in the section)
+  in crates/raf-okf/src/body/marker.rs
+    /// A claim marker, `<!-- raf:claim evidence=<slug>[,<slug>...] -->`, and the
+    /// statement it is attached to: the paragraph or list item directly above it.
+    ///
+    /// ```rust
+    /// use raf_okf::Body;
+    ///
+    /// let text = "## Contract\n\nParsing stays under 64 MiB.\n<!-- raf:claim evidence=memory-bound -->\n";
+    /// let body = Body::parse(text).expect("a body");
+    /// let claim = &body.claims()[0];
+    /// assert_eq!(claim.evidence(), ["memory-bound"]);
+    /// assert_eq!(claim.line(), 4);
+    /// assert_eq!(claim.section(), Some("contract"));
+    /// assert_eq!(&text[claim.statement().bytes.clone()], "Parsing stays under 64 MiB.\n");
+    /// ```
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Claim {
+        evidence: Vec<String>,
+        marker: Span,
+        statement: Span,
+        section: Option<Arc<str>>,
+    }
+symbol raf_okf::CoverageRecord (named in the section)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The coverage record of a repository.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct CoverageRecord {
+        /// The shared keys.
+        pub header: RecordHeader,
+        /// The package names of the crates whose coverage is enforced; empty to
+        /// enforce none.
+        pub scope: Vec<String>,
+        /// The exclusions, in author order.
+        pub exclusions: Vec<Exclusion>,
+    }
+symbol raf_okf::CoverageRecord::new (named in the section)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The coverage record `coverage:default` with no tags and no timestamp.
+        /// The values are not checked here; see [`CoverageRecord::to_document`].
+        #[must_use]
+        pub fn new(scope: Vec<String>, exclusions: Vec<Exclusion>) -> Self {
+            Self {
+                header: RecordHeader::new(DocType::Coverage, COVERAGE_SLUG),
+                scope,
+                exclusions,
+            }
+        }
+symbol raf_okf::CoverageRecord::to_document (named in the section)
+  in crates/raf-okf/src/profile/write.rs
+    /// The record as a document, with its keys in the order of the profile's
+        /// key table, the exclusions in record order and an empty body; an empty
+        /// `scope` or `exclusions` is written `[]`. See
+        /// [`EvidenceRecord::to_document`].
+        ///
+        /// # Errors
+        ///
+        /// A [`ConstructError`] when a value cannot be written in the frontmatter
+        /// subset.
+        pub fn to_document(&self) -> Result<Document, ConstructError> {
+            let mut entries = header(DocType::Coverage, &self.header)?;
+            entries.push(flow("scope", &self.scope)?);
+            entries.push(rows(
+                "exclusions",
+                self.exclusions
+                    .iter()
+                    .map(|exclusion| {
+                        let item = match &exclusion.item {
+                            ExclusionItem::Item(path) => path.clone(),
+                            ExclusionItem::Prefix(path) => format!("{path}::*"),
+                        };
+                        vec![("item", item), ("reason", exclusion.reason.clone())]
+                    })
+                    .collect(),
+            )?);
+            document(entries)
+        }
+symbol raf_okf::Document (named in the section)
+  in crates/raf-okf/src/document.rs
+    /// A Markdown document with YAML frontmatter.
+    ///
+    /// The top-level `tags` list is held in sorted order, which is the order the
+    /// writer emits, so a document equals the reading of its own rendering. Items
+    /// keep their attached comments.
+    ///
+    /// Two documents are equal when their frontmatter mappings are equal as maps
+    /// (values and attached comments included, key order aside), their comments
+    /// after the last key are equal, and their bodies hold the same bytes. The
+    /// line ending of the fences and a missing final newline are layout, not
+    /// content, and do not take part.
+    #[derive(Debug, Clone)]
+    pub struct Document {
+        frontmatter: Frontmatter,
+        body: Body,
+        eol: LineEnding,
+        closing_newline: bool,
+    }
+symbol raf_okf::EvidenceRecord (named in the section)
+  in crates/raf-okf/src/profile/typed.rs
+    /// An evidence record: one execution, the capabilities it covers, its
+    /// verdict, and the inputs whose digests it was made against.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct EvidenceRecord {
+        /// The shared keys.
+        pub header: RecordHeader,
+        /// Where the verdict came from.
+        pub subject: EvidenceSubject,
+        /// The inputs, each a `symbol` row, non-empty.
+        pub inputs: Vec<Input>,
+        /// The verdict.
+        pub verdict: EvidenceVerdict,
+        /// Who recorded it.
+        pub by: Actor,
+        /// The capability ids the evidence covers (the `for` key), non-empty.
+        pub covers: Vec<String>,
+        /// The command that ran, present exactly when the subject is
+        /// [`EvidenceSubject::Command`].
+        pub command: Option<String>,
+        /// The commit the execution ran at, when it was given.
+        pub revision: Option<String>,
+        /// The measured values, in author order; empty when the key is absent.
+        pub values: Vec<Measure>,
+        /// The limits, each naming a measured value; empty when the key is absent.
+        pub limits: Vec<Measure>,
+    }
+symbol raf_okf::EvidenceRecord::new (named in the section)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The evidence record `evidence:<slug>` with no tags, no timestamp, no
+        /// command, no revision and no measures; set the fields that apply. The
+        /// values are not checked here: [`EvidenceRecord::to_document`] writes
+        /// the record and [`Profile::validate`](crate::Profile::validate) judges
+        /// the text it renders to.
+        #[must_use]
+        pub fn new(
+            slug: impl Into<String>,
+            subject: EvidenceSubject,
+            inputs: Vec<Input>,
+            verdict: EvidenceVerdict,
+            by: Actor,
+            covers: Vec<String>,
+        ) -> Self {
+            Self {
+                header: RecordHeader::new(DocType::Evidence, slug),
+                subject,
+                inputs,
+                verdict,
+                by,
+                covers,
+                command: None,
+                revision: None,
+                values: Vec::new(),
+                limits: Vec::new(),
+            }
+        }
+symbol raf_okf::EvidenceRecord::to_document (named in the section)
+  in crates/raf-okf/src/profile/write.rs
+    /// The record as a document, with its keys in the order of the profile's
+        /// key table, the measures in record order and an empty body. Its
+        /// [`Document::render`] is the text of `work/evidence/<slug>.md`, which
+        /// [`Profile::validate`](crate::Profile::validate) reads back as a record
+        /// equal to this one when the values satisfy the profile. Comments are
+        /// not part of the typed value and are not written.
+        ///
+        /// ```rust
+        /// use raf_okf::{
+        ///     Actor, Document, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Input, InputKind,
+        ///     Profile, RafDocument,
+        /// };
+        ///
+        /// let digest = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+        /// let mut record = EvidenceRecord::new(
+        ///     "parse-bound",
+        ///     EvidenceSubject::Command,
+        ///     vec![Input::new(InputKind::Symbol, "raf_okf::Document::parse", digest)],
+        ///     EvidenceVerdict::Pass,
+        ///     Actor::Agent,
+        ///     vec!["cap:okf-profile".to_string()],
+        /// );
+        /// record.command = Some("cargo bench parse".to_string());
+        /// let text = record.to_document()?.render();
+        /// let read = Document::parse(&text)?;
+        /// match Profile.validate(&read, "work/evidence/parse-bound.md") {
+        ///     Ok(RafDocument::Evidence(back)) => assert_eq!(back, record),
+        ///     other => panic!("{other:?}"),
+        /// }
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// A [`ConstructError`] when a value cannot be written in the frontmatter
+        /// subset, such as a control character with no escape or a measure name
+        /// that is not a key.
+        pub fn to_document(&self) -> Result<Document, ConstructError> {
+            let mut entries = header(DocType::Evidence, &self.header)?;
+            entries.push(text("subject", &self.subject.text())?);
+            entries.push(inputs(&self.inputs)?);
+            entries.push(text("verdict", self.verdict.name())?);
+            entries.push(text("by", self.by.name())?);
+            entries.push(flow("for", &self.covers)?);
+            if let Some(command) = &self.command {
+                entries.push(text("command", command)?);
+            }
+            if let Some(revision) = &self.revision {
+                entries.push(text("revision", revision)?);
+            }
+            entries.extend(measures("values", &self.values)?);
+            entries.extend(measures("limits", &self.limits)?);
+            document(entries)
+        }
+symbol raf_okf::Index (named in the section)
+  in crates/raf-okf/src/index.rs
+    /// A generated index: an optional SPDX header comment, then generated blocks
+    /// and nothing else but blank lines.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Index {
+        body: Body,
+    }
+symbol raf_okf::Number::compare (named in the section)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The order of the retained native exact decimal values of `self` and
+        /// `other`, using `PurRDF`'s value comparison. Padding does not change the
+        /// value, and negative zero equals zero. No text is reparsed and no
+        /// floating-point value is read.
+        ///
+        /// ```rust
+        /// use std::cmp::Ordering;
+        /// use raf_okf::Number;
+        ///
+        /// let n = |text| Number::parse(text).expect("a number");
+        /// assert_eq!(n("9007199254740993").compare(&n("9007199254740992")), Ordering::Greater);
+        /// assert_eq!(n("0.30000000000000001").compare(&n("0.3")), Ordering::Greater);
+        /// assert_eq!(n("1.50").compare(&n("01.5")), Ordering::Equal);
+        /// assert_eq!(n("-0").compare(&n("0.0")), Ordering::Equal);
+        /// assert_eq!(n("-2").compare(&n("-1.5")), Ordering::Less);
+        /// ```
+        #[must_use]
+        pub fn compare(&self, other: &Self) -> Ordering {
+            self.value.cmp(&other.value)
+        }
+symbol raf_okf::Number::exact (named in the section)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The retained native exact decimal value, borrowed without parsing or
+        /// allocating again. Numeric equality ignores authored zero padding and
+        /// the sign of zero; [`Number::text`] and `Number` equality keep the spelling.
+        ///
+        /// ```rust
+        /// use raf_okf::Number;
+        ///
+        /// let percent = Number::parse("0.30000000000000001").expect("decimal");
+        /// let hundred = Number::parse("100").expect("integer");
+        /// let product = percent.exact().try_mul(hundred.exact()).expect("finite scale");
+        /// assert!(product > *Number::parse("30").expect("integer").exact());
+        /// assert_eq!(Number::parse("-0").unwrap().exact(), Number::parse("0.0").unwrap().exact());
+        /// ```
+        #[must_use]
+        pub fn exact(&self) -> &purrdf_xsd::exact::Decimal {
+            &self.value
+        }
+symbol raf_okf::RafDocument (named in the section)
+  in crates/raf-okf/src/profile/typed.rs
+    /// A document that satisfies the RAF profile.
+    ///
+    /// The profile closes the set of types, so the enum is exhaustive.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum RafDocument {
+        /// A capability document.
+        Capability(Capability),
+        /// A change record.
+        Change(Change),
+        /// An architecture page.
+        Architecture(Architecture),
+        /// An evidence record.
+        Evidence(EvidenceRecord),
+        /// An assessment record.
+        Assessment(AssessmentRecord),
+        /// The coverage record.
+        Coverage(CoverageRecord),
+    }
+symbol raf_okf::is_capability_index (named in the section)
+  in crates/raf-okf/src/index.rs
+    /// True for the path of the capability index, `docs/capabilities/index.md`,
+    /// relative to the repository root. The file is never read as a Capability
+    /// document.
+    #[must_use]
+    pub fn is_capability_index(path: &str) -> bool {
+        path == CAPABILITY_INDEX || path.strip_prefix("./") == Some(CAPABILITY_INDEX)
+    }
+inputs
+  section cap:okf-profile#contract 01e83b69dd71a64af8cc9a7fdee3be0a8c8b41537b146b877dabc3a543638375
+  symbol raf_okf::AssessmentRecord e2544d04538334c12e007895f8ce5bb62d872af8632307fbf3e555002a2f1fba
+  symbol raf_okf::AssessmentRecord::new 680de6b423f7e372f446d390bac68c96ab54ec655d619069b561ebaae4735c53
+  symbol raf_okf::AssessmentRecord::to_document e333a66b2886306350e41f0180271512a17a13431c250499c3a3d2d2781b153a
+  symbol raf_okf::Claim 88fb57fe01e0ec7c9d76b53c54b062778479f231c80958b50bf55b3e3ba6af94
+  symbol raf_okf::CoverageRecord 1936279db096795a69d12628f4b79931745911356eac421f6b29cf6046d4d3d6
+  symbol raf_okf::CoverageRecord::new f5d492af97b2768bbd4e815de585443076ffa23b71256cf267449970902f659b
+  symbol raf_okf::CoverageRecord::to_document 62a4d309688a6b54d3d318f2a8f8a572f3f587abee3638a016730b5360401923
+  symbol raf_okf::Document 747b2de85404458db2c2956c717070b6d375ab2201134b5de3cae312fd35bda3
+  symbol raf_okf::EvidenceRecord ead5006cba58985026c73484beb92adf522f2c72b6acfd82a2b27605fa2536d9
+  symbol raf_okf::EvidenceRecord::new c8336048562554dea5b043881555778f9bf3d31274e5d7e2845dc128f4f9d3ef
+  symbol raf_okf::EvidenceRecord::to_document 14ac2c27515a95f662b1848855823b4b76095880725c1484030ea510ab2f691b
+  symbol raf_okf::Index d1291272ea1f8dd3647998100c9ce3dd8fd1eb766c1019b5ba70f8f39b753289
+  symbol raf_okf::Number::compare 0875a29a60f21282684d2e36333b55faf3cbd86380ee4a02971f8ecd25013802
+  symbol raf_okf::Number::exact 7a010c7efe9cdaa32b00d68b6d178b3971ed6a4092179b828069dc1f631b96ba
+  symbol raf_okf::RafDocument b96975a21ad9196347bf8d36e107af21256a4c0ef824a82831dca4e0ac248713
+  symbol raf_okf::is_capability_index 21e3c6cc7da15bbf2ebdbf75c59fe8ac89e67262bf39009e019259bf18b692b0

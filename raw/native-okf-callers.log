@@ -1,0 +1,53 @@
+     Locking 4 packages to highest Rust 1.98.1 compatible versions
+      Adding purrdf-alloc-probe v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+      Adding purrdf-hash v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+      Adding purrdf-lex v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+      Adding purrdf-xsd v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-hash v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling serde_core v1.0.229
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+    Checking unicode-ident v1.0.27
+   Compiling libc v0.2.190
+    Checking winnow v1.0.4
+   Compiling rustix v1.1.5
+    Checking linux-raw-sys v0.12.1
+    Checking bitflags v2.13.2
+   Compiling zmij v1.0.23
+    Checking cap v0.1.2
+    Checking purrdf-alloc-probe v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking anstyle v1.0.14
+   Compiling serde_json v1.0.154
+    Checking strsim v0.11.1
+    Checking clap_lex v1.1.1
+   Compiling heck v0.5.0
+    Checking memchr v2.8.3
+    Checking itoa v1.0.18
+    Checking purrdf-lex v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking clap_builder v4.6.7
+    Checking toml_parser v1.1.5+spec-1.1.0
+    Checking purrdf-xsd v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking syn v3.0.8
+    Checking toml_datetime v1.1.2+spec-1.1.0
+    Checking serde_spanned v1.1.2
+    Checking toml v1.1.8+spec-1.1.0
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-source)
+   Compiling clap_derive v4.6.7
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-okf)
+    Checking clap v4.6.7
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-workplan)
+error: couldn't read `crates/raf-okf/tests/fixtures/debt.md`: No such file or directory (os error 2)
+   --> crates/raf-okf/tests/render.rs:176:9
+    |
+176 |         include_str!("fixtures/debt.md"),
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no variant, associated function, or constant named `Debt` found for enum `raf_okf::DocType` in the current scope
+   --> crates/raf-okf/tests/render.rs:174:18
+    |
+174 |         DocType::Debt,
+    |                  ^^^^ variant, associated function, or constant not found in `raf_okf::DocType`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `raf-okf` (test "render") due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...

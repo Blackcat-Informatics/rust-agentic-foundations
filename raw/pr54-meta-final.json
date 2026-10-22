@@ -1,0 +1,13 @@
+{
+  "baseRefName": "main",
+  "baseRefOid": "1b2291298a86bc18d472c5676cde2d965014bf31",
+  "headRefName": "paudley/53-complete-purrdf-adoption-and-enforce",
+  "headRefOid": "164904e7b9b8a4a402aceb3447644e95753c4f11",
+  "isDraft": false,
+  "mergeCommit": null,
+  "mergedAt": null,
+  "number": 54,
+  "state": "OPEN",
+  "title": "refactor(core): reuse PurRDF scalar and fingerprint primitives",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/54"
+}

@@ -1,0 +1,136 @@
+   Compiling purrdf-hash v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling cap v0.1.2
+   Compiling purrdf-alloc-probe v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-lex v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-xsd v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-okf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.78s
+     Running tests/alloc_bound.rs (/opt/.cargo/17/3e17776e99e3b1/debug/build/raf-okf/166abd4dbbe1152e/out/alloc_bound-166abd4dbbe1152e)
+
+running 1 test
+test refused_documents_stay_within_eight_times_their_size ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+     Running tests/body_robustness.rs (/opt/.cargo/17/3e17776e99e3b1/debug/build/raf-okf/54d81f85cbafd9ce/out/body_robustness-54d81f85cbafd9ce)
+
+running 1 test
+test random_token_soup_never_panics_and_parsed_spans_lie_in_the_text ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.26s
+
+     Running tests/bounds.rs (/opt/.cargo/17/3e17776e99e3b1/debug/build/raf-okf/ae1a8030d0f5c67b/out/bounds-ae1a8030d0f5c67b)
+
+running 1 test
+test a_long_heading_over_many_lines_stays_linear ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.80s
+
+     Running tests/records.rs (/opt/.cargo/17/3e17776e99e3b1/debug/build/raf-okf/03caea18d7377a18/out/records-03caea18d7377a18)
+
+running 26 tests
+test a_record_type_is_named_in_the_unknown_type_message ... ok
+test a_passing_record_holds_no_value_above_its_limit ... ok
+test a_valid_evidence_record_validates_to_its_typed_value ... ok
+test a_valid_coverage_record_validates_and_an_empty_scope_opts_out_visibly ... ok
+test an_assessment_holds_the_section_row_of_its_subject ... ok
+test a_valid_assessment_validates_to_its_typed_value ... ok
+test a_list_that_holds_each_entry_once_refuses_a_repeat ... ok
+test a_digest_is_sixty_four_lowercase_hex_digits ... ok
+test an_exclusion_has_a_reason_with_no_placeholder ... ok
+test a_revision_is_a_full_commit_id ... ok
+test a_record_sits_in_its_directory_and_its_id_matches_its_file ... ok
+test coverage_is_one_record_at_its_one_path ... ok
+test for_lists_at_least_one_capability_id ... ok
+test by_is_human_or_agent_and_never_a_name ... ok
+test a_record_has_no_title_description_or_body ... ok
+test evidence_from_a_bound_test_has_no_command_and_may_have_no_measures ... ok
+test an_exclusion_names_an_item_or_a_module_prefix_below_a_crate_root ... ok
+test an_input_kind_is_one_the_type_takes_and_its_name_fits_the_kind ... ok
+test scope_holds_crate_package_names ... ok
+test a_verdict_is_one_of_the_verdicts_of_its_type ... ok
+test numbers_compare_exactly_by_sign_whole_part_and_fraction ... ok
+test input_rows_have_exactly_kind_name_and_digest ... ok
+test the_command_key_is_present_exactly_when_the_subject_is_command ... ok
+test a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float ... ok
+test the_subject_takes_the_form_of_its_type ... ok
+test values_and_limits_are_numbers_and_each_limit_names_a_value ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/refusals.rs (/opt/.cargo/17/3e17776e99e3b1/debug/build/raf-okf/1fe40c432abb63c7/out/refusals-1fe40c432abb63c7)
+
+running 29 tests
+test a_billion_laughs_document_is_refused_at_the_first_anchor ... ok
+test a_document_without_a_fence_on_line_one_is_refused ... ok
+test a_colon_space_inside_a_flow_list_is_refused ... ok
+test a_frontmatter_that_is_not_a_block_mapping_is_refused ... ok
+test a_duplicate_key_is_refused_at_every_level ... ok
+test a_frontmatter_fence_line_with_a_trailing_space_is_not_a_fence ... ok
+test a_leading_byte_order_mark_is_refused_at_line_one_column_one ... ok
+test a_flow_mapping_value_is_refused_naming_the_key ... ok
+test an_unclosed_fence_is_refused_at_the_opening_fence ... ok
+test a_nul_in_the_body_is_kept_and_renders_back ... ok
+test an_unterminated_quote_and_text_after_a_quote_are_refused ... ok
+test block_indicators_inside_an_items_entry_are_refused ... ok
+test block_scalars_are_refused_naming_the_header ... ok
+test flow_list_shape_errors_are_refused ... ok
+test items_keep_their_maps_and_scalars ... ok
+test anchors_aliases_tags_and_merge_keys_are_refused_naming_the_token ... ok
+test line_endings_must_agree_within_the_frontmatter ... ok
+test numbers_booleans_and_null_are_read_as_strings ... ok
+test plain_scalars_with_a_colon_space_or_an_indicator_are_refused ... ok
+test stray_and_over_indented_lines_after_a_flow_value_are_refused ... ok
+test layout_errors_are_refused_with_their_position ... ok
+test text_that_the_reader_refuses_is_never_plain_ok ... ok
+test trailing_comments_are_not_part_of_the_value ... ok
+test unterminated_quotes_are_refused_in_flow_list_item_and_nested_item_positions ... ok
+test unknown_escapes_are_refused_and_every_known_escape_is_read ... ok
+test nesting_over_thirty_two_levels_is_refused_before_descent ... ok
+test text_that_plain_ok_accepts_is_read_back_plain_in_every_position ... ok
+test a_hundred_thousand_levels_return_an_error_on_a_small_stack ... ok
+test a_text_of_exactly_one_mebibyte_parses_and_one_more_byte_is_refused ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/render.rs (/opt/.cargo/17/3e17776e99e3b1/debug/build/raf-okf/c7b1db965d5aae45/out/render-c7b1db965d5aae45)
+
+running 22 tests
+test a_parsed_empty_value_renders_as_an_empty_value ... ok
+test a_document_of_an_unknown_type_keeps_input_order ... ok
+test a_built_document_with_sorted_tags_equals_what_it_reads_back_as ... ok
+test comments_attach_to_the_next_key_and_trailing_comments_stay_on_their_line ... ok
+test a_change_document_built_from_constructors_renders_and_reads_back_equal ... ok
+test flow_lists_are_written_in_one_spacing ... ok
+test keys_outside_the_table_follow_in_input_order ... ok
+test equality_compares_keys_as_a_map_with_comments_and_body_bytes ... ok
+test every_escape_round_trips_and_other_control_characters_are_refused ... ok
+test constructors_refuse_what_the_reader_would_not_read_back ... ok
+test a_parsed_document_equals_its_rendering_read_back ... ok
+test crlf_documents_and_a_missing_final_newline_render_byte_identically ... ok
+test the_body_span_locates_the_body_in_the_text ... ok
+test the_body_span_uses_the_coordinates_of_the_text_the_document_came_from ... ok
+test keys_out_of_order_render_in_table_order_and_then_stay_put ... ok
+test tags_render_sorted_and_stay_sorted ... ok
+test constructors_choose_a_style_the_reader_reads_back ... ok
+test record_keys_out_of_order_render_in_table_order_and_validate ... ok
+test unsorted_tags_render_sorted_and_the_document_equals_its_rendering_read_back ... ok
+test each_fixture_document_renders_to_its_own_bytes_and_validates ... ok
+test constructed_nesting_and_size_are_bounded_like_the_reader ... ok
+test every_tracked_document_renders_to_its_own_bytes ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+     Running tests/schema.rs (/opt/.cargo/17/3e17776e99e3b1/debug/build/raf-okf/c814b41efc52d211/out/schema-c814b41efc52d211)
+
+running 7 tests
+test a_type_is_found_by_its_exact_name_only ... ok
+test only_coverage_is_a_singleton_and_only_the_three_records_are_records ... ok
+test tags_and_timestamp_are_optional_and_every_other_key_is_required ... ok
+test malformed_and_out_of_range_timestamps_are_refused ... ok
+test each_type_lists_its_keys_in_the_order_of_the_architecture_page ... ok
+test valid_timestamps_are_accepted ... ok
+test timestamp_diagnostics_preserve_lexical_calendar_and_offset_order ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

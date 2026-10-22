@@ -1,0 +1,35 @@
+proc-macro2 v1.0.107
+├── clap_derive v4.6.7 (proc-macro)
+│   └── clap v4.6.7
+│       └── cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/cargo-workplan)
+├── quote v1.0.47
+│   ├── clap_derive v4.6.7 (proc-macro) (*)
+│   └── syn v3.0.8
+│       └── clap_derive v4.6.7 (proc-macro) (*)
+└── syn v3.0.8 (*)
+
+proc-macro2 v1.0.107
+├── quote v1.0.47
+│   ├── raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-source)
+│   │   ├── raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-census)
+│   │   └── raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-workplan)
+│   │       └── cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/cargo-workplan)
+│   │       [dev-dependencies]
+│   │       └── rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce)
+│   │   [dev-dependencies]
+│   │   └── rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce)
+│   └── syn v3.0.8
+│       ├── raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-census)
+│       └── raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-source) (*)
+├── raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-census)
+├── raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-source) (*)
+├── raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-workplan) (*)
+└── syn v3.0.8 (*)
+
+quote v1.0.47 (*)
+
+quote v1.0.47 (*)
+
+syn v3.0.8 (*)
+
+syn v3.0.8 (*)

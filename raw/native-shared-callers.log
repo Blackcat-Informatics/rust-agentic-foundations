@@ -1,0 +1,16 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce)
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-okf)
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-source)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce/crates/raf-census)
+error[E0599]: no method named `to_hex` found for struct `purrdf_hash::blake3::Hash` in the current scope
+   --> crates/raf-census/tests/forms.rs:414:37
+    |
+414 |         format!("body:{}", expected.to_hex().as_str())
+    |                                     ^^^^^^ method not found in `purrdf_hash::blake3::Hash`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `raf-census` (test "forms") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

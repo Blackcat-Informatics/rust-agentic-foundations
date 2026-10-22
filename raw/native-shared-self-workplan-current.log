@@ -1,0 +1,12 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/53-complete-purrdf-adoption-and-enforce)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.85s
+     Running tests/self_workplan.rs (/opt/.cargo/17/3e17776e99e3b1/debug/build/rust-agentic-foundations/6e1131ec85b26360/out/self_workplan-6e1131ec85b26360)
+
+running 1 test
+test repository_workplan_is_clean_and_assessed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.45s
+

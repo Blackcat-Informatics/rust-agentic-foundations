@@ -1,0 +1,429 @@
+diff --git crates/raf-okf/src/frontmatter/scalar.rs crates/raf-okf/src/frontmatter/scalar.rs
+index 92c58b2..38208bd 100644
+--- crates/raf-okf/src/frontmatter/scalar.rs
++++ crates/raf-okf/src/frontmatter/scalar.rs
+@@ -18,12 +18,29 @@ type Parsed<T> = Result<T, Fail>;
+ 
+ /// The one escape set of double-quoted scalars, shared by the reader and the
+ /// writer: the character after the backslash and the character it stands for.
++/// Shared ECHAR values come from the lexical library; `0` is the profile's
++/// explicit NUL extension. Other ECHAR members remain outside this profile.
+ pub const ESCAPES: [(char, char); 6] = [
+-    ('\\', '\\'),
+-    ('"', '"'),
+-    ('n', '\n'),
+-    ('r', '\r'),
+-    ('t', '\t'),
++    (
++        '\\',
++        purrdf_lex::terminals::echar_value(b'\\').expect("backslash is ECHAR"),
++    ),
++    (
++        '"',
++        purrdf_lex::terminals::echar_value(b'"').expect("double quote is ECHAR"),
++    ),
++    (
++        'n',
++        purrdf_lex::terminals::echar_value(b'n').expect("line feed is ECHAR"),
++    ),
++    (
++        'r',
++        purrdf_lex::terminals::echar_value(b'r').expect("carriage return is ECHAR"),
++    ),
++    (
++        't',
++        purrdf_lex::terminals::echar_value(b't').expect("tab is ECHAR"),
++    ),
+     ('0', '\0'),
+ ];
+ 
+@@ -448,7 +465,15 @@ fn resolves_to_non_string(text: &str) -> bool {
+         Some(rest) => rest,
+         None => lower.as_str(),
+     };
+-    text.parse::<f64>().is_ok()
++    // Rust's floating-point aliases are case-insensitive; retain that quoting
++    // subset while delegating numeric interpretation to the native XSD reader.
++    let float = match lower.as_str() {
++        "inf" | "+inf" | "infinity" | "+infinity" => "INF",
++        "-inf" | "-infinity" => "-INF",
++        "nan" | "+nan" | "-nan" => "NaN",
++        _ => text,
++    };
++    purrdf_xsd::numeric::parse_double(float).is_ok()
+         || ["0x", "0o", "0b"]
+             .iter()
+             .any(|prefix| digits.starts_with(prefix))
+diff --git crates/raf-okf/src/profile/timestamp.rs crates/raf-okf/src/profile/timestamp.rs
+index 4b5f605..c660bf7 100644
+--- crates/raf-okf/src/profile/timestamp.rs
++++ crates/raf-okf/src/profile/timestamp.rs
+@@ -34,43 +34,6 @@ impl fmt::Display for TimestampError {
+ 
+ impl Error for TimestampError {}
+ 
+-/// Read `count` ASCII digits from the front of `text`.
+-fn digits(text: &str, count: usize) -> Result<(u32, &str), TimestampError> {
+-    let (head, rest) = text
+-        .split_at_checked(count)
+-        .ok_or(TimestampError::Malformed)?;
+-    if !head.bytes().all(|b| b.is_ascii_digit()) {
+-        return Err(TimestampError::Malformed);
+-    }
+-    let value = head.parse().map_err(|_| TimestampError::Malformed)?;
+-    Ok((value, rest))
+-}
+-
+-/// Read `separator` from the front of `text`.
+-fn separator(text: &str, separator: char) -> Result<&str, TimestampError> {
+-    text.strip_prefix(separator)
+-        .ok_or(TimestampError::Malformed)
+-}
+-
+-fn in_range(value: u32, max: u32, field: &'static str) -> Result<(), TimestampError> {
+-    if value <= max {
+-        Ok(())
+-    } else {
+-        Err(TimestampError::OutOfRange { field })
+-    }
+-}
+-
+-fn days_in_month(year: u32, month: u32) -> u32 {
+-    match month {
+-        2 if year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400)) => {
+-            29
+-        }
+-        2 => 28,
+-        4 | 6 | 9 | 11 => 30,
+-        _ => 31,
+-    }
+-}
+-
+ /// Check that `text` is an RFC 3339 date and time that is also a valid
+ /// `xsd:dateTime`: four-digit year, a capital `T`, seconds from 00 to 59, an
+ /// optional fraction of one or more digits, and a capital `Z` or a numeric
+@@ -81,46 +44,30 @@ fn days_in_month(year: u32, month: u32) -> u32 {
+ /// [`TimestampError::Malformed`] when the text does not have the shape, and
+ /// [`TimestampError::OutOfRange`] when a field is outside its range.
+ pub fn validate_timestamp(text: &str) -> Result<(), TimestampError> {
+-    let (year, rest) = digits(text, 4)?;
+-    let rest = separator(rest, '-')?;
+-    let (month, rest) = digits(rest, 2)?;
+-    let rest = separator(rest, '-')?;
+-    let (day, rest) = digits(rest, 2)?;
+-    let rest = separator(rest, 'T')?;
+-    let (hour, rest) = digits(rest, 2)?;
+-    let rest = separator(rest, ':')?;
+-    let (minute, rest) = digits(rest, 2)?;
+-    let rest = separator(rest, ':')?;
+-    let (second, mut rest) = digits(rest, 2)?;
+-    if let Some(fraction) = rest.strip_prefix('.') {
+-        let count = fraction.bytes().take_while(u8::is_ascii_digit).count();
+-        if count == 0 {
+-            return Err(TimestampError::Malformed);
++    use purrdf_xsd::rfc3339::{self, LeapSecond, ParseErrorKind, Separator};
++
++    // RAF's authored profile is narrower than RFC 3339's case-insensitive ABNF.
++    if text.as_bytes().get(10) != Some(&b'T') || text.ends_with('z') {
++        return Err(TimestampError::Malformed);
++    }
++    let parsed = rfc3339::parse(text, Separator::Rfc3339Abnf, LeapSecond::MonthEnd);
++    match parsed {
++        Ok(_) if text.as_bytes().get(17..19) == Some(b"60") => {
++            Err(TimestampError::OutOfRange { field: "second" })
+         }
+-        rest = &fraction[count..];
++        Ok(_) => Ok(()),
++        Err(error) => Err(match error.kind() {
++            ParseErrorKind::OutOfRange { field, .. } => TimestampError::OutOfRange {
++                field: if field == "day of month" {
++                    "day"
++                } else {
++                    field
++                },
++            },
++            ParseErrorKind::LeapSecond(_) => TimestampError::OutOfRange { field: "second" },
++            ParseErrorKind::EndOfInput { .. }
++            | ParseErrorKind::Unexpected { .. }
++            | ParseErrorKind::Trailing { .. } => TimestampError::Malformed,
++        }),
+     }
+-    if month == 0 || month > 12 {
+-        return Err(TimestampError::OutOfRange { field: "month" });
+-    }
+-    if day == 0 || day > days_in_month(year, month) {
+-        return Err(TimestampError::OutOfRange { field: "day" });
+-    }
+-    in_range(hour, 23, "hour")?;
+-    in_range(minute, 59, "minute")?;
+-    in_range(second, 59, "second")?;
+-    if rest == "Z" {
+-        return Ok(());
+-    }
+-    let sign = rest.chars().next();
+-    if !matches!(sign, Some('+' | '-')) {
+-        return Err(TimestampError::Malformed);
+-    }
+-    let (offset_hour, rest) = digits(&rest[1..], 2)?;
+-    let rest = separator(rest, ':')?;
+-    let (offset_minute, rest) = digits(rest, 2)?;
+-    if !rest.is_empty() {
+-        return Err(TimestampError::Malformed);
+-    }
+-    in_range(offset_hour, 23, "offset hour")?;
+-    in_range(offset_minute, 59, "offset minute")
+ }
+diff --git crates/raf-okf/tests/alloc_bound.rs crates/raf-okf/tests/alloc_bound.rs
+index 0bdf7c7..ce13eeb 100644
+--- crates/raf-okf/tests/alloc_bound.rs
++++ crates/raf-okf/tests/alloc_bound.rs
+@@ -4,19 +4,17 @@
+ //! A refusal costs memory in proportion to the input, not to what the input
+ //! would expand to.
+ 
+-use std::alloc::System;
+ use std::fmt::Write as _;
+ 
+-use cap::Cap;
++use purrdf_alloc_probe::{CountingAllocator, CurrentThreadWindow};
+ use raf_okf::{Document, ErrorKind};
+ 
+ #[global_allocator]
+-static ALLOCATOR: Cap<System> = Cap::new(System, usize::MAX);
++static ALLOCATOR: CountingAllocator = CountingAllocator;
+ 
+ /// The allowance on top of eight times the input: the error value, its key
+-/// name and the formatted message hold a few hundred bytes, and the test
+-/// harness may allocate a little while the parse runs. 16 KiB covers both
+-/// with room, and is far below what an expanded alias tree would take.
++/// name and the formatted message hold a few hundred bytes. 16 KiB leaves
++/// room and is far below what an expanded alias tree would take.
+ const FIXED_ALLOWANCE: usize = 16 * 1024;
+ 
+ /// Build the text in one allocation, so the peak before the parse is the
+@@ -32,9 +30,8 @@ fn billion_laughs(levels: usize) -> String {
+     text
+ }
+ 
+-/// The peak is the largest the process reached, so the two measurements share
+-/// one test (a second test running beside them would add to the peak) and run
+-/// in order of growing input.
++/// Each synchronous parse is measured on its calling thread, excluding the
++/// test harness and any sibling tests.
+ #[test]
+ fn refused_documents_stay_within_eight_times_their_size() {
+     billion_laughs_fails_fast_within_the_bound();
+@@ -43,9 +40,10 @@ fn refused_documents_stay_within_eight_times_their_size() {
+ 
+ fn billion_laughs_fails_fast_within_the_bound() {
+     let text = billion_laughs(9);
+-    let before = ALLOCATOR.allocated();
++    let window = CurrentThreadWindow::open();
+     let result = Document::parse(&text);
+-    let growth = ALLOCATOR.max_allocated().saturating_sub(before);
++    let growth = usize::try_from(window.close().peak_working_bytes)
++        .expect("the parse peak is nonnegative and fits usize");
+     let error = result.expect_err("anchors are refused");
+     assert_eq!(
+         error.kind(),
+@@ -73,9 +71,10 @@ fn large_refused_document_stays_within_the_bound() {
+         index += 1;
+     }
+     text.push_str("alias: *key0\n---\n");
+-    let before = ALLOCATOR.allocated();
++    let window = CurrentThreadWindow::open();
+     let result = Document::parse(&text);
+-    let growth = ALLOCATOR.max_allocated().saturating_sub(before);
++    let growth = usize::try_from(window.close().peak_working_bytes)
++        .expect("the parse peak is nonnegative and fits usize");
+     let error = result.expect_err("the alias is refused");
+     assert_eq!(
+         error.kind(),
+diff --git crates/raf-okf/tests/body_robustness.rs crates/raf-okf/tests/body_robustness.rs
+index e453be7..a13ab0c 100644
+--- crates/raf-okf/tests/body_robustness.rs
++++ crates/raf-okf/tests/body_robustness.rs
+@@ -50,10 +50,8 @@ const TOKENS: [&str; 40] = [
+ ];
+ 
+ fn next(state: &mut u64) -> usize {
+-    *state = state
+-        .wrapping_mul(6_364_136_223_846_793_005)
+-        .wrapping_add(1_442_695_040_888_963_407);
+-    usize::try_from(*state >> 33).expect("fits")
++    let value = purrdf_hash::mix::lcg64_next(state, purrdf_hash::mix::LCG64_MMIX_INCREMENT);
++    usize::try_from(value >> 33).expect("fits")
+ }
+ 
+ #[test]
+diff --git crates/raf-okf/tests/bounds.rs crates/raf-okf/tests/bounds.rs
+index c14a19b..b8e8c7e 100644
+--- crates/raf-okf/tests/bounds.rs
++++ crates/raf-okf/tests/bounds.rs
+@@ -4,63 +4,16 @@
+ //! The memory of a parsed body grows with the input, not with the product of
+ //! the line count and the length of a heading.
+ 
+-use std::alloc::{GlobalAlloc, Layout, System};
+-use std::sync::atomic::{AtomicUsize, Ordering};
+-
++use cap::Cap;
++use purrdf_alloc_probe::{CountingAllocator, CurrentThreadWindow};
+ use raf_okf::Body;
+ 
+ /// The allocator refuses above this, so a regression ends in an allocation
+ /// failure instead of exhausting the host.
+ const CEILING: usize = 1 << 30;
+ 
+-struct Counting;
+-
+-static CURRENT: AtomicUsize = AtomicUsize::new(0);
+-static PEAK: AtomicUsize = AtomicUsize::new(0);
+-
+-// SAFETY: every request is forwarded unchanged to `System`; the counters only
+-// observe sizes.
+-#[allow(
+-    unsafe_code,
+-    reason = "a counting global allocator must implement the unsafe GlobalAlloc trait"
+-)]
+-unsafe impl GlobalAlloc for Counting {
+-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+-        let now = CURRENT.fetch_add(layout.size(), Ordering::SeqCst) + layout.size();
+-        if now > CEILING {
+-            CURRENT.fetch_sub(layout.size(), Ordering::SeqCst);
+-            return std::ptr::null_mut();
+-        }
+-        PEAK.fetch_max(now, Ordering::SeqCst);
+-        // SAFETY: the caller upholds the `GlobalAlloc::alloc` contract.
+-        unsafe { System.alloc(layout) }
+-    }
+-
+-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+-        CURRENT.fetch_sub(layout.size(), Ordering::SeqCst);
+-        // SAFETY: `ptr` came from `alloc` with this `layout`.
+-        unsafe { System.dealloc(ptr, layout) }
+-    }
+-
+-    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+-        let old = layout.size();
+-        let now = if new_size >= old {
+-            CURRENT.fetch_add(new_size - old, Ordering::SeqCst) + (new_size - old)
+-        } else {
+-            CURRENT.fetch_sub(old - new_size, Ordering::SeqCst) - (old - new_size)
+-        };
+-        if now > CEILING {
+-            CURRENT.fetch_sub(new_size.saturating_sub(old), Ordering::SeqCst);
+-            return std::ptr::null_mut();
+-        }
+-        PEAK.fetch_max(now, Ordering::SeqCst);
+-        // SAFETY: the caller upholds the `GlobalAlloc::realloc` contract.
+-        unsafe { System.realloc(ptr, layout, new_size) }
+-    }
+-}
+-
+ #[global_allocator]
+-static ALLOCATOR: Counting = Counting;
++static ALLOCATOR: Cap<CountingAllocator> = Cap::new(CountingAllocator, CEILING);
+ 
+ const DOCUMENT_BYTES: usize = 1024 * 1024;
+ const LONG_HEADING: usize = 60 * 1024;
+@@ -85,12 +38,12 @@ fn document(heading_bytes: usize, unit: &str) -> (String, usize) {
+ /// The most the parse held above what was live before it, with the result
+ /// still alive at the end.
+ fn peak_of_parse(text: &str) -> usize {
+-    let before = CURRENT.load(Ordering::SeqCst);
+-    PEAK.store(before, Ordering::SeqCst);
++    let window = CurrentThreadWindow::open();
+     let body = Body::parse(text).expect("the document is a body");
+-    let peak = PEAK.load(Ordering::SeqCst);
++    let peak = usize::try_from(window.close().peak_working_bytes)
++        .expect("the parse peak is nonnegative and fits usize");
+     drop(body);
+-    peak - before
++    peak
+ }
+ 
+ fn assert_linear(unit: &str) {
+@@ -112,8 +65,8 @@ fn assert_linear(unit: &str) {
+     eprintln!("unit {unit:?}: peak(long) = {peak_long}, peak(short) = {peak_short}");
+ }
+ 
+-/// The peak is process-wide, so the measurements share one test and run in
+-/// turn.
++/// Each synchronous parse is measured on its calling thread; the allocator
++/// ceiling still applies to the whole test process.
+ #[test]
+ fn a_long_heading_over_many_lines_stays_linear() {
+     assert_linear("some prose text\n");
+diff --git crates/raf-okf/tests/refusals.rs crates/raf-okf/tests/refusals.rs
+index d8fe695..a3d4fec 100644
+--- crates/raf-okf/tests/refusals.rs
++++ crates/raf-okf/tests/refusals.rs
+@@ -269,6 +269,25 @@ fn block_scalars_are_refused_naming_the_header() {
+ 
+ #[test]
+ fn unknown_escapes_are_refused_and_every_known_escape_is_read() {
++    assert_eq!(
++        ESCAPES,
++        [
++            ('\\', '\\'),
++            ('"', '"'),
++            ('n', '\n'),
++            ('r', '\r'),
++            ('t', '\t'),
++            ('0', '\0')
++        ]
++    );
++    // Native ECHAR also decodes these, but this profile deliberately refuses
++    // them at the original backslash location.
++    for escape in ['b', 'f', '\''] {
++        let error = refused(&doc(&format!("a: \"\\{escape}\"\n")));
++        assert_eq!(error.kind(), &ErrorKind::UnknownEscape { escape });
++        assert_eq!((error.line(), error.column()), (2, Some(5)));
++    }
++    assert_eq!(text_of(&accepted(&doc("a: \"'\"\n")), "a"), "'");
+     let unknown = refused(&doc("a: \"\\q\"\n"));
+     assert_eq!(unknown.kind(), &ErrorKind::UnknownEscape { escape: 'q' });
+     assert_eq!((unknown.line(), unknown.column()), (2, Some(5)));
+diff --git crates/raf-okf/tests/render.rs crates/raf-okf/tests/render.rs
+index 6b40181..86d30e9 100644
+--- crates/raf-okf/tests/render.rs
++++ crates/raf-okf/tests/render.rs
+@@ -132,7 +132,7 @@ fn every_tracked_document_renders_to_its_own_bytes() {
+ 
+ /// The committed fixture documents, one per type, written independently of the
+ /// repository's own documents.
+-const FIXTURES: [(&str, DocType, &str, &str); 6] = [
++const FIXTURES: [(&str, DocType, &str, &str); 7] = [
+     (
+         "capability.md",
+         DocType::Capability,
+@@ -169,6 +169,12 @@ const FIXTURES: [(&str, DocType, &str, &str); 6] = [
+         "work/coverage/default.md",
+         include_str!("fixtures/coverage.md"),
+     ),
++    (
++        "debt.md",
++        DocType::Debt,
++        "work/debt/default.md",
++        include_str!("fixtures/debt.md"),
++    ),
+ ];
+ 
+ #[test]
+@@ -575,6 +581,15 @@ fn constructors_choose_a_style_the_reader_reads_back() {
+         ("a,b", ScalarStyle::SingleQuoted),
+         ("true", ScalarStyle::SingleQuoted),
+         ("1.5", ScalarStyle::SingleQuoted),
++        ("+1e2", ScalarStyle::SingleQuoted),
++        (".5", ScalarStyle::SingleQuoted),
++        ("1.", ScalarStyle::SingleQuoted),
++        ("INF", ScalarStyle::SingleQuoted),
++        ("-infinity", ScalarStyle::SingleQuoted),
++        ("+NaN", ScalarStyle::SingleQuoted),
++        ("-.Inf", ScalarStyle::SingleQuoted),
++        ("1.5x", ScalarStyle::Plain),
++        ("infinite", ScalarStyle::Plain),
+         ("0x1F", ScalarStyle::SingleQuoted),
+         ("null", ScalarStyle::SingleQuoted),
+         ("line\nbreak", ScalarStyle::DoubleQuoted),

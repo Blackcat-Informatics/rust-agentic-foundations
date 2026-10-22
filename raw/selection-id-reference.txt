@@ -1,0 +1,10 @@
+Independent reference: /usr/bin/b3sum over each exact ASCII label without a newline.
+
+labelled-fixtures 6cae77382a033360ac5c6fd16033f782b8aaf401374ca0cc2ad736d5de5fe015
+accepted 1a4938717ccdf8e20c29c7b4a2500d3a13f4c9093b3c370a25d8f1f3adaceedc
+refused 825e42b537070bbd6a890f87a969c512111466ab6a3d989d5cd6f05611e6400e
+
+Actual example with accepted real corpus and missing corpus returned exit 1,
+retaining Corpus/Input/Refusal records in native-selection-identities.ttl.
+All three identifier payloads equal these independently computed digests.
+The failure stderr is the expected aggregate source-corpus refusal.
